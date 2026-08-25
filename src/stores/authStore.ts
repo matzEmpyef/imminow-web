@@ -10,6 +10,12 @@ interface AuthState {
   user: User | null
   setSession: (session: { access_token: string; refresh_token: string; user: User }) => void
   setUser: (user: User) => void
+  /**
+   * Replaces the access token alone, leaving the refresh token and user untouched — what
+   * `/auth/refresh` returns. Deliberately separate from `setSession`, which requires all three and
+   * would force the refresh path to re-supply a user it never fetched.
+   */
+  setAccessToken: (accessToken: string) => void
   clear: () => void
 }
 
@@ -25,6 +31,7 @@ export const useAuthStore = create<AuthState>()(
       setSession: ({ access_token, refresh_token, user }) =>
         set({ accessToken: access_token, refreshToken: refresh_token, user }),
       setUser: (user) => set({ user }),
+      setAccessToken: (accessToken) => set({ accessToken }),
       clear: () => set({ accessToken: null, refreshToken: null, user: null }),
     }),
     {
