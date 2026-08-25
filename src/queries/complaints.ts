@@ -13,7 +13,7 @@ export function useAdminComplaints(status: string | null) {
       const { data, error } = await api.GET('/complaints', {
         params: { query: status ? { filter: { status } } : {} },
       })
-      if (error) throw new ApiError('Could not load complaints.')
+      if (error) throw new ApiError('Could not load complaints.', error)
       return data
     },
     enabled: isAuthed,
@@ -25,7 +25,7 @@ export function useUpdateComplaint(id: string) {
   return useMutation({
     mutationFn: async (body: { status?: 'in_review' | 'resolved'; resolution_note?: string }) => {
       const { data, error } = await api.PATCH('/complaints/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update this complaint.')
+      if (error) throw new ApiError('Could not update this complaint.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['complaints'] }),

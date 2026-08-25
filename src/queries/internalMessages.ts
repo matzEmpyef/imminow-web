@@ -14,7 +14,7 @@ export function useInternalConversations() {
     queryKey: ['internal-conversations'],
     queryFn: async () => {
       const { data, error } = await api.GET('/internal-conversations')
-      if (error) throw new ApiError('Could not load conversations.')
+      if (error) throw new ApiError('Could not load conversations.', error)
       return data
     },
     enabled: isAuthed,
@@ -33,7 +33,7 @@ export function useInternalConversationMessages(idOrTeam: string | undefined) {
           : await api.GET('/internal-conversations/with/{employeeId}/messages', {
               params: { path: { employeeId: idOrTeam! } },
             })
-      if (error) throw new ApiError('Could not load messages.')
+      if (error) throw new ApiError('Could not load messages.', error)
       return data
     },
     enabled: isAuthed && Boolean(idOrTeam),
@@ -52,7 +52,7 @@ export function useSendInternalMessage(idOrTeam: string | undefined) {
               params: { path: { employeeId: idOrTeam! } },
               body: { content },
             })
-      if (error) throw new ApiError('Could not send this message.')
+      if (error) throw new ApiError('Could not send this message.', error)
       return data
     },
     onSuccess: () => {
@@ -98,7 +98,7 @@ export function useMarkInternalConversationRead() {
           : await api.POST('/internal-conversations/with/{employeeId}/read', {
               params: { path: { employeeId: idOrTeam } },
             })
-      if (error) throw new ApiError('Could not mark this conversation read.')
+      if (error) throw new ApiError('Could not mark this conversation read.', error)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['internal-conversations'] })

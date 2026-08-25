@@ -15,7 +15,7 @@ export function useEmployees() {
     queryKey: ['employees'],
     queryFn: async () => {
       const { data, error } = await api.GET('/staff/employees')
-      if (error) throw new ApiError('Could not load employees.')
+      if (error) throw new ApiError('Could not load employees.', error)
       return data
     },
     enabled: isAuthed,
@@ -27,7 +27,7 @@ export function useInviteEmployee() {
   return useMutation({
     mutationFn: async (body: EmployeeInput) => {
       const { data, error } = await api.POST('/staff/employees', { body })
-      if (error) throw new ApiError('Could not invite this employee.')
+      if (error) throw new ApiError('Could not invite this employee.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['employees'] }),
@@ -75,7 +75,7 @@ export function useDesignations() {
     queryKey: ['designations'],
     queryFn: async () => {
       const { data, error } = await api.GET('/staff/designations')
-      if (error) throw new ApiError('Could not load designations.')
+      if (error) throw new ApiError('Could not load designations.', error)
       return data
     },
     enabled: isAuthed,
@@ -87,7 +87,7 @@ export function useCreateDesignation() {
   return useMutation({
     mutationFn: async (body: DesignationInput) => {
       const { data, error } = await api.POST('/staff/designations', { body })
-      if (error) throw new ApiError('Could not create this designation.')
+      if (error) throw new ApiError('Could not create this designation.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['designations'] }),
@@ -112,7 +112,7 @@ export function useBranches() {
     queryKey: ['branches'],
     queryFn: async () => {
       const { data, error } = await api.GET('/staff/branches')
-      if (error) throw new ApiError('Could not load branches.')
+      if (error) throw new ApiError('Could not load branches.', error)
       return data
     },
     enabled: isAuthed,
@@ -124,7 +124,7 @@ export function useCreateBranch() {
   return useMutation({
     mutationFn: async (body: BranchInput) => {
       const { data, error } = await api.POST('/staff/branches', { body })
-      if (error) throw new ApiError('Could not create this branch.')
+      if (error) throw new ApiError('Could not create this branch.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['branches'] }),
@@ -136,7 +136,7 @@ export function useUpdateBranch(id: string) {
   return useMutation({
     mutationFn: async (body: BranchInput) => {
       const { data, error } = await api.PATCH('/staff/branches/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update this branch.')
+      if (error) throw new ApiError('Could not update this branch.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['branches'] }),

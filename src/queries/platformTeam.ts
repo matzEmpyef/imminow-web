@@ -9,7 +9,7 @@ export function usePlatformStaff() {
     queryKey: ['platform-staff'],
     queryFn: async () => {
       const { data, error } = await api.GET('/platform-staff')
-      if (error) throw new ApiError('Could not load platform staff.')
+      if (error) throw new ApiError('Could not load platform staff.', error)
       return data
     },
     enabled: isAuthed,
@@ -21,7 +21,7 @@ export function useCreatePlatformStaff() {
   return useMutation({
     mutationFn: async (body: { name: string; email: string; permissions?: Record<string, boolean> }) => {
       const { data, error } = await api.POST('/platform-staff', { body })
-      if (error) throw new ApiError('Could not create this account.')
+      if (error) throw new ApiError('Could not create this account.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['platform-staff'] }),
@@ -33,7 +33,7 @@ export function useUpdatePlatformStaffPermissions(id: string) {
   return useMutation({
     mutationFn: async (body: Record<string, boolean>) => {
       const { data, error } = await api.PATCH('/platform-staff/{id}/permissions', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update permissions.')
+      if (error) throw new ApiError('Could not update permissions.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['platform-staff'] }),

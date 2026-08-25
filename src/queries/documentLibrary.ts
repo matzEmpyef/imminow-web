@@ -36,7 +36,7 @@ export function useDocumentLibrary(filters: DocumentLibraryFilters = {}) {
           },
         },
       })
-      if (error) throw new ApiError('Could not load the document library.')
+      if (error) throw new ApiError('Could not load the document library.', error)
       return data
     },
     enabled: isAuthed,
@@ -53,7 +53,7 @@ export function useUploadLibraryDocument() {
         body: formData as unknown as { file: string },
         bodySerializer: () => formData,
       })
-      if (error) throw new ApiError('Could not upload this document.')
+      if (error) throw new ApiError('Could not upload this document.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['document-library'] }),
@@ -68,7 +68,7 @@ export function useSetLibraryDocumentTags() {
         params: { path: { id } },
         body: { tags },
       })
-      if (error) throw new ApiError('Could not update tags for this document.')
+      if (error) throw new ApiError('Could not update tags for this document.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['document-library'] }),
@@ -100,7 +100,7 @@ export function useDownloadLibraryDocumentUrl() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { data, error } = await api.GET('/document-library/{id}', { params: { path: { id } } })
-      if (error) throw new ApiError('Could not get a download link.')
+      if (error) throw new ApiError('Could not get a download link.', error)
       return data.url
     },
   })
@@ -111,7 +111,7 @@ export function useDeleteLibraryDocument() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await api.DELETE('/document-library/{id}', { params: { path: { id } } })
-      if (error) throw new ApiError('Could not delete this document.')
+      if (error) throw new ApiError('Could not delete this document.', error)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['document-library'] }),
   })

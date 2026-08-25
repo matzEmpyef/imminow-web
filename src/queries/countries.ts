@@ -12,7 +12,7 @@ export function useCountries() {
     queryKey: ['countries'],
     queryFn: async () => {
       const { data, error } = await api.GET('/countries')
-      if (error) throw new ApiError('Could not load the countries list.')
+      if (error) throw new ApiError('Could not load the countries list.', error)
       return data
     },
     enabled: isAuthed,
@@ -26,7 +26,7 @@ export function useCreateCountry() {
   return useMutation({
     mutationFn: async (name: string) => {
       const { data, error } = await api.POST('/countries', { body: { name } })
-      if (error) throw new ApiError('Could not add this country.')
+      if (error) throw new ApiError('Could not add this country.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['countries'] }),
@@ -38,7 +38,7 @@ export function useDeleteCountry() {
   return useMutation({
     mutationFn: async (name: string) => {
       const { error } = await api.DELETE('/countries/{name}', { params: { path: { name } } })
-      if (error) throw new ApiError('Could not remove this country.')
+      if (error) throw new ApiError('Could not remove this country.', error)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['countries'] }),
   })

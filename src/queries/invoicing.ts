@@ -29,7 +29,7 @@ export function useInvoices(filters: InvoiceListFilters = {}) {
           },
         },
       })
-      if (error) throw new ApiError('Could not load invoices.')
+      if (error) throw new ApiError('Could not load invoices.', error)
       return data
     },
     enabled: isAuthed,
@@ -52,7 +52,7 @@ export function useCreateInvoice() {
       line_items: { description: string; amount: number }[]
     }) => {
       const { data, error } = await api.POST('/invoices', { body })
-      if (error) throw new ApiError('Could not create this invoice.')
+      if (error) throw new ApiError('Could not create this invoice.', error)
       return data
     },
     onSuccess: (data) => invalidateInvoicing(queryClient, data?.journey_id),
@@ -67,7 +67,7 @@ export function useVoidInvoice() {
         params: { path: { id } },
         body: { reason },
       })
-      if (error) throw new ApiError('Could not void this invoice.')
+      if (error) throw new ApiError('Could not void this invoice.', error)
       return data
     },
     onSuccess: (data) => invalidateInvoicing(queryClient, data?.journey_id),
@@ -102,7 +102,7 @@ export function useReceipts(filters: ReceiptListFilters = {}) {
           },
         },
       })
-      if (error) throw new ApiError('Could not load receipts.')
+      if (error) throw new ApiError('Could not load receipts.', error)
       return data
     },
     enabled: isAuthed,
@@ -114,7 +114,7 @@ export function useCreateReceipt() {
   return useMutation({
     mutationFn: async (body: { invoice_id: string; amount: number }) => {
       const { data, error } = await api.POST('/receipts', { body })
-      if (error) throw new ApiError('Could not record this receipt.')
+      if (error) throw new ApiError('Could not record this receipt.', error)
       return data
     },
     onSuccess: () => invalidateInvoicing(queryClient),
@@ -129,7 +129,7 @@ export function useVoidReceipt() {
         params: { path: { id } },
         body: { reason },
       })
-      if (error) throw new ApiError('Could not void this receipt.')
+      if (error) throw new ApiError('Could not void this receipt.', error)
       return data
     },
     onSuccess: () => invalidateInvoicing(queryClient),

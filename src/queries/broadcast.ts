@@ -30,7 +30,7 @@ export function useBroadcastHistory(filters: BroadcastHistoryFilters = {}) {
           },
         },
       })
-      if (error) throw new ApiError('Could not load broadcast history.')
+      if (error) throw new ApiError('Could not load broadcast history.', error)
       return data
     },
     enabled: isAuthed,

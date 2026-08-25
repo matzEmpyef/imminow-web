@@ -22,7 +22,7 @@ export function useAdminConsultancies(filters: ConsultancyFilters = {}) {
     queryKey: ['admin-consultancies', filters],
     queryFn: async () => {
       const { data, error } = await api.GET('/consultancies', { params: { query: filters } })
-      if (error) throw new ApiError('Could not load consultancies.')
+      if (error) throw new ApiError('Could not load consultancies.', error)
       return data
     },
     enabled: isAuthed,
@@ -37,7 +37,7 @@ export function useCreateConsultancy() {
         params: { header: { 'Idempotency-Key': crypto.randomUUID() } },
         body,
       })
-      if (error) throw new ApiError('Could not create this consultancy.')
+      if (error) throw new ApiError('Could not create this consultancy.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-consultancies'] }),
@@ -54,7 +54,7 @@ export function useChangeTier(id: string) {
   return useMutation({
     mutationFn: async (tier: 'starter' | 'business' | 'ultimate') => {
       const { data, error } = await api.PATCH('/consultancies/{id}/tier', { params: { path: { id } }, body: { tier } })
-      if (error) throw new ApiError("Could not change this consultancy's plan.")
+      if (error) throw new ApiError("Could not change this consultancy's plan.", error)
       return data
     },
     onSuccess: () => invalidateConsultancy(queryClient, id),
@@ -66,7 +66,7 @@ export function useUpdateEntitlements(id: string) {
   return useMutation({
     mutationFn: async (body: ConsultancyAdminPatchInput) => {
       const { data, error } = await api.PATCH('/consultancies/{id}/entitlements', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update features/limits.')
+      if (error) throw new ApiError('Could not update features/limits.', error)
       return data
     },
     onSuccess: () => invalidateConsultancy(queryClient, id),
@@ -78,7 +78,7 @@ export function useSuspendConsultancy(id: string) {
   return useMutation({
     mutationFn: async () => {
       const { data, error } = await api.POST('/consultancies/{id}/suspend', { params: { path: { id } } })
-      if (error) throw new ApiError('Could not suspend this consultancy.')
+      if (error) throw new ApiError('Could not suspend this consultancy.', error)
       return data
     },
     onSuccess: () => invalidateConsultancy(queryClient, id),
@@ -99,7 +99,7 @@ export function useSetConsultancyRating(id: string) {
         params: { path: { id } },
         body: { rating, reason },
       })
-      if (error) throw new ApiError('Could not update this rating.')
+      if (error) throw new ApiError('Could not update this rating.', error)
       return data
     },
     onSuccess: () => invalidateConsultancy(queryClient, id),
@@ -111,7 +111,7 @@ export function useReactivateConsultancy(id: string) {
   return useMutation({
     mutationFn: async () => {
       const { data, error } = await api.POST('/consultancies/{id}/reactivate', { params: { path: { id } } })
-      if (error) throw new ApiError('Could not reactivate this consultancy.')
+      if (error) throw new ApiError('Could not reactivate this consultancy.', error)
       return data
     },
     onSuccess: () => invalidateConsultancy(queryClient, id),
@@ -138,7 +138,7 @@ export function useTierImpact(id: string, tier: string | undefined, enabled: boo
       const { data, error } = await api.GET('/consultancies/{id}/tier-impact', {
         params: { path: { id }, query: { tier: tier as never } },
       })
-      if (error) throw new ApiError('Could not check what this tier change would affect.')
+      if (error) throw new ApiError('Could not check what this tier change would affect.', error)
       return data
     },
     enabled: enabled && Boolean(tier),

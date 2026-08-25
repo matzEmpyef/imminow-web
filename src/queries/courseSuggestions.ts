@@ -39,7 +39,7 @@ export function useCourses(filters: CourseListFilters = {}) {
           },
         },
       })
-      if (error) throw new ApiError('Could not load courses.')
+      if (error) throw new ApiError('Could not load courses.', error)
       return data
     },
     enabled: isAuthed,
@@ -51,7 +51,7 @@ export function useCreateCourse() {
   return useMutation({
     mutationFn: async (body: CourseInput) => {
       const { data, error } = await api.POST('/courses', { body })
-      if (error) throw new ApiError('Could not create this course.')
+      if (error) throw new ApiError('Could not create this course.', error)
       return data
     },
     onSuccess: () => {
@@ -67,7 +67,7 @@ export function useUpdateCourse(id: string) {
   return useMutation({
     mutationFn: async (body: Partial<CourseInput>) => {
       const { data, error } = await api.PATCH('/courses/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update this course.')
+      if (error) throw new ApiError('Could not update this course.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['courses'] }),
@@ -80,7 +80,7 @@ export function useCourseSuggestions() {
     queryKey: ['course-suggestions'],
     queryFn: async () => {
       const { data, error } = await api.GET('/course-suggestions')
-      if (error) throw new ApiError('Could not load submission history.')
+      if (error) throw new ApiError('Could not load submission history.', error)
       return data
     },
     enabled: isAuthed,
@@ -95,7 +95,7 @@ export function useSuggestCorrection() {
         params: { path: { id: courseId } },
         body: { payload },
       })
-      if (error) throw new ApiError('Could not submit this correction.')
+      if (error) throw new ApiError('Could not submit this correction.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['course-suggestions'] }),
@@ -107,7 +107,7 @@ export function useSuggestNewCourse() {
   return useMutation({
     mutationFn: async (payload: Record<string, unknown>) => {
       const { data, error } = await api.POST('/courses/suggest-new', { body: { payload } })
-      if (error) throw new ApiError('Could not submit this suggestion.')
+      if (error) throw new ApiError('Could not submit this suggestion.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['course-suggestions'] }),

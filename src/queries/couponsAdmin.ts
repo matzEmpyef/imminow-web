@@ -12,7 +12,7 @@ export function useAdminCoupons() {
     queryKey: ['admin-coupons'],
     queryFn: async () => {
       const { data, error } = await api.GET('/coupons')
-      if (error) throw new ApiError('Could not load coupons.')
+      if (error) throw new ApiError('Could not load coupons.', error)
       return data
     },
     enabled: isAuthed,
@@ -24,7 +24,7 @@ export function useCreateCoupon() {
   return useMutation({
     mutationFn: async (body: CouponInput) => {
       const { data, error } = await api.POST('/coupons', { body })
-      if (error) throw new ApiError('Could not create this coupon.')
+      if (error) throw new ApiError('Could not create this coupon.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-coupons'] }),
@@ -36,7 +36,7 @@ export function useUpdateCoupon(id: string) {
   return useMutation({
     mutationFn: async (body: Partial<CouponInput>) => {
       const { data, error } = await api.PATCH('/coupons/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update this coupon.')
+      if (error) throw new ApiError('Could not update this coupon.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-coupons'] }),
@@ -52,7 +52,7 @@ export function useCouponRedemptions(id: string | undefined) {
     queryKey: ['coupon-redemptions', id],
     queryFn: async () => {
       const { data, error } = await api.GET('/coupons/{id}/redemptions', { params: { path: { id: id! } } })
-      if (error) throw new ApiError('Could not load redemptions.')
+      if (error) throw new ApiError('Could not load redemptions.', error)
       return data
     },
     enabled: isAuthed && Boolean(id),

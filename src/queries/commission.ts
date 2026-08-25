@@ -9,7 +9,7 @@ export function useCommission() {
     queryKey: ['commission'],
     queryFn: async () => {
       const { data, error } = await api.GET('/commission')
-      if (error) throw new ApiError('Could not load commission details.')
+      if (error) throw new ApiError('Could not load commission details.', error)
       return data
     },
     enabled: isAuthed,
@@ -24,7 +24,7 @@ export function useRecordCommissionPayment() {
         params: { header: { 'Idempotency-Key': crypto.randomUUID() } },
         body,
       })
-      if (error) throw new ApiError('Could not record this payment.')
+      if (error) throw new ApiError('Could not record this payment.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['commission'] }),

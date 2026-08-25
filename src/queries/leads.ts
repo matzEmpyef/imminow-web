@@ -36,7 +36,7 @@ export function useLeads(filters: LeadListFilters = {}, options: { enabled?: boo
           },
         },
       })
-      if (error) throw new ApiError('Could not load leads.')
+      if (error) throw new ApiError('Could not load leads.', error)
       return data
     },
     enabled: isAuthed && (options.enabled ?? true),
@@ -49,7 +49,7 @@ export function useLead(id: string | undefined) {
     queryKey: ['leads', id],
     queryFn: async () => {
       const { data, error } = await api.GET('/leads/{id}', { params: { path: { id: id! } } })
-      if (error) throw new ApiError('Could not load this lead.')
+      if (error) throw new ApiError('Could not load this lead.', error)
       return data
     },
     enabled: isAuthed && Boolean(id),
@@ -72,7 +72,7 @@ export function useCreateLead() {
       notes?: string | null
     }) => {
       const { data, error } = await api.POST('/leads', { body })
-      if (error) throw new ApiError('Could not add this lead.')
+      if (error) throw new ApiError('Could not add this lead.', error)
       return data
     },
     onSuccess: () => invalidateLeads(queryClient),
@@ -104,7 +104,7 @@ export function useValidateLeadImport() {
         body: formData as unknown as { file?: string },
         bodySerializer: () => formData,
       })
-      if (error) throw new ApiError('Could not validate the CSV file.')
+      if (error) throw new ApiError('Could not validate the CSV file.', error)
       return data as unknown as ImportValidateResult
     },
   })
@@ -121,7 +121,7 @@ export function useCommitLeadImport() {
         params: { header: { 'Idempotency-Key': crypto.randomUUID() } },
         body,
       })
-      if (error) throw new ApiError('Could not commit the import.')
+      if (error) throw new ApiError('Could not commit the import.', error)
       return data
     },
     onSuccess: () => invalidateLeads(queryClient),
@@ -136,7 +136,7 @@ export function useAllocateLead() {
         params: { path: { id } },
         body: { employee_id: employeeId },
       })
-      if (error) throw new ApiError('Could not allocate this lead.')
+      if (error) throw new ApiError('Could not allocate this lead.', error)
       return data
     },
     onSuccess: () => invalidateLeads(queryClient),
@@ -151,7 +151,7 @@ export function useSetLeadTags() {
         params: { path: { id } },
         body: { tags },
       })
-      if (error) throw new ApiError('Could not update tags for this lead.')
+      if (error) throw new ApiError('Could not update tags for this lead.', error)
       return data
     },
     onSuccess: () => invalidateLeads(queryClient),
@@ -166,7 +166,7 @@ export function useSetLeadBranch() {
         params: { path: { id } },
         body: { branch_id: branchId },
       })
-      if (error) throw new ApiError('Could not update the branch for this lead.')
+      if (error) throw new ApiError('Could not update the branch for this lead.', error)
       return data
     },
     onSuccess: () => invalidateLeads(queryClient),
@@ -181,7 +181,7 @@ export function useCloseLead() {
         params: { path: { id } },
         body: { reason },
       })
-      if (error) throw new ApiError('Could not close this lead.')
+      if (error) throw new ApiError('Could not close this lead.', error)
       return data
     },
     onSuccess: (_data, { id }) => {
@@ -196,7 +196,7 @@ export function useReopenLead() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { data, error } = await api.POST('/leads/{id}/reopen', { params: { path: { id } } })
-      if (error) throw new ApiError('Could not reopen this lead.')
+      if (error) throw new ApiError('Could not reopen this lead.', error)
       return data
     },
     onSuccess: (_data, id) => {
@@ -214,7 +214,7 @@ export function useBulkAllocateLeads() {
         params: { header: { 'Idempotency-Key': crypto.randomUUID() } },
         body,
       })
-      if (error) throw new ApiError('Could not allocate the selected leads.')
+      if (error) throw new ApiError('Could not allocate the selected leads.', error)
       return data
     },
     onSuccess: () => invalidateLeads(queryClient),
@@ -238,7 +238,7 @@ export function useLeadMessages(id: string | undefined) {
     queryKey: ['leads', id, 'messages'],
     queryFn: async () => {
       const { data, error } = await api.GET('/leads/{id}/messages', { params: { path: { id: id! } } })
-      if (error) throw new ApiError('Could not load messages.')
+      if (error) throw new ApiError('Could not load messages.', error)
       return data
     },
     enabled: isAuthed && Boolean(id),
@@ -254,7 +254,7 @@ export function useSendLeadMessage(id: string) {
         params: { path: { id } },
         body: { content },
       })
-      if (error) throw new ApiError('Could not send this message.')
+      if (error) throw new ApiError('Could not send this message.', error)
       return data
     },
     onSuccess: () => {
@@ -269,7 +269,7 @@ export function useMarkLeadRead() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await api.POST('/leads/{id}/read', { params: { path: { id } } })
-      if (error) throw new ApiError('Could not mark this conversation read.')
+      if (error) throw new ApiError('Could not mark this conversation read.', error)
     },
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ['leads', id] })
@@ -284,7 +284,7 @@ export function useLeadNotes(id: string | undefined) {
     queryKey: ['leads', id, 'notes'],
     queryFn: async () => {
       const { data, error } = await api.GET('/leads/{id}/notes', { params: { path: { id: id! } } })
-      if (error) throw new ApiError('Could not load internal notes.')
+      if (error) throw new ApiError('Could not load internal notes.', error)
       return data
     },
     enabled: isAuthed && Boolean(id),
@@ -299,7 +299,7 @@ export function useAddLeadNote(id: string) {
         params: { path: { id } },
         body: { content },
       })
-      if (error) throw new ApiError('Could not add this note.')
+      if (error) throw new ApiError('Could not add this note.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['leads', id, 'notes'] }),
@@ -314,7 +314,7 @@ export function useSetLeadReminder(id: string) {
         params: { path: { id } },
         body,
       })
-      if (error) throw new ApiError('Could not set this reminder.')
+      if (error) throw new ApiError('Could not set this reminder.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['activity-feed'] }),
@@ -328,7 +328,7 @@ export function useProposeConversion() {
       const { data, error } = await api.POST('/leads/{id}/convert', {
         params: { path: { id }, header: { 'Idempotency-Key': crypto.randomUUID() } },
       })
-      if (error) throw new ApiError('Could not send the conversion proposal.')
+      if (error) throw new ApiError('Could not send the conversion proposal.', error)
       return data
     },
     onSuccess: (_data, id) => {
@@ -352,7 +352,7 @@ export function useRespondToConversion(leadId: string) {
         params: { path: { id: proposalId } },
         body: { decision },
       })
-      if (error) throw new ApiError('Could not respond to this proposal.')
+      if (error) throw new ApiError('Could not respond to this proposal.', error)
       return data
     },
     onSuccess: () => {
@@ -371,7 +371,7 @@ export function useRequestShortlist(leadId: string) {
       const { data, error } = await api.POST('/leads/{id}/request-shortlist', {
         params: { path: { id: leadId } },
       })
-      if (error) throw new ApiError('Could not send the shortlist request.')
+      if (error) throw new ApiError('Could not send the shortlist request.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['leads', leadId, 'messages'] }),
@@ -389,7 +389,7 @@ export function useSuggestCourseToLead(leadId: string) {
         params: { path: { id: leadId } },
         body: { course_id: courseId },
       })
-      if (error) throw new ApiError('Could not suggest this course.')
+      if (error) throw new ApiError('Could not suggest this course.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['leads', leadId, 'messages'] }),

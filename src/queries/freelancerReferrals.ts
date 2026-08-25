@@ -9,7 +9,7 @@ export function useFreelancerReferrals() {
     queryKey: ['freelancer-referrals'],
     queryFn: async () => {
       const { data, error } = await api.GET('/freelancer/referrals')
-      if (error) throw new ApiError('Could not load your referrals.')
+      if (error) throw new ApiError('Could not load your referrals.', error)
       return data
     },
     enabled: isAuthed,
@@ -23,7 +23,7 @@ export function useAllFreelancerReferrals() {
     queryKey: ['freelancer-referrals-admin'],
     queryFn: async () => {
       const { data, error } = await api.GET('/freelancer-referrals')
-      if (error) throw new ApiError('Could not load freelancer referrals.')
+      if (error) throw new ApiError('Could not load freelancer referrals.', error)
       return data
     },
     enabled: isAuthed,
@@ -39,7 +39,7 @@ export function useMarkReferralPayment() {
         params: { path: { id } },
         body: { payment_status },
       })
-      if (error) throw new ApiError('Could not update the payout status.')
+      if (error) throw new ApiError('Could not update the payout status.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['freelancer-referrals-admin'] }),
@@ -53,7 +53,7 @@ export function useFreelancerMe() {
     queryKey: ['freelancer-me'],
     queryFn: async () => {
       const { data, error } = await api.GET('/freelancer/me')
-      if (error) throw new ApiError('Could not load your referral link.')
+      if (error) throw new ApiError('Could not load your referral link.', error)
       return data
     },
     enabled: isAuthed,

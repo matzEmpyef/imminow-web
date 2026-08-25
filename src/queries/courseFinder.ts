@@ -40,7 +40,7 @@ export function useCourseFinder(filters: CourseFinderFilters) {
           },
         },
       })
-      if (error) throw new ApiError('Could not load courses.')
+      if (error) throw new ApiError('Could not load courses.', error)
       return data
     },
     // No applicant required (user, 2026-08-23). A consultant researching for a LEAD must be able

@@ -13,7 +13,7 @@ export function useAdminAds() {
     queryKey: ['admin-ads'],
     queryFn: async () => {
       const { data, error } = await api.GET('/ads')
-      if (error) throw new ApiError('Could not load ads.')
+      if (error) throw new ApiError('Could not load ads.', error)
       return data
     },
     enabled: isAuthed,
@@ -27,7 +27,7 @@ export function useAdClicks(adId: string | null) {
     queryKey: ['ads', adId, 'clicks'],
     queryFn: async () => {
       const { data, error } = await api.GET('/ads/{id}/clicks', { params: { path: { id: adId! } } })
-      if (error) throw new ApiError('Could not load ad clicks.')
+      if (error) throw new ApiError('Could not load ad clicks.', error)
       return data
     },
     enabled: isAuthed && Boolean(adId),
@@ -39,7 +39,7 @@ export function useCreateAd() {
   return useMutation({
     mutationFn: async (body: AdBannerInput) => {
       const { data, error } = await api.POST('/ads', { body })
-      if (error) throw new ApiError('Could not create this ad.')
+      if (error) throw new ApiError('Could not create this ad.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-ads'] }),
@@ -68,7 +68,7 @@ export function useAdAudienceCount(targeting: AdTargeting) {
           },
         },
       })
-      if (error) throw new ApiError('Could not compute the matching audience.')
+      if (error) throw new ApiError('Could not compute the matching audience.', error)
       return data
     },
     enabled: isAuthed,
@@ -80,7 +80,7 @@ export function useUpdateAd(id: string) {
   return useMutation({
     mutationFn: async (body: Partial<AdBannerInput>) => {
       const { data, error } = await api.PATCH('/ads/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update this ad.')
+      if (error) throw new ApiError('Could not update this ad.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-ads'] }),

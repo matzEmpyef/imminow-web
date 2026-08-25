@@ -15,7 +15,7 @@ export function useExams() {
     queryKey: ['exams'],
     queryFn: async () => {
       const { data, error } = await api.GET('/exams')
-      if (error) throw new ApiError('Could not load the exams catalog.')
+      if (error) throw new ApiError('Could not load the exams catalog.', error)
       return data
     },
     enabled: isAuthed,
@@ -28,7 +28,7 @@ export function useCreateExam() {
   return useMutation({
     mutationFn: async (body: ExamInput) => {
       const { data, error } = await api.POST('/exams', { body })
-      if (error) throw new ApiError('Could not add this exam.')
+      if (error) throw new ApiError('Could not add this exam.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['exams'] }),
@@ -43,7 +43,7 @@ export function useUpdateExam(id: string) {
         params: { path: { id } },
         body: body as ExamInput,
       })
-      if (error) throw new ApiError('Could not update this exam.')
+      if (error) throw new ApiError('Could not update this exam.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['exams'] }),
@@ -58,7 +58,7 @@ export function useExchangeRates() {
     queryKey: ['exchange-rates'],
     queryFn: async () => {
       const { data, error } = await api.GET('/exchange-rates')
-      if (error) throw new ApiError('Could not load exchange rates.')
+      if (error) throw new ApiError('Could not load exchange rates.', error)
       return data
     },
     enabled: isAuthed,
@@ -74,7 +74,7 @@ export function useUpsertExchangeRate() {
         params: { path: { currency } },
         body: { inr_per_unit },
       })
-      if (error) throw new ApiError('Could not save this rate.')
+      if (error) throw new ApiError('Could not save this rate.', error)
       return data
     },
     onSuccess: () => {
@@ -92,7 +92,7 @@ export function usePlatformSettings() {
     queryKey: ['platform-settings'],
     queryFn: async () => {
       const { data, error } = await api.GET('/platform/settings')
-      if (error) throw new ApiError('Could not load platform settings.')
+      if (error) throw new ApiError('Could not load platform settings.', error)
       return data
     },
     enabled: isAuthed,
@@ -104,7 +104,7 @@ export function useUpdatePlatformSettings() {
   return useMutation({
     mutationFn: async (body: { show_course_view_counts?: boolean }) => {
       const { data, error } = await api.PATCH('/platform/settings', { body })
-      if (error) throw new ApiError('Could not save this setting.')
+      if (error) throw new ApiError('Could not save this setting.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['platform-settings'] }),

@@ -12,7 +12,7 @@ export function useFreelancers() {
     queryKey: ['freelancers'],
     queryFn: async () => {
       const { data, error } = await api.GET('/freelancers')
-      if (error) throw new ApiError('Could not load freelancers.')
+      if (error) throw new ApiError('Could not load freelancers.', error)
       return data
     },
     enabled: isAuthed,
@@ -25,7 +25,7 @@ export function useFreelancerRates() {
     queryKey: ['freelancer-rates'],
     queryFn: async () => {
       const { data, error } = await api.GET('/freelancer-rates')
-      if (error) throw new ApiError('Could not load freelancer rates.')
+      if (error) throw new ApiError('Could not load freelancer rates.', error)
       return data
     },
     enabled: isAuthed,
@@ -37,7 +37,7 @@ export function useCreateFreelancerRate() {
   return useMutation({
     mutationFn: async (body: FreelancerRateInput) => {
       const { data, error } = await api.POST('/freelancer-rates', { body })
-      if (error) throw new ApiError('Could not set this rate.')
+      if (error) throw new ApiError('Could not set this rate.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['freelancer-rates'] }),
@@ -49,7 +49,7 @@ export function useUpdateFreelancerRate(id: string) {
   return useMutation({
     mutationFn: async (rate: number) => {
       const { data, error } = await api.PATCH('/freelancer-rates/{id}', { params: { path: { id } }, body: { rate } })
-      if (error) throw new ApiError('Could not update this rate.')
+      if (error) throw new ApiError('Could not update this rate.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['freelancer-rates'] }),

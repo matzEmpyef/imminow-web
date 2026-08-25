@@ -17,7 +17,7 @@ export function useAdminEvents(type?: EventType) {
     queryKey: ['admin-events', type],
     queryFn: async () => {
       const { data, error } = await api.GET('/events', { params: { query: { type } } })
-      if (error) throw new ApiError('Could not load events.')
+      if (error) throw new ApiError('Could not load events.', error)
       return data
     },
     enabled: isAuthed,
@@ -29,7 +29,7 @@ export function useCreateEvent() {
   return useMutation({
     mutationFn: async (body: EventInput) => {
       const { data, error } = await api.POST('/events', { body })
-      if (error) throw new ApiError('Could not create this event.')
+      if (error) throw new ApiError('Could not create this event.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-events'] }),
@@ -45,7 +45,7 @@ export function useUpdateEvent(id: string) {
       // mutation hook in this codebase already throws a static string instead of reading a
       // message off `error`; this one just hadn't been brought in line yet).
       const { data, error } = await api.PATCH('/events/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update this event.')
+      if (error) throw new ApiError('Could not update this event.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-events'] }),
@@ -57,7 +57,7 @@ export function useVoidEvent() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { data, error } = await api.POST('/events/{id}/void', { params: { path: { id } } })
-      if (error) throw new ApiError('Could not void this event.')
+      if (error) throw new ApiError('Could not void this event.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-events'] }),
@@ -70,7 +70,7 @@ export function useEventAttendance(id: string | undefined) {
     queryKey: ['event-attendance', id],
     queryFn: async () => {
       const { data, error } = await api.GET('/events/{id}/attendance', { params: { path: { id: id! } } })
-      if (error) throw new ApiError('Could not load RSVPs/attendance.')
+      if (error) throw new ApiError('Could not load RSVPs/attendance.', error)
       return data
     },
     enabled: isAuthed && Boolean(id),
@@ -86,7 +86,7 @@ export function useQuizLeaderboard(id: string | undefined) {
     queryKey: ['quiz-leaderboard', id],
     queryFn: async () => {
       const { data, error } = await api.GET('/events/{id}/leaderboard', { params: { path: { id: id! } } })
-      if (error) throw new ApiError('Could not load the leaderboard.')
+      if (error) throw new ApiError('Could not load the leaderboard.', error)
       return data
     },
     enabled: isAuthed && Boolean(id),

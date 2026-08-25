@@ -13,7 +13,7 @@ export function usePlanTemplates() {
     queryKey: ['plan-templates'],
     queryFn: async () => {
       const { data, error } = await api.GET('/plan-templates')
-      if (error) throw new ApiError('Could not load plan templates.')
+      if (error) throw new ApiError('Could not load plan templates.', error)
       return data
     },
     enabled: isAuthed,
@@ -28,7 +28,7 @@ export function usePlan(clientId: string | undefined) {
       const { data, error } = await api.GET('/clients/{id}/plan', {
         params: { path: { id: clientId! } },
       })
-      if (error) throw new ApiError('Could not load the plan.')
+      if (error) throw new ApiError('Could not load the plan.', error)
       return data
     },
     enabled: isAuthed && Boolean(clientId),
@@ -44,7 +44,7 @@ export function useAssignPlan(clientId: string) {
         params: { path: { id: clientId }, header: { 'Idempotency-Key': crypto.randomUUID() } },
         body: { template_id: templateId },
       })
-      if (error) throw new ApiError('Could not assign this plan.')
+      if (error) throw new ApiError('Could not assign this plan.', error)
       return data
     },
     onSuccess: () => {
@@ -60,7 +60,7 @@ export function useCreatePlanTemplate() {
   return useMutation({
     mutationFn: async (body: { name: string; steps: StepTemplateInput[] }) => {
       const { data, error } = await api.POST('/plan-templates', { body })
-      if (error) throw new ApiError('Could not create this plan template.')
+      if (error) throw new ApiError('Could not create this plan template.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['plan-templates'] }),
@@ -75,7 +75,7 @@ export function useUpdatePlanTemplate() {
         params: { path: { id } },
         body: { name, steps },
       })
-      if (error) throw new ApiError('Could not update this plan template.')
+      if (error) throw new ApiError('Could not update this plan template.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['plan-templates'] }),
@@ -89,7 +89,7 @@ export function useDuplicatePlanTemplate() {
       const { data, error } = await api.POST('/plan-templates/{id}/duplicate', {
         params: { path: { id } },
       })
-      if (error) throw new ApiError('Could not duplicate this plan template.')
+      if (error) throw new ApiError('Could not duplicate this plan template.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['plan-templates'] }),
@@ -104,7 +104,7 @@ export function useAddStep(clientId: string) {
         params: { path: { id: clientId } },
         body,
       })
-      if (error) throw new ApiError('Could not add this step.')
+      if (error) throw new ApiError('Could not add this step.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plan'] }),
@@ -132,7 +132,7 @@ export function useUpdateStep(clientId: string) {
         params: { path: { id: stepId } },
         body,
       })
-      if (error) throw new ApiError('Could not update this step.')
+      if (error) throw new ApiError('Could not update this step.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plan'] }),
@@ -145,7 +145,7 @@ export function useDeleteStep(clientId: string) {
   return useMutation({
     mutationFn: async (stepId: string) => {
       const { error } = await api.DELETE('/steps/{id}', { params: { path: { id: stepId } } })
-      if (error) throw new ApiError('Could not remove this step.')
+      if (error) throw new ApiError('Could not remove this step.', error)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plan'] }),
   })
@@ -162,7 +162,7 @@ export function useSaveStepResponses(clientId: string) {
         params: { path: { id: stepId } },
         body: { responses },
       })
-      if (error) throw new ApiError('Could not save.')
+      if (error) throw new ApiError('Could not save.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plan'] }),
@@ -184,7 +184,7 @@ export function useUploadStepFile(clientId: string) {
         body: formData as unknown as { file: string; journey_id: string },
         bodySerializer: (b: unknown) => b as FormData,
       })
-      if (error) throw new ApiError('Could not upload this file.')
+      if (error) throw new ApiError('Could not upload this file.', error)
       return data
     },
   })
@@ -201,7 +201,7 @@ export function useLatestFormResponse(formId: string, clientId: string) {
         params: { path: { id: formId }, query: { journey_id: clientId } },
       })
       if (response.status === 404) return null
-      if (error) throw new ApiError('Could not load the saved answers.')
+      if (error) throw new ApiError('Could not load the saved answers.', error)
       return data ?? null
     },
     enabled: isAuthed && Boolean(formId) && Boolean(clientId),
@@ -219,7 +219,7 @@ export function useSaveFormResponse(formId: string, clientId: string) {
         params: { path: { id: formId } },
         body: { journey_id: clientId, answers },
       })
-      if (error) throw new ApiError('Could not save the form.')
+      if (error) throw new ApiError('Could not save the form.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['forms', formId, 'responses', clientId] }),
@@ -234,7 +234,7 @@ export function useReorderSteps(clientId: string) {
         params: { path: { id: clientId } },
         body: { step_ids: stepIds },
       })
-      if (error) throw new ApiError('Could not reorder the steps.')
+      if (error) throw new ApiError('Could not reorder the steps.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plan'] }),

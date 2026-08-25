@@ -15,7 +15,7 @@ export function useCountryContent() {
     queryKey: KEY,
     queryFn: async () => {
       const { data, error } = await api.GET('/country-content', {})
-      if (error) throw new ApiError('Could not load the country write-ups.')
+      if (error) throw new ApiError('Could not load the country write-ups.', error)
       return data
     },
     enabled: isAuthed,
@@ -58,7 +58,7 @@ export function useDeleteCountryContent() {
       const { error } = await api.DELETE('/country-content/{country}', {
         params: { path: { country } },
       })
-      if (error) throw new ApiError('Could not remove this write-up.')
+      if (error) throw new ApiError('Could not remove this write-up.', error)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: KEY }),
   })

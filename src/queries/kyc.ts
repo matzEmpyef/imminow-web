@@ -10,7 +10,7 @@ export function useMyKyc() {
     queryKey: ['kyc-me'],
     queryFn: async () => {
       const { data, error } = await api.GET('/consultancies/me/kyc')
-      if (error) throw new ApiError('Could not load your KYC status.')
+      if (error) throw new ApiError('Could not load your KYC status.', error)
       return data
     },
     enabled: isAuthed,
@@ -23,7 +23,7 @@ export function useSubmitKyc() {
   return useMutation({
     mutationFn: async (document_url: string) => {
       const { data, error } = await api.POST('/consultancies/me/kyc', { body: { document_url } })
-      if (error) throw new ApiError('Could not submit the certificate.')
+      if (error) throw new ApiError('Could not submit the certificate.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['kyc-me'] }),
@@ -38,7 +38,7 @@ export function useConsultancyKyc(consultancyId: string | null) {
       const { data, error } = await api.GET('/consultancies/{id}/kyc', {
         params: { path: { id: consultancyId! } },
       })
-      if (error) throw new ApiError('Could not load the KYC record.')
+      if (error) throw new ApiError('Could not load the KYC record.', error)
       return data
     },
     enabled: consultancyId != null,
@@ -53,7 +53,7 @@ export function useVerifyKyc() {
       const { data, error } = await api.POST('/consultancies/{id}/kyc/verify', {
         params: { path: { id: consultancyId } },
       })
-      if (error) throw new ApiError('Could not verify — has a certificate been submitted?')
+      if (error) throw new ApiError('Could not verify — has a certificate been submitted?', error)
       return data
     },
     onSuccess: (_data, consultancyId) => {

@@ -40,7 +40,7 @@ export function useAdminColleges(filters: CollegeListFilters = {}) {
           },
         },
       })
-      if (error) throw new ApiError('Could not load colleges.')
+      if (error) throw new ApiError('Could not load colleges.', error)
       return data
     },
     enabled: isAuthed,
@@ -55,7 +55,7 @@ export function useCollegeDetail(id: string | undefined) {
     queryKey: ['admin-college', id],
     queryFn: async () => {
       const { data, error } = await api.GET('/colleges/{id}', { params: { path: { id: id! } } })
-      if (error) throw new ApiError('Could not load this college.')
+      if (error) throw new ApiError('Could not load this college.', error)
       return data
     },
     enabled: isAuthed && Boolean(id),
@@ -67,7 +67,7 @@ export function useCreateCollege() {
   return useMutation({
     mutationFn: async (body: CollegeInput) => {
       const { data, error } = await api.POST('/colleges', { body })
-      if (error) throw new ApiError('Could not create this college.')
+      if (error) throw new ApiError('Could not create this college.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-colleges'] }),
@@ -79,7 +79,7 @@ export function useUpdateCollege(id: string) {
   return useMutation({
     mutationFn: async (body: Partial<CollegeInput>) => {
       const { data, error } = await api.PATCH('/colleges/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update this college.')
+      if (error) throw new ApiError('Could not update this college.', error)
       return data
     },
     // Also invalidates `courses` (2026-08-18) — a course's `visible` is computed from its own
@@ -99,7 +99,7 @@ export function useCreateCampus(collegeId: string) {
   return useMutation({
     mutationFn: async (body: CampusInput) => {
       const { data, error } = await api.POST('/colleges/{id}/campuses', { params: { path: { id: collegeId } }, body })
-      if (error) throw new ApiError('Could not add this campus.')
+      if (error) throw new ApiError('Could not add this campus.', error)
       return data
     },
     onSuccess: () => {
@@ -117,7 +117,7 @@ export function useUpdateCampus(collegeId: string) {
         params: { path: { id: collegeId, campusId } },
         body,
       })
-      if (error) throw new ApiError('Could not update this campus.')
+      if (error) throw new ApiError('Could not update this campus.', error)
       return data
     },
     onSuccess: () => {
@@ -138,7 +138,7 @@ export function useImportColleges() {
         body: formData as unknown as { file?: string },
         bodySerializer: () => formData,
       })
-      if (error) throw new ApiError('Could not import this file.')
+      if (error) throw new ApiError('Could not import this file.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-colleges'] }),

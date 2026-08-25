@@ -12,7 +12,7 @@ export function useFormTemplates() {
     queryKey: ['form-templates'],
     queryFn: async () => {
       const { data, error } = await api.GET('/form-templates')
-      if (error) throw new ApiError('Could not load form templates.')
+      if (error) throw new ApiError('Could not load form templates.', error)
       return data
     },
     enabled: isAuthed,
@@ -25,7 +25,7 @@ export function useFormTemplate(id: string | undefined) {
     queryKey: ['form-templates', id],
     queryFn: async () => {
       const { data, error } = await api.GET('/form-templates/{id}', { params: { path: { id: id! } } })
-      if (error) throw new ApiError('Could not load this form template.')
+      if (error) throw new ApiError('Could not load this form template.', error)
       return data
     },
     enabled: isAuthed && Boolean(id),
@@ -37,7 +37,7 @@ export function useCreateFormTemplate() {
   return useMutation({
     mutationFn: async (body: { name: string; fields: FormFieldInput[] }) => {
       const { data, error } = await api.POST('/form-templates', { body })
-      if (error) throw new ApiError('Could not create this form template.')
+      if (error) throw new ApiError('Could not create this form template.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['form-templates'] }),
@@ -52,7 +52,7 @@ export function useUpdateFormTemplate(id: string) {
         params: { path: { id } },
         body,
       })
-      if (error) throw new ApiError('Could not update this form template.')
+      if (error) throw new ApiError('Could not update this form template.', error)
       return data
     },
     onSuccess: () => {
@@ -69,7 +69,7 @@ export function useDuplicateFormTemplate() {
       const { data, error } = await api.POST('/form-templates/{id}/duplicate', {
         params: { path: { id } },
       })
-      if (error) throw new ApiError('Could not duplicate this form template.')
+      if (error) throw new ApiError('Could not duplicate this form template.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['form-templates'] }),

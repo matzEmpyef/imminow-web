@@ -38,7 +38,7 @@ export function useClients(filters: ClientListFilters = {}, options: { enabled?:
           },
         },
       })
-      if (error) throw new ApiError('Could not load clients.')
+      if (error) throw new ApiError('Could not load clients.', error)
       return data
     },
     enabled: isAuthed && (options.enabled ?? true),
@@ -51,7 +51,7 @@ export function useClient(id: string | undefined) {
     queryKey: ['clients', id],
     queryFn: async () => {
       const { data, error } = await api.GET('/clients/{id}', { params: { path: { id: id! } } })
-      if (error) throw new ApiError('Could not load this client.')
+      if (error) throw new ApiError('Could not load this client.', error)
       return data
     },
     enabled: isAuthed && Boolean(id),
@@ -71,7 +71,7 @@ export function useCreateApplicant() {
       assigned_employee_id: string
     }) => {
       const { data, error } = await api.POST('/clients', { body })
-      if (error) throw new ApiError('Could not create this applicant.')
+      if (error) throw new ApiError('Could not create this applicant.', error)
       return data
     },
     onSuccess: () => {
@@ -89,7 +89,7 @@ export function useSetClientTags() {
         params: { path: { id } },
         body: { tags },
       })
-      if (error) throw new ApiError('Could not update tags for this client.')
+      if (error) throw new ApiError('Could not update tags for this client.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
@@ -104,7 +104,7 @@ export function useUpdateClientDetails() {
         params: { path: { id } },
         body: { address, phone },
       })
-      if (error) throw new ApiError('Could not update this client.')
+      if (error) throw new ApiError('Could not update this client.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
@@ -119,7 +119,7 @@ export function useSetClientBranch() {
         params: { path: { id } },
         body: { branch_id: branchId },
       })
-      if (error) throw new ApiError('Could not update the branch for this client.')
+      if (error) throw new ApiError('Could not update the branch for this client.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
@@ -137,7 +137,7 @@ export function useSetFinalizedCountry() {
         params: { path: { id } },
         body: { country },
       })
-      if (error) throw new ApiError('Could not update the finalized country for this client.')
+      if (error) throw new ApiError('Could not update the finalized country for this client.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
@@ -171,7 +171,7 @@ export function useAssignClient(clientId: string) {
         params: { path: { id: clientId } },
         body: { assigned_employee_id: assignedEmployeeId },
       })
-      if (error) throw new ApiError('Could not assign this client.')
+      if (error) throw new ApiError('Could not assign this client.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
@@ -186,7 +186,7 @@ export function useSelectedColleges(clientId: string | undefined) {
       const { data, error } = await api.GET('/clients/{id}/selected-colleges', {
         params: { path: { id: clientId! } },
       })
-      if (error) throw new ApiError('Could not load selected colleges.')
+      if (error) throw new ApiError('Could not load selected colleges.', error)
       return data
     },
     enabled: isAuthed && Boolean(clientId),
@@ -203,7 +203,7 @@ export function useAddSelectedCollege(clientId: string) {
         params: { path: { id: clientId } },
         body,
       })
-      if (error) throw new ApiError('Could not add this college.')
+      if (error) throw new ApiError('Could not add this college.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'selected-colleges'] }),
@@ -218,7 +218,7 @@ export function useUpdateSelectedCollege(clientId: string) {
         params: { path: { id: clientId, collegeId } },
         body: { status },
       })
-      if (error) throw new ApiError('Could not update this college.')
+      if (error) throw new ApiError('Could not update this college.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'selected-colleges'] }),
@@ -233,7 +233,7 @@ export function useInternalNotes(clientId: string | undefined) {
       const { data, error } = await api.GET('/clients/{id}/notes', {
         params: { path: { id: clientId! } },
       })
-      if (error) throw new ApiError('Could not load internal notes.')
+      if (error) throw new ApiError('Could not load internal notes.', error)
       return data
     },
     enabled: isAuthed && Boolean(clientId),
@@ -248,7 +248,7 @@ export function useAddInternalNote(clientId: string) {
         params: { path: { id: clientId } },
         body: { content },
       })
-      if (error) throw new ApiError('Could not add this note.')
+      if (error) throw new ApiError('Could not add this note.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'notes'] }),
@@ -263,7 +263,7 @@ export function useClientActivity(clientId: string | undefined) {
       const { data, error } = await api.GET('/clients/{id}/activity', {
         params: { path: { id: clientId! } },
       })
-      if (error) throw new ApiError('Could not load activity.')
+      if (error) throw new ApiError('Could not load activity.', error)
       return data
     },
     enabled: isAuthed && Boolean(clientId),
@@ -278,7 +278,7 @@ export function useCommissions(clientId: string | undefined) {
       const { data, error } = await api.GET('/clients/{id}/commissions', {
         params: { path: { id: clientId! } },
       })
-      if (error) throw new ApiError('Could not load commission details.')
+      if (error) throw new ApiError('Could not load commission details.', error)
       return data
     },
     enabled: isAuthed && Boolean(clientId),
@@ -293,7 +293,7 @@ export function useClientMessages(clientId: string | undefined) {
       const { data, error } = await api.GET('/clients/{id}/messages', {
         params: { path: { id: clientId! } },
       })
-      if (error) throw new ApiError('Could not load messages.')
+      if (error) throw new ApiError('Could not load messages.', error)
       return data
     },
     enabled: isAuthed && Boolean(clientId),
@@ -309,7 +309,7 @@ export function useSendClientMessage(clientId: string) {
         params: { path: { id: clientId } },
         body: { content },
       })
-      if (error) throw new ApiError('Could not send this message.')
+      if (error) throw new ApiError('Could not send this message.', error)
       return data
     },
     onSuccess: () => {
@@ -323,7 +323,7 @@ export function useMarkClientRead() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await api.POST('/clients/{id}/read', { params: { path: { id } } })
-      if (error) throw new ApiError('Could not mark this conversation read.')
+      if (error) throw new ApiError('Could not mark this conversation read.', error)
     },
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ['clients', id] })
@@ -340,7 +340,7 @@ export function useReopenPlan(clientId: string) {
         params: { path: { id: clientId } },
         body: { reason },
       })
-      if (error) throw new ApiError('Could not reopen this plan.')
+      if (error) throw new ApiError('Could not reopen this plan.', error)
       return data
     },
     onSuccess: () => {
@@ -362,7 +362,7 @@ export function useCloseClient() {
         params: { path: { id } },
         body: { reason },
       })
-      if (error) throw new ApiError('Could not close this client.')
+      if (error) throw new ApiError('Could not close this client.', error)
       return data
     },
     onSuccess: (_data, { id }) => {
@@ -377,7 +377,7 @@ export function useReopenClientCase() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { data, error } = await api.POST('/clients/{id}/reopen-case', { params: { path: { id } } })
-      if (error) throw new ApiError('Could not reopen this client.')
+      if (error) throw new ApiError('Could not reopen this client.', error)
       return data
     },
     onSuccess: (_data, id) => {

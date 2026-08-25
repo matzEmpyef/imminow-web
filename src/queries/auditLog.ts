@@ -40,7 +40,7 @@ export function useAuditLog(filters: AuditLogFilters) {
           },
         },
       })
-      if (error) throw new ApiError('Could not load the audit log.')
+      if (error) throw new ApiError('Could not load the audit log.', error)
       return data
     },
     enabled: isAuthed,

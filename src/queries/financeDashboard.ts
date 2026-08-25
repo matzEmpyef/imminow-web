@@ -17,7 +17,7 @@ export function useFinanceDashboard(filters: FinanceDashboardFilters = {}) {
     queryKey: ['finance-dashboard', filters],
     queryFn: async () => {
       const { data, error } = await api.GET('/commission/finance-dashboard', { params: { query: filters } })
-      if (error) throw new ApiError('Could not load the finance dashboard.')
+      if (error) throw new ApiError('Could not load the finance dashboard.', error)
       return data
     },
     enabled: isAuthed,

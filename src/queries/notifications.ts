@@ -12,7 +12,7 @@ export function useNotifications() {
     queryKey: ['notifications'],
     queryFn: async () => {
       const { data, error } = await api.GET('/notifications')
-      if (error) throw new ApiError('Could not load notifications.')
+      if (error) throw new ApiError('Could not load notifications.', error)
       return data
     },
     enabled: isAuthed,
@@ -24,7 +24,7 @@ export function useMarkNotificationRead() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await api.POST('/notifications/{id}/read', { params: { path: { id } } })
-      if (error) throw new ApiError('Could not mark notification as read.')
+      if (error) throw new ApiError('Could not mark notification as read.', error)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   })
@@ -36,7 +36,7 @@ export function useNotificationSettings() {
     queryKey: ['notification-settings'],
     queryFn: async () => {
       const { data, error } = await api.GET('/notification-settings')
-      if (error) throw new ApiError('Could not load notification settings.')
+      if (error) throw new ApiError('Could not load notification settings.', error)
       return data
     },
     enabled: isAuthed,
@@ -48,7 +48,7 @@ export function useUpdateNotificationSettings() {
   return useMutation({
     mutationFn: async (body: NotificationSettings) => {
       const { data, error } = await api.PATCH('/notification-settings', { body })
-      if (error) throw new ApiError('Could not update notification settings.')
+      if (error) throw new ApiError('Could not update notification settings.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notification-settings'] }),

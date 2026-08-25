@@ -13,7 +13,7 @@ export function useRedemptionPartners() {
     queryKey: ['redemption-partners'],
     queryFn: async () => {
       const { data, error } = await api.GET('/redemption-partners')
-      if (error) throw new ApiError('Could not load redemption partners.')
+      if (error) throw new ApiError('Could not load redemption partners.', error)
       return data
     },
     enabled: isAuthed,
@@ -25,7 +25,7 @@ export function useCreatePartner() {
   return useMutation({
     mutationFn: async (body: RedemptionPartnerInput) => {
       const { data, error } = await api.POST('/redemption-partners', { body })
-      if (error) throw new ApiError('Could not create this partner.')
+      if (error) throw new ApiError('Could not create this partner.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['redemption-partners'] }),
@@ -37,7 +37,7 @@ export function useUpdatePartner(id: string) {
   return useMutation({
     mutationFn: async (body: Partial<RedemptionPartnerInput>) => {
       const { data, error } = await api.PATCH('/redemption-partners/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update this partner.')
+      if (error) throw new ApiError('Could not update this partner.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['redemption-partners'] }),
@@ -52,7 +52,7 @@ export function useAddLocation(partnerId: string) {
         params: { path: { id: partnerId } },
         body,
       })
-      if (error) throw new ApiError('Could not add this location.')
+      if (error) throw new ApiError('Could not add this location.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['redemption-partners'] }),
@@ -69,7 +69,7 @@ export function useRotateCode(partnerId: string) {
         params: { path: { id: partnerId } },
         body: { location_id: locationId, code },
       })
-      if (error) throw new ApiError('Could not update the code.')
+      if (error) throw new ApiError('Could not update the code.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['redemption-partners'] }),

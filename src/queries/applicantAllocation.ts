@@ -9,7 +9,7 @@ export function useApplicantAllocationQueue() {
     queryKey: ['applicant-allocation-queue'],
     queryFn: async () => {
       const { data, error } = await api.GET('/applicant-allocation-queue')
-      if (error) throw new ApiError('Could not load the allocation queue.')
+      if (error) throw new ApiError('Could not load the allocation queue.', error)
       return data
     },
     enabled: isAuthed,
@@ -24,7 +24,7 @@ export function useAllocateApplicant(id: string) {
         params: { path: { id } },
         body: { consultancy_id: consultancyId },
       })
-      if (error) throw new ApiError('Could not allocate this applicant.')
+      if (error) throw new ApiError('Could not allocate this applicant.', error)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['applicant-allocation-queue'] }),
   })

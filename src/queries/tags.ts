@@ -9,7 +9,7 @@ export function useTags() {
     queryKey: ['tags'],
     queryFn: async () => {
       const { data, error } = await api.GET('/tags')
-      if (error) throw new ApiError('Could not load tags.')
+      if (error) throw new ApiError('Could not load tags.', error)
       return data
     },
     enabled: isAuthed,
@@ -33,7 +33,7 @@ export function useDeleteTag() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await api.DELETE('/tags/{id}', { params: { path: { id } } })
-      if (error) throw new ApiError('Could not delete this tag.')
+      if (error) throw new ApiError('Could not delete this tag.', error)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tags'] }),
   })

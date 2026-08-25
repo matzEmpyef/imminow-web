@@ -29,7 +29,7 @@ export function useModerationQueue(
           },
         },
       })
-      if (error) throw new ApiError('Could not load the review queue.')
+      if (error) throw new ApiError('Could not load the review queue.', error)
       return data
     },
     enabled: isAuthed,
@@ -56,7 +56,7 @@ export function useApproveCourseSuggestion() {
         params: { path: { id } },
         body: mode ? { mode, value } : undefined,
       })
-      if (error) throw new ApiError('Could not approve this suggestion.')
+      if (error) throw new ApiError('Could not approve this suggestion.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['moderation-course-suggestions'] }),
@@ -71,7 +71,7 @@ export function useRejectCourseSuggestion() {
         params: { path: { id } },
         body: { reason },
       })
-      if (error) throw new ApiError('Could not reject this suggestion.')
+      if (error) throw new ApiError('Could not reject this suggestion.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['moderation-course-suggestions'] }),

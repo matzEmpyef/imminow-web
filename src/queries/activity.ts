@@ -15,7 +15,7 @@ export function useActivityFeed(enabled = true) {
     queryKey: ['activity-feed'],
     queryFn: async () => {
       const { data, error } = await api.GET('/activity-feed')
-      if (error) throw new ApiError('Could not load the activity feed.')
+      if (error) throw new ApiError('Could not load the activity feed.', error)
       return data
     },
     enabled: isAuthed && enabled,
@@ -27,7 +27,7 @@ export function useAssignActivityTask() {
   return useMutation({
     mutationFn: async (body: ActivityTaskInput) => {
       const { data, error } = await api.POST('/activity-tasks', { body })
-      if (error) throw new ApiError('Could not assign this task.')
+      if (error) throw new ApiError('Could not assign this task.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['activity-feed'] }),
@@ -39,7 +39,7 @@ export function useCompleteActivityTask() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { data, error } = await api.POST('/activity-tasks/{id}/complete', { params: { path: { id } } })
-      if (error) throw new ApiError('Could not mark this task done.')
+      if (error) throw new ApiError('Could not mark this task done.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['activity-feed'] }),

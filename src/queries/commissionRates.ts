@@ -14,7 +14,7 @@ export function useCommissionRates(consultancyId?: string) {
       const { data, error } = await api.GET('/commission-rates', {
         params: { query: consultancyId ? { consultancy_id: consultancyId } : {} },
       })
-      if (error) throw new ApiError('Could not load commission rates.')
+      if (error) throw new ApiError('Could not load commission rates.', error)
       return data
     },
     enabled: isAuthed,
@@ -29,7 +29,7 @@ export function useMyCommissionRates() {
     queryKey: ['commission-rates', 'me'],
     queryFn: async () => {
       const { data, error } = await api.GET('/commission-rates/me')
-      if (error) throw new ApiError('Could not load your commission rates.')
+      if (error) throw new ApiError('Could not load your commission rates.', error)
       return data
     },
     enabled: isAuthed,
@@ -41,7 +41,7 @@ export function useCreateCommissionRate() {
   return useMutation({
     mutationFn: async (body: CommissionRateInput) => {
       const { data, error } = await api.POST('/commission-rates', { body })
-      if (error) throw new ApiError('Could not create this rate.')
+      if (error) throw new ApiError('Could not create this rate.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['commission-rates'] }),
@@ -53,7 +53,7 @@ export function useUpdateCommissionRate(id: string) {
   return useMutation({
     mutationFn: async (body: { direct_rate?: number; freelancer_sourced_rate?: number }) => {
       const { data, error } = await api.PATCH('/commission-rates/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update this rate.')
+      if (error) throw new ApiError('Could not update this rate.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['commission-rates'] }),

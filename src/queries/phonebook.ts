@@ -9,7 +9,7 @@ export function usePhonebook() {
     queryKey: ['phonebook'],
     queryFn: async () => {
       const { data, error } = await api.GET('/phonebook')
-      if (error) throw new ApiError('Could not load the phonebook.')
+      if (error) throw new ApiError('Could not load the phonebook.', error)
       return data
     },
     enabled: isAuthed,
@@ -21,7 +21,7 @@ export function useCreatePhonebookContact() {
   return useMutation({
     mutationFn: async (body: { name: string; category: string; phone: string; email?: string }) => {
       const { data, error } = await api.POST('/phonebook', { body })
-      if (error) throw new ApiError('Could not add this contact.')
+      if (error) throw new ApiError('Could not add this contact.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['phonebook'] }),
@@ -33,7 +33,7 @@ export function useDeletePhonebookContact() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await api.DELETE('/phonebook/{id}', { params: { path: { id } } })
-      if (error) throw new ApiError('Could not remove this contact.')
+      if (error) throw new ApiError('Could not remove this contact.', error)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['phonebook'] }),
   })

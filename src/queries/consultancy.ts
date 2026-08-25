@@ -12,7 +12,7 @@ export function useMyConsultancy() {
     queryKey: ['consultancy', 'me'],
     queryFn: async () => {
       const { data, error } = await api.GET('/consultancies/me')
-      if (error) throw new ApiError('Could not load consultancy details.')
+      if (error) throw new ApiError('Could not load consultancy details.', error)
       return data
     },
     enabled: isAuthed,
@@ -36,7 +36,7 @@ export function useTransferCodes(enabled: boolean) {
     queryKey: ['transfer-codes'],
     queryFn: async () => {
       const { data, error } = await api.GET('/transfer-codes')
-      if (error) throw new ApiError('Could not load transfer codes.')
+      if (error) throw new ApiError('Could not load transfer codes.', error)
       return data
     },
     enabled: isAuthed && enabled,
@@ -48,7 +48,7 @@ export function useIssueTransferCode() {
   return useMutation({
     mutationFn: async (body: { student_email: string; reason: string }) => {
       const { data, error } = await api.POST('/transfer-codes', { body })
-      if (error) throw new ApiError('Could not issue a transfer code.')
+      if (error) throw new ApiError('Could not issue a transfer code.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['transfer-codes'] }),
@@ -60,7 +60,7 @@ export function useUpdateConsultancyProfile() {
   return useMutation({
     mutationFn: async (body: ConsultancyProfileEdits) => {
       const { data, error } = await api.PATCH('/consultancies/me', { body })
-      if (error) throw new ApiError('Could not update the consultancy profile.')
+      if (error) throw new ApiError('Could not update the consultancy profile.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['consultancy', 'me'] }),
@@ -73,7 +73,7 @@ export function useRequestUpgrade(consultancyId: string) {
       const { error } = await api.POST('/consultancies/{id}/upgrade-request', {
         params: { path: { id: consultancyId } },
       })
-      if (error) throw new ApiError('Could not send the upgrade request.')
+      if (error) throw new ApiError('Could not send the upgrade request.', error)
     },
   })
 }

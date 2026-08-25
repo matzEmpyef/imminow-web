@@ -14,7 +14,7 @@ export function useConversations() {
     queryKey: ['conversations'],
     queryFn: async () => {
       const { data, error } = await api.GET('/conversations')
-      if (error) throw new ApiError('Could not load conversations.')
+      if (error) throw new ApiError('Could not load conversations.', error)
       return data
     },
     enabled: isAuthed,

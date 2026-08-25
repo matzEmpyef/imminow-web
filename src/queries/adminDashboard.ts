@@ -9,7 +9,7 @@ export function useAdminDashboard() {
     queryKey: ['admin-dashboard'],
     queryFn: async () => {
       const { data, error } = await api.GET('/admin/dashboard')
-      if (error) throw new ApiError('Could not load the dashboard.')
+      if (error) throw new ApiError('Could not load the dashboard.', error)
       return data
     },
     enabled: isAuthed,

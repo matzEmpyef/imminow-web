@@ -12,7 +12,7 @@ export function useAdminJobs() {
     queryKey: ['admin-jobs'],
     queryFn: async () => {
       const { data, error } = await api.GET('/jobs')
-      if (error) throw new ApiError('Could not load job listings.')
+      if (error) throw new ApiError('Could not load job listings.', error)
       return data
     },
     enabled: isAuthed,
@@ -24,7 +24,7 @@ export function useCreateJob() {
   return useMutation({
     mutationFn: async (body: JobListingInput) => {
       const { data, error } = await api.POST('/jobs', { body })
-      if (error) throw new ApiError('Could not create this listing.')
+      if (error) throw new ApiError('Could not create this listing.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-jobs'] }),
@@ -36,7 +36,7 @@ export function useUpdateJob(id: string) {
   return useMutation({
     mutationFn: async (body: Partial<JobListingInput>) => {
       const { data, error } = await api.PATCH('/jobs/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update this listing.')
+      if (error) throw new ApiError('Could not update this listing.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-jobs'] }),

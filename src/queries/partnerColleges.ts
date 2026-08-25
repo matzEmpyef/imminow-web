@@ -19,7 +19,7 @@ export function usePartnerColleges(consultancyId?: string) {
       const { data, error } = await api.GET('/consultancy-colleges', {
         params: { query: consultancyId ? { consultancy_id: consultancyId } : {} },
       })
-      if (error) throw new ApiError('Could not load partner colleges.')
+      if (error) throw new ApiError('Could not load partner colleges.', error)
       return data
     },
     enabled: isAuthed,
@@ -38,7 +38,7 @@ export function useAddPartnerCollege(consultancyId?: string) {
         params: { query: consultancyId ? { consultancy_id: consultancyId } : {} },
         body,
       })
-      if (error) throw new ApiError('Could not add this college.')
+      if (error) throw new ApiError('Could not add this college.', error)
       return data
     },
     onSuccess: () => invalidate(queryClient, consultancyId),
@@ -53,7 +53,7 @@ export function useUpdatePartnerCollege(consultancyId?: string) {
         params: { path: { id }, query: consultancyId ? { consultancy_id: consultancyId } : {} },
         body,
       })
-      if (error) throw new ApiError('Could not update this college.')
+      if (error) throw new ApiError('Could not update this college.', error)
       return data
     },
     onSuccess: () => invalidate(queryClient, consultancyId),
@@ -67,7 +67,7 @@ export function useRemovePartnerCollege(consultancyId?: string) {
       const { error } = await api.DELETE('/consultancy-colleges/{id}', {
         params: { path: { id }, query: consultancyId ? { consultancy_id: consultancyId } : {} },
       })
-      if (error) throw new ApiError('Could not remove this college.')
+      if (error) throw new ApiError('Could not remove this college.', error)
     },
     onSuccess: () => invalidate(queryClient, consultancyId),
   })

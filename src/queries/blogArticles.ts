@@ -14,7 +14,7 @@ export function useBlogArticles() {
     queryKey: ARTICLES_KEY,
     queryFn: async () => {
       const { data, error } = await api.GET('/blog')
-      if (error) throw new ApiError('Could not load articles.')
+      if (error) throw new ApiError('Could not load articles.', error)
       return data
     },
     enabled: isAuthed,
@@ -37,10 +37,10 @@ export function useResolveArticle() {
       // These three are the failures an admin can actually act on, so each says what to do rather
       // than collapsing into one "something went wrong".
       if (error) {
-        if (response.status === 422) throw new ApiError('That link is not a Sentpo article URL.')
-        if (response.status === 404) throw new ApiError('No published article matches that link.')
-        if (response.status === 502) throw new ApiError('The Sentpo site is not responding. Try again shortly.')
-        throw new ApiError('Could not read that article.')
+        if (response.status === 422) throw new ApiError('That link is not a Sentpo article URL.', error)
+        if (response.status === 404) throw new ApiError('No published article matches that link.', error)
+        if (response.status === 502) throw new ApiError('The Sentpo site is not responding. Try again shortly.', error)
+        throw new ApiError('Could not read that article.', error)
       }
       return data as BlogArticle & { already_curated?: boolean }
     },
@@ -67,7 +67,7 @@ export function useUpdateArticle() {
   return useMutation({
     mutationFn: async ({ id, ...body }: { id: string; published_to_app?: boolean; category_ids?: string[] }) => {
       const { data, error } = await api.PATCH('/blog/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update this article.')
+      if (error) throw new ApiError('Could not update this article.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ARTICLES_KEY }),
@@ -84,9 +84,9 @@ export function useRefreshArticle() {
       })
       if (error) {
         if (response.status === 502) {
-          throw new ApiError('The Sentpo site is not responding — the article is unchanged.')
+          throw new ApiError('The Sentpo site is not responding — the article is unchanged.', error)
         }
-        throw new ApiError('Could not refresh this article.')
+        throw new ApiError('Could not refresh this article.', error)
       }
       return data
     },

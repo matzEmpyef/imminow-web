@@ -15,7 +15,7 @@ export function useVisitRequests(responded: boolean | null) {
       const { data, error } = await api.GET('/visit-requests', {
         params: { query: responded === null ? {} : { filter: { responded: responded ? 'true' : 'false' } } },
       })
-      if (error) throw new ApiError('Could not load visit requests.')
+      if (error) throw new ApiError('Could not load visit requests.', error)
       return data
     },
     enabled: isAuthed,

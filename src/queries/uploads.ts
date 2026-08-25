@@ -11,7 +11,7 @@ export function useUploads(journeyId: string | undefined) {
       const { data, error } = await api.GET('/uploads', {
         params: { query: { journey_id: journeyId! } },
       })
-      if (error) throw new ApiError('Could not load documents.')
+      if (error) throw new ApiError('Could not load documents.', error)
       return data
     },
     enabled: isAuthed && Boolean(journeyId),
@@ -30,7 +30,7 @@ export function useUploadFile(journeyId: string) {
         body: formData as unknown as { file: string; journey_id: string },
         bodySerializer: () => formData,
       })
-      if (error) throw new ApiError('Could not upload this file.')
+      if (error) throw new ApiError('Could not upload this file.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['uploads', journeyId] }),
@@ -41,7 +41,7 @@ export function useDownloadUrl() {
   return useMutation({
     mutationFn: async (uploadId: string) => {
       const { data, error } = await api.GET('/uploads/{id}', { params: { path: { id: uploadId } } })
-      if (error) throw new ApiError('Could not get a download link.')
+      if (error) throw new ApiError('Could not get a download link.', error)
       return data.url
     },
   })
@@ -60,7 +60,7 @@ export function useUploadMedia() {
         body: formData as unknown as { file: string },
         bodySerializer: () => formData,
       })
-      if (error) throw new ApiError('Could not upload this image.')
+      if (error) throw new ApiError('Could not upload this image.', error)
       return data.url
     },
   })

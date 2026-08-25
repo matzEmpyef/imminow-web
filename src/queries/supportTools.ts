@@ -9,7 +9,7 @@ export function useUserSearch(q: string) {
     queryKey: ['user-search', q],
     queryFn: async () => {
       const { data, error } = await api.GET('/users/search', { params: { query: { q } } })
-      if (error) throw new ApiError('Could not search users.')
+      if (error) throw new ApiError('Could not search users.', error)
       return data
     },
     enabled: isAuthed && q.trim().length > 0,
@@ -20,7 +20,7 @@ export function useExportUserData() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { data, error } = await api.POST('/users/{id}/export', { params: { path: { id } } })
-      if (error) throw new ApiError('Could not generate a data export.')
+      if (error) throw new ApiError('Could not generate a data export.', error)
       return data
     },
   })
@@ -34,7 +34,7 @@ export function useUpdateUserEmail() {
         params: { path: { id } },
         body: { new_email, reason },
       })
-      if (error) throw new ApiError('Could not update this email.')
+      if (error) throw new ApiError('Could not update this email.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user-search'] }),
@@ -66,7 +66,7 @@ export function useSwitchConsultancy() {
         params: { path: { id: journeyId } },
         body: { new_consultancy_id, reason },
       })
-      if (error) throw new ApiError('Could not switch this student to a new consultancy.')
+      if (error) throw new ApiError('Could not switch this student to a new consultancy.', error)
       return data
     },
   })

@@ -15,7 +15,7 @@ export function useProfile() {
     queryKey: ['profile'],
     queryFn: async () => {
       const { data, error } = await api.GET('/profile')
-      if (error) throw new ApiError('Could not load your profile.')
+      if (error) throw new ApiError('Could not load your profile.', error)
       return data
     },
     enabled: isAuthed,
@@ -28,7 +28,7 @@ export function useUpdateProfile() {
   return useMutation({
     mutationFn: async (body: ProfileEdits) => {
       const { data, error } = await api.PATCH('/profile', { body })
-      if (error) throw new ApiError('Could not update your profile.')
+      if (error) throw new ApiError('Could not update your profile.', error)
       return data
     },
     onSuccess: (data) => {
@@ -42,7 +42,7 @@ export function useChangePassword() {
   return useMutation({
     mutationFn: async (body: { current_password: string; new_password: string }) => {
       const { error } = await api.POST('/profile/change-password', { body })
-      if (error) throw new ApiError('Current password is incorrect.')
+      if (error) throw new ApiError('Current password is incorrect.', error)
     },
   })
 }

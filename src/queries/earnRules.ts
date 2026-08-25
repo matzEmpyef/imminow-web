@@ -9,7 +9,7 @@ export function useEarnRules() {
     queryKey: ['earn-rules'],
     queryFn: async () => {
       const { data, error } = await api.GET('/points/earn-rules')
-      if (error) throw new ApiError('Could not load earn rules.')
+      if (error) throw new ApiError('Could not load earn rules.', error)
       return data
     },
     enabled: isAuthed,
@@ -21,7 +21,7 @@ export function useUpdateEarnRule(id: string) {
   return useMutation({
     mutationFn: async (body: { points_value?: number; cap?: number | null; active?: boolean }) => {
       const { data, error } = await api.PATCH('/points/earn-rules/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update this rule.')
+      if (error) throw new ApiError('Could not update this rule.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['earn-rules'] }),

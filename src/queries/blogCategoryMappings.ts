@@ -12,7 +12,7 @@ export function useBlogCategoryMappings() {
     queryKey: ['blog-category-mappings'],
     queryFn: async () => {
       const { data, error } = await api.GET('/blog/category-mappings')
-      if (error) throw new ApiError('Could not load category mappings.')
+      if (error) throw new ApiError('Could not load category mappings.', error)
       return data
     },
     enabled: isAuthed,
@@ -32,7 +32,7 @@ export function useUpdateMapping(id: string) {
   return useMutation({
     mutationFn: async (body: Partial<BlogCategoryMappingInput> & { label?: string }) => {
       const { data, error } = await api.PATCH('/blog/category-mappings/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update this mapping.')
+      if (error) throw new ApiError('Could not update this mapping.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['blog-category-mappings'] }),
