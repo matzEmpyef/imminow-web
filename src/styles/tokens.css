@@ -1,0 +1,64 @@
+/* Design tokens — single source of truth, ui-ux-design-web.md Sections 2 & 4.
+   Tailwind config reads from these custom properties; never hardcode a hex or px value
+   in a component. */
+
+:root {
+  /* Color — Section 2 */
+  --color-primary: #2563eb;
+  --color-secondary: #0d9488;
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-error: #dc2626;
+  --color-info: #0284c7;
+  /* Required-field marker only (user-requested, 2026-08-18 — "mark in with a red (tomato color)
+     *") — deliberately its own token, not --color-error, so a mandatory-field asterisk never
+     reads as an active validation failure. */
+  --color-required: tomato;
+
+  --color-background: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-glass: rgba(255, 255, 255, 0.65);
+  --color-border: #e2e8f0;
+
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #64748b;
+  --color-text-on-primary: #ffffff;
+
+  /* The fill of a SELECTED pill — chips, segmented type filters, any stadium-shaped on/off
+     control (user, 2026-08-22: "do not use black color for pill selected. maybe a blue shade or
+     something (everywhere)"). Deliberately DEEPER than --color-primary rather than equal to it:
+     the reason pills avoided brand blue in the first place was that they competed with primary
+     buttons, and that still holds — this stays clearly blue while reading as a state, not a call
+     to action. */
+  --color-pill-selected: #1e40af;
+
+  /* A light tint of --color-primary, used for the active state of nav items (header section
+     nav, sidebar sub-links) — light mode only, no separate dark chrome. */
+  --color-primary-subtle: #eff6ff;
+
+  /* Light tints of secondary/success/warning/info, same treatment as --color-primary-subtle —
+     used for the Global Chat Drawer's per-conversation avatar colors, so each contact gets a
+     distinct but still on-theme tint instead of every avatar being identical. */
+  --color-secondary-subtle: #f0fdfa;
+  --color-success-subtle: #f0fdf4;
+  --color-warning-subtle: #fffbeb;
+  --color-info-subtle: #f0f9ff;
+
+  /* Unread-notification row background. */
+  --color-unread-bg: #f5f7f9;
+
+  /* Spacing — Section 4 */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  /* Radius — Section 4 */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+
+  /* Shadow — Section 5 */
+  --shadow-card: 0 4px 16px rgba(15, 23, 42, 0.06);
+}

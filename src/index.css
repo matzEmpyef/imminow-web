@@ -1,0 +1,122 @@
+@import 'tailwindcss';
+@config './styles/tailwind.config.ts';
+
+@import './styles/tokens.css';
+@import './styles/typography.css';
+
+body {
+  background: var(--color-background);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+}
+
+/* Tailwind's preflight resets button/select cursor to default — restore pointer for every
+   clickable control platform-wide rather than patching each component individually. */
+@layer base {
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  select:not(:disabled),
+  summary {
+    cursor: pointer;
+  }
+}
+
+/* Themed scrollbar for the sidebar's contextual sub-nav (SidebarShell) — kept consistent with
+   the rest of the light chrome instead of the OS default. Firefox via scrollbar-color, everything
+   else (Chromium/WebKit) via the ::-webkit-scrollbar pseudo-elements. */
+.sidebar-nav-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+  border-radius: 999px;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-text-secondary);
+}
+
+/* Article preview (BlogAdminPage → Add Article).
+   
+   The article body arrives as server-sanitised HTML restricted to a fixed allowlist — h2–h4, p,
+   strong, em, a, lists, blockquote, table, img, br — with every `style` and `class` attribute
+   already stripped (mock-server/lib/articleContent.js). So there are no classes to hook onto here
+   and these have to be element selectors, scoped to the container.
+
+   This exists so the admin's preview shows what students will actually get. Without it the
+   preview is an undifferentiated wall of text and the whole point of previewing — spotting a
+   mangled table or an article the sanitiser gutted — is lost. */
+.prose-preview > * + * {
+  margin-top: 0.75rem;
+}
+
+.prose-preview h2,
+.prose-preview h3,
+.prose-preview h4 {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-top: 1.25rem;
+}
+
+.prose-preview h2 {
+  font-size: 1.05rem;
+}
+.prose-preview h3 {
+  font-size: 0.95rem;
+}
+
+.prose-preview a {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.prose-preview ul,
+.prose-preview ol {
+  padding-left: 1.25rem;
+  list-style: revert;
+}
+
+.prose-preview blockquote {
+  border-left: 3px solid var(--color-border);
+  padding-left: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+/* Recent articles carry up to six tables each, and a table is the one structure that can't be
+   reflowed — so it scrolls inside its own box rather than stretching the modal. */
+.prose-preview table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.prose-preview th,
+.prose-preview td {
+  border: 1px solid var(--color-border);
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.prose-preview th {
+  background: var(--color-background);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.prose-preview img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.375rem;
+}

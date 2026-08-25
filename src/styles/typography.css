@@ -1,0 +1,34 @@
+/* Type scale — eight styles maximum, ui-ux-design-web.md Section 3. No ad hoc sizes
+   accumulating screen by screen; every text element uses one of these.
+   DM Sans itself is loaded via a <link> in index.html, not an @import here — an @import
+   nested inside an imported stylesheet like this one isn't first in the final bundled
+   output, which violates the CSS spec's "@import must precede all other rules" requirement
+   and gets silently dropped by the browser, so the font never loads. */
+
+:root {
+  --font-family-base: 'DM Sans', sans-serif;
+
+  --text-display-size: 30px;
+  --text-display-weight: 700;
+
+  --text-h1-size: 24px;
+  --text-h1-weight: 700;
+
+  --text-h2-size: 18px;
+  --text-h2-weight: 600;
+
+  --text-h3-size: 15px;
+  --text-h3-weight: 600;
+
+  --text-body-size: 14px;
+  --text-body-weight: 400;
+
+  --text-body-small-size: 13px;
+  --text-body-small-weight: 400;
+
+  --text-caption-size: 11px;
+  --text-caption-weight: 400;
+
+  --text-button-size: 14px;
+  --text-button-weight: 500;
+}

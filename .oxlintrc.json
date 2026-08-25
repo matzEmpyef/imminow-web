@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript", "oxc", "jsx-a11y"],
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }],
+    "eqeqeq": ["warn", "smart"],
+    "no-console": "warn",
+    "no-unused-vars": "warn",
+    // Off deliberately (2026-08-25): every firing in this codebase is a documented false
+    // positive — Modal/Drawer's role="dialog" backs useDialogA11y's own focus-trap design
+    // (native <dialog>'s showModal()/::backdrop model would conflict with it across ~64
+    // consumers), RichTextEditor's role="textbox" is the ARIA-prescribed pattern for a
+    // contentEditable rich-text surface (<textarea> can't hold formatted content), and the
+    // role="button" step/drop-zone cards can't BE <button>s because they contain nested
+    // interactive buttons (invalid HTML). The rule also reports on the attribute's line, not
+    // the element's, so eslint-disable-next-line can't target it per-site.
+    "jsx-a11y/prefer-tag-over-role": "off"
+  }
+}
