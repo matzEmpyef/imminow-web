@@ -53,6 +53,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/analytics/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record a batch of analytics events
+         * @description Batched and fire-and-forget. Clients buffer events and flush periodically rather than posting per interaction, and must never surface a failure here — losing analytics is always preferable to disturbing the person using the app.
+         *     Namespaced under `/analytics` because `/events` already belongs to webinars, meet-ups and quizzes.
+         *     `product` is set SERVER-side from the caller's role rather than taken from the request: clients can be wrong or lie about which product they are, roles cannot. Unauthenticated calls are accepted so pre-signup activity is not invisible.
+         *     Always 202. Rows are not validated individually — one malformed event must not discard the rest of a batch.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        events: components["schemas"]["AnalyticsEvent"][];
+                    };
+                };
+            };
+            responses: {
+                /** @description Accepted. Returns nothing; the client must not wait on it. */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -3525,6 +3571,55 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/consultancies/{id}/view": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record that a consultancy's details were viewed, awarding points once
+         * @description Earns the `consultancy_viewed` rule the first time this student opens this consultancy, and nothing on any later view. Applies the same visibility rule as the GET, so a suspended or missing consultancy is a 404 either way and this cannot be used to probe which exist.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description False when this was a repeat — the caller has already been paid for this subject. A normal outcome, not an error. */
+                            awarded: boolean;
+                            /** @description 0 when `awarded` is false. */
+                            points_earned: number;
+                            /** @description The caller's balance after this call. */
+                            balance: number;
+                        };
+                    };
+                };
+                404: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/consultancies/{id}/tier-impact": {
@@ -8635,6 +8730,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notifications/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Unread badge count only (FR-073)
+         * @description Returns just the number the bell badge shows. `GET /notifications` reports the same figure in its own `unread_count`, but that endpoint is paginated, so a client polling only for the badge would otherwise fetch a page of rows it does not display. Counted across all pages, never just the first.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description Unread notifications for the caller, across all pages. */
+                            unread_count: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notifications/{id}/read": {
         parameters: {
             query?: never;
@@ -10373,6 +10510,55 @@ export interface paths {
                         "application/json": components["schemas"]["BlogArticle"];
                     };
                 };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/blog/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record that an article was read, awarding points once
+         * @description Earns the `article_read` rule the first time this student reads this article, and nothing on any later read. A POST rather than side-effects on `GET /blog/{id}`: a safe method that clients and caches may retry or prefetch must not move a points balance.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description False when this was a repeat — the caller has already been paid for this subject. A normal outcome, not an error. */
+                            awarded: boolean;
+                            /** @description 0 when `awarded` is false. */
+                            points_earned: number;
+                            /** @description The caller's balance after this call. */
+                            balance: number;
+                        };
+                    };
+                };
+                404: components["responses"]["ErrorResponse"];
             };
         };
         delete?: never;
@@ -12994,6 +13180,31 @@ export interface components {
             /** @description Optimistic-locking version number (TRD Section 8.3). */
             version?: number;
         };
+        /**
+         * @description One recorded thing a user did. Deliberately generic — a single shape covering every product surface, because purpose-built columns cannot answer a question nobody has thought of yet.
+         *     Never put personal data in `properties`. It is free-form precisely so it will be used casually, and an analytics store is the wrong place for anything identifying.
+         */
+        AnalyticsEvent: {
+            /** @description Past-tense, snake_case: `screen_viewed`, `course_shortlisted`, `step_submitted`. Naming is a convention, not enforced — keep it consistent or the data is unqueryable. */
+            name: string;
+            /** @description Generated when the app opens. Sessions cannot be reconstructed afterwards, and most engagement figures are per-session. */
+            session_id?: string | null;
+            /** @description What the event was about — `article`, `consultancy`, `course`. */
+            subject_type?: string | null;
+            subject_id?: string | null;
+            properties?: {
+                [key: string]: unknown;
+            } | null;
+            /** @description android, ios or web. */
+            platform?: string | null;
+            /** @description The first question after any engagement drop is "did we ship something?" */
+            app_version?: string | null;
+            /**
+             * Format: date-time
+             * @description The DEVICE clock, when it actually happened. The server records its own arrival time separately — phones have wrong clocks and go offline, and without both a genuine midnight session is indistinguishable from a misconfigured device.
+             */
+            occurred_at: string;
+        };
         User: {
             id: components["schemas"]["UUID"];
             first_name: string;
@@ -13013,6 +13224,17 @@ export interface components {
             role: "student" | "consultancy_admin" | "consultant" | "super_admin" | "platform_staff" | "freelancer";
             /** @description Consultancy staff only (build reference 2.2, My Account). Null for student/ platform_staff/freelancer. Sourced from the staff module, not editable via /profile. */
             readonly designation?: string | null;
+            /**
+             * Format: date-time
+             * @description When the account was created. Added 2026-08-25 for the super admin user directories — the record previously carried no creation timestamp at all, so "onboarded on" and every signup-cohort figure were unanswerable.
+             */
+            readonly created_at?: string;
+            /**
+             * Format: date-time
+             * @description Updated on each successful login. Null until the account first signs in.
+             *     Means different things per product and must never be averaged across them: for a student it is ordinary engagement, while for consultancy staff a growing gap is an early warning that clients are going unattended. Added 2026-08-25 — adding it later would have made every existing account look dormant until its next sign-in.
+             */
+            readonly last_login_at?: string | null;
             /** @description Managed via Cognito's MFA enrollment (TRD Section 9's delegation-to-provider principle), not settable through /profile — display-only here. */
             readonly two_factor_enabled?: boolean;
             /** @description True for consultancy_admin and super_admin, whose access is permanently full and unremovable (build reference 2.1). False elsewhere, where 2FA is optional and self-serve. */
@@ -14956,6 +15178,8 @@ export interface components {
             trigger_type: string;
             delta: number;
             reason?: string;
+            /** @description The specific thing this movement was paid for — the article for `article_read`, the consultancy for `consultancy_viewed`. Null for account-level triggers, which can only fire once anyway. This is what makes "already paid for this one?" answerable, so a student earns for an article the first time they read it and never again however often they reopen it (2026-08-25). */
+            subject_id?: components["schemas"]["UUID"] | null;
             /** Format: date-time */
             created_at: string;
         };
@@ -14965,7 +15189,7 @@ export interface components {
              * @description A closed list of developer-instrumented trigger events (build reference 1.8). Admin picks from this enum, never types a new trigger — fixed 2026-08-17, the admin UI previously exposed a free-text field here despite this description always saying otherwise. Adding a new value requires an app release that actually fires the trigger somewhere, not an admin-console change. `welcome_signup` is live (credited by `POST /clients` and Applicant Allocation's allocate action, 2026-08-19); `profile_30_percent`/`profile_70_percent` are configurable but ship inactive, since profile editing is a Sentpo Mobile screen that does not exist yet to fire them from.
              * @enum {string}
              */
-            trigger_type: "profile_completed" | "webinar_attended" | "physical_meeting_attended" | "quiz_completed" | "referral_signup" | "welcome_signup" | "profile_30_percent" | "profile_70_percent" | "dream_course_requirements_met";
+            trigger_type: "profile_completed" | "webinar_attended" | "physical_meeting_attended" | "quiz_completed" | "referral_signup" | "welcome_signup" | "profile_30_percent" | "profile_70_percent" | "dream_course_requirements_met" | "article_read" | "consultancy_viewed";
             points_value: number;
             cap?: number | null;
             active?: boolean;
