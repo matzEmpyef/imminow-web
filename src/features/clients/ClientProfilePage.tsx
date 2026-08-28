@@ -25,6 +25,7 @@ import {
   useSetFinalizedCountry,
   useUpdateSelectedCollege,
 } from '@/queries/clients'
+import { useDeleteInstallment } from '@/queries/commissionEntries'
 import { useLatestFormResponse, usePlan, useSaveFormResponse } from '@/queries/plans'
 import { useDownloadUrl, useUploadFile, useUploads } from '@/queries/uploads'
 import { useMyConsultancy } from '@/queries/consultancy'
@@ -39,6 +40,12 @@ import { ReopenClientModal } from './ReopenClientModal'
 import { EditClientDetailsModal } from './EditClientDetailsModal'
 import { ShareFromLibraryModal } from './ShareFromLibraryModal'
 import { AddSelectedCollegeModal } from './AddSelectedCollegeModal'
+import { AcceptCollegeModal } from './AcceptCollegeModal'
+import { RevertAcceptanceModal } from './RevertAcceptanceModal'
+import { RecordInstallmentModal } from './RecordInstallmentModal'
+import { RecordPrContributionModal } from './RecordPrContributionModal'
+
+type SelectedCollegeRowData = import('@/api/schema').components['schemas']['SelectedCollege']
 
 const TABS = [
   'Overview',
@@ -52,7 +59,24 @@ const TABS = [
 ] as const
 type Tab = (typeof TABS)[number]
 
-const COLLEGE_STATUSES = ['considering', 'applied', 'offer_received', 'accepted', 'rejected'] as const
+// FORWARD-ONLY lifecycle (user decision, 2026-08-28) — mirrors the server's transition map:
+// one step at a time, rejected legal from applied or offer_received, accepted/rejected final
+// (a wrong acceptance goes through the audited revert, never backward through the map).
+type CollegeStatus = 'considering' | 'applied' | 'offer_received' | 'accepted' | 'rejected'
+const COLLEGE_STATUS_INFO: Record<CollegeStatus, { label: string; color: 'secondary' | 'info' | 'warning' | 'success' | 'error' }> = {
+  considering: { label: 'Considering', color: 'secondary' },
+  applied: { label: 'Applied', color: 'info' },
+  offer_received: { label: 'Offer received', color: 'warning' },
+  accepted: { label: 'Accepted', color: 'success' },
+  rejected: { label: 'Rejected', color: 'error' },
+}
+const COLLEGE_NEXT_STEPS: Record<CollegeStatus, CollegeStatus[]> = {
+  considering: ['applied'],
+  applied: ['offer_received', 'rejected'],
+  offer_received: ['accepted', 'rejected'],
+  accepted: [],
+  rejected: [],
+}
 
 const STATUS_INFO: Record<string, { label: string; color: 'warning' | 'info' | 'success' | 'secondary' }> = {
   pending_plan_assignment: { label: 'Pending Plan', color: 'warning' },
@@ -300,52 +324,179 @@ function PlanTab({ clientId, initialStepId }: { clientId: string; initialStepId?
   return <PlanStepBuilder clientId={clientId} initialStepId={initialStepId} />
 }
 
+function money(m: { amount?: number | null; currency: string } | null | undefined) {
+  if (!m || m.amount == null) return '—'
+  return `${m.amount.toLocaleString()} ${m.currency}`
+}
+
+// One source's expected-vs-received line with a progress bar — the same treatment for the
+// college side and the applicant side so partial payment reads at a glance.
+function ExpectedVsReceived({
+  label,
+  expected,
+  received,
+}: {
+  label: string
+  expected: { amount?: number | null; currency: string } | null | undefined
+  received: { amount?: number | null; currency: string } | null | undefined
+}) {
+  if (!expected) return null
+  const expectedAmount = expected.amount ?? 0
+  const receivedAmount = received?.amount ?? 0
+  const pct = expectedAmount > 0 ? Math.min(100, Math.round((receivedAmount / expectedAmount) * 100)) : 0
+  const settled = expectedAmount > 0 && receivedAmount >= expectedAmount
+  return (
+    <div className="flex flex-col gap-xs">
+      <div className="flex items-center justify-between text-body-sm">
+        <span className="font-medium text-text-primary">{label}</span>
+        <span className="text-text-secondary">
+          {receivedAmount.toLocaleString()} / {expectedAmount.toLocaleString()} {expected.currency}
+          {settled ? ' · fully paid' : pct > 0 ? ` · ${pct}%` : ''}
+        </span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-background">
+        <div className={`h-full rounded-full ${settled ? 'bg-success' : 'bg-primary'}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  )
+}
+
+// Reworked 2026-08-28: driven by the case's commission entry (created in the Accept popup, or
+// directly for PR cases). DELIBERATELY shows no platform cut/rate — tiered visibility puts
+// those on the Commission Details page only.
 function CommissionsTab({ clientId }: { clientId: string }) {
+  const client = useClient(clientId)
   const commissions = useCommissions(clientId)
+  const deleteInstallment = useDeleteInstallment(clientId)
+  const canRecord = usePermission('billing.record_payment')
+  const [showRecord, setShowRecord] = useState(false)
+  const [showPrEntry, setShowPrEntry] = useState(false)
   if (commissions.isLoading) return <Skeleton className="h-24 rounded-lg" />
   if (commissions.isError || !commissions.data) {
     return <ErrorState message="Could not load commissions." onRetry={() => commissions.refetch()} />
   }
   const data = commissions.data
+  const entry = data.entry
+  const isPr = client.data?.case_type === 'pr'
+
+  if (!entry) {
+    return (
+      <Card className="flex flex-col items-start gap-md">
+        <div>
+          <h2 className="text-h3 text-text-primary">No commission entry yet</h2>
+          <p className="mt-xs text-body-sm text-text-secondary">
+            {isPr
+              ? 'Record the applicant’s agreed contribution to start tracking payments for this PR case.'
+              : 'The entry is created when a college is accepted on the Selected Colleges tab — the Accept popup captures the agreed amounts.'}
+          </p>
+        </div>
+        {isPr && canRecord && <Button onClick={() => setShowPrEntry(true)}>Record Applicant Contribution</Button>}
+        {showPrEntry && (
+          <RecordPrContributionModal
+            clientId={clientId}
+            finalizedCountry={client.data?.finalized_country ?? null}
+            onClose={() => setShowPrEntry(false)}
+          />
+        )}
+      </Card>
+    )
+  }
+
   return (
-    <Card className="flex flex-col gap-md">
-      <div>
-        <h2 className="text-h3 text-text-primary">Payer</h2>
-        <p className="mt-xs text-body-sm text-text-secondary capitalize">{data.payer_method ?? 'Not set'}</p>
-      </div>
-      <div>
-        <h2 className="text-h3 text-text-primary">Expected vs. Received</h2>
-        <p className="mt-xs text-body-sm text-text-primary">
-          {data.amount_received.toLocaleString()} / {data.expected_total.toLocaleString()} {data.currency}
-        </p>
-      </div>
-      <div>
-        <h2 className="text-h3 text-text-primary">Installments</h2>
-        <div className="mt-xs flex flex-col gap-xs">
-          {data.installments.map((inv) => (
+    <div className="flex flex-col gap-md">
+      <Card className="flex flex-col gap-md">
+        <div className="flex items-start justify-between gap-md">
+          <div>
+            <h2 className="text-h3 text-text-primary">
+              {entry.case_type === 'pr' ? `PR case — ${entry.destination_country}` : (entry.course_name ?? 'Accepted course')}
+            </h2>
+            <p className="mt-xs text-body-sm text-text-secondary">
+              {entry.case_type === 'pr'
+                ? 'Applicant contribution'
+                : `${entry.college_name ?? ''} · ${entry.destination_country}${entry.course_start ? ` · starts ${entry.course_start.month} ${entry.course_start.year}` : ''}`}
+            </p>
+          </div>
+          <Badge color="info" className="capitalize">
+            {entry.payer_method === 'applicant' ? 'Applicant pays' : entry.payer_method === 'college' ? 'College pays' : 'Split'}
+          </Badge>
+        </div>
+        <ExpectedVsReceived label="From college" expected={entry.expected_from_college} received={entry.received_from_college} />
+        <ExpectedVsReceived label="From applicant" expected={entry.expected_from_student} received={entry.received_from_student} />
+      </Card>
+
+      <Card className="flex flex-col gap-md">
+        <div className="flex items-center justify-between">
+          <h2 className="text-h3 text-text-primary">Payments Received</h2>
+          {canRecord && (
+            <Button size="sm" onClick={() => setShowRecord(true)}>
+              Record Payment
+            </Button>
+          )}
+        </div>
+        {data.installments.length === 0 ? (
+          <p className="text-body-sm text-text-secondary">Nothing received yet — partial payments land here as installments.</p>
+        ) : (
+          <div className="flex flex-col gap-xs">
+            {data.installments.map((inst) => (
+              <div key={inst.id} className="flex items-center justify-between gap-md text-body-sm">
+                <div>
+                  <span className="font-medium text-text-primary">{money(inst.amount)}</span>
+                  <span className="text-text-secondary">
+                    {' '}
+                    from {inst.source === 'student' ? 'applicant' : 'college'} · {formatDate(inst.received_on)}
+                    {inst.note ? ` · ${inst.note}` : ''}
+                    {inst.receipt_id ? ' · receipt linked' : ''}
+                  </span>
+                </div>
+                {canRecord && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => deleteInstallment.mutate({ entryId: entry.id, installmentId: inst.id })}
+                    disabled={deleteInstallment.isPending}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {deleteInstallment.isError && <p className="text-body-sm text-error">{deleteInstallment.error.message}</p>}
+      </Card>
+
+      {(data.invoices.length > 0 || data.receipts.length > 0) && (
+        <Card className="flex flex-col gap-md">
+          <div>
+            <h2 className="text-h3 text-text-primary">Linked Documents</h2>
+            <p className="text-caption text-text-secondary">
+              Platform invoices and receipts for this case — optional; installments above are the source of truth for
+              money received.
+            </p>
+          </div>
+          {data.invoices.map((inv) => (
             <div key={inv.id} className="flex items-center justify-between text-body-sm">
-              <span className="text-text-primary">{inv.number}</span>
+              <span className="text-text-primary">Invoice {inv.number}</span>
               <span className="text-text-secondary">
-                {(inv.amount.amount ?? 0).toLocaleString()} {inv.amount.currency} — {inv.status}
+                {money(inv.amount)} — {inv.status}
               </span>
             </div>
           ))}
-        </div>
-      </div>
-      <div className="flex items-center justify-between border-t border-border pt-md">
-        <h2 className="text-h3 text-text-primary">Platform Commission</h2>
-        {data.platform_commission_status === 'recognized' ? (
-          <Badge color="success">{data.platform_commission_amount?.toLocaleString()} recognized</Badge>
-        ) : (
-          <Badge color="secondary">Not yet recognized</Badge>
-        )}
-      </div>
-      {data.reopened_flag && (
-        <p className="text-body-sm text-warning">
-          Plan reopened after recognition — flagged for manual finance review.
-        </p>
+          {data.receipts.map((r) => (
+            <div key={r.id} className="flex items-center justify-between text-body-sm">
+              <span className="text-text-primary">Receipt for {r.invoice_number}</span>
+              <span className="text-text-secondary">
+                {money(r.amount)} — {formatDate(r.recorded_at)}
+              </span>
+            </div>
+          ))}
+        </Card>
       )}
-    </Card>
+
+      {showRecord && (
+        <RecordInstallmentModal clientId={clientId} entry={entry} receipts={data.receipts} onClose={() => setShowRecord(false)} />
+      )}
+    </div>
   )
 }
 
@@ -409,33 +560,116 @@ function SelectedCollegesTab({ clientId }: { clientId: string }) {
       )}
       <div className="flex flex-col gap-xs">
         {colleges.data.map((sc) => (
-          <Card key={sc.id} className="flex items-center justify-between">
-            <div>
-              <p className="text-body font-medium text-text-primary">{sc.course.name}</p>
-              <p className="text-caption text-text-secondary">
-                {sc.course.college_name}
-                {sc.course.country ? ` · ${sc.course.country}` : ''} · {sc.course.fee?.amount?.toLocaleString()}{' '}
-                {sc.course.fee?.currency}
-              </p>
-            </div>
-            <select
-              value={sc.status}
-              onChange={(e) =>
-                updateStatus.mutate({ collegeId: sc.id, status: e.target.value as (typeof COLLEGE_STATUSES)[number] })
-              }
-              className="h-9 rounded-md border border-border bg-surface px-2 text-body-sm capitalize"
-            >
-              {COLLEGE_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s.replace('_', ' ')}
-                </option>
-              ))}
-            </select>
-          </Card>
+          <SelectedCollegeRow
+            key={sc.id}
+            clientId={clientId}
+            row={sc}
+            journeyPayerMethod={client.data?.payer_method ?? null}
+            onAdvance={(status) => updateStatus.mutate({ collegeId: sc.id, status })}
+            advanceError={updateStatus.variables?.collegeId === sc.id && updateStatus.isError ? updateStatus.error.message : null}
+            advancing={updateStatus.variables?.collegeId === sc.id && updateStatus.isPending}
+          />
         ))}
       </div>
       {addCollegeModal}
     </div>
+  )
+}
+
+// One college's row: status pill + only the moves the forward-only lifecycle allows from here.
+// Accepting never fires directly — it opens the Accept popup, which is where the money
+// agreement (and thus the commission entry) is captured. Rejecting is terminal, so it takes a
+// second click to confirm rather than firing on the first.
+function SelectedCollegeRow({
+  clientId,
+  row,
+  journeyPayerMethod,
+  onAdvance,
+  advanceError,
+  advancing,
+}: {
+  clientId: string
+  row: SelectedCollegeRowData
+  journeyPayerMethod: 'college' | 'applicant' | 'split' | null
+  onAdvance: (status: CollegeStatus) => void
+  advanceError: string | null
+  advancing: boolean
+}) {
+  const [showAccept, setShowAccept] = useState(false)
+  const [showRevert, setShowRevert] = useState(false)
+  const [confirmReject, setConfirmReject] = useState(false)
+  const status = row.status as CollegeStatus
+  const info = COLLEGE_STATUS_INFO[status] ?? { label: row.status, color: 'secondary' as const }
+  const nextSteps = COLLEGE_NEXT_STEPS[status] ?? []
+
+  return (
+    <Card className="flex flex-col gap-sm">
+      <div className="flex items-center justify-between gap-md">
+        <div>
+          <p className="text-body font-medium text-text-primary">{row.course.name}</p>
+          <p className="text-caption text-text-secondary">
+            {row.course.college_name}
+            {row.course.country ? ` · ${row.course.country}` : ''} · {row.course.fee?.amount?.toLocaleString()}{' '}
+            {row.course.fee?.currency}
+          </p>
+        </div>
+        <div className="flex items-center gap-sm">
+          <Badge color={info.color}>{info.label}</Badge>
+          {nextSteps.includes('applied') && (
+            <Button size="sm" variant="secondary" onClick={() => onAdvance('applied')} loading={advancing}>
+              Mark Applied
+            </Button>
+          )}
+          {nextSteps.includes('offer_received') && (
+            <Button size="sm" variant="secondary" onClick={() => onAdvance('offer_received')} loading={advancing}>
+              Offer Received
+            </Button>
+          )}
+          {nextSteps.includes('accepted') && (
+            <Button size="sm" onClick={() => setShowAccept(true)}>
+              Accept…
+            </Button>
+          )}
+          {nextSteps.includes('rejected') &&
+            (confirmReject ? (
+              <>
+                <Button size="sm" variant="destructive" onClick={() => onAdvance('rejected')} loading={advancing}>
+                  Confirm Reject
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => setConfirmReject(false)}>
+                  Keep
+                </Button>
+              </>
+            ) : (
+              <Button size="sm" variant="secondary" onClick={() => setConfirmReject(true)}>
+                Rejected
+              </Button>
+            ))}
+          {status === 'accepted' && (
+            <Button size="sm" variant="secondary" onClick={() => setShowRevert(true)}>
+              Change acceptance
+            </Button>
+          )}
+        </div>
+      </div>
+      {advanceError && <p className="text-body-sm text-error">{advanceError}</p>}
+      {showAccept && (
+        <AcceptCollegeModal
+          clientId={clientId}
+          row={row}
+          journeyPayerMethod={journeyPayerMethod}
+          onClose={() => setShowAccept(false)}
+        />
+      )}
+      {showRevert && (
+        <RevertAcceptanceModal
+          clientId={clientId}
+          collegeId={row.id}
+          courseName={row.course.name}
+          onClose={() => setShowRevert(false)}
+        />
+      )}
+    </Card>
   )
 }
 

@@ -100,8 +100,26 @@ export function FreelancerDashboardPage() {
               <div className="flex items-center gap-md">
                 <div className="min-w-0 flex-1">
                   <p className="text-body font-medium text-text-primary">{referral.applicant_name}</p>
-                  <p className="text-caption text-text-secondary">Referred {formatDate(referral.created_at)}</p>
+                  <p className="text-caption text-text-secondary">
+                    Referred {formatDate(referral.created_at)}
+                    {referral.commission?.college_name ? ` · ${referral.commission.college_name}` : ''}
+                  </p>
                 </div>
+                {/* The freelancer's cut, present once the case has an accepted commission entry
+                    (2026-08-28). Deliberately the ONLY money figure on this page — the case's
+                    full commission and the consultancy's rates are not theirs to see. */}
+                {referral.commission &&
+                  (referral.commission.your_cut ? (
+                    <div className="text-right">
+                      <p className="text-body font-medium text-text-primary">
+                        {referral.commission.your_cut.currency}{' '}
+                        {(referral.commission.your_cut.amount ?? 0).toLocaleString()}
+                      </p>
+                      <p className="text-caption text-text-secondary">your cut</p>
+                    </div>
+                  ) : (
+                    <Badge color="warning">rate not set yet</Badge>
+                  ))}
                 <Badge color="info" className="capitalize">
                   {referral.status.replace(/_/g, ' ')}
                 </Badge>

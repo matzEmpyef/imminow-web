@@ -20,6 +20,9 @@ const PAYER_METHOD_LABELS: Record<PayerMethod, string> = {
   college: 'College',
   applicant: 'Applicant',
   split: 'Split',
+  // Rates-config-only dimension (2026-08-28): prices PR cases for the country. Journeys never
+  // carry `pr` as a payer — a PR entry's payer is always the applicant.
+  pr: 'PR case',
 }
 
 // User-requested (2026-08-15) — "wherever there is add button, use popup, instead of inline
@@ -121,6 +124,7 @@ function AddRateForm({
           <option value="college">College</option>
           <option value="applicant">Applicant</option>
           <option value="split">Split</option>
+          <option value="pr">PR case</option>
         </SelectField>
         <TextField
           label="Direct rate %"
@@ -285,7 +289,9 @@ function ConsultancyRatesModal({ summary, onClose }: { summary: ConsultancySumma
                   <div className="flex flex-col gap-sm">
                     {rates.map((rate) => (
                       <div key={rate.id} className="flex items-center justify-between gap-md">
-                        <Badge color="info" className="capitalize">
+                        {/* PR rows get their own tint so student pricing and PR pricing read
+                            apart at a glance. */}
+                        <Badge color={rate.payer_method === 'pr' ? 'primary' : 'info'} className="capitalize">
                           {PAYER_METHOD_LABELS[rate.payer_method as PayerMethod] ?? rate.payer_method}
                         </Badge>
                         <RateEditor rate={rate} freelancerDisabled={!summary.freelancerEnabled} />

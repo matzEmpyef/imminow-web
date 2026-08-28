@@ -210,18 +210,81 @@ export function useAddSelectedCollege(clientId: string) {
   })
 }
 
+type Money = { amount: number; currency: string }
+
+export interface AcceptCommissionBody {
+  expected_from_college?: Money
+  expected_from_student?: Money
+  course_start: { month: string; year: number }
+}
+
 export function useUpdateSelectedCollege(clientId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ collegeId, status }: { collegeId: string; status: CollegeStatus }) => {
+    mutationFn: async ({
+      collegeId,
+      status,
+      commission,
+    }: {
+      collegeId: string
+      status: CollegeStatus
+      // Required by the server when status is 'accepted' — the Accept popup's money agreement.
+      commission?: AcceptCommissionBody
+    }) => {
       const { data, error } = await api.PATCH('/clients/{id}/selected-colleges/{collegeId}', {
         params: { path: { id: clientId, collegeId } },
-        body: { status },
+        body: { status, ...(commission ? { commission } : {}) },
       })
       if (error) throw new ApiError('Could not update this college.', error)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'selected-colleges'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'selected-colleges'] })
+      // Accepting creates the commission entry, so every money view is downstream of this.
+      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'commissions'] })
+      queryClient.invalidateQueries({ queryKey: ['commission'] })
+      queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] })
+    },
+  })
+}
+
+export function useRevertAcceptance(clientId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ collegeId, reason }: { collegeId: string; reason: string }) => {
+      const { data, error } = await api.POST('/clients/{id}/selected-colleges/{collegeId}/revert-acceptance', {
+        params: { path: { id: clientId, collegeId } },
+        body: { reason },
+      })
+      if (error) throw new ApiError('Could not revert this acceptance.', error)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'selected-colleges'] })
+      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'commissions'] })
+      queryClient.invalidateQueries({ queryKey: ['commission'] })
+      queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] })
+    },
+  })
+}
+
+// PR cases only — no colleges, the consultant records the agreed contribution directly.
+export function useCreatePrCommissionEntry(clientId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { amount: Money; destination_country: string; note?: string }) => {
+      const { data, error } = await api.POST('/clients/{id}/commission-entry', {
+        params: { path: { id: clientId } },
+        body,
+      })
+      if (error) throw new ApiError('Could not record the contribution.', error)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'commissions'] })
+      queryClient.invalidateQueries({ queryKey: ['commission'] })
+      queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] })
+    },
   })
 }
 

@@ -4,10 +4,17 @@ import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
+import { Table, type TableColumn } from '@/components/Table'
 import { usePermissionChecker } from '@/lib/permissions'
 import { useCommission, useRecordCommissionPayment } from '@/queries/commission'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { formatDate } from '@/lib/time'
+import type { components } from '@/api/schema'
+
+type CommissionDue = components['schemas']['CommissionDue']
+
+const inr = (m: { amount?: number | null; currency: string } | undefined) =>
+  m ? `${(m.amount ?? 0).toLocaleString()} ${m.currency}` : '—'
 
 function RecordPaymentForm() {
   const recordPayment = useRecordCommissionPayment()
@@ -109,6 +116,72 @@ export function CommissionDetailsPage() {
   }
 
   const data = commission.data
+  const canRecordPayment = can('billing.record_payment')
+
+  const dueColumns: TableColumn<CommissionDue>[] = [
+    {
+      key: 'applicant',
+      header: 'Applicant',
+      render: (due) => (
+        <div>
+          <span className="font-medium text-text-primary">{due.applicant_name}</span>
+          <p className="text-caption text-text-secondary">
+            {due.case_type === 'pr' ? 'PR case' : (due.college_name ?? '—')}
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: 'payer',
+      header: 'Payer',
+      render: (due) => (
+        <span className="capitalize">{due.payer_method === 'applicant' ? 'Applicant' : due.payer_method}</span>
+      ),
+    },
+    { key: 'expected', header: 'Expected', align: 'right', render: (due) => inr(due.expected_total) },
+    {
+      key: 'received',
+      header: 'Received',
+      align: 'right',
+      render: (due) => {
+        const settled = (due.balance.amount ?? 0) <= 0
+        return (
+          <div className="flex items-center justify-end gap-sm">
+            <span>{inr(due.received_total)}</span>
+            {settled ? (
+              <Badge color="success">Paid</Badge>
+            ) : (due.received_total.amount ?? 0) > 0 ? (
+              <Badge color="warning">Partial</Badge>
+            ) : (
+              <Badge color="secondary">Unpaid</Badge>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      key: 'platform_due',
+      header: 'Due to Sentpo',
+      align: 'right',
+      render: (due) => (
+        <div className="flex items-center justify-end gap-sm">
+          <span className="font-medium">{inr(due.platform_due)}</span>
+          <span className="text-caption text-text-secondary">{due.rate_percent}%</span>
+          {due.rate_source === 'fallback_default' && (
+            // The 10% default applied because no Commission Rates row existed for this
+            // country + payer method — Sentpo needs to configure one, not discover this later.
+            <Badge color="warning">default rate</Badge>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'recognized',
+      header: 'Accepted',
+      align: 'right',
+      render: (due) => formatDate(due.recognized_at),
+    },
+  ]
 
   return (
     <AppShell>
@@ -121,29 +194,25 @@ export function CommissionDetailsPage() {
         </div>
 
         <Card>
-          <h2 className="text-h3 text-text-primary">Pending Dues</h2>
-          {data.dues.length === 0 && <p className="mt-sm text-body-sm text-text-secondary">Nothing pending.</p>}
-          <div className="mt-sm flex flex-col gap-xs">
-            {data.dues.map((due) => (
-              <div key={due.id} className="flex items-center justify-between text-body-sm">
-                <div>
-                  <span className="text-text-primary">{due.applicant_name}</span>
-                  {due.reopened_flag && (
-                    <Badge color="warning" className="ml-sm">
-                      Reopened after recognition
-                    </Badge>
-                  )}
-                </div>
-                <span className="text-text-secondary">
-                  {(due.amount.amount ?? 0).toLocaleString()} {due.amount.currency} — recognized{' '}
-                  {formatDate(due.recognized_at)}
-                </span>
-              </div>
-            ))}
+          <div>
+            <h2 className="text-h3 text-text-primary">Active Cases</h2>
+            <p className="text-caption text-text-secondary">
+              One row per accepted case (or PR contribution). Mixed-currency agreements are shown INR-normalized;
+              per-source detail lives on each applicant&rsquo;s Commissions tab. This page is the one place the
+              platform&rsquo;s cut is visible.
+            </p>
+          </div>
+          <div className="mt-sm">
+            <Table
+              columns={dueColumns}
+              rows={data.dues}
+              rowKey={(due) => due.id}
+              emptyMessage="Nothing pending — cases appear here when a college is accepted."
+            />
           </div>
         </Card>
 
-        <RecordPaymentForm />
+        {canRecordPayment && <RecordPaymentForm />}
 
         <Card>
           <h2 className="text-h3 text-text-primary">Payment History</h2>

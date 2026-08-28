@@ -7365,7 +7365,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update a Selected College's status — the tab's "editable status" (build reference 1.22) */
+        /** Advance a Selected College's status. FORWARD-ONLY (user decision, 2026-08-28) — considering → applied → offer_received → accepted, one step at a time; rejected is allowed from applied (college declined) or offer_received (student declined); accepted and rejected are terminal (fixing a wrong acceptance goes through revert-acceptance, never back through this route). Order violations are 422. Moving to `accepted` REQUIRES the `commission` object — the money agreement captured in the Accept popup — and creates the journey's commission entry (409 if one is already active). Every change is audited, recorded as a status transition, and notifies the student (`application_status_changed`). */
         patch: {
             parameters: {
                 query?: never;
@@ -7381,6 +7381,17 @@ export interface paths {
                     "application/json": {
                         /** @enum {string} */
                         status: "considering" | "applied" | "offer_received" | "accepted" | "rejected";
+                        /** @description Required when status is `accepted`, forbidden otherwise. Which amounts are required follows the journey's payer method — college → expected_from_college (in the course's own fee currency); applicant → expected_from_student (any currency, INR by default); split → both. */
+                        commission?: {
+                            expected_from_college?: components["schemas"]["Money"];
+                            expected_from_student?: components["schemas"]["Money"];
+                            course_start: {
+                                /** @example September */
+                                month: string;
+                                /** @example 2027 */
+                                year: number;
+                            };
+                        };
                     };
                 };
             };
@@ -7394,8 +7405,104 @@ export interface paths {
                         "application/json": components["schemas"]["SelectedCollege"];
                     };
                 };
+                409: components["responses"]["ErrorResponse"];
+                422: components["responses"]["ErrorResponse"];
             };
         };
+        trace?: never;
+    };
+    "/clients/{id}/selected-colleges/{collegeId}/revert-acceptance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The audited mistake-fix for a wrong acceptance (user decision, 2026-08-28) — voids the journey's active commission entry (reason recorded) and returns the college to offer_received, after which a different college can be accepted. The voided entry keeps its installment history; it is excluded from dues and dashboards. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    collegeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Reverted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SelectedCollege"];
+                    };
+                };
+                409: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clients/{id}/commission-entry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** PR cases only — records the applicant's agreed contribution directly (a PR case has no Selected Colleges lifecycle to hang an acceptance on). Creates the journey's commission entry with payer `applicant`, priced by the country's `pr` Commission Rates row. 422 on a student case; 409 if an entry is already active. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        amount: components["schemas"]["Money"];
+                        destination_country: string;
+                        note?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommissionEntryDetail"];
+                    };
+                };
+                409: components["responses"]["ErrorResponse"];
+                422: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/clients/{id}/notes": {
@@ -11976,6 +12083,161 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/commission/payments/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Super Admin marks a declared payment as received (finance permission) — the previously missing declared → confirmed transition. Confirmed payments reduce the consultancy's running total and count into platform revenue. Audited. */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Confirmed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommissionPayment"];
+                    };
+                };
+                409: components["responses"]["ErrorResponse"];
+            };
+        };
+        trace?: never;
+    };
+    "/commission-entries/{id}/installments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record a received payment against a commission entry (billing.record_payment) — source college or student, partial amounts expected, optionally linked to a platform receipt of the same journey. Consultancies invoicing externally record installments here with no platform invoice at all. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CommissionInstallmentInput"];
+                };
+            };
+            responses: {
+                /** @description Recorded */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommissionInstallment"];
+                    };
+                };
+                422: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/commission-entries/{id}/installments/{installmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a mis-entered installment (billing.record_payment, audited with the amounts in the diff). */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    installmentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Removed */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/commissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The applicant's own payments view (mobile) — their accepted case, what they are expected to contribute, and the installments received from them. Returns has_commission false (all else null) until a college is accepted or a PR contribution is recorded. Never exposes college-side amounts, rates, or platform figures. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StudentCommissionView"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/commission-rates/me": {
         parameters: {
             query?: never;
@@ -12712,6 +12974,10 @@ export interface paths {
                         "application/json": {
                             items: components["schemas"]["FinanceDashboardEntry"][];
                             running_total: components["schemas"]["Money"];
+                            /** @description Consultancy-declared platform payments awaiting the finance Confirm action (all payment things in one place, user-requested 2026-08-28). */
+                            declared_payments?: components["schemas"]["CommissionPayment"][];
+                            /** @description Confirmed payments, newest first. */
+                            payment_history?: components["schemas"]["CommissionPayment"][];
                         };
                     };
                 };
@@ -14655,26 +14921,111 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
-        /** @description Client Profile's Commissions tab (build reference 1.17/2.2), Admin/Billing permission only. Expected total and the installment table are derived from this journey's non-void invoices/receipts (already tracked by the Invoices/Receipts screens) rather than a separate stored figure — one source of truth for what the applicant owes. */
+        /** @description Client Profile's Commissions tab, `clients.view_commissions` only. Reworked 2026-08-28 — driven by the journey's active commission entry (created when a college is Accepted, or directly for PR cases) rather than derived from invoices. DELIBERATELY carries no platform cut, rate, or platform payment status — that tier of information is visible only on the Commission Details page (`GET /commission`, `billing.view_commission_details`), per the tiered-visibility rule. */
         CommissionSummary: {
             /** @enum {string|null} */
             payer_method: "college" | "applicant" | "split" | null;
-            /** Format: double */
-            expected_total: number;
-            /** Format: double */
-            amount_received: number;
-            /** @example INR */
-            currency: string;
-            installments: components["schemas"]["Invoice"][];
+            /** @description Null until a college is Accepted (or a PR contribution is recorded). */
+            entry: components["schemas"]["CommissionEntryDetail"] | null;
+            /** @description Money actually received against the entry, in the order recorded. */
+            installments: components["schemas"]["CommissionInstallment"][];
+            /** @description This journey's platform invoices — linked documents, optional (a consultancy may invoice externally; recording installments never requires one). */
+            invoices: components["schemas"]["Invoice"][];
+            /** @description This journey's platform receipts, linkable from an installment. */
+            receipts: components["schemas"]["Receipt"][];
+        };
+        /** @description One case's money agreement, snapshotted at acceptance (or at PR contribution entry). The platform's own cut is deliberately NOT part of this shape — it appears only in the Commission Details / Finance Dashboard read models. */
+        CommissionEntryDetail: {
+            id: components["schemas"]["UUID"];
+            journey_id: components["schemas"]["UUID"];
             /** @enum {string} */
-            platform_commission_status: "not_yet_recognized" | "recognized";
+            case_type: "student" | "pr";
             /**
-             * Format: double
-             * @description Set only once status is recognized (Plan Complete, build reference 1.17).
+             * Format: uuid
+             * @description Null for PR entries — a PR case has no Selected Colleges lifecycle.
              */
-            platform_commission_amount?: number | null;
-            /** @description Set if the plan was reopened after commission was already recognized — surfaced for manual finance review, never auto-adjusted (build reference 1.17). */
-            reopened_flag?: boolean;
+            selected_college_id?: string | null;
+            /** Format: uuid */
+            course_id?: string | null;
+            course_name?: string | null;
+            college_name?: string | null;
+            destination_country: string;
+            /**
+             * @description PR entries are always `applicant`.
+             * @enum {string}
+             */
+            payer_method: "college" | "applicant" | "split";
+            /** @description Agreed college-side amount, always in the course's own fee currency. */
+            expected_from_college?: components["schemas"]["Money"] | null;
+            /** @description Agreed applicant-side amount in the consultant-chosen currency (INR by default). */
+            expected_from_student?: components["schemas"]["Money"] | null;
+            /** @description Null for PR entries — there is no course. */
+            course_start?: {
+                /** @example September */
+                month?: string;
+                /** @example 2027 */
+                year?: number;
+            } | null;
+            /** @description Computed sum of college-source installments, in the expected currency. */
+            received_from_college?: components["schemas"]["Money"] | null;
+            received_from_student?: components["schemas"]["Money"] | null;
+            /**
+             * @description Voided means the acceptance was reverted (reason recorded, audited); a journey has at most one active entry.
+             * @enum {string}
+             */
+            status: "active" | "voided";
+            void_reason?: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        /** @description One received payment against a commission entry — partial payments and multiple installments are the expected shape, not the exception. Optionally linked to a platform receipt; never requires one (external invoicing stays legal). */
+        CommissionInstallment: {
+            id: components["schemas"]["UUID"];
+            commission_entry_id: components["schemas"]["UUID"];
+            /** @enum {string} */
+            source: "college" | "student";
+            amount: components["schemas"]["Money"];
+            /** Format: date */
+            received_on: string;
+            note?: string | null;
+            /** Format: uuid */
+            receipt_id?: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        CommissionInstallmentInput: {
+            /** @enum {string} */
+            source: "college" | "student";
+            amount: components["schemas"]["Money"];
+            /**
+             * Format: date
+             * @description Defaults to today.
+             */
+            received_on?: string;
+            note?: string;
+            /**
+             * Format: uuid
+             * @description Must be a receipt of the same journey and consultancy.
+             */
+            receipt_id?: string;
+        };
+        /** @description The applicant's own view of their accepted case's payments (mobile Payments screen). Shows only what concerns them — their expected contribution and what has been received from them. College-side amounts, rates, and platform figures never appear here. */
+        StudentCommissionView: {
+            has_commission: boolean;
+            /** @enum {string|null} */
+            case_type?: "student" | "pr" | null;
+            course_name?: string | null;
+            college_name?: string | null;
+            /** @enum {string|null} */
+            payer_method?: "college" | "applicant" | "split" | null;
+            course_start?: {
+                month?: string;
+                year?: number;
+            } | null;
+            expected_from_student?: components["schemas"]["Money"] | null;
+            received_from_student?: components["schemas"]["Money"] | null;
+            /** @description Student-source installments only. */
+            installments?: components["schemas"]["CommissionInstallment"][];
         };
         /** @description Client Profile's Activity tab — a simplified, read-only feed, not a raw audit_log exposure (the real audit log is hash-chained/KMS-encrypted infrastructure, TRD Section 10, not a client-facing read model). */
         ActivityEntry: {
@@ -15634,11 +15985,21 @@ export interface components {
             destination_country: string;
             /** @enum {string} */
             payer_method: "college" | "applicant" | "split";
+            /** @enum {string} */
+            case_type?: "student" | "pr";
+            college_name?: string | null;
+            /** @description The platform's due for this entry (INR, snapshotted at acceptance). */
             amount: components["schemas"]["Money"];
+            /** @description INR-normalized agreed total for the case. */
+            expected_total?: components["schemas"]["Money"];
+            /** @description INR-normalized installments received by the consultancy so far. */
+            received_total?: components["schemas"]["Money"];
+            /** Format: double */
+            rate_percent?: number;
+            /** @enum {string} */
+            rate_source?: "configured" | "fallback_default";
             /** Format: date-time */
             recognized_at: string;
-            /** @description Surfaced distinctly per build reference 1.17 — never auto-adjusted, finance reviews and decides manually. */
-            reopened_flag?: boolean;
         };
         /** @description Consultancy Commission Table (build reference 1.17) — one row per (consultancy, destination country, payer method), the total the consultancy pays out whether the case was Sentpo-direct or freelancer-sourced. */
         CommissionRate: {
@@ -15646,8 +16007,11 @@ export interface components {
             consultancy_id: components["schemas"]["UUID"];
             readonly consultancy_name?: string;
             destination_country: string;
-            /** @enum {string} */
-            payer_method: "college" | "applicant" | "split";
+            /**
+             * @description Rates-config dimension. `pr` (added 2026-08-28) prices PR cases for the country — it exists only here; journeys and commission entries never carry it as a payer (a PR entry's payer is always `applicant`).
+             * @enum {string}
+             */
+            payer_method: "college" | "applicant" | "split" | "pr";
             /**
              * Format: double
              * @description Percentage — Sentpo-sourced cases.
@@ -15663,7 +16027,7 @@ export interface components {
             consultancy_id: components["schemas"]["UUID"];
             destination_country: string;
             /** @enum {string} */
-            payer_method: "college" | "applicant" | "split";
+            payer_method: "college" | "applicant" | "split" | "pr";
             /** Format: double */
             direct_rate: number;
             /** Format: double */
@@ -15713,6 +16077,15 @@ export interface components {
             readonly status: string;
             /** @enum {string} */
             payment_status: "owed" | "paid";
+            /** @description Present only once the referred journey has an ACTIVE commission entry. The freelancer's entire money view — their own cut (their FreelancerRate % of the case's expected total, INR-normalized). The case's total commission, the consultancy's rate, and the platform's take are deliberately never exposed here. */
+            readonly commission?: {
+                course_name?: string | null;
+                college_name?: string | null;
+                /** @description Null when no FreelancerRate row exists yet (rate_missing true). */
+                your_cut?: components["schemas"]["Money"] | null;
+                /** @description True when Sentpo has not configured this freelancer's rate — surfaced on the payouts page rather than silently showing zero. */
+                rate_missing?: boolean;
+            } | null;
             /** Format: date-time */
             created_at: string;
         };
@@ -15747,18 +16120,47 @@ export interface components {
             /** Format: date-time */
             recorded_at: string;
         };
-        /** @description Commission Details' itemized pending dues (build reference 1.17/2.2) — a read model over erd.md's `commission_entries` where `recognized_at` is set but not yet paid off by a confirmed `commission_payments` row. */
+        /** @description Commission Details' itemized rows (reworked 2026-08-28) — one per ACTIVE commission entry of the caller's consultancy. This is the tier where the platform's cut IS visible (`billing.view_commission_details`); the per-applicant Commissions tab deliberately omits it. Totals that mix currencies (college fee currency + student currency) are normalized to INR via the platform exchange rates, same pivot the course catalog uses. */
         CommissionDue: {
             id: components["schemas"]["UUID"];
             journey_id: components["schemas"]["UUID"];
             applicant_name: string;
-            amount: components["schemas"]["Money"];
-            /** Format: date-time */
+            /** @description Null for PR entries. */
+            college_name?: string | null;
+            course_name?: string | null;
+            /** @enum {string} */
+            case_type: "student" | "pr";
+            /** @enum {string} */
+            payer_method: "college" | "applicant" | "split";
+            /** @description INR-normalized sum of the agreed college + student amounts. */
+            expected_total: components["schemas"]["Money"];
+            /** @description INR-normalized sum of recorded installments, both sources. */
+            received_total: components["schemas"]["Money"];
+            /** @description expected_total − received_total (INR). */
+            balance: components["schemas"]["Money"];
+            /** @description rate_percent × expected_total, snapshotted at acceptance (INR). */
+            platform_due: components["schemas"]["Money"];
+            /** Format: double */
+            rate_percent: number;
+            /**
+             * @description fallback_default flags that no Commission Rates row existed for this country + payer method at acceptance, so the 10% default was applied.
+             * @enum {string}
+             */
+            rate_source: "configured" | "fallback_default";
+            /**
+             * Format: date-time
+             * @description When the acceptance (or PR contribution) was recorded.
+             */
             recognized_at: string;
-            reopened_flag?: boolean;
         };
         CommissionPayment: {
             id: components["schemas"]["UUID"];
+            /**
+             * Format: uuid
+             * @description Which consultancy declared the payment — the Finance Dashboard's confirm queue needs to say who.
+             */
+            readonly consultancy_id?: string;
+            readonly consultancy_name?: string;
             amount: components["schemas"]["Money"];
             proof_url?: string | null;
             /** @enum {string} */

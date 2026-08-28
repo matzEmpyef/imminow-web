@@ -30,3 +30,24 @@ export function useRecordCommissionPayment() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['commission'] }),
   })
 }
+
+// Super Admin marks a declared payment as actually received (finance permission) — the
+// declared → confirmed transition. Confirmed payments feed the consultancy's running total and
+// the admin dashboard's revenue chart, hence the wide invalidation.
+export function useConfirmCommissionPayment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (paymentId: string) => {
+      const { data, error } = await api.PATCH('/commission/payments/{id}/confirm', {
+        params: { path: { id: paymentId } },
+      })
+      if (error) throw new ApiError('Could not confirm this payment.', error)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commission'] })
+      queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] })
+    },
+  })
+}

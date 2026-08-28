@@ -79,6 +79,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     label: 'Billing',
     permissions: [
       { key: 'billing.view_commission_details', label: 'View Commission Details' },
+      { key: 'billing.record_payment', label: 'Record payments (installments & platform payments)' },
       { key: 'billing.export_statements', label: 'Export statements' },
     ],
   },
