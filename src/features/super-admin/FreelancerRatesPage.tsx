@@ -137,8 +137,8 @@ export function FreelancerRatesPanel() {
     return items
   }, [rates.data, search, sort])
 
-  // The page states "Sentpo spread = consultancy rate − this rate", so a freelancer rate above the
-  // consultancy rate means Sentpo pays out more than it earns. The freelancer rate is flat while
+  // The page states "immiNow spread = consultancy rate − this rate", so a freelancer rate above the
+  // consultancy rate means immiNow pays out more than it earns. The freelancer rate is flat while
   // commission rates are per consultancy+country, so the honest comparison is against the LOWEST
   // freelancer-sourced rate on the board: above that, at least one arrangement is loss-making.
   //
@@ -166,10 +166,10 @@ export function FreelancerRatesPanel() {
           lowestConsultancyRate != null && typeof r.rate === 'number' && r.rate > lowestConsultancyRate
         return negative ? (
           <Badge color="warning">
-            Above the lowest consultancy rate ({lowestConsultancyRate}%) — Sentpo pays out more than it earns
+            Above the lowest consultancy rate ({lowestConsultancyRate}%) — immiNow pays out more than it earns
           </Badge>
         ) : (
-          <Badge color="info">Sentpo spread = consultancy rate − this rate</Badge>
+          <Badge color="info">immiNow spread = consultancy rate − this rate</Badge>
         )
       },
     },
@@ -180,7 +180,7 @@ export function FreelancerRatesPanel() {
     <div className="flex flex-col gap-lg">
       <div className="flex items-start justify-between gap-md">
         <p className="text-body-sm text-text-secondary">
-          The flat percentage each freelancer personally earns. Sentpo keeps the spread between this and the
+          The flat percentage each freelancer personally earns. immiNow keeps the spread between this and the
           consultancy&rsquo;s own commission rate.
         </p>
         <Button onClick={() => setShowAdd(true)}>Set Rate</Button>

@@ -73,7 +73,7 @@ export function FinanceDashboardPage() {
           <h1 className="text-h1 text-text-primary">Finance Dashboard</h1>
           <p className="text-body-sm text-text-secondary">
             Every accepted case&rsquo;s commission, what the consultancy has collected so far, and the payments they
-            have made to Sentpo — declared ones await your confirmation below.
+            have made to immiNow — declared ones await your confirmation below.
           </p>
         </div>
 
@@ -115,7 +115,7 @@ export function FinanceDashboardPage() {
         </Card>
 
         <Card className="w-fit">
-          <p className="text-caption text-text-secondary">Due to Sentpo (filtered cases)</p>
+          <p className="text-caption text-text-secondary">Due to immiNow (filtered cases)</p>
           <p className="text-h2 text-text-primary">{money(dashboard.data?.running_total)}</p>
         </Card>
 

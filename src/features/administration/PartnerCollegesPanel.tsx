@@ -3,6 +3,7 @@ import { SelectField } from '@/components/SelectField'
 import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
+import { TextField } from '@/components/TextField'
 import { SearchSelect } from '@/components/SearchSelect'
 import { Table, type TableColumn } from '@/components/Table'
 import { useAdminColleges, useCollegeDetail } from '@/queries/adminColleges'
@@ -19,6 +20,7 @@ import {
 
 const PAYER_LABEL: Record<PayerMethod, string> = { college: 'College', applicant: 'Applicant', split: 'Split' }
 const ALL_PAYERS: PayerMethod[] = ['college', 'applicant', 'split']
+const needsCommission = (payer: PayerMethod | '') => payer === 'college' || payer === 'split'
 
 // Partner Colleges (COURSES_MODULE_PLAN.md §1.7/§4.2, workstream F) — which colleges this
 // consultancy works with, the agreed commission payer method per college, and per-college
@@ -40,8 +42,15 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
 
   const [addCollegeId, setAddCollegeId] = useState('')
   const [addPayer, setAddPayer] = useState<PayerMethod | ''>('')
+  const [addCommissionPercent, setAddCommissionPercent] = useState('')
   const [managing, setManaging] = useState<PartnerCollege | null>(null)
   const [removing, setRemoving] = useState<PartnerCollege | null>(null)
+  // Set when the payer select is switched to college/split on a row that has no commission %
+  // yet — the change is held until the % is supplied, so the two land in one PATCH.
+  const [pendingPayerChange, setPendingPayerChange] = useState<{ relation: PartnerCollege; payer: PayerMethod } | null>(
+    null,
+  )
+  const [editingCommission, setEditingCommission] = useState<PartnerCollege | null>(null)
 
   const partneredIds = new Set((relations.data ?? []).map((r) => r.college_id))
   const collegeOptions = (colleges.data?.items ?? [])
@@ -77,18 +86,38 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
         // platform hasn't priced (yet) still has to display, flagged rather than hidden.
         const options = ALL_PAYERS.filter((m) => priced.includes(m) || m === r.payer_method)
         return (
-          <select
-            className="h-9 rounded-md border border-border bg-surface px-2 text-body-sm text-text-primary"
-            value={r.payer_method}
-            onChange={(e) => updateRelation.mutate({ id: r.id, payer_method: e.target.value as PayerMethod })}
-          >
-            {options.map((m) => (
-              <option key={m} value={m}>
-                {PAYER_LABEL[m]}
-                {!priced.includes(m) ? ' (not priced)' : ''}
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-col gap-1">
+            <select
+              className="h-9 rounded-md border border-border bg-surface px-2 text-body-sm text-text-primary"
+              value={r.payer_method}
+              onChange={(e) => {
+                const nextPayer = e.target.value as PayerMethod
+                // Switching INTO college/split with no commission % yet — hold the change
+                // until the modal below supplies one, so payer and % land together.
+                if (needsCommission(nextPayer) && r.commission_percent == null) {
+                  setPendingPayerChange({ relation: r, payer: nextPayer })
+                } else {
+                  updateRelation.mutate({ id: r.id, payer_method: nextPayer })
+                }
+              }}
+            >
+              {options.map((m) => (
+                <option key={m} value={m}>
+                  {PAYER_LABEL[m]}
+                  {!priced.includes(m) ? ' (not priced)' : ''}
+                </option>
+              ))}
+            </select>
+            {needsCommission(r.payer_method) && (
+              <button
+                type="button"
+                className="text-left text-caption text-text-secondary hover:text-primary hover:underline"
+                onClick={() => setEditingCommission(r)}
+              >
+                {r.commission_percent != null ? `${r.commission_percent}% of tuition` : 'Set commission %'}
+              </button>
+            )}
+          </div>
         )
       },
     },
@@ -161,7 +190,10 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
           className="w-48 shrink-0"
           value={addPayer}
           disabled={!addCollegeId || addMethods.length === 0}
-          onChange={(e) => setAddPayer(e.target.value as PayerMethod)}
+          onChange={(e) => {
+            setAddPayer(e.target.value as PayerMethod)
+            setAddCommissionPercent('')
+          }}
         >
           <option value="">Select…</option>
           {addMethods.map((m) => (
@@ -170,16 +202,40 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
             </option>
           ))}
         </SelectField>
+        {needsCommission(addPayer) && (
+          <TextField
+            label="% of tuition to consultancy"
+            id="pc-commission-percent"
+            type="number"
+            min={0}
+            max={100}
+            step="0.1"
+            required
+            className="w-48 shrink-0"
+            value={addCommissionPercent}
+            onChange={(e) => setAddCommissionPercent(e.target.value)}
+          />
+        )}
         <Button
-          disabled={!addCollegeId || !addPayer}
+          disabled={
+            !addCollegeId ||
+            !addPayer ||
+            (needsCommission(addPayer) &&
+              (addCommissionPercent === '' || Number(addCommissionPercent) < 0 || Number(addCommissionPercent) > 100))
+          }
           loading={addRelation.isPending}
           onClick={() =>
             addRelation.mutate(
-              { college_id: addCollegeId, payer_method: addPayer as PayerMethod },
+              {
+                college_id: addCollegeId,
+                payer_method: addPayer as PayerMethod,
+                ...(needsCommission(addPayer) ? { commission_percent: Number(addCommissionPercent) } : {}),
+              },
               {
                 onSuccess: () => {
                   setAddCollegeId('')
                   setAddPayer('')
+                  setAddCommissionPercent('')
                 },
               },
             )
@@ -237,7 +293,89 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
           </div>
         </Modal>
       )}
+
+      {pendingPayerChange && (
+        <CommissionPercentModal
+          relation={pendingPayerChange.relation}
+          payerLabel={PAYER_LABEL[pendingPayerChange.payer]}
+          onClose={() => setPendingPayerChange(null)}
+          saving={updateRelation.isPending}
+          onSave={(percent) =>
+            updateRelation.mutate(
+              { id: pendingPayerChange.relation.id, payer_method: pendingPayerChange.payer, commission_percent: percent },
+              { onSuccess: () => setPendingPayerChange(null) },
+            )
+          }
+        />
+      )}
+
+      {editingCommission && (
+        <CommissionPercentModal
+          relation={editingCommission}
+          onClose={() => setEditingCommission(null)}
+          saving={updateRelation.isPending}
+          onSave={(percent) =>
+            updateRelation.mutate(
+              { id: editingCommission.id, commission_percent: percent },
+              { onSuccess: () => setEditingCommission(null) },
+            )
+          }
+        />
+      )}
     </div>
+  )
+}
+
+// The % of tuition the consultancy receives from this college (user decision, 2026-08-28) —
+// required the moment a payer method puts the college on the hook for any money. Shared by the
+// inline "Set commission %" / "N% of tuition" edit affordance and the payer-select's own
+// switch-into-college-or-split flow, so both land through the same validated path.
+function CommissionPercentModal({
+  relation,
+  payerLabel,
+  onClose,
+  onSave,
+  saving,
+}: {
+  relation: PartnerCollege
+  payerLabel?: string
+  onClose: () => void
+  onSave: (percent: number) => void
+  saving: boolean
+}) {
+  const [value, setValue] = useState(relation.commission_percent != null ? String(relation.commission_percent) : '')
+  const numeric = value === '' ? null : Number(value)
+  const valid = numeric != null && Number.isFinite(numeric) && numeric >= 0 && numeric <= 100
+
+  return (
+    <Modal title={`Commission % — ${relation.college_name}`} onClose={onClose}>
+      <p className="text-body-sm text-text-secondary">
+        The % of the tuition fee this consultancy receives from {relation.college_name}
+        {payerLabel ? ` as its payer method changes to ${payerLabel}` : ''}. immiNow&rsquo;s own cut is a % of this
+        commission, not of the raw tuition.
+      </p>
+      <div className="mt-md">
+        <TextField
+          label="% of tuition to consultancy"
+          id="pc-edit-commission-percent"
+          type="number"
+          min={0}
+          max={100}
+          step="0.1"
+          required
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        />
+      </div>
+      <div className="mt-lg flex justify-end gap-sm">
+        <Button variant="secondary" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button disabled={!valid} loading={saving} onClick={() => numeric != null && onSave(numeric)}>
+          Save
+        </Button>
+      </div>
+    </Modal>
   )
 }
 

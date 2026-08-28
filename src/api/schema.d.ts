@@ -3512,6 +3512,11 @@ export interface paths {
                     "application/json": {
                         /** @enum {string} */
                         payer_method?: "college" | "applicant" | "split";
+                        /**
+                         * Format: double
+                         * @description Required (0–100) when the resulting payer_method is college or split; cleared automatically the moment payer_method becomes applicant.
+                         */
+                        commission_percent?: number | null;
                         excluded_course_ids?: components["schemas"]["UUID"][];
                         active?: boolean;
                     };
@@ -7379,7 +7384,7 @@ export interface paths {
                     "application/json": {
                         /** @enum {string} */
                         status: "considering" | "applied" | "offer_received" | "accepted" | "rejected";
-                        /** @description Required when status is `accepted`, forbidden otherwise. Which amounts are required follows the journey's payer method — college → expected_from_college (in the course's own fee currency); applicant → expected_from_student (any currency, INR by default); split → both. */
+                        /** @description Required when status is `accepted`, forbidden otherwise. Which amounts are required follows the journey's payer method — college → expected_from_college (the consultancy's commission from the college, in the course's own fee currency); applicant → expected_from_student (any currency, INR by default); split → both. College/split additionally requires the Partner Colleges relation for this college to already carry a commission_percent — 422 if it doesn't. */
                         commission?: {
                             expected_from_college?: components["schemas"]["Money"];
                             expected_from_student?: components["schemas"]["Money"];
@@ -12043,7 +12048,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Record a payment — notifies Sentpo finance, receipt attaches once confirmed */
+        /** Record a payment — notifies immiNow finance, receipt attaches once confirmed */
         post: {
             parameters: {
                 query?: never;
@@ -12243,7 +12248,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read-only view of the logged-in consultancy's own Commission Table rows (user-requested, 2026-08-19 — "the commission rates set must be visible for consultancy under Consultancy Management tab"). Same `/consultancies/me`-style single-tenant scoping — no PATCH counterpart, since these rates are Sentpo-set (build reference 1.17), not consultancy-editable. */
+        /** Read-only view of the logged-in consultancy's own Commission Table rows (user-requested, 2026-08-19 — "the commission rates set must be visible for consultancy under Consultancy Management tab"). Same `/consultancies/me`-style single-tenant scoping — no PATCH counterpart, since these rates are immiNow-set (build reference 1.17), not consultancy-editable. */
         get: {
             parameters: {
                 query?: never;
@@ -14587,6 +14592,11 @@ export interface components {
             readonly course_count?: number;
             /** @enum {string} */
             payer_method: "college" | "applicant" | "split";
+            /**
+             * Format: double
+             * @description The % of the tuition fee the consultancy receives from this college (user decision, 2026-08-28) — required (0–100, enforced server-side) whenever payer_method is college or split; null and meaningless when payer_method is applicant.
+             */
+            commission_percent?: number | null;
             excluded_course_ids?: components["schemas"]["UUID"][];
             /** @default true */
             active: boolean;
@@ -14595,6 +14605,11 @@ export interface components {
             college_id: components["schemas"]["UUID"];
             /** @enum {string} */
             payer_method: "college" | "applicant" | "split";
+            /**
+             * Format: double
+             * @description The % of the tuition fee the consultancy receives from this college. Required (0–100) when payer_method is college or split; must be null/omitted for applicant.
+             */
+            commission_percent?: number | null;
             excluded_course_ids?: components["schemas"]["UUID"][];
             active?: boolean;
         };
@@ -14956,8 +14971,13 @@ export interface components {
              * @enum {string}
              */
             payer_method: "college" | "applicant" | "split";
-            /** @description Agreed college-side amount, always in the course's own fee currency. */
+            /** @description The consultancy's agreed commission FROM the college — the relation's commission_percent × the course's tuition, prefilled at Accept and editable there if the agreed figure differs (user decision, 2026-08-28). Always in the course's own fee currency. NOT the tuition amount itself. */
             expected_from_college?: components["schemas"]["Money"] | null;
+            /**
+             * Format: double
+             * @description The Partner Colleges relation's commission_percent, snapshotted onto this entry at acceptance — null for applicant-pays and PR entries.
+             */
+            readonly college_commission_percent?: number | null;
             /** @description Agreed applicant-side amount in the consultant-chosen currency (INR by default). */
             expected_from_student?: components["schemas"]["Money"] | null;
             /** @description Null for PR entries — there is no course. */
@@ -16043,7 +16063,7 @@ export interface components {
             readonly referral_code?: string;
             active: boolean;
         };
-        /** @description Freelancer Commission Table (build reference 1.17) — the flat percentage that specific freelancer personally earns. Sentpo's own take on a freelancer-sourced case is the spread between the consultancy's freelancer-sourced rate (`CommissionRate`) and this rate, computed at recognition time, never stored. */
+        /** @description Freelancer Commission Table (build reference 1.17) — the flat percentage that specific freelancer personally earns. immiNow's own take on a freelancer-sourced case is the spread between the consultancy's freelancer-sourced rate (`CommissionRate`) and this rate, computed at recognition time, never stored. */
         FreelancerRate: {
             id: components["schemas"]["UUID"];
             freelancer_id: components["schemas"]["UUID"];
@@ -16084,7 +16104,7 @@ export interface components {
                 college_name?: string | null;
                 /** @description Null when no FreelancerRate row exists yet (rate_missing true). */
                 your_cut?: components["schemas"]["Money"] | null;
-                /** @description True when Sentpo has not configured this freelancer's rate — surfaced on the payouts page rather than silently showing zero. */
+                /** @description True when immiNow has not configured this freelancer's rate — surfaced on the payouts page rather than silently showing zero. */
                 rate_missing?: boolean;
             } | null;
             /** Format: date-time */

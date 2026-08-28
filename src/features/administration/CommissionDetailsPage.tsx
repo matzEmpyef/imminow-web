@@ -50,7 +50,7 @@ function RecordPaymentForm() {
         </div>
         {recordPayment.isSuccess && (
           <p className="text-body-sm text-success">
-            Recorded — Sentpo finance has been notified. A receipt attaches once confirmed.
+            Recorded — immiNow finance has been notified. A receipt attaches once confirmed.
           </p>
         )}
         {recordPayment.isError && <p className="text-body-sm text-error">{recordPayment.error.message}</p>}
@@ -161,7 +161,7 @@ export function CommissionDetailsPage() {
     },
     {
       key: 'platform_due',
-      header: 'Due to Sentpo',
+      header: 'Due to immiNow',
       align: 'right',
       render: (due) => (
         <div className="flex items-center justify-end gap-sm">
@@ -169,7 +169,7 @@ export function CommissionDetailsPage() {
           <span className="text-caption text-text-secondary">{due.rate_percent}%</span>
           {due.rate_source === 'fallback_default' && (
             // The 10% default applied because no Commission Rates row existed for this
-            // country + payer method — Sentpo needs to configure one, not discover this later.
+            // country + payer method — immiNow needs to configure one, not discover this later.
             <Badge color="warning">default rate</Badge>
           )}
         </div>

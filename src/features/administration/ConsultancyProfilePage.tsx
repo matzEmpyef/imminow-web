@@ -425,7 +425,7 @@ function BillingCard({ consultancy }: { consultancy: NonNullable<ReturnType<type
         </div>
       </dl>
       <p className="mt-sm text-caption text-text-secondary">
-        Billing terms are set by Sentpo — contact Platform Admin for changes or renewal.
+        Billing terms are set by immiNow — contact Platform Admin for changes or renewal.
       </p>
     </Card>
   )
@@ -435,7 +435,7 @@ type CommissionRate = components['schemas']['CommissionRate']
 
 // User-requested (2026-08-19) — "the commission rates set must be visible for consultancy under
 // Consultancy Management tab." Read-only mirror of Super Admin's own Commission Rates drill-down
-// (`ConsultancyRatesModal`) — these rates are Sentpo-set (build reference 1.17), so there's no
+// (`ConsultancyRatesModal`) — these rates are immiNow-set (build reference 1.17), so there's no
 // edit affordance here, just visibility into what's currently configured.
 function CommissionRatesTab({
   consultancy,
@@ -455,7 +455,7 @@ function CommissionRatesTab({
   return (
     <>
       <p className="text-body-sm text-text-secondary">
-        The commission rates Sentpo has configured for your consultancy — set on your behalf, not editable here.
+        The commission rates immiNow has configured for your consultancy — set on your behalf, not editable here.
       </p>
 
       <Card className="max-w-[42rem]">
