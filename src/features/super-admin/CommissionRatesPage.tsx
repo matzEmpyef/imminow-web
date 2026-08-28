@@ -95,6 +95,10 @@ function RateMatrixModal({
       : blankMatrix(),
   )
   const [touched, setTouched] = useState(false)
+  // Validation is checked ON SAVE, not while typing (user, 2026-08-28: "do not have display
+  // 'Direct % must be between 0 and 100' ... just make sure when saving") — errors render only
+  // after a save attempt, and clear per row as the values are fixed.
+  const [attempted, setAttempted] = useState(false)
 
   // Re-seeds the matrix from whatever's already saved whenever the (consultancy, country) pair
   // resolves to a new one — covers the unlocked top-level flow, where picking a consultancy and
@@ -141,11 +145,15 @@ function RateMatrixModal({
     return rowErrors
   }, [matrix, freelancerDisabled])
 
-  const canSubmit = Boolean(consultancyId) && Boolean(country) && Object.keys(errors).length === 0
+  const canSubmit = Boolean(consultancyId) && Boolean(country)
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
+    if (Object.keys(errors).length > 0) {
+      setAttempted(true)
+      return
+    }
     const rates = Object.fromEntries(
       RATE_GROUPS.map(({ key }) => {
         const direct = Number(matrix[key].direct)
@@ -171,7 +179,7 @@ function RateMatrixModal({
     <Modal
       onClose={onClose}
       title={country ? `Rates — ${country}` : 'Set Rates'}
-      widthRem={34}
+      widthRem={38}
       footer={
         <>
           {bulkSet.isError && <p className="mr-auto self-center text-body-sm text-error">{bulkSet.error.message}</p>}
@@ -213,6 +221,9 @@ function RateMatrixModal({
                 <Badge color={key === 'pr' ? 'primary' : 'info'} className="w-24 shrink-0 justify-center">
                   {label}
                 </Badge>
+                {/* flex-1, not a max-w bracket class — arbitrary bracket values generate zero
+                    CSS in this project's Tailwind setup (see Modal.tsx), so the old cap never
+                    applied and the row's flex squeezed these narrow. */}
                 <TextField
                   label="Direct %"
                   type="number"
@@ -220,7 +231,7 @@ function RateMatrixModal({
                   max={100}
                   value={matrix[key].direct}
                   onChange={(e) => setCell(key, 'direct', e.target.value)}
-                  className="max-w-[8rem]"
+                  className="flex-1"
                 />
                 {!freelancerDisabled && (
                   <TextField
@@ -230,11 +241,11 @@ function RateMatrixModal({
                     max={100}
                     value={matrix[key].freelancer}
                     onChange={(e) => setCell(key, 'freelancer', e.target.value)}
-                    className="max-w-[8rem]"
+                    className="flex-1"
                   />
                 )}
               </div>
-              {errors[key] && <p className="text-caption text-error">{errors[key]}</p>}
+              {attempted && errors[key] && <p className="text-caption text-error">{errors[key]}</p>}
             </div>
           ))}
           {freelancerDisabled && (
