@@ -161,16 +161,6 @@ export function SidebarShell({ sections, roleBadge, search, headerActions, child
                 </div>
               )}
             </Link>
-            {!collapsed && (
-              <button
-                onClick={handleLogout}
-                aria-label="Log out"
-                title="Log out"
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
-              >
-                <LogOut className="h-4 w-4" />
-              </button>
-            )}
           </div>
         </div>
       </aside>
@@ -212,6 +202,17 @@ export function SidebarShell({ sections, roleBadge, search, headerActions, child
               </button>
             )}
             {headerActions}
+            {/* Moved from the sidebar footer (user, 2026-08-28: "move logout to right top
+                corner, next to notification") — also fixes a real gap: the footer button
+                disappeared entirely whenever the sidebar was collapsed. */}
+            <button
+              onClick={handleLogout}
+              aria-label="Log out"
+              title="Log out"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
           </div>
         </header>
 
