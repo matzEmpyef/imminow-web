@@ -1,63 +1,50 @@
-import { useState, type FormEvent } from 'react'
+import { useState } from 'react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Card } from '@/components/Card'
-import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
-import { TextField } from '@/components/TextField'
 import { Table, type TableColumn } from '@/components/Table'
 import { usePermissionChecker } from '@/lib/permissions'
-import { useCommission, useRecordCommissionPayment } from '@/queries/commission'
+import { useCommission } from '@/queries/commission'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { formatDate } from '@/lib/time'
+import { RecordPlatformPaymentModal } from './RecordPlatformPaymentModal'
 import type { components } from '@/api/schema'
 
 type CommissionDue = components['schemas']['CommissionDue']
+type CommissionPayment = components['schemas']['CommissionPayment']
 
 const inr = (m: { amount?: number | null; currency: string } | undefined) =>
   m ? `${(m.amount ?? 0).toLocaleString()} ${m.currency}` : '—'
 
-function RecordPaymentForm() {
-  const recordPayment = useRecordCommissionPayment()
-  const [amount, setAmount] = useState('')
-  const [proofUrl, setProofUrl] = useState('')
+const TABS = ['Active Cases', 'Payment History'] as const
+type Tab = (typeof TABS)[number]
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    if (!amount) return
-    recordPayment.mutate(
-      { amount: Number(amount), proof_url: proofUrl || null },
-      {
-        onSuccess: () => {
-          setAmount('')
-          setProofUrl('')
-        },
-      },
-    )
-  }
-
+// Consultancy-side payment history (user decision 2026-08-28: moved off the main page onto its
+// own tab). Shows which case each payment was declared against — "General" for legacy pooled
+// rows that predate per-case linking.
+function PaymentHistoryTab({ payments }: { payments: CommissionPayment[] }) {
   return (
     <Card>
-      <h2 className="text-h3 text-text-primary">Record a Payment</h2>
-      <form onSubmit={handleSubmit} className="mt-md flex flex-col gap-md">
-        <div className="grid grid-cols-2 gap-md">
-          <TextField label="Amount (INR)" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
-          <TextField
-            label="Proof URL"
-            value={proofUrl}
-            onChange={(e) => setProofUrl(e.target.value)}
-            placeholder="Link to payment receipt/screenshot"
-          />
-        </div>
-        {recordPayment.isSuccess && (
-          <p className="text-body-sm text-success">
-            Recorded — immiNow finance has been notified. A receipt attaches once confirmed.
-          </p>
-        )}
-        {recordPayment.isError && <p className="text-body-sm text-error">{recordPayment.error.message}</p>}
-        <Button type="submit" loading={recordPayment.isPending} disabled={!amount} className="w-fit self-end mt-4">
-          Declare Payment
-        </Button>
-      </form>
+      <h2 className="text-h3 text-text-primary">Payment History</h2>
+      {payments.length === 0 && <p className="mt-sm text-body-sm text-text-secondary">No payments recorded yet.</p>}
+      <div className="mt-sm flex flex-col gap-xs">
+        {payments.map((payment) => (
+          <div key={payment.id} className="flex flex-wrap items-center gap-sm text-body-sm">
+            <span className="font-medium text-text-primary">
+              {(payment.amount.amount ?? 0).toLocaleString()} {payment.amount.currency}
+            </span>
+            <Badge color="secondary">{payment.applicant_name ?? 'General'}</Badge>
+            {payment.transaction_id && (
+              <span className="text-caption text-text-secondary">txn {payment.transaction_id}</span>
+            )}
+            <span className="ml-auto text-text-secondary">
+              declared {formatDate(payment.recorded_at)}
+              {payment.confirmed_at ? ` · confirmed ${formatDate(payment.confirmed_at)}` : ''}
+            </span>
+            <Badge color={payment.status === 'confirmed' ? 'success' : 'secondary'}>{payment.status}</Badge>
+          </div>
+        ))}
+      </div>
     </Card>
   )
 }
@@ -68,6 +55,8 @@ export function CommissionDetailsPage() {
   // (not usePermission) because a denial page must not flash while permissions are loading.
   const { can, isLoading: permsLoading, isError: permsError, refetch: refetchPerms } = usePermissionChecker()
   const commission = useCommission()
+  const [activeTab, setActiveTab] = useState<Tab>('Active Cases')
+  const [payingDue, setPayingDue] = useState<CommissionDue | null>(null)
 
   if (permsLoading) {
     return (
@@ -176,6 +165,22 @@ export function CommissionDetailsPage() {
       ),
     },
     {
+      key: 'platform_payment',
+      header: 'Platform payment',
+      align: 'right',
+      render: (due) => {
+        const paid = due.platform_paid.amount ?? 0
+        const awaiting = due.platform_awaiting.amount ?? 0
+        if (paid === 0 && awaiting === 0) return <span className="text-text-secondary">—</span>
+        return (
+          <div className="flex flex-col items-end gap-2xs">
+            {paid > 0 && <Badge color="success">{inr(due.platform_paid)} paid</Badge>}
+            {awaiting > 0 && <Badge color="secondary">{inr(due.platform_awaiting)} awaiting</Badge>}
+          </div>
+        )
+      },
+    },
+    {
       key: 'recognized',
       header: 'Accepted',
       align: 'right',
@@ -193,44 +198,46 @@ export function CommissionDetailsPage() {
           </p>
         </div>
 
-        <Card>
-          <div>
-            <h2 className="text-h3 text-text-primary">Active Cases</h2>
-            <p className="text-caption text-text-secondary">
-              One row per accepted case (or PR contribution). Mixed-currency agreements are shown INR-normalized;
-              per-source detail lives on each applicant&rsquo;s Commissions tab. This page is the one place the
-              platform&rsquo;s cut is visible.
-            </p>
-          </div>
-          <div className="mt-sm">
-            <Table
-              columns={dueColumns}
-              rows={data.dues}
-              rowKey={(due) => due.id}
-              emptyMessage="Nothing pending — cases appear here when a college is accepted."
-            />
-          </div>
-        </Card>
+        {payingDue && <RecordPlatformPaymentModal due={payingDue} onClose={() => setPayingDue(null)} />}
 
-        {canRecordPayment && <RecordPaymentForm />}
+        <div className="flex gap-xs overflow-x-auto border-b border-border">
+          {TABS.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`shrink-0 border-b-2 px-md py-sm text-body-sm ${
+                activeTab === tab ? 'border-primary font-medium text-primary' : 'border-transparent text-text-secondary'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
 
-        <Card>
-          <h2 className="text-h3 text-text-primary">Payment History</h2>
-          {data.payment_history.length === 0 && (
-            <p className="mt-sm text-body-sm text-text-secondary">No payments recorded yet.</p>
-          )}
-          <div className="mt-sm flex flex-col gap-xs">
-            {data.payment_history.map((payment) => (
-              <div key={payment.id} className="flex items-center justify-between text-body-sm">
-                <span className="text-text-primary">
-                  {(payment.amount.amount ?? 0).toLocaleString()} {payment.amount.currency}
-                </span>
-                <span className="text-text-secondary">{formatDate(payment.recorded_at)}</span>
-                <Badge color={payment.status === 'confirmed' ? 'success' : 'secondary'}>{payment.status}</Badge>
-              </div>
-            ))}
-          </div>
-        </Card>
+        {activeTab === 'Active Cases' && (
+          <Card>
+            <div>
+              <h2 className="text-h3 text-text-primary">Active Cases</h2>
+              <p className="text-caption text-text-secondary">
+                One row per accepted case (or PR contribution). Mixed-currency agreements are shown INR-normalized;
+                per-source detail lives on each applicant&rsquo;s Commissions tab. This page is the one place the
+                platform&rsquo;s cut is visible.
+                {canRecordPayment && ' Click a case to record a payment against its due.'}
+              </p>
+            </div>
+            <div className="mt-sm">
+              <Table
+                columns={dueColumns}
+                rows={data.dues}
+                rowKey={(due) => due.id}
+                emptyMessage="Nothing pending — cases appear here when a college is accepted."
+                onRowClick={canRecordPayment ? (due) => setPayingDue(due) : undefined}
+              />
+            </div>
+          </Card>
+        )}
+
+        {activeTab === 'Payment History' && <PaymentHistoryTab payments={data.payment_history} />}
       </div>
     </AppShell>
   )

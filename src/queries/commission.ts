@@ -19,7 +19,7 @@ export function useCommission() {
 export function useRecordCommissionPayment() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (body: { amount: number; proof_url?: string | null }) => {
+    mutationFn: async (body: { commission_entry_id: string; amount: number; transaction_id?: string | null }) => {
       const { data, error } = await api.POST('/commission/payments', {
         params: { header: { 'Idempotency-Key': crypto.randomUUID() } },
         body,

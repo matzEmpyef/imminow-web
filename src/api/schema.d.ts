@@ -12048,7 +12048,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Record a payment — notifies immiNow finance, receipt attaches once confirmed */
+        /** Declare a payment against one case's due (reworked 2026-08-28 — "consultant click on the due transaction and enter the amount") — notifies immiNow finance; the amount may be partial, and confirmation by immiNow finance is what settles it */
         post: {
             parameters: {
                 query?: never;
@@ -12062,9 +12062,11 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
+                        /** Format: uuid */
+                        commission_entry_id: string;
                         /** Format: double */
                         amount: number;
-                        proof_url?: string | null;
+                        transaction_id?: string | null;
                     };
                 };
             };
@@ -16230,6 +16232,10 @@ export interface components {
             balance: components["schemas"]["Money"];
             /** @description rate_percent × expected_total, snapshotted at acceptance (INR). */
             platform_due: components["schemas"]["Money"];
+            /** @description Sum of CONFIRMED payments linked to this entry via commission_entry_id (INR). */
+            platform_paid: components["schemas"]["Money"];
+            /** @description Sum of DECLARED (not yet confirmed) payments linked to this entry via commission_entry_id (INR). */
+            platform_awaiting: components["schemas"]["Money"];
             /** Format: double */
             rate_percent: number;
             /**
@@ -16243,6 +16249,7 @@ export interface components {
              */
             recognized_at: string;
         };
+        /** @description A platform payment declared against ONE commission entry's due (reworked 2026-08-28 — "consultant click on the due transaction and enter the amount"). Legacy pooled payments recorded before this change carry a null commission_entry_id and show as "General" rather than against any one case. No proof upload is required or accepted; the optional transaction_id is the consultant's own bank/UPI reference, for their own bookkeeping — confirmation by immiNow finance is what actually settles the due. */
         CommissionPayment: {
             id: components["schemas"]["UUID"];
             /**
@@ -16251,8 +16258,16 @@ export interface components {
              */
             readonly consultancy_id?: string;
             readonly consultancy_name?: string;
+            /**
+             * Format: uuid
+             * @description Which case's due this payment is declared against. Null for legacy pooled payments recorded before per-case linking.
+             */
+            readonly commission_entry_id?: string | null;
+            /** @description The linked entry's journey student name — convenience for both history views. Null when commission_entry_id is null (shown as "General"). */
+            readonly applicant_name?: string | null;
             amount: components["schemas"]["Money"];
-            proof_url?: string | null;
+            /** @description Optional consultant-supplied bank/UPI reference. Not verified — no proof upload is required. */
+            transaction_id?: string | null;
             /** @enum {string} */
             status: "declared" | "confirmed";
             /** Format: date-time */
