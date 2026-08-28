@@ -198,7 +198,10 @@ type CollegeStatus = 'considering' | 'applied' | 'offer_received' | 'accepted' |
 export function useAddSelectedCollege(clientId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (body: { course_id: string; status: CollegeStatus }) => {
+    // No status: a consultant's add is by definition a SUGGESTION (user decision, 2026-08-28) —
+    // the server births every row `suggested`, and only the student's own save to Dream Courses
+    // turns it into a selected college.
+    mutationFn: async (body: { course_id: string }) => {
       const { data, error } = await api.POST('/clients/{id}/selected-colleges', {
         params: { path: { id: clientId } },
         body,

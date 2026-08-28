@@ -62,8 +62,12 @@ type Tab = (typeof TABS)[number]
 // FORWARD-ONLY lifecycle (user decision, 2026-08-28) — mirrors the server's transition map:
 // one step at a time, rejected legal from applied or offer_received, accepted/rejected final
 // (a wrong acceptance goes through the audited revert, never backward through the map).
-type CollegeStatus = 'considering' | 'applied' | 'offer_received' | 'accepted' | 'rejected'
+// `suggested` is the birth status of every consultant add and has NO staff moves: only the
+// student's own save to Dream Courses turns it into a selected college — this tab lists such
+// rows as an awaiting count, never as selections.
+type CollegeStatus = 'suggested' | 'considering' | 'applied' | 'offer_received' | 'accepted' | 'rejected'
 const COLLEGE_STATUS_INFO: Record<CollegeStatus, { label: string; color: 'secondary' | 'info' | 'warning' | 'success' | 'error' }> = {
+  suggested: { label: 'Suggested — awaiting student', color: 'secondary' },
   considering: { label: 'Considering', color: 'secondary' },
   applied: { label: 'Applied', color: 'info' },
   offer_received: { label: 'Offer received', color: 'warning' },
@@ -71,6 +75,7 @@ const COLLEGE_STATUS_INFO: Record<CollegeStatus, { label: string; color: 'second
   rejected: { label: 'Rejected', color: 'error' },
 }
 const COLLEGE_NEXT_STEPS: Record<CollegeStatus, CollegeStatus[]> = {
+  suggested: [],
   considering: ['applied'],
   applied: ['offer_received', 'rejected'],
   offer_received: ['accepted', 'rejected'],
@@ -525,10 +530,29 @@ function SelectedCollegesTab({ clientId }: { clientId: string }) {
     />
   )
 
-  if (colleges.data.length === 0) {
+  // A suggestion is not a selection (user decision, 2026-08-28): rows the student has not yet
+  // taken into their Dream Courses stay out of the list below — they show only as an awaiting
+  // note, and nothing can be done to them from here.
+  const awaiting = colleges.data.filter((sc) => sc.status === 'suggested')
+  const selected = colleges.data.filter((sc) => sc.status !== 'suggested')
+
+  const awaitingNote = awaiting.length > 0 && (
+    <Card>
+      <p className="text-body-sm font-medium text-text-primary">
+        {awaiting.length === 1 ? '1 suggestion' : `${awaiting.length} suggestions`} awaiting the student
+      </p>
+      <p className="text-caption text-text-secondary">
+        {awaiting.map((sc) => sc.course.name).join(', ')} — suggested courses become selected colleges once the
+        student adds them to their Dream Courses.
+      </p>
+    </Card>
+  )
+
+  if (selected.length === 0) {
     return (
       <div className="flex flex-col gap-md">
         {addCollegeButton}
+        {awaitingNote}
         <Card>
           <p className="text-body text-text-secondary">No colleges selected yet.</p>
         </Card>
@@ -540,15 +564,17 @@ function SelectedCollegesTab({ clientId }: { clientId: string }) {
   // an alert in Selected Colleges tab (saying counties of courses are different)." Computed
   // entirely from `course.country` on each row already resolved server-side — no stored flag,
   // so it can never drift out of sync with the actual selection (covers both auto-transferred
-  // shortlist courses from a conversion and manually added ones alike).
+  // shortlist courses from a conversion and manually added ones alike). Awaiting suggestions
+  // are excluded — they are not selections yet, so they cannot contradict one.
   const selectedCountries = [
-    ...new Set(colleges.data.map((sc) => sc.course.country).filter((c): c is string => Boolean(c))),
+    ...new Set(selected.map((sc) => sc.course.country).filter((c): c is string => Boolean(c))),
   ]
   const countryMismatch = selectedCountries.length > 1
 
   return (
     <div className="flex flex-col gap-md">
       {addCollegeButton}
+      {awaitingNote}
       {countryMismatch && (
         <Card className="border-warning bg-warning-subtle">
           <p className="text-body-sm font-medium text-warning">Countries of courses are different</p>
@@ -559,7 +585,7 @@ function SelectedCollegesTab({ clientId }: { clientId: string }) {
         </Card>
       )}
       <div className="flex flex-col gap-xs">
-        {colleges.data.map((sc) => (
+        {selected.map((sc) => (
           <SelectedCollegeRow
             key={sc.id}
             clientId={clientId}
@@ -591,7 +617,9 @@ function SelectedCollegeRow({
   clientId: string
   row: SelectedCollegeRowData
   journeyPayerMethod: 'college' | 'applicant' | 'split' | null
-  onAdvance: (status: CollegeStatus) => void
+  // `suggested` is not an advance target — the map never yields it, and the PATCH enum
+  // rightly excludes it.
+  onAdvance: (status: Exclude<CollegeStatus, 'suggested'>) => void
   advanceError: string | null
   advancing: boolean
 }) {

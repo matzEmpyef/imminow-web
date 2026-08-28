@@ -5789,7 +5789,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Add course to shortlist. Idempotent — adding a course already on the shortlist returns the existing row rather than creating a duplicate. */
+        /** Add course to shortlist. Idempotent — adding a course already on the shortlist returns the existing row rather than creating a duplicate. APPROVAL SIDE EFFECT (user decision, 2026-08-28): if the course matches a `suggested` row on the caller's own journey, saving it IS the student's approval — the row flips to `considering`, enters the consultant's Selected Colleges tab, and the assigned consultant is notified. Only then can anything be applied on the student's behalf. */
         post: {
             parameters: {
                 query?: never;
@@ -7329,8 +7329,6 @@ export interface paths {
                 content: {
                     "application/json": {
                         course_id: components["schemas"]["UUID"];
-                        /** @enum {string} */
-                        status: "considering" | "applied" | "offer_received" | "accepted" | "rejected";
                     };
                 };
             };
@@ -7365,7 +7363,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Advance a Selected College's status. FORWARD-ONLY (user decision, 2026-08-28) — considering → applied → offer_received → accepted, one step at a time; rejected is allowed from applied (college declined) or offer_received (student declined); accepted and rejected are terminal (fixing a wrong acceptance goes through revert-acceptance, never back through this route). Order violations are 422. Moving to `accepted` REQUIRES the `commission` object — the money agreement captured in the Accept popup — and creates the journey's commission entry (409 if one is already active). Every change is audited, recorded as a status transition, and notifies the student (`application_status_changed`). */
+        /** Advance a Selected College's status. FORWARD-ONLY (user decision, 2026-08-28): considering → applied → offer_received → accepted, one step at a time, no skipping, no going back; rejected is allowed from applied (college declined) or offer_received (student declined); accepted and rejected are terminal (fixing a wrong acceptance goes through revert-acceptance, never back through this route). A `suggested` row cannot be advanced by ANY staff call (422) — only the student's own save flips it to considering; the student has to want the course before anything can be applied on their behalf. Order violations are 422. Moving to `accepted` REQUIRES the `commission` object — the money agreement captured in the Accept popup — and creates the journey's commission entry (409 if one is already active). Every change is audited, recorded as a status transition, and notifies the student (`application_status_changed`). */
         patch: {
             parameters: {
                 query?: never;
@@ -14443,7 +14441,7 @@ export interface components {
             suggested_by: string | null;
             /** @description The individual who made the suggestion, when known. Null for rows written before this was recorded. */
             suggested_by_consultant?: string | null;
-            /** @description The consultant-side stage of this pick (e.g. `considering`). */
+            /** @description The stage of this pick. `suggested` means the consultant has put it forward and the STUDENT's move is next — saving it to Dream Courses is the approval that lets the consultant proceed (user decision, 2026-08-28). */
             status: string;
             /** @description Whether the student has already added this course to their OWN shortlist. Lets the UI offer Save rather than silently creating a duplicate. */
             saved: boolean;
@@ -14909,8 +14907,11 @@ export interface components {
         SelectedCollege: {
             id: components["schemas"]["UUID"];
             course: components["schemas"]["Course"];
-            /** @enum {string} */
-            status: "considering" | "applied" | "offer_received" | "accepted" | "rejected";
+            /**
+             * @description `suggested` (added 2026-08-28) is the birth status of every consultant-added course and means "awaiting the student": the student has not yet taken it into their Dream Courses, so it is not a SELECTED college yet — the consultant's tab lists it only as an awaiting count, and no staff PATCH can advance it. The student's approval is the act of saving it (`POST /shortlist`), which flips it to `considering`.
+             * @enum {string}
+             */
+            status: "suggested" | "considering" | "applied" | "offer_received" | "accepted" | "rejected";
             /** Format: date-time */
             created_at: string;
         };

@@ -31,7 +31,7 @@ export function AddSelectedCollegeModal({
       setConfirmCourse(course)
       return
     }
-    addCollege.mutate({ course_id: course.id, status: 'considering' }, { onSuccess: onClose })
+    addCollege.mutate({ course_id: course.id }, { onSuccess: onClose })
   }
 
   if (confirmCourse) {
@@ -48,7 +48,7 @@ export function AddSelectedCollegeModal({
             <Button
               loading={addCollege.isPending}
               onClick={() =>
-                addCollege.mutate({ course_id: confirmCourse.id, status: 'considering' }, { onSuccess: onClose })
+                addCollege.mutate({ course_id: confirmCourse.id }, { onSuccess: onClose })
               }
             >
               Add Anyway

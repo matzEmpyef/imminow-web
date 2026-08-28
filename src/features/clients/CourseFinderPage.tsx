@@ -88,7 +88,7 @@ export function CourseFinderPage() {
   )
 
   function suggestCourse(courseId: string) {
-    if (selectedClient) addSelected.mutate({ course_id: courseId, status: 'considering' })
+    if (selectedClient) addSelected.mutate({ course_id: courseId })
     else if (selectedLead) suggestToLead.mutate(courseId)
   }
   const suggestPending = selectedClient ? addSelected.isPending : suggestToLead.isPending
