@@ -10,6 +10,7 @@ import { useFinanceDashboard, type FinanceDashboardFilters } from '@/queries/fin
 import { useConfirmCommissionPayment } from '@/queries/commission'
 import { formatDate } from '@/lib/time'
 import { Skeleton } from '@/components/QueryState'
+import { Table, type TableColumn } from '@/components/Table'
 import type { components } from '@/api/schema'
 
 type CommissionPayment = components['schemas']['CommissionPayment']
@@ -66,6 +67,28 @@ export function FinanceDashboardPage() {
     from: from || undefined,
     to: to || undefined,
   })
+
+  const historyColumns: TableColumn<CommissionPayment>[] = [
+    {
+      key: 'amount',
+      header: 'Amount',
+      render: (p) => <span className="font-medium text-text-primary">{money(p.amount)}</span>,
+    },
+    { key: 'consultancy', header: 'Consultancy', render: (p) => p.consultancy_name ?? 'Unknown' },
+    { key: 'case', header: 'Case', render: (p) => p.applicant_name ?? 'General' },
+    {
+      key: 'transaction',
+      header: 'Transaction ID',
+      render: (p) => (p.transaction_id ? <span className="text-text-secondary">{p.transaction_id}</span> : '—'),
+    },
+    { key: 'declared', header: 'Declared', align: 'right', render: (p) => formatDate(p.recorded_at) },
+    {
+      key: 'confirmed',
+      header: 'Confirmed',
+      align: 'right',
+      render: (p) => (p.confirmed_at ? formatDate(p.confirmed_at) : '—'),
+    },
+  ]
 
   return (
     <AdminShell>
@@ -214,14 +237,17 @@ export function FinanceDashboardPage() {
         )}
 
         {activeTab === 'Payment History' && (
-          <Card className="flex flex-col gap-sm">
+          <Card>
             <h2 className="text-h3 text-text-primary">Confirmed Payment History</h2>
-            {(dashboard.data?.payment_history ?? []).length === 0 && (
-              <p className="text-body-sm text-text-secondary">No confirmed payments yet.</p>
-            )}
-            {dashboard.data?.payment_history?.map((payment) => (
-              <PaymentRow key={payment.id} payment={payment} action={<Badge color="success">confirmed</Badge>} />
-            ))}
+            <div className="mt-sm">
+              {/* A table, not flowing rows (user, 2026-08-28) — this list only grows. */}
+              <Table
+                columns={historyColumns}
+                rows={dashboard.data?.payment_history ?? []}
+                rowKey={(p) => p.id}
+                emptyMessage="No confirmed payments yet."
+              />
+            </div>
           </Card>
         )}
       </div>

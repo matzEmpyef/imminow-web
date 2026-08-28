@@ -23,27 +23,43 @@ type Tab = (typeof TABS)[number]
 // own tab). Shows which case each payment was declared against — "General" for legacy pooled
 // rows that predate per-case linking.
 function PaymentHistoryTab({ payments }: { payments: CommissionPayment[] }) {
+  // A proper table (user, 2026-08-28) — columns beat a flowing row the moment there are more
+  // than a few payments to scan.
+  const columns: TableColumn<CommissionPayment>[] = [
+    {
+      key: 'amount',
+      header: 'Amount',
+      render: (p) => (
+        <span className="font-medium text-text-primary">
+          {(p.amount.amount ?? 0).toLocaleString()} {p.amount.currency}
+        </span>
+      ),
+    },
+    { key: 'case', header: 'Case', render: (p) => p.applicant_name ?? 'General' },
+    {
+      key: 'transaction',
+      header: 'Transaction ID',
+      render: (p) => (p.transaction_id ? <span className="text-text-secondary">{p.transaction_id}</span> : '—'),
+    },
+    { key: 'declared', header: 'Declared', align: 'right', render: (p) => formatDate(p.recorded_at) },
+    {
+      key: 'confirmed',
+      header: 'Confirmed',
+      align: 'right',
+      render: (p) => (p.confirmed_at ? formatDate(p.confirmed_at) : '—'),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      align: 'right',
+      render: (p) => <Badge color={p.status === 'confirmed' ? 'success' : 'secondary'}>{p.status}</Badge>,
+    },
+  ]
   return (
     <Card>
       <h2 className="text-h3 text-text-primary">Payment History</h2>
-      {payments.length === 0 && <p className="mt-sm text-body-sm text-text-secondary">No payments recorded yet.</p>}
-      <div className="mt-sm flex flex-col gap-xs">
-        {payments.map((payment) => (
-          <div key={payment.id} className="flex flex-wrap items-center gap-sm text-body-sm">
-            <span className="font-medium text-text-primary">
-              {(payment.amount.amount ?? 0).toLocaleString()} {payment.amount.currency}
-            </span>
-            <Badge color="secondary">{payment.applicant_name ?? 'General'}</Badge>
-            {payment.transaction_id && (
-              <span className="text-caption text-text-secondary">txn {payment.transaction_id}</span>
-            )}
-            <span className="ml-auto text-text-secondary">
-              declared {formatDate(payment.recorded_at)}
-              {payment.confirmed_at ? ` · confirmed ${formatDate(payment.confirmed_at)}` : ''}
-            </span>
-            <Badge color={payment.status === 'confirmed' ? 'success' : 'secondary'}>{payment.status}</Badge>
-          </div>
-        ))}
+      <div className="mt-sm">
+        <Table columns={columns} rows={payments} rowKey={(p) => p.id} emptyMessage="No payments recorded yet." />
       </div>
     </Card>
   )
