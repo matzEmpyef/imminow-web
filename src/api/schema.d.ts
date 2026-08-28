@@ -12207,7 +12207,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The applicant's own payments view (mobile) — their accepted case, what they are expected to contribute, and the installments received from them. Returns has_commission false (all else null) until a college is accepted or a PR contribution is recorded. Never exposes college-side amounts, rates, or platform figures. */
+        /** The applicant's own payments view (mobile) — their accepted case, what they are expected to contribute, and the installments received from them. Returns has_commission false (all else null) until a college is accepted or a PR contribution is recorded, and also once accepted if the payer method is college — a college-pays entry has nothing expected from the student, so it is deliberately withheld (user decision, 2026-08-28) rather than shown with a null amount. Never exposes college-side amounts, rates, or platform figures. */
         get: {
             parameters: {
                 query?: never;
@@ -15010,7 +15010,7 @@ export interface components {
              */
             receipt_id?: string;
         };
-        /** @description The applicant's own view of their accepted case's payments (mobile Payments screen). Shows only what concerns them — their expected contribution and what has been received from them. College-side amounts, rates, and platform figures never appear here. */
+        /** @description The applicant's own view of their accepted case's payments (mobile Payments screen). Shows only what concerns them — their expected contribution and what has been received from them. College-side amounts, rates, and platform figures never appear here. When the active entry's payer method is college (nothing expected from the student), this returns has_commission false with every other field omitted — the student is deliberately not told about money that is not theirs (user decision, 2026-08-28). Split and applicant cases still populate the full view, since the student owes their own share. */
         StudentCommissionView: {
             has_commission: boolean;
             /** @enum {string|null} */
