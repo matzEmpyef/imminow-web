@@ -1,5 +1,4 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { AdminShell } from '@/features/auth/AdminShell'
 import { SelectField } from '@/components/SelectField'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
@@ -12,6 +11,7 @@ import {
   useCreateFreelancerRate,
   useUpdateFreelancerRate,
 } from '@/queries/freelancerRates'
+import { useCommissionRates } from '@/queries/commissionRates'
 import type { components } from '@/api/schema'
 
 type FreelancerRate = components['schemas']['FreelancerRate']
@@ -63,7 +63,14 @@ function AddRateForm({ onClose }: { onClose: () => void }) {
             </option>
           ))}
         </SelectField>
-        <TextField label="Rate %" type="number" value={rate} onChange={(e) => setRate(Number(e.target.value))} />
+        <TextField
+          label="Rate %"
+          type="number"
+          min={0}
+          max={100}
+          value={rate}
+          onChange={(e) => setRate(Number(e.target.value))}
+        />
       </form>
     </Modal>
   )
@@ -80,6 +87,8 @@ function RateEditor({ rate }: { rate: FreelancerRate }) {
       <TextField
         label="Rate %"
         type="number"
+        min={0}
+        max={100}
         value={value}
         onChange={(e) => setValue(Number(e.target.value))}
         className="max-w-[7rem]"
@@ -96,8 +105,17 @@ function RateEditor({ rate }: { rate: FreelancerRate }) {
   )
 }
 
-export function FreelancerRatesPage() {
+/**
+ * The Freelancer Commission Table, as a PANEL rather than a page (user-requested, 2026-08-27:
+ * "can we put Freelancer Rates inside Freelancer page itself?").
+ *
+ * It reads as a second view of one subject rather than a second subject: the rows are the same
+ * people, and a rate is meaningless without the freelancer it belongs to. Keeping its own header
+ * and AdminShell here would nest a page inside a page, so both live on the parent now.
+ */
+export function FreelancerRatesPanel() {
   const rates = useFreelancerRates()
+  const commissionRates = useCommissionRates()
   const [showAdd, setShowAdd] = useState(false)
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
@@ -119,6 +137,20 @@ export function FreelancerRatesPage() {
     return items
   }, [rates.data, search, sort])
 
+  // The page states "Sentpo spread = consultancy rate − this rate", so a freelancer rate above the
+  // consultancy rate means Sentpo pays out more than it earns. The freelancer rate is flat while
+  // commission rates are per consultancy+country, so the honest comparison is against the LOWEST
+  // freelancer-sourced rate on the board: above that, at least one arrangement is loss-making.
+  //
+  // Allowed rather than blocked (user decision, 2026-08-27) — a deliberate loss-leader is a real
+  // commercial choice — but never silent.
+  const lowestConsultancyRate = useMemo(() => {
+    const values = (commissionRates.data ?? [])
+      .map((r) => r.freelancer_sourced_rate)
+      .filter((v): v is number => typeof v === 'number')
+    return values.length > 0 ? Math.min(...values) : null
+  }, [commissionRates.data])
+
   const columns: TableColumn<FreelancerRate>[] = [
     {
       key: 'freelancer_name',
@@ -129,37 +161,43 @@ export function FreelancerRatesPage() {
     {
       key: 'spread',
       header: '',
-      render: () => <Badge color="info">Sentpo spread = consultancy rate − this rate</Badge>,
+      render: (r) => {
+        const negative =
+          lowestConsultancyRate != null && typeof r.rate === 'number' && r.rate > lowestConsultancyRate
+        return negative ? (
+          <Badge color="warning">
+            Above the lowest consultancy rate ({lowestConsultancyRate}%) — Sentpo pays out more than it earns
+          </Badge>
+        ) : (
+          <Badge color="info">Sentpo spread = consultancy rate − this rate</Badge>
+        )
+      },
     },
     { key: 'rate', header: 'Rate', sortable: true, align: 'right', render: (r) => <RateEditor rate={r} /> },
   ]
 
   return (
-    <AdminShell>
-      <div className="flex flex-col gap-lg">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-h1 text-text-primary">Freelancer Rates</h1>
-            <p className="text-body-sm text-text-secondary">
-              Freelancer Commission Table — the flat percentage each freelancer personally earns.
-            </p>
-          </div>
-          <Button onClick={() => setShowAdd(true)}>Set Rate</Button>
-        </div>
-
-        {showAdd && <AddRateForm onClose={() => setShowAdd(false)} />}
-
-        <Table
-          columns={columns}
-          rows={rows}
-          rowKey={(r) => r.id!}
-          loading={rates.isLoading}
-          emptyMessage="No freelancer rates set yet."
-          sort={sort}
-          onSortChange={(field, direction) => setSort({ field, direction })}
-          search={{ value: search, onChange: setSearch, placeholder: 'Search freelancer…' }}
-        />
+    <div className="flex flex-col gap-lg">
+      <div className="flex items-start justify-between gap-md">
+        <p className="text-body-sm text-text-secondary">
+          The flat percentage each freelancer personally earns. Sentpo keeps the spread between this and the
+          consultancy&rsquo;s own commission rate.
+        </p>
+        <Button onClick={() => setShowAdd(true)}>Set Rate</Button>
       </div>
-    </AdminShell>
+
+      {showAdd && <AddRateForm onClose={() => setShowAdd(false)} />}
+
+      <Table
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.id!}
+        loading={rates.isLoading}
+        emptyMessage="No freelancer rates set yet."
+        sort={sort}
+        onSortChange={(field, direction) => setSort({ field, direction })}
+        search={{ value: search, onChange: setSearch, placeholder: 'Search freelancer…' }}
+      />
+    </div>
   )
 }

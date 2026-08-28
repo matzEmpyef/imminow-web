@@ -2953,6 +2953,160 @@ export interface paths {
         };
         trace?: never;
     };
+    "/institutions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Type-ahead search over Indian schools and colleges (the student's OWN institution, not a destination abroad). Verified rows only — one student's unverified suggestion must never be offered to the next as established fact. Matches name AND city together, so "choice thiruvalla" finds the Thiruvalla Choice School and not the Kochi one. */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Free text, matched against name and city. */
+                    q?: string;
+                    type?: "school" | "college";
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items?: components["schemas"]["Institution"][];
+                        };
+                    };
+                };
+                default: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        /** Create an institution (platform staff). Rejects a duplicate (name, city) with 409 — that pair is the identity, and two rows for one school silently split its students across two filters. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["InstitutionInput"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Institution"];
+                    };
+                };
+                default: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/institutions/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The platform-staff mapping queue — students who typed a school that was not in the list. Each entry carries `near_matches` so matching an existing row is the easy path. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items?: components["schemas"]["InstitutionSuggestion"][];
+                        };
+                    };
+                };
+                default: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/institutions/suggestions/{user_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Map one waiting student onto a real institution (platform staff). Sets their `institution_id` and clears `institution_raw`/`institution_raw_city`, which is what makes them visible to institution filters for the first time. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    user_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        institution_id: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StudentPreferences"];
+                    };
+                };
+                default: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/countries": {
         parameters: {
             query?: never;
@@ -8730,6 +8884,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/presence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report that the caller is looking at the app right now, and optionally at which screen — so a push is not sent about something already on screen (user-requested, 2026-08-27: "just like in WhatsApp... if on the app no need of notification").
+         *     Two levels of suppression: foregrounded drops PUSH but keeps the in-app row, so the unread badge stays honest; `viewing` matching the notification's own subject drops the in-app row too, because the message is arriving in front of them.
+         *     A HEARTBEAT, not a flag — call it on resume and periodically while foregrounded, and with `active: false` on background. Presence lapses by itself after 60s, so an app that is force-killed without sending anything simply stops being present rather than silencing its own notifications forever.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * @description false clears presence immediately, so the next message pushes normally.
+                         * @default true
+                         */
+                        active?: boolean;
+                        /** @description The screen currently open, in the same form the notification names as its subject — e.g. `client:{journeyId}` for a conversation. Null when in the app but not on a screen any notification is about. */
+                        viewing?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Recorded */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                default: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notifications/unread-count": {
         parameters: {
             query?: never;
@@ -9144,9 +9349,8 @@ export interface paths {
                         venue_address?: string | null;
                         meeting_url?: string | null;
                         meeting_platform?: string | null;
-                        targeting?: {
-                            [key: string]: unknown;
-                        };
+                        /** @description Quiz only — see Targeting. */
+                        targeting?: components["schemas"]["Targeting"] | null;
                         branding?: {
                             [key: string]: unknown;
                         };
@@ -10720,7 +10924,7 @@ export interface paths {
                         destination_id?: components["schemas"]["UUID"];
                         destination_url?: string | null;
                         priority?: number;
-                        targeting?: components["schemas"]["AdTargeting"] | null;
+                        targeting?: components["schemas"]["Targeting"] | null;
                         /** Format: date */
                         active_from?: string | null;
                         /** Format: date */
@@ -13308,11 +13512,30 @@ export interface components {
         };
         /** @description FR-022 — the flexible, none-mandatory preference pool. */
         StudentPreferences: {
-            study_level?: string | null;
+            /**
+             * @description The education ladder, closed as of 2026-08-27. It was free text, and the seed already held `masters` while ad targeting held `Masters` — only a toLowerCase() on both sides kept that working. "10th" / "Xth" / "class 10" would all have arrived as distinct values the moment school students joined.
+             *     One field deliberately spans school and higher education, so targeting a class needs no separate column.
+             * @enum {string|null}
+             */
+            study_level?: "10th" | "11th" | "12th" | "diploma" | "bachelors" | "masters" | "phd" | null;
             /** @description Student's own location (user request 7, 2026-08-19 — "yes add to profile"), together with district/state below. Feeds coupon relevance_scope matching (a district-scoped coupon shows only where a partner location shares the student's district) and quiz location targeting. Unknown location always PASSES both — location narrows reach, never blanks a catalog for a student who hasn't filled it in. */
             city?: string | null;
             district?: string | null;
             state?: string | null;
+            /**
+             * Format: uuid
+             * @description The school or college the student attends, RESOLVED to a real row in `institutions`. This is the only institution value anything can filter on — see Targeting.institution_id.
+             *     Set either by the student picking from the type-ahead, or by platform staff mapping a typed-in suggestion. Setting it clears `institution_raw`, because a student is not both resolved and pending.
+             */
+            institution_id?: string | null;
+            /** @description Server-resolved name of `institution_id`, denormalized onto the response so a client can render the student's school without a second lookup — the same pattern `Client.plan_template_name` already uses. Ignored on write. */
+            readonly institution_name?: string | null;
+            /** @description Server-resolved city of `institution_id`. Sent alongside the name because a name alone is not an identity here, so a UI that shows one without the other is showing something ambiguous. */
+            readonly institution_city?: string | null;
+            /** @description What the student typed when their school was not in the list, verbatim. A student with this set and `institution_id` null is INVISIBLE to every institution filter until staff map them — correct behaviour (you cannot filter on a string nobody has verified), but it makes the mapping queue load-bearing: let it grow and filters quietly under-report. */
+            institution_raw?: string | null;
+            /** @description The city the student gave alongside `institution_raw`, asked in the SAME step. Without it staff cannot tell which "The Choice School" was meant — the Kochi one or the Thiruvalla one — and the whole (name, city) identity model is lost at the moment of capture, which is the one moment it cannot be recovered. */
+            institution_raw_city?: string | null;
             /**
              * @description The country the student LIVES IN — the top of the same location block as city/district/state (user, 2026-08-22: "study abroad means study in countries other than my own country"). Asked as the FIRST question of the first-login preferences wizard, pre-filled from the device locale, and editable afterwards in Profile → About's Location block. Sourced from the full `countries` list, NOT the served-countries subset every destination picker uses: a student can live somewhere no consultancy sells as a destination.
              *     This is what makes "abroad" relative instead of hardcoded. It drives: the home search tab's identity and label, the Study Abroad tab's `filter[country_not]` exclusion, the default `display_currency` below, and quiz/coupon country targeting (which previously matched a literal 'India'). Deliberately distinct from `target_countries` (where they want to STUDY) and from `city`/`district`/`state` (which stay finer-grained for partner-offer matching). Null is a normal state and never filters anything out — unknown residence means the catalog opens up, never closes down.
@@ -13358,7 +13581,11 @@ export interface components {
             budget?: components["schemas"]["Money"];
             /** @default false */
             budget_shared: boolean;
-            gender?: string | null;
+            /**
+             * @description Closed 2026-08-27, alongside study_level and for the same reason. It was free text: the mobile profile offered "Female"/"Male"/"Other"/"Prefer not to say" while stored data was `male`/`female`, and only case-insensitive comparison kept targeting working at all — "Prefer not to say" would have stored a value no filter could express.
+             * @enum {string|null}
+             */
+            gender?: "male" | "female" | "other" | "prefer_not_to_say" | null;
             /** Format: date */
             date_of_birth?: string | null;
             education_level?: string | null;
@@ -14798,10 +15025,8 @@ export interface components {
              * @enum {string|null}
              */
             meeting_platform?: "google_meet" | "zoom" | "webex" | "teams" | "other" | null;
-            /** @description Quiz only — location/age/gender (build reference 1.13). */
-            targeting?: {
-                [key: string]: unknown;
-            } | null;
+            /** @description Quiz only (build reference 1.13). The same shape ads and broadcasts use — unknown student data INCLUDES here, as it does for ads. */
+            targeting?: components["schemas"]["Targeting"] | null;
             /** @description Quiz only — 3 placements (pre-load screen, persistent banner, results screen), build reference 1.13. */
             branding?: {
                 [key: string]: unknown;
@@ -14892,9 +15117,8 @@ export interface components {
             meeting_url?: string | null;
             /** @enum {string|null} */
             meeting_platform?: "google_meet" | "zoom" | "webex" | "teams" | "other" | null;
-            targeting?: {
-                [key: string]: unknown;
-            };
+            /** @description Quiz only — see Targeting. Unknown student data INCLUDES here. */
+            targeting?: components["schemas"]["Targeting"] | null;
             branding?: {
                 [key: string]: unknown;
             };
@@ -15104,18 +15328,70 @@ export interface components {
             label?: string;
             active?: boolean;
         };
-        /** @description Coarse targeting (build reference 1.9) — "a student with no preferences set sees only untargeted banners." study_level/target_country are any-of matches (an empty or omitted array/null means "no restriction on this dimension," not "match nothing"). Every field is independently optional. */
-        AdTargeting: {
-            /** @description Matches if the student's own study_level is any of these (free text, same as StudentPreferences.study_level — no fixed enum exists). */
-            study_level?: string[];
-            /** @description Matches if any of the student's target_countries overlaps this list. Values come from the shared Countries list (see /countries). */
-            target_country?: string[];
+        /**
+         * @description An Indian school or college a student comes FROM — deliberately NOT the existing `colleges` table, which holds destinations abroad a student applies TO. Different lifecycle (bulk catalog import vs staff-curated on demand), different purpose (course finder vs segmentation), different payload (campuses/courses/fees vs a name and a place). Merging them would put Indian schools into Course Finder results.
+         *     Named `institutions` rather than `schools` because it covers colleges too.
+         */
+        Institution: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @description Half of the identity. "The Choice School" in Kochi and "The Choice School" in Thiruvalla are SEPARATE institutions, so (name, city) is unique and name alone is not. Every picker must therefore SHOW the city, or students pick the wrong row and the data is quietly worthless. */
+            city: string;
+            state?: string | null;
+            /** @enum {string} */
+            type: "school" | "college";
+            /** @description Only verified institutions are offered in the student-facing type-ahead. One student's unverified suggestion must never be shown to the next as though it were established fact. */
+            verified?: boolean;
             /**
-             * @description Where the student LIVES, as opposed to `target_country` (where they want to study). Matches if `student_preferences.resident_country` is any of these. Values come from the shared Countries list (see /countries).
-             *     Added 2026-08-22. Most ads promote something that only exists somewhere — a consultancy with a walk-in office, a city event, a local offer — and until this field existed there was no way to say so, so a student in Nigeria was shown a Mumbai consultancy's banner. Targeting is explicit rather than inferred from the linked consultancy's own city, because the same consultancy runs both local walk-in campaigns and global remote ones.
-             *     Unknown residence PASSES, like every other dimension here — an unanswered wizard must never empty the ad slot.
+             * Format: uuid
+             * @description Platform staff member who created it, or null for seeded rows.
              */
+            created_by?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+        };
+        InstitutionInput: {
+            name: string;
+            city: string;
+            state?: string | null;
+            /** @enum {string} */
+            type: "school" | "college";
+        };
+        /** @description One student waiting to be mapped — the platform-staff work queue this feature creates. Every student at an unlisted school generates one, permanently. */
+        InstitutionSuggestion: {
+            /** Format: uuid */
+            user_id: string;
+            user_name: string;
+            institution_raw: string;
+            institution_raw_city?: string | null;
+            /** @description Existing institutions resembling what the student typed, best first. Surfaced so the queue makes MATCHING the easy path: students will type "The Choice School", "Choice School Kochi" and "choice school" for one place, and a queue where "create" is easier than "match" produces three rows for it within a week. */
+            near_matches?: components["schemas"]["Institution"][];
+        };
+        /**
+         * @description THE targeting shape. Ads, quizzes and broadcasts all share this one schema (unified 2026-08-27, user-requested: "We need the same filter in all the targeting part").
+         *     Before unification each surface had its own field set and its own matcher, and the names disagreed about meaning: a quiz's `location` and a broadcast's `resident_country` both matched where the student LIVES, while an ad's `target_country` matched where they want to STUDY. Someone building a quiz who typed "Canada" into `location`, meaning "students interested in Canada", silently targeted students living there instead.
+         *     HOW IT MATCHES. Within one field, the values are any-of (an array is an OR). Across fields, the conditions are ANDed — the audience is the intersection. An omitted, null or empty field places NO restriction on that dimension; it never means "match nothing". Geography is coarse to fine (resident_country -> state -> district -> city) and each level is independent, so `{state: [Kerala], city: [Kochi]}` means both, not either.
+         *     UNKNOWN STUDENT DATA IS NOT DECIDED HERE. Whether a student who has not filled in a targeted field is included or excluded is a per-surface policy, deliberately NOT unified: ads and quizzes INCLUDE them (an off-target banner is an ignorable banner, and an unanswered wizard must never empty the slot), broadcasts EXCLUDE them (a push notification cannot be un-received, so the failure that matters is a targeted send becoming a blast). Sharing the shape must not quietly share the policy.
+         */
+        Targeting: {
+            /** @description Where the student LIVES — matched against `student_preferences.resident_country`. Use this for anything that only exists somewhere: a walk-in office, a city event, a local offer. Values come from the shared Countries list (see /countries), NOT the served-countries subset — a student can live somewhere no consultancy sells. */
             resident_country?: string[];
+            /** @description Province/state, matched against `student_preferences.state`. Free text on both sides, so values must match what the student's profile holds (e.g. "Kerala"). */
+            state?: string[];
+            /** @description District/county, matched against `student_preferences.district`. */
+            district?: string[];
+            /** @description Matched against `student_preferences.city`. */
+            city?: string[];
+            /** @description Where the student wants to STUDY — matched against any of `student_preferences.target_countries`. Not to be confused with `resident_country` above; the two are different questions and the names are the only thing that says so. */
+            target_country?: string[];
+            /** @description Matches if the student's own study_level is any of these. Closed list as of 2026-08-27, identical to StudentPreferences.study_level. */
+            study_level?: ("10th" | "11th" | "12th" | "diploma" | "bachelors" | "masters" | "phd")[];
+            /**
+             * @description The student's own school or college (see /institutions). The only targeting dimension backed by a real foreign key rather than free text, which makes it the most reliable of the twelve — but a student whose typed-in school is still awaiting staff mapping has `institution_raw` set and no id, and so counts as unknown here like any other blank.
+             *     That is correct behaviour, not a bug: you cannot filter on a string nobody has verified. It does mean the staff mapping queue is load-bearing — let it grow and institution filters quietly under-report, with no error anywhere to say so.
+             */
+            institution_id?: string[];
             /**
              * @description 1 = Aspirant/Lead, 2 = Applicant/Client (build reference 1.0 Glossary). Null/omitted matches either stage.
              * @enum {integer|null}
@@ -15126,6 +15402,16 @@ export interface components {
              * @enum {string|null}
              */
             case_type?: "student" | "pr" | null;
+            /** @description Inclusive lower bound, in years, computed from `student_preferences.date_of_birth`. A student with no date of birth is unknown on this dimension and follows the surface's own policy above. */
+            min_age?: number | null;
+            /** @description Inclusive upper bound, in years. Null/omitted means no upper bound. */
+            max_age?: number | null;
+            /**
+             * @description Matched against `student_preferences.gender`. Closed list as of 2026-08-27, for the same reason study_level was closed the same day: it was free text, the mobile profile offered "Female"/"Male"/"Other"/"Prefer not to say" while the seed stored `male`/`female`, and only case-insensitive comparison hid the mismatch — "Prefer not to say" would have stored a value no filter could ever express.
+             *     Targeting `prefer_not_to_say` is possible but rarely meaningful; it selects students who actively declined to say, not students who left it blank.
+             * @enum {string|null}
+             */
+            gender?: "male" | "female" | "other" | "prefer_not_to_say" | null;
         };
         AdBanner: {
             id: components["schemas"]["UUID"];
@@ -15136,7 +15422,7 @@ export interface components {
             /** @description Set when destination_type=external_url. */
             destination_url?: string | null;
             priority: number;
-            targeting?: components["schemas"]["AdTargeting"] | null;
+            targeting?: components["schemas"]["Targeting"] | null;
             /** Format: date */
             active_from?: string | null;
             /** Format: date */
@@ -15158,7 +15444,7 @@ export interface components {
             destination_id?: components["schemas"]["UUID"];
             destination_url?: string | null;
             priority: number;
-            targeting?: components["schemas"]["AdTargeting"] | null;
+            targeting?: components["schemas"]["Targeting"] | null;
             /** Format: date */
             active_from?: string | null;
             /** Format: date */
@@ -15189,7 +15475,7 @@ export interface components {
              * @description A closed list of developer-instrumented trigger events (build reference 1.8). Admin picks from this enum, never types a new trigger — fixed 2026-08-17, the admin UI previously exposed a free-text field here despite this description always saying otherwise. Adding a new value requires an app release that actually fires the trigger somewhere, not an admin-console change. `welcome_signup` is live (credited by `POST /clients` and Applicant Allocation's allocate action, 2026-08-19); `profile_30_percent`/`profile_70_percent` are configurable but ship inactive, since profile editing is a Sentpo Mobile screen that does not exist yet to fire them from.
              * @enum {string}
              */
-            trigger_type: "profile_completed" | "webinar_attended" | "physical_meeting_attended" | "quiz_completed" | "referral_signup" | "welcome_signup" | "profile_30_percent" | "profile_70_percent" | "dream_course_requirements_met" | "article_read" | "consultancy_viewed";
+            trigger_type: "profile_completed" | "webinar_attended" | "physical_meeting_attended" | "quiz_completed" | "referral_signup" | "welcome_signup" | "profile_30_percent" | "profile_70_percent" | "article_read" | "consultancy_viewed" | "daily_login";
             points_value: number;
             cap?: number | null;
             active?: boolean;
@@ -15234,10 +15520,13 @@ export interface components {
         /**
          * @description The editorial write-up for ONE destination country — what a student reads before deciding to target it (user, 2026-08-23: "we will have a write up about a country... when a country is selected then this details should be seen and then click a button to add a country").
          *     Authored in immiNow, one record per country, and surfaced in the Sentpo app at the moment a student is picking target countries — not as a separate browsable section. Countries are keyed by NAME, matching the shared list at `/countries`, because that is what every other country-valued field in this API already stores.
+         *     Stored on the country record itself since 2026-08-26 (the relationship is strictly 1:1 and a guide has no identity without its country); this response shape is unchanged by that move. `DELETE` clears the write-up and never removes the country, which would take it out of every dropdown on the platform.
          */
         CountryContent: {
             /** @description Must match an entry in the shared Countries list exactly. */
             country: string;
+            /** @description ISO 3166-1 alpha-2 code, added 2026-08-26. Null for countries added by hand, where the code is genuinely unknown and guessing would be worse than admitting it. */
+            iso2?: string | null;
             /** @description One plain-text line shown under the country's name in the picker, before the student opens the full write-up. Never HTML — it is rendered into a dense list row where markup would fight the layout. */
             summary?: string | null;
             /** @description The write-up, as sanitised HTML. Passed through the SAME sanitiser as blog articles (`sanitiseArticleHtml`), whose allow-list is already exactly what the simple editor produces: h2/h3/h4, p, strong/em, ul/ol/li, blockquote, links. Anything else is stripped server-side on save, so a paste from Word cannot smuggle markup or scripts into the app. */
@@ -15558,10 +15847,22 @@ export interface components {
                 [key: string]: unknown;
             };
         };
-        /** @description Platform-wide Push/Email default per notification type (build reference 1.14/1.23) — Super Admin-managed. */
+        /**
+         * @description Platform-wide channel gate for ONE notification type (build reference 1.14/1.23), Super Admin-managed. It is the first of two gates: this decides what the platform permits, the recipient's own notification settings then narrow it further. Off here means nobody receives it on that channel, whatever they have chosen for themselves.
+         *     A type with no row is allowed on every channel — a newly added notification must not be silently undeliverable just because nobody has configured it yet.
+         *     Turning all three off is how a notification type is switched off entirely; that is a real and supported state, and the console warns when a row reaches it.
+         */
         NotificationChannelConfigEntry: {
-            /** @description e.g. chat, plan_steps, events, broadcast, blog, new_lead, document_review, unattended_reminder, new_consultancy, course_suggestion. */
+            /**
+             * @description Which product's users receive this (user-requested, 2026-08-27: "mention which platform is getting message"). `sentpo` is the student app, `imminow` is the consultancy and platform-staff console. The same line `mailFromFor` already draws to pick the From address: a student recipient is Sentpo, anyone else is immiNow.
+             *     It matters on this page because the two audiences have opposite tolerances. A student gets a handful of notifications and an unwanted push costs you the install; console staff live in the product all day and generally want more, not less.
+             * @enum {string}
+             */
+            audience: "sentpo" | "imminow";
+            /** @description The `type` on the notification itself — chat_message, step_approved, points_earned and so on. Keyed by TYPE, not by the coarser `category` the recipient's own settings use, so one noisy notification can be silenced without silencing its whole category. */
             notification_type: string;
+            /** @description Added 2026-08-27. In-app used to be unconditional — every notification landed in the feed and the config page offered no control over it, which is why no in-app toggle appeared there. It is a real channel like the others now. */
+            in_app_enabled: boolean;
             push_enabled: boolean;
             email_enabled: boolean;
         };
@@ -15573,8 +15874,12 @@ export interface components {
             /** @enum {string} */
             audience: "all_students" | "segment" | "all_staff";
             /** @description Segment audience only; null for `all_students` and `all_staff`. */
-            targeting?: components["schemas"]["BroadcastTargeting"] | null;
-            category: string;
+            targeting?: components["schemas"]["Targeting"] | null;
+            /**
+             * @description See BroadcastInput.category — a send-history label, not a delivery control.
+             * @enum {string}
+             */
+            category: "content" | "feature" | "event" | "promotion" | "platform" | "policy" | "reminder";
             readonly sent_by_name: string;
             /** @description Computed at send time from the resolved audience. */
             readonly recipient_count: number;
@@ -15591,24 +15896,13 @@ export interface components {
             /** @description Where tapping the notification takes the student. Optional — omit for a broadcast that is purely informational. Must be one of the routes the app can open: /points, /plan, /coupons, /events, /blog, /jobs, or an item path /event/{id}, /article/{id}, /job/{id}. Validated at send time rather than only in the app, because the app silently ignores an unrecognised link — a good safety net and useless feedback for whoever wrote it. */
             deep_link?: string | null;
             /** @description Required when `audience` is `segment`; ignored otherwise. An empty targeting object on a segment send reaches every student, i.e. the same set as `all_students`. */
-            targeting?: components["schemas"]["BroadcastTargeting"];
-            category: string;
-        };
-        /**
-         * @description Who a `segment` broadcast actually reaches. Same coarse any-of shape as AdTargeting: an omitted or empty field places no restriction on that dimension, and the recipient set is the intersection of the fields that ARE set.
-         *     Given a real schema on 2026-08-22. It was previously `additionalProperties: true`, and the send path matched that — it stored whatever the console posted and then notified every student regardless, so `segment` was indistinguishable from `all_students`, and `recipient_count` was not derived from the audience at all.
-         *     Unlike Ads and Coupons, unknown student data EXCLUDES here rather than passing. A broadcast is a push notification the student cannot un-receive, so the failure that matters is the one where an unanswered wizard turns a targeted send into a blast.
-         */
-        BroadcastTargeting: {
-            /** @description Where the student lives. Values come from the shared Countries list (see /countries). */
-            resident_country?: string[];
-            /** @description Matches if the student's own study_level is any of these (free text, same as StudentPreferences.study_level — no fixed enum exists). */
-            study_level?: string[];
+            targeting?: components["schemas"]["Targeting"];
             /**
-             * @description 1 = Aspirant/Lead, 2 = Applicant/Client. Null/omitted matches either.
-             * @enum {integer|null}
+             * @description What the broadcast is ABOUT. Closed list as of 2026-08-27 (it was free text): this value is purely a label on the send history — it is rendered as a badge there and included in that table's search — and free text made the one thing it exists for unreliable, since "Newsletter", "newsletter" and "News letter" file and filter as three separate categories.
+             *     It does NOT affect delivery. Who receives a broadcast is `audience` plus `targeting`, and channel routing uses a fixed `broadcast` notification category, never this value.
+             * @enum {string}
              */
-            stage?: 1 | 2 | null;
+            category: "content" | "feature" | "event" | "promotion" | "platform" | "policy" | "reminder";
         };
     };
     responses: {

@@ -24,12 +24,10 @@ import {
   MessageSquareWarning,
   Newspaper,
   Percent,
-  PlusCircle,
   Radio,
   School,
   Shuffle,
   Ticket,
-  UserCog,
   Users,
   Video,
   SlidersHorizontal,
@@ -78,12 +76,6 @@ const SECTIONS: AdminSection[] = [
         icon: ListChecks,
       },
       {
-        label: 'Create Consultancy',
-        path: '/admin/consultancies/new',
-        permission: 'consultancy_approval',
-        icon: PlusCircle,
-      },
-      {
         label: 'Applicant Allocation',
         path: '/admin/applicant-allocation',
         permission: 'consultancy_approval',
@@ -100,6 +92,7 @@ const SECTIONS: AdminSection[] = [
       p.startsWith('/admin/colleges') ||
       p.startsWith('/admin/course-suggestions-review') ||
       p.startsWith('/admin/countries') ||
+      p.startsWith('/admin/institutions') ||
       p.startsWith('/admin/country-guides') ||
       p.startsWith('/admin/catalog-settings'),
     sidebarLinks: [
@@ -111,6 +104,9 @@ const SECTIONS: AdminSection[] = [
         icon: ClipboardCheck,
       },
       { label: 'Countries', path: '/admin/countries', permission: 'catalog', icon: Globe },
+      // The student's OWN school/college, not a destination — sits under Catalog because it is
+      // reference data staff curate, and carries the mapping queue.
+      { label: 'Institutions', path: '/admin/institutions', permission: 'catalog', icon: School },
       { label: 'Country Guides', path: '/admin/country-guides', permission: 'catalog', icon: BookOpen },
       { label: 'Catalog Settings', path: '/admin/catalog-settings', permission: 'catalog', icon: SlidersHorizontal },
     ],
@@ -168,13 +164,13 @@ const SECTIONS: AdminSection[] = [
     matches: (p) =>
       p.startsWith('/admin/commission-rates') ||
       p.startsWith('/admin/freelancers') ||
+      // Redirects to /admin/freelancers; kept so the section stays highlighted mid-redirect.
       p.startsWith('/admin/freelancer-rates') ||
       p.startsWith('/admin/freelancer-payouts') ||
       p.startsWith('/admin/finance-dashboard'),
     sidebarLinks: [
       { label: 'Commission Rates', path: '/admin/commission-rates', permission: 'finance', icon: Percent },
       { label: 'Freelancers', path: '/admin/freelancers', permission: 'finance', icon: Users },
-      { label: 'Freelancer Rates', path: '/admin/freelancer-rates', permission: 'finance', icon: UserCog },
       { label: 'Freelancer Payouts', path: '/admin/freelancer-payouts', permission: 'finance', icon: DollarSign },
       { label: 'Finance Dashboard', path: '/admin/finance-dashboard', permission: 'finance', icon: BarChart3 },
     ],

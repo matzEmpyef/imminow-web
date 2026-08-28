@@ -13,6 +13,9 @@ import { formatDateTime, formatEventDateTime, formatDuration } from '@/lib/time'
 import { EVENT_TIMEZONES, browserTimezone, utcIsoToWallClock, wallClockToUtcIso } from '@/lib/eventTimezones'
 import type { components } from '@/api/schema'
 import { SelectField } from '@/components/SelectField'
+import { TargetingFilter } from '@/components/TargetingFilter'
+import { hasAnyTargeting, type Targeting } from '@/lib/targeting'
+import { useCountries } from '@/queries/countries'
 
 type Event = components['schemas']['Event']
 type QuizQuestionInput = components['schemas']['QuizQuestionInput']
@@ -316,6 +319,10 @@ function QuizSettingsModal({
   const [timeLimitMinutes, setTimeLimitMinutes] = useState(editingEvent?.time_limit_minutes ?? 15)
   const [participationPoints, setParticipationPoints] = useState(editingEvent?.points_override ?? 10)
   const [prizes, setPrizes] = useState<PositionPrize[]>(editingEvent?.position_prizes ?? [])
+  // Quizzes have supported targeting in the data model all along, but the console never exposed
+  // it — so every quiz reached every student regardless of what the schema allowed.
+  const [targeting, setTargeting] = useState<Targeting>(editingEvent?.targeting ?? {})
+  const countries = useCountries()
 
   const mutation = isEditing ? updateEvent : createEvent
 
@@ -340,6 +347,7 @@ function QuizSettingsModal({
       time_limit_minutes: timeLimitMinutes,
       points_override: participationPoints,
       position_prizes: prizes,
+      targeting: hasAnyTargeting(targeting) ? targeting : null,
     }
     if (isEditing) {
       updateEvent.mutate(body, { onSuccess: () => onClose() })
@@ -397,6 +405,15 @@ function QuizSettingsModal({
             </option>
           ))}
         </SelectField>
+        <div className="flex flex-col gap-sm rounded-md border border-border bg-background p-sm">
+          <FieldLabel htmlFor="quiz-targeting">Who can see this quiz</FieldLabel>
+          <TargetingFilter
+            value={targeting}
+            onChange={setTargeting}
+            countries={countries.data ?? []}
+            unknownDataPolicy="includes"
+          />
+        </div>
         <p className="mt-1 text-caption text-text-secondary">
           The zone you are entering this window in. Students see it on their own clock — a quiz has no venue, so nothing
           here is shown unconverted.

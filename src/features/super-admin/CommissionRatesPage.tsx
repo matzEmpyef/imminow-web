@@ -41,6 +41,14 @@ function AddRateForm({
   const [directRate, setDirectRate] = useState(10)
   const [freelancerRate, setFreelancerRate] = useState(13)
 
+  // Hidden rather than shown-disabled (user-requested, 2026-08-27) whenever the chosen
+  // consultancy's freelancer channel is off. A greyed field with a "Channel disabled" caption
+  // still reads as something the admin ought to fill in, and the explanation costs a line of the
+  // form to say what the field's absence says on its own. Before a consultancy is picked there is
+  // no channel to judge, so the field shows.
+  const selectedConsultancy = consultancies.data?.items?.find((c) => c.id === consultancyId)
+  const freelancerDisabled = Boolean(consultancyId) && !selectedConsultancy?.freelancer_enabled
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!consultancyId || !country) return
@@ -50,6 +58,11 @@ function AddRateForm({
         destination_country: country,
         payer_method: payerMethod,
         direct_rate: directRate,
+        // Still sent when the field is hidden: `freelancer_sourced_rate` is required by the
+        // contract, and hiding an input is a display decision, not a data one. The stored rate
+        // stays whatever it was, so re-enabling the channel brings the field back with its value
+        // rather than a blank — the same "not deleted, just not applicable" rule the row editor
+        // has followed since 2026-08-19.
         freelancer_sourced_rate: freelancerRate,
       },
       { onSuccess: () => onClose() },
@@ -112,15 +125,21 @@ function AddRateForm({
         <TextField
           label="Direct rate %"
           type="number"
+          min={0}
+          max={100}
           value={directRate}
           onChange={(e) => setDirectRate(Number(e.target.value))}
         />
-        <TextField
-          label="Freelancer-sourced rate %"
-          type="number"
-          value={freelancerRate}
-          onChange={(e) => setFreelancerRate(Number(e.target.value))}
-        />
+        {!freelancerDisabled && (
+          <TextField
+            label="Freelancer-sourced rate %"
+            type="number"
+            min={0}
+            max={100}
+            value={freelancerRate}
+            onChange={(e) => setFreelancerRate(Number(e.target.value))}
+          />
+        )}
       </form>
     </Modal>
   )
@@ -128,9 +147,12 @@ function AddRateForm({
 
 // Row-level component so useUpdateCommissionRate(rate.id) can be called at its own render top
 // level — Table's `render: (row) => ...` runs as a callback, not a component body.
-// freelancerDisabled (2026-08-19) — "if enabled on freelancer rates applicable" — the Freelancer
-// field stays visible (the rate itself isn't deleted, just not currently applicable) but disabled,
-// with a caption explaining why, whenever the consultancy's own freelancer channel is off.
+// freelancerDisabled (2026-08-19) — "if enabled on freelancer rates applicable". The Freelancer
+// field is HIDDEN whenever the consultancy's own freelancer channel is off (user-requested,
+// 2026-08-27: "hide the field in the popup instead of showing channel disabled"). It was previously
+// rendered disabled with a "Channel disabled" caption, which reads as an input the admin still
+// ought to deal with. The stored rate is untouched — turning the channel back on brings the field,
+// and its existing value, straight back.
 function RateEditor({ rate, freelancerDisabled }: { rate: CommissionRate; freelancerDisabled: boolean }) {
   const updateRate = useUpdateCommissionRate(rate.id!)
   const [directRate, setDirectRate] = useState(rate.direct_rate ?? 0)
@@ -142,21 +164,23 @@ function RateEditor({ rate, freelancerDisabled }: { rate: CommissionRate; freela
       <TextField
         label="Direct %"
         type="number"
+        min={0}
+        max={100}
         value={directRate}
         onChange={(e) => setDirectRate(Number(e.target.value))}
         className="max-w-[7rem]"
       />
-      <div className="flex flex-col">
+      {!freelancerDisabled && (
         <TextField
           label="Freelancer %"
           type="number"
+          min={0}
+          max={100}
           value={freelancerRate}
           onChange={(e) => setFreelancerRate(Number(e.target.value))}
-          disabled={freelancerDisabled}
           className="max-w-[7rem]"
         />
-        {freelancerDisabled && <p className="text-caption text-text-secondary">Channel disabled</p>}
-      </div>
+      )}
       <Button
         variant="secondary"
         loading={updateRate.isPending}

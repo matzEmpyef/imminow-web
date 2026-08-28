@@ -5,7 +5,7 @@ import { ApiError } from './auth'
 import type { components } from '@/api/schema'
 
 type AdBannerInput = components['schemas']['AdBannerInput']
-type AdTargeting = components['schemas']['AdTargeting']
+type AdTargeting = components['schemas']['Targeting']
 
 export function useAdminAds() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))

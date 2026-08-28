@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { AdminShell } from '@/features/auth/AdminShell'
+import { PowerOff, SlidersHorizontal } from 'lucide-react'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
@@ -94,29 +95,45 @@ function PermissionsPanel({ staff }: { staff: PlatformStaff }) {
 
 // Row-level component so useDisablePlatformStaff() can be called at its own render top level —
 // Table's `render: (row) => ...` runs as a callback, not a component body.
-function StaffActions({
-  staff,
-  expanded,
-  onToggle,
-}: {
-  staff: PlatformStaff
-  expanded: boolean
-  onToggle: () => void
-}) {
+function StaffActions({ staff }: { staff: PlatformStaff }) {
   const disableStaff = useDisablePlatformStaff()
   const [confirmingDisable, setConfirmingDisable] = useState(false)
+  // Manage opens a popup rather than expanding the row (user-requested, 2026-08-27). The inline
+  // expansion put a column of toggles inside the table, which pushed every other row down and gave
+  // the permissions no room to breathe; a modal is also what every other "edit this record" action
+  // on this console already does.
+  const [managing, setManaging] = useState(false)
 
   if (staff.is_super_admin) return null
 
   return (
-    <div className="flex items-center justify-end gap-sm">
-      <Button variant="secondary" onClick={onToggle}>
-        {expanded ? 'Collapse' : 'Manage'}
-      </Button>
+    // Same stop-propagation reasoning as BranchesPage: without it a click here bubbles into the
+    // row's own handling.
+    <div className="flex items-center justify-end gap-xs">
+      <button
+        type="button"
+        onClick={() => setManaging(true)}
+        aria-label={`Manage permissions for ${staff.name}`}
+        title="Manage permissions"
+        className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
+      >
+        <SlidersHorizontal className="h-4 w-4" />
+      </button>
       {staff.active && (
-        <Button variant="destructive" onClick={() => setConfirmingDisable(true)}>
-          Disable
-        </Button>
+        <button
+          type="button"
+          onClick={() => setConfirmingDisable(true)}
+          aria-label={`Disable ${staff.name}`}
+          title="Disable"
+          className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-error"
+        >
+          <PowerOff className="h-4 w-4" />
+        </button>
+      )}
+      {managing && (
+        <Modal onClose={() => setManaging(false)} title={`${staff.name} — Permissions`} widthRem={26}>
+          <PermissionsPanel staff={staff} />
+        </Modal>
       )}
       {/* User-requested (2026-08-15) — "wherever there is delete, confirm popup is needed." */}
       {confirmingDisable && (
@@ -154,7 +171,6 @@ export function PlatformTeamPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
-  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const rows = useMemo(() => {
     let items = staff.data ?? []
@@ -190,13 +206,7 @@ export function PlatformTeamPage() {
     {
       key: 'actions',
       header: '',
-      render: (s) => (
-        <StaffActions
-          staff={s}
-          expanded={expandedId === s.id}
-          onToggle={() => setExpandedId((id) => (id === s.id ? null : s.id!))}
-        />
-      ),
+      render: (s) => <StaffActions staff={s} />,
     },
   ]
 
@@ -224,10 +234,6 @@ export function PlatformTeamPage() {
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search name or email…' }}
-          expandable={{
-            isExpanded: (s) => expandedId === s.id,
-            renderExpanded: (s) => <PermissionsPanel staff={s} />,
-          }}
         />
       </div>
     </AdminShell>

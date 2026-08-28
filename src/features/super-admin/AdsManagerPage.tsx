@@ -10,7 +10,8 @@ import { Table, type TableColumn } from '@/components/Table'
 import { Modal } from '@/components/Modal'
 import { ImageUploadField } from '@/components/ImageUploadField'
 import { SearchSelect, type SearchSelectOption } from '@/components/SearchSelect'
-import { MultiSelect } from '@/components/MultiSelect'
+import { TargetingFilter } from '@/components/TargetingFilter'
+import { hasAnyTargeting } from '@/lib/targeting'
 import { useAdAudienceCount, useAdClicks, useAdminAds, useCreateAd, useUpdateAd } from '@/queries/adsAdmin'
 import { PersonListModal } from '@/components/PersonListModal'
 import { useAdminEvents } from '@/queries/eventsAdmin'
@@ -22,7 +23,7 @@ import { mediaUrl } from '@/lib/mediaUrl'
 
 type AdBanner = components['schemas']['AdBanner']
 type DestinationType = AdBanner['destination_type']
-type AdTargeting = components['schemas']['AdTargeting']
+type AdTargeting = components['schemas']['Targeting']
 
 const eventTypeLabels: Record<string, string> = {
   quiz: 'Quiz',
@@ -67,20 +68,8 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
   const [priority, setPriority] = useState(editingAd?.priority ?? 1)
   const [activeFrom, setActiveFrom] = useState(editingAd?.active_from ?? '')
   const [activeTo, setActiveTo] = useState(editingAd?.active_to ?? '')
-  const [studyLevel, setStudyLevel] = useState<string[]>(editingAd?.targeting?.study_level ?? [])
-  const [targetCountry, setTargetCountry] = useState<string[]>(editingAd?.targeting?.target_country ?? [])
-  const [residentCountry, setResidentCountry] = useState<string[]>(editingAd?.targeting?.resident_country ?? [])
-  const [stage, setStage] = useState(editingAd?.targeting?.stage ? String(editingAd.targeting.stage) : '')
-  const [caseType, setCaseType] = useState<'' | 'student' | 'pr'>(editingAd?.targeting?.case_type ?? '')
+  const [targeting, setTargeting] = useState<AdTargeting>(editingAd?.targeting ?? {})
   const countries = useCountries()
-
-  const targeting: AdTargeting = {
-    study_level: studyLevel,
-    target_country: targetCountry,
-    resident_country: residentCountry,
-    stage: stage ? (Number(stage) as 1 | 2) : null,
-    case_type: caseType || null,
-  }
   const audienceCount = useAdAudienceCount(targeting)
 
   const mutation = isEditing ? updateAd : createAd
@@ -118,10 +107,7 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
       priority,
       active_from: activeFrom || null,
       active_to: activeTo || null,
-      targeting:
-        studyLevel.length || targetCountry.length || residentCountry.length || targeting.stage || targeting.case_type
-          ? targeting
-          : null,
+      targeting: hasAnyTargeting(targeting) ? targeting : null,
     }
     if (isEditing) {
       updateAd.mutate(body, { onSuccess: () => onClose() })
@@ -260,49 +246,12 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
 
         {step === 2 && (
           <div className="flex flex-col gap-sm">
-            <p className="text-caption text-text-secondary">
-              Coarse — a student with no preferences set sees only untargeted banners. Leave a field empty to not
-              restrict on it.
-            </p>
-            <MultiSelect label="Study level" options={[]} selected={studyLevel} onChange={setStudyLevel} allowCustom />
-            <div className="flex flex-col gap-xs">
-              <MultiSelect
-                label="Target country"
-                options={countries.data ?? []}
-                selected={targetCountry}
-                onChange={setTargetCountry}
-              />
-              <p className="text-caption text-text-secondary">Where they want to study.</p>
-            </div>
-            <div className="flex flex-col gap-xs">
-              <MultiSelect
-                label="Country of residence"
-                options={countries.data ?? []}
-                selected={residentCountry}
-                onChange={setResidentCountry}
-              />
-              <p className="text-caption text-text-secondary">
-                Where they live now. Use this for anything that only exists somewhere — a walk-in office, a city event,
-                a local offer — so it isn&rsquo;t shown to students who could never act on it.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-sm">
-              <SelectField label="Stage" id="targeting-stage" value={stage} onChange={(e) => setStage(e.target.value)}>
-                <option value="">Any stage</option>
-                <option value="1">Stage 1 — Leads</option>
-                <option value="2">Stage 2 — Clients</option>
-              </SelectField>
-              <SelectField
-                label="Case type"
-                id="targeting-case-type"
-                value={caseType}
-                onChange={(e) => setCaseType(e.target.value as '' | 'student' | 'pr')}
-              >
-                <option value="">Any case type</option>
-                <option value="student">Student</option>
-                <option value="pr">PR</option>
-              </SelectField>
-            </div>
+            <TargetingFilter
+              value={targeting}
+              onChange={setTargeting}
+              countries={countries.data ?? []}
+              unknownDataPolicy="includes"
+            />
             <p className="text-body-sm text-text-secondary">
               {audienceCount.isLoading
                 ? 'Checking how many people match…'

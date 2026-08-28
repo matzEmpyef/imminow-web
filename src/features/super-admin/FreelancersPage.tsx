@@ -5,6 +5,7 @@ import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
+import { FreelancerRatesPanel } from './FreelancerRatesPage'
 import { useFreelancers, useSetFreelancerActive } from '@/queries/freelancerRates'
 import type { components } from '@/api/schema'
 
@@ -18,7 +19,14 @@ type Freelancer = components['schemas']['Freelancer']
  * row per rate, so neither lists the accounts themselves. A capability with no surface is the same
  * shape of gap as a rule with no enforcement, which this codebase has produced repeatedly.
  */
+// Two views of one subject (user-requested, 2026-08-27) — the people, and what each of them earns.
+// Rates were their own sidebar entry, which made them look like a separate thing to administer;
+// they are not, and a rate has no meaning without the freelancer it belongs to.
+const TABS = ['Freelancers', 'Rates'] as const
+type Tab = (typeof TABS)[number]
+
 export function FreelancersPage() {
+  const [activeTab, setActiveTab] = useState<Tab>('Freelancers')
   const freelancers = useFreelancers()
   const [search, setSearch] = useState('')
   const [confirming, setConfirming] = useState<Freelancer | null>(null)
@@ -81,6 +89,24 @@ export function FreelancersPage() {
           </p>
         </div>
 
+        <div className="flex gap-xs overflow-x-auto border-b border-border">
+          {TABS.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`shrink-0 border-b-2 px-md py-sm text-body-sm ${
+                activeTab === tab ? 'border-primary font-medium text-primary' : 'border-transparent text-text-secondary'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'Rates' && <FreelancerRatesPanel />}
+
+        {activeTab === 'Freelancers' && (
+          <>
         <Table
           columns={columns}
           rows={rows}
@@ -91,7 +117,9 @@ export function FreelancersPage() {
           search={{ value: search, onChange: setSearch, placeholder: 'Search name, email or code…' }}
         />
 
-        {confirming && <DeactivateModal freelancer={confirming} onClose={() => setConfirming(null)} />}
+            {confirming && <DeactivateModal freelancer={confirming} onClose={() => setConfirming(null)} />}
+          </>
+        )}
       </div>
     </AdminShell>
   )

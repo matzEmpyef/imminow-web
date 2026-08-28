@@ -12,6 +12,10 @@ interface MultiSelectProps {
   // catalog, like Ads Manager's targeting study_level (user-requested, 2026-08-18).
   allowCustom?: boolean
   required?: boolean
+  // Maps a stored value to display text, for catalogs whose wire values are slugs rather than
+  // prose (study_level's 'bachelors'). Omitted, values render as-is, which is what every other
+  // consumer wants.
+  renderLabel?: (value: string) => string
 }
 
 // Chips + search-to-add, closed to a fixed `options` list (no free-text create, unlike
@@ -20,7 +24,8 @@ interface MultiSelectProps {
 // (flagged as likely for a future "colleges served" field). No portal: unlike Combobox.tsx,
 // nothing renders this inside a Modal today, so a plain absolute dropdown doesn't get clipped —
 // revisit with the same portal fix if that changes.
-export function MultiSelect({ label, options, selected, onChange, allowCustom, required }: MultiSelectProps) {
+export function MultiSelect({ label, options, selected, onChange, allowCustom, required, renderLabel }: MultiSelectProps) {
+  const display = renderLabel ?? ((value: string) => value)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const inputId = useId()
@@ -39,7 +44,12 @@ export function MultiSelect({ label, options, selected, onChange, allowCustom, r
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [open])
 
-  const available = options.filter((o) => !selected.includes(o) && o.toLowerCase().includes(search.toLowerCase()))
+  const needle = search.toLowerCase()
+  // Matches the label as well as the value, or typing "Bachelors" finds nothing when the
+  // stored value is the slug 'bachelors'.
+  const available = options.filter(
+    (o) => !selected.includes(o) && (o.toLowerCase().includes(needle) || display(o).toLowerCase().includes(needle)),
+  )
   const trimmedSearch = search.trim()
   const canAddCustom =
     allowCustom && trimmedSearch.length > 0 && !selected.some((o) => o.toLowerCase() === trimmedSearch.toLowerCase())
@@ -72,14 +82,14 @@ export function MultiSelect({ label, options, selected, onChange, allowCustom, r
             key={option}
             className="flex items-center gap-1 rounded-full bg-background px-sm py-1 text-caption text-text-primary"
           >
-            {option}
+            {display(option)}
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
                 remove(option)
               }}
-              aria-label={`Remove ${option}`}
+              aria-label={`Remove ${display(option)}`}
               className="text-text-secondary hover:text-text-primary"
             >
               <X className="h-3 w-3" />
@@ -114,7 +124,7 @@ export function MultiSelect({ label, options, selected, onChange, allowCustom, r
               onClick={() => add(option)}
               className="block w-full px-md py-sm text-left text-body-sm text-text-primary hover:bg-background"
             >
-              {option}
+              {display(option)}
             </button>
           ))}
           {canAddCustom && (

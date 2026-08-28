@@ -19,7 +19,12 @@ export function useNotificationChannelConfig() {
 export function useUpdateNotificationChannelConfig() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (body: { notification_type: string; push_enabled?: boolean; email_enabled?: boolean }) => {
+    mutationFn: async (body: {
+      notification_type: string
+      in_app_enabled?: boolean
+      push_enabled?: boolean
+      email_enabled?: boolean
+    }) => {
       const { data, error } = await api.PATCH('/notification-channel-config', { body })
       if (error) throw new ApiError('Could not update this setting.', error)
       return data

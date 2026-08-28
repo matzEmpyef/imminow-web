@@ -238,7 +238,13 @@ export function ApplicantAllocationPage() {
                 Currently with {e.current_consultancy_name ?? 'their consultancy'}
               </p>
               {e.complaint_description && (
-                <p className="mt-0.5 max-w-md text-caption italic text-text-secondary">“{e.complaint_description}”</p>
+                <p
+                  // `max-w-md` computes to 16px here — see styles/tailwind.config.ts.
+                  className="mt-0.5 text-caption italic text-text-secondary"
+                  style={{ maxWidth: '28rem' }}
+                >
+                  “{e.complaint_description}”
+                </p>
               )}
             </div>
           )}

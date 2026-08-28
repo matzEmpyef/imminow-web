@@ -3,6 +3,7 @@ import { SelectField } from '@/components/SelectField'
 import { Settings } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Button } from '@/components/Button'
+import { CreateConsultancyModal } from './CreateConsultancyModal'
 import { Badge } from '@/components/Badge'
 import { Card } from '@/components/Card'
 import { TextField } from '@/components/TextField'
@@ -474,6 +475,7 @@ export function ManageConsultanciesPage() {
   const [tierFilter, setTierFilter] = useState('')
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [managingId, setManagingId] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
   const paging = useCursorPagination()
 
   const consultancies = useAdminConsultancies({
@@ -566,7 +568,12 @@ export function ManageConsultanciesPage() {
   return (
     <AdminShell>
       <div className="flex flex-col gap-lg">
-        <h1 className="text-h1 text-text-primary">Manage Consultancies</h1>
+        <div className="flex items-start justify-between gap-md">
+          <h1 className="text-h1 text-text-primary">Manage Consultancies</h1>
+          <Button onClick={() => setCreating(true)}>Create Consultancy</Button>
+        </div>
+
+        {creating && <CreateConsultancyModal onClose={() => setCreating(false)} />}
 
         {/* KPI cards (user-requested, 2026-08-18 — "have KPIs.. how much count in each tier")
             — always the platform-wide tier breakdown from `tier_counts`, independent of this

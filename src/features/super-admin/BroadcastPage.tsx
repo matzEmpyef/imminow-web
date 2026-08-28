@@ -4,9 +4,16 @@ import { SelectField } from '@/components/SelectField'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
+import {
+  BROADCAST_CATEGORIES,
+  BROADCAST_CATEGORY_LABELS,
+  broadcastCategoryLabel,
+  type BroadcastCategory,
+} from '@/lib/broadcastCategories'
 import { Table, type TableColumn } from '@/components/Table'
 import { Modal } from '@/components/Modal'
-import { MultiSelect } from '@/components/MultiSelect'
+import { TargetingFilter } from '@/components/TargetingFilter'
+import { hasAnyTargeting } from '@/lib/targeting'
 import { SearchSelect } from '@/components/SearchSelect'
 import { useBlogArticles } from '@/queries/blogArticles'
 import { useAdminEvents } from '@/queries/eventsAdmin'
@@ -17,7 +24,7 @@ import { formatDateTime } from '@/lib/time'
 import type { components } from '@/api/schema'
 
 type Audience = NonNullable<components['schemas']['BroadcastInput']['audience']>
-type BroadcastTargeting = components['schemas']['BroadcastTargeting']
+type BroadcastTargeting = components['schemas']['Targeting']
 type Broadcast = NonNullable<ReturnType<typeof useBroadcastHistory>['data']>['items'][number]
 
 // Renders a stored targeting object back as the sentence the sender meant. Send history is the
@@ -46,7 +53,7 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [composeAudience, setComposeAudience] = useState<Audience>('all_students')
-  const [category, setCategory] = useState('')
+  const [category, setCategory] = useState<BroadcastCategory | ''>('')
   // Where tapping the notification takes the student. Until now every broadcast was a dead end,
   // so senders wrote "now available on the Blog tab" into the body and left the student to go find
   // it themselves.
@@ -57,13 +64,11 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
   const articles = useBlogArticles()
   const events = useAdminEvents()
   const deepLink = needsArticle || needsEvent ? (targetId ? `/${destination}/${targetId}` : '') : destination
-  const [residentCountry, setResidentCountry] = useState<string[]>([])
-  const [studyLevel, setStudyLevel] = useState<string[]>([])
-  const [stage, setStage] = useState('')
+  const [targeting, setTargeting] = useState<BroadcastTargeting>({})
   const countries = useCountries()
 
   const isSegment = composeAudience === 'segment'
-  const hasFilters = residentCountry.length > 0 || studyLevel.length > 0 || stage !== ''
+  const hasFilters = hasAnyTargeting(targeting)
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -74,15 +79,15 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
     // Targeting is sent only for `segment`; the other two audiences ignore it server-side, and
     // posting a stale object from a switched-away segment draft would be recorded as the
     // broadcast's segment in send history even though it filtered nothing.
-    const targeting: BroadcastTargeting | undefined = isSegment
-      ? {
-          resident_country: residentCountry,
-          study_level: studyLevel,
-          stage: stage ? (Number(stage) as 1 | 2) : null,
-        }
-      : undefined
     sendBroadcast.mutate(
-      { title, body, audience: composeAudience, category, targeting, deep_link: deepLink || undefined },
+      {
+        title,
+        body,
+        audience: composeAudience,
+        category,
+        targeting: isSegment ? targeting : undefined,
+        deep_link: deepLink || undefined,
+      },
       { onSuccess: () => onClose() },
     )
   }
@@ -91,7 +96,9 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
     <Modal
       onClose={onClose}
       title="Send Broadcast"
-      widthRem={28}
+      // 28rem was sized for a title/body/category form. It now also hosts the full 11-field
+      // targeting filter (2026-08-27), which cramped every control into a single narrow column.
+      widthRem={46}
       footer={
         <>
           {sendBroadcast.isError && (
@@ -110,7 +117,21 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
     >
       <form id="broadcast-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
-        <TextField label="Category" value={category} onChange={(e) => setCategory(e.target.value)} />
+        {/* Closed list as of 2026-08-27 (was a free-text box). It only labels the send history, so
+            free text defeated its own purpose — the same value typed three ways filed three ways. */}
+        <SelectField
+          label="Category"
+          id="broadcast-category"
+          value={category}
+          onChange={(e) => setCategory(e.target.value as BroadcastCategory | '')}
+        >
+          <option value="">Select…</option>
+          {BROADCAST_CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {BROADCAST_CATEGORY_LABELS[c]}
+            </option>
+          ))}
+        </SelectField>
         <SelectField
           label="Audience"
           id="audience"
@@ -160,22 +181,12 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
         </p>
         {isSegment && (
           <div className="flex flex-col gap-sm rounded-md border border-border bg-background p-sm">
-            <p className="text-caption text-text-secondary">
-              Leave a field empty to not filter on it. Unlike ads, a student who hasn&rsquo;t answered one of these is
-              left OUT — a push notification can&rsquo;t be un-received.
-            </p>
-            <MultiSelect
-              label="Country of residence"
-              options={countries.data ?? []}
-              selected={residentCountry}
-              onChange={setResidentCountry}
+            <TargetingFilter
+              value={targeting}
+              onChange={setTargeting}
+              countries={countries.data ?? []}
+              unknownDataPolicy="excludes"
             />
-            <MultiSelect label="Study level" options={[]} selected={studyLevel} onChange={setStudyLevel} allowCustom />
-            <SelectField label="Stage" id="segment-stage" value={stage} onChange={(e) => setStage(e.target.value)}>
-              <option value="">Any stage</option>
-              <option value="1">Stage 1 — Leads</option>
-              <option value="2">Stage 2 — Clients</option>
-            </SelectField>
             {!hasFilters && (
               <p className="text-caption text-warning">
                 No filters set — this would reach every student, the same as &ldquo;All students&rdquo;.
@@ -236,7 +247,7 @@ export function BroadcastPage() {
       key: 'category',
       header: 'Category',
       sortable: true,
-      render: (b) => <Badge color="secondary">{b.category}</Badge>,
+      render: (b) => <Badge color="secondary">{broadcastCategoryLabel(b.category)}</Badge>,
     },
     { key: 'recipient_count', header: 'Recipients', sortable: true, align: 'right', render: (b) => b.recipient_count },
     { key: 'sent_by_name', header: 'Sent By', render: (b) => b.sent_by_name },

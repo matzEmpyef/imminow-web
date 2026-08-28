@@ -25,7 +25,11 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, { hasEr
     if (!this.state.hasError) return this.props.children
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-lg">
-        <Card className="flex max-w-md flex-col items-center gap-md text-center">
+        {/* Inline maxWidth, not `max-w-md` — that class resolves from this project's custom
+            spacing scale and computes to 16px, which collapsed this card into a ~48px vertical
+            sliver with the Reload button overflowing it. See the NOTE in styles/tailwind.config.ts
+            and the same fix in GlobalSearch.tsx. */}
+        <Card className="flex w-full flex-col items-center gap-md text-center" style={{ maxWidth: '28rem' }}>
           <h1 className="text-h2 text-text-primary">Something went wrong</h1>
           <p className="text-body-sm text-text-secondary">
             This page hit an unexpected error. Reloading usually fixes it — if it keeps happening, let your admin know

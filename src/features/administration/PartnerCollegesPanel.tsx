@@ -135,8 +135,12 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
         platform team.
       </p>
 
+      {/* Full-width row (user-requested, 2026-08-27): the college picker was a fixed w-64, which
+          left it cramped and wrapping inside the Manage Consultancies modal while the row had space
+          going spare. It now flexes to fill, with the payer select and Add button sized to their
+          content at the end. */}
       <div className="flex flex-wrap items-end gap-sm">
-        <div className="w-64">
+        <div className="min-w-[16rem] flex-1">
           <label className="mb-1 block text-body-sm font-medium text-text-primary" htmlFor="pc-college">
             Add a college
           </label>
@@ -154,6 +158,7 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
         <SelectField
           label="Payer method"
           id="pc-payer"
+          className="w-48 shrink-0"
           value={addPayer}
           disabled={!addCollegeId || addMethods.length === 0}
           onChange={(e) => setAddPayer(e.target.value as PayerMethod)}

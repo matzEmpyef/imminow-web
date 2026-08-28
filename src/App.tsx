@@ -94,9 +94,6 @@ const ActivityPage = lazy(() => import('@/features/dashboard/ActivityPage').then
 const SuperAdminDashboardPage = lazy(() =>
   import('@/features/super-admin/SuperAdminDashboardPage').then((m) => ({ default: m.SuperAdminDashboardPage })),
 )
-const CreateConsultancyPage = lazy(() =>
-  import('@/features/super-admin/CreateConsultancyPage').then((m) => ({ default: m.CreateConsultancyPage })),
-)
 const ManageConsultanciesPage = lazy(() =>
   import('@/features/super-admin/ManageConsultanciesPage').then((m) => ({ default: m.ManageConsultanciesPage })),
 )
@@ -108,6 +105,9 @@ const CollegesCoursesPage = lazy(() =>
 )
 const CollegeDetailPage = lazy(() =>
   import('@/features/super-admin/CollegeDetailPage').then((m) => ({ default: m.CollegeDetailPage })),
+)
+const InstitutionsPage = lazy(() =>
+  import('@/features/super-admin/InstitutionsPage').then((m) => ({ default: m.InstitutionsPage })),
 )
 const CountriesPage = lazy(() =>
   import('@/features/super-admin/CountriesPage').then((m) => ({ default: m.CountriesPage })),
@@ -155,9 +155,6 @@ const CommissionRatesPage = lazy(() =>
 )
 const FreelancerPayoutsPage = lazy(() =>
   import('@/features/super-admin/FreelancerPayoutsPage').then((m) => ({ default: m.FreelancerPayoutsPage })),
-)
-const FreelancerRatesPage = lazy(() =>
-  import('@/features/super-admin/FreelancerRatesPage').then((m) => ({ default: m.FreelancerRatesPage })),
 )
 const FinanceDashboardPage = lazy(() =>
   import('@/features/super-admin/FinanceDashboardPage').then((m) => ({ default: m.FinanceDashboardPage })),
@@ -454,14 +451,6 @@ function App() {
           }
         />
         <Route
-          path="/admin/consultancies/new"
-          element={
-            <PlatformRoute permission="consultancy_approval">
-              <CreateConsultancyPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
           path="/admin/applicant-allocation"
           element={
             <PlatformRoute permission="consultancy_approval">
@@ -498,6 +487,14 @@ function App() {
           element={
             <PlatformRoute permission="catalog">
               <CountriesPage />
+            </PlatformRoute>
+          }
+        />
+        <Route
+          path="/admin/institutions"
+          element={
+            <PlatformRoute permission="catalog">
+              <InstitutionsPage />
             </PlatformRoute>
           }
         />
@@ -613,14 +610,9 @@ function App() {
             </PlatformRoute>
           }
         />
-        <Route
-          path="/admin/freelancer-rates"
-          element={
-            <PlatformRoute permission="finance">
-              <FreelancerRatesPage />
-            </PlatformRoute>
-          }
-        />
+        {/* Merged into Freelancers as a tab (2026-08-27). The old path is kept as a redirect so
+            existing bookmarks and any link still pointing here land somewhere real. */}
+        <Route path="/admin/freelancer-rates" element={<Navigate to="/admin/freelancers" replace />} />
         <Route
           path="/admin/finance-dashboard"
           element={
