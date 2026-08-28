@@ -2931,7 +2931,7 @@ export interface paths {
                         logo_url?: string | null;
                         description?: string;
                         about_us?: string;
-                        /** @description Multiselect sourced from GET /countries (user-requested — a shared backend list rather than freeform text). */
+                        /** @description Multiselect sourced from GET /countries (user-requested — a shared backend list rather than freeform text). Adding a country (user decision, 2026-08-28) fires one staff-wide in-app notification per newly added country, prompting a Super Admin to set its commission rates via `PUT /commission-rates/bulk` — see that operation's summary. Removing or reordering countries only fires the existing generic "updated Countries Served" notification. */
                         countries_served?: string[];
                         city?: string;
                         public_email?: string | null;
@@ -12395,6 +12395,65 @@ export interface paths {
         };
         trace?: never;
     };
+    "/commission-rates/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** The one-shot rate matrix for onboarding a destination country (user decision, 2026-08-28 — "the super admin should be able to add these 8 rates manually, should not have to click add for each type... no need of add rows"). Upserts all four payer rows for a (consultancy, destination_country) pair atomically, so a Super Admin fills in one popup instead of using `POST /commission-rates` four separate times. This is the operation the `countries_served_changed` notification's `deep_link` points at when a consultancy adds a new destination country. */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        consultancy_id: components["schemas"]["UUID"];
+                        destination_country: string;
+                        /** @description All four payer groups are required — this endpoint exists specifically so none can be left unset. */
+                        rates: {
+                            applicant: components["schemas"]["CommissionRateBulkGroup"];
+                            college: components["schemas"]["CommissionRateBulkGroup"];
+                            split: components["schemas"]["CommissionRateBulkGroup"];
+                            pr: components["schemas"]["CommissionRateBulkGroup"];
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description The four upserted rows (applicant, college, split, pr), in that order. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommissionRate"][];
+                    };
+                };
+                /** @description A percentage is out of 0-100, a group is missing, or a freelancer_sourced_rate is not strictly greater than its direct_rate. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/freelancers": {
         parameters: {
             query?: never;
@@ -16040,7 +16099,7 @@ export interface components {
             direct_rate: number;
             /**
              * Format: double
-             * @description Percentage — the total the consultancy pays out when any freelancer brought the case, regardless of which one.
+             * @description Percentage — the total the consultancy pays out when any freelancer brought the case, regardless of which one. MUST be strictly greater than `direct_rate` (user decision, 2026-08-28 — "freelancer-sourced college rate will be greater than direct-sourced college rate.. similarly for other rates also"): the freelancer's own cut is paid out of this column, so it can never sit at or below the direct rate. Exception: when the consultancy's freelancer channel is disabled, this value is auto-filled equal to `direct_rate` and the ordering rule is waived — no case at that consultancy can be freelancer-sourced, so the column is a placeholder, not a live rate.
              */
             freelancer_sourced_rate: number;
         };
@@ -16049,6 +16108,16 @@ export interface components {
             destination_country: string;
             /** @enum {string} */
             payer_method: "college" | "applicant" | "split" | "pr";
+            /** Format: double */
+            direct_rate: number;
+            /**
+             * Format: double
+             * @description Must be strictly greater than `direct_rate` — see `CommissionRate. freelancer_sourced_rate`. Waived, and auto-filled equal to `direct_rate`, when the consultancy's freelancer channel is disabled.
+             */
+            freelancer_sourced_rate: number;
+        };
+        /** @description One payer group's two columns within a `PUT /commission-rates/bulk` request — see `CommissionRateInput` for the direct_rate / freelancer_sourced_rate ordering rule, which applies here identically per group. */
+        CommissionRateBulkGroup: {
             /** Format: double */
             direct_rate: number;
             /** Format: double */

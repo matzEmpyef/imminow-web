@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { SelectField } from '@/components/SelectField'
 import { Button } from '@/components/Button'
@@ -10,7 +10,7 @@ import { Table, type TableColumn } from '@/components/Table'
 import { StopPropagation } from '@/components/StopPropagation'
 import { Modal } from '@/components/Modal'
 import { useAdminConsultancies, useUpdateEntitlements } from '@/queries/adminConsultancies'
-import { useCommissionRates, useCreateCommissionRate, useUpdateCommissionRate } from '@/queries/commissionRates'
+import { useCommissionRates, useUpdateCommissionRate, useBulkSetCommissionRates } from '@/queries/commissionRates'
 import type { components } from '@/api/schema'
 
 type CommissionRate = components['schemas']['CommissionRate']
@@ -25,49 +25,144 @@ const PAYER_METHOD_LABELS: Record<PayerMethod, string> = {
   pr: 'PR case',
 }
 
-// User-requested (2026-08-15) — "wherever there is add button, use popup, instead of inline
-// form." Was an inline Card that expanded below the page header; now a Modal, same fields.
-function AddRateForm({
+const RATE_GROUPS: { key: PayerMethod; label: string }[] = [
+  { key: 'applicant', label: 'Applicant' },
+  { key: 'college', label: 'College' },
+  { key: 'split', label: 'Split' },
+  { key: 'pr', label: 'PR case' },
+]
+
+interface MatrixRow {
+  direct: string
+  freelancer: string
+}
+type MatrixState = Record<PayerMethod, MatrixRow>
+
+function blankMatrix(): MatrixState {
+  return {
+    applicant: { direct: '', freelancer: '' },
+    college: { direct: '', freelancer: '' },
+    split: { direct: '', freelancer: '' },
+    pr: { direct: '', freelancer: '' },
+  }
+}
+
+// Builds the matrix's starting values from whatever rows already exist for this
+// (consultancy, country) — one payer group may be set and the other three blank, which is
+// exactly the case this modal exists to make easy to finish.
+function matrixFromExistingRates(rates: CommissionRate[], consultancyId: string, country: string): MatrixState {
+  const matrix = blankMatrix()
+  for (const rate of rates) {
+    if (rate.consultancy_id !== consultancyId || rate.destination_country !== country) continue
+    const method = rate.payer_method as PayerMethod
+    if (!matrix[method]) continue
+    matrix[method] = {
+      direct: String(rate.direct_rate ?? ''),
+      freelancer: String(rate.freelancer_sourced_rate ?? ''),
+    }
+  }
+  return matrix
+}
+
+// Replaces the old per-payer-method "+ Add Rate" flow (user decision, 2026-08-28 — "the super
+// admin should be able to add these 8 rates manually, should not have to click add for each
+// type... no need of add rows"). One popup, one Save, all four payer rows for a
+// (consultancy, destination_country) pair — whether that pair has no rates yet, some, or all
+// four already (in which case this is simply the edit form, prefilled). Calls
+// `PUT /commission-rates/bulk`, which upserts atomically.
+function RateMatrixModal({
   onClose,
+  allRates,
   defaultConsultancyId,
   defaultCountry,
+  lockConsultancy,
+  lockCountry,
 }: {
   onClose: () => void
+  allRates: CommissionRate[]
   defaultConsultancyId?: string
   defaultCountry?: string
+  lockConsultancy?: boolean
+  lockCountry?: boolean
 }) {
-  const consultancies = useAdminConsultancies()
-  const createRate = useCreateCommissionRate()
+  const consultancies = useAdminConsultancies({ limit: 100 })
+  const bulkSet = useBulkSetCommissionRates()
   const [consultancyId, setConsultancyId] = useState(defaultConsultancyId ?? '')
   const [country, setCountry] = useState(defaultCountry ?? '')
-  const [payerMethod, setPayerMethod] = useState<PayerMethod>('applicant')
-  const [directRate, setDirectRate] = useState(10)
-  const [freelancerRate, setFreelancerRate] = useState(13)
+  const [matrix, setMatrix] = useState<MatrixState>(() =>
+    defaultConsultancyId && defaultCountry
+      ? matrixFromExistingRates(allRates, defaultConsultancyId, defaultCountry)
+      : blankMatrix(),
+  )
+  const [touched, setTouched] = useState(false)
 
-  // Hidden rather than shown-disabled (user-requested, 2026-08-27) whenever the chosen
-  // consultancy's freelancer channel is off. A greyed field with a "Channel disabled" caption
-  // still reads as something the admin ought to fill in, and the explanation costs a line of the
-  // form to say what the field's absence says on its own. Before a consultancy is picked there is
-  // no channel to judge, so the field shows.
+  // Re-seeds the matrix from whatever's already saved whenever the (consultancy, country) pair
+  // resolves to a new one — covers the unlocked top-level flow, where picking a consultancy and
+  // country that already has rates should show the edit form, not a blank one.
+  useEffect(() => {
+    if (touched) return
+    if (consultancyId && country) {
+      setMatrix(matrixFromExistingRates(allRates, consultancyId, country))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [consultancyId, country])
+
   const selectedConsultancy = consultancies.data?.items?.find((c) => c.id === consultancyId)
+  // Hidden rather than shown-disabled (user-requested, 2026-08-27) whenever the chosen
+  // consultancy's freelancer channel is off — the server auto-fills this column equal to
+  // direct_rate in that case, so showing an input for it would invite a value that's never used.
   const freelancerDisabled = Boolean(consultancyId) && !selectedConsultancy?.freelancer_enabled
+
+  function setCell(method: PayerMethod, field: 'direct' | 'freelancer', value: string) {
+    setTouched(true)
+    setMatrix((prev) => ({ ...prev, [method]: { ...prev[method], [field]: value } }))
+  }
+
+  // Mirrors the server's own rule (mock-server/server.js resolveAndValidateFreelancerRate) so a
+  // bad value never round-trips to the server just to be told no.
+  const errors = useMemo(() => {
+    const rowErrors: Partial<Record<PayerMethod, string>> = {}
+    for (const { key } of RATE_GROUPS) {
+      const direct = Number(matrix[key].direct)
+      const freelancer = Number(matrix[key].freelancer)
+      if (matrix[key].direct === '' || Number.isNaN(direct) || direct < 0 || direct > 100) {
+        rowErrors[key] = 'Direct % must be between 0 and 100.'
+        continue
+      }
+      if (freelancerDisabled) continue
+      if (matrix[key].freelancer === '' || Number.isNaN(freelancer) || freelancer < 0 || freelancer > 100) {
+        rowErrors[key] = 'Freelancer-sourced % must be between 0 and 100.'
+        continue
+      }
+      if (freelancer <= direct) {
+        rowErrors[key] = 'Freelancer-sourced % must be greater than the direct %.'
+      }
+    }
+    return rowErrors
+  }, [matrix, freelancerDisabled])
+
+  const canSubmit = Boolean(consultancyId) && Boolean(country) && Object.keys(errors).length === 0
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!consultancyId || !country) return
-    createRate.mutate(
-      {
-        consultancy_id: consultancyId,
-        destination_country: country,
-        payer_method: payerMethod,
-        direct_rate: directRate,
-        // Still sent when the field is hidden: `freelancer_sourced_rate` is required by the
-        // contract, and hiding an input is a display decision, not a data one. The stored rate
-        // stays whatever it was, so re-enabling the channel brings the field back with its value
-        // rather than a blank — the same "not deleted, just not applicable" rule the row editor
-        // has followed since 2026-08-19.
-        freelancer_sourced_rate: freelancerRate,
-      },
+    if (!canSubmit) return
+    const rates = Object.fromEntries(
+      RATE_GROUPS.map(({ key }) => {
+        const direct = Number(matrix[key].direct)
+        // Still sent even when hidden: freelancer_sourced_rate is required by the contract, and
+        // the server auto-fills it equal to direct_rate for a channel-disabled consultancy
+        // regardless of what's sent — hiding the input is a display decision, not a data one.
+        const freelancer = freelancerDisabled ? direct : Number(matrix[key].freelancer)
+        return [key, { direct_rate: direct, freelancer_sourced_rate: freelancer }]
+      }),
+    ) as {
+      applicant: components['schemas']['CommissionRateBulkGroup']
+      college: components['schemas']['CommissionRateBulkGroup']
+      split: components['schemas']['CommissionRateBulkGroup']
+      pr: components['schemas']['CommissionRateBulkGroup']
+    }
+    bulkSet.mutate(
+      { consultancy_id: consultancyId, destination_country: country, rates },
       { onSuccess: () => onClose() },
     )
   }
@@ -75,31 +170,24 @@ function AddRateForm({
   return (
     <Modal
       onClose={onClose}
-      title="Add Rate"
-      widthRem={28}
+      title={country ? `Rates — ${country}` : 'Set Rates'}
+      widthRem={34}
       footer={
         <>
-          {createRate.isError && (
-            <p className="mr-auto self-center text-body-sm text-error">{createRate.error.message}</p>
-          )}
-          <Button
-            type="submit"
-            form="add-rate-form"
-            loading={createRate.isPending}
-            disabled={!consultancyId || !country}
-          >
-            Create Rate
+          {bulkSet.isError && <p className="mr-auto self-center text-body-sm text-error">{bulkSet.error.message}</p>}
+          <Button type="submit" form="rate-matrix-form" loading={bulkSet.isPending} disabled={!canSubmit}>
+            Save
           </Button>
         </>
       }
     >
-      <form id="add-rate-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
+      <form id="rate-matrix-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <SelectField
           label="Consultancy"
-          id="rate-consultancy"
+          id="matrix-consultancy"
           value={consultancyId}
           onChange={(e) => setConsultancyId(e.target.value)}
-          disabled={Boolean(defaultConsultancyId)}
+          disabled={lockConsultancy}
         >
           <option value="">Select…</option>
           {consultancies.data?.items?.map((c) => (
@@ -113,37 +201,49 @@ function AddRateForm({
           value={country}
           onChange={setCountry}
           size="compact"
-          disabled={Boolean(defaultCountry)}
+          disabled={lockCountry}
         />
-        <SelectField
-          label="Payer method"
-          id="rate-payer"
-          value={payerMethod}
-          onChange={(e) => setPayerMethod(e.target.value as PayerMethod)}
-        >
-          <option value="college">College</option>
-          <option value="applicant">Applicant</option>
-          <option value="split">Split</option>
-          <option value="pr">PR case</option>
-        </SelectField>
-        <TextField
-          label="Direct rate %"
-          type="number"
-          min={0}
-          max={100}
-          value={directRate}
-          onChange={(e) => setDirectRate(Number(e.target.value))}
-        />
-        {!freelancerDisabled && (
-          <TextField
-            label="Freelancer-sourced rate %"
-            type="number"
-            min={0}
-            max={100}
-            value={freelancerRate}
-            onChange={(e) => setFreelancerRate(Number(e.target.value))}
-          />
-        )}
+
+        <div className="flex flex-col gap-md rounded-md bg-background p-md">
+          {RATE_GROUPS.map(({ key, label }) => (
+            <div key={key} className="flex flex-col gap-xs border-b border-border pb-md last:border-0 last:pb-0">
+              <div className="flex items-center gap-sm">
+                {/* PR rows get their own tint so student pricing and PR pricing read apart at a
+                    glance — same convention ConsultancyRatesModal uses for the read-only view. */}
+                <Badge color={key === 'pr' ? 'primary' : 'info'} className="w-24 shrink-0 justify-center">
+                  {label}
+                </Badge>
+                <TextField
+                  label="Direct %"
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={matrix[key].direct}
+                  onChange={(e) => setCell(key, 'direct', e.target.value)}
+                  className="max-w-[8rem]"
+                />
+                {!freelancerDisabled && (
+                  <TextField
+                    label="Freelancer %"
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={matrix[key].freelancer}
+                    onChange={(e) => setCell(key, 'freelancer', e.target.value)}
+                    className="max-w-[8rem]"
+                  />
+                )}
+              </div>
+              {errors[key] && <p className="text-caption text-error">{errors[key]}</p>}
+            </div>
+          ))}
+          {freelancerDisabled && (
+            <p className="text-caption text-text-secondary">
+              Freelancer channel is off for this consultancy — every freelancer-sourced % is auto-set equal to its
+              direct %.
+            </p>
+          )}
+        </div>
       </form>
     </Modal>
   )
@@ -213,10 +313,18 @@ interface ConsultancySummary {
 // call from earlier the same day), not every country the platform recognizes — each served
 // country shows its configured payer-method rows inline, or a prompt to add one. Opened by
 // clicking a consultancy's row on the summary list below.
-function ConsultancyRatesModal({ summary, onClose }: { summary: ConsultancySummary; onClose: () => void }) {
+function ConsultancyRatesModal({
+  summary,
+  allRates,
+  onClose,
+}: {
+  summary: ConsultancySummary
+  allRates: CommissionRate[]
+  onClose: () => void
+}) {
   const updateEntitlements = useUpdateEntitlements(summary.consultancyId)
   const [countrySearch, setCountrySearch] = useState('')
-  const [addingCountry, setAddingCountry] = useState<string | null>(null)
+  const [editingCountry, setEditingCountry] = useState<string | null>(null)
 
   const ratesByCountry = useMemo(() => {
     const map = new Map<string, CommissionRate[]>()
@@ -279,8 +387,8 @@ function ConsultancyRatesModal({ summary, onClose }: { summary: ConsultancySumma
               <div key={country} className="flex flex-col gap-sm border-b border-border pb-md last:border-0">
                 <div className="flex items-center justify-between">
                   <Badge color="secondary">{country}</Badge>
-                  <Button variant="secondary" onClick={() => setAddingCountry(country)}>
-                    + Add Rate
+                  <Button variant="secondary" onClick={() => setEditingCountry(country)}>
+                    {rates.length === 0 ? 'Set rates' : 'Edit rates'}
                   </Button>
                 </div>
                 {rates.length === 0 ? (
@@ -294,6 +402,10 @@ function ConsultancyRatesModal({ summary, onClose }: { summary: ConsultancySumma
                         <Badge color={rate.payer_method === 'pr' ? 'primary' : 'info'} className="capitalize">
                           {PAYER_METHOD_LABELS[rate.payer_method as PayerMethod] ?? rate.payer_method}
                         </Badge>
+                        {/* Quick single-value tweak, kept alongside the matrix popup (which
+                            handles all four rows at once) rather than removed — the fastest path
+                            to nudging one already-configured percentage without reopening a full
+                            matrix over three rows nobody's touching. */}
                         <RateEditor rate={rate} freelancerDisabled={!summary.freelancerEnabled} />
                       </div>
                     ))}
@@ -304,11 +416,14 @@ function ConsultancyRatesModal({ summary, onClose }: { summary: ConsultancySumma
           })}
         </div>
       </div>
-      {addingCountry && (
-        <AddRateForm
+      {editingCountry && (
+        <RateMatrixModal
+          allRates={allRates}
           defaultConsultancyId={summary.consultancyId}
-          defaultCountry={addingCountry}
-          onClose={() => setAddingCountry(null)}
+          defaultCountry={editingCountry}
+          lockConsultancy
+          lockCountry
+          onClose={() => setEditingCountry(null)}
         />
       )}
     </Modal>
@@ -326,7 +441,7 @@ function ConsultancyRatesModal({ summary, onClose }: { summary: ConsultancySumma
 export function CommissionRatesPage() {
   const rates = useCommissionRates()
   const consultancies = useAdminConsultancies({ limit: 100 })
-  const [showAdd, setShowAdd] = useState(false)
+  const [showMatrix, setShowMatrix] = useState(false)
   const [viewingConsultancyId, setViewingConsultancyId] = useState<string | null>(null)
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
@@ -422,12 +537,16 @@ export function CommissionRatesPage() {
               Every consultancy on the platform — click one to see every country and its rates.
             </p>
           </div>
-          <Button onClick={() => setShowAdd(true)}>Add Rate</Button>
+          <Button onClick={() => setShowMatrix(true)}>Set Rates</Button>
         </div>
 
-        {showAdd && <AddRateForm onClose={() => setShowAdd(false)} />}
+        {showMatrix && <RateMatrixModal allRates={rates.data ?? []} onClose={() => setShowMatrix(false)} />}
         {viewingSummary && (
-          <ConsultancyRatesModal summary={viewingSummary} onClose={() => setViewingConsultancyId(null)} />
+          <ConsultancyRatesModal
+            summary={viewingSummary}
+            allRates={rates.data ?? []}
+            onClose={() => setViewingConsultancyId(null)}
+          />
         )}
 
         <Table
