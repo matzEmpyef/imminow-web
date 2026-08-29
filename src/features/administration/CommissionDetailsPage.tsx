@@ -65,7 +65,11 @@ function PaymentHistoryTab({ payments }: { payments: CommissionPayment[] }) {
       key: 'status',
       header: 'Status',
       align: 'right',
-      render: (p) => <Badge color={p.status === 'confirmed' ? 'success' : 'secondary'}>{p.status}</Badge>,
+      render: (p) => (
+        <Badge color={p.status === 'confirmed' ? 'success' : 'secondary'}>
+          {p.status === 'confirmed' ? 'Confirmed' : 'Declared'}
+        </Badge>
+      ),
     },
   ]
   return (

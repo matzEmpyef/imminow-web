@@ -339,7 +339,7 @@ function SubscriptionTab({ consultancy }: { consultancy: NonNullable<ReturnType<
         <div className="flex items-center justify-between">
           <h2 className="text-h3 text-text-primary">Membership</h2>
           <Badge color={tier === 'ultimate' ? 'primary' : tier === 'business' ? 'secondary' : 'info'}>
-            {tier} plan
+            {TIER_LABEL[tier] ?? tier} plan
           </Badge>
         </div>
         <ul className="mt-sm flex flex-col gap-xs">
@@ -358,7 +358,7 @@ function SubscriptionTab({ consultancy }: { consultancy: NonNullable<ReturnType<
           <div className="mt-md border-t border-border pt-md">
             {upgradeRequested ? (
               <p className="text-body-sm text-success">
-                Requested — Sentpo will contact you about upgrading to {TIER_LABEL[consultancy.upgrade_requested_tier!]}.
+                Requested — immiNow will contact you about upgrading to {TIER_LABEL[consultancy.upgrade_requested_tier!]}.
               </p>
             ) : (
               <Button
@@ -366,7 +366,7 @@ function SubscriptionTab({ consultancy }: { consultancy: NonNullable<ReturnType<
                 loading={requestUpgrade.isPending}
                 onClick={() => requestUpgrade.mutate(nextTier as 'business' | 'ultimate')}
               >
-                Upgrade to {nextTier}
+                Upgrade to {TIER_LABEL[nextTier] ?? nextTier}
               </Button>
             )}
             {requestUpgrade.isError && (

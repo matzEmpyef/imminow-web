@@ -9,6 +9,16 @@ import { formatDateTime } from '@/lib/time'
 
 const ACTION_COLORS = { create: 'success', update: 'info', delete: 'error' } as const
 
+// C1: action_type/entity_type/area are raw snake_case wire values ('kyc_verified',
+// 'commission_entry', 'consultancy_management'…) — this reads them the same way the Action/Area
+// filter dropdowns already spell their own options, rather than showing the wire value verbatim.
+function labelize(value: string): string {
+  return value
+    .split('_')
+    .map((word) => (word === 'kyc' ? 'KYC' : word.charAt(0).toUpperCase() + word.slice(1)))
+    .join(' ')
+}
+
 type Entry = NonNullable<ReturnType<typeof useAuditLog>['data']>['items'][number]
 
 export function AuditLogPage() {
@@ -44,7 +54,7 @@ export function AuditLogPage() {
       key: 'action_type',
       header: 'Action',
       sortable: true,
-      render: (e) => <Badge color={ACTION_COLORS[e.action_type]}>{e.action_type}</Badge>,
+      render: (e) => <Badge color={ACTION_COLORS[e.action_type]}>{labelize(e.action_type)}</Badge>,
     },
     {
       key: 'actor_name',
@@ -57,7 +67,7 @@ export function AuditLogPage() {
       header: 'Entity',
       render: (e) => (
         <span className="text-text-primary">
-          {e.action_type}d {e.entity_type}
+          {labelize(e.entity_type)}
           {e.entity_label ? ` — ${e.entity_label}` : ''}
         </span>
       ),
@@ -66,7 +76,7 @@ export function AuditLogPage() {
       key: 'area',
       header: 'Area',
       sortable: true,
-      render: (e) => <span className="capitalize text-text-secondary">{e.area}</span>,
+      render: (e) => <span className="text-text-secondary">{labelize(e.area)}</span>,
     },
     { key: 'created_at', header: 'When', sortable: true, render: (e) => formatDateTime(e.created_at) },
   ]

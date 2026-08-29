@@ -197,7 +197,7 @@ export function ActivityPage() {
                     to={item.kind === 'client' ? `/clients/${item.id}/conversation` : `/sales/leads/${item.id}`}
                   >
                     <p className="text-body-sm text-text-primary">{item.name}</p>
-                    <Badge color="info">{item.kind}</Badge>
+                    <Badge color="info">{item.kind === 'client' ? 'Client' : 'Lead'}</Badge>
                   </ActionRow>
                 ))}
               </ActionSection>
@@ -358,7 +358,9 @@ export function ActivityPage() {
                       {task.due_time ? `, ${task.due_time}` : ''}
                     </p>
                   </div>
-                  <Badge color={task.status === 'done' ? 'success' : 'warning'}>{task.status}</Badge>
+                  <Badge color={task.status === 'done' ? 'success' : 'warning'}>
+                    {task.status === 'done' ? 'Done' : 'Open'}
+                  </Badge>
                 </div>
               ))}
             </div>

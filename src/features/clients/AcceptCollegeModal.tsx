@@ -61,11 +61,31 @@ export function AcceptCollegeModal({
   const relation = partnerColleges.data?.find((cc) => cc.college_id === course.college_id && cc.active !== false)
   const payerMethod: PayerMethod | null = journeyPayerMethod ?? relation?.payer_method ?? null
 
-  // Nearest intake month, editable. Year heuristic: if that month has already passed this year,
-  // the nearest occurrence is next year's.
+  // Nearest intake month, editable. Year: derived from the intake's own application_deadline
+  // when there is one (2026-08-29 fix) — the deadline is authoritative about which year's
+  // intake is actually still open, whereas "today vs. now" can land on the WRONG year's
+  // instance of that month (e.g. defaulting Sept 2026 when the only open intake, with deadline
+  // 2027-01-31, is Sept 2027). Rule: the intake year is the deadline's year, bumped one further
+  // if the intake month falls before the deadline's month (an intake that opens earlier in the
+  // calendar than its own deadline must be the FOLLOWING year's occurrence — e.g. a May intake
+  // with a January deadline is May of deadline-year + 1, while a September intake with that same
+  // January deadline is September of deadline-year itself). Falls back to the old now-based
+  // heuristic when the course has no deadline data at all.
   const defaultMonth = course.next_intake?.month ?? course.intakes?.[0] ?? 'September'
   const now = new Date()
-  const defaultYear = MONTHS.indexOf(defaultMonth) < now.getMonth() ? now.getFullYear() + 1 : now.getFullYear()
+  const nextIntakeDeadline = course.next_intake?.application_deadline
+  let defaultYear: number
+  if (nextIntakeDeadline) {
+    // UTC getters: "YYYY-MM-DD" parses as UTC midnight, and reading it back with local getters
+    // can roll it back a calendar day (and occasionally a month/year) west of UTC.
+    const deadlineDate = new Date(nextIntakeDeadline)
+    const deadlineYear = deadlineDate.getUTCFullYear()
+    const deadlineMonthIndex = deadlineDate.getUTCMonth()
+    const intakeMonthIndex = MONTHS.indexOf(defaultMonth)
+    defaultYear = deadlineYear + (intakeMonthIndex < deadlineMonthIndex ? 1 : 0)
+  } else {
+    defaultYear = MONTHS.indexOf(defaultMonth) < now.getMonth() ? now.getFullYear() + 1 : now.getFullYear()
+  }
 
   const needsCollege = payerMethod === 'college' || payerMethod === 'split'
   const needsStudent = payerMethod === 'applicant' || payerMethod === 'split'

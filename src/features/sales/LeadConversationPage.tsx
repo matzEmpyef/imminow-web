@@ -143,6 +143,16 @@ function ShortlistViewModal({ messages, onClose }: { messages: LeadMessage[] | u
 // thing. Branch's own trigger is text ("Change"), not `AssignBranchMenu`'s usual icon — this row
 // already carries a text label, so a second icon added nothing (user: "in Branch no need of
 // icon"); other consumers of that component still use the icon, unchanged.
+// C1: matches ImportLeadsModal's Source dropdown labels — walk_in needs the hyphen, the rest
+// already read fine title-cased.
+const SOURCE_LABELS: Record<string, string> = {
+  referral: 'Referral',
+  website: 'Website',
+  walk_in: 'Walk-in',
+  social: 'Social',
+  other: 'Other',
+}
+
 function DetailsCard({ lead }: { lead: NonNullable<ReturnType<typeof useLead>['data']> }) {
   const branches = useBranches()
   const setLeadBranch = useSetLeadBranch()
@@ -171,7 +181,7 @@ function DetailsCard({ lead }: { lead: NonNullable<ReturnType<typeof useLead>['d
         {lead.origin === 'imported' && lead.source && (
           <div className="flex justify-between">
             <dt className="text-text-secondary">Source</dt>
-            <dd className="text-text-primary capitalize">{lead.source.replace('_', ' ')}</dd>
+            <dd className="text-text-primary">{SOURCE_LABELS[lead.source] ?? lead.source}</dd>
           </div>
         )}
         {lead.assigned_employee_name && (

@@ -531,6 +531,7 @@ function SelectedCollegesTab({ clientId }: { clientId: string }) {
     <AddSelectedCollegeModal
       clientId={clientId}
       finalizedCountry={client.data?.finalized_country ?? null}
+      takenCourseIds={colleges.data.map((sc) => sc.course.id)}
       onClose={() => setShowAddCollege(false)}
     />
   )

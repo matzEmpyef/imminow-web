@@ -15,6 +15,24 @@ function ProfileRow({ label, value }: { label: string; value: ReactNode }) {
   )
 }
 
+// C1: study_level and funding_source are closed wire enums (10th/11th/12th/diploma/bachelors/
+// masters/phd and self/loan/scholarship_dependent) — labeled here rather than shown raw.
+const STUDY_LEVEL_LABELS: Record<string, string> = {
+  '10th': '10th',
+  '11th': '11th',
+  '12th': '12th',
+  diploma: 'Diploma',
+  bachelors: "Bachelor's",
+  masters: "Master's",
+  phd: 'PhD',
+}
+
+const FUNDING_SOURCE_LABELS: Record<string, string> = {
+  self: 'Self-funded',
+  loan: 'Loan',
+  scholarship_dependent: 'Scholarship-dependent',
+}
+
 function formatEducation(entries?: components['schemas']['EducationEntry'][]): ReactNode {
   if (!entries || entries.length === 0) return null
   return (
@@ -77,7 +95,10 @@ function formatWorkExperience(entries?: components['schemas']['WorkExperienceEnt
 export function StudentProfileFields({ prefs }: { prefs: StudentPreferences | null | undefined }) {
   return (
     <dl className="flex flex-col gap-xs text-body-sm">
-      <ProfileRow label="Study level" value={prefs?.study_level} />
+      <ProfileRow
+        label="Study level"
+        value={prefs?.study_level ? (STUDY_LEVEL_LABELS[prefs.study_level] ?? prefs.study_level) : null}
+      />
       <ProfileRow
         label="Target countries"
         value={prefs?.target_countries && prefs.target_countries.length > 0 ? prefs.target_countries.join(', ') : null}
@@ -98,7 +119,7 @@ export function StudentProfileFields({ prefs }: { prefs: StudentPreferences | nu
       <ProfileRow label="Work experience" value={formatWorkExperience(prefs?.work_experience)} />
       <ProfileRow
         label="Funding source"
-        value={prefs?.funding_source ? prefs.funding_source.replace('_', ' ') : null}
+        value={prefs?.funding_source ? (FUNDING_SOURCE_LABELS[prefs.funding_source] ?? prefs.funding_source) : null}
       />
       <ProfileRow
         label="Budget"

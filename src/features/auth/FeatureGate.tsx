@@ -42,7 +42,7 @@ export function FeatureGate({ feature, children }: { feature: FeatureDef; childr
         <Card>
           <p className="text-body text-error">{feature.label} isn't included in your current plan.</p>
           <p className="mt-xs text-body-sm text-text-secondary">
-            This is a {TIER_LABEL[feature.tier]} plan feature. Ask your consultancy admin to upgrade from
+            This is part of the {TIER_LABEL[feature.tier]} plan. Ask your consultancy admin to upgrade from
             Consultancy Management's Subscription tab.
           </p>
         </Card>

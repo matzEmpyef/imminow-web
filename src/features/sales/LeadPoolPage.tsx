@@ -14,6 +14,16 @@ import { formatDate } from '@/lib/time'
 
 type Lead = NonNullable<ReturnType<typeof useLeads>['data']>['items'][number]
 
+// C1: the raw enum read fine except for walk_in, which needs the hyphen (matches the label
+// already used in ImportLeadsModal's Source dropdown).
+const SOURCE_LABELS: Record<string, string> = {
+  referral: 'Referral',
+  website: 'Website',
+  walk_in: 'Walk-in',
+  social: 'Social',
+  other: 'Other',
+}
+
 function SourceIcon({ origin }: { origin: 'sentpo' | 'imported' }) {
   return (
     <span
@@ -87,7 +97,8 @@ export function LeadPoolPage() {
     {
       key: 'source',
       header: 'Source',
-      render: (lead) => (lead.origin === 'imported' ? lead.source : 'Sentpo'),
+      render: (lead) =>
+        lead.origin === 'imported' ? (lead.source ? (SOURCE_LABELS[lead.source] ?? lead.source) : '—') : 'Sentpo',
     },
     {
       key: 'created_at',

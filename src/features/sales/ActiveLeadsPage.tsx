@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { RotateCcw } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Badge } from '@/components/Badge'
@@ -87,7 +87,18 @@ export function ActiveLeadsPage() {
       key: 'name',
       header: 'Name',
       sortable: true,
-      render: (lead) => <span className="font-medium text-text-primary">{lead.name}</span>,
+      render: (lead) => (
+        // C8: a real Link, not just a row onClick — middle-click/ctrl-click and keyboard nav
+        // both work now, same StopPropagation pattern as CommissionDetailsPage's rows.
+        <StopPropagation className="inline-block">
+          <Link
+            to={`/sales/leads/${lead.id}`}
+            className="font-medium text-text-primary hover:text-primary hover:underline"
+          >
+            {lead.name}
+          </Link>
+        </StopPropagation>
+      ),
     },
     {
       key: 'last_message_at',

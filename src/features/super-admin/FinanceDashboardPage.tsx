@@ -155,7 +155,7 @@ export function FinanceDashboardPage() {
             </Card>
 
             <Card className="w-fit">
-              <p className="text-caption text-text-secondary">Due to immiNow (filtered cases)</p>
+              <p className="text-caption text-text-secondary">Outstanding to immiNow (filtered cases, net of confirmed payments)</p>
               <p className="text-h2 text-text-primary">{money(dashboard.data?.running_total)}</p>
             </Card>
 

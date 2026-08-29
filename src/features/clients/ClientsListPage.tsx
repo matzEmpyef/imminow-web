@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRightLeft, RotateCcw, UserPlus } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Badge } from '@/components/Badge'
@@ -173,9 +173,16 @@ export function ClientsListPage() {
       render: (client) => (
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-xs">
-            <span className="font-medium text-text-primary">
-              {client.student.first_name} {client.student.last_name}
-            </span>
+            {/* C8: a real Link, not just a row onClick — middle-click/ctrl-click and keyboard
+                nav both work now, same StopPropagation pattern as CommissionDetailsPage's rows. */}
+            <StopPropagation className="inline-block">
+              <Link
+                to={`/clients/${client.id}`}
+                className="font-medium text-text-primary hover:text-primary hover:underline"
+              >
+                {client.student.first_name} {client.student.last_name}
+              </Link>
+            </StopPropagation>
             {client.unattended && <Badge color="error">Pending Response</Badge>}
             {client.status === 'closed' && <Badge color="secondary">Closed</Badge>}
           </div>
