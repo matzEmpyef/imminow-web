@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { SelectField } from '@/components/SelectField'
 import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/Button'
@@ -6,9 +6,8 @@ import { Modal } from '@/components/Modal'
 import { TextField } from '@/components/TextField'
 import { SearchSelect } from '@/components/SearchSelect'
 import { Table, type TableColumn } from '@/components/Table'
-import { useAdminColleges, useCollegeDetail } from '@/queries/adminColleges'
+import { useAdminColleges } from '@/queries/adminColleges'
 import { useCourses } from '@/queries/courseSuggestions'
-import { useCommissionRates, useMyCommissionRates } from '@/queries/commissionRates'
 import {
   usePartnerColleges,
   useAddPartnerCollege,
@@ -34,11 +33,11 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
   const updateRelation = useUpdatePartnerCollege(consultancyId)
   const removeRelation = useRemovePartnerCollege(consultancyId)
   const colleges = useAdminColleges({ limit: 100 })
-  // The payer dropdown only offers methods the platform has actually priced for the college's
-  // country (plan §1.7) — self side reads its own rates, on-behalf reads the target's.
-  const myRates = useMyCommissionRates()
-  const behalfRates = useCommissionRates(consultancyId)
-  const rates = (consultancyId ? behalfRates.data : myRates.data) ?? []
+  // All three payer methods are offered everywhere (user decision, 2026-08-29 — "it should
+  // show 3 options"). The old behavior filtered to methods with a Commission Rates row for the
+  // college's country, which turned a missing rate into a mysteriously short dropdown; an
+  // unpriced method now simply prices at the flagged 10% fallback until the platform sets the
+  // rate, and Commission Details badges it.
 
   const [addCollegeId, setAddCollegeId] = useState('')
   const [addPayer, setAddPayer] = useState<PayerMethod | ''>('')
@@ -57,14 +56,6 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
     .filter((c) => !partneredIds.has(c.id))
     .map((c) => ({ id: c.id, label: c.name }))
 
-  const pricedMethods = (country: string | null | undefined): PayerMethod[] =>
-    ALL_PAYERS.filter((m) => rates.some((r) => r.destination_country === country && r.payer_method === m))
-
-  // The colleges LIST omits campuses at 10K+ scale, so the selected college's country comes
-  // from its own detail fetch — one request, only once a college is actually picked.
-  const addCollegeDetail = useCollegeDetail(addCollegeId || undefined)
-  const addCountry = addCollegeDetail.data?.campuses?.[0]?.country ?? null
-  const addMethods = useMemo(() => pricedMethods(addCountry), [addCountry, rates]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const columns: TableColumn<PartnerCollege>[] = [
     {
@@ -81,10 +72,7 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
       key: 'payer',
       header: 'Payer method',
       render: (r) => {
-        const priced = pricedMethods(r.college_country)
-        // Priced methods plus the row's current one — an existing agreement whose method the
-        // platform hasn't priced (yet) still has to display, flagged rather than hidden.
-        const options = ALL_PAYERS.filter((m) => priced.includes(m) || m === r.payer_method)
+        const options = ALL_PAYERS
         return (
           <div className="flex flex-col gap-1">
             <select
@@ -104,7 +92,6 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
               {options.map((m) => (
                 <option key={m} value={m}>
                   {PAYER_LABEL[m]}
-                  {!priced.includes(m) ? ' (not priced)' : ''}
                 </option>
               ))}
             </select>
@@ -189,14 +176,14 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
           id="pc-payer"
           className="w-48 shrink-0"
           value={addPayer}
-          disabled={!addCollegeId || addMethods.length === 0}
+          disabled={!addCollegeId}
           onChange={(e) => {
             setAddPayer(e.target.value as PayerMethod)
             setAddCommissionPercent('')
           }}
         >
           <option value="">Select…</option>
-          {addMethods.map((m) => (
+          {ALL_PAYERS.map((m) => (
             <option key={m} value={m}>
               {PAYER_LABEL[m]}
             </option>
@@ -243,11 +230,6 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
         >
           Add
         </Button>
-        {addCollegeId && addMethods.length === 0 && (
-          <p className="text-body-sm text-warning">
-            No commission rates priced for {addCountry ?? 'this country'} yet — ask the platform team.
-          </p>
-        )}
       </div>
 
       <Table
