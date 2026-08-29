@@ -6,16 +6,19 @@ import { Table, type TableColumn } from '@/components/Table'
 import { InviteEmployeeModal } from './InviteEmployeeModal'
 import { EmployeeAccessModal } from './EmployeeAccessModal'
 import { EditEmployeeModal } from './EditEmployeeModal'
-import { useMyConsultancy } from '@/queries/consultancy'
+import { useFeature } from '@/lib/features'
 import { useBranches, useDesignations, useEmployees } from '@/queries/staff'
 import type { components } from '@/api/schema'
 
 type Employee = components['schemas']['Employee']
-type Tier = 'starter' | 'business' | 'ultimate'
 
 export function EmployeesPage() {
-  const { data: consultancy } = useMyConsultancy()
-  const tier = (consultancy?.tier ?? 'starter') as Tier
+  // Designations & Access Rights (build reference 1.16 made real, 2026-08-29) — Starter's
+  // "every employee has identical, full access" is a consequence of this flag being off, not of
+  // the raw tier. Also gates invite-time access rights (InviteEmployeeModal) and the per-employee
+  // branch checklist's designation half (EmployeeAccessModal).
+  const hasDesignations = useFeature('designations')
+  const hasMultiBranch = useFeature('multi_branch')
   const employees = useEmployees()
   const designations = useDesignations()
   const branches = useBranches()
@@ -75,7 +78,7 @@ export function EmployeesPage() {
       header: 'Designation',
       render: (employee) => <span className="text-text-secondary">{employee.user!.designation ?? '—'}</span>,
     },
-    ...(tier !== 'starter'
+    ...(hasDesignations
       ? [
           {
             key: 'access',
@@ -101,12 +104,12 @@ export function EmployeesPage() {
       render: (employee) => (
         <div className="flex justify-end">
           <EditEmployeeModal employee={employee} />
-          {tier !== 'starter' && !employee.is_consultancy_admin && (
+          {hasDesignations && !employee.is_consultancy_admin && (
             <EmployeeAccessModal
               employee={employee}
               designations={designations.data ?? []}
               branches={branches.data ?? []}
-              tier={tier}
+              hasMultiBranch={hasMultiBranch}
             />
           )}
         </div>
@@ -121,9 +124,9 @@ export function EmployeesPage() {
           <div>
             <h1 className="text-h1 text-text-primary">Employees</h1>
             <p className="text-body-sm text-text-secondary">
-              {tier === 'starter'
-                ? 'Starter plan: every employee has identical, full access.'
-                : 'Each employee has a designation baseline plus optional individual overrides.'}
+              {hasDesignations
+                ? 'Each employee has a designation baseline plus optional individual overrides.'
+                : 'Every employee has identical, full access on this plan.'}
             </p>
           </div>
           <Button onClick={() => setShowInviteModal(true)}>Invite Employee</Button>
@@ -131,7 +134,7 @@ export function EmployeesPage() {
 
         {showInviteModal && (
           <InviteEmployeeModal
-            tier={tier}
+            hasDesignations={hasDesignations}
             designations={designations.data ?? []}
             onClose={() => setShowInviteModal(false)}
           />

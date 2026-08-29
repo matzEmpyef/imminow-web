@@ -28,7 +28,7 @@ import {
   useSetLeadBranch,
 } from '@/queries/leads'
 import { useBranches } from '@/queries/staff'
-import { useMyConsultancy } from '@/queries/consultancy'
+import { useFeature } from '@/lib/features'
 import { formatDate, formatDateTime } from '@/lib/time'
 import type { components } from '@/api/schema'
 
@@ -271,7 +271,6 @@ export function LeadConversationPage() {
   const messages = useLeadMessages(id)
   const sendMessage = useSendLeadMessage(id)
   const markRead = useMarkLeadRead()
-  const consultancy = useMyConsultancy()
   const requestShortlist = useRequestShortlist(id)
   const openFloating = useChatWindowStore((s) => s.open)
   const [draft, setDraft] = useState('')
@@ -282,13 +281,16 @@ export function LeadConversationPage() {
   const [showReopenModal, setShowReopenModal] = useState(false)
   const [showShortlistView, setShowShortlistView] = useState(false)
 
-  const canSetReminder = consultancy.data?.tier === 'ultimate'
-  // Close/Reopen: Ultimate tier, same as Set Reminder — plus `leads.close` (permissions.ts),
-  // which gates who inside an already-entitled consultancy can close (configurable via
-  // Designations/Employees, not yet enforced here or server-side — matching every other
-  // granular Leads permission in this codebase today; see PROGRESS.md). Reopen has no
-  // permission gate beyond the tier check, per the user's own call.
-  const canCloseOrReopen = consultancy.data?.tier === 'ultimate'
+  // Set Reminder is the `activity_queue` entitlement (Ultimate by default) — reminders feed the
+  // Activity work-queue, so without that page there's nowhere for one to surface.
+  const canSetReminder = useFeature('activity_queue')
+  // Close Lead is Starter core (build reference 1.16 made real, 2026-08-29 — hygiene fix, it was
+  // mis-gated Ultimate before) and stays open on every plan; `leads.close` (permissions.ts) gates
+  // who inside an already-entitled consultancy can close (configurable via Designations/
+  // Employees, not yet enforced here or server-side — matching every other granular Leads
+  // permission in this codebase today; see PROGRESS.md). Reopen is the `case_reopening`
+  // entitlement, same flag as Reopen Case/Reopen Plan on the client side.
+  const canReopenLead = useFeature('case_reopening')
 
   useEffect(() => {
     if (id) markRead.mutate(id)
@@ -341,7 +343,7 @@ export function LeadConversationPage() {
                 <span className="rounded-full bg-background px-sm py-1.5 text-caption font-medium text-text-secondary">
                   Closed
                 </span>
-                {canCloseOrReopen && (
+                {canReopenLead && (
                   <Button variant="secondary" onClick={() => setShowReopenModal(true)}>
                     Reopen Lead
                   </Button>
@@ -389,11 +391,9 @@ export function LeadConversationPage() {
                   <Button onClick={() => setShowConvertModal(true)}>Convert to Client</Button>
                 )}
 
-                {canCloseOrReopen && (
-                  <Button variant="destructive" onClick={() => setShowCloseModal(true)}>
-                    Close Lead
-                  </Button>
-                )}
+                <Button variant="destructive" onClick={() => setShowCloseModal(true)}>
+                  Close Lead
+                </Button>
               </>
             )}
           </div>

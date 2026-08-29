@@ -23,16 +23,56 @@ import {
 import { useCursorPagination } from '@/lib/pagination'
 import { useConsultancyKyc, useVerifyKyc } from '@/queries/kyc'
 import type { components } from '@/api/schema'
+import { BUSINESS_FEATURES, ULTIMATE_FEATURES, STARTER_CORE_FEATURES, TIER_ORDER, type FeatureDef } from '@/lib/features'
 
 type Consultancy = components['schemas']['Consultancy']
 
-const ENTITLEMENT_FLAGS = [
-  { key: 'designations_enabled', label: 'Designations & granular overrides' },
-  { key: 'roster_scoping_enabled', label: 'Roster scoping (mine/all)' },
-  { key: 'case_reopening_enabled', label: 'Case/plan reopening' },
-  { key: 'multi_branch_enabled', label: 'Multi-branch support' },
-  { key: 'applicant_transfer_enabled', label: 'Applicant Transfer' },
-]
+// The effective (preset ⊕ override) state a toggle should show for `flag` at the PENDING
+// (possibly not-yet-saved) `tier` selection — mirrors the server's own `effectiveEntitlements`
+// exactly, just computed client-side against local edit state instead of the saved record.
+function presetOn(tier: string | undefined, flag: FeatureDef) {
+  return TIER_ORDER.indexOf((tier ?? 'starter') as (typeof TIER_ORDER)[number]) >= TIER_ORDER.indexOf(flag.tier)
+}
+
+function FeatureToggleRow({
+  flag,
+  tier,
+  overrides,
+  onToggle,
+  onReset,
+}: {
+  flag: FeatureDef
+  tier: string | undefined
+  overrides: Record<string, boolean>
+  onToggle: (key: string, nextValue: boolean) => void
+  onReset: (key: string) => void
+}) {
+  const preset = presetOn(tier, flag)
+  const isOverridden = flag.key in overrides
+  const effective = isOverridden ? overrides[flag.key] : preset
+  return (
+    <div className="flex items-center justify-between gap-sm">
+      <div className="min-w-0">
+        <p className="text-body-sm text-text-primary">{flag.label}</p>
+        <p className="truncate text-caption text-text-secondary" title={flag.description}>
+          {flag.description}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-sm">
+        {isOverridden && (
+          <button
+            type="button"
+            onClick={() => onReset(flag.key)}
+            className="text-caption text-text-secondary underline hover:text-text-primary"
+          >
+            Reset
+          </button>
+        )}
+        <Toggle checked={effective} onChange={() => onToggle(flag.key, !effective)} label={flag.label} />
+      </div>
+    </div>
+  )
+}
 
 // Rating, in the Manage popup.
 //
@@ -256,12 +296,29 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
     setFreelancerEnabled(Boolean(consultancy.freelancer_enabled))
   }, [consultancy])
 
-  function toggleFlag(key: string) {
-    setOverrides((prev) => ({ ...prev, [key]: !prev[key] }))
+  function toggleFlag(key: string, nextValue: boolean) {
+    setOverrides((prev) => ({ ...prev, [key]: nextValue }))
+  }
+
+  function resetFlag(key: string) {
+    setOverrides((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }
+
+  // Plan change re-baselines the panel (build reference 1.16 made real, 2026-08-29) — mirrors
+  // the server's own PATCH /tier, which resets entitlement_overrides to null on every tier
+  // change. Clearing here too (rather than only on save) means the toggles the admin sees while
+  // still deciding already reflect the plan they're about to switch to, not stale overrides from
+  // the one they're leaving.
+  function handleTierChange(nextTier: Consultancy['tier']) {
+    setTier(nextTier)
+    setOverrides({})
   }
 
   // Only a DOWNGRADE has consequences worth warning about — moving up never disables anything.
-  const TIER_ORDER = ['starter', 'business', 'ultimate']
   const isDowngrade =
     tier !== consultancy.tier && TIER_ORDER.indexOf(tier ?? '') < TIER_ORDER.indexOf(consultancy.tier ?? '')
   const impact = useTierImpact(consultancy.id!, tier, isDowngrade)
@@ -351,7 +408,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
           required
           id={`tier-${consultancy.id}`}
           value={tier}
-          onChange={(e) => setTier(e.target.value as Consultancy['tier'])}
+          onChange={(e) => handleTierChange(e.target.value as Consultancy['tier'])}
         >
           <option value="starter">Starter</option>
           <option value="business">Business</option>
@@ -433,17 +490,53 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
                 (filePrefix || '···') +
                 '0000001".'}
           </p>
-          <div className="flex flex-col gap-xs">
-            {ENTITLEMENT_FLAGS.map((flag) => (
-              <div key={flag.key} className="flex items-center justify-between">
-                <span className="text-body-sm text-text-primary">{flag.label}</span>
-                <Toggle
-                  checked={Boolean(overrides[flag.key])}
-                  onChange={() => toggleFlag(flag.key)}
-                  label={flag.label}
+          <div className="flex flex-col gap-xs rounded-md border border-border bg-background p-sm">
+            <p className="text-caption font-medium text-text-secondary">Included in every plan</p>
+            <p className="text-caption text-text-secondary">{STARTER_CORE_FEATURES.join(' · ')}</p>
+          </div>
+
+          {Object.keys(overrides).length > 0 && (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setOverrides({})}
+                className="text-caption text-text-secondary underline hover:text-text-primary"
+              >
+                Reset all to plan defaults
+              </button>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-sm">
+            <p className="text-caption font-medium text-text-secondary">Business plan features</p>
+            <div className="flex flex-col gap-sm">
+              {BUSINESS_FEATURES.map((flag) => (
+                <FeatureToggleRow
+                  key={flag.key}
+                  flag={flag}
+                  tier={tier}
+                  overrides={overrides}
+                  onToggle={toggleFlag}
+                  onReset={resetFlag}
                 />
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-sm">
+            <p className="text-caption font-medium text-text-secondary">Ultimate plan features</p>
+            <div className="flex flex-col gap-sm">
+              {ULTIMATE_FEATURES.map((flag) => (
+                <FeatureToggleRow
+                  key={flag.key}
+                  flag={flag}
+                  tier={tier}
+                  overrides={overrides}
+                  onToggle={toggleFlag}
+                  onReset={resetFlag}
+                />
+              ))}
+            </div>
           </div>
         </div>
 
@@ -451,9 +544,9 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
           {/* User-requested (2026-08-19) — "at consultancy level we want to enable or disable
               Freelancer to a consultancy. if enabled on freelancer rates applicable... if enabled
               then only applicant allocation from freelancer possible." A distinct row from the
-              generic entitlement flags above, not folded into ENTITLEMENT_FLAGS/overrides, since
-              this one has real gating logic behind it (Commission Rates, Applicant Allocation),
-              not just a display flag. */}
+              generic feature registry above, not folded into FEATURE_REGISTRY/entitlement_overrides,
+              since this one has real gating logic behind it (Commission Rates, Applicant
+              Allocation), not just a plan-tier flag. */}
           <div className="flex items-center justify-between">
             <div>
               <p className="text-body-sm font-medium text-text-primary">Freelancer channel</p>

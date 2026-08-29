@@ -27,20 +27,18 @@ import { GlobalSearch } from '@/components/GlobalSearch'
 import { FloatingChatWindow } from '@/components/FloatingChatWindow'
 import { GlobalChatDrawer } from '@/components/GlobalChatDrawer'
 import { NotificationsDropdown } from '@/components/NotificationsDropdown'
-import { useMyConsultancy } from '@/queries/consultancy'
 import { usePermissionChecker } from '@/lib/permissions'
+import { useFeatures } from '@/lib/features'
 import { useActivityFeed } from '@/queries/activity'
 
 // Only sections/links with real, built pages appear here — a link shows only once its wave has
-// landed, and only once its tier allows it (Starter/Business/Ultimate, build reference 1.16).
-const TIER_RANK = { starter: 0, business: 1, ultimate: 2 } as const
-
-function forTier(min: keyof typeof TIER_RANK) {
-  return (tier: string | undefined) => Boolean(tier) && TIER_RANK[tier as keyof typeof TIER_RANK] >= TIER_RANK[min]
-}
-
+// landed, and only once its plan includes it (Starter/Business/Ultimate, build reference 1.16
+// made real 2026-08-29 — a link's visibility is now a FEATURE FLAG check, never the raw tier
+// enum, since a Super Admin's per-flag override can grant or withhold a feature independent of
+// tier).
 interface GatedSubLink extends SidebarSubLink {
-  visible?: (tier: string | undefined) => boolean
+  /** Feature-registry key (see `@/lib/features`) required to see this link. */
+  feature?: string
   /** Consultancy permission key required to see this link, e.g. `staff.manage_employees`. */
   permission?: string
 }
@@ -63,19 +61,19 @@ const SECTIONS: GatedSection[] = [
       p.startsWith('/administration/internal-messaging'),
     sidebarLinks: [
       { label: 'Overview', path: '/dashboard', icon: LayoutDashboard },
-      { label: 'Activity', path: '/activity', icon: Activity, visible: forTier('ultimate') },
-      { label: 'Phonebook', path: '/administration/phonebook', icon: Phone, visible: forTier('business') },
+      { label: 'Activity', path: '/activity', icon: Activity, feature: 'activity_queue' },
+      { label: 'Phonebook', path: '/administration/phonebook', icon: Phone, feature: 'phonebook' },
       {
         label: 'Document Library',
         path: '/administration/document-library',
         icon: FolderOpen,
-        visible: forTier('business'),
+        feature: 'document_library',
       },
       {
         label: 'Internal Messaging',
         path: '/administration/internal-messaging',
         icon: MessageSquare,
-        visible: forTier('ultimate'),
+        feature: 'internal_messaging',
       },
     ],
   },
@@ -137,7 +135,7 @@ const SECTIONS: GatedSection[] = [
         label: 'Branches',
         path: '/administration/branches',
         icon: MapPin,
-        visible: forTier('ultimate'),
+        feature: 'multi_branch',
         permission: 'staff.manage_branches',
       },
       { label: 'Employees', path: '/administration/employees', icon: Users2, permission: 'staff.manage_employees' },
@@ -145,7 +143,7 @@ const SECTIONS: GatedSection[] = [
         label: 'Designations',
         path: '/administration/designations',
         icon: IdCard,
-        visible: forTier('business'),
+        feature: 'designations',
         permission: 'staff.manage_designations',
       },
       {
@@ -154,12 +152,12 @@ const SECTIONS: GatedSection[] = [
         icon: Building2,
         permission: 'settings.edit_profile',
       },
-      { label: 'Audit Log', path: '/administration/audit-log', icon: History },
+      { label: 'Audit Log', path: '/administration/audit-log', icon: History, feature: 'audit_log' },
     ],
   },
 ]
 
-// Sidebar links can require a consultancy permission as well as a tier. Started life as a
+// Sidebar links can require a consultancy permission as well as a feature. Started life as a
 // one-off check for Consultancy Management (user-requested, 2026-08-19 — "by default only
 // available to consultancy admin") and was generalised on 2026-08-23, when the contract audit
 // found Employees/Designations/Branches listed for everyone despite Staff Administration being
@@ -167,25 +165,26 @@ const SECTIONS: GatedSection[] = [
 // `usePermissionChecker` already bypasses to true for the admin, and a designation explicitly
 // granted the permission reaches it too, same as every other gated action here.
 //
-// Navigation only — `PermissionGate` guards the routes and the server guards the endpoints.
+// Navigation only — `FeatureGate`/`PermissionGate` guard the routes and the server guards the
+// endpoints.
 export function AppShell({ children }: { children: ReactNode }) {
-  const { data: consultancy } = useMyConsultancy()
-  const tier = consultancy?.tier
+  const { data: features } = useFeatures()
   const { can } = usePermissionChecker()
   // User-requested (2026-08-19) — "show number of activities that need action today as a counter
-  // in Activities side menu." Only fetched once Activity is actually visible (Ultimate tier) —
-  // see useActivityFeed's own note on why this is gated rather than an unconditional fetch on
-  // every page.
-  const activityFeed = useActivityFeed(tier === 'ultimate')
+  // in Activities side menu." Only fetched once Activity is actually visible (the
+  // `activity_queue` entitlement, Ultimate by default) — see useActivityFeed's own note on why
+  // this is gated rather than an unconditional fetch on every page.
+  const activityFeed = useActivityFeed(features.activity_queue === true)
 
-  // Note on a failed permission fetch: `can` fails closed, so gated links simply don't render —
-  // deliberately NOT surfaced as an error here. Nav is the wrong place to explain a network
-  // problem, and showing links the user may not hold would be worse than hiding ones they do.
-  // Anyone who navigates to a gated route directly now gets the real diagnosis from
-  // `PermissionGate`, which distinguishes "fetch failed" from "denied" (2026-08-25).
+  // Note on a failed permission/feature fetch: both `can` and `features` fail closed, so gated
+  // links simply don't render — deliberately NOT surfaced as an error here. Nav is the wrong
+  // place to explain a network problem, and showing links the user may not hold would be worse
+  // than hiding ones they do. Anyone who navigates to a gated route directly now gets the real
+  // diagnosis from `FeatureGate`/`PermissionGate`, which distinguish "fetch failed" from "denied"
+  // (2026-08-25).
   const resolvedSections: SidebarSection[] = SECTIONS.map((section) => {
     const sidebarLinks = section.sidebarLinks
-      .filter((link) => !link.visible || link.visible(tier))
+      .filter((link) => !link.feature || features[link.feature])
       .filter((link) => !link.permission || can(link.permission))
       .map((link) =>
         link.label === 'Activity' ? { ...link, badge: activityFeed.data?.needs_action_today_count } : link,

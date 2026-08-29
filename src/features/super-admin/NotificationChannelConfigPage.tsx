@@ -36,6 +36,7 @@ const LABELS: Record<string, string> = {
   incoming_transfer: 'Incoming consultancy transfer',
   kyc_submitted: 'KYC certificate submitted',
   countries_served_changed: 'Countries served changed',
+  upgrade_requested: 'Consultancy requested a plan upgrade',
   payer_method_changed: 'Payer method changed',
   institution_suggested: 'School or college not in the list',
   application_status_changed: 'College application status changed',

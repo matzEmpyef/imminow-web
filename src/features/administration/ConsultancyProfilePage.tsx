@@ -29,27 +29,13 @@ import type { components } from '@/api/schema'
 import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
 import { formatDate } from '@/lib/time'
 import { usePermission } from '@/lib/permissions'
+import { BUSINESS_FEATURES, ULTIMATE_FEATURES, STARTER_CORE_FEATURES, TIER_ORDER, TIER_LABEL } from '@/lib/features'
 import { PartnerCollegesPanel } from './PartnerCollegesPanel'
 
-const TIER_FEATURES = {
-  starter: [
-    'Leads, Clients & Plans (no roster scoping)',
-    'Steps & Chat',
-    'Single default branch',
-    'Consultancy Management, Plan Templates, Course Suggestions',
-  ],
-  business: [
-    'Everything in Starter',
-    'Designations & granular permission overrides',
-    'Roster scoping (mine/all)',
-    'Case/plan reopening',
-    'Import Leads, Create Applicant',
-    'Internal Messaging, Phonebook',
-  ],
-  ultimate: ['Everything in Business', 'Multi-branch support', 'Applicant Transfer'],
-} as const
-
-const TIER_ORDER = ['starter', 'business', 'ultimate'] as const
+// Feature lists derived from the ONE exported registry (build reference 1.16 made real,
+// 2026-08-29) rather than this page's own hand-maintained prose — see @/lib/features for the
+// single source of truth also consumed by AppShell's nav gating and the Manage Consultancy
+// toggle panel.
 
 // User-requested — Description is the short factual blurb shown in the student-facing browse
 // list and near the top of Consultancy Detail, so it needs to stay scannable.
@@ -331,6 +317,18 @@ function SubscriptionTab({ consultancy }: { consultancy: NonNullable<ReturnType<
   const seatsUsed = employees.data?.items.length ?? 0
   const seatPct = consultancy.seat_limit > 0 ? Math.min(100, (seatsUsed / consultancy.seat_limit) * 100) : 0
 
+  // The ACTUAL effective feature set (build reference 1.16 made real, 2026-08-29) — resolved
+  // preset ⊕ Super Admin override, off `consultancy.features`, rather than a static per-tier
+  // list. A per-tier list would show the wrong thing the moment an override is in play (e.g. a
+  // Starter consultancy with an individually-granted flag) — this always matches what's actually
+  // reachable.
+  const enabledFeatures = [...BUSINESS_FEATURES, ...ULTIMATE_FEATURES].filter((f) => consultancy.features?.[f.key])
+
+  // Reflects the RECORDED request (persisted server-side via upgrade_requested_tier/_at), not
+  // local-only mutation state — survives a reload instead of forgetting the moment the page
+  // refreshes.
+  const upgradeRequested = Boolean(consultancy.upgrade_requested_tier)
+
   return (
     <>
       <p className="text-body-sm text-text-secondary">
@@ -345,20 +343,34 @@ function SubscriptionTab({ consultancy }: { consultancy: NonNullable<ReturnType<
           </Badge>
         </div>
         <ul className="mt-sm flex flex-col gap-xs">
-          {TIER_FEATURES[tier].map((feature) => (
+          {STARTER_CORE_FEATURES.map((feature) => (
             <li key={feature} className="text-body-sm text-text-secondary">
               ✓ {feature}
+            </li>
+          ))}
+          {enabledFeatures.map((feature) => (
+            <li key={feature.key} className="text-body-sm text-text-secondary">
+              ✓ {feature.label}
             </li>
           ))}
         </ul>
         {nextTier && (
           <div className="mt-md border-t border-border pt-md">
-            {requestUpgrade.isSuccess ? (
-              <p className="text-body-sm text-success">Upgrade request sent to Platform Admin.</p>
+            {upgradeRequested ? (
+              <p className="text-body-sm text-success">
+                Requested — Sentpo will contact you about upgrading to {TIER_LABEL[consultancy.upgrade_requested_tier!]}.
+              </p>
             ) : (
-              <Button variant="secondary" loading={requestUpgrade.isPending} onClick={() => requestUpgrade.mutate()}>
+              <Button
+                variant="secondary"
+                loading={requestUpgrade.isPending}
+                onClick={() => requestUpgrade.mutate(nextTier as 'business' | 'ultimate')}
+              >
                 Upgrade to {nextTier}
               </Button>
+            )}
+            {requestUpgrade.isError && (
+              <p className="mt-xs text-body-sm text-error">{requestUpgrade.error.message}</p>
             )}
           </div>
         )}

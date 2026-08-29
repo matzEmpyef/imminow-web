@@ -13,7 +13,7 @@ import { StopPropagation } from '@/components/StopPropagation'
 import { CreateApplicantModal } from './CreateApplicantModal'
 import { ReopenClientModal } from './ReopenClientModal'
 import { useAssignClient, useClients, useSetClientTags } from '@/queries/clients'
-import { useMyConsultancy } from '@/queries/consultancy'
+import { useFeature } from '@/lib/features'
 import { useCreateTag, useTags } from '@/queries/tags'
 import { useCountries } from '@/queries/countries'
 import { useEmployees } from '@/queries/staff'
@@ -123,7 +123,6 @@ function AssignClientTrigger({
 
 export function ClientsListPage() {
   const navigate = useNavigate()
-  const consultancy = useMyConsultancy()
   const [assignedToMe, setAssignedToMe] = useState(false)
   const [unattendedOnly, setUnattendedOnly] = useState(false)
   const [tag, setTag] = useState('')
@@ -134,12 +133,11 @@ export function ClientsListPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const paging = useCursorPagination()
 
-  // Tier and permission composed, not merged — the tier says what the consultancy bought, the
-  // permission says what this employee may do with it (clients.create_applicant is also enforced
-  // on POST /clients server-side).
+  // Feature and permission composed, not merged — the feature says what the consultancy's plan
+  // includes, the permission says what this employee may do with it (clients.create_applicant is
+  // also enforced on POST /clients server-side, alongside the create_applicant entitlement).
   const { can } = usePermissionChecker()
-  const canCreateApplicant =
-    consultancy.data && ['business', 'ultimate'].includes(consultancy.data.tier) && can('clients.create_applicant')
+  const canCreateApplicant = useFeature('create_applicant') && can('clients.create_applicant')
   const canAssign = can('clients.reassign')
   const tags = useTags()
   const createTag = useCreateTag()

@@ -5,7 +5,7 @@ import { Button } from '@/components/Button'
 import { Table, type TableColumn } from '@/components/Table'
 import { AssignConsultantMenu } from '@/components/AssignConsultantMenu'
 import { AddLeadModal, ImportLeadsModal } from './ImportLeadsModal'
-import { useMyConsultancy } from '@/queries/consultancy'
+import { useFeature } from '@/lib/features'
 import { useEmployees } from '@/queries/staff'
 import { useAllocateLead, useBulkAllocateLeads, useLeads } from '@/queries/leads'
 import { useCursorPagination } from '@/lib/pagination'
@@ -40,19 +40,19 @@ export function LeadPoolPage() {
     limit: 20,
   })
   const employees = useEmployees()
-  const consultancy = useMyConsultancy()
   const allocate = useAllocateLead()
   const bulkAllocate = useBulkAllocateLeads()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [showAddLeadModal, setShowAddLeadModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
 
-  // Tier and permission are separate gates, deliberately composed rather than merged — the tier
-  // says what the consultancy bought, the permission says what this employee may do with it.
-  // Mirrors leads.import / leads.allocate_from_pool enforcement on the corresponding routes.
+  // Feature and permission are separate gates, deliberately composed rather than merged — the
+  // feature says what the consultancy's plan includes, the permission says what this employee
+  // may do with it. Mirrors leads.import / leads.allocate_from_pool enforcement on the
+  // corresponding routes.
   const { can } = usePermissionChecker()
-  const tierAllowsImport = consultancy.data && ['business', 'ultimate'].includes(consultancy.data.tier)
-  const canImport = tierAllowsImport && can('leads.import')
+  const hasOwnLeads = useFeature('own_leads')
+  const canImport = hasOwnLeads && can('leads.import')
   const canAllocate = can('leads.allocate_from_pool')
 
   const consultantOptions = useMemo(

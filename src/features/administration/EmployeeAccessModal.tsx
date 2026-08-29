@@ -12,8 +12,6 @@ import type { components } from '@/api/schema'
 type Employee = components['schemas']['Employee']
 type Designation = components['schemas']['Designation']
 type Branch = components['schemas']['Branch']
-type Tier = 'starter' | 'business' | 'ultimate'
-
 // User-requested — "Manage Access" was a labeled Button that expanded the row inline via
 // Table's `expandable` prop; now an icon trigger opening a popup instead, same move
 // DesignationPermissionsModal.tsx just made for "View Permissions."
@@ -21,12 +19,12 @@ export function EmployeeAccessModal({
   employee,
   designations,
   branches,
-  tier,
+  hasMultiBranch,
 }: {
   employee: Employee
   designations: Designation[]
   branches: Branch[]
-  tier: Tier
+  hasMultiBranch: boolean
 }) {
   const [open, setOpen] = useState(false)
 
@@ -46,7 +44,7 @@ export function EmployeeAccessModal({
           employee={employee}
           designations={designations}
           branches={branches}
-          tier={tier}
+          hasMultiBranch={hasMultiBranch}
           onClose={() => setOpen(false)}
         />
       )}
@@ -58,13 +56,13 @@ function AccessModalBody({
   employee,
   designations,
   branches,
-  tier,
+  hasMultiBranch,
   onClose,
 }: {
   employee: Employee
   designations: Designation[]
   branches: Branch[]
-  tier: Tier
+  hasMultiBranch: boolean
   onClose: () => void
 }) {
   const updateEmployee = useUpdateEmployee(employee.id!)
@@ -154,7 +152,7 @@ function AccessModalBody({
           ))}
         </SelectField>
 
-        {tier === 'ultimate' && branches.length > 1 && (
+        {hasMultiBranch && branches.length > 1 && (
           <div className="flex flex-col gap-xs">
             <p className="text-body-sm font-medium text-text-primary">Branches</p>
             {employee.is_consultancy_admin ? (

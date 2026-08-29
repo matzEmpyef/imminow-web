@@ -4,7 +4,13 @@ import { LoginPage } from '@/features/auth/LoginPage'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { PlatformRoute } from '@/features/auth/PlatformRoute'
 import { PermissionGate } from '@/features/auth/PermissionGate'
+import { FeatureGate } from '@/features/auth/FeatureGate'
 import { FreelancerRoute } from '@/features/auth/FreelancerRoute'
+import { FEATURE_REGISTRY } from '@/lib/features'
+
+// Lookup so route elements can pass a FeatureDef by key without importing/finding it inline at
+// every call site — see FEATURE_REGISTRY in @/lib/features for the definitions themselves.
+const FEATURE_BY_KEY = Object.fromEntries(FEATURE_REGISTRY.map((f) => [f.key, f]))
 import { useAuthStore } from '@/stores/authStore'
 import { Skeleton } from '@/components/QueryState'
 
@@ -360,9 +366,11 @@ function App() {
           path="/administration/branches"
           element={
             <ProtectedRoute>
-              <PermissionGate permission="staff.manage_branches" area="Branches">
-                <BranchesPage />
-              </PermissionGate>
+              <FeatureGate feature={FEATURE_BY_KEY.multi_branch}>
+                <PermissionGate permission="staff.manage_branches" area="Branches">
+                  <BranchesPage />
+                </PermissionGate>
+              </FeatureGate>
             </ProtectedRoute>
           }
         />
@@ -380,9 +388,11 @@ function App() {
           path="/administration/designations"
           element={
             <ProtectedRoute>
-              <PermissionGate permission="staff.manage_designations" area="Designations">
-                <DesignationsPage />
-              </PermissionGate>
+              <FeatureGate feature={FEATURE_BY_KEY.designations}>
+                <PermissionGate permission="staff.manage_designations" area="Designations">
+                  <DesignationsPage />
+                </PermissionGate>
+              </FeatureGate>
             </ProtectedRoute>
           }
         />
@@ -390,7 +400,9 @@ function App() {
           path="/administration/phonebook"
           element={
             <ProtectedRoute>
-              <PhonebookPage />
+              <FeatureGate feature={FEATURE_BY_KEY.phonebook}>
+                <PhonebookPage />
+              </FeatureGate>
             </ProtectedRoute>
           }
         />
@@ -398,7 +410,9 @@ function App() {
           path="/administration/document-library"
           element={
             <ProtectedRoute>
-              <DocumentLibraryPage />
+              <FeatureGate feature={FEATURE_BY_KEY.document_library}>
+                <DocumentLibraryPage />
+              </FeatureGate>
             </ProtectedRoute>
           }
         />
@@ -406,7 +420,9 @@ function App() {
           path="/administration/internal-messaging"
           element={
             <ProtectedRoute>
-              <InternalMessagingPage />
+              <FeatureGate feature={FEATURE_BY_KEY.internal_messaging}>
+                <InternalMessagingPage />
+              </FeatureGate>
             </ProtectedRoute>
           }
         />
@@ -414,7 +430,9 @@ function App() {
           path="/administration/internal-messaging/:id"
           element={
             <ProtectedRoute>
-              <InternalMessagingPage />
+              <FeatureGate feature={FEATURE_BY_KEY.internal_messaging}>
+                <InternalMessagingPage />
+              </FeatureGate>
             </ProtectedRoute>
           }
         />
@@ -422,7 +440,9 @@ function App() {
           path="/administration/audit-log"
           element={
             <ProtectedRoute>
-              <AuditLogPage />
+              <FeatureGate feature={FEATURE_BY_KEY.audit_log}>
+                <AuditLogPage />
+              </FeatureGate>
             </ProtectedRoute>
           }
         />
@@ -430,7 +450,9 @@ function App() {
           path="/activity"
           element={
             <ProtectedRoute>
-              <ActivityPage />
+              <FeatureGate feature={FEATURE_BY_KEY.activity_queue}>
+                <ActivityPage />
+              </FeatureGate>
             </ProtectedRoute>
           }
         />

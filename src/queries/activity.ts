@@ -6,9 +6,10 @@ import type { components } from '@/api/schema'
 
 type ActivityTaskInput = components['schemas']['ActivityTaskInput']
 
-// `enabled` defaults to true for ActivityPage itself; AppShell.tsx passes tier === 'ultimate'
-// (Activity is an Ultimate-only feature) so the sidebar badge doesn't fire this fetch on every
-// single page load for a tier that can't even see the Activity link.
+// `enabled` defaults to true for ActivityPage itself; AppShell.tsx passes the `activity_queue`
+// entitlement (Ultimate by default, build reference 1.16 made real 2026-08-29) so the sidebar
+// badge doesn't fire this fetch on every single page load for a plan that can't even see the
+// Activity link.
 export function useActivityFeed(enabled = true) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({

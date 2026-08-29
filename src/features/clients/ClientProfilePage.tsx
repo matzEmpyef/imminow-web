@@ -29,6 +29,7 @@ import { useDeleteInstallment } from '@/queries/commissionEntries'
 import { useLatestFormResponse, usePlan, useSaveFormResponse } from '@/queries/plans'
 import { useDownloadUrl, useUploadFile, useUploads } from '@/queries/uploads'
 import { useMyConsultancy } from '@/queries/consultancy'
+import { useFeature } from '@/lib/features'
 import { useBranches, useEmployees } from '@/queries/staff'
 import { useCreateTag, useTags } from '@/queries/tags'
 import { useFormTemplate } from '@/queries/formTemplates'
@@ -111,8 +112,12 @@ function OverviewTab({ clientId, onViewPlan }: { clientId: string; onViewPlan: (
   const [showEditDetails, setShowEditDetails] = useState(false)
   const [showTransfer, setShowTransfer] = useState(false)
   // Deliberately low prominence (user 2026-08-20: "Transfer Applicant should not be that
-  // accessible") — a muted footer link, not a button, and permission-gated on top.
-  const canTransferApplicant = usePermission('clients.transfer_applicant')
+  // accessible") — a muted footer link, not a button, and permission-gated on top. Also gated on
+  // the `applicant_transfer` entitlement (Ultimate by default) — outbound transfer is a plan
+  // feature; accepting an INCOMING one stays open regardless, it's the other consultancy's flag.
+  const hasTransferPermission = usePermission('clients.transfer_applicant')
+  const hasApplicantTransfer = useFeature('applicant_transfer')
+  const canTransferApplicant = hasTransferPermission && hasApplicantTransfer
   const canAssignTemplate = usePermission('clients.assign_template')
   const navigate = useNavigate()
   if (!client.data) return null
@@ -1118,12 +1123,14 @@ export function ClientProfilePage() {
   const initialStepId = searchParams.get('step') ?? undefined
   const client = useClient(id)
   const plan = usePlan(id)
-  const consultancy = useMyConsultancy()
   const reopenPlan = useReopenPlan(id)
   // Reopening a completed plan is an elevated action — "defaulting to Consultancy Admin only,
   // delegable to trusted staff" (build reference §374). The permission key shipped with the
-  // designation editor; the button never checked it until the contract audit (2026-08-23).
-  const canReopenPlan = usePermission('step_review.reopen_plan')
+  // designation editor; the button never checked it until the contract audit (2026-08-23). Also
+  // gated on the `case_reopening` entitlement (Business+) since 2026-08-29 — reopening a closed
+  // lead/case/plan is a plan feature, not a Starter-core capability.
+  const hasCaseReopening = useFeature('case_reopening')
+  const canReopenPlan = usePermission('step_review.reopen_plan') && hasCaseReopening
   const canViewCommissions = usePermission('clients.view_commissions')
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const tabParam = searchParams.get('tab')
@@ -1155,9 +1162,9 @@ export function ClientProfilePage() {
   // whose designation grants clients.view_commissions actually gets the tab (admins still pass
   // via the is_consultancy_admin bypass inside the checker).
   const canSeeCommissions = canViewCommissions
-  // Close/Reopen Case: same Ultimate-tier gate as Close/Reopen Lead (LeadConversationPage.tsx) —
-  // user-requested, "similar to leads we need option to close a client as well."
-  const canCloseOrReopenCase = consultancy.data?.tier === 'ultimate'
+  // Close Case is Starter core (build reference 1.16 made real, 2026-08-29 — hygiene, symmetric
+  // with Close Lead) and stays open on every plan. Reopening a closed case is the
+  // `case_reopening` entitlement, same flag as Reopen Plan above.
   // Forms tab only appears once the plan actually has something to show (user-requested,
   // 2026-08-19 — "if there are any forms linked to the plan involved, then show the forms") —
   // same cached query PlanTab itself uses, so this doesn't add a second fetch.
@@ -1201,16 +1208,17 @@ export function ClientProfilePage() {
                 Reopen Plan
               </Button>
             )}
-            {canCloseOrReopenCase &&
-              (data.status === 'closed' ? (
-                <Button variant="secondary" onClick={() => setShowReopenCase(true)}>
-                  Reopen Case
-                </Button>
-              ) : (
-                <Button variant="destructive" onClick={() => setShowCloseCase(true)}>
-                  Close Case
-                </Button>
-              ))}
+            {data.status === 'closed'
+              ? hasCaseReopening && (
+                  <Button variant="secondary" onClick={() => setShowReopenCase(true)}>
+                    Reopen Case
+                  </Button>
+                )
+              : (
+                  <Button variant="destructive" onClick={() => setShowCloseCase(true)}>
+                    Close Case
+                  </Button>
+                )}
           </div>
         </div>
 

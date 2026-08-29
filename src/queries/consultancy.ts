@@ -68,12 +68,19 @@ export function useUpdateConsultancyProfile() {
 }
 
 export function useRequestUpgrade(consultancyId: string) {
+  const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async () => {
-      const { error } = await api.POST('/consultancies/{id}/upgrade-request', {
+    mutationFn: async (tier?: 'business' | 'ultimate') => {
+      const { data, error } = await api.POST('/consultancies/{id}/upgrade-request', {
         params: { path: { id: consultancyId } },
+        body: tier ? { tier } : undefined,
       })
       if (error) throw new ApiError('Could not send the upgrade request.', error)
+      return data
     },
+    // Refetches so `upgrade_requested_tier`/`upgrade_requested_at` (the RECORDED request) show up
+    // immediately — the Subscription tab reflects this persisted state, not local mutation state
+    // that would forget the moment the page reloads.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['consultancy', 'me'] }),
   })
 }

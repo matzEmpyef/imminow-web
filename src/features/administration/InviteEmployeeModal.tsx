@@ -12,11 +12,11 @@ type Designation = components['schemas']['Designation']
 // User-requested — was an inline Card+form toggled below the page header, same move already
 // made for Create Applicant/Add Lead elsewhere this session.
 export function InviteEmployeeModal({
-  tier,
+  hasDesignations,
   designations,
   onClose,
 }: {
-  tier: 'starter' | 'business' | 'ultimate'
+  hasDesignations: boolean
   designations: Designation[]
   onClose: () => void
 }) {
@@ -42,7 +42,7 @@ export function InviteEmployeeModal({
         email,
         phone: phone || undefined,
         designation: designation || undefined,
-        designation_id: tier !== 'starter' ? designationId || undefined : undefined,
+        designation_id: hasDesignations ? designationId || undefined : undefined,
       },
       { onSuccess: onClose },
     )
@@ -89,7 +89,7 @@ export function InviteEmployeeModal({
           onChange={(e) => setDesignation(e.target.value)}
           placeholder="e.g. Senior Consultant"
         />
-        {tier !== 'starter' && (
+        {hasDesignations && (
           <SelectField
             label="Access Rights"
             id="invite-designation"

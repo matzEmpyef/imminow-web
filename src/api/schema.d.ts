@@ -3545,7 +3545,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Membership section's "Upgrade" button (build reference 1.22) — requests an upgrade (notifies Super Admin), does not check out. Billing itself is deferred. */
+        /**
+         * Membership section's "Upgrade" button (build reference 1.22) — requests an upgrade (persists a request and notifies platform staff in-app), does not check out. Billing itself is deferred.
+         * @description Made real 2026-08-29 — previously a bare 202 with nothing recorded and nobody notified. Requires `settings.edit_profile` (same permission the Consultancy Management route is gated on) and can only be called for the caller's OWN consultancy. `tier` defaults to the next tier above the current one when omitted; the request is rejected (400) if the tier given is not strictly above the current tier. Audited as `upgrade_requested` and notifies platform staff in-app (notification type `upgrade_requested`, deep-linking to Manage Consultancies). Idempotent while a request is already open: a repeat call returns the existing pending request rather than creating a duplicate or re-notifying. The open request is visible on `Consultancy.upgrade_requested_tier`/`upgrade_requested_at` and is closed the moment a Super Admin next changes this consultancy's tier (via `PATCH /consultancies/{id}/tier`), whether or not to the requested tier.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -3555,15 +3558,35 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Defaults to the next tier above the consultancy's current one.
+                         * @enum {string}
+                         */
+                        tier?: "business" | "ultimate";
+                    };
+                };
+            };
             responses: {
-                /** @description Request sent */
+                /** @description Request recorded (or an already-open one returned unchanged) */
                 202: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            status?: "pending";
+                            tier?: string;
+                            /** Format: date-time */
+                            requested_at?: string;
+                        };
+                    };
                 };
+                400: components["responses"]["ErrorResponse"];
+                403: components["responses"]["ErrorResponse"];
             };
         };
         delete?: never;
@@ -3837,7 +3860,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Change tier — requires Consultancy Approval AND Finance permission (FR-086) */
+        /**
+         * Change tier — requires Consultancy Approval AND Finance permission (FR-086)
+         * @description Resets `entitlement_overrides` to null — a clean re-baseline onto the new tier's preset (build reference 1.16 made real, 2026-08-29), rather than carrying forward per-flag overrides that made sense on the old plan. `seat_limit` resets to the new tier's stock preset ONLY when the current `seat_limit` still equals the OLD tier's own preset; otherwise it is a negotiated custom value and survives the change unchanged, in either direction. Also closes any open upgrade request for this consultancy (see `POST /consultancies/{id}/upgrade-request`), whether or not the new tier is the one that was requested. The seat/branch downgrade-overflow handling below is unchanged by this.
+         */
         patch: {
             parameters: {
                 query?: never;
@@ -3885,7 +3911,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Adjust features/limits (build reference 1.23) — seat_limit and per-flag entitlement overrides, independent of tier. */
+        /**
+         * Adjust features/limits (build reference 1.23) — seat_limit and per-flag entitlement overrides, independent of tier.
+         * @description `entitlement_overrides` keys are validated against the server's feature registry (2026-08-29) — an unrecognized key is rejected with 400 `validation_failed` rather than silently accepted and never read, which was the previous behavior. See `Consultancy.entitlement_overrides` for the tri-state semantics.
+         */
         patch: {
             parameters: {
                 query?: never;
@@ -3910,6 +3939,7 @@ export interface paths {
                         "application/json": components["schemas"]["Consultancy"];
                     };
                 };
+                400: components["responses"]["ErrorResponse"];
             };
         };
         trace?: never;
@@ -13677,7 +13707,7 @@ export interface components {
         /** @description Uniform error envelope, every error response, every endpoint (TRD Section 7). */
         Error: {
             error: {
-                /** @description Stable machine-readable code, e.g. permission_denied, validation_failed, insufficient_balance. Clients branch on this, never on message text. */
+                /** @description Stable machine-readable code, e.g. permission_denied, validation_failed, insufficient_balance. Clients branch on this, never on message text. `feature_locked` (build reference 1.16 made real, 2026-08-29) is returned 403 by every endpoint gated on a consultancy feature-entitlement flag — own_leads, create_applicant, designations, tags, allocation_rule, phonebook, document_library, case_reopening, audit_log, activity_queue, internal_messaging, multi_branch, applicant_transfer — when the caller's consultancy lacks that flag (see `Consultancy.features`). `message` names the plan that includes it. Distinct from `permission_denied`, which is about what an individual employee within an already-entitled consultancy may do. */
                 code: string;
                 message: string;
                 /** @description Field-level validation details where applicable. */
@@ -14271,7 +14301,7 @@ export interface components {
             billing_cycle?: "monthly" | "annual" | null;
             subscription_amount?: number | null;
             billing_currency?: string | null;
-            /** @description Sparse map of feature-flag keys → boolean, layered on top of the tier's preset bundle (build reference 1.16) — e.g. "designations_enabled", "multi_branch_enabled". Super Admin-only, set via Manage Consultancies. */
+            /** @description Sparse, TRI-STATE map of feature-flag keys to boolean, layered on top of the tier's preset bundle (build reference 1.16 made real, 2026-08-29): a key present here EXPLICITLY overrides the tier preset in either direction (true forces a flag on below its normal tier, false forces it off even at a tier that presets it on); a key simply absent from this map falls through to the tier preset. Keys are validated against the server's feature registry on write — see `feature_locked` below for the closed set — so an unrecognized key is rejected rather than silently ignored. Super Admin-only, set via Manage Consultancies. Reset to null (clean re-baseline) on every `PATCH /consultancies/{id}/tier` plan change. See `Consultancy.features` for the RESOLVED (preset ⊕ override) map every client should actually gate on. */
             entitlement_overrides?: {
                 [key: string]: boolean;
             } | null;
@@ -14282,6 +14312,17 @@ export interface components {
             active?: boolean;
             /** @description User-requested (2026-08-19) — Super-Admin-set, gates two things at once — a Freelancer Commission Table row's `freelancer_sourced_rate` only actually applies when this is true (build reference 1.17), and Applicant Allocation only offers this consultancy as a target for `freelancer_sourced` queue entries when true (build reference 1.19). Has no bearing on the Direct rate or on consultancy-change allocations, which are unaffected either way. */
             freelancer_enabled?: boolean;
+            /** @description The RESOLVED feature map (build reference 1.16 made real, 2026-08-29) — tier preset merged with `entitlement_overrides`, one boolean per registry flag: `own_leads`, `create_applicant`, `designations`, `tags`, `allocation_rule`, `phonebook`, `document_library`, `case_reopening`, `audit_log` (Business-tier preset), and `activity_queue`, `internal_messaging`, `multi_branch`, `applicant_transfer` (Ultimate-tier preset). Starter-core capabilities (Lead Pool, Active Leads, Clients, commissions, Invoices, Receipts, Forms, Course Finder, Plan Templates, Course Suggestions, Employees simple mode, single branch, Consultancy Management) have no flag — they are always reachable on every tier and never appear here. Every server endpoint gated on one of these flags returns 403 `feature_locked` (naming the plan that includes it) when the caller's consultancy lacks it. Clients MUST gate on this map, never on the raw `tier` enum, since a Super Admin override can grant or withhold an individual flag independent of tier. */
+            readonly features?: {
+                [key: string]: boolean;
+            };
+            /**
+             * @description Set while this consultancy has an OPEN upgrade request (Membership tab's "Upgrade" button, build reference 1.22, made real 2026-08-29) — null once a Super Admin resolves it by changing the tier (which re-baselines and implicitly closes the request) or it is otherwise cleared. Lets the Upgrade button reflect a RECORDED request across reloads instead of local-only mutation state.
+             * @enum {string|null}
+             */
+            readonly upgrade_requested_tier?: "business" | "ultimate" | null;
+            /** Format: date-time */
+            readonly upgrade_requested_at?: string | null;
         };
         /** @description Create Consultancy's guided flow (build reference 1.15, 1.23) — one submission creates the consultancy, its primary branch, and the Consultancy Admin employee, then fires their invite email (all mocked server-side, same simplification as POST /staff/employees). */
         ConsultancyCreateInput: {
