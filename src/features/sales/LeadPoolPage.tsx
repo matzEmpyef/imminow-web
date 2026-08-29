@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { AppShell } from '@/features/auth/AppShell'
 import { Button } from '@/components/Button'
 import { Table, type TableColumn } from '@/components/Table'
@@ -74,7 +75,12 @@ export function LeadPoolPage() {
       render: (lead) => (
         <div className="flex items-center gap-sm">
           <SourceIcon origin={lead.origin} />
-          <span className="font-medium text-text-primary">{lead.name}</span>
+          <Link
+            to={`/sales/leads/${lead.id}`}
+            className="font-medium text-text-primary hover:text-primary hover:underline"
+          >
+            {lead.name}
+          </Link>
         </div>
       ),
     },

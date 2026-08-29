@@ -16263,6 +16263,11 @@ export interface components {
              * @description Which case's due this payment is declared against. Null for legacy pooled payments recorded before per-case linking.
              */
             readonly commission_entry_id?: string | null;
+            /**
+             * Format: uuid
+             * @description The linked entry's client journey — lets a UI link the payment back to the applicant's profile. Derived server-side from commission_entry_id; null for legacy pooled payments (shown as "General").
+             */
+            readonly journey_id?: string | null;
             /** @description The linked entry's journey student name — convenience for both history views. Null when commission_entry_id is null (shown as "General"). */
             readonly applicant_name?: string | null;
             amount: components["schemas"]["Money"];

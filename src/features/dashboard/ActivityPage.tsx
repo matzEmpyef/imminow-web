@@ -75,7 +75,10 @@ export function ActivityPage() {
               {feed.data?.overdue_steps.map((item, i) => (
                 <div key={i} className="border-b border-border pb-xs last:border-0">
                   <p className="text-body-sm text-text-primary">
-                    {item.client_name} — {item.step_title}
+                    <Link to={`/clients/${item.journey_id}`} className="hover:text-primary hover:underline">
+                      {item.client_name}
+                    </Link>{' '}
+                    — {item.step_title}
                   </p>
                   <Badge color="error">Due {item.expected_end_date ? formatDate(item.expected_end_date) : '—'}</Badge>
                 </div>
@@ -89,7 +92,14 @@ export function ActivityPage() {
               {feed.data?.unattended_cases.length === 0 && <p className="text-caption text-text-secondary">None.</p>}
               {feed.data?.unattended_cases.map((item) => (
                 <div key={item.id} className="border-b border-border pb-xs last:border-0">
-                  <p className="text-body-sm text-text-primary">{item.name}</p>
+                  <p className="text-body-sm text-text-primary">
+                    <Link
+                      to={item.type === 'client' ? `/clients/${item.id}` : `/sales/leads/${item.id}`}
+                      className="hover:text-primary hover:underline"
+                    >
+                      {item.name}
+                    </Link>
+                  </p>
                   <Badge color="warning">{item.type}</Badge>
                 </div>
               ))}
@@ -103,7 +113,10 @@ export function ActivityPage() {
               {feed.data?.upcoming_due_dates.map((item, i) => (
                 <div key={i} className="border-b border-border pb-xs last:border-0">
                   <p className="text-body-sm text-text-primary">
-                    {item.client_name} — {item.step_title}
+                    <Link to={`/clients/${item.journey_id}`} className="hover:text-primary hover:underline">
+                      {item.client_name}
+                    </Link>{' '}
+                    — {item.step_title}
                   </p>
                   <Badge color="info">Due {item.expected_end_date ? formatDate(item.expected_end_date) : '—'}</Badge>
                 </div>
@@ -121,7 +134,18 @@ export function ActivityPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-body-sm text-text-primary">
                     {task.note}
-                    {task.client_name ? ` (${task.client_name})` : ''}
+                    {task.client_name &&
+                      (task.journey_id ? (
+                        <>
+                          {' ('}
+                          <Link to={`/clients/${task.journey_id}`} className="hover:text-primary hover:underline">
+                            {task.client_name}
+                          </Link>
+                          {')'}
+                        </>
+                      ) : (
+                        ` (${task.client_name})`
+                      ))}
                     {task.lead_name ? ` (${task.lead_name})` : ''}
                   </p>
                   <p className="text-caption text-text-secondary">

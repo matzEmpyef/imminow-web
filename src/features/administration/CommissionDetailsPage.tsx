@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { AppShell } from '@/features/auth/AppShell'
 import { Card } from '@/components/Card'
 import { Badge } from '@/components/Badge'
 import { Table, type TableColumn } from '@/components/Table'
+import { StopPropagation } from '@/components/StopPropagation'
 import { usePermissionChecker } from '@/lib/permissions'
 import { useCommission } from '@/queries/commission'
 import { ErrorState, Skeleton } from '@/components/QueryState'
@@ -35,7 +37,18 @@ function PaymentHistoryTab({ payments }: { payments: CommissionPayment[] }) {
         </span>
       ),
     },
-    { key: 'case', header: 'Case', render: (p) => p.applicant_name ?? 'General' },
+    {
+      key: 'case',
+      header: 'Case',
+      render: (p) =>
+        p.journey_id ? (
+          <Link to={`/clients/${p.journey_id}`} className="text-text-primary hover:text-primary hover:underline">
+            {p.applicant_name ?? 'General'}
+          </Link>
+        ) : (
+          'General'
+        ),
+    },
     {
       key: 'transaction',
       header: 'Transaction ID',
@@ -129,7 +142,14 @@ export function CommissionDetailsPage() {
       header: 'Applicant',
       render: (due) => (
         <div>
-          <span className="font-medium text-text-primary">{due.applicant_name}</span>
+          <StopPropagation className="inline-block">
+            <Link
+              to={`/clients/${due.journey_id}`}
+              className="font-medium text-text-primary hover:text-primary hover:underline"
+            >
+              {due.applicant_name}
+            </Link>
+          </StopPropagation>
           <p className="text-caption text-text-secondary">
             {due.case_type === 'pr' ? 'PR case' : (due.college_name ?? '—')}
           </p>

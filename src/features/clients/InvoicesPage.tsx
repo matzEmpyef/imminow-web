@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { AppShell } from '@/features/auth/AppShell'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
@@ -141,7 +142,16 @@ export function InvoicesPage() {
       sortable: true,
       render: (inv) => <span className="font-medium text-text-primary">{inv.number}</span>,
     },
-    { key: 'applicant_name', header: 'Applicant', sortable: true, render: (inv) => inv.applicant_name },
+    {
+      key: 'applicant_name',
+      header: 'Applicant',
+      sortable: true,
+      render: (inv) => (
+        <Link to={`/clients/${inv.journey_id}`} className="text-text-primary hover:text-primary hover:underline">
+          {inv.applicant_name}
+        </Link>
+      ),
+    },
     {
       key: 'amount',
       header: 'Amount',
