@@ -334,13 +334,26 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
 
   async function handleSave() {
     try {
-      if (tier !== consultancy.tier) await changeTier.mutateAsync(tier!)
-      await updateEntitlements.mutateAsync({
-        seat_limit: seatLimit,
-        entitlement_overrides: overrides,
-        freelancer_enabled: freelancerEnabled,
-        ...(consultancy.file_number_locked ? {} : { file_number_prefix: filePrefix }),
-      })
+      const tierChanged = tier !== consultancy.tier
+      if (tierChanged) await changeTier.mutateAsync(tier!)
+      // Double-PATCH fix (UAT sweep M5, 2026-08-29): PATCH /tier already performs the clean
+      // preset re-baseline (seat limit + overrides reset). Re-sending the modal's PRE-change
+      // seat/override values right after silently undid that reset — the form was showing the
+      // OLD tier's numbers. After a tier change, only the fields the tier reset does not touch
+      // ride along (freelancer channel, file prefix); seat/override tweaks for the NEW tier are
+      // a second, deliberate edit once the modal reflects the new baseline.
+      const entitlementsBody = tierChanged
+        ? {
+            freelancer_enabled: freelancerEnabled,
+            ...(consultancy.file_number_locked ? {} : { file_number_prefix: filePrefix }),
+          }
+        : {
+            seat_limit: seatLimit,
+            entitlement_overrides: overrides,
+            freelancer_enabled: freelancerEnabled,
+            ...(consultancy.file_number_locked ? {} : { file_number_prefix: filePrefix }),
+          }
+      await updateEntitlements.mutateAsync(entitlementsBody)
     } catch {
       // surfaced via changeTier.error / updateEntitlements.error below
     }

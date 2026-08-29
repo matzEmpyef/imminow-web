@@ -595,6 +595,7 @@ function SelectedCollegesTab({ clientId }: { clientId: string }) {
             key={sc.id}
             clientId={clientId}
             row={sc}
+            acceptedElsewhere={selected.find((o) => o.status === 'accepted' && o.id !== sc.id)?.course.name ?? null}
             journeyPayerMethod={client.data?.payer_method ?? null}
             onAdvance={(status) => updateStatus.mutate({ collegeId: sc.id, status })}
             advanceError={updateStatus.variables?.collegeId === sc.id && updateStatus.isError ? updateStatus.error.message : null}
@@ -614,6 +615,7 @@ function SelectedCollegesTab({ clientId }: { clientId: string }) {
 function SelectedCollegeRow({
   clientId,
   row,
+  acceptedElsewhere,
   journeyPayerMethod,
   onAdvance,
   advanceError,
@@ -621,6 +623,10 @@ function SelectedCollegeRow({
 }: {
   clientId: string
   row: SelectedCollegeRowData
+  // The course name of ANOTHER row already accepted on this journey, if any. Accept can then
+  // only ever 409 (single accepted case per student), so the button is not shown at all —
+  // the UAT sweep (M4, 2026-08-29) caught the queue offering a click that could never work.
+  acceptedElsewhere: string | null
   journeyPayerMethod: 'college' | 'applicant' | 'split' | null
   // `suggested` is not an advance target — the map never yields it, and the PATCH enum
   // rightly excludes it.
@@ -658,11 +664,16 @@ function SelectedCollegeRow({
               Offer Received
             </Button>
           )}
-          {nextSteps.includes('accepted') && (
-            <Button size="sm" onClick={() => setShowAccept(true)}>
-              Accept…
-            </Button>
-          )}
+          {nextSteps.includes('accepted') &&
+            (acceptedElsewhere ? (
+              <span className="text-caption text-text-secondary" title={`${acceptedElsewhere} is already accepted — revert that acceptance first to accept this one.`}>
+                {acceptedElsewhere} accepted
+              </span>
+            ) : (
+              <Button size="sm" onClick={() => setShowAccept(true)}>
+                Accept…
+              </Button>
+            ))}
           {nextSteps.includes('rejected') &&
             (confirmReject ? (
               <>
