@@ -145,22 +145,31 @@ const STATUS_COLOR = { locked: 'secondary', active: 'info', done: 'success' } as
 // `StepTemplateInput.expected_duration_days`) — its own small modal rather than reusing the
 // shared `AddStepModal`, which is duration-based and only fits step *creation* here (`useAddStep`
 // still takes `expected_duration_days`, same as Plan Templates).
+//
+// Two distinct modes since 2026-08-29: a `locked` step still edits title + date together, same
+// as always. An `active` step edits ONLY the date — the server now 409s an active-step PATCH
+// that also carries `title`/`components`, so the title field isn't just hidden here, it's never
+// sent — plus an optional reason, since moving an already-started step's date reaches the
+// applicant (`step_due_date_changed`) and the reason rides along into that notification.
 function EditLiveStepModal({
   step,
   onSubmit,
   onClose,
 }: {
   step: Step
-  onSubmit: (data: { title: string; expected_end_date: string | null }) => void
+  onSubmit: (data: { title: string; expected_end_date: string | null } | { expected_end_date: string | null; reason?: string }) => void
   onClose: () => void
 }) {
+  const isActive = step.status === 'active'
   const [title, setTitle] = useState(step.title)
   const [date, setDate] = useState(step.expected_end_date ? step.expected_end_date.slice(0, 10) : '')
+  const [reason, setReason] = useState('')
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!title) return
-    onSubmit({ title, expected_end_date: date ? new Date(date).toISOString() : null })
+    if (!isActive && !title) return
+    const expected_end_date = date ? new Date(date).toISOString() : null
+    onSubmit(isActive ? { expected_end_date, reason: reason || undefined } : { title, expected_end_date })
     onClose()
   }
 
@@ -170,14 +179,31 @@ function EditLiveStepModal({
       title="Edit Step"
       widthRem={28}
       footer={
-        <Button type="submit" form="edit-live-step-form" disabled={!title}>
+        <Button type="submit" form="edit-live-step-form" disabled={!isActive && !title}>
           Save Changes
         </Button>
       }
     >
       <form id="edit-live-step-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="Step title" value={title} onChange={(e) => setTitle(e.target.value)} />
-        <TextField label="Expected end date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        {isActive ? (
+          <>
+            <p className="text-body-sm text-text-secondary">
+              This step has already started, so only its expected completion date can change —
+              the applicant is notified when it does.
+            </p>
+            <TextField label="Expected end date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <TextField
+              label="Reason for the change (shown to the applicant, optional)"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </>
+        ) : (
+          <>
+            <TextField label="Step title" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <TextField label="Expected end date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </>
+        )}
       </form>
     </Modal>
   )
@@ -380,6 +406,10 @@ export function PlanStepBuilder({ clientId, initialStepId }: { clientId: string;
   const selectedStep = steps.find((s) => s.id === selectedStepId) ?? null
   const selectedIndex = selectedStep ? steps.findIndex((s) => s.id === selectedStep.id) : -1
   const canEdit = mode === 'edit' && selectedStep?.status === 'locked'
+  // The Edit-step affordance alone widens to `active` (2026-08-29) — everything else governed
+  // by `canEdit` (Add Component, component reorder, "components can no longer be edited") stays
+  // locked-only, since only the date is editable on an active step now, not the step's shape.
+  const canEditStepDate = mode === 'edit' && (selectedStep?.status === 'locked' || selectedStep?.status === 'active')
   const mutationError = addStep.error ?? updateStep.error ?? deleteStep.error ?? reorder.error
 
   function handleStepDragEnd(event: DragEndEvent) {
@@ -517,7 +547,7 @@ export function PlanStepBuilder({ clientId, initialStepId }: { clientId: string;
                 </span>
                 <p className="flex-1 text-h3 text-text-primary">{selectedStep.title}</p>
                 <Badge color={STATUS_COLOR[selectedStep.status]}>{selectedStep.status}</Badge>
-                {canEdit && (
+                {canEditStepDate && (
                   <button
                     type="button"
                     onClick={() => setEditingStep(selectedStep)}

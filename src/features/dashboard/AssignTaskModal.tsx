@@ -25,6 +25,10 @@ export function AssignTaskModal({ onClose }: { onClose: () => void }) {
   const [assignedTo, setAssignedTo] = useState('')
   const [note, setNote] = useState('')
   const [dueDate, setDueDate] = useState('')
+  // Optional, unlike the self-assigned lead-reminder flow's required due_time (2026-08-29
+  // parity addition) — a task handed to a teammate doesn't need a time-of-day the way a
+  // self-assigned reminder does.
+  const [dueTime, setDueTime] = useState('')
 
   const isRelatedLead = leadRows.some((l) => l.id === relatedId)
   const relatedOptions = [
@@ -51,6 +55,7 @@ export function AssignTaskModal({ onClose }: { onClose: () => void }) {
         assigned_to: assignedTo,
         note,
         due_date: dueDate,
+        due_time: dueTime || undefined,
       },
       { onSuccess: onClose },
     )
@@ -105,7 +110,21 @@ export function AssignTaskModal({ onClose }: { onClose: () => void }) {
           ))}
         </SelectField>
         <TextField label="Note" required value={note} onChange={(e) => setNote(e.target.value)} />
-        <TextField label="Due date" type="date" required value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+        <div className="grid grid-cols-2 gap-md">
+          <TextField
+            label="Due date"
+            type="date"
+            required
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+          />
+          <TextField
+            label="Due time (optional)"
+            type="time"
+            value={dueTime}
+            onChange={(e) => setDueTime(e.target.value)}
+          />
+        </div>
       </form>
     </Modal>
   )

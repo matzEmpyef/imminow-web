@@ -209,7 +209,11 @@ export function useAddSelectedCollege(clientId: string) {
       if (error) throw new ApiError('Could not add this college.', error)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'selected-colleges'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'selected-colleges'] })
+      // A new suggested/considering row can feed Activity's ready_to_apply (2026-08-29).
+      queryClient.invalidateQueries({ queryKey: ['activity-feed'] })
+    },
   })
 }
 
@@ -247,6 +251,8 @@ export function useUpdateSelectedCollege(clientId: string) {
       queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'commissions'] })
       queryClient.invalidateQueries({ queryKey: ['commission'] })
       queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] })
+      // A status move can enter/leave offers_awaiting_decision (2026-08-29).
+      queryClient.invalidateQueries({ queryKey: ['activity-feed'] })
     },
   })
 }
@@ -267,6 +273,8 @@ export function useRevertAcceptance(clientId: string) {
       queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'commissions'] })
       queryClient.invalidateQueries({ queryKey: ['commission'] })
       queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] })
+      // Reverting puts the row back at offer_received (2026-08-29).
+      queryClient.invalidateQueries({ queryKey: ['activity-feed'] })
     },
   })
 }

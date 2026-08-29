@@ -51,6 +51,9 @@ export function useAssignPlan(clientId: string) {
       queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plan'] })
       queryClient.invalidateQueries({ queryKey: ['clients', clientId] })
       queryClient.invalidateQueries({ queryKey: ['clients'] })
+      // Assigning a plan derives the first step's expected_end_date and can move the client out
+      // of "pending plan assignment" — both feed Activity now (2026-08-29).
+      queryClient.invalidateQueries({ queryKey: ['activity-feed'] })
     },
   })
 }
@@ -112,10 +115,13 @@ export function useAddStep(clientId: string) {
 }
 
 // User-requested follow-up (2026-08-15) on the Plan Template step-builder rework — "Hope what
-// you have done is for client plan also." Restricted server-side to `locked` steps only (a step
-// the student may already be working in, `active`, or has finished, `done`, can't be edited) —
-// see `PATCH /steps/{id}`'s 409 in openapi.yaml. Parameterized by clientId rather than stepId so
-// it can invalidate the right `['clients', clientId, 'plan']` query, same shape as useAddStep.
+// you have done is for client plan also." Restricted server-side to `locked` steps only for
+// title/components (a step the student may already be working in, `active`, or has finished,
+// `done`, can't have those edited) — see `PATCH /steps/{id}`'s 409 in openapi.yaml. Relaxed
+// 2026-08-29: an `active` step's `expected_end_date` alone stays editable, and an optional
+// `reason` rides along — the server notifies the applicant when the date actually changes.
+// Parameterized by clientId rather than stepId so it can invalidate the right
+// `['clients', clientId, 'plan']` query, same shape as useAddStep.
 export function useUpdateStep(clientId: string) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -127,6 +133,7 @@ export function useUpdateStep(clientId: string) {
       title?: string
       expected_end_date?: string | null
       components?: ComponentInput[]
+      reason?: string
     }) => {
       const { data, error } = await api.PATCH('/steps/{id}', {
         params: { path: { id: stepId } },
@@ -135,7 +142,12 @@ export function useUpdateStep(clientId: string) {
       if (error) throw new ApiError('Could not update this step.', error)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plan'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plan'] })
+      // A date change on an active step now feeds Activity's overdue/Coming Up sections
+      // (2026-08-29).
+      queryClient.invalidateQueries({ queryKey: ['activity-feed'] })
+    },
   })
 }
 

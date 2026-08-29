@@ -2554,7 +2554,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Activity page (Ultimate only, build reference 1.22) — overdue steps, unattended cases, upcoming due dates, and assignable tasks */
+        /** Activity page (Ultimate only, build reference 1.22; rebuilt 2026-08-29 into the consultant's own daily work queue) — strictly the caller's own assigned work, covering overdue steps, unattended cases, upcoming due dates, unread chats, offers awaiting decision, ready-to-apply suggestions, expiring conversion proposals, pending plan assignments, plan-complete cases, application deadlines, the caller's own tasks, and tasks the caller delegated to teammates. Requires requireConsultancyStaff (2026-08-29 — previously requireAuth only, with no tenant or assignment scoping at all). */
         get: {
             parameters: {
                 query?: never;
@@ -7850,7 +7850,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Assign a template — creates an editable per-applicant copy, template itself untouched (FR-039) */
+        /** Assign a template — creates an editable per-applicant copy, template itself untouched (FR-039). The first step activates immediately; since 2026-08-29 that activation also derives its `expected_end_date` from `start_date + expected_duration_days` when the template step carries a duration. Every later step gets the same derivation the moment `POST /steps/{id}/approve` activates it, not before — locked/future steps stay undated. */
         post: {
             parameters: {
                 query?: never;
@@ -8240,7 +8240,7 @@ export interface paths {
         };
         options?: never;
         head?: never;
-        /** Edit step (plan editor) — user-requested (2026-08-15 follow-up on the Plan Template step-builder rework, "Hope what you have done is for client plan also"), restricted to steps still `locked` (not yet started) rather than the broader "not yet Done" — once a step goes `active` the student may already be working in it, so its components become fixed; editing a `locked` step's `components` supports the same repeatable-same-type-component pattern Plan Templates got, via `ComponentInput`. */
+        /** Edit step (plan editor) — user-requested (2026-08-15 follow-up on the Plan Template step-builder rework, "Hope what you have done is for client plan also"), restricted to steps still `locked` (not yet started) rather than the broader "not yet Done" — once a step goes `active` the student may already be working in it, so its title/components stay fixed; editing a `locked` step's `components` supports the same repeatable-same-type-component pattern Plan Templates got, via `ComponentInput`. As of 2026-08-29, `expected_end_date` alone is ALSO editable on an `active` step (title and components still 409 there) — the duration exists to tell the applicant how long a step should take, and that promise can still move after the step has started. */
         patch: {
             parameters: {
                 query?: never;
@@ -8257,6 +8257,8 @@ export interface paths {
                         /** Format: date-time */
                         expected_end_date?: string | null;
                         components?: components["schemas"]["ComponentInput"][];
+                        /** @description User refinement, 2026-08-29: an `active` step now also accepts this PATCH for `expected_end_date` alone (title/components stay locked-only, unchanged) — moving an already-started step's date reaches the applicant, so an optional reason rides along into that notification (`step_due_date_changed`). Ignored for a `locked` step's edit, and ignored unless the date actually changed. */
+                        reason?: string;
                     };
                 };
             };
@@ -14060,9 +14062,68 @@ export interface components {
             note: string;
             /** Format: date */
             due_date: string;
+            /** @description HH:mm, 24-hour (2026-08-29 — parity with LeadReminderInput's own due_time). Optional: a task assigned to a teammate doesn't need a time-of-day the way a self-assigned lead reminder does. */
+            due_time?: string | null;
         };
-        /** @description Action-oriented list distinct from the Dashboard (build reference 1.22, Ultimate only) — overdue steps, unattended cases, and upcoming due dates, computed live from steps/journeys rather than stored, alongside assignable tasks. */
+        /** @description 2026-08-29 addition — the shared shape `offers_awaiting_decision` and `ready_to_apply` both use, one `selected_colleges` row resolved against its journey and course. */
+        ActivityCollegeItem: {
+            journey_id: components["schemas"]["UUID"];
+            client_name: string;
+            course_name: string | null;
+            college_name: string | null;
+            /**
+             * Format: date-time
+             * @description When the selected-college row entered its current status (`selected_colleges.created_at`).
+             */
+            since: string;
+        };
+        /** @description The signed-in consultant's own daily work queue (rebuilt 2026-08-29 from the original build reference 1.22 Ultimate-only Activity page) — every array here is scoped STRICTLY to the caller's own assigned journeys/leads (`assigned_employee_id === caller`), never consultancy-wide; there is no toggle to widen it. `delegated_tasks` is the one exception by design — it tracks tasks the caller assigned to teammates, so the assigner can see their status without opening each one. Computed live from steps/journeys/leads rather than stored, same as the original. */
         ActivityFeed: {
+            /** @description 2026-08-29 addition — leads and clients (assigned to the caller) whose latest message is from the student/lead and unread by the caller, same `isUnread` rule `GET /conversations` already uses. */
+            unread_chats: {
+                id: components["schemas"]["UUID"];
+                name: string;
+                /** @enum {string} */
+                kind: "lead" | "client";
+                /** Format: date-time */
+                last_message_at: string | null;
+            }[];
+            /** @description 2026-08-29 addition — the caller's own `selected_colleges` rows sitting at `offer_received`, awaiting the applicant's accept/decline. */
+            offers_awaiting_decision: components["schemas"]["ActivityCollegeItem"][];
+            /** @description 2026-08-29 addition — the caller's own `selected_colleges` rows at `considering` (the student approved the suggestion into Dream Courses; nothing has been applied yet). */
+            ready_to_apply: components["schemas"]["ActivityCollegeItem"][];
+            /** @description 2026-08-29 addition — pending `ConversionProposal`s (lapsed ones excluded, same `lapseIfExpired` rule the leads endpoints already apply) on the caller's own leads. */
+            pending_proposals: {
+                lead_id: components["schemas"]["UUID"];
+                lead_name: string | null;
+                /** Format: date-time */
+                expires_at: string;
+            }[];
+            /** @description 2026-08-29 addition — the caller's own journeys sitting in `pending_plan_assignment` (Assign a Plan lives on that client's Overview tab). */
+            pending_plan_assignment: {
+                journey_id: components["schemas"]["UUID"];
+                client_name: string;
+                /** Format: date-time */
+                since: string;
+            }[];
+            /** @description 2026-08-29 addition — the caller's own journeys in `plan_complete`, not yet closed. */
+            plan_complete_cases: {
+                journey_id: components["schemas"]["UUID"];
+                client_name: string;
+                /** Format: date-time */
+                since: string;
+            }[];
+            /** @description 2026-08-29 addition — for the caller's own journeys' `selected_colleges` rows still in `considering`/`applied` (not yet decided), the next OPEN `course.intake_deadlines` entry due within 60 days. One entry per selected-college row, not per course — the same course suggested to two applicants surfaces twice, once per client. */
+            application_deadlines: {
+                journey_id: components["schemas"]["UUID"];
+                client_name: string;
+                course_name: string | null;
+                college_name: string | null;
+                /** Format: date */
+                deadline: string;
+            }[];
+            /** @description 2026-08-29 addition — tasks the caller assigned to someone ELSE (`assigned_by === caller && assigned_to !== caller`), so an assigner can track their status without opening each one ("Tasks I've assigned" — the one array in this feed not scoped to the caller's own assigned work). */
+            delegated_tasks: components["schemas"]["ActivityTask"][];
             /** @description User-requested (2026-08-19) — folded in from the now-retired standalone Step Approvals page ("instead of separate page show it activities"). Approve/Send Back no longer happen here — a row links to `/clients/{journey_id}?tab=Plan&step={step_id}`, landing on the Plan tab with that step pre-selected, where the actions now live. */
             pending_step_approvals: {
                 step_id: components["schemas"]["UUID"];
@@ -14072,29 +14133,33 @@ export interface components {
                 /** Format: date-time */
                 submitted_at: string;
             }[];
-            /** @description Backs the Activity sidebar link's counter badge (user-requested, 2026-08-19). pending_step_approvals + overdue_steps + open tasks due today or earlier — a judgment call on what "needs action today" means across this feed's several categories; upcoming_due_dates and unattended_cases are informational, not counted. */
+            /** @description Backs the Activity sidebar link's counter badge (user-requested, 2026-08-19; recomputed 2026-08-29 for the wider feed). pending_step_approvals + overdue_steps + unread_chats + offers_awaiting_decision + pending_proposals expiring within 2 days + the caller's own open tasks due today or earlier — a judgment call on what "needs action today" means across this feed's several categories; upcoming_due_dates, ready_to_apply, pending_plan_assignment, plan_complete_cases, application_deadlines, delegated_tasks and unattended_cases are informational, not counted. */
             needs_action_today_count: number;
             overdue_steps: {
-                journey_id?: components["schemas"]["UUID"];
-                client_name?: string;
-                step_title?: string;
+                /** @description Added 2026-08-29 so the row can deep-link to the exact step (`?tab=Plan&step={step_id}`) instead of just the client. */
+                step_id: components["schemas"]["UUID"];
+                journey_id: components["schemas"]["UUID"];
+                client_name: string;
+                step_title: string;
                 /** Format: date */
-                expected_end_date?: string;
+                expected_end_date: string;
             }[];
             unattended_cases: {
-                id?: components["schemas"]["UUID"];
-                name?: string;
+                id: components["schemas"]["UUID"];
+                name: string;
                 /** @enum {string} */
-                type?: "lead" | "client";
+                type: "lead" | "client";
                 /** Format: date-time */
                 last_message_at?: string | null;
             }[];
             upcoming_due_dates: {
-                journey_id?: components["schemas"]["UUID"];
-                client_name?: string;
-                step_title?: string;
+                /** @description Added 2026-08-29 — same deep-link reason as overdue_steps above, used by Coming Up's merged timeline. */
+                step_id: components["schemas"]["UUID"];
+                journey_id: components["schemas"]["UUID"];
+                client_name: string;
+                step_title: string;
                 /** Format: date */
-                expected_end_date?: string;
+                expected_end_date: string;
             }[];
             tasks: components["schemas"]["ActivityTask"][];
         };
@@ -15171,9 +15236,14 @@ export interface components {
             /** @enum {string} */
             status: "locked" | "active" | "done";
             position: number;
+            /** @description Copied from the template's `StepTemplate.expected_duration_days` at plan-assign/add-step time (2026-08-29). Exists on the live step so the SERVER can derive `expected_end_date` from it the moment the step actually starts — the duration tells the applicant how long a step should take, which is only meaningful once there is a start date to count from. Locked/future steps carry a duration but no derived date yet. */
+            expected_duration_days?: number | null;
             /** Format: date-time */
             start_date?: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Set automatically when the step becomes `active`, from `start_date + expected_duration_days` (2026-08-29 — previously always null on assign, since nothing derived it). Editable afterward by a consultant on a `locked` OR now an `active` step (`PATCH /steps/{id}`); changing it on an active step notifies the applicant.
+             */
             expected_end_date?: string | null;
             /** Format: date-time */
             actual_end_date?: string | null;

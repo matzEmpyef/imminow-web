@@ -25,6 +25,7 @@ const LABELS: Record<string, string> = {
   event_rsvp: 'Event RSVP confirmed',
   step_approved: 'Plan step approved',
   step_sent_back: 'Plan step sent back',
+  step_due_date_changed: 'Plan step due date changed',
   dream_courses_ready: 'Dream Course requirements met',
   points_earned: 'Sentpo points earned',
   coupon_redeemed: 'Coupon redeemed',

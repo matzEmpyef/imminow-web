@@ -81,7 +81,10 @@ export function isSameCalendarDay(a: string | Date, b: string | Date): boolean {
   return isSameDay(typeof a === 'string' ? new Date(a) : a, typeof b === 'string' ? new Date(b) : b)
 }
 
-// WhatsApp-style day divider: "Today" / "Yesterday", falling back to dd/mm/yyyy for anything older.
+// WhatsApp-style day divider: "Today" / "Yesterday" / "Tomorrow", falling back to dd/mm/yyyy for
+// anything further off. "Tomorrow" (2026-08-29 addition) backs Activity's Coming Up timeline,
+// which groups future dates by day — Yesterday/Today alone never needed a forward-looking label
+// before this, since every other caller only ever day-divides past messages.
 export function formatDayLabel(input: string | Date): string {
   const d = typeof input === 'string' ? new Date(input) : input
   const now = new Date()
@@ -89,6 +92,9 @@ export function formatDayLabel(input: string | Date): string {
   const yesterday = new Date(now)
   yesterday.setDate(now.getDate() - 1)
   if (isSameDay(d, yesterday)) return 'Yesterday'
+  const tomorrow = new Date(now)
+  tomorrow.setDate(now.getDate() + 1)
+  if (isSameDay(d, tomorrow)) return 'Tomorrow'
   return formatDate(d)
 }
 

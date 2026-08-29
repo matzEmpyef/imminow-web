@@ -359,6 +359,9 @@ export function useRespondToConversion(leadId: string) {
       queryClient.invalidateQueries({ queryKey: ['leads', leadId] })
       queryClient.invalidateQueries({ queryKey: ['leads'] })
       queryClient.invalidateQueries({ queryKey: ['clients'] })
+      // Responding resolves the proposal, so it must leave Activity's pending_proposals
+      // (2026-08-29).
+      queryClient.invalidateQueries({ queryKey: ['activity-feed'] })
     },
   })
 }
