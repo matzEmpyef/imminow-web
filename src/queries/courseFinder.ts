@@ -13,9 +13,29 @@ export interface CourseFinderFilters {
   search?: string
   country?: string
   level?: string
-  fieldOfStudy?: string
+  // Multi-field (user decision, 2026-08-30) — empty/omitted = any field; comma-joined onto the
+  // wire as one filter[field_of_study] value, the same idiom filter[country] already uses.
+  fieldOfStudy?: string[]
   feeMaxInr?: number
   sort?: string
+}
+
+// Field of Study chooser (user decision, 2026-08-30) — every field actually present in the
+// catalog (18 today), replacing what had been a free-text box that offered no guidance on what
+// the catalog actually holds. Rarely changes day to day, so a long staleTime is fine, same as
+// useCountries.
+export function useCourseFields() {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['course-fields'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/courses/fields')
+      if (error) throw new ApiError('Could not load the fields of study list.', error)
+      return data
+    },
+    enabled: isAuthed,
+    staleTime: 30 * 60 * 1000,
+  })
 }
 
 export function useCourseFinder(filters: CourseFinderFilters) {
@@ -26,7 +46,7 @@ export function useCourseFinder(filters: CourseFinderFilters) {
       const filter: Record<string, string> = { visible: 'true' }
       if (filters.country) filter.country = filters.country
       if (filters.level) filter.level = filters.level
-      if (filters.fieldOfStudy) filter.field_of_study = filters.fieldOfStudy
+      if (filters.fieldOfStudy?.length) filter.field_of_study = filters.fieldOfStudy.join(',')
       if (filters.feeMaxInr) filter.fee_max = String(filters.feeMaxInr)
 
       const { data, error } = await api.GET('/courses', {

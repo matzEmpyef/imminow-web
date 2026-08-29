@@ -3602,7 +3602,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Discovery list (Stage 1, filter by country, sort by rating/match score, FR-028) — also Manage Consultancies' searchable list (build reference 1.23), via the search/tier/ active params below. Open to any authenticated user, not just Super Admin (Sentpo Mobile Wave 3 — this was the one gap between this doc's own dual-purpose summary and its mock-server implementation, which had been Super-Admin-gated). Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, city, seat_limit, tier, rating, and match (build reference 1.5's rule-based overlap score between the caller's own `StudentPreferences` and each consultancy's countries_served/ fields_served — students only, silently falls back to rating for any other caller; study level deliberately does NOT score, since a consultancy serves every course level in a college — user, 2026-08-20). filter[country]= narrows to consultancies serving that country. District filtering from the build reference's own Discovery List description isn't implemented — no schema anywhere (`Consultancy`, `User`, `StudentPreferences`) has a district/location field, the same pre-existing gap flagged for Wave 2's "Study in [Home Country]" tab. Discovery List's own caller passes active=true explicitly (this endpoint doesn't filter out retired consultancies by default — Manage Consultancies needs to see them too). */
+        /** Discovery list (Stage 1, filter by country, sort by rating/match score, FR-028) — also Manage Consultancies' searchable list (build reference 1.23), via the search/tier/ active params below. Open to any authenticated user, not just Super Admin (Sentpo Mobile Wave 3 — this was the one gap between this doc's own dual-purpose summary and its mock-server implementation, which had been Super-Admin-gated). Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, city, seat_limit, tier, rating, and match (build reference 1.5's rule-based overlap score between the caller's own `StudentPreferences` and each consultancy's countries_served — students only, silently falls back to rating for any other caller; study level deliberately does NOT score, since a consultancy serves every course level in a college — user, 2026-08-20; `fields_served` was removed from the schema entirely, 2026-08-30, since no web or mobile UI ever displayed or edited it). filter[country]= narrows to consultancies serving that country. District filtering from the build reference's own Discovery List description isn't implemented — no schema anywhere (`Consultancy`, `User`, `StudentPreferences`) has a district/location field, the same pre-existing gap flagged for Wave 2's "Study in [Home Country]" tab. Discovery List's own caller passes active=true explicitly (this endpoint doesn't filter out retired consultancies by default — Manage Consultancies needs to see them too). */
         get: {
             parameters: {
                 query?: {
@@ -3736,7 +3736,6 @@ export interface paths {
                         description?: string;
                         about_us?: string;
                         countries_served?: string[];
-                        fields_served?: string[];
                         city?: string;
                     };
                 };
@@ -6391,6 +6390,48 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/courses/fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every field of study actually present in the course catalog (user decision, 2026-08-30)
+         * @description The distinct, alphabetically sorted `field_of_study` values across every course in the catalog — backs the Field of Study choosers on both the Sentpo Mobile onboarding wizard and immiNow's Course Finder, replacing what had been a hardcoded subset on each client (5 values on mobile, free text on web) that offered fewer choices than the catalog actually holds.
+         *     Derived at request time from the courses store, not cached or precomputed, so a field introduced by a newly created course is offered here immediately — the same request that would return it in GET /courses can also return it here. Open to any authenticated caller — both students (onboarding, course search) and consultancy staff (Course Finder) use it.
+         *     **Declared before `/courses/fee-range` and `/courses/{id}` deliberately** — Express matches in order, so registering it after either would make "fields" arrive as an `:id` and 404.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": string[];
+                    };
+                };
+                401: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -14260,8 +14301,6 @@ export interface components {
             about_us?: string;
             /** @description Editable multiselect on Consultancy Management's Profile tab (build reference 1.22), sourced from GET /countries. */
             countries_served?: string[];
-            /** @description No longer editable via PATCH /consultancies/me (user-requested) — kept on the schema since it still feeds Discovery's match score. NOTE there is deliberately NO levels_served counterpart anymore (user, 2026-08-20) — a consultancy serves every course level in a college ("no relation between program (masters, phd etc..) and consultancies"), so study level filters courses, never consultancies. */
-            fields_served?: string[];
             /** @description Where the consultancy itself is based — distinct from countries_served, which lists the destinations it sends students to. Drives the default currency on invoices it raises, via the same country-to-currency map student display currency uses. */
             country?: string | null;
             city?: string;

@@ -26,7 +26,9 @@ export interface FinderState {
   search: string
   country: string
   level: string
-  fieldOfStudy: string
+  // Multi-field (user decision, 2026-08-30) — empty = any field, same convention '' carried as a
+  // string before this.
+  fieldOfStudy: string[]
   feeMaxLakh: string
   sort: string
   eligibleOnly: boolean
@@ -38,7 +40,7 @@ export const DEFAULT_STATE: FinderState = {
   search: '',
   country: '',
   level: '',
-  fieldOfStudy: '',
+  fieldOfStudy: [],
   feeMaxLakh: '',
   sort: '',
   eligibleOnly: true,
@@ -48,7 +50,16 @@ function loadPersonState(personId: string, personKind: 'client' | 'lead'): Finde
   try {
     const raw = localStorage.getItem(stateKey(personId))
     if (!raw) return null
-    return { ...DEFAULT_STATE, ...(JSON.parse(raw) as Partial<FinderState>), personId, personKind }
+    const parsed = JSON.parse(raw) as Partial<FinderState> & { fieldOfStudy?: string | string[] }
+    // Pre-2026-08-30 caches stored fieldOfStudy as a single string ('' = any); migrate in place
+    // so an existing consultant's cache doesn't crash the multi-select on the next load.
+    const fieldOfStudy =
+      typeof parsed.fieldOfStudy === 'string'
+        ? parsed.fieldOfStudy
+          ? [parsed.fieldOfStudy]
+          : []
+        : (parsed.fieldOfStudy ?? DEFAULT_STATE.fieldOfStudy)
+    return { ...DEFAULT_STATE, ...parsed, fieldOfStudy, personId, personKind }
   } catch {
     return null
   }

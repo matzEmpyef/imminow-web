@@ -64,7 +64,7 @@ export function CourseFinderPage() {
     search: state.search || undefined,
     country: state.country || undefined,
     level: state.level || undefined,
-    fieldOfStudy: state.fieldOfStudy || undefined,
+    fieldOfStudy: state.fieldOfStudy.length ? state.fieldOfStudy : undefined,
     feeMaxInr: Number.isFinite(feeMaxInr) ? feeMaxInr : undefined,
     sort: state.sort || undefined,
   })

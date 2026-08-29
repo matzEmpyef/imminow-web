@@ -1,9 +1,11 @@
 import { Card } from '@/components/Card'
 import { TextField } from '@/components/TextField'
 import { SelectField } from '@/components/SelectField'
+import { MultiSelect } from '@/components/MultiSelect'
 import { Toggle } from '@/components/Toggle'
 import { CountrySelect } from '@/components/CountrySelect'
 import { SearchSelect } from '@/components/SearchSelect'
+import { useCourseFields } from '@/queries/courseFinder'
 import type { usePersonPicker } from '@/lib/usePersonPicker'
 import type { FinderState } from './courseFinderState'
 
@@ -30,6 +32,8 @@ export function CourseFinderFilters({
   canCheckFit,
   personName,
 }: CourseFinderFiltersProps) {
+  const { data: fields } = useCourseFields()
+
   return (
     <Card>
       {/* Row 1 — what the consultant is looking for, plus who for (user, 2026-08-23).
@@ -42,11 +46,11 @@ export function CourseFinderFilters({
           onChange={(e) => onChange({ search: e.target.value })}
           placeholder="Course or college"
         />
-        <TextField
+        <MultiSelect
           label="Field of study"
-          value={state.fieldOfStudy}
-          onChange={(e) => onChange({ fieldOfStudy: e.target.value })}
-          placeholder="e.g. Computer Science"
+          options={fields ?? []}
+          selected={state.fieldOfStudy}
+          onChange={(fieldOfStudy) => onChange({ fieldOfStudy })}
         />
         <SelectField
           id="cf-level"
