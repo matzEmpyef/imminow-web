@@ -2953,6 +2953,119 @@ export interface paths {
         };
         trace?: never;
     };
+    "/consultancies/me/gallery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add one hero-slideshow image to the caller's own consultancy (student-facing decision, 2026-08-30). Gated the same as the profile self-PATCH — requires `settings.edit_profile`. 422 `gallery_full` once 5 images already exist; delete one first. The image travels as a base64 data string in this single call rather than the two-step POST /media + attach-URL flow logo_url uses, because this call must set the image and its title/caption together — the server stores the bytes in memory and serves them back at a mock-server-controlled URL (`GalleryImage.image_url`), same "never depend on an external image host" rule POST /media already follows. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description A `data:<mime>;base64,...` string. Must decode to a PNG/JPEG/GIF or WebP raster (same whitelist POST /media enforces — SVG has no decoder on mobile) no larger than ~2MB; 422 `image_too_large` / `validation_failed` otherwise. */
+                        image_data: string;
+                        title?: string | null;
+                        caption?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Added */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GalleryImage"];
+                    };
+                };
+                default: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/consultancies/me/gallery/{imageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove one gallery image (owner only, `settings.edit_profile`). */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    imageId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Removed */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                default: components["responses"]["ErrorResponse"];
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Edit one gallery image's title/caption (owner only, `settings.edit_profile`). Does not replace the image bytes — remove and re-add to change the picture itself. */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    imageId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        title?: string | null;
+                        caption?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GalleryImage"];
+                    };
+                };
+                default: components["responses"]["ErrorResponse"];
+            };
+        };
+        trace?: never;
+    };
     "/institutions": {
         parameters: {
             query?: never;
@@ -14368,6 +14481,18 @@ export interface components {
             readonly upgrade_requested_tier?: "business" | "ultimate" | null;
             /** Format: date-time */
             readonly upgrade_requested_at?: string | null;
+            /** @description Up to 5 consultancy-curated images (student-facing decision, 2026-08-30) rendered as a hero slideshow at the top of Consultancy Detail. Included on every read a student already sees (this schema, both list and detail) and on GET /consultancies/me. Managed by the consultancy's own staff via POST/PATCH/DELETE `/consultancies/me/gallery(/{imageId})`, gated the same as the profile self-PATCH (`settings.edit_profile`) — never editable through this schema's own PATCH endpoint. Empty for every consultancy that has not added one; clients MUST render today's layout unchanged when this is empty, adding the slideshow only above it when non-empty, never replacing or reordering anything else on the page. */
+            readonly gallery?: components["schemas"]["GalleryImage"][];
+        };
+        GalleryImage: {
+            id: components["schemas"]["UUID"];
+            /**
+             * Format: uri
+             * @description A mock-server URL the bytes can actually be fetched from — same host-relative `/…` shape POST /media returns, resolved by each client against its own origin, never an external image host (the emulator and dev environment must both work offline).
+             */
+            image_url: string;
+            title?: string | null;
+            caption?: string | null;
         };
         /** @description Create Consultancy's guided flow (build reference 1.15, 1.23) — one submission creates the consultancy, its primary branch, and the Consultancy Admin employee, then fires their invite email (all mocked server-side, same simplification as POST /staff/employees). */
         ConsultancyCreateInput: {

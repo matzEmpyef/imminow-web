@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Card } from '@/components/Card'
 import { ErrorState, Skeleton } from '@/components/QueryState'
@@ -11,12 +11,16 @@ import { FieldLabel } from '@/components/FieldLabel'
 import { ImageUploadField } from '@/components/ImageUploadField'
 import { Modal } from '@/components/Modal'
 import {
+  useAddGalleryImage,
+  useDeleteGalleryImage,
   useIssueTransferCode,
   useMyConsultancy,
   useRequestUpgrade,
   useTransferCodes,
   useUpdateConsultancyProfile,
+  useUpdateGalleryImage,
 } from '@/queries/consultancy'
+import { mediaUrl } from '@/lib/mediaUrl'
 import { Table, type TableColumn } from '@/components/Table'
 import { formatDateTime } from '@/lib/time'
 import { useEmployees } from '@/queries/staff'
@@ -239,8 +243,229 @@ function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnType<typeo
         </form>
       </Card>
 
+      <GalleryCard consultancy={consultancy} />
+
       <KycCard />
     </>
+  )
+}
+
+const GALLERY_MAX_IMAGES = 5
+const GALLERY_MAX_BYTES = 2 * 1024 * 1024 // ~2MB, mirrors the server's own cap
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(reader.error ?? new Error('Could not read this file.'))
+    reader.readAsDataURL(file)
+  })
+}
+
+type GalleryImage = components['schemas']['GalleryImage']
+
+/**
+ * "Photos" — up to 5 images shown as a hero slideshow at the top of Consultancy Detail in the
+ * Sentpo app (student-facing decision, 2026-08-30). If this consultancy has none, that screen's
+ * layout is unchanged from today — this card is simply how a consultancy earns the slideshow.
+ */
+function GalleryCard({ consultancy }: { consultancy: NonNullable<ReturnType<typeof useMyConsultancy>['data']> }) {
+  const gallery = consultancy.gallery ?? []
+  const [adding, setAdding] = useState(false)
+  const atCap = gallery.length >= GALLERY_MAX_IMAGES
+
+  return (
+    <Card className="mt-lg max-w-2xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-h2 text-text-primary">Photos</h2>
+          <p className="mt-xs text-body-sm text-text-secondary">
+            Shown as a slideshow at the top of your profile in the Sentpo app. Up to {GALLERY_MAX_IMAGES} images.
+          </p>
+        </div>
+        <Badge color={atCap ? 'warning' : 'secondary'}>
+          {gallery.length}/{GALLERY_MAX_IMAGES}
+        </Badge>
+      </div>
+
+      <div className="mt-md flex flex-col gap-md">
+        {gallery.length === 0 && (
+          <p className="text-body-sm text-text-secondary">
+            No photos yet — students see today's layout unchanged until you add one.
+          </p>
+        )}
+        {gallery.map((image) => (
+          <GalleryImageRow key={image.id} image={image} />
+        ))}
+      </div>
+
+      <div className="mt-md border-t border-border pt-md">
+        {atCap ? (
+          <p className="text-caption text-text-secondary">
+            Maximum of {GALLERY_MAX_IMAGES} photos reached — remove one to add another.
+          </p>
+        ) : (
+          <Button variant="secondary" onClick={() => setAdding(true)}>
+            Add Photo
+          </Button>
+        )}
+      </div>
+
+      {adding && <AddGalleryImageModal onClose={() => setAdding(false)} />}
+    </Card>
+  )
+}
+
+function GalleryImageRow({ image }: { image: GalleryImage }) {
+  const updateImage = useUpdateGalleryImage()
+  const deleteImage = useDeleteGalleryImage()
+  const [title, setTitle] = useState(image.title ?? '')
+  const [caption, setCaption] = useState(image.caption ?? '')
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+
+  useEffect(() => {
+    setTitle(image.title ?? '')
+    setCaption(image.caption ?? '')
+  }, [image.title, image.caption])
+
+  const dirty = title !== (image.title ?? '') || caption !== (image.caption ?? '')
+
+  return (
+    <div className="flex gap-md rounded-md border border-border p-sm">
+      <img
+        src={mediaUrl(image.image_url)}
+        alt=""
+        className="h-24 w-32 shrink-0 rounded-md border border-border bg-background object-cover"
+      />
+      <div className="flex flex-1 flex-col gap-xs">
+        <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <TextField label="Caption" value={caption} onChange={(e) => setCaption(e.target.value)} />
+        {updateImage.isError && <p className="text-caption text-error">{updateImage.error.message}</p>}
+        <div className="mt-xs flex items-center justify-end gap-sm">
+          <button
+            type="button"
+            onClick={() => setConfirmingDelete(true)}
+            className="text-caption text-error hover:underline"
+          >
+            Delete
+          </button>
+          {dirty && (
+            <Button
+              type="button"
+              size="sm"
+              loading={updateImage.isPending}
+              onClick={() => updateImage.mutate({ imageId: image.id, title: title || null, caption: caption || null })}
+            >
+              Save
+            </Button>
+          )}
+        </div>
+      </div>
+      {confirmingDelete && (
+        <Modal
+          onClose={() => setConfirmingDelete(false)}
+          title="Delete Photo"
+          widthRem={24}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setConfirmingDelete(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                loading={deleteImage.isPending}
+                onClick={() => deleteImage.mutate(image.id, { onSuccess: () => setConfirmingDelete(false) })}
+              >
+                Delete
+              </Button>
+            </>
+          }
+        >
+          <p className="text-body-sm text-text-secondary">
+            Delete this photo{image.title ? ` ("${image.title}")` : ''}? It disappears from the slideshow students see
+            immediately.
+          </p>
+          {deleteImage.isError && <p className="mt-sm text-body-sm text-error">{deleteImage.error.message}</p>}
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function AddGalleryImageModal({ onClose }: { onClose: () => void }) {
+  const addImage = useAddGalleryImage()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [fileName, setFileName] = useState<string | null>(null)
+  const [dataUrl, setDataUrl] = useState<string | null>(null)
+  const [title, setTitle] = useState('')
+  const [caption, setCaption] = useState('')
+  const [readError, setReadError] = useState<string | null>(null)
+
+  async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const picked = e.target.files?.[0]
+    e.target.value = ''
+    if (!picked) return
+    setReadError(null)
+    if (picked.size > GALLERY_MAX_BYTES) {
+      setReadError('Image is too large — 2MB maximum.')
+      setFileName(null)
+      setDataUrl(null)
+      return
+    }
+    try {
+      const encoded = await readFileAsDataUrl(picked)
+      setFileName(picked.name)
+      setDataUrl(encoded)
+    } catch {
+      setReadError('Could not read this file.')
+    }
+  }
+
+  function handleSubmit() {
+    if (!dataUrl) return
+    addImage.mutate(
+      { image_data: dataUrl, title: title.trim() || null, caption: caption.trim() || null },
+      { onSuccess: () => onClose() },
+    )
+  }
+
+  return (
+    <Modal
+      onClose={onClose}
+      title="Add Photo"
+      widthRem={28}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button loading={addImage.isPending} disabled={!dataUrl} onClick={handleSubmit}>
+            Add
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-md">
+        <div className="flex items-center gap-sm">
+          {dataUrl ? (
+            <img src={dataUrl} alt="" className="h-24 w-32 shrink-0 rounded-md border border-border object-cover" />
+          ) : (
+            <div className="flex h-24 w-32 shrink-0 items-center justify-center rounded-md border border-dashed border-border text-caption text-text-secondary">
+              No image
+            </div>
+          )}
+          <Button type="button" variant="secondary" size="sm" onClick={() => inputRef.current?.click()}>
+            {fileName ? 'Replace' : 'Choose file'}
+          </Button>
+        </div>
+        <p className="text-caption text-text-secondary">JPEG, PNG, GIF or WebP · 2MB maximum.</p>
+        {readError && <p className="text-caption text-error">{readError}</p>}
+        <input ref={inputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+        <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <TextField label="Caption" value={caption} onChange={(e) => setCaption(e.target.value)} />
+        {addImage.isError && <p className="text-body-sm text-error">{addImage.error.message}</p>}
+      </div>
+    </Modal>
   )
 }
 

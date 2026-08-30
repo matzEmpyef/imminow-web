@@ -67,6 +67,57 @@ export function useUpdateConsultancyProfile() {
   })
 }
 
+// Consultancy gallery — hero slideshow images shown at the top of Consultancy Detail in the
+// Sentpo app (student-facing decision, 2026-08-30). Unlike `logo_url` (a two-step POST /media +
+// attach-URL flow), adding a photo is ONE call carrying the image bytes as a base64 `data:` string
+// alongside its title/caption — see server.js's comment on why. All three mutations invalidate the
+// same `['consultancy', 'me']` query the profile edit above uses, since gallery lives on that same
+// Consultancy record.
+export function useAddGalleryImage() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { image_data: string; title?: string | null; caption?: string | null }) => {
+      const { data, error } = await api.POST('/consultancies/me/gallery', { body })
+      if (error) throw new ApiError('Could not add this photo.', error)
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['consultancy', 'me'] }),
+  })
+}
+
+export function useUpdateGalleryImage() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      imageId,
+      ...body
+    }: {
+      imageId: string
+      title?: string | null
+      caption?: string | null
+    }) => {
+      const { data, error } = await api.PATCH('/consultancies/me/gallery/{imageId}', {
+        params: { path: { imageId } },
+        body,
+      })
+      if (error) throw new ApiError('Could not update this photo.', error)
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['consultancy', 'me'] }),
+  })
+}
+
+export function useDeleteGalleryImage() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (imageId: string) => {
+      const { error } = await api.DELETE('/consultancies/me/gallery/{imageId}', { params: { path: { imageId } } })
+      if (error) throw new ApiError('Could not delete this photo.', error)
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['consultancy', 'me'] }),
+  })
+}
+
 export function useRequestUpgrade(consultancyId: string) {
   const queryClient = useQueryClient()
   return useMutation({
