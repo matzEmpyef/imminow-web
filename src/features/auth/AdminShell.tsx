@@ -27,6 +27,7 @@ import {
   Radio,
   School,
   Shuffle,
+  Smartphone,
   Ticket,
   Users,
   Video,
@@ -185,6 +186,7 @@ const SECTIONS: AdminSection[] = [
       p.startsWith('/admin/complaints') ||
       p.startsWith('/admin/platform-team') ||
       p.startsWith('/admin/notification-channel-config') ||
+      p.startsWith('/admin/app-config') ||
       p.startsWith('/admin/broadcast') ||
       p.startsWith('/admin/audit-log-platform') ||
       p.startsWith('/admin/visit-requests'),
@@ -203,6 +205,12 @@ const SECTIONS: AdminSection[] = [
         path: '/admin/notification-channel-config',
         permission: 'platform_staff_administration',
         icon: Bell,
+      },
+      {
+        label: 'App Config',
+        path: '/admin/app-config',
+        permission: 'platform_staff_administration',
+        icon: Smartphone,
       },
       { label: 'Broadcast', path: '/admin/broadcast', permission: 'platform_staff_administration', icon: Radio },
       {

@@ -798,6 +798,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/walkthrough-seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stamp the first-login spotlight tour as seen
+         * @description Requires an authenticated student (Session 37, 2026-08-30). Idempotent — sets `walkthrough_seen_at` to now ONLY if it is still null; a repeat call is a harmless no-op that returns the timestamp from the first call. Sentpo Mobile calls this exactly once, either when the 5-stop Home tour finishes or when it is skipped.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The caller's profile, with walkthrough_seen_at now set. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["User"];
+                    };
+                };
+                /** @description Caller is not a student. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/preferences": {
         parameters: {
             query?: never;
@@ -6404,6 +6452,90 @@ export interface paths {
                     };
                 };
                 /** @description Caller lacks the `catalog` platform permission. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/app-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * App-lifecycle configuration (version gate + rating prompt thresholds)
+         * @description PUBLIC — no auth required, unlike almost every other route in this contract — because the version gate must work BEFORE login: a below-minimum app has to be blocked on launch, before the student ever reaches the sign-in screen. Session 37, 2026-08-30.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Current app configuration. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AppConfig"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change the app-lifecycle configuration
+         * @description Requires the `platform_staff_administration` platform permission. Every change is audited.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AppConfig"];
+                };
+            };
+            responses: {
+                /** @description The updated configuration. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AppConfig"];
+                    };
+                };
+                /** @description Malformed version string or a non-sane number. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Caller lacks the `platform_staff_administration` platform permission. */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -13956,6 +14088,11 @@ export interface components {
              *     Means different things per product and must never be averaged across them: for a student it is ordinary engagement, while for consultancy staff a growing gap is an early warning that clients are going unattended. Added 2026-08-25 — adding it later would have made every existing account look dormant until its next sign-in.
              */
             readonly last_login_at?: string | null;
+            /**
+             * Format: date-time
+             * @description When this student finished OR skipped the first-login spotlight tour (Session 37, 2026-08-30), stamped exactly once by POST /me/walkthrough-seen. Null means the tour has not run yet — Sentpo Mobile's Home screen gates the 5-stop tour on exactly this field being null on first landing after the profile fetch succeeds. Students only; always null for every other role, which has no such tour.
+             */
+            readonly walkthrough_seen_at?: string | null;
             /** @description Managed via Cognito's MFA enrollment (TRD Section 9's delegation-to-provider principle), not settable through /profile — display-only here. */
             readonly two_factor_enabled?: boolean;
             /** @description True for consultancy_admin and super_admin, whose access is permanently full and unremovable (build reference 2.1). False elsewhere, where 2FA is optional and self-serve. */
@@ -14954,6 +15091,47 @@ export interface components {
         PlatformSettings: {
             /** @description Whether students see course view counts and the most-viewed tag. Views are always counted regardless; this governs visibility only. Platform staff always see the numbers, since they are what the decision is being made about. */
             show_course_view_counts?: boolean;
+        };
+        /** @description Server-driven app-lifecycle configuration for Sentpo Mobile (Session 37, 2026-08-30): the version gate (force-update vs. dismissible what's-new) and the in-app store-rating prompt's thresholds. GET is PUBLIC — no auth — because the version gate has to work BEFORE login: a below-minimum install must be blocked on launch, before the student ever reaches sign-in. */
+        AppConfig: {
+            /**
+             * @description "MAJOR.MINOR.PATCH". An installed version below this (but at or above minimum_version) is offered the dismissible "What's new" bottom sheet, shown once per version — the client compares this against its own package_info_plus version.
+             * @example 1.0.0
+             */
+            latest_version: string;
+            /**
+             * @description "MAJOR.MINOR.PATCH". An installed version below this is force-blocked behind a full-screen update screen with NO bypass, compared against the client's own package_info_plus version on every app start.
+             * @example 1.0.0
+             */
+            minimum_version: string;
+            /**
+             * @description Opened by the blocking update screen's one button (url_launcher) — the app/play store listing.
+             * @example https://play.google.com/store/apps/details?id=com.sentpo.app
+             */
+            update_url: string;
+            /**
+             * @description Plain text shown on both the blocking update screen and the what's-new sheet.
+             * @example Faster course search, a redesigned Points dashboard, and a handful of bug fixes.
+             */
+            release_notes: string;
+            /** @description Thresholds for the in-app store-rating prompt (Session 37). Every guard is evaluated locally on the device; the server only supplies the numbers. */
+            rating: {
+                /**
+                 * @description Days since the app's own locally-captured first-run timestamp before the prompt may appear at all.
+                 * @example 3
+                 */
+                min_days_since_install: number;
+                /**
+                 * @description Locally-counted app session starts before the prompt may appear.
+                 * @example 5
+                 */
+                min_sessions: number;
+                /**
+                 * @description Minimum days between two prompt attempts, tracked locally.
+                 * @example 30
+                 */
+                cooldown_days: number;
+            };
         };
         Course: {
             id: components["schemas"]["UUID"];

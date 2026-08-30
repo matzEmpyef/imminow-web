@@ -182,6 +182,9 @@ const NotificationChannelConfigPage = lazy(() =>
     default: m.NotificationChannelConfigPage,
   })),
 )
+const AppConfigPage = lazy(() =>
+  import('@/features/super-admin/AppConfigPage').then((m) => ({ default: m.AppConfigPage })),
+)
 const BroadcastPage = lazy(() =>
   import('@/features/super-admin/BroadcastPage').then((m) => ({ default: m.BroadcastPage })),
 )
@@ -680,6 +683,14 @@ function App() {
           element={
             <PlatformRoute permission="platform_staff_administration">
               <NotificationChannelConfigPage />
+            </PlatformRoute>
+          }
+        />
+        <Route
+          path="/admin/app-config"
+          element={
+            <PlatformRoute permission="platform_staff_administration">
+              <AppConfigPage />
             </PlatformRoute>
           }
         />
