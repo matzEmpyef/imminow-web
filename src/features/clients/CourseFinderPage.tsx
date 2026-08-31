@@ -11,7 +11,7 @@ import { CourseFinderFilters } from './CourseFinderFilters'
 import { CourseFinderNotesDrawer } from './CourseFinderNotesDrawer'
 import { CourseFinderSuggestModal } from './CourseFinderSuggestModal'
 import { buildCourseFinderColumns } from './CourseFinderColumns'
-import { useCourseFinderState, type SelectedPerson } from './courseFinderState'
+import { useCourseFinderState, DURATION_BUCKETS, type SelectedPerson } from './courseFinderState'
 import { useSelectedColleges, useAddSelectedCollege } from '@/queries/clients'
 import { useSuggestCourseToLead, useLeadMessages } from '@/queries/leads'
 import { usePersonPicker } from '@/lib/usePersonPicker'
@@ -59,6 +59,7 @@ export function CourseFinderPage() {
       : null
 
   const feeMaxInr = state.feeMaxLakh ? Math.round(Number(state.feeMaxLakh) * 100000) : undefined
+  const durationBucket = state.durationBucket ? DURATION_BUCKETS[state.durationBucket] : undefined
   const courses = useCourseFinder({
     personId: state.personId,
     search: state.search || undefined,
@@ -66,6 +67,8 @@ export function CourseFinderPage() {
     level: state.level || undefined,
     fieldOfStudy: state.fieldOfStudy.length ? state.fieldOfStudy : undefined,
     feeMaxInr: Number.isFinite(feeMaxInr) ? feeMaxInr : undefined,
+    durationMinMonths: durationBucket?.min,
+    durationMaxMonths: durationBucket?.max,
     sort: state.sort || undefined,
   })
 

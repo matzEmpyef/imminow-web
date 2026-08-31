@@ -30,6 +30,11 @@ export interface FinderState {
   // string before this.
   fieldOfStudy: string[]
   feeMaxLakh: string
+  // Duration-range bucket key (2026-08-31, UAT item 3), same buckets Sentpo Mobile's filter
+  // sheet offers — '' = any. Kept as a bucket KEY rather than raw min/max here so the SelectField
+  // has a single value to bind to; DURATION_BUCKETS below is the one place that maps a key to
+  // its (min, max) month bounds, shared with the query builder in CourseFinderPage.
+  durationBucket: string
   sort: string
   eligibleOnly: boolean
 }
@@ -42,8 +47,20 @@ export const DEFAULT_STATE: FinderState = {
   level: '',
   fieldOfStudy: [],
   feeMaxLakh: '',
+  durationBucket: '',
   sort: '',
   eligibleOnly: true,
+}
+
+// Non-overlapping (min, max) month pairs — a null bound is open-ended. Mirrors mobile's
+// `_durationBuckets` in search_results_screen.dart exactly, so a consultant and a student narrow
+// the same catalog the same way. Consultants search the same catalog students do (COURSES_MODULE_
+// PLAN.md §4.1), so this filter's parity with mobile is deliberate, not incidental.
+export const DURATION_BUCKETS: Record<string, { label: string; min?: number; max?: number }> = {
+  le_12: { label: 'Up to 1 year', max: 12 },
+  '13_24': { label: '1 – 2 years', min: 13, max: 24 },
+  '25_36': { label: '2 – 3 years', min: 25, max: 36 },
+  gt_36: { label: '3+ years', min: 37 },
 }
 
 function loadPersonState(personId: string, personKind: 'client' | 'lead'): FinderState | null {

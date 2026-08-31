@@ -18,6 +18,11 @@ export interface CourseFinderFilters {
   // wire as one filter[field_of_study] value, the same idiom filter[country] already uses.
   fieldOfStudy?: string[]
   feeMaxInr?: number
+  // Duration-range bucket bounds, in months (2026-08-31, UAT item 3 — parity with Sentpo
+  // Mobile's course search). Either or both may be set; either may be omitted for an open-ended
+  // bucket ("Up to 1 year" has no min, "3+ years" has no max).
+  durationMinMonths?: number
+  durationMaxMonths?: number
   sort?: string
 }
 
@@ -49,6 +54,8 @@ export function useCourseFinder(filters: CourseFinderFilters) {
       if (filters.level) filter.level = filters.level
       if (filters.fieldOfStudy?.length) filter.field_of_study = filters.fieldOfStudy.join(',')
       if (filters.feeMaxInr) filter.fee_max = String(filters.feeMaxInr)
+      if (filters.durationMinMonths != null) filter.duration_min_months = String(filters.durationMinMonths)
+      if (filters.durationMaxMonths != null) filter.duration_max_months = String(filters.durationMaxMonths)
 
       // Fires once per DISTINCT search — this queryFn only re-runs when `filters` (the query key)
       // actually changes, never on a plain re-render, so this is the "the query/filters actually
@@ -68,6 +75,9 @@ export function useCourseFinder(filters: CourseFinderFilters) {
             filters.level,
             filters.fieldOfStudy?.length ? filters.fieldOfStudy : undefined,
             filters.feeMaxInr,
+            // One facet even though a bucket can carry both bounds — same convention mobile's
+            // own `_activeFacetCount` uses for the identical filter.
+            filters.durationMinMonths ?? filters.durationMaxMonths,
             filters.sort,
           ].filter((v) => v !== undefined && v !== '').length,
           ...(filters.country ? { country: filters.country } : {}),

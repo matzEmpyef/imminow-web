@@ -7,7 +7,7 @@ import { CountrySelect } from '@/components/CountrySelect'
 import { SearchSelect } from '@/components/SearchSelect'
 import { useCourseFields } from '@/queries/courseFinder'
 import type { usePersonPicker } from '@/lib/usePersonPicker'
-import type { FinderState } from './courseFinderState'
+import { DURATION_BUCKETS, type FinderState } from './courseFinderState'
 
 interface CourseFinderFiltersProps {
   state: FinderState
@@ -108,6 +108,19 @@ export function CourseFinderFilters({
           onChange={(e) => onChange({ feeMaxLakh: e.target.value })}
           placeholder="e.g. 25"
         />
+        <SelectField
+          id="cf-duration"
+          label="Duration"
+          value={state.durationBucket}
+          onChange={(e) => onChange({ durationBucket: e.target.value })}
+        >
+          <option value="">Any duration</option>
+          {Object.entries(DURATION_BUCKETS).map(([key, { label }]) => (
+            <option key={key} value={key}>
+              {label}
+            </option>
+          ))}
+        </SelectField>
       </div>
 
       <div className="mt-md flex flex-wrap items-center justify-between gap-md">
