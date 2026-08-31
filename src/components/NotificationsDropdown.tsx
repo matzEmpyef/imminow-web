@@ -1,19 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bell } from 'lucide-react'
-import { useMarkNotificationRead, useNotifications } from '@/queries/notifications'
+import { useMarkNotificationRead, useNotifications, useUnreadCount } from '@/queries/notifications'
 import { relativeTime } from '@/lib/time'
 
 const MAX_VISIBLE = 5
 
 // The bell no longer navigates anywhere on click — it opens a dropdown of the most recent
 // notifications, with a link at the bottom to the full list (`/notifications`).
+//
+// The badge number and the preview rows are fetched separately (2026-08-31): the badge needs only
+// `GET /notifications/unread-count` and stays live regardless of whether the dropdown is open,
+// while the preview rows are the paginated inbox's first page and are only worth fetching once the
+// dropdown is actually opened — no point paying for twenty rows on every page just to render a bell.
 export function NotificationsDropdown() {
   const containerRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
-  const { data } = useNotifications()
+  const { data: unreadCount } = useUnreadCount()
+  const { data } = useNotifications({ enabled: open })
   const markRead = useMarkNotificationRead()
-  const unreadCount = data?.unread_count ?? 0
   const items = data?.items.slice(0, MAX_VISIBLE) ?? []
 
   useEffect(() => {
@@ -34,7 +39,7 @@ export function NotificationsDropdown() {
         aria-label="Notifications"
       >
         <Bell className="h-5 w-5" />
-        {unreadCount > 0 && (
+        {Boolean(unreadCount) && (
           <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-caption font-medium leading-none text-text-on-primary">
             {unreadCount}
           </span>

@@ -6,7 +6,7 @@ import type { components } from '@/api/schema'
 
 type NotificationSettings = components['schemas']['NotificationSettings']
 
-export function useNotifications() {
+export function useNotifications(options?: { enabled?: boolean }) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['notifications'],
@@ -14,6 +14,25 @@ export function useNotifications() {
       const { data, error } = await api.GET('/notifications')
       if (error) throw new ApiError('Could not load notifications.', error)
       return data
+    },
+    enabled: isAuthed && (options?.enabled ?? true),
+  })
+}
+
+/**
+ * The bell badge's own number, fetched independently of the inbox list (2026-08-31). Nothing but
+ * the count is needed to render a badge, and `GET /notifications` is now paginated — asking it for
+ * a page of rows just to read `unread_count` off the envelope means paying for twenty rows the
+ * badge never renders. `GET /notifications/unread-count` returns the same figure alone.
+ */
+export function useUnreadCount() {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['notifications-unread-count'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/notifications/unread-count')
+      if (error) throw new ApiError('Could not load unread count.', error)
+      return data.unread_count
     },
     enabled: isAuthed,
   })
@@ -26,7 +45,10 @@ export function useMarkNotificationRead() {
       const { error } = await api.POST('/notifications/{id}/read', { params: { path: { id } } })
       if (error) throw new ApiError('Could not mark notification as read.', error)
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      queryClient.invalidateQueries({ queryKey: ['notifications-unread-count'] })
+    },
   })
 }
 
