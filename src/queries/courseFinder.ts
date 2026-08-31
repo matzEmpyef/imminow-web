@@ -54,6 +54,12 @@ export function useCourseFinder(filters: CourseFinderFilters) {
       // actually changes, never on a plain re-render, so this is the "the query/filters actually
       // fired a search" point rather than every keystroke. No raw query text — has_query/filter
       // count only.
+      //
+      // Platform Pulse enrichment (2026-08-31, same session) — add the chosen FILTER VALUES, but
+      // ENUM-SAFE ONLY (recorded PII rule): never `filters.search` (free text). `country` comes
+      // from CountrySelect, `level` from a fixed SelectField, `fieldOfStudy` from a MultiSelect
+      // over the real catalog fields list — all three are closed vocabularies here, unlike
+      // mobile's field-of-study filter (which mixes chips with free text and is excluded there).
       track('search_performed', {
         properties: {
           has_query: Boolean(filters.search),
@@ -64,6 +70,9 @@ export function useCourseFinder(filters: CourseFinderFilters) {
             filters.feeMaxInr,
             filters.sort,
           ].filter((v) => v !== undefined && v !== '').length,
+          ...(filters.country ? { country: filters.country } : {}),
+          ...(filters.level ? { study_level: filters.level } : {}),
+          ...(filters.fieldOfStudy?.length ? { field_of_study: filters.fieldOfStudy } : {}),
         },
       })
 
