@@ -14126,6 +14126,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/platform-pulse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Super Admin platform-wide popularity surface (2026-08-31) — most-viewed sections, courses, colleges, articles, consultancies, and recurring search filter values. Gated with requirePlatformAccount, the same broad "any active platform account" gate as /admin/supply-demand and the landing Platform Dashboard, since this is a strategic overview rather than an operational area matching one of the eight console permission flags. */
+        get: {
+            parameters: {
+                query?: {
+                    window_days?: 7 | 30 | 90;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlatformPulseResponse"];
+                    };
+                };
+                403: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/performance-league": {
         parameters: {
             query?: never;
@@ -17153,6 +17192,64 @@ export interface components {
                 country: string;
                 demand: number;
                 supply: number;
+            }[];
+        };
+        /** @description Platform-wide popularity surface for the Super Admin console (2026-08-31) — what people actually do across both products: which sections get opened, which courses/colleges get looked at and shortlisted, which articles/consultancies get opened, and which search filter values recur. Sibling to SupplyDemandResponse: same requirePlatformAccount gate, same `collecting_since` honesty convention for a still-young capture window. Every count is server-computed from analytics_events, course_views, the in-memory shortlist store, blog_articles, and consultancies — no new store. */
+        PlatformPulseResponse: {
+            /**
+             * Format: date-time
+             * @description The earliest analytics_events row on record (not a fixed constant the way SupplyDemandResponse's is — this endpoint's sparsest lists, top_search_countries/ top_search_fields especially, need an honest answer to "since when").
+             */
+            collecting_since: string;
+            /** @description Echoes the resolved `window_days` query parameter back (7, 30, or 90 — 30 when omitted or invalid), so the UI can label what it's showing without re-deriving it. */
+            window_days: number;
+            /** @description `screen_viewed` events within the window, grouped by `properties.module`, restricted to rows whose server-derived `product` is `sentpo` (the student mobile app) — students and console staff are never blended into one list (AnalyticsEvent's own recorded principle: a purpose-built column can't answer a question nobody asked, and blending two populations answers no question at all). Capped at 5, sorted by views descending. */
+            sentpo_sections: {
+                module: string;
+                views: number;
+            }[];
+            /** @description Same as `sentpo_sections`, restricted to rows whose derived `product` is `imminow` (consultancy staff, platform staff, and freelancers on the web console). */
+            imminow_sections: {
+                module: string;
+                views: number;
+            }[];
+            /** @description Top 5 courses by view count within the window. `views` comes from the `course_views` store, which carries a real `viewed_at` per row, so — unlike a naive all-time count — this genuinely respects `window_days`. `shortlists` comes from the shortlist store, windowed the same way; but that store is held IN MEMORY ONLY (never persisted to disk), so it only reflects shortlist activity since the mock server's last restart, regardless of the requested window — stated here rather than silently passed off as a real historical count. */
+            top_courses: {
+                course_id: components["schemas"]["UUID"];
+                name: string;
+                /** @description Lets the web console link a course through to its college's admin detail page (/admin/colleges/{college_id}) — there is no separate course detail admin route, so the college page IS the "course" destination (task's own instruction: "course → college detail page context"). */
+                college_id: components["schemas"]["UUID"];
+                college_name: string;
+                views: number;
+                shortlists: number;
+            }[];
+            /** @description Top 5 colleges by summed course views within the window. Summed across EVERY course's windowed view count, not just the 5 shown in `top_courses` above — a college with many moderately-viewed courses can outrank one with a single very-viewed course, and deriving this only from the pre-capped course list would hide that. */
+            top_colleges: {
+                college_id: components["schemas"]["UUID"];
+                name: string;
+                views: number;
+            }[];
+            /** @description Top 5 blog articles by `article_opened` events within the window, joined to blog_articles for the title. */
+            top_articles: {
+                id: components["schemas"]["UUID"];
+                title: string;
+                opens: number;
+            }[];
+            /** @description Top 5 consultancies by `consultancy_opened` events within the window, joined to consultancies for the name. */
+            top_consultancies: {
+                id: components["schemas"]["UUID"];
+                name: string;
+                opens: number;
+            }[];
+            /** @description Top 5 `country` values from `search_performed` events' enriched `properties` within the window (2026-08-31 client change — mobile's chip-picked target countries, the web console's CountrySelect). Sparse until the enriched events accrue; the UI must say so rather than implying a thin sample is the real picture. */
+            top_search_countries: {
+                country: string;
+                count: number;
+            }[];
+            /** @description Top 5 `field_of_study` values from `search_performed` events' enriched `properties` within the window. Web-console-only for now: mobile's own field-of-study filter mixes enum-safe chips with a free-typed box that cannot be told apart after the fact (see catalog_provider.dart's `_combinedFieldOfStudy`), so mobile deliberately never sends it here — the recorded PII rule (never the free-text query) wins over completeness. */
+            top_search_fields: {
+                field: string;
+                count: number;
             }[];
         };
         PerformanceLeagueRow: {
