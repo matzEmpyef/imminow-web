@@ -15547,6 +15547,8 @@ export interface components {
             progress?: string | null;
             /** @description The current in-progress step's title — null until a plan is assigned. */
             active_step_title?: string | null;
+            /** @description The in-progress step's own id. Added 2026-08-31 (Analytics §4 step 5, the Home next-action card) so "Continue: {step title}" can link straight to `/plan/{active_step_id}` — same "extra field beats an extra call" trade as `active_step_position` below. Null until a plan is assigned or once plan_complete. */
+            active_step_id?: components["schemas"]["UUID"];
             /** @description Zero-based `position` of the in-progress step within the plan. Added 2026-08-19 so Stage 2 Home's status card can show "Step 3 of 4" without fetching the whole plan — Home already resolves the journey, and one extra call for two integers would be the wrong trade on the app's most-loaded screen. */
             active_step_position?: number | null;
             /**
@@ -15559,6 +15561,11 @@ export interface components {
              * @description Expected completion date for the in-progress step. Genuinely often null — the seeded Pre-Departure step has none — so treat its absence as normal, not an error.
              */
             active_step_expected_end?: string | null;
+            /**
+             * Format: date-time
+             * @description Mirrors `Step.submitted_at` for the in-progress step ONLY. Added 2026-08-31 (Analytics §4 step 5) so Home's one-next-action card can tell "the applicant still owes this step an answer" (null) apart from "submitted, sitting with the consultant" (set) — the same distinction Step Approvals' queue already keys off of — without Home fetching the whole Plan for one timestamp. Null whenever `active_step_title` is null.
+             */
+            active_step_submitted_at?: string | null;
             /** @description How many steps the assigned plan has. Paired with `active_step_position` for the "Step 3 of 4" line; `progress` remains the pre-formatted string the older card used. */
             total_steps?: number | null;
         };

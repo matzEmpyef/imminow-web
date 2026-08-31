@@ -40,6 +40,7 @@ const LABELS: Record<string, string> = {
   payer_method_changed: 'Payer method changed',
   institution_suggested: 'School or college not in the list',
   application_status_changed: 'College application status changed',
+  shortlisted_course_changed: 'Shortlisted course changed (fee, deadline, deactivated)',
 }
 
 // Row-level component so useUpdateNotificationChannelConfig() can be called at its own render top
