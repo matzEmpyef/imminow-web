@@ -93,7 +93,7 @@ export function SentpoUsersPage() {
       header: 'Consultancy',
       render: (r) => (r.consultancy_name ? r.consultancy_name : <span className="text-text-secondary">—</span>),
     },
-    { key: 'points_balance', header: 'Points', align: 'right', render: (r) => r.points_balance },
+    { key: 'points_balance', header: 'Points', align: 'right', sortable: true, render: (r) => r.points_balance },
   ]
 
   return (
