@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/api/client'
+import { track } from '@/lib/analytics'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 
@@ -48,6 +49,23 @@ export function useCourseFinder(filters: CourseFinderFilters) {
       if (filters.level) filter.level = filters.level
       if (filters.fieldOfStudy?.length) filter.field_of_study = filters.fieldOfStudy.join(',')
       if (filters.feeMaxInr) filter.fee_max = String(filters.feeMaxInr)
+
+      // Fires once per DISTINCT search — this queryFn only re-runs when `filters` (the query key)
+      // actually changes, never on a plain re-render, so this is the "the query/filters actually
+      // fired a search" point rather than every keystroke. No raw query text — has_query/filter
+      // count only.
+      track('search_performed', {
+        properties: {
+          has_query: Boolean(filters.search),
+          filter_count: [
+            filters.country,
+            filters.level,
+            filters.fieldOfStudy?.length ? filters.fieldOfStudy : undefined,
+            filters.feeMaxInr,
+            filters.sort,
+          ].filter((v) => v !== undefined && v !== '').length,
+        },
+      })
 
       const { data, error } = await api.GET('/courses', {
         params: {

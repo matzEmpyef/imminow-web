@@ -1,5 +1,6 @@
-import { lazy, Suspense } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { lazy, Suspense, useEffect } from 'react'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { track } from '@/lib/analytics'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { PlatformRoute } from '@/features/auth/PlatformRoute'
@@ -207,7 +208,25 @@ function DefaultRedirect() {
   return <Navigate to="/dashboard" replace />
 }
 
+// Analytics (Session 38, 2026-08-31) — one central hook rather than instrumenting each of the
+// ~60 page components individually. `App` renders inside `BrowserRouter` (see main.tsx), so
+// `useLocation()` here observes every route change platform-wide — `Navigate` redirects,
+// back/forward, and real link clicks alike. `module` is just the first path segment
+// ("/sales/lead-pool" -> "sales", "/admin/dashboard" -> "admin"); good enough for the starter
+// vocabulary without a hand-maintained route->module map that would drift from the Routes below.
+function useScreenViewAnalytics() {
+  const location = useLocation()
+  useEffect(() => {
+    const module = location.pathname.split('/').filter(Boolean)[0] || 'root'
+    track('screen_viewed', { properties: { module } })
+    // Deliberately keyed on pathname only, not search/hash — a filter or tab change within the
+    // same page is not a new screen view.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname])
+}
+
 function App() {
+  useScreenViewAnalytics()
   return (
     <Suspense fallback={<Skeleton className="m-lg h-64 rounded-lg" />}>
       <Routes>
