@@ -107,6 +107,18 @@ const ManageConsultanciesPage = lazy(() =>
 const ApplicantAllocationPage = lazy(() =>
   import('@/features/super-admin/ApplicantAllocationPage').then((m) => ({ default: m.ApplicantAllocationPage })),
 )
+const SentpoUsersPage = lazy(() =>
+  import('@/features/super-admin/SentpoUsersPage').then((m) => ({ default: m.SentpoUsersPage })),
+)
+const ImminowUsersPage = lazy(() =>
+  import('@/features/super-admin/ImminowUsersPage').then((m) => ({ default: m.ImminowUsersPage })),
+)
+const SupplyDemandPage = lazy(() =>
+  import('@/features/super-admin/SupplyDemandPage').then((m) => ({ default: m.SupplyDemandPage })),
+)
+const PerformanceLeaguePage = lazy(() =>
+  import('@/features/super-admin/PerformanceLeaguePage').then((m) => ({ default: m.PerformanceLeaguePage })),
+)
 const CollegesCoursesPage = lazy(() =>
   import('@/features/super-admin/CollegesCoursesPage').then((m) => ({ default: m.CollegesCoursesPage })),
 )
@@ -486,6 +498,16 @@ function App() {
             </PlatformRoute>
           }
         />
+        {/* No permission (docs/PROGRESS.md §4 Step 4) — same requirePlatformAccount gate as
+            /admin/dashboard above: a strategic overview, not one of the eight console flags. */}
+        <Route
+          path="/admin/supply-demand"
+          element={
+            <PlatformRoute>
+              <SupplyDemandPage />
+            </PlatformRoute>
+          }
+        />
         <Route
           path="/admin/consultancies"
           element={
@@ -499,6 +521,14 @@ function App() {
           element={
             <PlatformRoute permission="consultancy_approval">
               <ApplicantAllocationPage />
+            </PlatformRoute>
+          }
+        />
+        <Route
+          path="/admin/performance-league"
+          element={
+            <PlatformRoute permission="consultancy_approval">
+              <PerformanceLeaguePage />
             </PlatformRoute>
           }
         />
@@ -694,6 +724,22 @@ function App() {
           element={
             <PlatformRoute permission="platform_staff_administration">
               <PlatformTeamPage />
+            </PlatformRoute>
+          }
+        />
+        <Route
+          path="/admin/users/sentpo"
+          element={
+            <PlatformRoute permission="platform_staff_administration">
+              <SentpoUsersPage />
+            </PlatformRoute>
+          }
+        />
+        <Route
+          path="/admin/users/imminow"
+          element={
+            <PlatformRoute permission="platform_staff_administration">
+              <ImminowUsersPage />
             </PlatformRoute>
           }
         />

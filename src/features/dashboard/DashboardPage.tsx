@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { CheckCircle2, FolderKanban, TriangleAlert, Users } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
+import { Badge } from '@/components/Badge'
 import { Card } from '@/components/Card'
 import { IconBadge } from '@/components/IconBadge'
 import { ErrorState, Skeleton } from '@/components/QueryState'
@@ -101,6 +102,13 @@ function LeadsOverTimeChart({ points }: { points: { date: string; count: number 
       </BarChart>
     </ResponsiveContainer>
   )
+}
+
+const ENGAGEMENT_BUCKET_LABELS: Record<string, string> = {
+  active_7d: 'Active (≤7 days)',
+  quiet_30d: 'Quiet (8–30 days)',
+  dormant_31d_plus: 'Dormant (31+ days)',
+  never_logged_in: 'Never logged in',
 }
 
 export function DashboardPage() {
@@ -260,6 +268,49 @@ export function DashboardPage() {
                   <span className="text-text-secondary">{branch.leads_count} leads</span>
                 </div>
               ))}
+            </div>
+          </Card>
+        )}
+
+        {/* Added on top of everything above, not replacing it (docs/PROGRESS.md §4 Step 4 —
+            "READ what DashboardPage already shows and ADD analytics without duplicating it").
+            Capture is young, so every figure renders honestly rather than dressing up a thin
+            sample: null medians show "No data yet", never a fabricated 0h/0d. */}
+        {data.analytics && (
+          <Card>
+            <h2 className="text-h3 text-text-primary">Usage Analytics</h2>
+            <p className="text-caption text-text-secondary">
+              Collecting since {formatDate(data.analytics.collecting_since)} — figures firm up as more history
+              accumulates.
+            </p>
+            <div className="mt-md grid grid-cols-1 gap-md md:grid-cols-2">
+              <div className="rounded-md border border-border p-md">
+                <p className="text-caption text-text-secondary">Response time to new leads (median)</p>
+                <p className="mt-xs text-h2 text-text-primary">
+                  {data.analytics.response_time_median_hours == null
+                    ? 'No data yet'
+                    : `${Math.round(data.analytics.response_time_median_hours)}h`}
+                </p>
+              </div>
+              <div className="rounded-md border border-border p-md">
+                <p className="text-caption text-text-secondary">Lead → client conversion time (median)</p>
+                <p className="mt-xs text-h2 text-text-primary">
+                  {data.analytics.conversion_median_days == null
+                    ? 'No data yet'
+                    : `${Math.round(data.analytics.conversion_median_days)}d`}
+                </p>
+              </div>
+            </div>
+            <div className="mt-md">
+              <p className="text-body-sm font-medium text-text-primary">Active-Student Engagement</p>
+              <p className="text-caption text-text-secondary">Committed students, by days since last login.</p>
+              <div className="mt-sm flex flex-wrap gap-sm">
+                {data.analytics.active_student_engagement.map((bucket) => (
+                  <Badge key={bucket.bucket} color={bucket.bucket === 'never_logged_in' ? 'warning' : 'secondary'}>
+                    {ENGAGEMENT_BUCKET_LABELS[bucket.bucket] ?? bucket.bucket}: {bucket.count}
+                  </Badge>
+                ))}
+              </div>
             </div>
           </Card>
         )}

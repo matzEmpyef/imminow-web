@@ -13987,6 +13987,182 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/users/sentpo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sentpo user directory (docs/PROGRESS.md §4 Step 3) — one row per student, never blended with the immiNow console directory (see /admin/users/imminow). Gated to platform_staff_administration, same as Platform Team. Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, last_login_at, name. filter[x]= accepts stage=1|2, dormant_days=<integer> (last_login_at older than N days, or never logged in), from=<date>/to=<date> over created_at (signed-up range). search matches name and email. */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description Sort field. Prefix with - for descending, e.g. sort=-created_at (TRD Section 7). */
+                    sort?: components["parameters"]["SortParam"];
+                    /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
+                    filter?: components["parameters"]["FilterParam"];
+                    /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
+                    search?: components["parameters"]["SearchParam"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["SentpoUserDirectoryRow"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
+                    };
+                };
+                403: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/imminow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** immiNow console user directory (docs/PROGRESS.md §4 Step 3) — every consultancy's employees plus platform staff, distinguished by `kind`, never blended with the Sentpo student directory (see /admin/users/sentpo). Gated to platform_staff_administration, same as Platform Team. Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, invited_at, last_login_at. filter[x]= accepts consultancy_id, active=true|false, never_active=true (invited or accepted but last_login_at null). search matches name and email. */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description Sort field. Prefix with - for descending, e.g. sort=-created_at (TRD Section 7). */
+                    sort?: components["parameters"]["SortParam"];
+                    /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
+                    filter?: components["parameters"]["FilterParam"];
+                    /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
+                    search?: components["parameters"]["SearchParam"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["ImminowUserDirectoryRow"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
+                    };
+                };
+                403: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/supply-demand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Super Admin supply/demand market intelligence (docs/PROGRESS.md §4 Step 4). Gated with requirePlatformAccount — any active platform account, not one specific permission flag — because this is a strategic overview akin to the landing Platform Dashboard (/admin/dashboard, which is gated the same way) rather than an operational area matching one of the eight console permission flags. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SupplyDemandResponse"];
+                    };
+                };
+                403: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/performance-league": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Super Admin per-consultancy performance league (docs/PROGRESS.md §4 Step 4). Gated to consultancy_approval — the same flag that already gates Manage Consultancies and Applicant Allocation, since this is consultancy oversight data, not a landing-page overview. Deliberately no composite score (recorded judgement) — sortable columns plus red-flag threshold badges instead. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PerformanceLeagueResponse"];
+                    };
+                };
+                403: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -14823,6 +14999,8 @@ export interface components {
                 branch_name: string;
                 leads_count: number;
             }[] | null;
+            /** @description Added docs/PROGRESS.md §4 Step 4. Nullable rather than required so an older cached client tolerates its absence; the mock server always includes it. */
+            analytics?: components["schemas"]["DashboardAnalytics"] | null;
         };
         /** @description A message on the lead-scoped conversation (/leads/{id}/messages), also reused as-is for /clients/{id}/messages (a client is simply a Stage-2 lead conversation) — deliberately simpler than the TRD's own aspirational generic chat envelope (student vs. consultant, not a sender_id) since a lead/client conversation is always exactly two parties, and an imported lead has no student account to hold a sender_id at all. */
         LeadMessage: {
@@ -16874,6 +17052,131 @@ export interface components {
              * @enum {string}
              */
             category: "content" | "feature" | "event" | "promotion" | "platform" | "policy" | "reminder";
+        };
+        /** @description One row of GET /admin/users/sentpo (docs/PROGRESS.md §4 Step 3) — students only. Never blended with ImminowUserDirectoryRow; product is derived server-side the same way analytics events are (build reference "never blend the two populations"). */
+        SentpoUserDirectoryRow: {
+            id: components["schemas"]["UUID"];
+            name: string;
+            /** Format: email */
+            email: string;
+            /**
+             * Format: date-time
+             * @description Signed up.
+             */
+            created_at: string;
+            /** Format: date-time */
+            last_login_at?: string | null;
+            /**
+             * @description 1 = pre-commit (exploring or awaiting_match), 2 = committed to a consultancy. Same derivation GET /journeys/me already uses.
+             * @enum {integer}
+             */
+            journey_stage: 1 | 2;
+            /** @description exploring | awaiting_match | one of the Journey status enum values. */
+            journey_status: string;
+            /** @description Null until the student commits (journey_stage 2). */
+            consultancy_name?: string | null;
+            points_balance: number;
+        };
+        /** @description One row of GET /admin/users/imminow (docs/PROGRESS.md §4 Step 3) — every consultancy's employees plus platform staff, distinguished by `kind` so the two never blend in the UI either. */
+        ImminowUserDirectoryRow: {
+            id: components["schemas"]["UUID"];
+            /** @enum {string} */
+            kind: "consultancy_staff" | "platform_staff";
+            name: string;
+            /** Format: email */
+            email: string;
+            /** @description Null for platform_staff rows. */
+            consultancy_name?: string | null;
+            /** @description Employee designation name for consultancy_staff; "Super Admin" or "Platform Staff" for platform_staff. */
+            designation?: string | null;
+            active: boolean;
+            /**
+             * Format: date-time
+             * @description From the matching invites row (matched by email), when one exists. Null for accounts created before the invite system or seeded directly.
+             */
+            invited_at?: string | null;
+            /** Format: date-time */
+            accepted_at?: string | null;
+            /** Format: date-time */
+            last_login_at?: string | null;
+        };
+        /** @description Consultancy-scoped usage analytics (docs/PROGRESS.md §4 Step 4) computed server-side from analytics_events/status_transitions/leads/journeys — never a client-supplied value. Capture began 2026-08-25, so every field renders honestly with near-zero history instead of a fabricated number; `collecting_since` is what the UI shows instead of a bare `0` while volume is low. Tenant-scoped the same way every other field on DashboardSummary is. */
+        DashboardAnalytics: {
+            /** Format: date-time */
+            collecting_since: string;
+            /** @description Median hours from a lead's created_at to the first sender=consultant message on that lead's conversation, within the current scope. Null when nothing in scope has a consultant reply yet. */
+            response_time_median_hours?: number | null;
+            /** @description Median days from lead created_at to its lead->converted status_transitions row. Null with no conversions yet in scope. */
+            conversion_median_days?: number | null;
+            /** @description This consultancy's committed (Stage-2) students, bucketed by last_login_at recency. All four buckets are always present, even at 0, so the UI never has to guess the vocabulary. */
+            active_student_engagement: {
+                /** @enum {string} */
+                bucket: "active_7d" | "quiet_30d" | "dormant_31d_plus" | "never_logged_in";
+                count: number;
+            }[];
+        };
+        /** @description Platform-wide market intelligence (docs/PROGRESS.md §4 Step 4). Demand is read from student_preferences (target_countries/fields_of_interest); supply is read from consultancies.countries_served plus seat usage. `mismatch` is the actionable table: countries with real student demand and little or no consultancy coverage. */
+        SupplyDemandResponse: {
+            /** Format: date-time */
+            collecting_since: string;
+            demand_by_country: {
+                country: string;
+                student_count: number;
+            }[];
+            demand_by_field: {
+                field: string;
+                student_count: number;
+            }[];
+            /** @description Weekly buckets (Monday-start date) of users.created_at, students only. */
+            signups_over_time: {
+                /** Format: date */
+                week: string;
+                count: number;
+            }[];
+            supply_by_country: {
+                country: string;
+                consultancy_count: number;
+                seat_usage: {
+                    used: number;
+                    limit: number;
+                };
+            }[];
+            /** @description Every country with demand > 0, sorted by ascending supply then descending demand — the top of this list is the actionable gap. */
+            mismatch: {
+                country: string;
+                demand: number;
+                supply: number;
+            }[];
+        };
+        PerformanceLeagueRow: {
+            consultancy_id: components["schemas"]["UUID"];
+            consultancy_name: string;
+            leads_received: number;
+            response_time_median_hours?: number | null;
+            /** @description Percent of this consultancy's leads with a lead->converted transition. */
+            conversion_rate_percent?: number | null;
+            /** @description Journeys with this consultancy_id whose status is not closed_switched/ closed_completed. */
+            active_clients: number;
+            commission_entries_count: number;
+            /** @description Confirmed commission_payments over total platform_due_inr across this consultancy's active commission_entries. Null when there are no entries yet. */
+            dues_paid_ratio?: number | null;
+            /** @description Red-flag booleans against `PerformanceLeagueResponse.thresholds` (recorded judgement, docs/PROGRESS.md §4 — no single composite score). */
+            flags: {
+                slow_response: boolean;
+                low_conversion: boolean;
+                unpaid_dues: boolean;
+            };
+        };
+        /** @description Per-consultancy operational league table (docs/PROGRESS.md §4 Step 4) — deliberately NO composite score (recorded judgement): a single number hides which thing is wrong and starts an argument about weighting. `thresholds` are named constants the UI reads rather than hardcodes, so a flag and its displayed cutoff can never drift apart. */
+        PerformanceLeagueResponse: {
+            /** Format: date-time */
+            collecting_since: string;
+            thresholds: {
+                slow_response_hours: number;
+                low_conversion_percent: number;
+                unpaid_dues_ratio: number;
+            };
+            items: components["schemas"]["PerformanceLeagueRow"][];
         };
     };
     responses: {

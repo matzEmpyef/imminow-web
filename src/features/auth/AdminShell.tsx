@@ -29,6 +29,8 @@ import {
   Shuffle,
   Smartphone,
   Ticket,
+  TrendingUp,
+  User,
   Users,
   Video,
   SlidersHorizontal,
@@ -60,15 +62,24 @@ const SECTIONS: AdminSection[] = [
     label: 'Dashboard',
     path: '/admin/dashboard',
     icon: LayoutDashboard,
-    matches: (p) => p.startsWith('/admin/dashboard'),
-    sidebarLinks: [{ label: 'Overview', path: '/admin/dashboard', icon: LayoutDashboard }],
+    matches: (p) => p.startsWith('/admin/dashboard') || p.startsWith('/admin/supply-demand'),
+    sidebarLinks: [
+      { label: 'Overview', path: '/admin/dashboard', icon: LayoutDashboard },
+      // No `permission` (docs/PROGRESS.md §4 Step 4) — gated server-side to requirePlatformAccount,
+      // the same broad "any platform account" gate Overview itself uses, not one of the eight
+      // console permission flags: this is a strategic landing-page overview, not an operational area.
+      { label: 'Supply & Demand', path: '/admin/supply-demand', icon: TrendingUp },
+    ],
   },
   {
     key: 'consultancies',
     label: 'Consultancy Management',
     path: '/admin/consultancies',
     icon: Building2,
-    matches: (p) => p.startsWith('/admin/consultancies') || p.startsWith('/admin/applicant-allocation'),
+    matches: (p) =>
+      p.startsWith('/admin/consultancies') ||
+      p.startsWith('/admin/applicant-allocation') ||
+      p.startsWith('/admin/performance-league'),
     sidebarLinks: [
       {
         label: 'Manage Consultancies',
@@ -81,6 +92,12 @@ const SECTIONS: AdminSection[] = [
         path: '/admin/applicant-allocation',
         permission: 'consultancy_approval',
         icon: Shuffle,
+      },
+      {
+        label: 'Performance League',
+        path: '/admin/performance-league',
+        permission: 'consultancy_approval',
+        icon: Award,
       },
     ],
   },
@@ -189,7 +206,8 @@ const SECTIONS: AdminSection[] = [
       p.startsWith('/admin/app-config') ||
       p.startsWith('/admin/broadcast') ||
       p.startsWith('/admin/audit-log-platform') ||
-      p.startsWith('/admin/visit-requests'),
+      p.startsWith('/admin/visit-requests') ||
+      p.startsWith('/admin/users/'),
     sidebarLinks: [
       { label: 'Support Tools', path: '/admin/support-tools', permission: 'support', icon: LifeBuoy },
       { label: 'Complaints', path: '/admin/complaints', permission: 'support', icon: MessageSquareWarning },
@@ -197,6 +215,21 @@ const SECTIONS: AdminSection[] = [
       {
         label: 'Platform Team',
         path: '/admin/platform-team',
+        permission: 'platform_staff_administration',
+        icon: Users,
+      },
+      // Two directories, never one (docs/PROGRESS.md §4 Step 3) — the Sentpo (student) and
+      // immiNow (console) populations are never blended in one screen, mirroring the two
+      // separate GET endpoints behind them.
+      {
+        label: 'Sentpo Users',
+        path: '/admin/users/sentpo',
+        permission: 'platform_staff_administration',
+        icon: User,
+      },
+      {
+        label: 'immiNow Users',
+        path: '/admin/users/imminow',
         permission: 'platform_staff_administration',
         icon: Users,
       },
