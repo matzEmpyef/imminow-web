@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import {
+  Activity,
   Award,
   BarChart3,
   Bell,
@@ -62,13 +63,19 @@ const SECTIONS: AdminSection[] = [
     label: 'Dashboard',
     path: '/admin/dashboard',
     icon: LayoutDashboard,
-    matches: (p) => p.startsWith('/admin/dashboard') || p.startsWith('/admin/supply-demand'),
+    matches: (p) =>
+      p.startsWith('/admin/dashboard') ||
+      p.startsWith('/admin/supply-demand') ||
+      p.startsWith('/admin/platform-pulse'),
     sidebarLinks: [
       { label: 'Overview', path: '/admin/dashboard', icon: LayoutDashboard },
       // No `permission` (docs/PROGRESS.md §4 Step 4) — gated server-side to requirePlatformAccount,
       // the same broad "any platform account" gate Overview itself uses, not one of the eight
       // console permission flags: this is a strategic landing-page overview, not an operational area.
       { label: 'Supply & Demand', path: '/admin/supply-demand', icon: TrendingUp },
+      // Same gate as Supply & Demand above (Platform Pulse, 2026-08-31) — a popularity overview,
+      // not an operational area.
+      { label: 'Platform Pulse', path: '/admin/platform-pulse', icon: Activity },
     ],
   },
   {

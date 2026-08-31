@@ -116,6 +116,9 @@ const ImminowUsersPage = lazy(() =>
 const SupplyDemandPage = lazy(() =>
   import('@/features/super-admin/SupplyDemandPage').then((m) => ({ default: m.SupplyDemandPage })),
 )
+const PlatformPulsePage = lazy(() =>
+  import('@/features/super-admin/PlatformPulsePage').then((m) => ({ default: m.PlatformPulsePage })),
+)
 const PerformanceLeaguePage = lazy(() =>
   import('@/features/super-admin/PerformanceLeaguePage').then((m) => ({ default: m.PerformanceLeaguePage })),
 )
@@ -505,6 +508,16 @@ function App() {
           element={
             <PlatformRoute>
               <SupplyDemandPage />
+            </PlatformRoute>
+          }
+        />
+        {/* No permission (Platform Pulse, 2026-08-31) — same requirePlatformAccount gate as
+            Supply & Demand and /admin/dashboard: a strategic overview, not one of the eight flags. */}
+        <Route
+          path="/admin/platform-pulse"
+          element={
+            <PlatformRoute>
+              <PlatformPulsePage />
             </PlatformRoute>
           }
         />
