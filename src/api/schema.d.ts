@@ -11517,7 +11517,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    study_level?: string[];
+                    study_level?: ("10th" | "11th" | "12th" | "diploma" | "bachelors" | "masters" | "phd")[];
                     target_country?: string[];
                     /** @description Resolved from `student_preferences.resident_country` by user id, NOT from the lead's or journey's embedded preferences snapshot — the same source the serve path reads, so the estimate cannot disagree with the ad's actual reach. */
                     resident_country?: string[];
