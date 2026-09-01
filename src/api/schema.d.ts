@@ -9020,7 +9020,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Form Builder loads an existing template to edit */
+        /** Load one template — the owning consultancy's staff (Form Builder), or a student whose own plan carries a Form Link to it (mobile Applicant Form); anything else 404s */
         get: {
             parameters: {
                 query?: never;
