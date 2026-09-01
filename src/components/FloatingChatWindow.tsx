@@ -64,6 +64,7 @@ export function FloatingChatWindow() {
         fitSummary: m.fit_summary,
         visitRequest: m.visit_request,
         isSessionBreak: m.type === 'session_break',
+        isCallInitiated: m.type === 'call_initiated',
       }))
     : isClient
       ? clientMessages.data?.items?.map((m) => ({
@@ -75,6 +76,7 @@ export function FloatingChatWindow() {
           fitSummary: m.fit_summary,
           visitRequest: m.visit_request,
           isSessionBreak: m.type === 'session_break',
+          isCallInitiated: m.type === 'call_initiated',
         }))
       : internalMessages.data?.items?.map((m) => ({
           ...m,

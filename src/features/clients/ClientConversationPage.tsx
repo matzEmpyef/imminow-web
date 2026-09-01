@@ -71,6 +71,7 @@ export function ClientConversationPage() {
             fitSummary: m.fit_summary,
             visitRequest: m.visit_request,
             isSessionBreak: m.type === 'session_break',
+            isCallInitiated: m.type === 'call_initiated',
           }))}
           isLoading={messages.isLoading}
           draft={draft}

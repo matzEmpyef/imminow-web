@@ -438,6 +438,7 @@ export function LeadConversationPage() {
                 sharedCourse: m.shared_course,
                 fitSummary: m.fit_summary,
                 visitRequest: m.visit_request,
+                isCallInitiated: m.type === 'call_initiated',
               }))}
               isLoading={messages.isLoading}
               draft={draft}

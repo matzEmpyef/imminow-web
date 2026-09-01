@@ -5790,6 +5790,96 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leads/{id}/call-initiated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Student tapped "Call" in the same two-option sheet `request-visit` above is opened from (2026-09-01 — "we need to know calls triggered too"). Fired right before the device's own phone dialer opens; appends a `call_initiated` LeadMessage so the consultant sees the tap in the thread. No request body — the server timestamps and words the message itself, in INTENT wording only ("Tapped to call", never "Called you"), since the device cannot confirm a call actually connected. Restricted to the owning student, same guard as `request-visit`. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Logged */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LeadMessage"];
+                    };
+                };
+                /** @description Lead not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clients/{id}/call-initiated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stage 2 sibling of `POST /leads/{id}/call-initiated` above — same behavior, into the single committed consultant's own thread. Restricted to the owning student. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Logged */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LeadMessage"];
+                    };
+                };
+                /** @description Client not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/visit-requests": {
         parameters: {
             query?: never;
@@ -15057,10 +15147,10 @@ export interface components {
             /** @enum {string} */
             sender: "student" | "consultant";
             /**
-             * @description User-requested (2026-08-19) — "we need ability for consultant to see the shortlisted courses when student decides to [share]." Absent/omitted means `text` (every pre-existing message). `shortlist_share` is the "Share with consultant" action from the student's own Shortlist screen (build reference 2.2) — the only real way this ever gets sent, since it's student-initiated; nothing on the consultant side creates one. Distinct from the TRD's own `filter_share_card` envelope on the aspirational ChatMessage/WebSocket schema — this is the actual, working mock implementation of the narrower "share the Shortlist specifically" case, not the general "share any filtered search" case, which remains unbuilt (see the Deferred list in PROGRESS.md). `shortlist_request` (user-requested, 2026-08-19 — "a button in lead's detail page, request for shortlist courses") is the consultant-sent counterpart, from `POST /leads/{id}/request-shortlist`, gating that button's own state (Request → Requested → View). `session_break` (same request — "there should be a distinguishable break between the two sessions [lead and client chat]") is a synthetic, server-inserted marker (never sent by anyone) — see `GET /clients/{id}/messages`'s own note on how a converted client's message history is spliced together. `step_question` (Sentpo Mobile Wave 4, build reference 1.7 — "An 'Ask a question' action on any step deep-links into chat, pre-tagged with which step it's about") is student-sent only, via `POST /clients/{id}/messages` with `step_id` set; `content` still carries the actual question text. `visit_request` (2026-08-24, "a student should be able to request for an in-person visit to consultancy office... lead or applicant suggest a time, we get intimated, rest of the things can happen over chat") is student-sent only, via `POST /leads/{id}/request-visit` or `/clients/{id}/request-visit` — deliberately a single proposed date/time plus an optional note, not a slot-picker or calendar; any confirming, countering, or rescheduling happens as ordinary follow-up messages in the same thread, never a status the API tracks. Also creates a `VisitRequest` row (see that schema) so Support Tools' cross-consultancy list doesn't need to scan every conversation on the platform.
+             * @description User-requested (2026-08-19) — "we need ability for consultant to see the shortlisted courses when student decides to [share]." Absent/omitted means `text` (every pre-existing message). `shortlist_share` is the "Share with consultant" action from the student's own Shortlist screen (build reference 2.2) — the only real way this ever gets sent, since it's student-initiated; nothing on the consultant side creates one. Distinct from the TRD's own `filter_share_card` envelope on the aspirational ChatMessage/WebSocket schema — this is the actual, working mock implementation of the narrower "share the Shortlist specifically" case, not the general "share any filtered search" case, which remains unbuilt (see the Deferred list in PROGRESS.md). `shortlist_request` (user-requested, 2026-08-19 — "a button in lead's detail page, request for shortlist courses") is the consultant-sent counterpart, from `POST /leads/{id}/request-shortlist`, gating that button's own state (Request → Requested → View). `session_break` (same request — "there should be a distinguishable break between the two sessions [lead and client chat]") is a synthetic, server-inserted marker (never sent by anyone) — see `GET /clients/{id}/messages`'s own note on how a converted client's message history is spliced together. `step_question` (Sentpo Mobile Wave 4, build reference 1.7 — "An 'Ask a question' action on any step deep-links into chat, pre-tagged with which step it's about") is student-sent only, via `POST /clients/{id}/messages` with `step_id` set; `content` still carries the actual question text. `visit_request` (2026-08-24, "a student should be able to request for an in-person visit to consultancy office... lead or applicant suggest a time, we get intimated, rest of the things can happen over chat") is student-sent only, via `POST /leads/{id}/request-visit` or `/clients/{id}/request-visit` — deliberately a single proposed date/time plus an optional note, not a slot-picker or calendar; any confirming, countering, or rescheduling happens as ordinary follow-up messages in the same thread, never a status the API tracks. Also creates a `VisitRequest` row (see that schema) so Support Tools' cross-consultancy list doesn't need to scan every conversation on the platform. `call_initiated` (2026-09-01, "we need to know calls triggered too") is student-sent only, via `POST /leads/{id}/call-initiated` or `/clients/{id}/call-initiated` — fired right before the device's own phone dialer opens, from the "Call" option in the same two-option sheet `visit_request` comes from. Deliberately INTENT wording only ("Tapped to call", never "Called you") — the device has no way to confirm the call actually connected, so the message can only honestly report that the tap happened. No side-record the way `visit_request` gets one — a call has nothing analogous to Support Tools' cross-consultancy list to query.
              * @enum {string}
              */
-            type?: "text" | "shortlist_share" | "shortlist_request" | "session_break" | "step_question" | "college_share" | "course_share" | "visit_request";
+            type?: "text" | "shortlist_share" | "shortlist_request" | "session_break" | "step_question" | "college_share" | "course_share" | "visit_request" | "call_initiated";
             /** @description Human-readable fallback (e.g. "Shared their shortlist (2 courses)." or "Converted to Client" for a `session_break`), shown for any client too old to render `shared_courses` as a card. */
             content: string;
             /** @description Only present when `type = shortlist_share` — the exact courses shared, resolved server-side from the stored course references so the card never goes stale if a course is edited afterward. */

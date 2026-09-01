@@ -35,6 +35,14 @@ interface ChatMessage {
   // `session_break` marker message the server inserts when a client's history was spliced
   // together from an origin lead — renders as a labeled divider, not a bubble.
   isSessionBreak?: boolean
+  // Call-tracking ping (2026-09-01, user — "we need to know calls triggered too"). Set only on a
+  // `type: call_initiated` message — student-sent, fired right before the mobile device's own
+  // phone dialer opens, from the "Call" option in the same two-option sheet `visit_request` below
+  // comes from. Renders as a small system-style line (same family as the `isSessionBreak`
+  // divider, not a bubble): it's not something the student "said," and `content`'s own INTENT
+  // wording ("Tapped to call", never "Called you" — the device can't confirm the call connected)
+  // is echoed there rather than reused verbatim, so this line can name who tapped.
+  isCallInitiated?: boolean
   // A student requesting an in-person office visit (user, 2026-08-24: "a student should be able
   // to request for a in-person visit to consultancy office... from the chat window"). Set only on
   // a `type: visit_request` message — renders as a card with the proposed date/time and note,
@@ -172,6 +180,10 @@ export function ChatPanel({
                   </span>
                   <span className="h-px flex-1 bg-border" />
                 </div>
+              ) : m.isCallInitiated ? (
+                <span className="self-center rounded-full bg-background px-sm py-0.5 text-caption font-medium text-text-secondary">
+                  {name} tapped to call you · {formatTime(m.created_at)}
+                </span>
               ) : m.sharedCourse ? (
                 // The ask-a-consultancy context card (plan §3.5) — course + the student's fit
                 // at the moment they asked, so the consultant can answer without digging.
