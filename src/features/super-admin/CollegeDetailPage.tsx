@@ -440,7 +440,12 @@ function CourseFormModal({
           intakes={intakes}
           setIntakes={setIntakes}
           deadlines={deadlines}
-          setDeadlines={setDeadlines}
+          onDeadlineChange={(month, patch) =>
+            setDeadlines((prev) => ({
+              ...prev,
+              [month]: { deadline: prev[month]?.deadline ?? '', open: prev[month]?.open ?? true, ...patch },
+            }))
+          }
         />
         <CourseFeesPanel
           hidden={activeTab !== 'Fees'}
@@ -478,11 +483,19 @@ function CourseFormModal({
           background={background}
           setBackground={setBackground}
           english={english}
-          setEnglish={setEnglish}
+          onAddEnglish={() => setEnglish((prev) => [...prev, { exam_id: '', min_overall: '', min_band: '' }])}
+          onChangeEnglish={(index, patch) =>
+            setEnglish((prev) => prev.map((r, j) => (j === index ? { ...r, ...patch } : r)))
+          }
+          onRemoveEnglish={(index) => setEnglish((prev) => prev.filter((_, j) => j !== index))}
           moiAccepted={moiAccepted}
           setMoiAccepted={setMoiAccepted}
           aptitude={aptitude}
-          setAptitude={setAptitude}
+          onAddAptitude={() => setAptitude((prev) => [...prev, { exam_id: '', min_score: '', required: true }])}
+          onChangeAptitude={(index, patch) =>
+            setAptitude((prev) => prev.map((r, j) => (j === index ? { ...r, ...patch } : r)))
+          }
+          onRemoveAptitude={(index) => setAptitude((prev) => prev.filter((_, j) => j !== index))}
           eligibility={eligibility}
           setEligibility={setEligibility}
         />

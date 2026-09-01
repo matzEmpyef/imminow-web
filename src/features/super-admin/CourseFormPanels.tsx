@@ -143,7 +143,7 @@ export function CourseCampusIntakesPanel(p: {
   intakes: string[]
   setIntakes: (v: string[]) => void
   deadlines: Record<string, { deadline: string; open: boolean }>
-  setDeadlines: React.Dispatch<React.SetStateAction<Record<string, { deadline: string; open: boolean }>>>
+  onDeadlineChange: (month: string, patch: Partial<{ deadline: string; open: boolean }>) => void
 }) {
   return (
     <div className={panelClass(p.hidden)}>
@@ -182,12 +182,8 @@ export function CourseCampusIntakesPanel(p: {
               month={month}
               deadline={p.deadlines[month]?.deadline ?? ''}
               open={p.deadlines[month]?.open ?? true}
-              onDeadlineChange={(value) =>
-                p.setDeadlines((prev) => ({ ...prev, [month]: { deadline: value, open: prev[month]?.open ?? true } }))
-              }
-              onOpenChange={(open) =>
-                p.setDeadlines((prev) => ({ ...prev, [month]: { deadline: prev[month]?.deadline ?? '', open } }))
-              }
+              onDeadlineChange={(value) => p.onDeadlineChange(month, { deadline: value })}
+              onOpenChange={(open) => p.onDeadlineChange(month, { open })}
             />
           ))}
         </div>
@@ -399,11 +395,15 @@ export function CourseRequirementsPanel(p: {
   background: string
   setBackground: (v: string) => void
   english: EnglishReq[]
-  setEnglish: React.Dispatch<React.SetStateAction<EnglishReq[]>>
+  onAddEnglish: () => void
+  onChangeEnglish: (index: number, patch: Partial<EnglishReq>) => void
+  onRemoveEnglish: (index: number) => void
   moiAccepted: boolean
   setMoiAccepted: (v: boolean) => void
   aptitude: AptitudeReq[]
-  setAptitude: React.Dispatch<React.SetStateAction<AptitudeReq[]>>
+  onAddAptitude: () => void
+  onChangeAptitude: (index: number, patch: Partial<AptitudeReq>) => void
+  onRemoveAptitude: (index: number) => void
   eligibility: string
   setEligibility: (v: string) => void
 }) {
@@ -456,7 +456,7 @@ export function CourseRequirementsPanel(p: {
             type="button"
             variant="secondary"
             size="sm"
-            onClick={() => p.setEnglish((prev) => [...prev, { exam_id: '', min_overall: '', min_band: '' }])}
+            onClick={p.onAddEnglish}
           >
             Add test
           </Button>
@@ -466,8 +466,8 @@ export function CourseRequirementsPanel(p: {
             key={i}
             row={row}
             exams={p.activeExams}
-            onChange={(patch) => p.setEnglish((prev) => prev.map((r, j) => (j === i ? { ...r, ...patch } : r)))}
-            onRemove={() => p.setEnglish((prev) => prev.filter((_, j) => j !== i))}
+            onChange={(patch) => p.onChangeEnglish(i, patch)}
+            onRemove={() => p.onRemoveEnglish(i)}
           />
         ))}
         <label className="flex items-center gap-sm text-body-sm text-text-primary">
@@ -487,7 +487,7 @@ export function CourseRequirementsPanel(p: {
             type="button"
             variant="secondary"
             size="sm"
-            onClick={() => p.setAptitude((prev) => [...prev, { exam_id: '', min_score: '', required: true }])}
+            onClick={p.onAddAptitude}
           >
             Add exam
           </Button>
@@ -497,8 +497,8 @@ export function CourseRequirementsPanel(p: {
             key={i}
             row={row}
             exams={p.activeExams}
-            onChange={(patch) => p.setAptitude((prev) => prev.map((r, j) => (j === i ? { ...r, ...patch } : r)))}
-            onRemove={() => p.setAptitude((prev) => prev.filter((_, j) => j !== i))}
+            onChange={(patch) => p.onChangeAptitude(i, patch)}
+            onRemove={() => p.onRemoveAptitude(i)}
           />
         ))}
       </div>
