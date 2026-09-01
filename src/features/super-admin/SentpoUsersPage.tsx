@@ -17,7 +17,11 @@ const DORMANT_DAYS_OPTIONS = [
 
 // Subtle warning, not red alarm (task spec) — the same soft-tinted Badge every other status pill
 // on this platform uses, just the `warning` color rather than `error`.
-function LastLoginCell({ row }: { row: Row }) {
+// `dormantAfterDays` follows the page's active filter (N9, second-pass review): with "7+ days"
+// selected, a hardcoded 30 left 10-day-idle rows unbadged next to badged 31-day ones, so the
+// badge contradicted the very filter that produced the list. 30 stays the default when the
+// filter is "Any activity".
+function LastLoginCell({ row, dormantAfterDays }: { row: Row; dormantAfterDays: number }) {
   if (!row.last_login_at) {
     return (
       <span className="flex items-center gap-xs">
@@ -30,7 +34,7 @@ function LastLoginCell({ row }: { row: Row }) {
   return (
     <span className="flex items-center gap-xs">
       <span className="text-text-primary">{formatDateTime(row.last_login_at)}</span>
-      {daysSince > 30 && <Badge color="warning">Dormant</Badge>}
+      {daysSince > dormantAfterDays && <Badge color="warning">Dormant</Badge>}
     </span>
   )
 }
@@ -77,7 +81,12 @@ export function SentpoUsersPage() {
       ),
     },
     { key: 'created_at', header: 'Signed up', sortable: true, render: (r) => formatDate(r.created_at) },
-    { key: 'last_login_at', header: 'Last login', sortable: true, render: (r) => <LastLoginCell row={r} /> },
+    {
+      key: 'last_login_at',
+      header: 'Last login',
+      sortable: true,
+      render: (r) => <LastLoginCell row={r} dormantAfterDays={dormantDays ? Number(dormantDays) : 30} />,
+    },
     {
       key: 'journey_stage',
       header: 'Journey',

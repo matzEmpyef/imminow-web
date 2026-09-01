@@ -1,6 +1,7 @@
 import createClient from 'openapi-fetch'
 import type { paths } from './schema'
 import { useAuthStore } from '@/stores/authStore'
+import { endSession } from '@/lib/session'
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL
 
@@ -84,8 +85,11 @@ api.use({
     if (AUTH_PATHS.has(schemaPath)) return response
 
     const accessToken = await refreshOnce()
+    // These three teardown sites end the session the same way the Log out button does (N1,
+    // second-pass review): store AND query cache, via the one shared helper — clearing only the
+    // store left the previous account's cached lists readable by the next account in this tab.
     if (!accessToken || !original) {
-      useAuthStore.getState().clear()
+      endSession()
       return response
     }
 
@@ -95,14 +99,14 @@ api.use({
     try {
       retried = await fetch(new Request(original, { headers }))
     } catch {
-      useAuthStore.getState().clear()
+      endSession()
       return response
     }
 
     // A freshly-issued token that still gets refused means the session is genuinely finished, not
     // merely stale. No second attempt — the replay runs through bare `fetch`, so it never
     // re-enters this middleware and cannot loop.
-    if (retried.status === 401) useAuthStore.getState().clear()
+    if (retried.status === 401) endSession()
     return retried
   },
 

@@ -90,7 +90,12 @@ export function FreelancerDashboardPage() {
 
         {referrals.isError && (
           <Card>
-            <p className="text-body text-error">{referrals.error.message}</p>
+            <div className="flex items-center gap-md">
+              <p className="text-body text-error">{referrals.error.message}</p>
+              <Button variant="secondary" size="sm" onClick={() => void referrals.refetch()}>
+                Retry
+              </Button>
+            </div>
           </Card>
         )}
 
@@ -129,7 +134,9 @@ export function FreelancerDashboardPage() {
               </div>
             </Card>
           ))}
-          {!referrals.isLoading && items.length === 0 && (
+          {/* N8 (second pass): without the isError gate, a failed fetch stacked this genuinely-
+              empty claim right under the error card. */}
+          {!referrals.isLoading && !referrals.isError && items.length === 0 && (
             <Card>
               <p className="text-body text-text-secondary">No referrals yet.</p>
             </Card>

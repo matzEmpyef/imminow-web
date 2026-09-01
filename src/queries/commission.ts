@@ -19,9 +19,19 @@ export function useCommission() {
 export function useRecordCommissionPayment() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (body: { commission_entry_id: string; amount: number; transaction_id?: string | null }) => {
+    // The caller supplies the idempotency key (N7, second-pass review) — minting one here made
+    // every attempt a distinct operation, defeating the header's entire purpose for double-submits.
+    mutationFn: async ({
+      idempotencyKey,
+      ...body
+    }: {
+      commission_entry_id: string
+      amount: number
+      transaction_id?: string | null
+      idempotencyKey: string
+    }) => {
       const { data, error } = await api.POST('/commission/payments', {
-        params: { header: { 'Idempotency-Key': crypto.randomUUID() } },
+        params: { header: { 'Idempotency-Key': idempotencyKey } },
         body,
       })
       if (error) throw new ApiError('Could not record this payment.', error)

@@ -24,13 +24,25 @@ export function RecordPlatformPaymentModal({ due, onClose }: { due: CommissionDu
   )
   const [amount, setAmount] = useState(String(remaining))
   const [transactionId, setTransactionId] = useState('')
+  // One key per modal open, not per attempt (N7, second-pass review): a key minted inside
+  // mutationFn made every submit a distinct operation, so Enter-Enter before the button disabled
+  // declared the amount twice. A stable key lets the (Phase 6) backend treat a retry of THIS
+  // declaration as the same operation; the mock ignores the header today, which is why the
+  // isPending guard below is the protection that matters right now.
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
+    if (recordPayment.isPending) return
     const value = Number(amount)
     if (!amount || Number.isNaN(value) || value <= 0) return
     recordPayment.mutate(
-      { commission_entry_id: due.id, amount: value, transaction_id: transactionId.trim() || null },
+      {
+        commission_entry_id: due.id,
+        amount: value,
+        transaction_id: transactionId.trim() || null,
+        idempotencyKey,
+      },
       { onSuccess: onClose },
     )
   }

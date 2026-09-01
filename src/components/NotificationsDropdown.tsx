@@ -17,7 +17,7 @@ export function NotificationsDropdown() {
   const containerRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const { data: unreadCount } = useUnreadCount()
-  const { data, isError } = useNotifications({ enabled: open })
+  const { data, isError, isLoading, refetch } = useNotifications({ enabled: open })
   const markRead = useMarkNotificationRead()
   const items = data?.items.slice(0, MAX_VISIBLE) ?? []
 
@@ -57,9 +57,19 @@ export function NotificationsDropdown() {
 
           <div className="max-h-80 overflow-y-auto">
             {/* H10 fix (frontend review, 1 Sep 2026) — a failed fetch used to render no
-                differently than a genuinely empty inbox. */}
-            {isError && <p className="p-md text-body-sm text-error">Could not load notifications.</p>}
-            {!isError && items.length === 0 && (
+                differently than a genuinely empty inbox. N3 (second pass) added the missing third
+                state: while the open-triggered fetch is in flight, "No notifications yet." was a
+                claim nobody had checked yet. */}
+            {isError && (
+              <p className="p-md text-body-sm text-error">
+                Could not load notifications.{' '}
+                <button type="button" className="underline" onClick={() => void refetch()}>
+                  Retry
+                </button>
+              </p>
+            )}
+            {!isError && isLoading && <p className="p-md text-body-sm text-text-secondary">Loading…</p>}
+            {!isError && !isLoading && items.length === 0 && (
               <p className="p-md text-body-sm text-text-secondary">No notifications yet.</p>
             )}
 

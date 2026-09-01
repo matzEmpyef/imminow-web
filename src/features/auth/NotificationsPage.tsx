@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { AppShell } from './AppShell'
 import { AdminShell } from './AdminShell'
 import { FreelancerShell } from './FreelancerShell'
+import { AccountShell } from './AccountShell'
 import { Card } from '@/components/Card'
 import { useMarkNotificationRead, useNotifications } from '@/queries/notifications'
 import { useAuthStore } from '@/stores/authStore'
@@ -27,7 +28,9 @@ export function NotificationsPage() {
       ? AdminShell
       : role === 'freelancer'
         ? FreelancerShell
-        : AppShell
+        : role === 'student'
+          ? AccountShell
+          : AppShell
 
   return (
     <Shell>

@@ -1,9 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
 import { ChevronsLeft, ChevronsRight, CircleHelp, LogOut, type LucideIcon } from 'lucide-react'
 import { BRAND_LOGO } from '@/lib/brand'
 import { api } from '@/api/client'
+import { endSession } from '@/lib/session'
 import { useAuthStore } from '@/stores/authStore'
 import { Drawer } from './Drawer'
 import { getHelpTopic } from '@/lib/helpContent'
@@ -46,9 +46,7 @@ interface SidebarShellProps {
 export function SidebarShell({ sections, roleBadge, search, headerActions, children }: SidebarShellProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
-  const clear = useAuthStore((s) => s.clear)
   // Defaults collapsed on narrow viewports (< 1100px) so the 256px rail doesn't eat a squeezed
   // window — this is a desktop console, but a half-screen window shouldn't be unusable. The
   // media-query listener only moves the default as the window crosses the threshold; the user's
@@ -72,10 +70,9 @@ export function SidebarShell({ sections, roleBadge, search, headerActions, child
     if (token) {
       void api.POST('/auth/logout', { headers: { Authorization: `Bearer ${token}` } }).catch(() => {})
     }
-    clear()
-    // The next account on this browser must not inherit this one's cached queries (client
-    // lists, dashboards, notifications) — clear() only empties the auth store.
-    queryClient.clear()
+    // Store + query cache together, via the same helper the 401 interceptor uses (N1) — two
+    // session-end paths, one teardown.
+    endSession()
     navigate('/login')
   }
 

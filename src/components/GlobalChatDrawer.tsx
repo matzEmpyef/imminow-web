@@ -27,7 +27,7 @@ const TYPE_LABELS: Record<Conversation['type'], string> = {
 export function GlobalChatDrawer() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const { data, isError, refetch } = useConversations(open)
+  const { data, isError, isLoading, refetch } = useConversations(open)
   const openChatWindow = useChatWindowStore((s) => s.open)
 
   const unreadCount =
@@ -81,6 +81,10 @@ export function GlobalChatDrawer() {
               Retry
             </Button>
           </div>
+        ) : isLoading && !data ? (
+          // N4 (second pass): before the mount fetch lands, "No conversations found." was a claim
+          // nobody had checked yet.
+          <p className="py-lg text-center text-body-sm text-text-secondary">Loading…</p>
         ) : conversations.length === 0 ? (
           <p className="py-lg text-center text-body-sm text-text-secondary">No conversations found.</p>
         ) : (

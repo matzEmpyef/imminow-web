@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { AppShell } from './AppShell'
 import { AdminShell } from './AdminShell'
 import { FreelancerShell } from './FreelancerShell'
+import { AccountShell } from './AccountShell'
 import { Card } from '@/components/Card'
 import { TextField } from '@/components/TextField'
 import { Button } from '@/components/Button'
@@ -36,13 +37,16 @@ export function MyAccountPage() {
   const updateProfile = useUpdateProfile()
   const role = useAuthStore((s) => s.user?.role)
   // M12 fix (frontend review, 1 Sep 2026): this page always rendered AppShell, so a platform or
-  // freelancer account editing their own profile got the consultancy shell around it.
+  // freelancer account editing their own profile got the consultancy shell around it. Students
+  // get the slim AccountShell (N2, second pass) — the consultancy nav bounced them anyway.
   const Shell =
     role === 'super_admin' || role === 'platform_staff'
       ? AdminShell
       : role === 'freelancer'
         ? FreelancerShell
-        : AppShell
+        : role === 'student'
+          ? AccountShell
+          : AppShell
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [phone, setPhone] = useState('')

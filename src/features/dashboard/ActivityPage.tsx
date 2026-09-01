@@ -284,8 +284,19 @@ export function ActivityPage() {
 
             {myTasksDue.length > 0 && (
               <ActionSection title="My tasks" count={myTasksDue.length}>
+                {/* N6 (second-pass review): a failed complete used to vanish silently, and one
+                    shared isPending put every row's button into "Please wait…" for any click —
+                    `variables` scopes the spinner to the row actually in flight. */}
+                {completeTask.isError && (
+                  <p className="text-body-sm text-error">{completeTask.error.message}</p>
+                )}
                 {myTasksDue.map((task) => (
-                  <TaskRow key={task.id} task={task} onComplete={() => completeTask.mutate(task.id)} pending={completeTask.isPending} />
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    onComplete={() => completeTask.mutate(task.id)}
+                    pending={completeTask.isPending && completeTask.variables === task.id}
+                  />
                 ))}
               </ActionSection>
             )}

@@ -88,9 +88,28 @@ export function SuperAdminDashboardPage() {
               <p className="text-body-sm font-medium text-text-primary">Pending Allocation</p>
               {pendingAllocationCount > 0 && <Badge color="error">Needs allocation</Badge>}
             </div>
-            <p className={`mt-xs text-h1 ${pendingAllocationCount > 0 ? 'text-error' : 'text-text-primary'}`}>
-              {allocationQueue.isLoading ? '…' : pendingAllocationCount}
-            </p>
+            {/* N5 (second-pass review): a failed queue fetch used to render as a calm 0 — the one
+                number on this card whose whole job is "is anyone stuck waiting", shown as "nobody".
+                Card-scoped, so a queue hiccup doesn't take down the rest of the dashboard. */}
+            {allocationQueue.isError ? (
+              <p className="mt-xs text-body-sm text-error">
+                Couldn't load the queue.{' '}
+                <button
+                  type="button"
+                  className="underline"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void allocationQueue.refetch()
+                  }}
+                >
+                  Retry
+                </button>
+              </p>
+            ) : (
+              <p className={`mt-xs text-h1 ${pendingAllocationCount > 0 ? 'text-error' : 'text-text-primary'}`}>
+                {allocationQueue.isLoading ? '…' : pendingAllocationCount}
+              </p>
+            )}
             <p className="text-caption text-text-secondary">
               Freelancer-sourced applicants, and students asking to change consultancy.
             </p>
