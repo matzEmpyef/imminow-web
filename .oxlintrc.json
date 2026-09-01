@@ -7,14 +7,17 @@
     "eqeqeq": ["warn", "smart"],
     "no-console": "warn",
     "no-unused-vars": "warn",
-    // Off deliberately (2026-08-25): every firing in this codebase is a documented false
-    // positive — Modal/Drawer's role="dialog" backs useDialogA11y's own focus-trap design
-    // (native <dialog>'s showModal()/::backdrop model would conflict with it across ~64
-    // consumers), RichTextEditor's role="textbox" is the ARIA-prescribed pattern for a
+    // Off deliberately (2026-08-25, narrowed 2026-09-01): every firing in this codebase is a
+    // documented false positive — Modal/Drawer's role="dialog" backs useDialogA11y's own
+    // focus-trap design (native <dialog>'s showModal()/::backdrop model would conflict with it
+    // across ~64 consumers), RichTextEditor's role="textbox" is the ARIA-prescribed pattern for a
     // contentEditable rich-text surface (<textarea> can't hold formatted content), and the
-    // role="button" step/drop-zone cards can't BE <button>s because they contain nested
-    // interactive buttons (invalid HTML). The rule also reports on the attribute's line, not
-    // the element's, so eslint-disable-next-line can't target it per-site.
+    // role="button" EDITABLE step cards (PlanStepBuilder's LiveStepRow, PlanTemplatesPage's
+    // StepRow) and the CSV drop-zone (ImportLeadsModal) can't BE <button>s because they contain
+    // nested interactive buttons/inputs (invalid HTML). Their read-only preview-row siblings
+    // (LiveStepPreviewRow, StepPreviewRow) held no nested interactive content and are real
+    // <button>s now (audit item 4, 2026-09-01). The rule also reports on the attribute's line,
+    // not the element's, so eslint-disable-next-line can't target it per-site.
     "jsx-a11y/prefer-tag-over-role": "off"
   }
 }

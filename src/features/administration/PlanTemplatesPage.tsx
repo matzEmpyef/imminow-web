@@ -442,17 +442,13 @@ function StepPreviewRow({
   onSelect: () => void
 }) {
   return (
-    <div
+    // Only spans/text inside — no nested interactive content like the editable StepRow above
+    // (which hosts a drag handle and delete button and so must stay a div+role="button") — so
+    // this can be a real <button> instead of the div+role="button" workaround.
+    <button
+      type="button"
       onClick={onSelect}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onSelect()
-        }
-      }}
-      className={`flex cursor-pointer items-center gap-xs rounded-md border p-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${
+      className={`flex w-full cursor-pointer items-center gap-xs rounded-md border p-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${
         selected ? 'border-primary bg-primary-subtle' : 'border-border bg-surface hover:bg-background'
       }`}
     >
@@ -460,7 +456,7 @@ function StepPreviewRow({
         {index + 1}
       </span>
       <p className="min-w-0 flex-1 truncate text-body-sm font-medium text-text-primary">{step.title}</p>
-    </div>
+    </button>
   )
 }
 
