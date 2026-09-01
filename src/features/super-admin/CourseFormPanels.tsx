@@ -5,13 +5,15 @@ import { MultiSelect } from '@/components/MultiSelect'
 import { FieldLabel } from '@/components/FieldLabel'
 import type { components } from '@/api/schema'
 import { CURRENCIES, MONTHS, SELECT_CLASS, TEXTAREA_CLASS, type AptitudeReq, type EnglishReq } from './courseFormShared'
+import type { CourseFormValue } from './useCourseForm'
 
 type College = components['schemas']['College']
 type Exam = components['schemas']['Exam']
 
 // CourseFormModal's five tab panels, extracted from CollegeDetailPage in the 2026-08-25
-// decomposition pass (the modal was a single 446-line component). All state stays in the modal;
-// each panel is pure layout over values + setters.
+// decomposition pass (the modal was a single 446-line component). All state stays in the modal —
+// now behind useCourseForm.ts (audit item 6, 2026-09-01) — each panel is pure layout over `form`,
+// the ONE typed value+handlers object useCourseForm returns, instead of an 18-prop bag.
 //
 // CRITICAL: every panel stays MOUNTED and hides via the `hidden` class (the `hidden` prop below),
 // exactly as the original inline markup did — conditional mounting would throw away in-progress
@@ -19,36 +21,16 @@ type Exam = components['schemas']['Exam']
 
 const panelClass = (hidden: boolean) => (hidden ? 'hidden' : 'flex flex-col gap-md')
 
-export function CourseBasicsPanel(p: {
-  hidden: boolean
-  name: string
-  setName: (v: string) => void
-  description: string
-  setDescription: (v: string) => void
-  level: string
-  setLevel: (v: string) => void
-  fieldOfStudy: string
-  setFieldOfStudy: (v: string) => void
-  duration: string
-  setDuration: (v: string) => void
-  durationMonths: string
-  setDurationMonths: (v: string) => void
-  credentials: string
-  setCredentials: (v: string) => void
-  language: string
-  setLanguage: (v: string) => void
-  benefits: string
-  setBenefits: (v: string) => void
-}) {
+export function CourseBasicsPanel({ hidden, form }: { hidden: boolean; form: CourseFormValue }) {
   return (
-    <div className={panelClass(p.hidden)}>
-      <TextField label="Course name" required value={p.name} onChange={(e) => p.setName(e.target.value)} />
+    <div className={panelClass(hidden)}>
+      <TextField label="Course name" required value={form.name} onChange={(e) => form.setName(e.target.value)} />
       <div className="flex flex-col gap-xs">
         <FieldLabel htmlFor="course-description">Description</FieldLabel>
         <textarea
           id="course-description"
-          value={p.description}
-          onChange={(e) => p.setDescription(e.target.value)}
+          value={form.description}
+          onChange={(e) => form.setDescription(e.target.value)}
           rows={2}
           className={TEXTAREA_CLASS}
         />
@@ -56,45 +38,49 @@ export function CourseBasicsPanel(p: {
       <div className="grid grid-cols-2 gap-sm">
         <TextField
           label="Level"
-          value={p.level}
-          onChange={(e) => p.setLevel(e.target.value)}
+          value={form.level}
+          onChange={(e) => form.setLevel(e.target.value)}
           placeholder="e.g. masters"
         />
-        <TextField label="Field of study" value={p.fieldOfStudy} onChange={(e) => p.setFieldOfStudy(e.target.value)} />
+        <TextField
+          label="Field of study"
+          value={form.fieldOfStudy}
+          onChange={(e) => form.setFieldOfStudy(e.target.value)}
+        />
       </div>
       <div className="grid grid-cols-3 gap-sm">
         <TextField
           label="Duration (display)"
-          value={p.duration}
-          onChange={(e) => p.setDuration(e.target.value)}
+          value={form.duration}
+          onChange={(e) => form.setDuration(e.target.value)}
           placeholder="e.g. 2 years"
         />
         <TextField
           label="Duration (months — used for filters)"
           type="number"
-          value={p.durationMonths}
-          onChange={(e) => p.setDurationMonths(e.target.value)}
+          value={form.durationMonths}
+          onChange={(e) => form.setDurationMonths(e.target.value)}
         />
         <TextField
           label="Credentials"
-          value={p.credentials}
-          onChange={(e) => p.setCredentials(e.target.value)}
+          value={form.credentials}
+          onChange={(e) => form.setCredentials(e.target.value)}
           placeholder="e.g. MSc"
         />
       </div>
       <TextField
         label="Language of teaching"
         required
-        value={p.language}
-        onChange={(e) => p.setLanguage(e.target.value)}
+        value={form.language}
+        onChange={(e) => form.setLanguage(e.target.value)}
         placeholder="e.g. English"
       />
       <div className="flex flex-col gap-xs">
         <FieldLabel htmlFor="course-benefits">Benefits</FieldLabel>
         <textarea
           id="course-benefits"
-          value={p.benefits}
-          onChange={(e) => p.setBenefits(e.target.value)}
+          value={form.benefits}
+          onChange={(e) => form.setBenefits(e.target.value)}
           rows={2}
           className={TEXTAREA_CLASS}
         />
@@ -133,33 +119,30 @@ function IntakeDeadlineRow(p: {
   )
 }
 
-export function CourseCampusIntakesPanel(p: {
+export function CourseCampusIntakesPanel({
+  hidden,
+  college,
+  form,
+}: {
   hidden: boolean
   college: College
-  campusIds: string[]
-  onToggleCampus: (id: string) => void
-  allSelected: boolean
-  onToggleAll: () => void
-  intakes: string[]
-  setIntakes: (v: string[]) => void
-  deadlines: Record<string, { deadline: string; open: boolean }>
-  onDeadlineChange: (month: string, patch: Partial<{ deadline: string; open: boolean }>) => void
+  form: CourseFormValue
 }) {
   return (
-    <div className={panelClass(p.hidden)}>
+    <div className={panelClass(hidden)}>
       <div className="flex flex-col gap-xs">
         <p className="text-body-sm font-medium text-text-primary">Campuses</p>
         <label className="flex items-center gap-xs text-body-sm">
-          <input type="checkbox" checked={p.allSelected} onChange={p.onToggleAll} className="h-4 w-4" />
+          <input type="checkbox" checked={form.allSelected} onChange={form.onToggleAll} className="h-4 w-4" />
           All campuses
         </label>
         <div className="flex flex-col gap-xs pl-md">
-          {(p.college.campuses ?? []).map((c) => (
+          {(college.campuses ?? []).map((c) => (
             <label key={c.id} className="flex items-center gap-xs text-body-sm">
               <input
                 type="checkbox"
-                checked={p.campusIds.includes(c.id!)}
-                onChange={() => p.onToggleCampus(c.id!)}
+                checked={form.campusIds.includes(c.id!)}
+                onChange={() => form.onToggleCampus(c.id!)}
                 className="h-4 w-4"
               />
               {c.city ? `${c.city}, ` : ''}
@@ -168,22 +151,22 @@ export function CourseCampusIntakesPanel(p: {
           ))}
         </div>
       </div>
-      <MultiSelect label="Intakes" options={MONTHS} selected={p.intakes} onChange={p.setIntakes} />
-      {p.intakes.length > 0 && (
+      <MultiSelect label="Intakes" options={MONTHS} selected={form.intakes} onChange={form.setIntakes} />
+      {form.intakes.length > 0 && (
         <div className="flex flex-col gap-xs">
           <p className="text-body-sm font-medium text-text-primary">Application deadlines</p>
           <p className="text-caption text-text-secondary">
             Powers the app's "applications open now" filter, earliest-intake sort and closing-soon badges. Leave blank
             if unknown — no deadline never hides a course.
           </p>
-          {p.intakes.map((month) => (
+          {form.intakes.map((month) => (
             <IntakeDeadlineRow
               key={month}
               month={month}
-              deadline={p.deadlines[month]?.deadline ?? ''}
-              open={p.deadlines[month]?.open ?? true}
-              onDeadlineChange={(value) => p.onDeadlineChange(month, { deadline: value })}
-              onOpenChange={(open) => p.onDeadlineChange(month, { open })}
+              deadline={form.deadlines[month]?.deadline ?? ''}
+              open={form.deadlines[month]?.open ?? true}
+              onDeadlineChange={(value) => form.onDeadlineChange(month, { deadline: value })}
+              onOpenChange={(open) => form.onDeadlineChange(month, { open })}
             />
           ))}
         </div>
@@ -192,39 +175,21 @@ export function CourseCampusIntakesPanel(p: {
   )
 }
 
-export function CourseFeesPanel(p: {
-  hidden: boolean
-  feeAmount: string
-  setFeeAmount: (v: string) => void
-  feeCurrency: string
-  setFeeCurrency: (v: string) => void
-  feePeriod: 'per_year' | 'total'
-  setFeePeriod: (v: 'per_year' | 'total') => void
-  appFeeAmount: string
-  setAppFeeAmount: (v: string) => void
-  effectiveAppFeeCurrency: string
-  onAppFeeCurrencyChange: (v: string) => void
-  appFeeWaived: boolean
-  setAppFeeWaived: (v: boolean) => void
-  scholarship: boolean
-  setScholarship: (v: boolean) => void
-  scholarshipNote: string
-  setScholarshipNote: (v: string) => void
-}) {
+export function CourseFeesPanel({ hidden, form }: { hidden: boolean; form: CourseFormValue }) {
   return (
-    <div className={panelClass(p.hidden)}>
+    <div className={panelClass(hidden)}>
       <div className="grid grid-cols-3 gap-sm">
         <TextField
           label="Tuition fee"
           type="number"
-          value={p.feeAmount}
-          onChange={(e) => p.setFeeAmount(e.target.value)}
+          value={form.feeAmount}
+          onChange={(e) => form.setFeeAmount(e.target.value)}
         />
         <SelectField
           label="Currency"
           id="course-currency"
-          value={p.feeCurrency}
-          onChange={(e) => p.setFeeCurrency(e.target.value)}
+          value={form.feeCurrency}
+          onChange={(e) => form.setFeeCurrency(e.target.value)}
         >
           {CURRENCIES.map((currency) => (
             <option key={currency} value={currency}>
@@ -235,8 +200,8 @@ export function CourseFeesPanel(p: {
         <SelectField
           label="Covers"
           id="course-fee-period"
-          value={p.feePeriod}
-          onChange={(e) => p.setFeePeriod(e.target.value as 'per_year' | 'total')}
+          value={form.feePeriod}
+          onChange={(e) => form.setFeePeriod(e.target.value as 'per_year' | 'total')}
         >
           <option value="per_year">Per year</option>
           <option value="total">Total programme</option>
@@ -246,14 +211,14 @@ export function CourseFeesPanel(p: {
         <TextField
           label="Application fee"
           type="number"
-          value={p.appFeeAmount}
-          onChange={(e) => p.setAppFeeAmount(e.target.value)}
+          value={form.appFeeAmount}
+          onChange={(e) => form.setAppFeeAmount(e.target.value)}
         />
         <SelectField
           label="Currency"
           id="app-fee-currency"
-          value={p.effectiveAppFeeCurrency}
-          onChange={(e) => p.onAppFeeCurrencyChange(e.target.value)}
+          value={form.effectiveAppFeeCurrency}
+          onChange={(e) => form.onAppFeeCurrencyChange(e.target.value)}
         >
           {CURRENCIES.map((currency) => (
             <option key={currency} value={currency}>
@@ -264,8 +229,8 @@ export function CourseFeesPanel(p: {
         <label className="flex h-10 items-center gap-sm text-body-sm text-text-primary">
           <input
             type="checkbox"
-            checked={p.appFeeWaived}
-            onChange={(e) => p.setAppFeeWaived(e.target.checked)}
+            checked={form.appFeeWaived}
+            onChange={(e) => form.setAppFeeWaived(e.target.checked)}
             className="h-4 w-4"
           />
           Application fee waived
@@ -274,17 +239,17 @@ export function CourseFeesPanel(p: {
       <label className="flex items-center gap-sm text-body-sm text-text-primary">
         <input
           type="checkbox"
-          checked={p.scholarship}
-          onChange={(e) => p.setScholarship(e.target.checked)}
+          checked={form.scholarship}
+          onChange={(e) => form.setScholarship(e.target.checked)}
           className="h-4 w-4"
         />
         Scholarship available
       </label>
-      {p.scholarship && (
+      {form.scholarship && (
         <TextField
           label="Scholarship note"
-          value={p.scholarshipNote ?? ''}
-          onChange={(e) => p.setScholarshipNote(e.target.value)}
+          value={form.scholarshipNote ?? ''}
+          onChange={(e) => form.setScholarshipNote(e.target.value)}
           placeholder="e.g. Merit scholarships cover up to 25% tuition."
         />
       )}
@@ -381,34 +346,17 @@ function AptitudeRequirementRow(p: {
   )
 }
 
-export function CourseRequirementsPanel(p: {
+export function CourseRequirementsPanel({
+  hidden,
+  activeExams,
+  form,
+}: {
   hidden: boolean
   activeExams: Exam[]
-  minScore: string
-  setMinScore: (v: string) => void
-  scheme: string
-  setScheme: (v: 'percentage' | 'cgpa_10' | 'cgpa_4') => void
-  maxBacklogs: string
-  setMaxBacklogs: (v: string) => void
-  workExpMonths: string
-  setWorkExpMonths: (v: string) => void
-  background: string
-  setBackground: (v: string) => void
-  english: EnglishReq[]
-  onAddEnglish: () => void
-  onChangeEnglish: (index: number, patch: Partial<EnglishReq>) => void
-  onRemoveEnglish: (index: number) => void
-  moiAccepted: boolean
-  setMoiAccepted: (v: boolean) => void
-  aptitude: AptitudeReq[]
-  onAddAptitude: () => void
-  onChangeAptitude: (index: number, patch: Partial<AptitudeReq>) => void
-  onRemoveAptitude: (index: number) => void
-  eligibility: string
-  setEligibility: (v: string) => void
+  form: CourseFormValue
 }) {
   return (
-    <div className={panelClass(p.hidden)}>
+    <div className={panelClass(hidden)}>
       <p className="text-caption text-text-secondary">
         Every field is optional — an empty field means "no requirement", and only rules you fill in are ever checked
         against a student. Exams come from Catalog Settings.
@@ -417,14 +365,14 @@ export function CourseRequirementsPanel(p: {
         <TextField
           label="Min academic score"
           type="number"
-          value={p.minScore}
-          onChange={(e) => p.setMinScore(e.target.value)}
+          value={form.minScore}
+          onChange={(e) => form.setMinScore(e.target.value)}
         />
         <SelectField
           label="Scheme"
           id="req-scheme"
-          value={p.scheme}
-          onChange={(e) => p.setScheme(e.target.value as 'percentage' | 'cgpa_10' | 'cgpa_4')}
+          value={form.scheme}
+          onChange={(e) => form.setScheme(e.target.value as 'percentage' | 'cgpa_10' | 'cgpa_4')}
         >
           <option value="percentage">Percentage</option>
           <option value="cgpa_10">CGPA (10)</option>
@@ -433,48 +381,43 @@ export function CourseRequirementsPanel(p: {
         <TextField
           label="Max backlogs"
           type="number"
-          value={p.maxBacklogs}
-          onChange={(e) => p.setMaxBacklogs(e.target.value)}
+          value={form.maxBacklogs}
+          onChange={(e) => form.setMaxBacklogs(e.target.value)}
         />
         <TextField
           label="Min work exp (months)"
           type="number"
-          value={p.workExpMonths}
-          onChange={(e) => p.setWorkExpMonths(e.target.value)}
+          value={form.workExpMonths}
+          onChange={(e) => form.setWorkExpMonths(e.target.value)}
         />
       </div>
       <TextField
         label="Required background"
-        value={p.background ?? ''}
-        onChange={(e) => p.setBackground(e.target.value)}
+        value={form.background ?? ''}
+        onChange={(e) => form.setBackground(e.target.value)}
         placeholder='e.g. "CS or related 4-year bachelor"'
       />
       <div className="flex flex-col gap-xs">
         <div className="flex items-center justify-between">
           <p className="text-body-sm font-medium text-text-primary">English requirements (any one test qualifies)</p>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={p.onAddEnglish}
-          >
+          <Button type="button" variant="secondary" size="sm" onClick={form.onAddEnglish}>
             Add test
           </Button>
         </div>
-        {p.english.map((row, i) => (
+        {form.english.map((row, i) => (
           <EnglishRequirementRow
             key={i}
             row={row}
-            exams={p.activeExams}
-            onChange={(patch) => p.onChangeEnglish(i, patch)}
-            onRemove={() => p.onRemoveEnglish(i)}
+            exams={activeExams}
+            onChange={(patch) => form.onChangeEnglish(i, patch)}
+            onRemove={() => form.onRemoveEnglish(i)}
           />
         ))}
         <label className="flex items-center gap-sm text-body-sm text-text-primary">
           <input
             type="checkbox"
-            checked={p.moiAccepted}
-            onChange={(e) => p.setMoiAccepted(e.target.checked)}
+            checked={form.moiAccepted}
+            onChange={(e) => form.setMoiAccepted(e.target.checked)}
             className="h-4 w-4"
           />
           Medium of Instruction letter accepted in lieu of a test
@@ -483,22 +426,17 @@ export function CourseRequirementsPanel(p: {
       <div className="flex flex-col gap-xs">
         <div className="flex items-center justify-between">
           <p className="text-body-sm font-medium text-text-primary">Aptitude / entrance exams</p>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={p.onAddAptitude}
-          >
+          <Button type="button" variant="secondary" size="sm" onClick={form.onAddAptitude}>
             Add exam
           </Button>
         </div>
-        {p.aptitude.map((row, i) => (
+        {form.aptitude.map((row, i) => (
           <AptitudeRequirementRow
             key={i}
             row={row}
-            exams={p.activeExams}
-            onChange={(patch) => p.onChangeAptitude(i, patch)}
-            onRemove={() => p.onRemoveAptitude(i)}
+            exams={activeExams}
+            onChange={(patch) => form.onChangeAptitude(i, patch)}
+            onRemove={() => form.onRemoveAptitude(i)}
           />
         ))}
       </div>
@@ -508,8 +446,8 @@ export function CourseRequirementsPanel(p: {
         </FieldLabel>
         <textarea
           id="course-eligibility"
-          value={p.eligibility}
-          onChange={(e) => p.setEligibility(e.target.value)}
+          value={form.eligibility}
+          onChange={(e) => form.setEligibility(e.target.value)}
           rows={2}
           className={TEXTAREA_CLASS}
         />
@@ -518,25 +456,15 @@ export function CourseRequirementsPanel(p: {
   )
 }
 
-export function CourseFlagsPanel(p: {
-  hidden: boolean
-  studyMode: string
-  setStudyMode: (v: string) => void
-  delivery: string
-  setDelivery: (v: string) => void
-  coop: boolean
-  setCoop: (v: boolean) => void
-  psw: boolean
-  setPsw: (v: boolean) => void
-}) {
+export function CourseFlagsPanel({ hidden, form }: { hidden: boolean; form: CourseFormValue }) {
   return (
-    <div className={panelClass(p.hidden)}>
+    <div className={panelClass(hidden)}>
       <div className="grid grid-cols-2 gap-sm">
         <SelectField
           label="Study mode"
           id="course-study-mode"
-          value={p.studyMode ?? ''}
-          onChange={(e) => p.setStudyMode(e.target.value)}
+          value={form.studyMode ?? ''}
+          onChange={(e) => form.setStudyMode(e.target.value)}
         >
           <option value="">Not specified</option>
           <option value="full_time">Full time</option>
@@ -545,8 +473,8 @@ export function CourseFlagsPanel(p: {
         <SelectField
           label="Delivery"
           id="course-delivery"
-          value={p.delivery ?? ''}
-          onChange={(e) => p.setDelivery(e.target.value)}
+          value={form.delivery ?? ''}
+          onChange={(e) => form.setDelivery(e.target.value)}
         >
           <option value="">Not specified</option>
           <option value="on_campus">On campus</option>
@@ -555,11 +483,16 @@ export function CourseFlagsPanel(p: {
         </SelectField>
       </div>
       <label className="flex items-center gap-sm text-body-sm text-text-primary">
-        <input type="checkbox" checked={p.coop} onChange={(e) => p.setCoop(e.target.checked)} className="h-4 w-4" />
+        <input
+          type="checkbox"
+          checked={form.coop}
+          onChange={(e) => form.setCoop(e.target.checked)}
+          className="h-4 w-4"
+        />
         Co-op / internship available
       </label>
       <label className="flex items-center gap-sm text-body-sm text-text-primary">
-        <input type="checkbox" checked={p.psw} onChange={(e) => p.setPsw(e.target.checked)} className="h-4 w-4" />
+        <input type="checkbox" checked={form.psw} onChange={(e) => form.setPsw(e.target.checked)} className="h-4 w-4" />
         Post-study work eligible
       </label>
     </div>

@@ -18,7 +18,7 @@ import { useCollegeDetail, useCreateCampus, useUpdateCampus, useUpdateCollege } 
 import { useCourses, useCreateCourse, useUpdateCourse } from '@/queries/courseSuggestions'
 import { useExams } from '@/queries/catalogSettings'
 import { useCursorPagination } from '@/lib/pagination'
-import { FORM_TABS, courseCompleteness, type AptitudeReq, type EnglishReq, type FormTab } from './courseFormShared'
+import { FORM_TABS, courseCompleteness } from './courseFormShared'
 import {
   CourseBasicsPanel,
   CourseCampusIntakesPanel,
@@ -26,6 +26,7 @@ import {
   CourseFlagsPanel,
   CourseRequirementsPanel,
 } from './CourseFormPanels'
+import { useCourseForm } from './useCourseForm'
 import type { components } from '@/api/schema'
 import { formatCourseFee } from '@/lib/money'
 
@@ -202,168 +203,15 @@ function CourseFormModal({
   const createCourse = useCreateCourse()
   const updateCourse = useUpdateCourse(editingCourse?.id ?? '')
   const examsCatalog = useExams()
-  const [activeTab, setActiveTab] = useState<FormTab>('Basics')
-
-  // Basics
-  const [name, setName] = useState(editingCourse?.name ?? '')
-  const [description, setDescription] = useState(editingCourse?.description ?? '')
-  const [level, setLevel] = useState(editingCourse?.level ?? '')
-  const [fieldOfStudy, setFieldOfStudy] = useState(editingCourse?.field_of_study ?? '')
-  const [duration, setDuration] = useState(editingCourse?.duration ?? '')
-  const [durationMonths, setDurationMonths] = useState(
-    editingCourse?.duration_months != null ? String(editingCourse.duration_months) : '',
-  )
-  const [credentials, setCredentials] = useState(editingCourse?.credentials ?? '')
-  const [language, setLanguage] = useState(editingCourse?.language ?? '')
-  const [benefits, setBenefits] = useState(editingCourse?.benefits ?? '')
-
-  // Campuses & Intakes
-  const [campusIds, setCampusIds] = useState<string[]>(
-    editingCourse?.campus_ids ?? (defaultCampusId ? [defaultCampusId] : []),
-  )
-  const [intakes, setIntakes] = useState<string[]>(editingCourse?.intakes ?? [])
-  const [deadlines, setDeadlines] = useState<Record<string, { deadline: string; open: boolean }>>(() =>
-    Object.fromEntries(
-      (editingCourse?.intake_deadlines ?? []).map((d) => [
-        d.month,
-        { deadline: d.application_deadline ?? '', open: d.status !== 'closed' },
-      ]),
-    ),
-  )
-
-  // Fees
-  const [feeAmount, setFeeAmount] = useState(editingCourse?.fee?.amount != null ? String(editingCourse.fee.amount) : '')
-  const [feeCurrency, setFeeCurrency] = useState(editingCourse?.fee?.currency ?? 'INR')
-  // Was hardcoded to INR with no field at all (audit, 2026-08-23) — a college in Toronto charged
-  // its application fee in rupees. Defaults to the course's own currency rather than to INR,
-  // because the two almost always match, and tracks it until explicitly overridden so a Canadian
-  // college does not need the same answer typed twice.
-  const [appFeeCurrency, setAppFeeCurrency] = useState(
-    editingCourse?.application_fee?.currency ?? editingCourse?.fee?.currency ?? 'INR',
-  )
-  const [appFeeCurrencyTouched, setAppFeeCurrencyTouched] = useState(
-    Boolean(editingCourse?.application_fee?.currency) &&
-      editingCourse?.application_fee?.currency !== editingCourse?.fee?.currency,
-  )
-  const effectiveAppFeeCurrency = appFeeCurrencyTouched ? appFeeCurrency : feeCurrency
-  const [feePeriod, setFeePeriod] = useState<'per_year' | 'total'>(editingCourse?.fee_period ?? 'per_year')
-  const [appFeeAmount, setAppFeeAmount] = useState(
-    editingCourse?.application_fee?.amount != null ? String(editingCourse.application_fee.amount) : '',
-  )
-  const [appFeeWaived, setAppFeeWaived] = useState(editingCourse?.application_fee_waived ?? false)
-  const [scholarship, setScholarship] = useState(editingCourse?.scholarship_available ?? false)
-  const [scholarshipNote, setScholarshipNote] = useState(editingCourse?.scholarship_note ?? '')
-
-  // Entry Requirements — every field optional by design: an empty field means "no requirement",
-  // never "unknown" (plan §1.2), so a half-filled tab is a perfectly valid save.
-  const existingReqs = editingCourse?.requirements
-  const [minScore, setMinScore] = useState(
-    existingReqs?.academic?.min_score != null ? String(existingReqs.academic.min_score) : '',
-  )
-  const [scheme, setScheme] = useState(existingReqs?.academic?.scheme ?? 'percentage')
-  const [background, setBackground] = useState(existingReqs?.academic?.required_background ?? '')
-  const [maxBacklogs, setMaxBacklogs] = useState(
-    existingReqs?.academic?.max_backlogs != null ? String(existingReqs.academic.max_backlogs) : '',
-  )
-  const [english, setEnglish] = useState<EnglishReq[]>(
-    (existingReqs?.english ?? []).map((e) => ({
-      exam_id: e.exam_id ?? '',
-      min_overall: String(e.min_overall ?? ''),
-      min_band: e.min_band != null ? String(e.min_band) : '',
-    })),
-  )
-  const [moiAccepted, setMoiAccepted] = useState(existingReqs?.moi_accepted ?? false)
-  const [aptitude, setAptitude] = useState<AptitudeReq[]>(
-    (existingReqs?.aptitude ?? []).map((a) => ({
-      exam_id: a.exam_id ?? '',
-      min_score: String(a.min_score ?? ''),
-      required: a.required !== false,
-    })),
-  )
-  const [workExpMonths, setWorkExpMonths] = useState(
-    existingReqs?.min_work_experience_months != null ? String(existingReqs.min_work_experience_months) : '',
-  )
-  const [eligibility, setEligibility] = useState(editingCourse?.eligibility ?? '')
-
-  // Flags
-  const [studyMode, setStudyMode] = useState(editingCourse?.study_mode ?? '')
-  const [delivery, setDelivery] = useState(editingCourse?.delivery ?? '')
-  const [coop, setCoop] = useState(editingCourse?.coop_available ?? false)
-  const [psw, setPsw] = useState(editingCourse?.post_study_work_eligible ?? false)
+  const form = useCourseForm(college, editingCourse, defaultCampusId)
 
   const mutation = isEditing ? updateCourse : createCourse
-  const allCampusIds = (college.campuses ?? []).map((c) => c.id!)
-  const allSelected = allCampusIds.length > 0 && allCampusIds.every((id) => campusIds.includes(id))
   const activeExams = (examsCatalog.data ?? []).filter((e) => e.active !== false)
-
-  function toggleCampus(id: string) {
-    setCampusIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]))
-  }
-
-  function buildRequirements() {
-    const englishRows = english
-      .filter((e) => e.exam_id && e.min_overall !== '')
-      .map((e) => ({
-        exam_id: e.exam_id,
-        min_overall: Number(e.min_overall),
-        min_band: e.min_band === '' ? null : Number(e.min_band),
-      }))
-    const aptitudeRows = aptitude
-      .filter((a) => a.exam_id && a.min_score !== '')
-      .map((a) => ({ exam_id: a.exam_id, min_score: Number(a.min_score), required: a.required }))
-    const academic =
-      minScore !== '' || background || maxBacklogs !== ''
-        ? {
-            ...(minScore !== '' ? { min_score: Number(minScore), scheme } : {}),
-            ...(background ? { required_background: background } : {}),
-            ...(maxBacklogs !== '' ? { max_backlogs: Number(maxBacklogs) } : {}),
-          }
-        : null
-    if (!academic && englishRows.length === 0 && aptitudeRows.length === 0 && !moiAccepted && workExpMonths === '') {
-      return null
-    }
-    return {
-      academic,
-      english: englishRows,
-      moi_accepted: moiAccepted,
-      aptitude: aptitudeRows,
-      min_work_experience_months: workExpMonths === '' ? null : Number(workExpMonths),
-    }
-  }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!name || !language) return
-    const body = {
-      name,
-      description,
-      level,
-      field_of_study: fieldOfStudy,
-      duration,
-      duration_months: durationMonths === '' ? null : Number(durationMonths),
-      fee: feeAmount ? { amount: Number(feeAmount), currency: feeCurrency } : null,
-      fee_period: feePeriod,
-      application_fee: appFeeAmount ? { amount: Number(appFeeAmount), currency: effectiveAppFeeCurrency } : null,
-      application_fee_waived: appFeeWaived,
-      scholarship_available: scholarship,
-      scholarship_note: scholarship && scholarshipNote ? scholarshipNote : null,
-      intake_deadlines: intakes.map((month) => ({
-        month,
-        application_deadline: deadlines[month]?.deadline || null,
-        status: (deadlines[month]?.open ?? true) ? ('open' as const) : ('closed' as const),
-      })),
-      study_mode: (studyMode || null) as Course['study_mode'],
-      delivery: (delivery || null) as Course['delivery'],
-      coop_available: coop,
-      post_study_work_eligible: psw,
-      requirements: buildRequirements(),
-      benefits,
-      eligibility,
-      intakes,
-      credentials,
-      language,
-      campus_ids: campusIds,
-    }
+    if (!form.isValid) return
+    const body = form.toPayload()
     if (isEditing) {
       updateCourse.mutate(body, { onSuccess: () => onClose() })
     } else {
@@ -379,12 +227,12 @@ function CourseFormModal({
       footer={
         <>
           {mutation.isError && <p className="mr-auto self-center text-body-sm text-error">{mutation.error.message}</p>}
-          {!language && (
+          {!form.language && (
             <p className="mr-auto self-center text-body-sm text-text-secondary">
               Language of teaching is required (Basics tab).
             </p>
           )}
-          <Button type="submit" form="course-form" loading={mutation.isPending} disabled={!name || !language}>
+          <Button type="submit" form="course-form" loading={mutation.isPending} disabled={!form.isValid}>
             {isEditing ? 'Save Changes' : 'Create Course'}
           </Button>
         </>
@@ -395,9 +243,9 @@ function CourseFormModal({
           <button
             key={tab}
             type="button"
-            onClick={() => setActiveTab(tab)}
+            onClick={() => form.setActiveTab(tab)}
             className={`whitespace-nowrap border-b-2 px-sm py-sm text-body-sm font-medium ${
-              activeTab === tab
+              form.activeTab === tab
                 ? 'border-primary text-primary'
                 : 'border-transparent text-text-secondary hover:text-text-primary'
             }`}
@@ -409,107 +257,15 @@ function CourseFormModal({
       <form id="course-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         {/* All five panels stay mounted and toggle via the hidden class — conditional mounting
             would throw away in-progress state in the other tabs. See CourseFormPanels.tsx. */}
-        <CourseBasicsPanel
-          hidden={activeTab !== 'Basics'}
-          name={name}
-          setName={setName}
-          description={description}
-          setDescription={setDescription}
-          level={level}
-          setLevel={setLevel}
-          fieldOfStudy={fieldOfStudy}
-          setFieldOfStudy={setFieldOfStudy}
-          duration={duration}
-          setDuration={setDuration}
-          durationMonths={durationMonths}
-          setDurationMonths={setDurationMonths}
-          credentials={credentials}
-          setCredentials={setCredentials}
-          language={language}
-          setLanguage={setLanguage}
-          benefits={benefits}
-          setBenefits={setBenefits}
-        />
-        <CourseCampusIntakesPanel
-          hidden={activeTab !== 'Campuses & Intakes'}
-          college={college}
-          campusIds={campusIds}
-          onToggleCampus={toggleCampus}
-          allSelected={allSelected}
-          onToggleAll={() => setCampusIds(allSelected ? [] : allCampusIds)}
-          intakes={intakes}
-          setIntakes={setIntakes}
-          deadlines={deadlines}
-          onDeadlineChange={(month, patch) =>
-            setDeadlines((prev) => ({
-              ...prev,
-              [month]: { deadline: prev[month]?.deadline ?? '', open: prev[month]?.open ?? true, ...patch },
-            }))
-          }
-        />
-        <CourseFeesPanel
-          hidden={activeTab !== 'Fees'}
-          feeAmount={feeAmount}
-          setFeeAmount={setFeeAmount}
-          feeCurrency={feeCurrency}
-          setFeeCurrency={setFeeCurrency}
-          feePeriod={feePeriod}
-          setFeePeriod={setFeePeriod}
-          appFeeAmount={appFeeAmount}
-          setAppFeeAmount={setAppFeeAmount}
-          effectiveAppFeeCurrency={effectiveAppFeeCurrency}
-          onAppFeeCurrencyChange={(value) => {
-            setAppFeeCurrency(value)
-            setAppFeeCurrencyTouched(true)
-          }}
-          appFeeWaived={appFeeWaived}
-          setAppFeeWaived={setAppFeeWaived}
-          scholarship={scholarship}
-          setScholarship={setScholarship}
-          scholarshipNote={scholarshipNote}
-          setScholarshipNote={setScholarshipNote}
-        />
+        <CourseBasicsPanel hidden={form.activeTab !== 'Basics'} form={form} />
+        <CourseCampusIntakesPanel hidden={form.activeTab !== 'Campuses & Intakes'} college={college} form={form} />
+        <CourseFeesPanel hidden={form.activeTab !== 'Fees'} form={form} />
         <CourseRequirementsPanel
-          hidden={activeTab !== 'Entry Requirements'}
+          hidden={form.activeTab !== 'Entry Requirements'}
           activeExams={activeExams}
-          minScore={minScore}
-          setMinScore={setMinScore}
-          scheme={scheme}
-          setScheme={setScheme}
-          maxBacklogs={maxBacklogs}
-          setMaxBacklogs={setMaxBacklogs}
-          workExpMonths={workExpMonths}
-          setWorkExpMonths={setWorkExpMonths}
-          background={background}
-          setBackground={setBackground}
-          english={english}
-          onAddEnglish={() => setEnglish((prev) => [...prev, { exam_id: '', min_overall: '', min_band: '' }])}
-          onChangeEnglish={(index, patch) =>
-            setEnglish((prev) => prev.map((r, j) => (j === index ? { ...r, ...patch } : r)))
-          }
-          onRemoveEnglish={(index) => setEnglish((prev) => prev.filter((_, j) => j !== index))}
-          moiAccepted={moiAccepted}
-          setMoiAccepted={setMoiAccepted}
-          aptitude={aptitude}
-          onAddAptitude={() => setAptitude((prev) => [...prev, { exam_id: '', min_score: '', required: true }])}
-          onChangeAptitude={(index, patch) =>
-            setAptitude((prev) => prev.map((r, j) => (j === index ? { ...r, ...patch } : r)))
-          }
-          onRemoveAptitude={(index) => setAptitude((prev) => prev.filter((_, j) => j !== index))}
-          eligibility={eligibility}
-          setEligibility={setEligibility}
+          form={form}
         />
-        <CourseFlagsPanel
-          hidden={activeTab !== 'Flags'}
-          studyMode={studyMode}
-          setStudyMode={setStudyMode}
-          delivery={delivery}
-          setDelivery={setDelivery}
-          coop={coop}
-          setCoop={setCoop}
-          psw={psw}
-          setPsw={setPsw}
-        />
+        <CourseFlagsPanel hidden={form.activeTab !== 'Flags'} form={form} />
       </form>
     </Modal>
   )
