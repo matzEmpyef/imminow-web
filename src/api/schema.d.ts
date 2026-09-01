@@ -5689,7 +5689,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Student requests an in-person visit to the consultancy's office, from the chat window (2026-08-24 — "a student should be able to request for a in-person visit to consultancy office... lead or applicant suggest a time, we get intimated"). Sends a LeadMessage with type = visit_request carrying the proposed date/time/note, and creates a matching VisitRequest row for Support Tools' cross-consultancy list. Deliberately not a slot-picker — one proposed time, everything else (confirming, countering, rescheduling) happens as ordinary follow-up messages in the same thread. Restricted to the owning student. */
+        /** Student requests an in-person visit to the consultancy's office, from the chat window (2026-08-24 — "a student should be able to request for a in-person visit to consultancy office... lead or applicant suggest a time, we get intimated"). Sends a LeadMessage with type = visit_request carrying the proposed date/time/note, and creates a matching VisitRequest row for Support Tools' cross-consultancy list. Deliberately not a slot-picker — one proposed time, everything else (confirming, countering, rescheduling) happens as ordinary follow-up messages in the same thread. Restricted to the owning student. `proposed_date`/`proposed_time` must fall Monday-Saturday, 10:00-17:00 (2026-09-01 — "meeting can be fixed mon to sat 10am to 5pm"); a Sunday date or a time outside that window is refused with 422. A 17:00 end means the last acceptable `proposed_time` is 16:59. */
         post: {
             parameters: {
                 query?: never;
@@ -5726,6 +5726,7 @@ export interface paths {
                     };
                     content?: never;
                 };
+                422: components["responses"]["ErrorResponse"];
             };
         };
         delete?: never;
@@ -5743,7 +5744,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Stage 2 sibling of `POST /leads/{id}/request-visit` above — same behavior, into the single committed consultant's own thread. Restricted to the owning student. */
+        /** Stage 2 sibling of `POST /leads/{id}/request-visit` above — same behavior, into the single committed consultant's own thread, including the same Monday-Saturday, 10:00-17:00 meeting-window validation (2026-09-01). Restricted to the owning student. */
         post: {
             parameters: {
                 query?: never;
@@ -5780,6 +5781,7 @@ export interface paths {
                     };
                     content?: never;
                 };
+                422: components["responses"]["ErrorResponse"];
             };
         };
         delete?: never;
@@ -14462,7 +14464,11 @@ export interface components {
             gender?: "male" | "female" | "other" | "prefer_not_to_say" | null;
             /** Format: date */
             date_of_birth?: string | null;
-            education_level?: string | null;
+            /**
+             * @description SERVER-DERIVED from `education` (2026-08-31, profile-completion UAT audit) — the highest-ranked entry's own `level`, same "derive the summary field from the structured list" convention `exam_status` already established from `test_scores`. No client screen ever wrote this field directly (Profile's Education editor and the onboarding wizard both only ever wrote the structured `education` array), which left the completion checklist's "Add your education level" item unreachable from Profile alone. Clients send `education`; anything sent here is ignored.
+             * @enum {string|null}
+             */
+            readonly education_level?: "tenth" | "twelfth" | "diploma" | "bachelors" | "masters" | null;
             /**
              * @description Added 2026-08-31 (profile-completion UAT gap) — mirrors Course.study_mode's own enum, since matching against that field is this preference's whole purpose (Search, Match). Reuses the app's existing "Study mode" terminology (the course filter chips already label full_time/part_time this way) rather than delivery's on_campus/hybrid/online, which is a different axis.
              * @enum {string|null}
