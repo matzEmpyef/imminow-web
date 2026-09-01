@@ -176,6 +176,7 @@ export function ReceiptsPage() {
           rows={receipts.data?.items ?? []}
           rowKey={(r) => r.id}
           loading={receipts.isLoading}
+          error={receipts.isError ? 'Could not load receipts.' : undefined}
           emptyMessage="No receipts recorded yet."
           sort={sort}
           onSortChange={(field, direction) => {

@@ -273,6 +273,7 @@ export function CourseSuggestionsReviewPage() {
           rows={queue.data?.items ?? []}
           rowKey={(s) => s.id!}
           loading={queue.isLoading}
+          error={queue.isError ? 'Could not load course suggestions.' : undefined}
           emptyMessage="Nothing here."
           sort={sort}
           onSortChange={(field, direction) => {

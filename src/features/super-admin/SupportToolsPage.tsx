@@ -386,6 +386,7 @@ export function SupportToolsPage() {
             rows={results.data ?? []}
             rowKey={(result) => result.id!}
             loading={results.isLoading}
+            error={results.isError ? 'Could not run this search.' : undefined}
             emptyMessage={`No matches for "${submittedQuery}".`}
           />
         )}

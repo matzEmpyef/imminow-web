@@ -1027,6 +1027,7 @@ function IncomingTransfersTab() {
         rows={codes.data?.items ?? []}
         rowKey={(c) => c.code}
         loading={codes.isLoading}
+        error={codes.isError ? 'Could not load transfer codes.' : undefined}
         emptyMessage="No transfer codes issued yet."
       />
     </div>

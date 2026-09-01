@@ -110,6 +110,7 @@ export function CountryGuidesPage() {
           rows={rows}
           rowKey={(r) => r.country}
           loading={countries.isLoading || content.isLoading}
+          error={countries.isError || content.isError ? 'Could not load country guides.' : undefined}
           emptyMessage="No countries in the shared list yet."
           onRowClick={(r) => setEditing(r.country)}
         />

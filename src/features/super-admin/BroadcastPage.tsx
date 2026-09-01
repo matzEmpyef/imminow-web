@@ -276,6 +276,7 @@ export function BroadcastPage() {
             rows={history.data?.items ?? []}
             rowKey={(b) => b.id}
             loading={history.isLoading}
+            error={history.isError ? 'Could not load broadcast history.' : undefined}
             emptyMessage="No broadcasts sent yet."
             sort={sort}
             onSortChange={(field, direction) => {

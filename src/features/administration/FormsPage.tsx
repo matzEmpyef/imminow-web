@@ -137,6 +137,7 @@ export function FormsPage() {
           rows={rows}
           rowKey={(form) => form.id}
           loading={forms.isLoading}
+          error={forms.isError ? 'Could not load forms.' : undefined}
           emptyMessage="No form templates yet."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}

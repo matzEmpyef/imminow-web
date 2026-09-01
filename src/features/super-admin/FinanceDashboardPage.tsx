@@ -261,6 +261,7 @@ export function FinanceDashboardPage() {
                 rows={dashboard.data?.payment_history ?? []}
                 rowKey={(p) => p.id}
                 loading={dashboard.isLoading}
+                error={dashboard.isError ? 'Could not load payment history.' : undefined}
                 emptyMessage="No confirmed payments yet."
               />
             </div>

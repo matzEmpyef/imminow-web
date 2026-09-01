@@ -230,6 +230,7 @@ export function PlatformTeamPage() {
           rows={rows}
           rowKey={(s) => s.id!}
           loading={staff.isLoading}
+          error={staff.isError ? 'Could not load platform staff.' : undefined}
           emptyMessage="No platform staff yet."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}

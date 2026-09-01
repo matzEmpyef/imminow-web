@@ -176,6 +176,7 @@ function ArticlesTab() {
         rows={pagedRows}
         rowKey={(a) => a.id}
         loading={articles.isLoading}
+        error={articles.isError ? 'Could not load articles.' : undefined}
         emptyMessage="No articles yet. Add one with its link from the Sentpo website."
         search={{ value: search, onChange: setSearch, placeholder: 'Search articles…' }}
         sort={sort}
@@ -403,6 +404,7 @@ function CategoryMappingTab() {
         rows={rows}
         rowKey={(m) => m.id!}
         loading={mappings.isLoading}
+        error={mappings.isError ? 'Could not load category mappings.' : undefined}
         emptyMessage="No category mappings yet."
         search={{ value: search, onChange: setSearch, placeholder: 'Search category or tag…' }}
       />

@@ -281,6 +281,7 @@ export function ApplicantAllocationPage() {
           rows={rows}
           rowKey={(e) => e.id!}
           loading={queue.isLoading}
+          error={queue.isError ? 'Could not load the allocation queue.' : undefined}
           emptyMessage="Nothing awaiting allocation."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}

@@ -126,6 +126,7 @@ export function PhonebookPage() {
           rows={rows}
           rowKey={(c) => c.id}
           loading={contacts.isLoading}
+          error={contacts.isError ? 'Could not load contacts.' : undefined}
           emptyMessage="No contacts yet."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}

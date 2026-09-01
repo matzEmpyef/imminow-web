@@ -565,6 +565,7 @@ export function CommissionRatesPage() {
           rows={rows}
           rowKey={(s) => s.consultancyId}
           loading={rates.isLoading || consultancies.isLoading}
+          error={rates.isError || consultancies.isError ? 'Could not load commission rates.' : undefined}
           emptyMessage="No consultancies yet."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}

@@ -449,6 +449,7 @@ export function JobsAdminPage() {
           rows={rows}
           rowKey={(j) => j.id!}
           loading={jobs.isLoading}
+          error={jobs.isError ? 'Could not load job listings.' : undefined}
           emptyMessage="No job listings yet."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}

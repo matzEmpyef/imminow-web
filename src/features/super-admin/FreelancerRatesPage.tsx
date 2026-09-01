@@ -193,6 +193,7 @@ export function FreelancerRatesPanel() {
         rows={rows}
         rowKey={(r) => r.id!}
         loading={rates.isLoading}
+        error={rates.isError ? 'Could not load freelancer rates.' : undefined}
         emptyMessage="No freelancer rates set yet."
         sort={sort}
         onSortChange={(field, direction) => setSort({ field, direction })}

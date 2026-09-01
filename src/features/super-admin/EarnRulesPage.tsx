@@ -260,6 +260,7 @@ export function EarnRulesPage() {
           rows={rows}
           rowKey={(r) => r.id!}
           loading={rules.isLoading}
+          error={rules.isError ? 'Could not load earn rules.' : undefined}
           emptyMessage="No earn rules yet."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}

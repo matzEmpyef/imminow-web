@@ -455,6 +455,7 @@ export function CouponsAdminPage() {
           rows={rows}
           rowKey={(c) => c.id!}
           loading={coupons.isLoading}
+          error={coupons.isError ? 'Could not load coupons.' : undefined}
           emptyMessage="No coupons yet."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}

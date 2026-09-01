@@ -709,6 +709,7 @@ export function ManageConsultanciesPage() {
           rows={consultancies.data?.items ?? []}
           rowKey={(c) => c.id!}
           loading={consultancies.isLoading}
+          error={consultancies.isError ? 'Could not load consultancies.' : undefined}
           emptyMessage="No consultancies match these filters."
           sort={sort}
           onSortChange={(field, direction) => {

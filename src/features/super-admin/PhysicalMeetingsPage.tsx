@@ -276,6 +276,7 @@ export function PhysicalMeetingsPage() {
           rows={rows}
           rowKey={(e) => e.id!}
           loading={events.isLoading}
+          error={events.isError ? 'Could not load in-person meetings.' : undefined}
           emptyMessage="No in-person meetings yet."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}

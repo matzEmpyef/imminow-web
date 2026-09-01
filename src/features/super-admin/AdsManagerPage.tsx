@@ -475,6 +475,7 @@ export function AdsManagerPage() {
           rows={rows}
           rowKey={(ad) => ad.id!}
           loading={ads.isLoading}
+          error={ads.isError ? 'Could not load ads.' : undefined}
           emptyMessage="No ads yet."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}

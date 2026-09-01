@@ -200,6 +200,7 @@ export function ComplaintsPage() {
           rows={complaints.data?.items ?? []}
           rowKey={(c) => c.id}
           loading={complaints.isLoading}
+          error={complaints.isError ? 'Could not load complaints.' : undefined}
           emptyMessage={
             statusFilter
               ? `No ${STATUS_META[statusFilter]?.label.toLowerCase() ?? statusFilter} complaints.`

@@ -299,6 +299,7 @@ export function WebinarsPage() {
           rows={rows}
           rowKey={(e) => e.id!}
           loading={events.isLoading}
+          error={events.isError ? 'Could not load webinars.' : undefined}
           emptyMessage="No webinars yet."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}

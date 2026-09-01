@@ -278,6 +278,7 @@ export function RedemptionPartnersPage() {
           rows={rows}
           rowKey={(p) => p.id!}
           loading={partners.isLoading}
+          error={partners.isError ? 'Could not load redemption partners.' : undefined}
           emptyMessage="No redemption partners yet."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}

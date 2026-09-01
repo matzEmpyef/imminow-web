@@ -229,6 +229,7 @@ export function InvoicesPage() {
           rows={invoices.data?.items ?? []}
           rowKey={(inv) => inv.id}
           loading={invoices.isLoading}
+          error={invoices.isError ? 'Could not load invoices.' : undefined}
           emptyMessage="No invoices yet."
           sort={sort}
           onSortChange={(field, direction) => {

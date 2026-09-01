@@ -97,6 +97,7 @@ export function FreelancerPayoutsPage() {
           rows={rows}
           rowKey={(r) => r.id}
           loading={referrals.isLoading}
+          error={referrals.isError ? 'Could not load freelancer referrals.' : undefined}
           emptyMessage="No freelancer referrals yet."
         />
 
