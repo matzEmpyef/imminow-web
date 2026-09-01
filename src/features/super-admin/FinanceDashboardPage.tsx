@@ -9,7 +9,7 @@ import { useAdminConsultancies } from '@/queries/adminConsultancies'
 import { useFinanceDashboard, type FinanceDashboardFilters } from '@/queries/financeDashboard'
 import { useConfirmCommissionPayment } from '@/queries/commission'
 import { formatDate } from '@/lib/time'
-import { Skeleton } from '@/components/QueryState'
+import { ErrorState, Skeleton } from '@/components/QueryState'
 import { Table, type TableColumn } from '@/components/Table'
 import type { components } from '@/api/schema'
 
@@ -67,6 +67,19 @@ export function FinanceDashboardPage() {
     from: from || undefined,
     to: to || undefined,
   })
+
+  // H6 fix (frontend review, 1 Sep 2026) — this used to have no error branch at all, so a failed
+  // fetch rendered "No cases match these filters" with a zero running total: a false empty state
+  // an operator could act on. Full-page early return, same shape DashboardPage/
+  // SuperAdminDashboardPage already use, rather than trying to keep the filter card usable against
+  // data that never loaded.
+  if (dashboard.isError) {
+    return (
+      <AdminShell>
+        <ErrorState message="Could not load the finance dashboard." onRetry={() => dashboard.refetch()} />
+      </AdminShell>
+    )
+  }
 
   const historyColumns: TableColumn<CommissionPayment>[] = [
     {
@@ -155,7 +168,9 @@ export function FinanceDashboardPage() {
             </Card>
 
             <Card className="w-fit">
-              <p className="text-caption text-text-secondary">Outstanding to immiNow (filtered cases, net of confirmed payments)</p>
+              <p className="text-caption text-text-secondary">
+                Outstanding to immiNow (filtered cases, net of confirmed payments)
+              </p>
               <p className="text-h2 text-text-primary">{money(dashboard.data?.running_total)}</p>
             </Card>
 
@@ -245,6 +260,7 @@ export function FinanceDashboardPage() {
                 columns={historyColumns}
                 rows={dashboard.data?.payment_history ?? []}
                 rowKey={(p) => p.id}
+                loading={dashboard.isLoading}
                 emptyMessage="No confirmed payments yet."
               />
             </div>

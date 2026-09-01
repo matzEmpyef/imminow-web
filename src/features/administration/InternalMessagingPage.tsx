@@ -80,11 +80,26 @@ export function InternalMessagingPage() {
 
             {conversations.isLoading && <Skeleton className="h-40 rounded-lg" />}
 
-            {!conversations.isLoading && filtered.length === 0 && (
+            {/* H10 fix (frontend review, 1 Sep 2026) — a failed fetch used to read as "No
+                colleagues yet", indistinguishable from a genuinely empty roster. */}
+            {conversations.isError && (
+              <div className="flex flex-col items-start gap-xs">
+                <p className="text-body-sm text-error">Could not load conversations.</p>
+                <button
+                  type="button"
+                  onClick={() => conversations.refetch()}
+                  className="text-body-sm text-primary hover:underline"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {!conversations.isLoading && !conversations.isError && filtered.length === 0 && (
               <p className="text-body-sm text-text-secondary">{query ? 'No matches.' : 'No colleagues yet.'}</p>
             )}
 
-            {filtered.length > 0 && (
+            {!conversations.isError && filtered.length > 0 && (
               <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border bg-surface">
                 {filtered.map((conversation, i) => {
                   const theme = avatarTheme(`internal-${conversation.id}`)
@@ -162,6 +177,8 @@ export function InternalMessagingPage() {
                   senderName: id === 'team' ? m.sender_name : undefined,
                 }))}
                 isLoading={messages.isLoading}
+                isError={messages.isError}
+                onRetryMessages={() => messages.refetch()}
                 draft={draft}
                 onDraftChange={setDraft}
                 onSend={handleSend}

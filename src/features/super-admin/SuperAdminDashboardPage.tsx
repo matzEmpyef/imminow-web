@@ -7,7 +7,7 @@ import { DoughnutChart } from '@/components/DoughnutChart'
 import { MonthlyBarChart } from '@/components/MonthlyBarChart'
 import { useAdminDashboard } from '@/queries/adminDashboard'
 import { useApplicantAllocationQueue } from '@/queries/applicantAllocation'
-import { Skeleton } from '@/components/QueryState'
+import { ErrorState, Skeleton } from '@/components/QueryState'
 
 export function SuperAdminDashboardPage() {
   const navigate = useNavigate()
@@ -19,6 +19,17 @@ export function SuperAdminDashboardPage() {
     return (
       <AdminShell>
         <Skeleton className="h-64 rounded-lg" />
+      </AdminShell>
+    )
+  }
+
+  // H6 fix (frontend review, 1 Sep 2026) — this used to gate on isLoading only, so a failed
+  // Overview fetch rendered every chart/stat card at its zero/undefined fallback, indistinguishable
+  // from an operator's-eye-view of a genuinely quiet platform.
+  if (dashboard.isError || !dashboard.data) {
+    return (
+      <AdminShell>
+        <ErrorState message="Could not load the platform dashboard." onRetry={() => dashboard.refetch()} />
       </AdminShell>
     )
   }

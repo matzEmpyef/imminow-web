@@ -145,6 +145,7 @@ export function EmployeesPage() {
           rows={rows}
           rowKey={(employee) => employee.id!}
           loading={employees.isLoading}
+          error={employees.isError ? 'Could not load employees.' : undefined}
           emptyMessage="No employees yet."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}

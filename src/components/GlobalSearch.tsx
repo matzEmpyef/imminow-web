@@ -36,6 +36,9 @@ export function GlobalSearch() {
   const leadResults = leads.data?.items.slice(0, MAX_RESULTS_PER_GROUP) ?? []
   const clientResults = clients.data?.items.slice(0, MAX_RESULTS_PER_GROUP) ?? []
   const isLoading = searchActive && (leads.isLoading || clients.isLoading)
+  // H10 fix (frontend review, 1 Sep 2026) — a failed fetch used to fall straight into "No
+  // matches", indistinguishable from a genuinely empty result.
+  const isError = searchActive && (leads.isError || clients.isError)
 
   const results = [
     ...leadResults.map((lead) => ({
@@ -104,11 +107,15 @@ export function GlobalSearch() {
         <div className="absolute left-0 top-12 z-50 max-h-96 w-full overflow-y-auto rounded-lg border border-border bg-surface shadow-card">
           {isLoading && <p className="p-md text-body-sm text-text-secondary">Searching…</p>}
 
-          {!isLoading && !hasResults && (
+          {!isLoading && isError && (
+            <p className="p-md text-body-sm text-error">Could not search leads and applicants.</p>
+          )}
+
+          {!isLoading && !isError && !hasResults && (
             <p className="p-md text-body-sm text-text-secondary">No matches for "{debouncedQuery}".</p>
           )}
 
-          {!isLoading && hasResults && (
+          {!isLoading && !isError && hasResults && (
             <div className="py-xs">
               {results.map((result, i) => (
                 <button

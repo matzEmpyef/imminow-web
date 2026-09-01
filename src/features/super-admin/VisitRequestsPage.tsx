@@ -93,6 +93,7 @@ export function VisitRequestsPage() {
           rows={requests.data?.items ?? []}
           rowKey={(v) => v.id}
           loading={requests.isLoading}
+          error={requests.isError ? 'Could not load visit requests.' : undefined}
           emptyMessage={
             respondedFilter === false
               ? 'No pending visit requests.'

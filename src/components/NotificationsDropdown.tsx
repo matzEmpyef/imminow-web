@@ -17,7 +17,7 @@ export function NotificationsDropdown() {
   const containerRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const { data: unreadCount } = useUnreadCount()
-  const { data } = useNotifications({ enabled: open })
+  const { data, isError } = useNotifications({ enabled: open })
   const markRead = useMarkNotificationRead()
   const items = data?.items.slice(0, MAX_VISIBLE) ?? []
 
@@ -56,23 +56,29 @@ export function NotificationsDropdown() {
           </div>
 
           <div className="max-h-80 overflow-y-auto">
-            {items.length === 0 && <p className="p-md text-body-sm text-text-secondary">No notifications yet.</p>}
+            {/* H10 fix (frontend review, 1 Sep 2026) — a failed fetch used to render no
+                differently than a genuinely empty inbox. */}
+            {isError && <p className="p-md text-body-sm text-error">Could not load notifications.</p>}
+            {!isError && items.length === 0 && (
+              <p className="p-md text-body-sm text-text-secondary">No notifications yet.</p>
+            )}
 
-            {items.map((n) => (
-              <Link
-                key={n.id}
-                to={n.deep_link ?? '/notifications'}
-                onClick={() => {
-                  if (!n.read) markRead.mutate(n.id)
-                  setOpen(false)
-                }}
-                className={`block px-md py-sm hover:bg-background ${!n.read ? 'bg-unread-bg' : ''}`}
-              >
-                <p className="truncate text-body-sm font-medium text-text-primary">{n.title}</p>
-                <p className="truncate text-caption text-text-secondary">{n.body}</p>
-                <p className="mt-0.5 text-caption text-text-secondary">{relativeTime(n.created_at!)}</p>
-              </Link>
-            ))}
+            {!isError &&
+              items.map((n) => (
+                <Link
+                  key={n.id}
+                  to={n.deep_link ?? '/notifications'}
+                  onClick={() => {
+                    if (!n.read) markRead.mutate(n.id)
+                    setOpen(false)
+                  }}
+                  className={`block px-md py-sm hover:bg-background ${!n.read ? 'bg-unread-bg' : ''}`}
+                >
+                  <p className="truncate text-body-sm font-medium text-text-primary">{n.title}</p>
+                  <p className="truncate text-caption text-text-secondary">{n.body}</p>
+                  <p className="mt-0.5 text-caption text-text-secondary">{relativeTime(n.created_at!)}</p>
+                </Link>
+              ))}
           </div>
 
           <Link

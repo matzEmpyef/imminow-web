@@ -9,7 +9,7 @@ import { AddGroupModal } from './AddGroupModal'
 import { FormFieldsPreview } from './FormFieldsPreview'
 import { useCreateFormTemplate, useFormTemplate, useUpdateFormTemplate } from '@/queries/formTemplates'
 import { isGroup, listGroups, type FormFieldInput } from '@/lib/formFields'
-import { Skeleton } from '@/components/QueryState'
+import { ErrorState, Skeleton } from '@/components/QueryState'
 
 export function FormBuilderPage() {
   const { id } = useParams()
@@ -98,6 +98,18 @@ export function FormBuilderPage() {
     return (
       <AppShell>
         <Skeleton className="h-64 rounded-lg" />
+      </AppShell>
+    )
+  }
+
+  // H9 fix (frontend review, 1 Sep 2026) — a load failure used to be silently ignored: the editor
+  // mounted anyway with empty `name`/`fields` state, and Save was only blocked while fields stayed
+  // empty. A consultant who then added fields and saved would PUT an empty-derived template over
+  // the real one. Don't mount the editor at all until the existing template has actually loaded.
+  if (!isNew && (existing.isError || !existing.data)) {
+    return (
+      <AppShell>
+        <ErrorState message="Could not load this form." onRetry={() => existing.refetch()} />
       </AppShell>
     )
   }

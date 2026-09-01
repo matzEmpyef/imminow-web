@@ -84,6 +84,8 @@ export function FloatingChatWindow() {
           senderName: conversation.id === 'team' ? m.sender_name : undefined,
         }))
   const isLoading = isLead ? leadMessages.isLoading : isClient ? clientMessages.isLoading : internalMessages.isLoading
+  const activeMessagesQuery = isLead ? leadMessages : isClient ? clientMessages : internalMessages
+  const isError = activeMessagesQuery.isError
   const sending = isLead
     ? sendLeadMessage.isPending
     : isClient
@@ -134,6 +136,8 @@ export function FloatingChatWindow() {
         typeLabelTone={isLead ? 'primary' : 'neutral'}
         messages={messages}
         isLoading={isLoading}
+        isError={isError}
+        onRetryMessages={() => activeMessagesQuery.refetch()}
         draft={draft}
         onDraftChange={setDraft}
         onSend={handleSend}

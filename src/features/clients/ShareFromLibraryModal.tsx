@@ -36,34 +36,45 @@ export function ShareFromLibraryModal({ clientId, onClose }: { clientId: string;
         />
         <div className="flex max-h-80 flex-col gap-xs overflow-y-auto">
           {documents.isLoading && <p className="text-body-sm text-text-secondary">Loading…</p>}
-          {documents.data?.items.length === 0 && (
+          {/* H10 fix (frontend review, 1 Sep 2026) — a failed fetch used to fall through to "No
+              documents match", indistinguishable from a genuinely empty library. */}
+          {documents.isError && (
+            <div className="flex items-center justify-between gap-sm">
+              <p className="text-body-sm text-error">Could not load the document library.</p>
+              <Button variant="secondary" size="sm" onClick={() => documents.refetch()}>
+                Retry
+              </Button>
+            </div>
+          )}
+          {!documents.isError && documents.data?.items.length === 0 && (
             <p className="text-body-sm text-text-secondary">No documents match.</p>
           )}
-          {documents.data?.items.map((doc) => {
-            const isShared = sharedIds.has(doc.id) || alreadySharedLibraryIds.has(doc.id)
-            return (
-              <div
-                key={doc.id}
-                className="flex items-center justify-between gap-sm rounded-md border border-border p-sm"
-              >
-                <span className="min-w-0 flex-1 truncate text-body-sm text-text-primary">{doc.filename}</span>
-                <Button
-                  variant="secondary"
-                  className="shrink-0"
-                  disabled={isShared}
-                  loading={share.isPending && share.variables?.id === doc.id}
-                  onClick={() =>
-                    share.mutate(
-                      { id: doc.id, journeyId: clientId },
-                      { onSuccess: () => setSharedIds((prev) => new Set(prev).add(doc.id)) },
-                    )
-                  }
+          {!documents.isError &&
+            documents.data?.items.map((doc) => {
+              const isShared = sharedIds.has(doc.id) || alreadySharedLibraryIds.has(doc.id)
+              return (
+                <div
+                  key={doc.id}
+                  className="flex items-center justify-between gap-sm rounded-md border border-border p-sm"
                 >
-                  {isShared ? 'Already shared' : 'Share'}
-                </Button>
-              </div>
-            )
-          })}
+                  <span className="min-w-0 flex-1 truncate text-body-sm text-text-primary">{doc.filename}</span>
+                  <Button
+                    variant="secondary"
+                    className="shrink-0"
+                    disabled={isShared}
+                    loading={share.isPending && share.variables?.id === doc.id}
+                    onClick={() =>
+                      share.mutate(
+                        { id: doc.id, journeyId: clientId },
+                        { onSuccess: () => setSharedIds((prev) => new Set(prev).add(doc.id)) },
+                      )
+                    }
+                  >
+                    {isShared ? 'Already shared' : 'Share'}
+                  </Button>
+                </div>
+              )
+            })}
         </div>
         {share.isError && <p className="text-body-sm text-error">{share.error.message}</p>}
       </div>

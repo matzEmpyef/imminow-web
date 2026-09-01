@@ -79,16 +79,31 @@ export function CollegeDetailModal({ college, onClose }: { college: College; onC
             Courses{courses.data?.meta.total != null ? ` (${courses.data.meta.total})` : ''}
           </span>
           {courses.isLoading && <p className="text-body-sm text-text-secondary">Loading…</p>}
-          {courses.data?.items.length === 0 && (
+          {/* H10 fix (frontend review, 1 Sep 2026) — a failed fetch used to fall through to "No
+              courses listed", indistinguishable from a college that genuinely has none yet. */}
+          {courses.isError && (
+            <div className="flex items-center justify-between gap-sm">
+              <p className="text-body-sm text-error">Could not load courses.</p>
+              <button
+                type="button"
+                onClick={() => courses.refetch()}
+                className="text-body-sm text-primary hover:underline"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+          {!courses.isError && courses.data?.items.length === 0 && (
             <p className="text-body-sm text-text-secondary">No courses listed for this college yet.</p>
           )}
           <ul className="flex flex-col gap-xs">
-            {courses.data?.items.map((c) => (
-              <li key={c.id} className="flex items-center justify-between gap-sm text-body-sm">
-                <span className="min-w-0 truncate text-text-primary">{c.name}</span>
-                <span className="shrink-0 text-caption text-text-secondary">{c.level}</span>
-              </li>
-            ))}
+            {!courses.isError &&
+              courses.data?.items.map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-sm text-body-sm">
+                  <span className="min-w-0 truncate text-text-primary">{c.name}</span>
+                  <span className="shrink-0 text-caption text-text-secondary">{c.level}</span>
+                </li>
+              ))}
           </ul>
         </div>
       </div>

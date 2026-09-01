@@ -57,6 +57,12 @@ interface ChatPanelProps {
   typeLabelTone?: 'primary' | 'neutral'
   messages: ChatMessage[] | undefined
   isLoading: boolean
+  // H10 fix (frontend review, 1 Sep 2026) — a failed message fetch used to render as an empty
+  // "say hello" thread, indistinguishable from a genuinely new conversation. Optional because a
+  // few callers don't wire it (yet); when set, takes priority over both the loading and empty
+  // states below.
+  isError?: boolean
+  onRetryMessages?: () => void
   draft: string
   onDraftChange: (value: string) => void
   onSend: (e: FormEvent) => void
@@ -85,6 +91,8 @@ export function ChatPanel({
   typeLabelTone = 'neutral',
   messages,
   isLoading,
+  isError,
+  onRetryMessages,
   draft,
   onDraftChange,
   onSend,
@@ -146,172 +154,185 @@ export function ChatPanel({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-sm overflow-y-auto px-md py-md">
-        {isLoading && (
+        {isLoading && !isError && (
           <div className="flex h-full items-center justify-center">
             <p className="text-body-sm text-text-secondary">Loading…</p>
           </div>
         )}
-        {!isLoading && messages?.length === 0 && (
+        {isError && (
+          <div className="flex h-full flex-col items-center justify-center gap-sm">
+            <p className="text-body-sm text-error">Could not load messages.</p>
+            {onRetryMessages && (
+              <Button variant="secondary" size="sm" onClick={onRetryMessages}>
+                Retry
+              </Button>
+            )}
+          </div>
+        )}
+        {!isLoading && !isError && messages?.length === 0 && (
           <div className="flex h-full items-center justify-center">
             <p className="text-body-sm text-text-secondary">No messages yet — say hello.</p>
           </div>
         )}
-        {messages?.map((m, i) => {
-          const prev = messages[i - 1]
-          const showDayDivider = !prev || !isSameCalendarDay(prev.created_at, m.created_at)
-          return (
-            // `display: contents` so the divider (centered) and the bubble (self-end/self-start)
-            // can each set their own alignment as direct children of the flex column below,
-            // instead of being pinned to whatever this wrapper's own alignment would be.
-            <div key={m.id} className="contents">
-              {showDayDivider && (
-                <span className="self-center rounded-full bg-background px-sm py-0.5 text-caption font-medium text-text-secondary">
-                  {formatDayLabel(m.created_at)}
-                </span>
-              )}
-              {!m.fromMe && m.senderName && !m.isSessionBreak && (
-                <span className="self-start px-xs text-caption font-medium text-text-secondary">{m.senderName}</span>
-              )}
-              {m.isSessionBreak ? (
-                <div className="my-xs flex items-center gap-sm self-stretch">
-                  <span className="h-px flex-1 bg-border" />
-                  <span className="shrink-0 rounded-full border border-primary bg-primary-subtle px-sm py-0.5 text-caption font-medium text-primary">
-                    {m.content}
+        {!isError &&
+          messages?.map((m, i) => {
+            const prev = messages[i - 1]
+            const showDayDivider = !prev || !isSameCalendarDay(prev.created_at, m.created_at)
+            return (
+              // `display: contents` so the divider (centered) and the bubble (self-end/self-start)
+              // can each set their own alignment as direct children of the flex column below,
+              // instead of being pinned to whatever this wrapper's own alignment would be.
+              <div key={m.id} className="contents">
+                {showDayDivider && (
+                  <span className="self-center rounded-full bg-background px-sm py-0.5 text-caption font-medium text-text-secondary">
+                    {formatDayLabel(m.created_at)}
                   </span>
-                  <span className="h-px flex-1 bg-border" />
-                </div>
-              ) : m.isCallInitiated ? (
-                <span className="self-center rounded-full bg-background px-sm py-0.5 text-caption font-medium text-text-secondary">
-                  {name} tapped to call you · {formatTime(m.created_at)}
-                </span>
-              ) : m.sharedCourse ? (
-                // The ask-a-consultancy context card (plan §3.5) — course + the student's fit
-                // at the moment they asked, so the consultant can answer without digging.
-                <div
-                  style={{ maxWidth: '85%' }}
-                  className={`flex flex-col gap-sm rounded-2xl border border-border bg-surface px-md py-sm ${
-                    m.fromMe ? 'self-end' : 'self-start'
-                  }`}
-                >
-                  <p className="text-caption font-medium text-text-secondary">{m.content}</p>
-                  <div className="rounded-md bg-background px-sm py-xs">
-                    <p className="text-body-sm font-medium text-text-primary">{m.sharedCourse.name}</p>
-                    <p className="text-caption text-text-secondary">
-                      {[m.sharedCourse.college_name, m.sharedCourse.country].filter(Boolean).join(' · ') || 'Course'}
-                    </p>
-                    {m.fitSummary && <p className="mt-1 text-caption font-medium text-warning">{m.fitSummary}</p>}
+                )}
+                {!m.fromMe && m.senderName && !m.isSessionBreak && (
+                  <span className="self-start px-xs text-caption font-medium text-text-secondary">{m.senderName}</span>
+                )}
+                {m.isSessionBreak ? (
+                  <div className="my-xs flex items-center gap-sm self-stretch">
+                    <span className="h-px flex-1 bg-border" />
+                    <span className="shrink-0 rounded-full border border-primary bg-primary-subtle px-sm py-0.5 text-caption font-medium text-primary">
+                      {m.content}
+                    </span>
+                    <span className="h-px flex-1 bg-border" />
                   </div>
-                  <span className="self-end text-caption text-text-secondary">{formatTime(m.created_at)}</span>
-                </div>
-              ) : m.sharedCollege ? (
-                // User #18 (2026-08-19) — a shared college renders as a card, same treatment as
-                // the shared-Shortlist block below, so the consultant sees what was shared.
-                <div
-                  style={{ maxWidth: '85%' }}
-                  className={`flex flex-col gap-sm rounded-2xl border border-border bg-surface px-md py-sm ${
-                    m.fromMe ? 'self-end' : 'self-start'
-                  }`}
-                >
-                  <p className="text-caption font-medium text-text-secondary">{m.content}</p>
-                  <div className="rounded-md bg-background px-sm py-xs">
-                    <p className="text-body-sm font-medium text-text-primary">{m.sharedCollege.name}</p>
-                    <p className="text-caption text-text-secondary">
-                      {(m.sharedCollege.campuses ?? [])
-                        .map((c) => [c.province_state, c.country].filter(Boolean).join(', '))
-                        .filter(Boolean)
-                        .join(' · ') || 'College'}
-                      {m.sharedCollege.website ? ` · ${m.sharedCollege.website}` : ''}
-                    </p>
-                  </div>
-                  <span className="self-end text-caption text-text-secondary">{formatTime(m.created_at)}</span>
-                </div>
-              ) : m.visitRequest ? (
-                // In-person visit request (2026-08-24) — one proposed date/time, no status: any
-                // confirming/countering is just the next ordinary message in the thread.
-                <div
-                  style={{ maxWidth: '85%' }}
-                  className={`flex flex-col gap-sm rounded-2xl border border-border bg-surface px-md py-sm ${
-                    m.fromMe ? 'self-end' : 'self-start'
-                  }`}
-                >
-                  <p className="text-caption font-medium text-text-secondary">Requested an in-person visit</p>
-                  <div className="flex items-center gap-xs rounded-md bg-background px-sm py-xs">
-                    <CalendarClock className="h-4 w-4 shrink-0 text-primary" />
-                    <p className="text-body-sm font-medium text-text-primary">
-                      {m.visitRequest.proposed_date ? formatDate(m.visitRequest.proposed_date) : '—'} at{' '}
-                      {m.visitRequest.proposed_time}
-                    </p>
-                  </div>
-                  {m.visitRequest.note && <p className="text-caption text-text-secondary">{m.visitRequest.note}</p>}
-                  <span className="self-end text-caption text-text-secondary">{formatTime(m.created_at)}</span>
-                </div>
-              ) : m.sharedCourses ? (
-                // User-requested (2026-08-19) — a shared Shortlist renders as a card of courses,
-                // not a plain text bubble, so the consultant can actually see what was shared.
-                <div
-                  style={{ maxWidth: '85%' }}
-                  className={`flex flex-col gap-sm rounded-2xl border border-border bg-surface px-md py-sm ${
-                    m.fromMe ? 'self-end' : 'self-start'
-                  }`}
-                >
-                  <p className="text-caption font-medium text-text-secondary">{m.content}</p>
-                  <div className="flex flex-col gap-xs">
-                    {m.sharedCourses.map((course) => (
-                      <div key={course.id} className="rounded-md bg-background px-sm py-xs">
-                        <p className="text-body-sm font-medium text-text-primary">{course.name}</p>
-                        <p className="text-caption text-text-secondary">
-                          {course.college_name}
-                          {course.country ? ` · ${course.country}` : ''}
-                          {course.fee?.amount ? ` · ${course.fee.amount.toLocaleString()} ${course.fee.currency}` : ''}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                  <span className="self-end text-caption text-text-secondary">{formatTime(m.created_at)}</span>
-                </div>
-              ) : (
-                // `group` wrapper so the unsend affordance appears on hover of the whole row —
-                // always-visible icons on every own bubble would read as clutter.
-                <div
-                  style={{ maxWidth: '75%' }}
-                  className={`group flex items-center gap-xs ${m.fromMe ? 'self-end' : 'self-start'}`}
-                >
-                  {m.fromMe && onUnsend && (
-                    <button
-                      onClick={() => {
-                        setUnsendError(null)
-                        setUnsendTarget(m.id)
-                      }}
-                      aria-label="Unsend message"
-                      title="Unsend"
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-secondary opacity-0 hover:bg-background hover:text-text-primary focus:opacity-100 group-hover:opacity-100"
-                    >
-                      <Undo2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
+                ) : m.isCallInitiated ? (
+                  <span className="self-center rounded-full bg-background px-sm py-0.5 text-caption font-medium text-text-secondary">
+                    {name} tapped to call you · {formatTime(m.created_at)}
+                  </span>
+                ) : m.sharedCourse ? (
+                  // The ask-a-consultancy context card (plan §3.5) — course + the student's fit
+                  // at the moment they asked, so the consultant can answer without digging.
                   <div
-                    // Arbitrary bracket classes (`max-w-[75%]`) silently generate zero CSS in this
-                    // project's Tailwind v4 setup — inline style sidesteps it (see GlobalSearch.tsx).
-                    className={`rounded-2xl px-md py-sm text-body-sm ${
-                      m.fromMe ? 'bg-primary text-text-on-primary' : 'bg-background text-text-primary'
+                    style={{ maxWidth: '85%' }}
+                    className={`flex flex-col gap-sm rounded-2xl border border-border bg-surface px-md py-sm ${
+                      m.fromMe ? 'self-end' : 'self-start'
                     }`}
                   >
-                    {m.content}
-                    {/* WhatsApp's trick: a floated, trailing time stamp tucks into the end of the
-                        last line instead of sitting on its own row. */}
-                    <span
-                      className={`float-right ml-sm mt-0.5 text-caption ${
-                        m.fromMe ? 'text-text-on-primary/70' : 'text-text-secondary'
+                    <p className="text-caption font-medium text-text-secondary">{m.content}</p>
+                    <div className="rounded-md bg-background px-sm py-xs">
+                      <p className="text-body-sm font-medium text-text-primary">{m.sharedCourse.name}</p>
+                      <p className="text-caption text-text-secondary">
+                        {[m.sharedCourse.college_name, m.sharedCourse.country].filter(Boolean).join(' · ') || 'Course'}
+                      </p>
+                      {m.fitSummary && <p className="mt-1 text-caption font-medium text-warning">{m.fitSummary}</p>}
+                    </div>
+                    <span className="self-end text-caption text-text-secondary">{formatTime(m.created_at)}</span>
+                  </div>
+                ) : m.sharedCollege ? (
+                  // User #18 (2026-08-19) — a shared college renders as a card, same treatment as
+                  // the shared-Shortlist block below, so the consultant sees what was shared.
+                  <div
+                    style={{ maxWidth: '85%' }}
+                    className={`flex flex-col gap-sm rounded-2xl border border-border bg-surface px-md py-sm ${
+                      m.fromMe ? 'self-end' : 'self-start'
+                    }`}
+                  >
+                    <p className="text-caption font-medium text-text-secondary">{m.content}</p>
+                    <div className="rounded-md bg-background px-sm py-xs">
+                      <p className="text-body-sm font-medium text-text-primary">{m.sharedCollege.name}</p>
+                      <p className="text-caption text-text-secondary">
+                        {(m.sharedCollege.campuses ?? [])
+                          .map((c) => [c.province_state, c.country].filter(Boolean).join(', '))
+                          .filter(Boolean)
+                          .join(' · ') || 'College'}
+                        {m.sharedCollege.website ? ` · ${m.sharedCollege.website}` : ''}
+                      </p>
+                    </div>
+                    <span className="self-end text-caption text-text-secondary">{formatTime(m.created_at)}</span>
+                  </div>
+                ) : m.visitRequest ? (
+                  // In-person visit request (2026-08-24) — one proposed date/time, no status: any
+                  // confirming/countering is just the next ordinary message in the thread.
+                  <div
+                    style={{ maxWidth: '85%' }}
+                    className={`flex flex-col gap-sm rounded-2xl border border-border bg-surface px-md py-sm ${
+                      m.fromMe ? 'self-end' : 'self-start'
+                    }`}
+                  >
+                    <p className="text-caption font-medium text-text-secondary">Requested an in-person visit</p>
+                    <div className="flex items-center gap-xs rounded-md bg-background px-sm py-xs">
+                      <CalendarClock className="h-4 w-4 shrink-0 text-primary" />
+                      <p className="text-body-sm font-medium text-text-primary">
+                        {m.visitRequest.proposed_date ? formatDate(m.visitRequest.proposed_date) : '—'} at{' '}
+                        {m.visitRequest.proposed_time}
+                      </p>
+                    </div>
+                    {m.visitRequest.note && <p className="text-caption text-text-secondary">{m.visitRequest.note}</p>}
+                    <span className="self-end text-caption text-text-secondary">{formatTime(m.created_at)}</span>
+                  </div>
+                ) : m.sharedCourses ? (
+                  // User-requested (2026-08-19) — a shared Shortlist renders as a card of courses,
+                  // not a plain text bubble, so the consultant can actually see what was shared.
+                  <div
+                    style={{ maxWidth: '85%' }}
+                    className={`flex flex-col gap-sm rounded-2xl border border-border bg-surface px-md py-sm ${
+                      m.fromMe ? 'self-end' : 'self-start'
+                    }`}
+                  >
+                    <p className="text-caption font-medium text-text-secondary">{m.content}</p>
+                    <div className="flex flex-col gap-xs">
+                      {m.sharedCourses.map((course) => (
+                        <div key={course.id} className="rounded-md bg-background px-sm py-xs">
+                          <p className="text-body-sm font-medium text-text-primary">{course.name}</p>
+                          <p className="text-caption text-text-secondary">
+                            {course.college_name}
+                            {course.country ? ` · ${course.country}` : ''}
+                            {course.fee?.amount
+                              ? ` · ${course.fee.amount.toLocaleString()} ${course.fee.currency}`
+                              : ''}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <span className="self-end text-caption text-text-secondary">{formatTime(m.created_at)}</span>
+                  </div>
+                ) : (
+                  // `group` wrapper so the unsend affordance appears on hover of the whole row —
+                  // always-visible icons on every own bubble would read as clutter.
+                  <div
+                    style={{ maxWidth: '75%' }}
+                    className={`group flex items-center gap-xs ${m.fromMe ? 'self-end' : 'self-start'}`}
+                  >
+                    {m.fromMe && onUnsend && (
+                      <button
+                        onClick={() => {
+                          setUnsendError(null)
+                          setUnsendTarget(m.id)
+                        }}
+                        aria-label="Unsend message"
+                        title="Unsend"
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-secondary opacity-0 hover:bg-background hover:text-text-primary focus:opacity-100 group-hover:opacity-100"
+                      >
+                        <Undo2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    <div
+                      // Arbitrary bracket classes (`max-w-[75%]`) silently generate zero CSS in this
+                      // project's Tailwind v4 setup — inline style sidesteps it (see GlobalSearch.tsx).
+                      className={`rounded-2xl px-md py-sm text-body-sm ${
+                        m.fromMe ? 'bg-primary text-text-on-primary' : 'bg-background text-text-primary'
                       }`}
                     >
-                      {formatTime(m.created_at)}
-                    </span>
+                      {m.content}
+                      {/* WhatsApp's trick: a floated, trailing time stamp tucks into the end of the
+                        last line instead of sitting on its own row. */}
+                      <span
+                        className={`float-right ml-sm mt-0.5 text-caption ${
+                          m.fromMe ? 'text-text-on-primary/70' : 'text-text-secondary'
+                        }`}
+                      >
+                        {formatTime(m.created_at)}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          )
-        })}
+                )}
+              </div>
+            )
+          })}
         <div ref={bottomRef} />
       </div>
 

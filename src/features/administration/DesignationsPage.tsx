@@ -77,6 +77,7 @@ export function DesignationsPage() {
           rows={rows}
           rowKey={(d) => d.id!}
           loading={designations.isLoading}
+          error={designations.isError ? 'Could not load designations.' : undefined}
           emptyMessage="No designations yet."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}

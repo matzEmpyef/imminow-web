@@ -94,6 +94,7 @@ export function AuditLogPage() {
           rows={entries.data?.items ?? []}
           rowKey={(e) => e.id}
           loading={entries.isLoading}
+          error={entries.isError ? 'Could not load the audit log.' : undefined}
           emptyMessage="No matching audit entries."
           sort={sort}
           onSortChange={(field, direction) => {

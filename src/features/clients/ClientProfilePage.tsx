@@ -67,7 +67,10 @@ type Tab = (typeof TABS)[number]
 // student's own save to Dream Courses turns it into a selected college — this tab lists such
 // rows as an awaiting count, never as selections.
 type CollegeStatus = 'suggested' | 'considering' | 'applied' | 'offer_received' | 'accepted' | 'rejected'
-const COLLEGE_STATUS_INFO: Record<CollegeStatus, { label: string; color: 'secondary' | 'info' | 'warning' | 'success' | 'error' }> = {
+const COLLEGE_STATUS_INFO: Record<
+  CollegeStatus,
+  { label: string; color: 'secondary' | 'info' | 'warning' | 'success' | 'error' }
+> = {
   suggested: { label: 'Suggested — awaiting student', color: 'secondary' },
   considering: { label: 'Considering', color: 'secondary' },
   applied: { label: 'Applied', color: 'info' },
@@ -418,7 +421,9 @@ function CommissionsTab({ clientId }: { clientId: string }) {
         <div className="flex items-start justify-between gap-md">
           <div>
             <h2 className="text-h3 text-text-primary">
-              {entry.case_type === 'pr' ? `PR case — ${entry.destination_country}` : (entry.course_name ?? 'Accepted course')}
+              {entry.case_type === 'pr'
+                ? `PR case — ${entry.destination_country}`
+                : (entry.course_name ?? 'Accepted course')}
             </h2>
             <p className="mt-xs text-body-sm text-text-secondary">
               {entry.case_type === 'pr'
@@ -427,11 +432,23 @@ function CommissionsTab({ clientId }: { clientId: string }) {
             </p>
           </div>
           <Badge color="info" className="capitalize">
-            {entry.payer_method === 'applicant' ? 'Applicant pays' : entry.payer_method === 'college' ? 'College pays' : 'Split'}
+            {entry.payer_method === 'applicant'
+              ? 'Applicant pays'
+              : entry.payer_method === 'college'
+                ? 'College pays'
+                : 'Split'}
           </Badge>
         </div>
-        <ExpectedVsReceived label="From college" expected={entry.expected_from_college} received={entry.received_from_college} />
-        <ExpectedVsReceived label="From applicant" expected={entry.expected_from_student} received={entry.received_from_student} />
+        <ExpectedVsReceived
+          label="From college"
+          expected={entry.expected_from_college}
+          received={entry.received_from_college}
+        />
+        <ExpectedVsReceived
+          label="From applicant"
+          expected={entry.expected_from_student}
+          received={entry.received_from_student}
+        />
       </Card>
 
       <Card className="flex flex-col gap-md">
@@ -444,7 +461,9 @@ function CommissionsTab({ clientId }: { clientId: string }) {
           )}
         </div>
         {data.installments.length === 0 ? (
-          <p className="text-body-sm text-text-secondary">Nothing received yet — partial payments land here as installments.</p>
+          <p className="text-body-sm text-text-secondary">
+            Nothing received yet — partial payments land here as installments.
+          </p>
         ) : (
           <div className="flex flex-col gap-xs">
             {data.installments.map((inst) => (
@@ -504,7 +523,12 @@ function CommissionsTab({ clientId }: { clientId: string }) {
       )}
 
       {showRecord && (
-        <RecordInstallmentModal clientId={clientId} entry={entry} receipts={data.receipts} onClose={() => setShowRecord(false)} />
+        <RecordInstallmentModal
+          clientId={clientId}
+          entry={entry}
+          receipts={data.receipts}
+          onClose={() => setShowRecord(false)}
+        />
       )}
     </div>
   )
@@ -548,8 +572,8 @@ function SelectedCollegesTab({ clientId }: { clientId: string }) {
         {awaiting.length === 1 ? '1 suggestion' : `${awaiting.length} suggestions`} awaiting the student
       </p>
       <p className="text-caption text-text-secondary">
-        {awaiting.map((sc) => sc.course.name).join(', ')} — suggested courses become selected colleges once the
-        student adds them to their Dream Courses.
+        {awaiting.map((sc) => sc.course.name).join(', ')} — suggested courses become selected colleges once the student
+        adds them to their Dream Courses.
       </p>
     </Card>
   )
@@ -572,9 +596,7 @@ function SelectedCollegesTab({ clientId }: { clientId: string }) {
   // so it can never drift out of sync with the actual selection (covers both auto-transferred
   // shortlist courses from a conversion and manually added ones alike). Awaiting suggestions
   // are excluded — they are not selections yet, so they cannot contradict one.
-  const selectedCountries = [
-    ...new Set(selected.map((sc) => sc.course.country).filter((c): c is string => Boolean(c))),
-  ]
+  const selectedCountries = [...new Set(selected.map((sc) => sc.course.country).filter((c): c is string => Boolean(c)))]
   const countryMismatch = selectedCountries.length > 1
 
   return (
@@ -599,7 +621,9 @@ function SelectedCollegesTab({ clientId }: { clientId: string }) {
             acceptedElsewhere={selected.find((o) => o.status === 'accepted' && o.id !== sc.id)?.course.name ?? null}
             journeyPayerMethod={client.data?.payer_method ?? null}
             onAdvance={(status) => updateStatus.mutate({ collegeId: sc.id, status })}
-            advanceError={updateStatus.variables?.collegeId === sc.id && updateStatus.isError ? updateStatus.error.message : null}
+            advanceError={
+              updateStatus.variables?.collegeId === sc.id && updateStatus.isError ? updateStatus.error.message : null
+            }
             advancing={updateStatus.variables?.collegeId === sc.id && updateStatus.isPending}
           />
         ))}
@@ -667,7 +691,10 @@ function SelectedCollegeRow({
           )}
           {nextSteps.includes('accepted') &&
             (acceptedElsewhere ? (
-              <span className="text-caption text-text-secondary" title={`${acceptedElsewhere} is already accepted — revert that acceptance first to accept this one.`}>
+              <span
+                className="text-caption text-text-secondary"
+                title={`${acceptedElsewhere} is already accepted — revert that acceptance first to accept this one.`}
+              >
                 {acceptedElsewhere} accepted
               </span>
             ) : (
@@ -728,8 +755,16 @@ function DocumentsTab({ clientId }: { clientId: string }) {
   const uploads = useUploads(clientId)
   const uploadFile = useUploadFile(clientId)
   const downloadUrl = useDownloadUrl()
-  const sentDocuments = uploads.data?.filter((doc) => doc.uploaded_by === 'consultant') ?? []
   const [showLibraryPicker, setShowLibraryPicker] = useState(false)
+
+  // H10 fix (frontend review, 1 Sep 2026) — a failed fetch used to fall through to "No documents
+  // sent yet." with no way to tell it apart from a genuinely empty tab. Same early-return shape
+  // CommissionsTab above already uses.
+  if (uploads.isLoading) return <Skeleton className="h-24 rounded-lg" />
+  if (uploads.isError) {
+    return <ErrorState message="Could not load documents." onRetry={() => uploads.refetch()} />
+  }
+  const sentDocuments = uploads.data?.filter((doc) => doc.uploaded_by === 'consultant') ?? []
 
   return (
     <Card className="flex flex-col gap-md">
@@ -764,10 +799,7 @@ function DocumentsTab({ clientId }: { clientId: string }) {
         </div>
       </div>
       {showLibraryPicker && <ShareFromLibraryModal clientId={clientId} onClose={() => setShowLibraryPicker(false)} />}
-      {uploads.isLoading && <p className="text-body-sm text-text-secondary">Loading…</p>}
-      {!uploads.isLoading && sentDocuments.length === 0 && (
-        <p className="text-body-sm text-text-secondary">No documents sent yet.</p>
-      )}
+      {sentDocuments.length === 0 && <p className="text-body-sm text-text-secondary">No documents sent yet.</p>}
       <div className="flex flex-col gap-xs">
         {sentDocuments.map((doc) => (
           <div key={doc.id} className="flex items-center justify-between text-body-sm">
@@ -1220,17 +1252,17 @@ export function ClientProfilePage() {
                 Reopen Plan
               </Button>
             )}
-            {data.status === 'closed'
-              ? hasCaseReopening && (
-                  <Button variant="secondary" onClick={() => setShowReopenCase(true)}>
-                    Reopen Case
-                  </Button>
-                )
-              : (
-                  <Button variant="destructive" onClick={() => setShowCloseCase(true)}>
-                    Close Case
-                  </Button>
-                )}
+            {data.status === 'closed' ? (
+              hasCaseReopening && (
+                <Button variant="secondary" onClick={() => setShowReopenCase(true)}>
+                  Reopen Case
+                </Button>
+              )
+            ) : (
+              <Button variant="destructive" onClick={() => setShowCloseCase(true)}>
+                Close Case
+              </Button>
+            )}
           </div>
         </div>
 

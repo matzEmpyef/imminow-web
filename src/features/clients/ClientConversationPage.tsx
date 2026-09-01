@@ -74,6 +74,8 @@ export function ClientConversationPage() {
             isCallInitiated: m.type === 'call_initiated',
           }))}
           isLoading={messages.isLoading}
+          isError={messages.isError}
+          onRetryMessages={() => messages.refetch()}
           draft={draft}
           onDraftChange={setDraft}
           onSend={handleSend}
