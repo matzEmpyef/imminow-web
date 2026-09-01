@@ -52,6 +52,7 @@ export function useEraseUserData() {
 }
 
 export function useSwitchConsultancy() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({
       journeyId,
@@ -68,6 +69,14 @@ export function useSwitchConsultancy() {
       })
       if (error) throw new ApiError('Could not switch this student to a new consultancy.', error)
       return data
+    },
+    // H8 fix (frontend review, 1 Sep 2026): a switch used to invalidate nothing, so the journey's
+    // lists/detail/dashboard kept showing the OLD consultancy until staleTime or a manual reload.
+    onSuccess: (_data, { journeyId }) => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
+      queryClient.invalidateQueries({ queryKey: ['clients', journeyId] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['user-search'] })
     },
   })
 }
