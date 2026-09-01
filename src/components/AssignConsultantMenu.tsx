@@ -3,6 +3,7 @@ import { UserPlus } from 'lucide-react'
 import { Modal } from './Modal'
 import { Button } from './Button'
 import { StopPropagation } from './StopPropagation'
+import { SelectField } from './SelectField'
 
 interface ConsultantOption {
   id: string
@@ -90,11 +91,7 @@ export function AssignConsultantMenu({
         >
           <div className="flex flex-col gap-md">
             <p className="text-body-sm text-text-secondary">{description}</p>
-            <select
-              value={choice}
-              onChange={(e) => setChoice(e.target.value)}
-              className="h-10 rounded-md border border-border bg-surface px-3 text-body"
-            >
+            <SelectField label="Consultant" value={choice} onChange={(e) => setChoice(e.target.value)}>
               <option value="" disabled>
                 Select a consultant…
               </option>
@@ -103,7 +100,7 @@ export function AssignConsultantMenu({
                   {e.name}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
         </Modal>
       )}

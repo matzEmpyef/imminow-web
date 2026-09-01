@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Building2 } from 'lucide-react'
 import { Modal } from './Modal'
 import { Button } from './Button'
+import { SelectField } from './SelectField'
 
 interface BranchOption {
   id: string
@@ -88,11 +89,7 @@ export function AssignBranchMenu({
         >
           <div className="flex flex-col gap-md">
             <p className="text-body-sm text-text-secondary">{description}</p>
-            <select
-              value={choice}
-              onChange={(e) => setChoice(e.target.value)}
-              className="h-10 rounded-md border border-border bg-surface px-3 text-body"
-            >
+            <SelectField label="Branch" value={choice} onChange={(e) => setChoice(e.target.value)}>
               <option value="" disabled>
                 Select a branch…
               </option>
@@ -101,7 +98,7 @@ export function AssignBranchMenu({
                   {b.name}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
         </Modal>
       )}

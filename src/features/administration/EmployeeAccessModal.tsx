@@ -250,23 +250,18 @@ function AccessModalBody({
             </p>
             {assignedWork > 0 && (
               <div className="flex flex-col gap-xs">
-                <label className="text-body-sm font-medium text-text-primary" htmlFor={`successor-${employee.id}`}>
+                <p className="text-body-sm font-medium text-text-primary">
                   Reassign their {assignedWork} lead{assignedWork === 1 ? '' : 's'}/client
                   {assignedWork === 1 ? '' : 's'} to
-                </label>
-                <select
-                  id={`successor-${employee.id}`}
-                  value={successorId}
-                  onChange={(e) => setSuccessorId(e.target.value)}
-                  className="h-10 w-full rounded-md border border-border bg-surface px-3 text-body"
-                >
+                </p>
+                <SelectField label="Reassign to" value={successorId} onChange={(e) => setSuccessorId(e.target.value)}>
                   <option value="">Select an employee…</option>
                   {successorOptions.map((e) => (
                     <option key={e.id} value={e.id}>
                       {e.user!.first_name} {e.user!.last_name}
                     </option>
                   ))}
-                </select>
+                </SelectField>
                 <p className="text-caption text-text-secondary">
                   Work left on a disabled account shows up on nobody's list, so this can't be skipped.
                 </p>
