@@ -1029,6 +1029,8 @@ export function QuizAdminPage() {
           rows={rows}
           rowKey={(e) => e.id!}
           loading={events.isLoading}
+          // T9 (third-pass review): a failed list fetch used to render "No quizzes yet."
+          error={events.isError ? 'Could not load quizzes.' : undefined}
           emptyMessage="No quizzes yet."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}

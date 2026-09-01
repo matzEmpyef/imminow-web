@@ -45,13 +45,22 @@ function invalidateInvoicing(queryClient: ReturnType<typeof useQueryClient>, jou
 export function useCreateInvoice() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (body: {
+    // T1 (third-pass review): money creation carries the caller's per-modal-open idempotency key
+    // (the contract gained the header the same day) — same N7 pattern as commission payments.
+    mutationFn: async ({
+      idempotencyKey,
+      ...body
+    }: {
       journey_id: string
       /** Omit to bill in the consultancy's own country currency, which is the normal case. */
       currency?: string
       line_items: { description: string; amount: number }[]
+      idempotencyKey: string
     }) => {
-      const { data, error } = await api.POST('/invoices', { body })
+      const { data, error } = await api.POST('/invoices', {
+        params: { header: { 'Idempotency-Key': idempotencyKey } },
+        body,
+      })
       if (error) throw new ApiError('Could not create this invoice.', error)
       return data
     },
@@ -112,8 +121,19 @@ export function useReceipts(filters: ReceiptListFilters = {}) {
 export function useCreateReceipt() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (body: { invoice_id: string; amount: number }) => {
-      const { data, error } = await api.POST('/receipts', { body })
+    // T1: same per-modal-open key as useCreateInvoice above.
+    mutationFn: async ({
+      idempotencyKey,
+      ...body
+    }: {
+      invoice_id: string
+      amount: number
+      idempotencyKey: string
+    }) => {
+      const { data, error } = await api.POST('/receipts', {
+        params: { header: { 'Idempotency-Key': idempotencyKey } },
+        body,
+      })
       if (error) throw new ApiError('Could not record this receipt.', error)
       return data
     },

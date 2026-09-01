@@ -14,7 +14,11 @@ export function useEmployees() {
   return useQuery({
     queryKey: ['employees'],
     queryFn: async () => {
-      const { data, error } = await api.GET('/staff/employees')
+      // T2 (third-pass review): every consumer treats this as the COMPLETE roster (Lead Pool
+      // allocate menu, seat counts) — the contract default of 20 silently truncated it at the
+      // 21st employee. The mock returns everything regardless, which is why this never showed
+      // in QA; the contract caps at 100 (seat ceilings top out at 50, so 100 covers every tier).
+      const { data, error } = await api.GET('/staff/employees', { params: { query: { limit: 100 } } })
       if (error) throw new ApiError('Could not load employees.', error)
       return data
     },

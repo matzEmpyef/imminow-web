@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { useProposeConversion } from '@/queries/leads'
@@ -17,6 +18,8 @@ export function ConvertToClientModal({
   onClose: () => void
 }) {
   const propose = useProposeConversion()
+  // T8: one key per modal open — double-clicking Send is one operation, not two proposals.
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
 
   if (propose.isSuccess) {
     return (
@@ -38,7 +41,10 @@ export function ConvertToClientModal({
         <>
           {propose.isError && <p className="mr-auto self-center text-body-sm text-error">{propose.error.message}</p>}
           <div className="flex gap-sm">
-            <Button onClick={() => propose.mutate(leadId)} loading={propose.isPending}>
+            <Button
+              onClick={() => !propose.isPending && propose.mutate({ id: leadId, idempotencyKey })}
+              loading={propose.isPending}
+            >
               Send Proposal
             </Button>
             <Button variant="secondary" onClick={onClose}>

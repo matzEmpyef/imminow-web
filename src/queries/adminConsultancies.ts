@@ -32,9 +32,10 @@ export function useAdminConsultancies(filters: ConsultancyFilters = {}) {
 export function useCreateConsultancy() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (body: ConsultancyCreateInput) => {
+    // T8: key minted once per modal open by the caller — a per-attempt UUID defeated the header.
+    mutationFn: async ({ idempotencyKey, ...body }: ConsultancyCreateInput & { idempotencyKey: string }) => {
       const { data, error } = await api.POST('/consultancies', {
-        params: { header: { 'Idempotency-Key': crypto.randomUUID() } },
+        params: { header: { 'Idempotency-Key': idempotencyKey } },
         body,
       })
       if (error) throw new ApiError('Could not create this consultancy.', error)

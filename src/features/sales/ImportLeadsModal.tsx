@@ -37,6 +37,9 @@ export function ImportLeadsModal({ onClose }: { onClose: () => void }) {
   }
 
   function handleCommit() {
+    // T3: a double-click before the button disabled committed the batch twice (two keys, two
+    // imports). The key is batch-derived now, but the guard stops the second request outright.
+    if (commit.isPending) return
     if (!validate.data) return
     commit.mutate({ batch_id: validate.data.batch_id, source })
   }

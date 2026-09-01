@@ -118,7 +118,10 @@ export function useCommitLeadImport() {
       source?: 'referral' | 'website' | 'walk_in' | 'social' | 'other'
     }) => {
       const { data, error } = await api.POST('/leads/import/commit', {
-        params: { header: { 'Idempotency-Key': crypto.randomUUID() } },
+        // T3 (third-pass review): the key derives from the batch itself, not a fresh UUID per
+        // attempt — committing one validated batch is ONE operation however many times the
+        // button fires, and the batch_id is already the natural identity of that operation.
+        params: { header: { 'Idempotency-Key': `commit-${body.batch_id}` } },
         body,
       })
       if (error) throw new ApiError('Could not commit the import.', error)
@@ -209,9 +212,18 @@ export function useReopenLead() {
 export function useBulkAllocateLeads() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (body: { lead_ids: string[]; employee_id: string }) => {
+    // T8: caller supplies the key (minted once per menu open) — a per-attempt UUID made every
+    // double-fire a distinct operation, defeating the header. Same N7 pattern as payments.
+    mutationFn: async ({
+      idempotencyKey,
+      ...body
+    }: {
+      lead_ids: string[]
+      employee_id: string
+      idempotencyKey: string
+    }) => {
       const { data, error } = await api.POST('/leads/bulk-allocate', {
-        params: { header: { 'Idempotency-Key': crypto.randomUUID() } },
+        params: { header: { 'Idempotency-Key': idempotencyKey } },
         body,
       })
       if (error) throw new ApiError('Could not allocate the selected leads.', error)
@@ -324,14 +336,15 @@ export function useSetLeadReminder(id: string) {
 export function useProposeConversion() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
+    // T8: key minted once per modal open by the caller — see useBulkAllocateLeads.
+    mutationFn: async ({ id, idempotencyKey }: { id: string; idempotencyKey: string }) => {
       const { data, error } = await api.POST('/leads/{id}/convert', {
-        params: { path: { id }, header: { 'Idempotency-Key': crypto.randomUUID() } },
+        params: { path: { id }, header: { 'Idempotency-Key': idempotencyKey } },
       })
       if (error) throw new ApiError('Could not send the conversion proposal.', error)
       return data
     },
-    onSuccess: (_data, id) => {
+    onSuccess: (_data, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['leads', id] })
       queryClient.invalidateQueries({ queryKey: ['leads'] })
     },

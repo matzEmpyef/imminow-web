@@ -12,6 +12,7 @@ import { AssignBranchMenu } from '@/components/AssignBranchMenu'
 import { StudentProfileFields } from '@/components/StudentProfileFields'
 import { PlanStepBuilder } from '@/components/PlanStepBuilder'
 import { ErrorState, Skeleton } from '@/components/QueryState'
+import { ApiError } from '@/api/errors'
 import {
   useAddInternalNote,
   useClient,
@@ -323,6 +324,13 @@ function PlanTab({ clientId, initialStepId }: { clientId: string; initialStepId?
   const [showAssignPlan, setShowAssignPlan] = useState(false)
   const canAssignTemplate = usePermission('clients.assign_template')
   if (plan.isLoading) return <Skeleton className="h-24 rounded-lg" />
+  // T4 (third-pass review): only the documented no-plan 404 is the empty state. Any OTHER
+  // failure (500, 403) used to render "No plan assigned yet." + Assign on a client who HAS a
+  // plan — inviting a second assignment instead of a retry.
+  const isNoPlanYet = plan.error instanceof ApiError && plan.error.code === 'not_found'
+  if (plan.isError && !isNoPlanYet) {
+    return <ErrorState message="Could not load the plan." onRetry={() => plan.refetch()} />
+  }
   if (plan.isError || !plan.data) {
     return (
       <>
@@ -1160,10 +1168,11 @@ function FormsTab({ clientId }: { clientId: string }) {
 export function ClientProfilePage() {
   const { id = '' } = useParams()
   // Deep-link support (user-requested, 2026-08-19 — Activity's Step Approvals row redirects here
-  // "to client plan tab and to the specific step" rather than approving/rejecting inline) — lazy
-  // initializers only, read once on mount; the tab/step selection itself lives in local component
-  // state from here on, same as every other tab on this page already works.
-  const [searchParams] = useSearchParams()
+  // "to client plan tab and to the specific step"). Since T5 (third-pass review) the ACTIVE tab
+  // lives in the URL, not component state: a refresh mid-review used to remount on Overview and
+  // lose the consultant's place. `step` stays a mount-time read — the step selection inside
+  // PlanStepBuilder is transient in a way the tab is not.
+  const [searchParams, setSearchParams] = useSearchParams()
   const initialStepId = searchParams.get('step') ?? undefined
   const client = useClient(id)
   const plan = usePlan(id)
@@ -1176,10 +1185,21 @@ export function ClientProfilePage() {
   const hasCaseReopening = useFeature('case_reopening')
   const canReopenPlan = usePermission('step_review.reopen_plan') && hasCaseReopening
   const canViewCommissions = usePermission('clients.view_commissions')
-  const [activeTab, setActiveTab] = useState<Tab>(() => {
-    const tabParam = searchParams.get('tab')
-    return (TABS as readonly string[]).includes(tabParam ?? '') ? (tabParam as Tab) : 'Overview'
-  })
+  const tabParam = searchParams.get('tab')
+  const activeTab: Tab = (TABS as readonly string[]).includes(tabParam ?? '') ? (tabParam as Tab) : 'Overview'
+  // replace, not push: tab flips shouldn't turn the Back button into a tour of every tab visited.
+  function setActiveTab(tab: Tab) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (tab === 'Overview') next.delete('tab')
+        else next.set('tab', tab)
+        next.delete('step')
+        return next
+      },
+      { replace: true },
+    )
+  }
   const [showReopen, setShowReopen] = useState(false)
   const [reopenReason, setReopenReason] = useState('')
   const [showCloseCase, setShowCloseCase] = useState(false)

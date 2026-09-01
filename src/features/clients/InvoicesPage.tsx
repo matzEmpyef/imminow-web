@@ -25,8 +25,12 @@ interface LineItem {
 // User-requested (2026-08-15) — "wherever there is add button, use popup, instead of inline
 // form." Was an inline Card that expanded below the page header; now a Modal, same fields.
 function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
-  const clients = useClients()
+  // T2: this SearchSelect is the complete billing roster, not page one of it — the default
+  // limit of 20 made applicant 21 unbillable from this modal.
+  const clients = useClients({ limit: 100 })
   const createInvoice = useCreateInvoice()
+  // T1: one key per modal open.
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
   // Display only — the server derives the real currency from consultancy.country. Shown so the
   // consultant knows what they are billing in before they submit.
   const consultancy = useMyConsultancy()
@@ -40,11 +44,15 @@ function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
+    // T1 (third-pass review): a double-submit before the button disabled created two invoices —
+    // same pending guard as the N7 payment fix. The Idempotency-Key header will join when the
+    // contract grows it on this POST; until then this guard is the protection.
+    if (createInvoice.isPending) return
     const items = lineItems
       .filter((li) => li.description && li.amount)
       .map((li) => ({ description: li.description, amount: Number(li.amount) }))
     if (!journeyId || items.length === 0) return
-    createInvoice.mutate({ journey_id: journeyId, line_items: items }, { onSuccess: onClose })
+    createInvoice.mutate({ journey_id: journeyId, line_items: items, idempotencyKey }, { onSuccess: onClose })
   }
 
   return (

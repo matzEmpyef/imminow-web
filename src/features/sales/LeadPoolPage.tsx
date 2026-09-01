@@ -71,8 +71,11 @@ export function LeadPoolPage() {
   )
 
   function handleBulkAllocate(employeeId: string) {
+    // T8: pending guard + one key per confirmed selection — a double-fire of the same
+    // confirmation is one allocation, not two.
+    if (bulkAllocate.isPending) return
     bulkAllocate.mutate(
-      { lead_ids: [...selected], employee_id: employeeId },
+      { lead_ids: [...selected], employee_id: employeeId, idempotencyKey: crypto.randomUUID() },
       { onSuccess: () => setSelected(new Set()) },
     )
   }

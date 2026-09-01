@@ -16,6 +16,8 @@ import { EMAIL_ERROR, isValidEmail } from '@/lib/validation'
  */
 export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
   const createConsultancy = useCreateConsultancy()
+  // T8: one key per modal open — see the N7 payment fix for the pattern.
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
 
   const [name, setName] = useState('')
   const [city, setCity] = useState('')
@@ -43,6 +45,8 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
+    // T8: Enter-Enter before the button disabled created two consultancies.
+    if (createConsultancy.isPending) return
     if (!canSubmit) return
     createConsultancy.mutate(
       {
@@ -54,6 +58,7 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
         admin_last_name: adminLastName,
         admin_email: adminEmail,
         file_number_prefix: effectivePrefix || undefined,
+        idempotencyKey,
       },
       // Already on Manage Consultancies, and the list invalidates itself — closing is enough.
       { onSuccess: () => onClose() },

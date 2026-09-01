@@ -14,6 +14,8 @@ export function AssignPlanModal({ clientId, onClose }: { clientId: string; onClo
   const templates = usePlanTemplates()
   const assignPlan = useAssignPlan(clientId)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // T8: one key per modal open — double-clicking Assign is one operation.
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
 
   const selected = templates.data?.find((t) => t.id === selectedId)
 
@@ -30,7 +32,11 @@ export function AssignPlanModal({ clientId, onClose }: { clientId: string; onClo
           <Button
             loading={assignPlan.isPending}
             disabled={!selected}
-            onClick={() => selected && assignPlan.mutate(selected.id, { onSuccess: onClose })}
+            onClick={() =>
+              selected &&
+              !assignPlan.isPending &&
+              assignPlan.mutate({ templateId: selected.id, idempotencyKey }, { onSuccess: onClose })
+            }
           >
             Assign This Plan
           </Button>

@@ -39,9 +39,10 @@ export function usePlan(clientId: string | undefined) {
 export function useAssignPlan(clientId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (templateId: string) => {
+    // T8: key minted once per modal open by the caller — a per-attempt UUID defeated the header.
+    mutationFn: async ({ templateId, idempotencyKey }: { templateId: string; idempotencyKey: string }) => {
       const { data, error } = await api.POST('/clients/{id}/plan/assign', {
-        params: { path: { id: clientId }, header: { 'Idempotency-Key': crypto.randomUUID() } },
+        params: { path: { id: clientId }, header: { 'Idempotency-Key': idempotencyKey } },
         body: { template_id: templateId },
       })
       if (error) throw new ApiError('Could not assign this plan.', error)

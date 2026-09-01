@@ -480,6 +480,25 @@ function KycCard() {
   const submitKyc = useSubmitKyc()
   const [documentUrl, setDocumentUrl] = useState<string | null>(null)
 
+  // T6 (third-pass review): loading and error used to default to 'not_submitted', showing a
+  // VERIFIED consultancy the "upload your certificate" pitch — and a re-upload from there
+  // genuinely resets verification (see the doc comment above). Neither state may claim a status
+  // nobody has fetched yet.
+  if (kyc.isLoading) {
+    return (
+      <Card className="mt-lg max-w-[42rem]">
+        <Skeleton className="h-24 rounded-lg" />
+      </Card>
+    )
+  }
+  if (kyc.isError) {
+    return (
+      <Card className="mt-lg max-w-[42rem]">
+        <ErrorState message="Could not load your KYC status." onRetry={() => kyc.refetch()} />
+      </Card>
+    )
+  }
+
   const status = kyc.data?.status ?? 'not_submitted'
 
   return (
@@ -539,7 +558,9 @@ function SubscriptionTab({ consultancy }: { consultancy: NonNullable<ReturnType<
   const tier = consultancy.tier
   const tierIndex = TIER_ORDER.indexOf(tier)
   const nextTier = TIER_ORDER[tierIndex + 1]
-  const seatsUsed = employees.data?.items.length ?? 0
+  // T2: meta.total when the server provides it — items.length is only ever one page, so a
+  // consultancy over one page of employees under-reported its own seat usage.
+  const seatsUsed = employees.data?.meta.total ?? employees.data?.items.length ?? 0
   const seatPct = consultancy.seat_limit > 0 ? Math.min(100, (seatsUsed / consultancy.seat_limit) * 100) : 0
 
   // The ACTUAL effective feature set (build reference 1.16 made real, 2026-08-29) — resolved

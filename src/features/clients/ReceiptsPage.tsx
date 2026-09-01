@@ -15,15 +15,21 @@ type Receipt = NonNullable<ReturnType<typeof useReceipts>['data']>['items'][numb
 // User-requested (2026-08-15) — "wherever there is add button, use popup, instead of inline
 // form." Was an inline Card that expanded below the page header; now a Modal, same fields.
 function RecordReceiptForm({ onClose }: { onClose: () => void }) {
-  const invoices = useInvoices()
+  // T2: the dropdown is every open invoice, not page one — default limit 20 hid invoice 21.
+  const invoices = useInvoices({ limit: 100 })
   const createReceipt = useCreateReceipt()
+  // T1: one key per modal open.
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
   const [invoiceId, setInvoiceId] = useState('')
   const [amount, setAmount] = useState('')
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
+    // T1 (third-pass review): Enter-Enter before the button's loading state painted recorded the
+    // payment twice — money mutations get the same pending guard as the N7 fix.
+    if (createReceipt.isPending) return
     if (!invoiceId || !amount) return
-    createReceipt.mutate({ invoice_id: invoiceId, amount: Number(amount) }, { onSuccess: onClose })
+    createReceipt.mutate({ invoice_id: invoiceId, amount: Number(amount), idempotencyKey }, { onSuccess: onClose })
   }
 
   const unvoidInvoices = invoices.data?.items.filter((i) => i.status !== 'void') ?? []

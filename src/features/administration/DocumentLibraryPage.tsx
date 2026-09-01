@@ -121,7 +121,9 @@ export function DocumentLibraryPage() {
     cursor: paging.cursor,
     limit: 20,
   })
-  const clients = useClients()
+  // T2: the share menu offers the complete applicant roster — default limit 20 made
+  // applicant 21 unshareable.
+  const clients = useClients({ limit: 100 })
   const tags = useTags()
   const createTag = useCreateTag()
   const setDocumentTags = useSetLibraryDocumentTags()
@@ -227,6 +229,14 @@ export function DocumentLibraryPage() {
             </Button>
           </label>
         </div>
+
+        {/* T7 (third-pass review): a failed upload or share used to vanish without a trace —
+            the button just returned to rest with the file absent, or the share modal closed
+            over a 409 the consultant never saw. */}
+        {uploadDocument.isError && (
+          <p className="text-body-sm text-error">{uploadDocument.error.message}</p>
+        )}
+        {shareDocument.isError && <p className="text-body-sm text-error">{shareDocument.error.message}</p>}
 
         <Table
           columns={columns}
