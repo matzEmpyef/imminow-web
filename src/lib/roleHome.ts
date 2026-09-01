@@ -12,5 +12,10 @@ type Role = components['schemas']['User']['role']
 export function roleHomePath(role: Role | undefined): string {
   if (role === 'super_admin' || role === 'platform_staff') return '/admin/dashboard'
   if (role === 'freelancer') return '/freelancer/dashboard'
+  // Students belong in the Sentpo app, but they CAN authenticate here (one identity system) and
+  // must not fall through to '/dashboard': ConsultancyRoute bounces non-staff back through this
+  // function, so that fall-through is a redirect loop. '/account' is the one page every role
+  // legitimately owns (ProtectedRoute-only; MyAccountPage already branches on the student role).
+  if (role === 'student') return '/account'
   return '/dashboard'
 }
