@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { formatDate, formatIntake } from '@/lib/time'
+import { formatMoney } from '@/lib/money'
 import type { components } from '@/api/schema'
 
 type StudentPreferences = components['schemas']['StudentPreferences']
@@ -128,7 +129,7 @@ export function StudentProfileFields({ prefs }: { prefs: StudentPreferences | nu
             ? null
             : prefs.budget_shared
               ? prefs.budget?.amount != null
-                ? `${prefs.budget.amount.toLocaleString()} ${prefs.budget.currency ?? ''}`.trim()
+                ? formatMoney(prefs.budget.currency, prefs.budget.amount)
                 : null
               : 'Not shared by the applicant'
         }

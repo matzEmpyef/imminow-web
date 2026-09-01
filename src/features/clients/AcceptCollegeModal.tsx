@@ -7,6 +7,7 @@ import { SelectField } from '@/components/SelectField'
 import { useUpdateSelectedCollege, type AcceptCommissionBody } from '@/queries/clients'
 import { usePartnerColleges } from '@/queries/partnerColleges'
 import { MONTHS, CURRENCIES } from '@/features/super-admin/courseFormShared'
+import { formatMoney } from '@/lib/money'
 import type { components } from '@/api/schema'
 
 type SelectedCollege = components['schemas']['SelectedCollege']
@@ -186,8 +187,8 @@ export function AcceptCollegeModal({
                 <TextField label="Currency" value={feeCurrency} disabled readOnly />
                 {course.fee?.amount != null && (
                   <p className="col-span-3 -mt-1 text-caption text-text-secondary">
-                    {commissionPercent}% of the {course.fee.amount.toLocaleString()} {feeCurrency} tuition — edit if
-                    the agreed figure differs.
+                    {commissionPercent}% of the {formatMoney(feeCurrency, course.fee.amount)} tuition — edit if the
+                    agreed figure differs.
                   </p>
                 )}
               </div>

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { Button } from './Button'
 import { Modal } from './Modal'
 import { formatDate, formatDayLabel, formatTime, isSameCalendarDay } from '@/lib/time'
+import { formatMoney } from '@/lib/money'
 import type { components } from '@/api/schema'
 
 type Course = components['schemas']['Course']
@@ -281,9 +282,7 @@ export function ChatPanel({
                           <p className="text-caption text-text-secondary">
                             {course.college_name}
                             {course.country ? ` · ${course.country}` : ''}
-                            {course.fee?.amount
-                              ? ` · ${course.fee.amount.toLocaleString()} ${course.fee.currency}`
-                              : ''}
+                            {course.fee?.amount ? ` · ${formatMoney(course.fee.currency, course.fee.amount)}` : ''}
                           </p>
                         </div>
                       ))}

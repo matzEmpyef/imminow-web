@@ -9,14 +9,14 @@ import { usePermissionChecker } from '@/lib/permissions'
 import { useCommission } from '@/queries/commission'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { formatDate } from '@/lib/time'
+import { formatMoney, formatMoneyAmount } from '@/lib/money'
 import { RecordPlatformPaymentModal } from './RecordPlatformPaymentModal'
 import type { components } from '@/api/schema'
 
 type CommissionDue = components['schemas']['CommissionDue']
 type CommissionPayment = components['schemas']['CommissionPayment']
 
-const inr = (m: { amount?: number | null; currency: string } | undefined) =>
-  m ? `${(m.amount ?? 0).toLocaleString()} ${m.currency}` : '—'
+const inr = formatMoneyAmount
 
 const TABS = ['Active Cases', 'Payment History'] as const
 type Tab = (typeof TABS)[number]
@@ -32,9 +32,7 @@ function PaymentHistoryTab({ payments }: { payments: CommissionPayment[] }) {
       key: 'amount',
       header: 'Amount',
       render: (p) => (
-        <span className="font-medium text-text-primary">
-          {(p.amount.amount ?? 0).toLocaleString()} {p.amount.currency}
-        </span>
+        <span className="font-medium text-text-primary">{formatMoneyAmount(p.amount)}</span>
       ),
     },
     {
@@ -234,7 +232,7 @@ export function CommissionDetailsPage() {
         <div>
           <h1 className="text-h1 text-text-primary">Commission Details</h1>
           <p className="mt-xs text-h2 text-text-primary">
-            {data.running_total.toLocaleString()} {data.currency} running total
+            {formatMoney(data.currency, data.running_total)} running total
           </p>
         </div>
 

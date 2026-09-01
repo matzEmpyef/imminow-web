@@ -27,6 +27,7 @@ import {
   CourseRequirementsPanel,
 } from './CourseFormPanels'
 import type { components } from '@/api/schema'
+import { formatCourseFee } from '@/lib/money'
 
 type College = components['schemas']['College']
 type Campus = components['schemas']['Campus']
@@ -600,8 +601,7 @@ export function CollegeDetailPage() {
       header: 'Course',
       sortable: true,
       render: (course) => {
-        const feeLabel =
-          course.fee?.amount != null ? `${course.fee.currency} ${course.fee.amount.toLocaleString()}` : null
+        const feeLabel = course.fee?.amount != null ? formatCourseFee(course.fee, course.fee_period) : null
         const detailLine = [course.level, course.field_of_study, course.duration, feeLabel].filter(Boolean).join(' · ')
         return (
           <div>

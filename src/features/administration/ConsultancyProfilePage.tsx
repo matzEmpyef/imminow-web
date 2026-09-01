@@ -34,6 +34,7 @@ import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/vali
 import { formatDate } from '@/lib/time'
 import { usePermission } from '@/lib/permissions'
 import { BUSINESS_FEATURES, ULTIMATE_FEATURES, STARTER_CORE_FEATURES, TIER_ORDER, TIER_LABEL } from '@/lib/features'
+import { formatMoney } from '@/lib/money'
 import { PartnerCollegesPanel } from './PartnerCollegesPanel'
 
 // Feature lists derived from the ONE exported registry (build reference 1.16 made real,
@@ -676,9 +677,7 @@ function BillingCard({ consultancy }: { consultancy: NonNullable<ReturnType<type
         <div className="flex justify-between">
           <dt className="text-text-secondary">Amount</dt>
           <dd className="text-text-primary">
-            {subscription_amount != null
-              ? `${billing_currency ?? ''} ${subscription_amount.toLocaleString()}`.trim()
-              : '—'}
+            {formatMoney(billing_currency, subscription_amount)}
           </dd>
         </div>
       </dl>

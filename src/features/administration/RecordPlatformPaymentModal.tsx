@@ -3,12 +3,12 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useRecordCommissionPayment } from '@/queries/commission'
+import { formatMoneyAmount } from '@/lib/money'
 import type { components } from '@/api/schema'
 
 type CommissionDue = components['schemas']['CommissionDue']
 
-const inr = (m: { amount?: number | null; currency: string } | undefined) =>
-  m ? `${(m.amount ?? 0).toLocaleString()} ${m.currency}` : '—'
+const inr = formatMoneyAmount
 
 // Replaces the old standalone "Record a Payment" form (user decision, 2026-08-28): a payment is
 // now declared AGAINST one due row, not into an undifferentiated pool. Opened by clicking the

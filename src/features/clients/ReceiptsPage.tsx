@@ -9,6 +9,7 @@ import { Modal } from '@/components/Modal'
 import { useCreateReceipt, useInvoices, useReceipts, useVoidReceipt } from '@/queries/invoicing'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
+import { formatMoneyAmount } from '@/lib/money'
 
 type Receipt = NonNullable<ReturnType<typeof useReceipts>['data']>['items'][number]
 
@@ -60,7 +61,7 @@ function RecordReceiptForm({ onClose }: { onClose: () => void }) {
           <option value="">Select…</option>
           {unvoidInvoices.map((inv) => (
             <option key={inv.id} value={inv.id}>
-              {inv.number} — {inv.applicant_name} ({(inv.amount.amount ?? 0).toLocaleString()} {inv.amount.currency})
+              {inv.number} — {inv.applicant_name} ({formatMoneyAmount(inv.amount)})
             </option>
           ))}
         </SelectField>
@@ -108,7 +109,7 @@ export function ReceiptsPage() {
       header: 'Amount',
       sortable: true,
       align: 'right',
-      render: (r) => `${(r.amount.amount ?? 0).toLocaleString()} ${r.amount.currency}`,
+      render: (r) => formatMoneyAmount(r.amount),
     },
     { key: 'recorded_at', header: 'Recorded', sortable: true, render: (r) => formatDate(r.recorded_at) },
     {

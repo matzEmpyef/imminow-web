@@ -9,14 +9,14 @@ import { useAdminConsultancies } from '@/queries/adminConsultancies'
 import { useFinanceDashboard, type FinanceDashboardFilters } from '@/queries/financeDashboard'
 import { useConfirmCommissionPayment } from '@/queries/commission'
 import { formatDate } from '@/lib/time'
+import { formatMoneyAmount } from '@/lib/money'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { Table, type TableColumn } from '@/components/Table'
 import type { components } from '@/api/schema'
 
 type CommissionPayment = components['schemas']['CommissionPayment']
 
-const money = (m: { amount?: number | null; currency: string } | undefined) =>
-  m ? `${m.currency} ${(m.amount ?? 0).toLocaleString()}` : '—'
+const money = formatMoneyAmount
 
 // One declared/confirmed payment row — shared by the confirm queue and the history list so the
 // two read identically. Reworked 2026-08-28: no more proof link (payments are now per-case and

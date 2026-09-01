@@ -5,6 +5,7 @@ import { TextField } from '@/components/TextField'
 import { SelectField } from '@/components/SelectField'
 import { useRecordInstallment } from '@/queries/commissionEntries'
 import { CURRENCIES } from '@/features/super-admin/courseFormShared'
+import { formatMoneyAmount } from '@/lib/money'
 import type { components } from '@/api/schema'
 
 type Receipt = components['schemas']['Receipt']
@@ -117,7 +118,7 @@ export function RecordInstallmentModal({
             <option value="">None — recorded outside the platform</option>
             {receipts.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.invoice_number} — {(r.amount.amount ?? 0).toLocaleString()} {r.amount.currency}
+                {r.invoice_number} — {formatMoneyAmount(r.amount)}
               </option>
             ))}
           </SelectField>

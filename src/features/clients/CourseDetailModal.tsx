@@ -2,6 +2,7 @@ import { Modal } from '@/components/Modal'
 import { Badge } from '@/components/Badge'
 import { SuggestCorrectionButton } from '@/components/SuggestCorrectionButton'
 import { useExams } from '@/queries/catalogSettings'
+import { formatCourseFee } from '@/lib/money'
 import type { components } from '@/api/schema'
 
 type Course = components['schemas']['Course']
@@ -14,12 +15,6 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
       <dd className="min-w-0 text-right text-text-primary">{value}</dd>
     </div>
   )
-}
-
-function formatFee(amount?: number | null, currency?: string | null, period?: string | null): string | null {
-  if (amount == null || !currency) return null
-  const locale = currency === 'INR' ? 'en-IN' : 'en-US'
-  return `${currency} ${amount.toLocaleString(locale)}${period === 'per_year' ? '/yr' : ''}`
 }
 
 // Every "suggest a correction" pencil on a course now lives HERE, on the one popup that already
@@ -59,8 +54,8 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
   const examName = (examId: string) => exams.data?.find((e) => e.id === examId)?.name ?? examId
 
   const req = course.requirements
-  const fee = formatFee(course.fee?.amount, course.fee?.currency, course.fee_period)
-  const appFee = formatFee(course.application_fee?.amount, course.application_fee?.currency, null)
+  const fee = course.fee?.amount != null ? formatCourseFee(course.fee, course.fee_period) : null
+  const appFee = course.application_fee?.amount != null ? formatCourseFee(course.application_fee, null) : null
 
   return (
     <Modal onClose={onClose} title={course.name} widthRem={34}>

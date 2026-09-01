@@ -36,6 +36,7 @@ import { useCreateTag, useTags } from '@/queries/tags'
 import { useFormTemplate } from '@/queries/formTemplates'
 import { formatDate, formatDateTime } from '@/lib/time'
 import { usePermission } from '@/lib/permissions'
+import { formatAmountOnly, formatMoney, formatMoneyAmount } from '@/lib/money'
 import { CloseClientModal } from './CloseClientModal'
 import { TransferApplicantModal } from './TransferApplicantModal'
 import { ReopenClientModal } from './ReopenClientModal'
@@ -345,11 +346,6 @@ function PlanTab({ clientId, initialStepId }: { clientId: string; initialStepId?
   return <PlanStepBuilder clientId={clientId} initialStepId={initialStepId} />
 }
 
-function money(m: { amount?: number | null; currency: string } | null | undefined) {
-  if (!m || m.amount == null) return '—'
-  return `${m.amount.toLocaleString()} ${m.currency}`
-}
-
 // One source's expected-vs-received line with a progress bar — the same treatment for the
 // college side and the applicant side so partial payment reads at a glance.
 function ExpectedVsReceived({
@@ -371,7 +367,8 @@ function ExpectedVsReceived({
       <div className="flex items-center justify-between text-body-sm">
         <span className="font-medium text-text-primary">{label}</span>
         <span className="text-text-secondary">
-          {receivedAmount.toLocaleString()} / {expectedAmount.toLocaleString()} {expected.currency}
+          {formatAmountOnly(expected.currency, receivedAmount)} / {formatAmountOnly(expected.currency, expectedAmount)}{' '}
+          {expected.currency}
           {settled ? ' · fully paid' : pct > 0 ? ` · ${pct}%` : ''}
         </span>
       </div>
@@ -477,7 +474,7 @@ function CommissionsTab({ clientId }: { clientId: string }) {
             {data.installments.map((inst) => (
               <div key={inst.id} className="flex items-center justify-between gap-md text-body-sm">
                 <div>
-                  <span className="font-medium text-text-primary">{money(inst.amount)}</span>
+                  <span className="font-medium text-text-primary">{formatMoneyAmount(inst.amount)}</span>
                   <span className="text-text-secondary">
                     {' '}
                     from {inst.source === 'student' ? 'applicant' : 'college'} · {formatDate(inst.received_on)}
@@ -515,7 +512,7 @@ function CommissionsTab({ clientId }: { clientId: string }) {
             <div key={inv.id} className="flex items-center justify-between text-body-sm">
               <span className="text-text-primary">Invoice {inv.number}</span>
               <span className="text-text-secondary">
-                {money(inv.amount)} — {inv.status}
+                {formatMoneyAmount(inv.amount)} — {inv.status}
               </span>
             </div>
           ))}
@@ -523,7 +520,7 @@ function CommissionsTab({ clientId }: { clientId: string }) {
             <div key={r.id} className="flex items-center justify-between text-body-sm">
               <span className="text-text-primary">Receipt for {r.invoice_number}</span>
               <span className="text-text-secondary">
-                {money(r.amount)} — {formatDate(r.recorded_at)}
+                {formatMoneyAmount(r.amount)} — {formatDate(r.recorded_at)}
               </span>
             </div>
           ))}
@@ -681,8 +678,8 @@ function SelectedCollegeRow({
           <p className="text-body font-medium text-text-primary">{row.course.name}</p>
           <p className="text-caption text-text-secondary">
             {row.course.college_name}
-            {row.course.country ? ` · ${row.course.country}` : ''} · {row.course.fee?.amount?.toLocaleString()}{' '}
-            {row.course.fee?.currency}
+            {row.course.country ? ` · ${row.course.country}` : ''} ·{' '}
+            {formatMoney(row.course.fee?.currency, row.course.fee?.amount)}
           </p>
         </div>
         <div className="flex items-center gap-sm">

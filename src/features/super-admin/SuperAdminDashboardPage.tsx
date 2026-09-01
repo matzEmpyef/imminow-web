@@ -8,6 +8,7 @@ import { MonthlyBarChart } from '@/components/MonthlyBarChart'
 import { useAdminDashboard } from '@/queries/adminDashboard'
 import { useApplicantAllocationQueue } from '@/queries/applicantAllocation'
 import { ErrorState, Skeleton } from '@/components/QueryState'
+import { formatMoney } from '@/lib/money'
 
 export function SuperAdminDashboardPage() {
   const navigate = useNavigate()
@@ -118,7 +119,7 @@ export function SuperAdminDashboardPage() {
           <Card>
             <p className="text-body-sm font-medium text-text-primary">Revenue Snapshot</p>
             <p className="mt-xs text-h1 text-text-primary">
-              {dashboard.data?.revenue_snapshot?.currency} {dashboard.data?.revenue_snapshot?.amount?.toLocaleString()}
+              {formatMoney(dashboard.data?.revenue_snapshot?.currency, dashboard.data?.revenue_snapshot?.amount)}
             </p>
             <p className="text-caption text-text-secondary">Confirmed platform commission received.</p>
           </Card>

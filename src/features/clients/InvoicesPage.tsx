@@ -12,6 +12,7 @@ import { useMyConsultancy } from '@/queries/consultancy'
 import { useCreateInvoice, useInvoices, useVoidInvoice } from '@/queries/invoicing'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
+import { formatMoneyAmount } from '@/lib/money'
 
 const STATUS_COLOR = { sent: 'info', paid: 'success', overdue: 'error', void: 'secondary' } as const
 
@@ -165,7 +166,7 @@ export function InvoicesPage() {
       header: 'Amount',
       sortable: true,
       align: 'right',
-      render: (inv) => `${(inv.amount.amount ?? 0).toLocaleString()} ${inv.amount.currency}`,
+      render: (inv) => formatMoneyAmount(inv.amount),
     },
     { key: 'created_at', header: 'Created', sortable: true, render: (inv) => formatDate(inv.created_at) },
     { key: 'status', header: 'Status', render: (inv) => <Badge color={STATUS_COLOR[inv.status]}>{inv.status}</Badge> },

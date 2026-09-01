@@ -3,18 +3,14 @@ import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import type { TableColumn } from '@/components/Table'
 import type { components } from '@/api/schema'
+import { formatCourseFee } from '@/lib/money'
 import type { SelectedPerson, ShortlistEntry } from './courseFinderState'
 
 type Course = components['schemas']['Course']
 type Fit = components['schemas']['CourseEligibility']
 
 function formatFee(course: Course): string {
-  if (!course.fee || course.fee.amount == null) return '—'
-  const period = course.fee_period === 'per_year' ? '/yr' : ''
-  // Indian digit grouping for INR (₹35,00,000), western for everything else — the same rule
-  // the mobile app's money_format.dart applies, so both consoles read a fee identically.
-  const locale = course.fee.currency === 'INR' ? 'en-IN' : 'en-US'
-  return `${course.fee.currency} ${course.fee.amount.toLocaleString(locale)}${period}`
+  return formatCourseFee(course.fee, course.fee_period)
 }
 
 function formatInrLakh(course: Course): string | null {

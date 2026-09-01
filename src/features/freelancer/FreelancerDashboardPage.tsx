@@ -6,6 +6,7 @@ import { Button } from '@/components/Button'
 import { useFreelancerMe, useFreelancerReferrals } from '@/queries/freelancerReferrals'
 import { Skeleton } from '@/components/QueryState'
 import { formatDate } from '@/lib/time'
+import { formatMoneyAmount } from '@/lib/money'
 
 /**
  * "Your referral link" card (2026-08-19 — "freelancer should be able to share referral code as
@@ -117,8 +118,7 @@ export function FreelancerDashboardPage() {
                   (referral.commission.your_cut ? (
                     <div className="text-right">
                       <p className="text-body font-medium text-text-primary">
-                        {referral.commission.your_cut.currency}{' '}
-                        {(referral.commission.your_cut.amount ?? 0).toLocaleString()}
+                        {formatMoneyAmount(referral.commission.your_cut)}
                       </p>
                       <p className="text-caption text-text-secondary">your cut</p>
                     </div>
