@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { BRAND_LOGO } from '@/lib/brand'
 import loginBg from '@/assets/brand/login-bg.png'
 import googleIcon from '@/assets/brand/google-icon.png'
 import { TextField } from '@/components/TextField'
 import { Button } from '@/components/Button'
 import { useLogin } from '@/queries/auth'
+import { useAuthStore } from '@/stores/authStore'
+import { roleHomePath } from '@/lib/roleHome'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -70,9 +72,15 @@ function LoginHeroPanel() {
 export function LoginPage() {
   const navigate = useNavigate()
   const login = useLogin()
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  const role = useAuthStore((s) => s.user?.role)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [touched, setTouched] = useState<{ email?: boolean; password?: boolean }>({})
+
+  // M14 fix (frontend review, 1 Sep 2026): a session sitting in sessionStorage used to leave the
+  // login form showing anyway — bounce straight to that role's own landing page instead.
+  if (isAuthed) return <Navigate to={roleHomePath(role)} replace />
 
   const emailError = touched.email && !EMAIL_PATTERN.test(email) ? 'Enter a valid email address.' : undefined
   const passwordError = touched.password && !password ? 'Password is required.' : undefined
@@ -81,19 +89,7 @@ export function LoginPage() {
     e.preventDefault()
     setTouched({ email: true, password: true })
     if (!EMAIL_PATTERN.test(email) || !password) return
-    login.mutate(
-      { email, password },
-      {
-        onSuccess: (data) =>
-          navigate(
-            data.user.role === 'super_admin' || data.user.role === 'platform_staff'
-              ? '/admin/dashboard'
-              : data.user.role === 'freelancer'
-                ? '/freelancer/dashboard'
-                : '/dashboard',
-          ),
-      },
-    )
+    login.mutate({ email, password }, { onSuccess: (data) => navigate(roleHomePath(data.user.role)) })
   }
 
   return (

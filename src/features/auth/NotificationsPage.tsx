@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { AppShell } from './AppShell'
 import { AdminShell } from './AdminShell'
+import { FreelancerShell } from './FreelancerShell'
 import { Card } from '@/components/Card'
 import { useMarkNotificationRead, useNotifications } from '@/queries/notifications'
 import { useAuthStore } from '@/stores/authStore'
@@ -18,7 +19,15 @@ export function NotificationsPage() {
   const notifications = useNotifications()
   const markRead = useMarkNotificationRead()
   const role = useAuthStore((s) => s.user?.role)
-  const Shell = role === 'super_admin' ? AdminShell : AppShell
+  // M12 fix (frontend review, 1 Sep 2026): this used to send `platform_staff` into the
+  // consultancy shell (only `super_admin` got AdminShell) and never accounted for Freelancer at
+  // all — every platform/freelancer role now gets its own shell here, same as everywhere else.
+  const Shell =
+    role === 'super_admin' || role === 'platform_staff'
+      ? AdminShell
+      : role === 'freelancer'
+        ? FreelancerShell
+        : AppShell
 
   return (
     <Shell>

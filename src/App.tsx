@@ -3,11 +3,13 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { track } from '@/lib/analytics'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
+import { ConsultancyRoute } from '@/features/auth/ConsultancyRoute'
 import { PlatformRoute } from '@/features/auth/PlatformRoute'
 import { PermissionGate } from '@/features/auth/PermissionGate'
 import { FeatureGate } from '@/features/auth/FeatureGate'
 import { FreelancerRoute } from '@/features/auth/FreelancerRoute'
 import { FEATURE_REGISTRY } from '@/lib/features'
+import { roleHomePath } from '@/lib/roleHome'
 
 // Lookup so route elements can pass a FeatureDef by key without importing/finding it inline at
 // every call site — see FEATURE_REGISTRY in @/lib/features for the definitions themselves.
@@ -218,9 +220,7 @@ function DefaultRedirect() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   const role = useAuthStore((s) => s.user?.role)
   if (!isAuthed) return <Navigate to="/login" replace />
-  if (role === 'super_admin' || role === 'platform_staff') return <Navigate to="/admin/dashboard" replace />
-  if (role === 'freelancer') return <Navigate to="/freelancer/dashboard" replace />
-  return <Navigate to="/dashboard" replace />
+  return <Navigate to={roleHomePath(role)} replace />
 }
 
 // Analytics (Session 38, 2026-08-31) — one central hook rather than instrumenting each of the
@@ -268,229 +268,229 @@ function App() {
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <DashboardPage />
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/sales/lead-pool"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <LeadPoolPage />
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/sales/active-leads"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <ActiveLeadsPage />
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/sales/leads/:id"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <LeadConversationPage />
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/clients"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <ClientsListPage />
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/clients/course-finder"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <CourseFinderPage />
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/clients/invoices"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <InvoicesPage />
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/clients/receipts"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <ReceiptsPage />
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/clients/:id"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <ClientProfilePage />
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/clients/:id/conversation"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <ClientConversationPage />
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/administration/consultancy-profile"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <PermissionGate permission="settings.edit_profile" area="Consultancy Management">
                 <ConsultancyProfilePage />
               </PermissionGate>
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/administration/commission-details"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <CommissionDetailsPage />
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/administration/plan-templates"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <PermissionGate permission="settings.manage_templates" area="Plan Templates">
                 <PlanTemplatesPage />
               </PermissionGate>
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/administration/course-suggestions"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <PermissionGate permission="settings.manage_course_suggestions" area="Course Suggestions">
                 <CourseSuggestionsPage />
               </PermissionGate>
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/administration/forms"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <FormsPage />
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/administration/forms/:id"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <FormBuilderPage />
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/administration/branches"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <FeatureGate feature={FEATURE_BY_KEY.multi_branch}>
                 <PermissionGate permission="staff.manage_branches" area="Branches">
                   <BranchesPage />
                 </PermissionGate>
               </FeatureGate>
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/administration/employees"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <PermissionGate permission="staff.manage_employees" area="Employees">
                 <EmployeesPage />
               </PermissionGate>
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/administration/designations"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <FeatureGate feature={FEATURE_BY_KEY.designations}>
                 <PermissionGate permission="staff.manage_designations" area="Designations">
                   <DesignationsPage />
                 </PermissionGate>
               </FeatureGate>
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/administration/phonebook"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <FeatureGate feature={FEATURE_BY_KEY.phonebook}>
                 <PhonebookPage />
               </FeatureGate>
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/administration/document-library"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <FeatureGate feature={FEATURE_BY_KEY.document_library}>
                 <DocumentLibraryPage />
               </FeatureGate>
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/administration/internal-messaging"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <FeatureGate feature={FEATURE_BY_KEY.internal_messaging}>
                 <InternalMessagingPage />
               </FeatureGate>
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/administration/internal-messaging/:id"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <FeatureGate feature={FEATURE_BY_KEY.internal_messaging}>
                 <InternalMessagingPage />
               </FeatureGate>
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/administration/audit-log"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <FeatureGate feature={FEATURE_BY_KEY.audit_log}>
                 <AuditLogPage />
               </FeatureGate>
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route
           path="/activity"
           element={
-            <ProtectedRoute>
+            <ConsultancyRoute>
               <FeatureGate feature={FEATURE_BY_KEY.activity_queue}>
                 <ActivityPage />
               </FeatureGate>
-            </ProtectedRoute>
+            </ConsultancyRoute>
           }
         />
         <Route

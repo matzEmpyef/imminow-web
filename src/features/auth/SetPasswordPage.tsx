@@ -4,6 +4,7 @@ import { AuthLayout } from './AuthLayout'
 import { TextField } from '@/components/TextField'
 import { Button } from '@/components/Button'
 import { useAcceptInvite, useInvite } from '@/queries/auth'
+import { roleHomePath } from '@/lib/roleHome'
 
 export function SetPasswordPage() {
   const { token = '' } = useParams()
@@ -21,7 +22,9 @@ export function SetPasswordPage() {
     e.preventDefault()
     setTouched({ password: true, confirm: true })
     if (password.length < 8 || confirm !== password) return
-    acceptInvite.mutate({ password }, { onSuccess: () => navigate('/dashboard') })
+    // M13 fix (frontend review, 1 Sep 2026): this used to hardcode /dashboard, so a platform or
+    // freelancer invite landed in the consultancy shell — same rule LoginPage already uses.
+    acceptInvite.mutate({ password }, { onSuccess: (data) => navigate(roleHomePath(data.user.role)) })
   }
 
   if (invite.isLoading) {

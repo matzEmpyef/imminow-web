@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AppShell } from './AppShell'
+import { AdminShell } from './AdminShell'
+import { FreelancerShell } from './FreelancerShell'
 import { Card } from '@/components/Card'
 import { TextField } from '@/components/TextField'
 import { Button } from '@/components/Button'
@@ -8,6 +10,7 @@ import { ChangePasswordModal } from './ChangePasswordModal'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useProfile, useUpdateProfile } from '@/queries/profile'
 import { useNotificationSettings, useUpdateNotificationSettings } from '@/queries/notifications'
+import { useAuthStore } from '@/stores/authStore'
 import type { components } from '@/api/schema'
 import { PHONE_ERROR, isValidPhone } from '@/lib/validation'
 
@@ -31,6 +34,15 @@ const CATEGORY_LABELS: Record<(typeof TOGGLE_CATEGORIES)[number], string> = {
 export function MyAccountPage() {
   const profile = useProfile()
   const updateProfile = useUpdateProfile()
+  const role = useAuthStore((s) => s.user?.role)
+  // M12 fix (frontend review, 1 Sep 2026): this page always rendered AppShell, so a platform or
+  // freelancer account editing their own profile got the consultancy shell around it.
+  const Shell =
+    role === 'super_admin' || role === 'platform_staff'
+      ? AdminShell
+      : role === 'freelancer'
+        ? FreelancerShell
+        : AppShell
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [phone, setPhone] = useState('')
@@ -48,20 +60,20 @@ export function MyAccountPage() {
 
   if (profile.isLoading) {
     return (
-      <AppShell>
+      <Shell>
         <div className="flex flex-col gap-md">
           <Skeleton className="h-32 rounded-md" />
           <Skeleton className="h-32 rounded-md" />
         </div>
-      </AppShell>
+      </Shell>
     )
   }
 
   if (profile.isError || !profile.data) {
     return (
-      <AppShell>
+      <Shell>
         <ErrorState message="Could not load your account." onRetry={() => profile.refetch()} />
-      </AppShell>
+      </Shell>
     )
   }
 
@@ -70,7 +82,7 @@ export function MyAccountPage() {
   const phoneError = phone && !isValidPhone(phone) ? PHONE_ERROR : undefined
 
   return (
-    <AppShell>
+    <Shell>
       <div className="flex flex-col gap-lg">
         <h1 className="text-h1 text-text-primary">My Account</h1>
 
@@ -180,6 +192,6 @@ export function MyAccountPage() {
       </div>
 
       {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
-    </AppShell>
+    </Shell>
   )
 }
