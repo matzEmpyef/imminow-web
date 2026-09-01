@@ -60,17 +60,32 @@ export function CourseFinderPage() {
 
   const feeMaxInr = state.feeMaxLakh ? Math.round(Number(state.feeMaxLakh) * 100000) : undefined
   const durationBucket = state.durationBucket ? DURATION_BUCKETS[state.durationBucket] : undefined
-  const courses = useCourseFinder({
-    personId: state.personId,
-    search: state.search || undefined,
-    country: state.country || undefined,
-    level: state.level || undefined,
-    fieldOfStudy: state.fieldOfStudy.length ? state.fieldOfStudy : undefined,
-    feeMaxInr: Number.isFinite(feeMaxInr) ? feeMaxInr : undefined,
-    durationMinMonths: durationBucket?.min,
-    durationMaxMonths: durationBucket?.max,
-    sort: state.sort || undefined,
-  })
+  // H12 fix (frontend review, 1 Sep 2026) — true once the consultant has done ANYTHING: picked an
+  // applicant, searched, or set a filter. A bare page load (DEFAULT_STATE, no cached applicant)
+  // used to fire `GET /courses` immediately; this keeps that first fetch tied to real interaction.
+  const hasFilters = Boolean(
+    state.personId ||
+    state.search ||
+    state.country ||
+    state.level ||
+    state.fieldOfStudy.length ||
+    state.feeMaxLakh ||
+    state.durationBucket,
+  )
+  const courses = useCourseFinder(
+    {
+      personId: state.personId,
+      search: state.search || undefined,
+      country: state.country || undefined,
+      level: state.level || undefined,
+      fieldOfStudy: state.fieldOfStudy.length ? state.fieldOfStudy : undefined,
+      feeMaxInr: Number.isFinite(feeMaxInr) ? feeMaxInr : undefined,
+      durationMinMonths: durationBucket?.min,
+      durationMaxMonths: durationBucket?.max,
+      sort: state.sort || undefined,
+    },
+    hasFilters,
+  )
 
   // Client-side "already suggested" tracking, one mechanism per audience since they are backed
   // by different things: a client's suggestions are `selected_colleges` rows; a lead's are
@@ -197,7 +212,9 @@ export function CourseFinderPage() {
             rowKey={(c) => c.id}
             loading={courses.isLoading}
             error={courses.isError ? 'Could not load courses.' : undefined}
-            emptyMessage="No courses match these filters."
+            emptyMessage={
+              hasFilters ? 'No courses match these filters.' : 'Pick an applicant or search to browse the catalog.'
+            }
           />
         </div>
 

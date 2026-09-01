@@ -44,7 +44,10 @@ export function useCourseFields() {
   })
 }
 
-export function useCourseFinder(filters: CourseFinderFilters) {
+// `hasFilters` (H12 fix, frontend review 1 Sep 2026) — CourseFinderPage builds this from whether
+// the consultant has picked an applicant or set any filter/search; without it, mounting the page
+// fired `GET /courses` immediately with an empty filter set, before the consultant did anything.
+export function useCourseFinder(filters: CourseFinderFilters, hasFilters: boolean) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['course-finder', filters],
@@ -104,6 +107,7 @@ export function useCourseFinder(filters: CourseFinderFilters) {
     // to search the catalog without attaching a client record — a lead has not shared a profile,
     // and demanding one to browse courses would mean either inventing a record or not searching.
     // `eligibility_for` is already optional; without it the server simply returns no fit data.
-    enabled: isAuthed,
+    // `hasFilters` on top of that (H12) is the "don't fetch on bare page load" gate.
+    enabled: isAuthed && hasFilters,
   })
 }

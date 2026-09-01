@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { MessageSquare } from 'lucide-react'
 import { Drawer } from './Drawer'
 import { TextField } from './TextField'
+import { Button } from './Button'
 import { useConversations } from '@/queries/conversations'
 import { useChatWindowStore } from '@/stores/chatWindowStore'
 import { relativeTime } from '@/lib/time'
@@ -26,7 +27,7 @@ const TYPE_LABELS: Record<Conversation['type'], string> = {
 export function GlobalChatDrawer() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const { data } = useConversations()
+  const { data, isError, refetch } = useConversations(open)
   const openChatWindow = useChatWindowStore((s) => s.open)
 
   const unreadCount =
@@ -71,7 +72,16 @@ export function GlobalChatDrawer() {
           <TextField label="Search conversations" value={query} onChange={(e) => setQuery(e.target.value)} />
         }
       >
-        {conversations.length === 0 ? (
+        {isError ? (
+          // H10 fix (frontend review, 1 Sep 2026): a failed fetch used to render as "No
+          // conversations found" — indistinguishable from actually having none.
+          <div className="flex flex-col items-center gap-sm py-lg text-center">
+            <p className="text-body-sm text-error">Could not load conversations.</p>
+            <Button variant="secondary" size="sm" onClick={() => refetch()}>
+              Retry
+            </Button>
+          </div>
+        ) : conversations.length === 0 ? (
           <p className="py-lg text-center text-body-sm text-text-secondary">No conversations found.</p>
         ) : (
           <ul className="divide-y divide-border">
