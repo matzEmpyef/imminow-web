@@ -26,7 +26,10 @@ export function Modal({ onClose, title, children, widthRem = 32, footer }: Modal
   const dialogRef = useDialogA11y<HTMLDivElement>(onClose)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/40 px-md">
-      <button aria-label="Close" onClick={onClose} className="absolute inset-0" />
+      {/* Both close controls are explicitly type="button" (keyboard pass, 2026-09-03): a bare
+          <button> defaults to submit, and a Modal rendered inside a caller's <form> would
+          otherwise submit it when the backdrop or X is activated. */}
+      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0" />
       {/* eslint-disable-next-line jsx-a11y/prefer-tag-over-role -- native <dialog>'s showModal()/::backdrop model would conflict with useDialogA11y's focus trap + the custom backdrop close button serving ~64 consumers; see useDialogA11y.ts */}
       <div
         ref={dialogRef}
@@ -40,9 +43,10 @@ export function Modal({ onClose, title, children, widthRem = 32, footer }: Modal
         <div className="flex shrink-0 items-center justify-between border-b border-border px-lg py-md">
           <h2 className="text-h2 text-text-primary">{title}</h2>
           <button
+            type="button"
             onClick={onClose}
             aria-label="Close"
-            className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
           >
             <X className="h-4 w-4" />
           </button>

@@ -110,7 +110,9 @@ export function TextField({
             type="button"
             onClick={() => setShowPassword((v) => !v)}
             aria-label={showPassword ? 'Hide password' : 'Show password'}
-            className={`absolute top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary ${
+            // Visible focus ring (keyboard pass, 2026-09-03): this was the one control on Login a
+            // keyboard user could land on with no indication that they had.
+            className={`absolute top-1/2 -translate-y-1/2 rounded-sm text-text-secondary hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
               hasStatus ? 'right-11' : 'right-4'
             }`}
           >
