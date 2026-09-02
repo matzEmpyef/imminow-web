@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Modal } from './Modal'
+import { Modal } from '@/components/Modal'
 import { EventStatusBadge } from './EventStatusBadge'
 import { EventAttendanceCell } from './EventAttendanceCell'
 import { formatEventDateTime } from '@/lib/time'

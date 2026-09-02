@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Modal } from './Modal'
-import { Button } from './Button'
-import { Card } from './Card'
-import { ErrorState, Skeleton } from './QueryState'
+import { Modal } from '@/components/Modal'
+import { Button } from '@/components/Button'
+import { Card } from '@/components/Card'
+import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useAssignPlan, usePlanTemplates } from '@/queries/plans'
 
 // User-requested (2026-08-15) — "let consultant assign a plan in Overview tab itself. on button

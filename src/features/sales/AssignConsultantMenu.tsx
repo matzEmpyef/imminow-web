@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { UserPlus } from 'lucide-react'
-import { Modal } from './Modal'
-import { Button } from './Button'
-import { StopPropagation } from './StopPropagation'
-import { SelectField } from './SelectField'
+import { Modal } from '@/components/Modal'
+import { Button } from '@/components/Button'
+import { StopPropagation } from '@/components/StopPropagation'
+import { SelectField } from '@/components/SelectField'
 
 interface ConsultantOption {
   id: string

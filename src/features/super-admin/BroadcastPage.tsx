@@ -12,7 +12,7 @@ import {
 } from '@/lib/broadcastCategories'
 import { Table, type TableColumn } from '@/components/Table'
 import { Modal } from '@/components/Modal'
-import { TargetingFilter } from '@/components/TargetingFilter'
+import { TargetingFilter } from '@/features/super-admin/TargetingFilter'
 import { hasAnyTargeting } from '@/lib/targeting'
 import { SearchSelect } from '@/components/SearchSelect'
 import { useBlogArticles } from '@/queries/blogArticles'

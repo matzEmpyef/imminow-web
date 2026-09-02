@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Share2 } from 'lucide-react'
-import { Modal } from './Modal'
-import { Button } from './Button'
-import { SearchSelect } from './SearchSelect'
+import { Modal } from '@/components/Modal'
+import { Button } from '@/components/Button'
+import { SearchSelect } from '@/components/SearchSelect'
 
 interface ClientOption {
   id: string

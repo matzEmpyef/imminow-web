@@ -6,7 +6,7 @@ import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
 import { TagEditorMenu } from '@/components/TagEditorMenu'
-import { ShareDocumentMenu } from '@/components/ShareDocumentMenu'
+import { ShareDocumentMenu } from '@/features/administration/ShareDocumentMenu'
 import {
   useDeleteLibraryDocument,
   useDocumentLibrary,

@@ -13,7 +13,7 @@ import { formatDateTime, formatEventDateTime, formatDuration } from '@/lib/time'
 import { EVENT_TIMEZONES, browserTimezone, utcIsoToWallClock, wallClockToUtcIso } from '@/lib/eventTimezones'
 import type { components } from '@/api/schema'
 import { SelectField } from '@/components/SelectField'
-import { TargetingFilter } from '@/components/TargetingFilter'
+import { TargetingFilter } from '@/features/super-admin/TargetingFilter'
 import { hasAnyTargeting, type Targeting } from '@/lib/targeting'
 import { useCountries } from '@/queries/countries'
 

@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Pencil } from 'lucide-react'
-import { Modal } from './Modal'
-import { Button } from './Button'
-import { TextField } from './TextField'
+import { Modal } from '@/components/Modal'
+import { Button } from '@/components/Button'
+import { TextField } from '@/components/TextField'
 import { useSuggestCorrection } from '@/queries/courseSuggestions'
 
 /**

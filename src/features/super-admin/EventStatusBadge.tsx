@@ -1,4 +1,4 @@
-import { Badge } from './Badge'
+import { Badge } from '@/components/Badge'
 
 // User-requested (2026-08-15) — "in the listview - we should be able to see status. upcoming,
 // ongoing, completed." Computed live from starts_at/ends_at, never stored, so it can't go stale.

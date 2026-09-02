@@ -1,8 +1,8 @@
 import type { Targeting } from '@/lib/targeting'
 import { useInstitutions, institutionLabel } from '@/queries/institutions'
-import { MultiSelect } from './MultiSelect'
-import { SelectField } from './SelectField'
-import { TextField } from './TextField'
+import { MultiSelect } from '@/components/MultiSelect'
+import { SelectField } from '@/components/SelectField'
+import { TextField } from '@/components/TextField'
 import { STUDY_LEVELS, studyLevelLabel, type StudyLevel } from '@/lib/studyLevels'
 import { GENDERS, genderLabel, type Gender } from '@/lib/genders'
 

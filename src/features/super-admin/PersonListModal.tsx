@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Modal } from './Modal'
-import { Badge } from './Badge'
-import { Table, type TableColumn } from './Table'
+import { Modal } from '@/components/Modal'
+import { Badge } from '@/components/Badge'
+import { Table, type TableColumn } from '@/components/Table'
 
 export interface PersonListRow {
   name: string

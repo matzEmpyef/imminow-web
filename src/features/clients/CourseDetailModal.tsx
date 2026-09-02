@@ -1,6 +1,6 @@
 import { Modal } from '@/components/Modal'
 import { Badge } from '@/components/Badge'
-import { SuggestCorrectionButton } from '@/components/SuggestCorrectionButton'
+import { SuggestCorrectionButton } from '@/features/clients/SuggestCorrectionButton'
 import { useExams } from '@/queries/catalogSettings'
 import { formatCourseFee } from '@/lib/money'
 import type { components } from '@/api/schema'
