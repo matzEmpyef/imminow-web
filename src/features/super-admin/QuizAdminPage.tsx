@@ -1031,7 +1031,7 @@ export function QuizAdminPage() {
           loading={events.isLoading}
           // T9 (third-pass review): a failed list fetch used to render "No quizzes yet."
           error={events.isError ? 'Could not load quizzes.' : undefined}
-          emptyMessage="No quizzes yet."
+          emptyMessage="No quizzes yet. Add one with Add Quiz above; it goes live once its question pool is full."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search title…' }}

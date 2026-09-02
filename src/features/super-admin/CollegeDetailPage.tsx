@@ -493,7 +493,11 @@ export function CollegeDetailPage() {
           rowKey={(course) => course.id!}
           loading={courses.isLoading}
           error={courses.isError ? 'Could not load courses.' : undefined}
-          emptyMessage="No courses match these filters."
+          emptyMessage={
+            courseSearch
+              ? 'No courses match your search.'
+              : 'No courses yet for this college. Add one with Add Course above.'
+          }
           sort={courseSort}
           onSortChange={(field, direction) => {
             setCourseSort({ field, direction })

@@ -296,7 +296,11 @@ export function ClientsListPage() {
           rowKey={(client) => client.id}
           loading={clients.isLoading}
           error={clients.isError ? 'Could not load clients.' : undefined}
-          emptyMessage="No clients match your filters."
+          emptyMessage={
+            search || tag || country || assignedToMe || unattendedOnly
+              ? 'No clients match your search or filters.'
+              : 'No clients yet. A lead becomes a client when they accept your conversion proposal; applicants you create appear here too.'
+          }
           onRowClick={(client) => navigate(`/clients/${client.id}`)}
           rowClassName={(client) => (!client.assigned_employee_id ? 'bg-warning-subtle' : undefined)}
           sort={sort}

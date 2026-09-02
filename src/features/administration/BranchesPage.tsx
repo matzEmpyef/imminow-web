@@ -164,7 +164,11 @@ export function BranchesPage() {
           rowKey={(branch) => branch.id!}
           loading={branches.isLoading}
           error={branches.isError ? 'Could not load branches.' : undefined}
-          emptyMessage="No branches yet."
+          emptyMessage={
+            search
+              ? 'No branches match your search.'
+              : 'No branches yet. Add one to group employees and clients by location.'
+          }
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search branches…' }}

@@ -146,7 +146,11 @@ export function EmployeesPage() {
           rowKey={(employee) => employee.id!}
           loading={employees.isLoading}
           error={employees.isError ? 'Could not load employees.' : undefined}
-          emptyMessage="No employees yet."
+          emptyMessage={
+            search
+              ? 'No employees match your search.'
+              : 'No employees yet. Invite your first colleague with Invite Employee above.'
+          }
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search employees…' }}

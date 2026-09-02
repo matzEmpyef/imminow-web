@@ -96,7 +96,11 @@ export function AuditLogPage() {
           rowKey={(e) => e.id}
           loading={entries.isLoading}
           error={entries.isError ? 'Could not load the audit log.' : undefined}
-          emptyMessage="No matching audit entries."
+          emptyMessage={
+            search || actorId || actionType || area || from || to
+              ? 'No matching audit entries.'
+              : 'No activity recorded yet. Every create, update and delete by your team lands here as it happens.'
+          }
           sort={sort}
           onSortChange={(field, direction) => {
             setSort({ field, direction })

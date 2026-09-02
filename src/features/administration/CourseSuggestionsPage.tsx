@@ -208,7 +208,7 @@ export function CourseSuggestionsPage() {
             rowKey={(s) => s.id}
             loading={suggestions.isLoading}
             error={suggestions.isError ? 'Could not load submissions.' : undefined}
-            emptyMessage="No submissions yet."
+            emptyMessage="No submissions yet. Suggest a new course or a correction above and follow its review here."
             sort={historySort}
             onSortChange={(field, direction) => setHistorySort({ field, direction })}
           />

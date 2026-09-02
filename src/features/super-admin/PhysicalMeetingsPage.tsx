@@ -277,7 +277,7 @@ export function PhysicalMeetingsPage() {
           rowKey={(e) => e.id!}
           loading={events.isLoading}
           error={events.isError ? 'Could not load in-person meetings.' : undefined}
-          emptyMessage="No in-person meetings yet."
+          emptyMessage="No in-person meetings yet. Add one with Add Meeting above; students RSVP from the Events tab."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search title or venue…' }}

@@ -300,7 +300,7 @@ export function WebinarsPage() {
           rowKey={(e) => e.id!}
           loading={events.isLoading}
           error={events.isError ? 'Could not load webinars.' : undefined}
-          emptyMessage="No webinars yet."
+          emptyMessage="No webinars yet. Add one with Add Webinar above; students see it under Events in the app."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search title…' }}

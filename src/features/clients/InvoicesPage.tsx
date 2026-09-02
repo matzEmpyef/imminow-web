@@ -231,7 +231,11 @@ export function InvoicesPage() {
           rowKey={(inv) => inv.id}
           loading={invoices.isLoading}
           error={invoices.isError ? 'Could not load invoices.' : undefined}
-          emptyMessage="No invoices yet."
+          emptyMessage={
+            search || status
+              ? 'No invoices match your search or status filter.'
+              : 'No invoices yet. Create one with the button above; the client sees it in the app.'
+          }
           sort={sort}
           onSortChange={(field, direction) => {
             setSort({ field, direction })

@@ -222,7 +222,14 @@ export function InstitutionsPage() {
           {institutions.isError && (
             <ErrorState message="Could not load institutions." onRetry={() => institutions.refetch()} />
           )}
-          {institutions.data && <Table columns={columns} rows={institutions.data.items ?? []} rowKey={(i) => i.id} />}
+          {institutions.data && (
+            <Table
+              columns={columns}
+              rows={institutions.data.items ?? []}
+              rowKey={(i) => i.id}
+              emptyMessage="No institutions yet. Add one with Add Institution above, or map a waiting student's school."
+            />
+          )}
         </section>
       </div>
 

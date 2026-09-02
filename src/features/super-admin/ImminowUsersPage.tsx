@@ -109,7 +109,11 @@ export function ImminowUsersPage() {
           rowKey={(r) => r.id}
           loading={directory.isLoading}
           error={directory.isError ? 'Could not load the immiNow user directory.' : undefined}
-          emptyMessage="No users match these filters."
+          emptyMessage={
+            search || consultancyId || active || neverActive
+              ? 'No users match these filters.'
+              : 'No immiNow users yet. Staff appear here once a consultancy invites them.'
+          }
           sort={sort}
           onSortChange={(field, direction) => {
             setSort({ field, direction })

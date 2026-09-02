@@ -148,7 +148,13 @@ export function SupplyDemandPage() {
             Every country at least one consultancy serves, with combined seat usage.
           </p>
           <div className="mt-sm">
-            <Table bare columns={supplyColumns} rows={data.supply_by_country} rowKey={(r) => r.country} />
+            <Table
+              bare
+              columns={supplyColumns}
+              rows={data.supply_by_country}
+              rowKey={(r) => r.country}
+              emptyMessage="No consultancy has listed a country it serves yet."
+            />
           </div>
         </Card>
 

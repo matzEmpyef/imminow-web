@@ -151,7 +151,11 @@ export function LeadPoolPage() {
           rowKey={(lead) => lead.id}
           loading={leads.isLoading}
           error={leads.isError ? 'Could not load the lead pool.' : undefined}
-          emptyMessage="No unallocated leads right now."
+          emptyMessage={
+            search
+              ? 'No leads in the pool match your search.'
+              : 'No unallocated leads right now. New Sentpo leads land here until a consultant is allocated.'
+          }
           sort={sort}
           onSortChange={(field, direction) => {
             setSort({ field, direction })

@@ -274,7 +274,13 @@ export function CourseSuggestionsReviewPage() {
           rowKey={(s) => s.id!}
           loading={queue.isLoading}
           error={queue.isError ? 'Could not load course suggestions.' : undefined}
-          emptyMessage="Nothing here."
+          emptyMessage={
+            search
+              ? 'No suggestions match your search.'
+              : status === 'pending'
+                ? "Nothing waiting for review. Consultancies' suggested courses and corrections appear here."
+                : `No ${status} suggestions yet.`
+          }
           sort={sort}
           onSortChange={(field, direction) => {
             setSort({ field, direction })

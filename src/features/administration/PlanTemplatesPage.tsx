@@ -602,7 +602,11 @@ export function PlanTemplatesPage() {
           rowKey={(t) => t.id}
           loading={templates.isLoading}
           error={templates.isError ? 'Could not load plan templates.' : undefined}
-          emptyMessage="No plan templates yet."
+          emptyMessage={
+            search
+              ? 'No templates match your search.'
+              : 'No plan templates yet. Create one to reuse the same steps across clients.'
+          }
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search templates…' }}

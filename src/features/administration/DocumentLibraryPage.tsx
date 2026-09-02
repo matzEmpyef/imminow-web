@@ -245,7 +245,11 @@ export function DocumentLibraryPage() {
           rowKey={(doc) => doc.id}
           loading={documents.isLoading}
           error={documents.isError ? 'Could not load the document library.' : undefined}
-          emptyMessage="No documents match these filters."
+          emptyMessage={
+            search || tag || mimeType || from || to
+              ? 'No documents match these filters.'
+              : "The library is empty. Upload a document above; anything you share from here reaches the client's Documents tab."
+          }
           sort={sort}
           onSortChange={(field, direction) => {
             setSort({ field, direction })

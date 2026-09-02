@@ -138,7 +138,11 @@ export function FormsPage() {
           rowKey={(form) => form.id}
           loading={forms.isLoading}
           error={forms.isError ? 'Could not load forms.' : undefined}
-          emptyMessage="No form templates yet."
+          emptyMessage={
+            search
+              ? 'No forms match your search.'
+              : 'No form templates yet. Create one and attach it to a plan step for clients to fill in.'
+          }
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search forms…' }}

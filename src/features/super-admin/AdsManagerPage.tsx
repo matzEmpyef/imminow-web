@@ -476,7 +476,7 @@ export function AdsManagerPage() {
           rowKey={(ad) => ad.id!}
           loading={ads.isLoading}
           error={ads.isError ? 'Could not load ads.' : undefined}
-          emptyMessage="No ads yet."
+          emptyMessage="No ads yet. Add one to place a banner on the app's Home screen."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search destination type…' }}

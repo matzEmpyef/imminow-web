@@ -450,7 +450,11 @@ export function JobsAdminPage() {
           rowKey={(j) => j.id!}
           loading={jobs.isLoading}
           error={jobs.isError ? 'Could not load job listings.' : undefined}
-          emptyMessage="No job listings yet."
+          emptyMessage={
+            search
+              ? 'No listings match your search.'
+              : "No job listings yet. Add one with Add Listing above; students see it in the app's Jobs tab."
+          }
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search title or company…' }}

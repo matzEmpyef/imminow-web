@@ -128,7 +128,11 @@ export function PhonebookPage() {
           rowKey={(c) => c.id}
           loading={contacts.isLoading}
           error={contacts.isError ? 'Could not load contacts.' : undefined}
-          emptyMessage="No contacts yet."
+          emptyMessage={
+            search || categoryFilter
+              ? 'No contacts match your search or category.'
+              : 'No contacts yet. Add the colleges, agents and other numbers your team calls often.'
+          }
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search contacts…' }}

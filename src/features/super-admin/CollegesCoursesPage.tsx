@@ -275,7 +275,11 @@ export function CollegesCoursesPage() {
           rowKey={(college) => college.id!}
           loading={colleges.isLoading}
           error={colleges.isError ? 'Could not load colleges.' : undefined}
-          emptyMessage="No colleges match these filters."
+          emptyMessage={
+            search || country
+              ? 'No colleges match these filters.'
+              : 'No colleges yet. Add the first one with Add College above.'
+          }
           onRowClick={(college) => navigate(`/admin/colleges/${college.id}`)}
           sort={sort}
           onSortChange={(field, direction) => {

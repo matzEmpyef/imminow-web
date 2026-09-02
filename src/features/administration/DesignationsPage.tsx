@@ -78,7 +78,11 @@ export function DesignationsPage() {
           rowKey={(d) => d.id!}
           loading={designations.isLoading}
           error={designations.isError ? 'Could not load designations.' : undefined}
-          emptyMessage="No designations yet."
+          emptyMessage={
+            search
+              ? 'No designations match your search.'
+              : 'No designations yet. Create one to set a baseline of permissions for a role.'
+          }
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search designations…' }}

@@ -279,7 +279,7 @@ export function RedemptionPartnersPage() {
           rowKey={(p) => p.id!}
           loading={partners.isLoading}
           error={partners.isError ? 'Could not load redemption partners.' : undefined}
-          emptyMessage="No redemption partners yet."
+          emptyMessage="No redemption partners yet. Add one so students have somewhere to spend their points."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search partner or category…' }}

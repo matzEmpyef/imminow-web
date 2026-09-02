@@ -154,7 +154,11 @@ export function SentpoUsersPage() {
           rowKey={(r) => r.id}
           loading={directory.isLoading}
           error={directory.isError ? 'Could not load the Sentpo user directory.' : undefined}
-          emptyMessage="No students match these filters."
+          emptyMessage={
+            search || stage || onboarding || dormantDays || from || to
+              ? 'No students match these filters.'
+              : 'No students have signed up yet. Every Sentpo app account appears here.'
+          }
           sort={sort}
           onSortChange={(field, direction) => {
             setSort({ field, direction })

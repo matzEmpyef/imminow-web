@@ -103,7 +103,11 @@ export function PlatformAuditLogPage() {
           rowKey={(e) => e.id}
           loading={entries.isLoading}
           error={entries.isError ? 'Could not load the audit log.' : undefined}
-          emptyMessage="No matching audit entries."
+          emptyMessage={
+            search || consultancyId || actionType || area || from || to
+              ? 'No matching audit entries.'
+              : 'No activity recorded yet. Platform-wide creates, updates and deletes land here as they happen.'
+          }
           sort={sort}
           onSortChange={(field, direction) => {
             setSort({ field, direction })

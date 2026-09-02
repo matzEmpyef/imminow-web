@@ -231,7 +231,7 @@ export function PlatformTeamPage() {
           rowKey={(s) => s.id!}
           loading={staff.isLoading}
           error={staff.isError ? 'Could not load platform staff.' : undefined}
-          emptyMessage="No platform staff yet."
+          emptyMessage="No platform staff yet. Invite a colleague with Invite Staff above."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search name or email…' }}

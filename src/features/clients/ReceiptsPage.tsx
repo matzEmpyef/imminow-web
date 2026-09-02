@@ -178,7 +178,11 @@ export function ReceiptsPage() {
           rowKey={(r) => r.id}
           loading={receipts.isLoading}
           error={receipts.isError ? 'Could not load receipts.' : undefined}
-          emptyMessage="No receipts recorded yet."
+          emptyMessage={
+            search || status
+              ? 'No receipts match your search or status filter.'
+              : 'No payments recorded yet. Record one against an invoice with the button above.'
+          }
           sort={sort}
           onSortChange={(field, direction) => {
             setSort({ field, direction })

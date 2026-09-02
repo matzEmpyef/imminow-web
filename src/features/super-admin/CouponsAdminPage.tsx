@@ -456,7 +456,7 @@ export function CouponsAdminPage() {
           rowKey={(c) => c.id!}
           loading={coupons.isLoading}
           error={coupons.isError ? 'Could not load coupons.' : undefined}
-          emptyMessage="No coupons yet."
+          emptyMessage="No coupons yet. Add one for students to claim with their points."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search partner or amount…' }}

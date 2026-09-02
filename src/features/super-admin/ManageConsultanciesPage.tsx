@@ -711,7 +711,11 @@ export function ManageConsultanciesPage() {
           rowKey={(c) => c.id!}
           loading={consultancies.isLoading}
           error={consultancies.isError ? 'Could not load consultancies.' : undefined}
-          emptyMessage="No consultancies match these filters."
+          emptyMessage={
+            search || tierFilter
+              ? 'No consultancies match these filters.'
+              : 'No consultancies yet. Create the first one with the button above.'
+          }
           sort={sort}
           onSortChange={(field, direction) => {
             setSort({ field, direction })

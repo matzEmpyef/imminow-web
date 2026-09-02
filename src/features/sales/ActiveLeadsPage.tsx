@@ -173,7 +173,11 @@ export function ActiveLeadsPage() {
           rowKey={(lead) => lead.id}
           loading={leads.isLoading}
           error={leads.isError ? 'Could not load active leads.' : undefined}
-          emptyMessage="No leads match your filters."
+          emptyMessage={
+            search || assignedToMe || unattendedOnly
+              ? 'No leads match your search or filters.'
+              : 'No active leads yet. A lead arrives when a student starts a chat with your consultancy, or when you allocate one from the Lead Pool.'
+          }
           onRowClick={(lead) => navigate(`/sales/leads/${lead.id}`)}
           sort={sort}
           onSortChange={(field, direction) => {
