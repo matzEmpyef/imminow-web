@@ -75,12 +75,12 @@ export function MultiSelect({ label, options, selected, onChange, allowCustom, r
           setOpen(true)
           inputRef.current?.focus()
         }}
-        className="flex min-h-12 cursor-text flex-wrap items-center gap-xs rounded-lg border border-border bg-surface px-3 py-2 focus-within:border-2 focus-within:border-primary"
+        className="flex min-h-12 cursor-text flex-wrap items-center gap-xs rounded-lg border border-border bg-surface px-3 py-sm focus-within:border-2 focus-within:border-primary"
       >
         {selected.map((option) => (
           <span
             key={option}
-            className="flex items-center gap-1 rounded-full bg-background px-sm py-1 text-caption text-text-primary"
+            className="flex items-center gap-xs rounded-full bg-background px-sm py-xs text-caption text-text-primary"
           >
             {display(option)}
             <button
@@ -113,7 +113,7 @@ export function MultiSelect({ label, options, selected, onChange, allowCustom, r
       </div>
 
       {open && (
-        <div className="absolute top-full z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-border bg-surface py-xs shadow-card">
+        <div className="absolute top-full z-10 mt-xs max-h-56 w-full overflow-y-auto rounded-lg border border-border bg-surface py-xs shadow-card">
           {available.length === 0 && !canAddCustom && (
             <p className="px-md py-sm text-body-sm text-text-secondary">No matches.</p>
           )}

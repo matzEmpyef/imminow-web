@@ -121,7 +121,7 @@ export function Table<T>({
                 onChange={(e) => setSearchDraft(e.target.value)}
                 placeholder={search.placeholder ?? 'Search…'}
                 style={{ maxWidth: '20rem' }}
-                className="h-10 w-full rounded-full border border-border bg-background px-4 text-body-sm text-text-primary outline-none focus:border-2 focus:border-primary"
+                className="h-10 w-full rounded-full border border-border bg-background px-md text-body-sm text-text-primary outline-none focus:border-2 focus:border-primary"
               />
             )}
           </div>
@@ -165,7 +165,7 @@ export function Table<T>({
                     >
                       {column.header}
                       {sort?.field === column.key && (
-                        <span className="ml-1">{sort.direction === 'asc' ? '▲' : '▼'}</span>
+                        <span className="ml-xs">{sort.direction === 'asc' ? '▲' : '▼'}</span>
                       )}
                     </button>
                   ) : (

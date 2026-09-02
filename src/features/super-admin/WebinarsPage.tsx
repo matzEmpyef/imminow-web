@@ -141,7 +141,7 @@ function WebinarFormModal({ editingEvent, onClose }: { editingEvent?: Event; onC
             </option>
           ))}
         </SelectField>
-        <p className="mt-1 text-caption text-text-secondary">
+        <p className="mt-xs text-caption text-text-secondary">
           The zone you are entering these times in. Unlike a physical meeting, attendees see a webinar converted to
           their OWN local time — this only makes sure the instant is right.
         </p>

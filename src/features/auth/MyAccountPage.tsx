@@ -112,7 +112,7 @@ export function MyAccountPage() {
               type="submit"
               loading={updateProfile.isPending}
               disabled={Boolean(phoneError)}
-              className="w-fit self-end mt-4"
+              className="w-fit self-end mt-md"
             >
               Save changes
             </Button>

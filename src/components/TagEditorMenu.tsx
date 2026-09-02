@@ -92,7 +92,7 @@ export function TagEditorMenu({ tags, catalog, onSave, onCreateTag, label, savin
               {draft.map((t) => (
                 <span
                   key={t}
-                  className="flex items-center gap-xs rounded-full bg-background px-sm py-1 text-caption font-medium text-text-primary"
+                  className="flex items-center gap-xs rounded-full bg-background px-sm py-xs text-caption font-medium text-text-primary"
                 >
                   {t}
                   <button

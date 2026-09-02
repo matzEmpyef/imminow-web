@@ -212,7 +212,7 @@ function DetailsCard({ lead }: { lead: NonNullable<ReturnType<typeof useLead>['d
         {lead.tags && lead.tags.length > 0 && (
           <div className="flex justify-between gap-md">
             <dt className="shrink-0 text-text-secondary">Tags</dt>
-            <dd className="flex flex-wrap justify-end gap-1">
+            <dd className="flex flex-wrap justify-end gap-xs">
               {lead.tags.map((tag) => (
                 <Badge key={tag} color="secondary">
                   {tag}

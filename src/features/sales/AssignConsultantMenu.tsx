@@ -71,7 +71,7 @@ export function AssignConsultantMenu({
           type="button"
           onClick={openMenu}
           disabled={disabled}
-          className="flex h-10 items-center gap-xs rounded-full bg-primary px-4 text-button font-medium text-text-on-primary shadow-card hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-10 items-center gap-xs rounded-full bg-primary px-md text-button font-medium text-text-on-primary shadow-card hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <UserPlus className="h-4 w-4" />
           {buttonText ?? label}

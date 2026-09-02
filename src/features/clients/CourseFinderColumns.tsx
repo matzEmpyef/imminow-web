@@ -42,7 +42,7 @@ function FitCell({ fit }: { fit: Fit | null | undefined }) {
     badge = <Badge color="primary">Profile incomplete</Badge>
   }
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-xs">
       <span>
         {badge}
         <span className="ml-xs text-caption text-text-secondary">

@@ -66,7 +66,7 @@ export function CloseClientModal({
             onChange={(e) => setReason(e.target.value)}
             rows={3}
             placeholder="Why is this case being closed?"
-            className="rounded-md border border-border bg-surface px-3 py-2 text-body"
+            className="rounded-md border border-border bg-surface px-3 py-sm text-body"
           />
         </div>
       </form>

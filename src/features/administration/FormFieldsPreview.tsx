@@ -270,7 +270,7 @@ function FieldMockInput({ field }: { field: FormFieldInput }) {
     case 'single_select':
     case 'multi_select':
       return (
-        <div className="flex h-9 items-center justify-between rounded-md border border-border bg-background px-2 text-caption text-text-secondary">
+        <div className="flex h-9 items-center justify-between rounded-md border border-border bg-background px-sm text-caption text-text-secondary">
           <span>{field.type === 'multi_select' ? 'Select multiple…' : 'Select…'}</span>
           <ChevronDown className="h-3 w-3" />
         </div>
@@ -278,13 +278,13 @@ function FieldMockInput({ field }: { field: FormFieldInput }) {
     case 'yes_no':
       return (
         <div className="flex gap-xs">
-          <span className="rounded-full border border-border px-sm py-1 text-caption text-text-secondary">Yes</span>
-          <span className="rounded-full border border-border px-sm py-1 text-caption text-text-secondary">No</span>
+          <span className="rounded-full border border-border px-sm py-xs text-caption text-text-secondary">Yes</span>
+          <span className="rounded-full border border-border px-sm py-xs text-caption text-text-secondary">No</span>
         </div>
       )
     case 'date':
       return (
-        <div className="flex h-9 items-center justify-between rounded-md border border-border bg-background px-2 text-caption text-text-secondary">
+        <div className="flex h-9 items-center justify-between rounded-md border border-border bg-background px-sm text-caption text-text-secondary">
           <span>dd/mm/yyyy</span>
           <Calendar className="h-3 w-3" />
         </div>
@@ -292,7 +292,7 @@ function FieldMockInput({ field }: { field: FormFieldInput }) {
     case 'table': {
       const count = field.table_columns?.length ?? 0
       return (
-        <div className="rounded-md border border-border bg-background px-2 py-1 text-caption text-text-secondary">
+        <div className="rounded-md border border-border bg-background px-sm py-xs text-caption text-text-secondary">
           {count} column{count === 1 ? '' : 's'}
         </div>
       )

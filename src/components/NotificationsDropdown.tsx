@@ -40,7 +40,7 @@ export function NotificationsDropdown() {
       >
         <Bell className="h-5 w-5" />
         {Boolean(unreadCount) && (
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-caption font-medium leading-none text-text-on-primary">
+          <span className="absolute -right-1 -top-xs flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-xs text-caption font-medium leading-none text-text-on-primary">
             {unreadCount}
           </span>
         )}

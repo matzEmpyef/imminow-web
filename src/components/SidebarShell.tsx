@@ -144,7 +144,7 @@ export function SidebarShell({ sections, roleBadge, search, headerActions, child
                 <LinkIcon className={`h-5 w-5 shrink-0 ${linkActive ? 'text-primary' : 'text-text-secondary'}`} />
                 {!collapsed && <span className="min-w-0 flex-1 truncate">{link.label}</span>}
                 {!collapsed && Boolean(link.badge) && (
-                  <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-error px-1 text-caption font-medium leading-none text-text-on-primary">
+                  <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-error px-xs text-caption font-medium leading-none text-text-on-primary">
                     {link.badge}
                   </span>
                 )}

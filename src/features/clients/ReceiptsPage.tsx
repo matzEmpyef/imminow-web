@@ -130,7 +130,7 @@ export function ReceiptsPage() {
                   value={voidReason}
                   onChange={(e) => setVoidReason(e.target.value)}
                   placeholder="Reason…"
-                  className="h-8 w-32 rounded-md border border-border bg-surface px-2 text-caption"
+                  className="h-8 w-32 rounded-md border border-border bg-surface px-sm text-caption"
                 />
                 <Button
                   variant="destructive"

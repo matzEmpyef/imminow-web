@@ -231,7 +231,7 @@ export function AddLeadModal({ onClose }: { onClose: () => void }) {
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            className="rounded-md border border-border bg-surface px-3 py-2 text-body"
+            className="rounded-md border border-border bg-surface px-3 py-sm text-body"
           />
         </div>
       </form>

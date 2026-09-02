@@ -154,7 +154,7 @@ export function CourseFinderPage() {
               // instead of centered against it (user, 2026-08-24). Fixed locally rather than on
               // the shared component, since nothing else needs it.
               <Button variant="secondary" onClick={() => setDrawerOpen(true)} className="flex items-center">
-                <ListChecks className="mr-1 h-4 w-4" />
+                <ListChecks className="mr-xs h-4 w-4" />
                 Noted ({shortlist.length})
               </Button>
             )}

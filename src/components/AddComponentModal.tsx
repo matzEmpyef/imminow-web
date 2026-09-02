@@ -191,7 +191,7 @@ export function AddComponentModal({
                 {entries.map((entry, i) => (
                   <div
                     key={i}
-                    className="flex items-center gap-xs rounded-md border border-border bg-background px-sm py-1"
+                    className="flex items-center gap-xs rounded-md border border-border bg-background px-sm py-xs"
                   >
                     <span className="min-w-0 flex-1 truncate text-body-sm text-text-primary">{entry}</span>
                     <button
@@ -230,7 +230,7 @@ export function AddComponentModal({
               {options.map((option, i) => (
                 <span
                   key={i}
-                  className="flex items-center gap-xs rounded-full border border-border bg-background px-sm py-1 text-body-sm text-text-primary"
+                  className="flex items-center gap-xs rounded-full border border-border bg-background px-sm py-xs text-body-sm text-text-primary"
                 >
                   {option}
                   <button

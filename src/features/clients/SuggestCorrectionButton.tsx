@@ -68,7 +68,7 @@ export function SuggestCorrectionButton({
         // on the button itself (a bare pseudo-class, not the `:where(.group)` construct that
         // broke) is the one hover path guaranteed to work. `group-hover:opacity-100` stays as a
         // bonus for whichever browsers do apply it.
-        className="ml-1 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-text-secondary opacity-40 transition-opacity hover:text-primary hover:opacity-100 group-hover:opacity-100"
+        className="ml-xs inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-text-secondary opacity-40 transition-opacity hover:text-primary hover:opacity-100 group-hover:opacity-100"
       >
         <Pencil className="h-3 w-3" />
       </button>

@@ -414,7 +414,7 @@ function QuizSettingsModal({
             unknownDataPolicy="includes"
           />
         </div>
-        <p className="mt-1 text-caption text-text-secondary">
+        <p className="mt-xs text-caption text-text-secondary">
           The zone you are entering this window in. Students see it on their own clock — a quiz has no venue, so nothing
           here is shown unconverted.
         </p>

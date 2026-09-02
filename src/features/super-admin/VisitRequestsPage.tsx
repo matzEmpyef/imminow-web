@@ -49,7 +49,7 @@ export function VisitRequestsPage() {
     {
       key: 'note',
       header: 'Note',
-      render: (v) => (v.note ? <span className="line-clamp-2 max-w-[20rem] text-text-secondary">{v.note}</span> : '—'),
+      render: (v) => (v.note ? <span className="line-clamp-sm max-w-[20rem] text-text-secondary">{v.note}</span> : '—'),
     },
     { key: 'created_at', header: 'Requested', render: (v) => formatDateTime(v.created_at) },
     {

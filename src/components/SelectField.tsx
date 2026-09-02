@@ -47,7 +47,7 @@ export function SelectField({ label, error, id, className, children, ...props }:
         </select>
         <label
           htmlFor={fieldId}
-          className="pointer-events-none absolute left-5 top-0 origin-left -translate-y-1/2 scale-[0.8] bg-surface px-1 text-body text-text-secondary"
+          className="pointer-events-none absolute left-5 top-0 origin-left -translate-y-1/2 scale-[0.8] bg-surface px-xs text-body text-text-secondary"
         >
           {label}
           {props.required && <span className="text-required"> *</span>}

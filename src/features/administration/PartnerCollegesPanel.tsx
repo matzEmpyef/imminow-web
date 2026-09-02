@@ -75,7 +75,7 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
       render: (r) => {
         const options = ALL_PAYERS
         return (
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-xs">
             <CompactSelect
               dense
               label="Payer method"
@@ -159,7 +159,7 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
           content at the end. */}
       <div className="flex flex-wrap items-end gap-sm">
         <div className="min-w-[16rem] flex-1">
-          <label className="mb-1 block text-body-sm font-medium text-text-primary" htmlFor="pc-college">
+          <label className="mb-xs block text-body-sm font-medium text-text-primary" htmlFor="pc-college">
             Add a college
           </label>
           <SearchSelect

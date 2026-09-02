@@ -207,7 +207,7 @@ function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnType<typeo
               value={aboutUs}
               onChange={(e) => setAboutUs(e.target.value)}
               rows={5}
-              className="rounded-md border border-border bg-surface px-3 py-2 text-body"
+              className="rounded-md border border-border bg-surface px-3 py-sm text-body"
             />
           </div>
           <MultiSelect
@@ -237,7 +237,7 @@ function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnType<typeo
             type="submit"
             loading={updateProfile.isPending}
             disabled={Boolean(publicEmailError || publicPhoneError || descriptionError)}
-            className="w-fit self-end mt-4"
+            className="w-fit self-end mt-md"
           >
             Save Changes
           </Button>

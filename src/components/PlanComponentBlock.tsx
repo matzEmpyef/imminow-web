@@ -101,7 +101,7 @@ function ComponentPreviewControl({ component }: { component: ComponentInput }) {
       return (
         <div className="flex h-9 items-center justify-between rounded-md border border-dashed border-border bg-background px-3 text-caption text-text-secondary">
           <span>No file uploaded</span>
-          <span className="rounded-full border border-border px-sm py-1 text-caption font-medium text-text-primary">
+          <span className="rounded-full border border-border px-sm py-xs text-caption font-medium text-text-primary">
             Upload
           </span>
         </div>

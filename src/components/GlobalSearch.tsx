@@ -99,7 +99,7 @@ export function GlobalSearch() {
           onKeyDown={handleKeyDown}
           placeholder="Search leads and applicants…"
           aria-label="Search leads and applicants"
-          className="h-11 w-full rounded-full border border-border bg-background pl-11 pr-4 text-body text-text-primary outline-none focus:border-2 focus:border-primary"
+          className="h-11 w-full rounded-full border border-border bg-background pl-11 pr-md text-body text-text-primary outline-none focus:border-2 focus:border-primary"
         />
       </div>
 

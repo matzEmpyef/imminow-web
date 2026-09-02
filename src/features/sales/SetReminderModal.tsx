@@ -64,7 +64,7 @@ export function SetReminderModal({ leadId, onClose }: { leadId: string; onClose:
             onChange={(e) => setNote(e.target.value)}
             rows={3}
             required
-            className="rounded-md border border-border bg-surface px-3 py-2 text-body"
+            className="rounded-md border border-border bg-surface px-3 py-sm text-body"
           />
         </div>
         <div className="grid grid-cols-2 gap-md">

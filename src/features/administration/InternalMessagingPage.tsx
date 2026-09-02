@@ -74,7 +74,7 @@ export function InternalMessagingPage() {
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search colleagues…"
                 aria-label="Search colleagues"
-                className="h-11 w-full rounded-full border border-border bg-surface pl-11 pr-4 text-body text-text-primary outline-none focus:border-2 focus:border-primary"
+                className="h-11 w-full rounded-full border border-border bg-surface pl-11 pr-md text-body text-text-primary outline-none focus:border-2 focus:border-primary"
               />
             </div>
 

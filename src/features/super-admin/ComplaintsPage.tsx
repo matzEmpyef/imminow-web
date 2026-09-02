@@ -110,7 +110,7 @@ function ComplaintDetailModal({ complaint, onClose }: { complaint: Complaint; on
               onChange={(e) => setResolutionNote(e.target.value)}
               rows={3}
               placeholder="What was done about this complaint?"
-              className="rounded-md border border-border bg-surface px-3 py-2 text-body"
+              className="rounded-md border border-border bg-surface px-3 py-sm text-body"
             />
           </div>
         )}
@@ -153,7 +153,7 @@ export function ComplaintsPage() {
     {
       key: 'description',
       header: 'Description',
-      render: (c) => <span className="line-clamp-2 max-w-[24rem] text-text-secondary">{c.description}</span>,
+      render: (c) => <span className="line-clamp-sm max-w-[24rem] text-text-secondary">{c.description}</span>,
     },
     { key: 'created_at', header: 'Submitted', render: (c) => formatDateTime(c.created_at) },
     {

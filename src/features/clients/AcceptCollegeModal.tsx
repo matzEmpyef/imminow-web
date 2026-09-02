@@ -186,7 +186,7 @@ export function AcceptCollegeModal({
                 {/* Locked on purpose — the college pays in the course's own fee currency. */}
                 <TextField label="Currency" value={feeCurrency} disabled readOnly />
                 {course.fee?.amount != null && (
-                  <p className="col-span-3 -mt-1 text-caption text-text-secondary">
+                  <p className="col-span-3 -mt-xs text-caption text-text-secondary">
                     {commissionPercent}% of the {formatMoney(feeCurrency, course.fee.amount)} tuition — edit if the
                     agreed figure differs.
                   </p>

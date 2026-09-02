@@ -161,7 +161,7 @@ export function ComponentFill({
                   type="button"
                   disabled={busy}
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex shrink-0 items-center gap-xs rounded-full border border-border px-sm py-1 text-caption font-medium text-text-primary hover:bg-surface disabled:opacity-50"
+                  className="flex shrink-0 items-center gap-xs rounded-full border border-border px-sm py-xs text-caption font-medium text-text-primary hover:bg-surface disabled:opacity-50"
                 >
                   {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
                   {fileName ? 'Replace' : 'Upload'}

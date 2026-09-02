@@ -174,7 +174,7 @@ function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing; onClos
               {skills.map((skill) => (
                 <span
                   key={skill}
-                  className="flex items-center gap-1 rounded-full bg-background px-sm py-1 text-caption text-text-primary"
+                  className="flex items-center gap-xs rounded-full bg-background px-sm py-xs text-caption text-text-primary"
                 >
                   {skill}
                   <button
@@ -320,7 +320,7 @@ function JobDetailsModal({ job, onClose }: { job: JobListing; onClose: () => voi
             <span className="text-body-sm text-text-secondary">Skills</span>
             <div className="flex flex-wrap gap-xs">
               {job.skills.map((skill) => (
-                <span key={skill} className="rounded-full bg-background px-sm py-1 text-caption text-text-primary">
+                <span key={skill} className="rounded-full bg-background px-sm py-xs text-caption text-text-primary">
                   {skill}
                 </span>
               ))}

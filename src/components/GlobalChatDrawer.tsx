@@ -59,7 +59,7 @@ export function GlobalChatDrawer() {
       >
         <MessageSquare className="h-5 w-5" />
         {unreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-caption font-medium leading-none text-text-on-primary">
+          <span className="absolute -right-1 -top-xs flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-xs text-caption font-medium leading-none text-text-on-primary">
             {unreadCount}
           </span>
         )}
@@ -106,7 +106,7 @@ export function GlobalChatDrawer() {
                       {conversation.last_message_preview ?? 'No messages yet'}
                     </p>
                   </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
+                  <div className="flex shrink-0 flex-col items-end gap-xs">
                     {conversation.last_message_at && (
                       <span className="text-caption text-text-secondary">
                         {relativeTime(conversation.last_message_at)}

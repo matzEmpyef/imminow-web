@@ -104,7 +104,7 @@ function IntakeDeadlineRow(p: {
         value={p.deadline}
         onChange={(e) => p.onDeadlineChange(e.target.value)}
         aria-label={`${p.month} application deadline`}
-        className="h-9 rounded-md border border-border bg-surface px-2 text-body-sm"
+        className="h-9 rounded-md border border-border bg-surface px-sm text-body-sm"
       />
       <label className="flex items-center gap-xs text-body-sm text-text-secondary">
         <input
@@ -284,7 +284,7 @@ function EnglishRequirementRow(p: {
         aria-label="Minimum overall score"
         value={p.row.min_overall}
         onChange={(e) => p.onChange({ min_overall: e.target.value })}
-        className="h-10 w-28 rounded-md border border-border bg-surface px-2 text-body-sm"
+        className="h-10 w-28 rounded-md border border-border bg-surface px-sm text-body-sm"
       />
       <input
         type="number"
@@ -292,7 +292,7 @@ function EnglishRequirementRow(p: {
         aria-label="Minimum band score"
         value={p.row.min_band}
         onChange={(e) => p.onChange({ min_band: e.target.value })}
-        className="h-10 w-24 rounded-md border border-border bg-surface px-2 text-body-sm"
+        className="h-10 w-24 rounded-md border border-border bg-surface px-sm text-body-sm"
       />
       <Button type="button" variant="secondary" size="sm" onClick={p.onRemove}>
         Remove
@@ -328,7 +328,7 @@ function AptitudeRequirementRow(p: {
         aria-label="Minimum score"
         value={p.row.min_score}
         onChange={(e) => p.onChange({ min_score: e.target.value })}
-        className="h-10 w-28 rounded-md border border-border bg-surface px-2 text-body-sm"
+        className="h-10 w-28 rounded-md border border-border bg-surface px-sm text-body-sm"
       />
       <label className="flex items-center gap-xs text-body-sm text-text-secondary">
         <input

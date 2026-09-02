@@ -109,7 +109,7 @@ function RatingSection({ consultancy }: { consultancy: Consultancy }) {
           <p className="text-body-sm text-text-secondary">
             {consultancy.rating != null ? consultancy.rating.toFixed(1) : 'Not rated yet'}
             {isOverridden ? (
-              <span className="ml-2 rounded-sm bg-warning/15 px-1.5 py-0.5 text-caption text-text-primary">
+              <span className="ml-sm rounded-sm bg-warning/15 px-1.5 py-0.5 text-caption text-text-primary">
                 Set by admin
               </span>
             ) : null}

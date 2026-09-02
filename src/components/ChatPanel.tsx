@@ -219,7 +219,7 @@ export function ChatPanel({
                       <p className="text-caption text-text-secondary">
                         {[m.sharedCourse.college_name, m.sharedCourse.country].filter(Boolean).join(' · ') || 'Course'}
                       </p>
-                      {m.fitSummary && <p className="mt-1 text-caption font-medium text-warning">{m.fitSummary}</p>}
+                      {m.fitSummary && <p className="mt-xs text-caption font-medium text-warning">{m.fitSummary}</p>}
                     </div>
                     <span className="self-end text-caption text-text-secondary">{formatTime(m.created_at)}</span>
                   </div>

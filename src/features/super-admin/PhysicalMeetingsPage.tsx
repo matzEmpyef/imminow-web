@@ -123,7 +123,7 @@ function MeetingFormModal({ editingEvent, onClose }: { editingEvent?: Event; onC
             </option>
           ))}
         </SelectField>
-        <p className="mt-1 text-caption text-text-secondary">
+        <p className="mt-xs text-caption text-text-secondary">
           Attendees see this time on the venue&apos;s clock — it is never converted to theirs.
         </p>
         <TextField label="Venue address" value={venueAddress} onChange={(e) => setVenueAddress(e.target.value)} />

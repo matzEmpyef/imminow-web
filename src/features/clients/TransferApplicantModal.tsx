@@ -104,7 +104,7 @@ export function TransferApplicantModal({
             onChange={(e) => setReason(e.target.value)}
             rows={3}
             placeholder="Why is this applicant being transferred?"
-            className="rounded-md border border-border bg-surface px-3 py-2 text-body"
+            className="rounded-md border border-border bg-surface px-3 py-sm text-body"
           />
         </div>
         <div className="flex flex-col gap-xs">
@@ -117,7 +117,7 @@ export function TransferApplicantModal({
             onChange={(e) => setTransferCode(e.target.value.toUpperCase())}
             placeholder="e.g. 7F2K9C1A"
             autoComplete="off"
-            className="rounded-md border border-border bg-surface px-3 py-2 font-mono text-body uppercase"
+            className="rounded-md border border-border bg-surface px-3 py-sm font-mono text-body uppercase"
           />
           <p className="text-caption text-text-secondary">
             Issued by the receiving consultancy for this student — ask them for one. Their code is their consent to
@@ -134,7 +134,7 @@ export function TransferApplicantModal({
             onChange={(e) => setConfirmText(e.target.value)}
             placeholder="TRANSFER"
             autoComplete="off"
-            className="rounded-md border border-border bg-surface px-3 py-2 text-body"
+            className="rounded-md border border-border bg-surface px-3 py-sm text-body"
           />
         </div>
       </form>
