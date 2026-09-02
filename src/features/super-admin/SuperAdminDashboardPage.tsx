@@ -10,6 +10,20 @@ import { useApplicantAllocationQueue } from '@/queries/applicantAllocation'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { formatMoney } from '@/lib/money'
 
+// Where each stat card's number is actually managed. Aspirants live in each consultancy's lead
+// pool and demand shows on Supply & Demand; applicants and completed cases sit with their
+// consultancy in Manage Consultancies; catalog counts open Colleges & Courses.
+const STAT_CARD_LINKS: Record<string, string> = {
+  total_consultancies: '/admin/consultancies',
+  total_students: '/admin/users/sentpo',
+  active_aspirants: '/admin/supply-demand',
+  active_applicants: '/admin/consultancies',
+  completed_cases: '/admin/consultancies',
+  total_colleges: '/admin/colleges',
+  total_courses: '/admin/colleges',
+  courses_missing_requirements: '/admin/colleges',
+}
+
 export function SuperAdminDashboardPage() {
   const navigate = useNavigate()
   const dashboard = useAdminDashboard()
@@ -45,18 +59,19 @@ export function SuperAdminDashboardPage() {
 
         <div className="grid grid-cols-2 gap-md md:grid-cols-4">
           {dashboard.data?.stat_cards.map((card) => {
-            // Total Consultancies is clickable through to Manage Consultancies (user-requested,
-            // 2026-08-19) — every other stat card here is informational only, so this is a
-            // special case rather than a generic "all cards are clickable" rule.
-            const clickable = card.key === 'total_consultancies'
+            // Every card links to the page where its population is managed (user, 2026-09-02:
+            // "link all the cards to some page... make sure numbers are correct"). Total
+            // Consultancies had been the lone clickable card since 2026-08-19.
+            const to = card.key ? STAT_CARD_LINKS[card.key] : undefined
             return (
               <Card
                 key={card.key}
-                onClick={clickable ? () => navigate('/admin/consultancies') : undefined}
-                className={clickable ? 'cursor-pointer transition-colors hover:bg-background' : undefined}
+                onClick={to ? () => navigate(to) : undefined}
+                className={to ? 'cursor-pointer transition-colors hover:bg-background' : undefined}
               >
                 <p className="text-caption text-text-secondary">{card.label}</p>
                 <p className="mt-xs text-h1 text-text-primary">{card.value}</p>
+                {card.hint && <p className="mt-xs text-caption text-text-secondary">{card.hint}</p>}
               </Card>
             )
           })}
@@ -116,7 +131,10 @@ export function SuperAdminDashboardPage() {
             </p>
           </Card>
 
-          <Card>
+          <Card
+            onClick={() => navigate('/admin/finance-dashboard')}
+            className="cursor-pointer transition-colors hover:bg-background"
+          >
             <p className="text-body-sm font-medium text-text-primary">Revenue Snapshot</p>
             <p className="mt-xs text-h1 text-text-primary">
               {formatMoney(dashboard.data?.revenue_snapshot?.currency, dashboard.data?.revenue_snapshot?.amount)}

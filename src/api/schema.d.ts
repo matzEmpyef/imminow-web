@@ -4960,10 +4960,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Lead chat thread, scoped by lead rather than the underlying chat_thread id — the server resolves/creates that thread internally. A generic multi-context threading API was declared in this contract once and never implemented; it was removed 2026-08-23. This is the lead-scoped path Lead Conversation actually needs. */
+        /**
+         * Lead chat thread, scoped by lead rather than the underlying chat_thread id — the server resolves/creates that thread internally. A generic multi-context threading API was declared in this contract once and never implemented; it was removed 2026-08-23. This is the lead-scoped path Lead Conversation actually needs.
+         *     **Paged from the newest end (2026-09-02).** Without `before` the newest `limit` messages come back, oldest-to-newest; `meta.next_cursor` is the id of the oldest one returned when older messages exist (null otherwise). Pass it as `before` to fetch the page older than that. A thread with a thousand messages therefore costs one small page to open, and scrolling up walks back through history a page at a time.
+         */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description Message id from a previous page's `meta.next_cursor`; returns the page of messages OLDER than it. Omit for the newest page. */
+                    before?: string;
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -8793,10 +8801,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Client Conversation thread — same lead-scoped-convenience pattern as /leads/{id}/messages (Wave 2), no "Convert" semantics since a client is already converted. User-requested (2026-08-19) — "there should be a distinguishable break between the two sessions [lead and client chat]. So the consultant knows." When this client's journey has an `origin_lead_id` (i.e. it was created by `POST /conversion-proposals/{id}/respond` approving a lead), the response splices that lead's own message history in first, followed by one synthetic `session_break`-typed marker message, followed by this client's own messages — a read-time concatenation, not a data copy; the lead's and client's message stores stay physically separate. Sentpo Mobile Wave 4 — this is also Stage 2 Chat's own thread. Access restricted to the owning student or any consultant/staff caller (`studentOwnsJourney`, same convention as `/leads/{id}/messages`). */
+        /** Client Conversation thread — same lead-scoped-convenience pattern as /leads/{id}/messages (Wave 2), no "Convert" semantics since a client is already converted. User-requested (2026-08-19) — "there should be a distinguishable break between the two sessions [lead and client chat]. So the consultant knows." When this client's journey has an `origin_lead_id` (i.e. it was created by `POST /conversion-proposals/{id}/respond` approving a lead), the response splices that lead's own message history in first, followed by one synthetic `session_break`-typed marker message, followed by this client's own messages — a read-time concatenation, not a data copy; the lead's and client's message stores stay physically separate. Sentpo Mobile Wave 4 — this is also Stage 2 Chat's own thread. Access restricted to the owning student or any consultant/staff caller (`studentOwnsJourney`, same convention as `/leads/{id}/messages`). Paged from the newest end exactly like that endpoint (2026-09-02) — `limit` plus `before`, with `meta.next_cursor` the oldest returned id while older history (including the spliced lead history and the session break) remains. */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description Message id from a previous page's `meta.next_cursor`; returns the page of messages OLDER than it. Omit for the newest page. */
+                    before?: string;
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -9631,12 +9644,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** In-app inbox (both products, FR-073) */
+        /** In-app inbox (both products, FR-073). Newest first; the Sentpo app scrolls it page by page (2026-09-02) and its background push poll asks for a small page only. */
         get: {
             parameters: {
                 query?: {
                     /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
                     cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
                 };
                 header?: never;
                 path?: never;
@@ -10017,6 +10032,8 @@ export interface paths {
                 query?: {
                     /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
                     cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
                     /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
                     filter?: components["parameters"]["FilterParam"];
                     /** @description One type, or several comma-separated with OR semantics (the app's type filter is a multi-select in the standardized filter drawer, 2026-08-20). */
@@ -11058,6 +11075,8 @@ export interface paths {
                 query?: {
                     /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
                     cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
                     /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
                     filter?: components["parameters"]["FilterParam"];
                 };
@@ -11957,6 +11976,8 @@ export interface paths {
                 query?: {
                     /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
                     cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
                 };
                 header?: never;
                 path?: never;
@@ -15275,10 +15296,13 @@ export interface components {
         };
         /** @description Super Admin Dashboard (build reference 1.23). */
         AdminDashboardSummary: {
+            /** @description Keys (2026-09-02, after the user asked why "Total Students" and "Active Aspirants/Applicants" disagreed): `total_consultancies`; `total_students` — student ACCOUNTS registered in the Sentpo app, the same count the Sentpo Users page shows; `active_aspirants` — Stage 1: open lead conversations, native AND imported by a consultancy (imported leads have no Sentpo account, which is exactly why this can exceed `total_students`); `active_applicants` — Stage 2 journeys in progress; `completed_cases`; `total_colleges`; `total_courses`; `courses_missing_requirements`. Every card carries a one-line `hint` saying what it counts; the console links each key to the page where that population is managed. */
             stat_cards: {
                 key?: string;
                 label?: string;
                 value?: number;
+                /** @description One line under the number saying exactly what is counted. */
+                hint?: string | null;
             }[];
             /** @description Pending course suggestions/corrections awaiting review. */
             pending_actions_count: number;
