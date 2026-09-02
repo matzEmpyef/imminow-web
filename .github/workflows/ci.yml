@@ -19,6 +19,31 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Contract drift (readiness audit, 2026-09-03). src/api/schema.d.ts is GENERATED from the
+      # shared openapi.yaml by `gen:api`, but that step was manual: forget it after a contract
+      # change and the console compiles cleanly against a stale shape, then fails at runtime on
+      # the field that moved. This regenerates from the canonical contract repo and fails the run
+      # if the committed types differ — the same byte-copy the mobile app and mock server consume.
+      #
+      # `sentpo-contract` is private, so the checkout needs a token with read access to it.
+      # Add a fine-grained PAT (Contents: read on Sentpo-Platform/sentpo-contract) as the
+      # CONTRACT_READ_TOKEN secret; without it the step fails loudly rather than silently passing.
+      - name: Check out the shared API contract
+        uses: actions/checkout@v4
+        with:
+          repository: Sentpo-Platform/sentpo-contract
+          path: contract
+          token: ${{ secrets.CONTRACT_READ_TOKEN }}
+
+      - name: API types match the contract (no drift)
+        run: |
+          npx openapi-typescript contract/openapi.yaml -o src/api/schema.d.ts
+          if ! git diff --quiet -- src/api/schema.d.ts; then
+            echo "::error::src/api/schema.d.ts is out of date with openapi.yaml. Run 'npm run gen:api' and commit the result."
+            git --no-pager diff --stat -- src/api/schema.d.ts
+            exit 1
+          fi
+
       - name: Typecheck
         run: npm run typecheck
 

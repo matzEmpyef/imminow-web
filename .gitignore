@@ -27,3 +27,6 @@ dist-ssr
 .env
 .env.local
 .env.production
+
+# CI-only checkout of the shared API contract (see .github/workflows/ci.yml)
+contract/
