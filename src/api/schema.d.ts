@@ -393,6 +393,197 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/passwordless/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Passwordless door, step 1 — send an OTP to an email or phone (build reference 1.1, revised 2026-09-02)
+         * @description The student app's ONE door. `identifier` is an email address or an E.164 phone number — the server detects which. A KNOWN identifier opens a login challenge; an unknown one opens a signup challenge — the caller learns which via `mode`, so the client can label the next screen honestly, but the OTP step itself is identical. Replaces email/password for students entirely; staff (immiNow) keep /auth/login. Delivery is mocked until Phase 6 (fixed dev code, same convention as /auth/otp/request); binding, expiry and single-use are real. Unauthenticated by design.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @description Email address, or phone in E.164 (client normalizes before sending). */
+                        identifier: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OTP sent */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            mode: "login" | "signup";
+                            /** @enum {string} */
+                            channel: "email" | "sms";
+                            /** @description e.g. "is•••@gmail.com" / "+91 ••••• ••123" — display only. */
+                            destination_mask?: string;
+                        };
+                    };
+                };
+                /** @description Identifier is neither a valid email nor a plausible E.164 phone. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passwordless/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Passwordless door, step 2 — verify the OTP; logs in, or clears signup to proceed
+         * @description For a `login` challenge, success returns the TokenPair directly (`status: authenticated`). For a `signup` challenge, success returns a short-lived `signup_token` (`status: signup_required`) — proof of a verified identifier that /auth/passwordless/complete-signup consumes; no account exists yet at that point. Wrong code fails `invalid_otp` with attempts_remaining, then `too_many_attempts`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        identifier: string;
+                        code: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Code accepted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            status: "authenticated" | "signup_required";
+                            auth?: components["schemas"]["TokenPair"];
+                            signup_token?: string | null;
+                        };
+                    };
+                };
+                /** @description Code incorrect, expired, or attempts exhausted */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passwordless/complete-signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Passwordless door, step 3 (new accounts only) — details screen submit
+         * @description Consumes a `signup_token` and creates the account with the verified identifier it proves. `email`/`phone` here is the OTHER identifier (optional, stored unverified — the §1.1 linking/recovery key). If that second identifier already belongs to another account, NOTHING is created — 409 `identifier_in_use` tells the client to offer "log into that account instead" (the §1.1 dedup interception). `referral_code` behaves exactly as /auth/signup documents. Consent event 1 is NOT part of this call — the client records it via POST /consent/accept immediately after, same as the checkbox flow this replaces.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        signup_token: string;
+                        first_name: string;
+                        last_name: string;
+                        /** Format: email */
+                        email?: string | null;
+                        phone?: string | null;
+                        referral_code?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Account created and logged in */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TokenPair"];
+                    };
+                };
+                /** @description signup_token invalid or expired — restart the door. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `identifier_in_use` — the optional second identifier belongs to an existing account. detail carries the masked login identifier of that account. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/otp/request": {
         parameters: {
             query?: never;
@@ -3337,6 +3528,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/countries/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every country with its platform settings (2026-09-02) — immiNow's Countries page reads this to show and edit each country's default fee currency. `GET /countries` stays the bare name list every picker uses. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CountrySetting"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/countries/{name}": {
         parameters: {
             query?: never;
@@ -3370,7 +3597,43 @@ export interface paths {
         };
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update a country's platform settings (platform `catalog` permission, 2026-09-02). Changing `default_currency` re-derives `display_currency` for every resident student who has not explicitly picked one. */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description ISO 4217 code, upper-cased server-side. */
+                        default_currency?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CountrySetting"];
+                    };
+                };
+                /** @description Country not in the shared list */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         trace?: never;
     };
     "/exams": {
@@ -9758,6 +10021,8 @@ export interface paths {
                     filter?: components["parameters"]["FilterParam"];
                     /** @description One type, or several comma-separated with OR semantics (the app's type filter is a multi-select in the standardized filter drawer, 2026-08-20). */
                     type?: string;
+                    /** @description Time window, for the app's Upcoming / Past tabs (2026-09-02). `upcoming` = not yet ended (includes anything running right now, soonest first); `past` = already ended (most recent first); `live` = started and not yet ended — the shell's Events-tab ring polls this with a tiny limit. An event with no `ends_at` is treated as one hour long. Omitted = every event, the pre-tabs behaviour. */
+                    when?: "upcoming" | "live" | "past";
                 };
                 header?: never;
                 path?: never;
@@ -14375,8 +14640,11 @@ export interface components {
             id: components["schemas"]["UUID"];
             first_name: string;
             last_name: string;
-            /** Format: email */
-            email: string;
+            /**
+             * Format: email
+             * @description Nullable since the passwordless revision (build reference 1.1, 2026-09-02): email and phone are equal aliases, so a phone-first student may have no email yet. At least one of email/phone is always present; staff accounts always carry email.
+             */
+            email?: string | null;
             phone?: string | null;
             phone_verified?: boolean;
             /** @description The account's preferred language as a BCP 47 tag ("en", "hi", "ml"). Captured silently from the device after sign-in, exactly like `timezone` below, and refreshed whenever it changes — so a student who switches their phone to Hindi is served Hindi without being asked. Null means never captured; treat as "en". NOTHING IS TRANSLATED YET (2026-08-23). This exists so the foundations are in place before Phase 6 builds the real backend — retrofitting a locale onto stored, already-composed notification text later is far more expensive than carrying it from the start. */
@@ -15228,6 +15496,8 @@ export interface components {
             chat_unread: number;
             /** @description Suggested courses created since the student last opened Dream Courses. Time-based rather than a per-row flag, since opening the screen has seen all of them at once. */
             suggestions_unseen: number;
+            /** @description Events running RIGHT NOW that this student can see (2026-09-02) — started and not yet ended, an event with no `ends_at` counting as one hour. Drives the animated ring around the footer's Events tab; rides on this call so the shell needs no extra poll. */
+            live_events?: number;
         };
         /**
          * @description A course the student's consultant has put forward — the student-facing read of `selected_colleges`, which before 2026-08-23 had no student-facing surface at all: the row was written by the consultant's "Suggest" action and read only by their own Selected Colleges tab, the finance destination-country helper, and a staff-side cross-country warning. The applicant was never told.
@@ -16738,6 +17008,17 @@ export interface components {
             readonly remaining_stock?: number;
             /** @description Computed per calling student against their own points balance (Sentpo Mobile Wave 6b's Coupons Catalog). Presentation only — build reference 1.8: "an unaffordable coupon stays visible, greyed out with its cost shown," never filtered out. Always true for a non-student caller (the admin console has no balance to compare against). */
             readonly affordable?: boolean;
+        };
+        /** @description The platform-level settings row for one country in the shared list (2026-09-02). Today that is only `default_currency` — the unit a student RESIDENT in this country sees course fees in until they pick another in the Search filter drawer (user: "map country to a default currency in immiNow, so currency will be shown default based on country of residence and changeable in filter"). Managed on immiNow's Countries page; the Sentpo app never reads this directly — `Preferences.display_currency` is derived from it server-side. */
+        CountrySetting: {
+            /** @description Matches the shared Countries list entry exactly. */
+            name: string;
+            iso2?: string | null;
+            /**
+             * @description ISO 4217 code. INR when nobody has set one — the platform's home market.
+             * @example INR
+             */
+            default_currency: string;
         };
         /**
          * @description The editorial write-up for ONE destination country — what a student reads before deciding to target it (user, 2026-08-23: "we will have a write up about a country... when a country is selected then this details should be seen and then click a button to add a country").

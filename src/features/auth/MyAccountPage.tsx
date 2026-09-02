@@ -104,7 +104,7 @@ export function MyAccountPage() {
               <TextField label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
               <TextField label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
             </div>
-            <TextField label="Email" value={user.email} disabled readOnly />
+            <TextField label="Email" value={user.email ?? ''} disabled readOnly />
             <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} error={phoneError} />
             {isConsultancyStaff && <TextField label="Designation" value={user.designation ?? ''} disabled readOnly />}
             {updateProfile.isSuccess && <p className="text-body-sm text-success">Profile updated.</p>}

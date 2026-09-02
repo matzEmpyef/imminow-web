@@ -34,7 +34,7 @@ export function EmployeesPage() {
       items = items.filter(
         (e) =>
           `${e.user!.first_name} ${e.user!.last_name}`.toLowerCase().includes(q) ||
-          e.user!.email.toLowerCase().includes(q),
+          (e.user!.email ?? '').toLowerCase().includes(q),
       )
     }
     if (sort) {

@@ -33,6 +33,37 @@ export function useCreateCountry() {
   })
 }
 
+// Per-country platform settings (2026-09-02) — today just the default fee currency a student
+// resident there sees until they pick another in the Sentpo app's Search filter drawer.
+export function useCountrySettings() {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['countries', 'settings'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/countries/settings')
+      if (error) throw new ApiError('Could not load country settings.', error)
+      return data
+    },
+    enabled: isAuthed,
+    staleTime: 30 * 60 * 1000,
+  })
+}
+
+export function useUpdateCountryCurrency() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ name, currency }: { name: string; currency: string }) => {
+      const { data, error } = await api.PATCH('/countries/{name}', {
+        params: { path: { name } },
+        body: { default_currency: currency },
+      })
+      if (error) throw new ApiError('Could not update the default currency.', error)
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['countries'] }),
+  })
+}
+
 export function useDeleteCountry() {
   const queryClient = useQueryClient()
   return useMutation({
