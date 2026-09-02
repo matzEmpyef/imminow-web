@@ -1,7 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Card } from '@/components/Card'
-import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { DoughnutChart } from '@/components/DoughnutChart'
 import { MonthlyBarChart } from '@/components/MonthlyBarChart'
@@ -78,15 +77,15 @@ export function SuperAdminDashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-lg md:grid-cols-4">
-          <Card>
+          {/* The whole card is the link (user, 2026-09-02: "no need of button, make whole card
+              button") — same treatment as every stat card and Pending Allocation beside it. */}
+          <Card
+            onClick={() => navigate('/admin/course-suggestions-review')}
+            className="cursor-pointer transition-colors hover:bg-background"
+          >
             <p className="text-body-sm font-medium text-text-primary">Pending Actions</p>
             <p className="mt-xs text-h1 text-text-primary">{dashboard.data?.pending_actions_count}</p>
             <p className="text-caption text-text-secondary">Course suggestions/corrections awaiting review.</p>
-            <Link to="/admin/course-suggestions-review">
-              <Button variant="secondary" className="mt-md">
-                Review
-              </Button>
-            </Link>
           </Card>
 
           {/* User-requested (2026-08-18) — "Applicant Allocation - show it in dashboard count
