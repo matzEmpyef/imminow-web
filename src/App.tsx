@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect } from 'react'
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { lazy, Suspense, useEffect, type ComponentProps } from 'react'
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { track } from '@/lib/analytics'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
@@ -240,6 +240,48 @@ function useScreenViewAnalytics() {
   }, [location.pathname])
 }
 
+// ---- Layout routes (2026-09-02) ----------------------------------------------------------------
+// One guard mount per subtree instead of one wrapper per route — the audit's last giant-component
+// finding was App() itself, ~65 flat routes each carrying its own guard element. Pathless
+// `<Route element>` + `<Outlet/>` is React Router's own idiom for exactly this; every path below
+// is UNCHANGED, so deep links, the roleHome bounces, and the guards behave precisely as the live
+// four-role verification pinned them. Per-route `PermissionGate`/`FeatureGate` wrappers stay
+// inline — they differ route to route and belong to the route, not the layout. The platform
+// subtrees are grouped by console permission area, so the grouping itself now documents which
+// permission opens which pages.
+
+function ProtectedLayout() {
+  return (
+    <ProtectedRoute>
+      <Outlet />
+    </ProtectedRoute>
+  )
+}
+
+function ConsultancyLayout() {
+  return (
+    <ConsultancyRoute>
+      <Outlet />
+    </ConsultancyRoute>
+  )
+}
+
+function PlatformLayout({ permission }: { permission?: ComponentProps<typeof PlatformRoute>['permission'] }) {
+  return (
+    <PlatformRoute permission={permission}>
+      <Outlet />
+    </PlatformRoute>
+  )
+}
+
+function FreelancerLayout() {
+  return (
+    <FreelancerRoute>
+      <Outlet />
+    </FreelancerRoute>
+  )
+}
+
 function App() {
   useScreenViewAnalytics()
   return (
@@ -249,553 +291,188 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/set-password/:token" element={<SetPasswordPage />} />
-        <Route
-          path="/account"
-          element={
-            <ProtectedRoute>
-              <MyAccountPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/notifications"
-          element={
-            <ProtectedRoute>
-              <NotificationsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard"
-          element={
-            <ConsultancyRoute>
-              <DashboardPage />
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/sales/lead-pool"
-          element={
-            <ConsultancyRoute>
-              <LeadPoolPage />
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/sales/active-leads"
-          element={
-            <ConsultancyRoute>
-              <ActiveLeadsPage />
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/sales/leads/:id"
-          element={
-            <ConsultancyRoute>
-              <LeadConversationPage />
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/clients"
-          element={
-            <ConsultancyRoute>
-              <ClientsListPage />
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/clients/course-finder"
-          element={
-            <ConsultancyRoute>
-              <CourseFinderPage />
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/clients/invoices"
-          element={
-            <ConsultancyRoute>
-              <InvoicesPage />
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/clients/receipts"
-          element={
-            <ConsultancyRoute>
-              <ReceiptsPage />
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/clients/:id"
-          element={
-            <ConsultancyRoute>
-              <ClientProfilePage />
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/clients/:id/conversation"
-          element={
-            <ConsultancyRoute>
-              <ClientConversationPage />
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/administration/consultancy-profile"
-          element={
-            <ConsultancyRoute>
+        <Route element={<ProtectedLayout />}>
+          <Route path="/account" element={<MyAccountPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+        </Route>
+        <Route element={<ConsultancyLayout />}>
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/sales/lead-pool" element={<LeadPoolPage />} />
+          <Route path="/sales/active-leads" element={<ActiveLeadsPage />} />
+          <Route path="/sales/leads/:id" element={<LeadConversationPage />} />
+          <Route path="/clients" element={<ClientsListPage />} />
+          <Route path="/clients/course-finder" element={<CourseFinderPage />} />
+          <Route path="/clients/invoices" element={<InvoicesPage />} />
+          <Route path="/clients/receipts" element={<ReceiptsPage />} />
+          <Route path="/clients/:id" element={<ClientProfilePage />} />
+          <Route path="/clients/:id/conversation" element={<ClientConversationPage />} />
+          <Route
+            path="/administration/consultancy-profile"
+            element={
               <PermissionGate permission="settings.edit_profile" area="Consultancy Management">
                 <ConsultancyProfilePage />
               </PermissionGate>
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/administration/commission-details"
-          element={
-            <ConsultancyRoute>
-              <CommissionDetailsPage />
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/administration/plan-templates"
-          element={
-            <ConsultancyRoute>
+            }
+          />
+          <Route path="/administration/commission-details" element={<CommissionDetailsPage />} />
+          <Route
+            path="/administration/plan-templates"
+            element={
               <PermissionGate permission="settings.manage_templates" area="Plan Templates">
                 <PlanTemplatesPage />
               </PermissionGate>
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/administration/course-suggestions"
-          element={
-            <ConsultancyRoute>
+            }
+          />
+          <Route
+            path="/administration/course-suggestions"
+            element={
               <PermissionGate permission="settings.manage_course_suggestions" area="Course Suggestions">
                 <CourseSuggestionsPage />
               </PermissionGate>
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/administration/forms"
-          element={
-            <ConsultancyRoute>
-              <FormsPage />
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/administration/forms/:id"
-          element={
-            <ConsultancyRoute>
-              <FormBuilderPage />
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/administration/branches"
-          element={
-            <ConsultancyRoute>
+            }
+          />
+          <Route path="/administration/forms" element={<FormsPage />} />
+          <Route path="/administration/forms/:id" element={<FormBuilderPage />} />
+          <Route
+            path="/administration/branches"
+            element={
               <FeatureGate feature={FEATURE_BY_KEY.multi_branch}>
                 <PermissionGate permission="staff.manage_branches" area="Branches">
                   <BranchesPage />
                 </PermissionGate>
               </FeatureGate>
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/administration/employees"
-          element={
-            <ConsultancyRoute>
+            }
+          />
+          <Route
+            path="/administration/employees"
+            element={
               <PermissionGate permission="staff.manage_employees" area="Employees">
                 <EmployeesPage />
               </PermissionGate>
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/administration/designations"
-          element={
-            <ConsultancyRoute>
+            }
+          />
+          <Route
+            path="/administration/designations"
+            element={
               <FeatureGate feature={FEATURE_BY_KEY.designations}>
                 <PermissionGate permission="staff.manage_designations" area="Designations">
                   <DesignationsPage />
                 </PermissionGate>
               </FeatureGate>
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/administration/phonebook"
-          element={
-            <ConsultancyRoute>
+            }
+          />
+          <Route
+            path="/administration/phonebook"
+            element={
               <FeatureGate feature={FEATURE_BY_KEY.phonebook}>
                 <PhonebookPage />
               </FeatureGate>
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/administration/document-library"
-          element={
-            <ConsultancyRoute>
+            }
+          />
+          <Route
+            path="/administration/document-library"
+            element={
               <FeatureGate feature={FEATURE_BY_KEY.document_library}>
                 <DocumentLibraryPage />
               </FeatureGate>
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/administration/internal-messaging"
-          element={
-            <ConsultancyRoute>
+            }
+          />
+          <Route
+            path="/administration/internal-messaging"
+            element={
               <FeatureGate feature={FEATURE_BY_KEY.internal_messaging}>
                 <InternalMessagingPage />
               </FeatureGate>
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/administration/internal-messaging/:id"
-          element={
-            <ConsultancyRoute>
+            }
+          />
+          <Route
+            path="/administration/internal-messaging/:id"
+            element={
               <FeatureGate feature={FEATURE_BY_KEY.internal_messaging}>
                 <InternalMessagingPage />
               </FeatureGate>
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/administration/audit-log"
-          element={
-            <ConsultancyRoute>
+            }
+          />
+          <Route
+            path="/administration/audit-log"
+            element={
               <FeatureGate feature={FEATURE_BY_KEY.audit_log}>
                 <AuditLogPage />
               </FeatureGate>
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/activity"
-          element={
-            <ConsultancyRoute>
+            }
+          />
+          <Route
+            path="/activity"
+            element={
               <FeatureGate feature={FEATURE_BY_KEY.activity_queue}>
                 <ActivityPage />
               </FeatureGate>
-            </ConsultancyRoute>
-          }
-        />
-        <Route
-          path="/admin/dashboard"
-          element={
-            <PlatformRoute>
-              <SuperAdminDashboardPage />
-            </PlatformRoute>
-          }
-        />
-        {/* No permission (docs/PROGRESS.md §4 Step 4) — same requirePlatformAccount gate as
-            /admin/dashboard above: a strategic overview, not one of the eight console flags. */}
-        <Route
-          path="/admin/supply-demand"
-          element={
-            <PlatformRoute>
-              <SupplyDemandPage />
-            </PlatformRoute>
-          }
-        />
-        {/* No permission (Platform Pulse, 2026-08-31) — same requirePlatformAccount gate as
-            Supply & Demand and /admin/dashboard: a strategic overview, not one of the eight flags. */}
-        <Route
-          path="/admin/platform-pulse"
-          element={
-            <PlatformRoute>
-              <PlatformPulsePage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/consultancies"
-          element={
-            <PlatformRoute permission="consultancy_approval">
-              <ManageConsultanciesPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/applicant-allocation"
-          element={
-            <PlatformRoute permission="consultancy_approval">
-              <ApplicantAllocationPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/performance-league"
-          element={
-            <PlatformRoute permission="consultancy_approval">
-              <PerformanceLeaguePage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/colleges"
-          element={
-            <PlatformRoute permission="catalog">
-              <CollegesCoursesPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/colleges/:id"
-          element={
-            <PlatformRoute permission="catalog">
-              <CollegeDetailPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/course-suggestions-review"
-          element={
-            <PlatformRoute permission="catalog">
-              <CourseSuggestionsReviewPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/countries"
-          element={
-            <PlatformRoute permission="catalog">
-              <CountriesPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/institutions"
-          element={
-            <PlatformRoute permission="catalog">
-              <InstitutionsPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/country-guides"
-          element={
-            <PlatformRoute permission="catalog">
-              <CountryGuidesPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/catalog-settings"
-          element={
-            <PlatformRoute permission="catalog">
-              <CatalogSettingsPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/ads"
-          element={
-            <PlatformRoute permission="ads">
-              <AdsManagerPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/earn-rules"
-          element={
-            <PlatformRoute permission="points_coupons">
-              <EarnRulesPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/coupons"
-          element={
-            <PlatformRoute permission="points_coupons">
-              <CouponsAdminPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/redemption-partners"
-          element={
-            <PlatformRoute permission="points_coupons">
-              <RedemptionPartnersPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/webinars"
-          element={
-            <PlatformRoute permission="content">
-              <WebinarsPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/quiz"
-          element={
-            <PlatformRoute permission="content">
-              <QuizAdminPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/physical-meetings"
-          element={
-            <PlatformRoute permission="content">
-              <PhysicalMeetingsPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/jobs"
-          element={
-            <PlatformRoute permission="content">
-              <JobsAdminPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/blog"
-          element={
-            <PlatformRoute permission="content">
-              <BlogAdminPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/commission-rates"
-          element={
-            <PlatformRoute permission="finance">
-              <CommissionRatesPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/freelancer-payouts"
-          element={
-            <PlatformRoute permission="finance">
-              <FreelancerPayoutsPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/freelancers"
-          element={
-            <PlatformRoute permission="finance">
-              <FreelancersPage />
-            </PlatformRoute>
-          }
-        />
+            }
+          />
+        </Route>
+        {/* Dashboard, Supply & Demand and Platform Pulse carry no permission (docs/PROGRESS.md §4
+            Step 4; Platform Pulse 2026-08-31) — the bare requirePlatformAccount gate: strategic
+            overviews, not one of the eight console flags. */}
+        <Route element={<PlatformLayout />}>
+          <Route path="/admin/dashboard" element={<SuperAdminDashboardPage />} />
+          <Route path="/admin/supply-demand" element={<SupplyDemandPage />} />
+          <Route path="/admin/platform-pulse" element={<PlatformPulsePage />} />
+        </Route>
+        <Route element={<PlatformLayout permission="consultancy_approval" />}>
+          <Route path="/admin/consultancies" element={<ManageConsultanciesPage />} />
+          <Route path="/admin/applicant-allocation" element={<ApplicantAllocationPage />} />
+          <Route path="/admin/performance-league" element={<PerformanceLeaguePage />} />
+        </Route>
+        <Route element={<PlatformLayout permission="catalog" />}>
+          <Route path="/admin/colleges" element={<CollegesCoursesPage />} />
+          <Route path="/admin/colleges/:id" element={<CollegeDetailPage />} />
+          <Route path="/admin/course-suggestions-review" element={<CourseSuggestionsReviewPage />} />
+          <Route path="/admin/countries" element={<CountriesPage />} />
+          <Route path="/admin/institutions" element={<InstitutionsPage />} />
+          <Route path="/admin/country-guides" element={<CountryGuidesPage />} />
+          <Route path="/admin/catalog-settings" element={<CatalogSettingsPage />} />
+        </Route>
+        <Route element={<PlatformLayout permission="ads" />}>
+          <Route path="/admin/ads" element={<AdsManagerPage />} />
+        </Route>
+        <Route element={<PlatformLayout permission="points_coupons" />}>
+          <Route path="/admin/earn-rules" element={<EarnRulesPage />} />
+          <Route path="/admin/coupons" element={<CouponsAdminPage />} />
+          <Route path="/admin/redemption-partners" element={<RedemptionPartnersPage />} />
+        </Route>
+        <Route element={<PlatformLayout permission="content" />}>
+          <Route path="/admin/webinars" element={<WebinarsPage />} />
+          <Route path="/admin/quiz" element={<QuizAdminPage />} />
+          <Route path="/admin/physical-meetings" element={<PhysicalMeetingsPage />} />
+          <Route path="/admin/jobs" element={<JobsAdminPage />} />
+          <Route path="/admin/blog" element={<BlogAdminPage />} />
+        </Route>
+        <Route element={<PlatformLayout permission="finance" />}>
+          <Route path="/admin/commission-rates" element={<CommissionRatesPage />} />
+          <Route path="/admin/freelancer-payouts" element={<FreelancerPayoutsPage />} />
+          <Route path="/admin/freelancers" element={<FreelancersPage />} />
+          <Route path="/admin/finance-dashboard" element={<FinanceDashboardPage />} />
+        </Route>
         {/* Merged into Freelancers as a tab (2026-08-27). The old path is kept as a redirect so
             existing bookmarks and any link still pointing here land somewhere real. */}
         <Route path="/admin/freelancer-rates" element={<Navigate to="/admin/freelancers" replace />} />
-        <Route
-          path="/admin/finance-dashboard"
-          element={
-            <PlatformRoute permission="finance">
-              <FinanceDashboardPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/support-tools"
-          element={
-            <PlatformRoute permission="support">
-              <SupportToolsPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/complaints"
-          element={
-            <PlatformRoute permission="support">
-              <ComplaintsPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/visit-requests"
-          element={
-            <PlatformRoute permission="support">
-              <VisitRequestsPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/platform-team"
-          element={
-            <PlatformRoute permission="platform_staff_administration">
-              <PlatformTeamPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/users/sentpo"
-          element={
-            <PlatformRoute permission="platform_staff_administration">
-              <SentpoUsersPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/users/imminow"
-          element={
-            <PlatformRoute permission="platform_staff_administration">
-              <ImminowUsersPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/notification-channel-config"
-          element={
-            <PlatformRoute permission="platform_staff_administration">
-              <NotificationChannelConfigPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/app-config"
-          element={
-            <PlatformRoute permission="platform_staff_administration">
-              <AppConfigPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/broadcast"
-          element={
-            <PlatformRoute permission="platform_staff_administration">
-              <BroadcastPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/admin/audit-log-platform"
-          element={
-            <PlatformRoute permission="platform_staff_administration">
-              <PlatformAuditLogPage />
-            </PlatformRoute>
-          }
-        />
-        <Route
-          path="/freelancer/dashboard"
-          element={
-            <FreelancerRoute>
-              <FreelancerDashboardPage />
-            </FreelancerRoute>
-          }
-        />
+        <Route element={<PlatformLayout permission="support" />}>
+          <Route path="/admin/support-tools" element={<SupportToolsPage />} />
+          <Route path="/admin/complaints" element={<ComplaintsPage />} />
+          <Route path="/admin/visit-requests" element={<VisitRequestsPage />} />
+        </Route>
+        <Route element={<PlatformLayout permission="platform_staff_administration" />}>
+          <Route path="/admin/platform-team" element={<PlatformTeamPage />} />
+          <Route path="/admin/users/sentpo" element={<SentpoUsersPage />} />
+          <Route path="/admin/users/imminow" element={<ImminowUsersPage />} />
+          <Route path="/admin/notification-channel-config" element={<NotificationChannelConfigPage />} />
+          <Route path="/admin/app-config" element={<AppConfigPage />} />
+          <Route path="/admin/broadcast" element={<BroadcastPage />} />
+          <Route path="/admin/audit-log-platform" element={<PlatformAuditLogPage />} />
+        </Route>
+        <Route element={<FreelancerLayout />}>
+          <Route path="/freelancer/dashboard" element={<FreelancerDashboardPage />} />
+        </Route>
         <Route path="*" element={<DefaultRedirect />} />
       </Routes>
     </Suspense>
