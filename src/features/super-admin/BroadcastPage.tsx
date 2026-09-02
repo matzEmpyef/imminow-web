@@ -11,6 +11,7 @@ import {
   type BroadcastCategory,
 } from '@/lib/broadcastCategories'
 import { Table, type TableColumn } from '@/components/Table'
+import { CompactSelect } from '@/components/CompactSelect'
 import { Modal } from '@/components/Modal'
 import { TargetingFilter } from '@/features/super-admin/TargetingFilter'
 import { hasAnyTargeting } from '@/lib/targeting'
@@ -292,20 +293,19 @@ export function BroadcastPage() {
               placeholder: 'Search title or category…',
             }}
             filters={
-              <select
+              <CompactSelect
                 value={audience}
                 onChange={(e) => {
                   setAudience(e.target.value as Audience | '')
                   resetPaging()
                 }}
-                aria-label="Audience"
-                className="h-10 rounded-md border border-border bg-background px-3 text-body-sm"
+                label="Audience"
               >
                 <option value="">Any audience</option>
                 <option value="all_students">All students</option>
                 <option value="segment">Filtered segment</option>
                 <option value="all_staff">All immiNow staff</option>
-              </select>
+              </CompactSelect>
             }
             pagination={{
               hasNext: Boolean(history.data?.meta.next_cursor),

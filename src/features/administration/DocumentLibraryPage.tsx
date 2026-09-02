@@ -5,6 +5,7 @@ import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
+import { CompactSelect } from '@/components/CompactSelect'
 import { TagEditorMenu } from '@/components/TagEditorMenu'
 import { ShareDocumentMenu } from '@/features/administration/ShareDocumentMenu'
 import {
@@ -260,13 +261,13 @@ export function DocumentLibraryPage() {
           }}
           filters={
             <>
-              <select
+              <CompactSelect
                 value={tag}
                 onChange={(e) => {
                   setTag(e.target.value)
                   resetPaging()
                 }}
-                className="h-9 rounded-md border border-border bg-background px-3 text-body-sm"
+                label="Tag"
               >
                 <option value="">All tags</option>
                 {tags.data?.map((t) => (
@@ -274,20 +275,20 @@ export function DocumentLibraryPage() {
                     {t.name}
                   </option>
                 ))}
-              </select>
-              <select
+              </CompactSelect>
+              <CompactSelect
                 value={mimeType}
                 onChange={(e) => {
                   setMimeType(e.target.value)
                   resetPaging()
                 }}
-                className="h-9 rounded-md border border-border bg-background px-3 text-body-sm"
+                label="File type"
               >
                 <option value="">All types</option>
                 <option value="application/pdf">PDF</option>
                 <option value="image/jpeg">JPEG</option>
                 <option value="image/png">PNG</option>
-              </select>
+              </CompactSelect>
               <input
                 type="date"
                 value={from}

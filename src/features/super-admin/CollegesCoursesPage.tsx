@@ -7,6 +7,7 @@ import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { FieldLabel } from '@/components/FieldLabel'
 import { Table, type TableColumn } from '@/components/Table'
+import { CompactSelect } from '@/components/CompactSelect'
 import { StopPropagation } from '@/components/StopPropagation'
 import { Modal } from '@/components/Modal'
 import { ImageUploadField } from '@/components/ImageUploadField'
@@ -290,13 +291,13 @@ export function CollegesCoursesPage() {
             placeholder: 'Search college name…',
           }}
           filters={
-            <select
+            <CompactSelect
               value={country}
               onChange={(e) => {
                 setCountry(e.target.value)
                 resetPaging()
               }}
-              className="h-9 rounded-md border border-border bg-background px-3 text-body-sm"
+              label="Country"
             >
               <option value="">All countries</option>
               {countries.data?.map((c) => (
@@ -304,7 +305,7 @@ export function CollegesCoursesPage() {
                   {c}
                 </option>
               ))}
-            </select>
+            </CompactSelect>
           }
           pagination={{
             hasNext: Boolean(colleges.data?.meta.next_cursor),

@@ -8,6 +8,7 @@ import { Modal } from '@/components/Modal'
 import { FieldLabel } from '@/components/FieldLabel'
 import { SearchSelect, type SearchSelectOption } from '@/components/SearchSelect'
 import { Table, type TableColumn } from '@/components/Table'
+import { CompactSelect } from '@/components/CompactSelect'
 import { TagEditorMenu } from '@/components/TagEditorMenu'
 import { StopPropagation } from '@/components/StopPropagation'
 import { CreateApplicantModal } from './CreateApplicantModal'
@@ -349,13 +350,13 @@ export function ClientsListPage() {
                 />
                 Show closed & completed clients too
               </label>
-              <select
+              <CompactSelect
                 value={tag}
                 onChange={(e) => {
                   setTag(e.target.value)
                   resetPaging()
                 }}
-                className="h-9 rounded-md border border-border bg-background px-3 text-body-sm"
+                label="Tag"
               >
                 <option value="">All tags</option>
                 {tags.data?.map((t) => (
@@ -363,14 +364,14 @@ export function ClientsListPage() {
                     {t.name}
                   </option>
                 ))}
-              </select>
-              <select
+              </CompactSelect>
+              <CompactSelect
                 value={country}
                 onChange={(e) => {
                   setCountry(e.target.value)
                   resetPaging()
                 }}
-                className="h-9 rounded-md border border-border bg-background px-3 text-body-sm"
+                label="Country"
               >
                 <option value="">All countries</option>
                 {countries.data?.map((c) => (
@@ -378,7 +379,7 @@ export function ClientsListPage() {
                     {c}
                   </option>
                 ))}
-              </select>
+              </CompactSelect>
             </>
           }
           pagination={{

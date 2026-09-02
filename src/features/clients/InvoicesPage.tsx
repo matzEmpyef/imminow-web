@@ -5,6 +5,7 @@ import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { Table, type TableColumn } from '@/components/Table'
+import { CompactSelect } from '@/components/CompactSelect'
 import { SearchSelect } from '@/components/SearchSelect'
 import { Modal } from '@/components/Modal'
 import { useClients } from '@/queries/clients'
@@ -245,21 +246,21 @@ export function InvoicesPage() {
             placeholder: 'Search number or applicant…',
           }}
           filters={
-            <select
+            <CompactSelect
               value={status}
               onChange={(e) => {
                 setStatus(e.target.value as typeof status)
                 resetPaging()
               }}
-              aria-label="Status"
-              className="h-10 rounded-md border border-border bg-background px-3 text-body-sm capitalize"
+              label="Status"
+              className="capitalize"
             >
               <option value="">Any status</option>
               <option value="sent">Sent</option>
               <option value="paid">Paid</option>
               <option value="overdue">Overdue</option>
               <option value="void">Void</option>
-            </select>
+            </CompactSelect>
           }
           pagination={{
             hasNext: Boolean(invoices.data?.meta.next_cursor),

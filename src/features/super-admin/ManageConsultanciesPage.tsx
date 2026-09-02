@@ -10,6 +10,7 @@ import { TextField } from '@/components/TextField'
 import { Toggle } from '@/components/Toggle'
 import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
+import { CompactSelect } from '@/components/CompactSelect'
 import { PartnerCollegesPanel } from '@/features/administration/PartnerCollegesPanel'
 import {
   useAdminConsultancies,
@@ -725,20 +726,20 @@ export function ManageConsultanciesPage() {
             placeholder: 'Search by name…',
           }}
           filters={
-            <select
+            <CompactSelect
               value={tierFilter}
               onChange={(e) => {
                 setTierFilter(e.target.value)
                 resetPaging()
               }}
-              aria-label="Plan"
-              className="h-10 rounded-md border border-border bg-background px-3 text-body-sm capitalize"
+              label="Plan"
+              className="capitalize"
             >
               <option value="">Any plan</option>
               <option value="starter">Starter</option>
               <option value="business">Business</option>
               <option value="ultimate">Ultimate</option>
-            </select>
+            </CompactSelect>
           }
           pagination={{
             hasNext: Boolean(consultancies.data?.meta.next_cursor),

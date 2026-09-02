@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
 import { Table, type TableColumn } from '@/components/Table'
+import { CompactSelect } from '@/components/CompactSelect'
 import { useAdminConsultancies } from '@/queries/adminConsultancies'
 import { useImminowUserDirectory } from '@/queries/adminUserDirectories'
 import { useCursorPagination } from '@/lib/pagination'
@@ -124,14 +125,13 @@ export function ImminowUsersPage() {
           }}
           filters={
             <>
-              <select
+              <CompactSelect
                 value={consultancyId}
                 onChange={(e) => {
                   setConsultancyId(e.target.value)
                   resetPaging()
                 }}
-                aria-label="Consultancy"
-                className="h-10 rounded-md border border-border bg-background px-3 text-body-sm"
+                label="Consultancy"
               >
                 <option value="">Any (incl. platform staff)</option>
                 {consultancies.data?.items?.map((c) => (
@@ -139,20 +139,19 @@ export function ImminowUsersPage() {
                     {c.name}
                   </option>
                 ))}
-              </select>
-              <select
+              </CompactSelect>
+              <CompactSelect
                 value={active}
                 onChange={(e) => {
                   setActive(e.target.value as '' | 'true' | 'false')
                   resetPaging()
                 }}
-                aria-label="Status"
-                className="h-10 rounded-md border border-border bg-background px-3 text-body-sm"
+                label="Status"
               >
                 <option value="">Any status</option>
                 <option value="true">Active</option>
                 <option value="false">Disabled</option>
-              </select>
+              </CompactSelect>
               <label className="flex h-10 items-center gap-xs rounded-md border border-border bg-background px-3 text-body-sm text-text-primary">
                 <input
                   type="checkbox"

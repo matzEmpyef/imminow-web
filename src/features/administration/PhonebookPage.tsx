@@ -5,6 +5,7 @@ import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
+import { CompactSelect } from '@/components/CompactSelect'
 import { useDeletePhonebookContact, usePhonebook } from '@/queries/phonebook'
 import { AddPhonebookContactModal } from './AddPhonebookContactModal'
 
@@ -133,11 +134,11 @@ export function PhonebookPage() {
           search={{ value: search, onChange: setSearch, placeholder: 'Search contacts…' }}
           filters={
             categories.length > 0 ? (
-              <select
+              <CompactSelect
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                aria-label="Category"
-                className="ml-auto h-10 rounded-md border border-border bg-background px-3 text-body-sm"
+                label="Category"
+                className="ml-auto"
               >
                 <option value="">All</option>
                 {categories.map((cat) => (
@@ -145,7 +146,7 @@ export function PhonebookPage() {
                     {cat}
                   </option>
                 ))}
-              </select>
+              </CompactSelect>
             ) : undefined
           }
         />

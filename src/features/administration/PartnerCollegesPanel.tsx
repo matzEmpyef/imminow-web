@@ -6,6 +6,7 @@ import { Modal } from '@/components/Modal'
 import { TextField } from '@/components/TextField'
 import { SearchSelect } from '@/components/SearchSelect'
 import { Table, type TableColumn } from '@/components/Table'
+import { CompactSelect } from '@/components/CompactSelect'
 import { useAdminColleges } from '@/queries/adminColleges'
 import { useCourses } from '@/queries/courseSuggestions'
 import {
@@ -75,8 +76,9 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
         const options = ALL_PAYERS
         return (
           <div className="flex flex-col gap-1">
-            <select
-              className="h-9 rounded-md border border-border bg-surface px-2 text-body-sm text-text-primary"
+            <CompactSelect
+              dense
+              label="Payer method"
               value={r.payer_method}
               onChange={(e) => {
                 const nextPayer = e.target.value as PayerMethod
@@ -94,7 +96,7 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
                   {PAYER_LABEL[m]}
                 </option>
               ))}
-            </select>
+            </CompactSelect>
             {needsCommission(r.payer_method) && (
               <button
                 type="button"

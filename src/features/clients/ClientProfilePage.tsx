@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Pencil } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Card } from '@/components/Card'
+import { CompactSelect } from '@/components/CompactSelect'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
@@ -165,11 +166,11 @@ function OverviewTab({ clientId, onViewPlan }: { clientId: string; onViewPlan: (
             already applied to Commission Rates' country list. */}
         <div className="flex flex-wrap items-center justify-between gap-sm rounded-md border border-primary bg-primary-subtle px-md py-sm">
           <span className="text-body-sm font-medium text-primary">Country finalized to apply</span>
-          <select
+          <CompactSelect
             value={data.finalized_country ?? ''}
             onChange={(e) => setFinalizedCountry.mutate({ id: clientId, country: e.target.value || null })}
             disabled={setFinalizedCountry.isPending}
-            className="h-9 rounded-md border border-border bg-surface px-3 text-body-sm text-text-primary"
+            label="Country finalized to apply"
           >
             <option value="">Not decided yet</option>
             {consultancy.data?.countries_served?.map((c) => (
@@ -177,7 +178,7 @@ function OverviewTab({ clientId, onViewPlan }: { clientId: string; onViewPlan: (
                 {c}
               </option>
             ))}
-          </select>
+          </CompactSelect>
         </div>
 
         <div>

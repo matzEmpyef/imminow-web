@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
 import { Table, type TableColumn } from '@/components/Table'
+import { CompactSelect } from '@/components/CompactSelect'
 import { useSentpoUserDirectory } from '@/queries/adminUserDirectories'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate, formatDateTime } from '@/lib/time'
@@ -137,34 +138,32 @@ export function SentpoUsersPage() {
           }}
           filters={
             <>
-              <select
+              <CompactSelect
                 value={stage}
                 onChange={(e) => {
                   setStage(e.target.value as '' | '1' | '2')
                   resetPaging()
                 }}
-                aria-label="Journey stage"
-                className="h-10 rounded-md border border-border bg-background px-3 text-body-sm"
+                label="Journey stage"
               >
                 <option value="">Any stage</option>
                 <option value="1">Stage 1 · Exploring</option>
                 <option value="2">Stage 2 · Committed</option>
-              </select>
-              <select
+              </CompactSelect>
+              <CompactSelect
                 value={dormantDays}
                 onChange={(e) => {
                   setDormantDays(e.target.value)
                   resetPaging()
                 }}
-                aria-label="Dormant"
-                className="h-10 rounded-md border border-border bg-background px-3 text-body-sm"
+                label="Dormant"
               >
                 {DORMANT_DAYS_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
                 ))}
-              </select>
+              </CompactSelect>
               <input
                 type="date"
                 value={from}

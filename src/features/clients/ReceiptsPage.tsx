@@ -5,6 +5,7 @@ import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { Table, type TableColumn } from '@/components/Table'
+import { CompactSelect } from '@/components/CompactSelect'
 import { Modal } from '@/components/Modal'
 import { useCreateReceipt, useInvoices, useReceipts, useVoidReceipt } from '@/queries/invoicing'
 import { useCursorPagination } from '@/lib/pagination'
@@ -192,19 +193,19 @@ export function ReceiptsPage() {
             placeholder: 'Search invoice or applicant…',
           }}
           filters={
-            <select
+            <CompactSelect
               value={status}
               onChange={(e) => {
                 setStatus(e.target.value as typeof status)
                 resetPaging()
               }}
-              aria-label="Status"
-              className="h-10 rounded-md border border-border bg-background px-3 text-body-sm capitalize"
+              label="Status"
+              className="capitalize"
             >
               <option value="">Any status</option>
               <option value="recorded">Recorded</option>
               <option value="void">Void</option>
-            </select>
+            </CompactSelect>
           }
           pagination={{
             hasNext: Boolean(receipts.data?.meta.next_cursor),

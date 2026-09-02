@@ -5,6 +5,7 @@ import { MultiSelect } from '@/components/MultiSelect'
 import { Toggle } from '@/components/Toggle'
 import { CountrySelect } from '@/components/CountrySelect'
 import { SearchSelect } from '@/components/SearchSelect'
+import { CompactSelect } from '@/components/CompactSelect'
 import { useCourseFields } from '@/queries/courseFinder'
 import type { usePersonPicker } from '@/lib/usePersonPicker'
 import { DURATION_BUCKETS, type FinderState } from './courseFinderState'
@@ -148,9 +149,9 @@ export function CourseFinderFilters({
           <label className="text-body-sm text-text-secondary" htmlFor="cf-sort">
             Sort
           </label>
-          <select
+          <CompactSelect
             id="cf-sort"
-            className="h-10 rounded-md border border-border bg-surface px-3 text-body-sm text-text-primary"
+            label="Sort"
             value={state.sort}
             onChange={(e) => onChange({ sort: e.target.value })}
           >
@@ -158,7 +159,7 @@ export function CourseFinderFilters({
             <option value="fee">Lowest fee</option>
             <option value="intake">Earliest intake</option>
             <option value="duration">Shortest duration</option>
-          </select>
+          </CompactSelect>
         </div>
       </div>
     </Card>

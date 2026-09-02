@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Badge } from '@/components/Badge'
 import { Table, type TableColumn } from '@/components/Table'
+import { CompactSelect } from '@/components/CompactSelect'
 import { useAuditLog, type AuditLogFilters } from '@/queries/auditLog'
 import { useEmployees } from '@/queries/staff'
 import { useCursorPagination } from '@/lib/pagination'
@@ -111,14 +112,13 @@ export function AuditLogPage() {
           }}
           filters={
             <>
-              <select
+              <CompactSelect
                 value={actorId}
                 onChange={(e) => {
                   setActorId(e.target.value)
                   resetPaging()
                 }}
-                aria-label="Actor"
-                className="h-10 rounded-md border border-border bg-background px-3 text-body-sm"
+                label="Actor"
               >
                 <option value="">Anyone</option>
                 {employees.data?.items.map((emp) => (
@@ -126,29 +126,28 @@ export function AuditLogPage() {
                     {emp.user!.first_name} {emp.user!.last_name}
                   </option>
                 ))}
-              </select>
-              <select
+              </CompactSelect>
+              <CompactSelect
                 value={actionType}
                 onChange={(e) => {
                   setActionType(e.target.value as AuditLogFilters['action_type'] | '')
                   resetPaging()
                 }}
-                aria-label="Action"
-                className="h-10 rounded-md border border-border bg-background px-3 text-body-sm"
+                label="Action"
               >
                 <option value="">Any action</option>
                 <option value="create">Create</option>
                 <option value="update">Update</option>
                 <option value="delete">Delete</option>
-              </select>
-              <select
+              </CompactSelect>
+              <CompactSelect
                 value={area}
                 onChange={(e) => {
                   setArea(e.target.value as AuditLogFilters['area'] | '')
                   resetPaging()
                 }}
-                aria-label="Area"
-                className="h-10 rounded-md border border-border bg-background px-3 text-body-sm capitalize"
+                label="Area"
+                className="capitalize"
               >
                 <option value="">Any area</option>
                 {['leads', 'clients', 'plans', 'documents', 'settings', 'staff'].map((a) => (
@@ -156,7 +155,7 @@ export function AuditLogPage() {
                     {a}
                   </option>
                 ))}
-              </select>
+              </CompactSelect>
               <input
                 type="date"
                 value={from}
