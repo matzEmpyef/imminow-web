@@ -80,13 +80,47 @@ export function SupplyDemandPage() {
           </p>
         </div>
 
+        {/* Abroad vs home at a glance (user, 2026-09-02: "how many students are looking for
+            study abroad or india"). Distinct students — the four add up to every account — where
+            the per-country chart below counts a student once per target country. "Home" is each
+            student's own resident country. */}
+        <div className="grid grid-cols-2 gap-md md:grid-cols-4">
+          {(
+            [
+              ['Study Abroad only', data.destination_split.abroad_only, 'Every target country is outside where they live.'],
+              ['Study at Home only', data.destination_split.home_only, 'Only their own country of residence.'],
+              ['Both', data.destination_split.both, 'Targeting home and at least one country abroad.'],
+              ['No preference yet', data.destination_split.no_preference, 'Not through onboarding — nothing declared.'],
+            ] as const
+          ).map(([label, value, hint]) => (
+            <Card key={label}>
+              <p className="text-caption text-text-secondary">{label}</p>
+              <p className="mt-xs text-h1 text-text-primary">{value}</p>
+              <p className="mt-xs text-caption text-text-secondary">{hint}</p>
+            </Card>
+          ))}
+        </div>
+
         <div className="grid grid-cols-1 gap-lg md:grid-cols-2">
           <Card>
             <h2 className="text-h3 text-text-primary">Demand by Target Country</h2>
-            <p className="text-caption text-text-secondary">Students who have set a study preference.</p>
+            <p className="text-caption text-text-secondary">
+              Students who have set a study preference — one count per student per target country, with each
+              country&apos;s share of those students.
+            </p>
             <div className="mt-sm">
               <DoughnutChart data={data.demand_by_country.map((d) => ({ label: d.country, value: d.student_count }))} />
             </div>
+            <ul className="mt-sm flex flex-col gap-xs">
+              {data.demand_by_country.map((d) => (
+                <li key={d.country} className="flex items-center justify-between text-body-sm">
+                  <span className="text-text-primary">{d.country}</span>
+                  <span className="text-text-secondary">
+                    {d.student_count} · {d.share_pct}%
+                  </span>
+                </li>
+              ))}
+            </ul>
           </Card>
           <Card>
             <h2 className="text-h3 text-text-primary">Demand by Field of Interest</h2>

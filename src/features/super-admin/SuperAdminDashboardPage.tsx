@@ -15,6 +15,9 @@ import { formatMoney } from '@/lib/money'
 const STAT_CARD_LINKS: Record<string, string> = {
   total_consultancies: '/admin/consultancies',
   total_students: '/admin/users/sentpo',
+  stuck_onboarding: '/admin/users/sentpo?onboarding=pending',
+  study_abroad_students: '/admin/supply-demand',
+  study_home_students: '/admin/supply-demand',
   active_aspirants: '/admin/supply-demand',
   active_applicants: '/admin/consultancies',
   completed_cases: '/admin/consultancies',
@@ -62,14 +65,20 @@ export function SuperAdminDashboardPage() {
             // "link all the cards to some page... make sure numbers are correct"). Total
             // Consultancies had been the lone clickable card since 2026-08-19.
             const to = card.key ? STAT_CARD_LINKS[card.key] : undefined
+            // Stuck at Onboarding is a to-do, not a statistic — the same alert treatment Pending
+            // Allocation uses once there is somebody to help, calm at zero.
+            const alert = card.key === 'stuck_onboarding' && (card.value ?? 0) > 0
             return (
               <Card
                 key={card.key}
                 onClick={to ? () => navigate(to) : undefined}
                 className={to ? 'cursor-pointer transition-colors hover:bg-background' : undefined}
               >
-                <p className="text-caption text-text-secondary">{card.label}</p>
-                <p className="mt-xs text-h1 text-text-primary">{card.value}</p>
+                <div className="flex items-center justify-between gap-xs">
+                  <p className="text-caption text-text-secondary">{card.label}</p>
+                  {alert && <Badge color="error">Needs help</Badge>}
+                </div>
+                <p className={`mt-xs text-h1 ${alert ? 'text-error' : 'text-text-primary'}`}>{card.value}</p>
                 {card.hint && <p className="mt-xs text-caption text-text-secondary">{card.hint}</p>}
               </Card>
             )

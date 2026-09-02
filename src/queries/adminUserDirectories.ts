@@ -10,6 +10,8 @@ import { ApiError } from './auth'
 export interface SentpoUserDirectoryFilters {
   search?: string
   stage?: 1 | 2
+  /** never_logged_in | stuck | onboarded, or `pending` for both not-onboarded states. */
+  onboarding?: string
   dormant_days?: number
   from?: string
   to?: string
@@ -25,6 +27,7 @@ export function useSentpoUserDirectory(filters: SentpoUserDirectoryFilters = {})
     queryFn: async () => {
       const filter: Record<string, string> = {}
       if (filters.stage) filter.stage = String(filters.stage)
+      if (filters.onboarding) filter.onboarding = filters.onboarding
       if (filters.dormant_days) filter.dormant_days = String(filters.dormant_days)
       if (filters.from) filter.from = filters.from
       if (filters.to) filter.to = filters.to

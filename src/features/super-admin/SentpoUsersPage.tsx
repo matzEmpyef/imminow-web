@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
 import { Table, type TableColumn } from '@/components/Table'
@@ -42,12 +43,41 @@ function LastLoginCell({ row, dormantAfterDays }: { row: Row; dormantAfterDays: 
 
 const STAGE_LABELS: Record<number, string> = { 1: 'Stage 1 · Exploring', 2: 'Stage 2 · Committed' }
 
+// Where each student is in onboarding (2026-09-02, user: "list of Sentpo users who were stuck at
+// onboarding.. so that we can help them"). Server-derived from the app's own preferences-pending
+// rule, so this column and the app's onboarding prompt always agree.
+type OnboardingState = Row['onboarding']
+const ONBOARDING_OPTIONS: { value: '' | 'pending' | OnboardingState; label: string }[] = [
+  { value: '', label: 'Any onboarding' },
+  { value: 'pending', label: 'Not onboarded (any)' },
+  { value: 'stuck', label: 'Stuck at onboarding' },
+  { value: 'never_logged_in', label: 'Never came back' },
+  { value: 'onboarded', label: 'Onboarded' },
+]
+
+function OnboardingCell({ state }: { state: OnboardingState }) {
+  switch (state) {
+    case 'onboarded':
+      return <Badge color="success">Onboarded</Badge>
+    case 'stuck':
+      return <Badge color="error">Stuck at onboarding</Badge>
+    case 'never_logged_in':
+      return <Badge color="warning">Never came back</Badge>
+    default:
+      return <span className="text-text-secondary">—</span>
+  }
+}
+
 // This is the SENTPO (student) directory — one row per student, never blended with the immiNow
 // console directory (ImminowUsersPage.tsx / GET /admin/users/imminow). See docs/PROGRESS.md §4
 // Step 3: "two screens, never one; the two populations must not blend."
 export function SentpoUsersPage() {
+  // `?onboarding=pending` is how the dashboard's Stuck at Onboarding card lands here already
+  // filtered to the students who need a hand.
+  const [searchParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const [stage, setStage] = useState<'' | '1' | '2'>('')
+  const [onboarding, setOnboarding] = useState(searchParams.get('onboarding') ?? '')
   const [dormantDays, setDormantDays] = useState('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -61,6 +91,7 @@ export function SentpoUsersPage() {
   const directory = useSentpoUserDirectory({
     search: search || undefined,
     stage: stage ? (Number(stage) as 1 | 2) : undefined,
+    onboarding: onboarding || undefined,
     dormant_days: dormantDays ? Number(dormantDays) : undefined,
     from: from || undefined,
     to: to || undefined,
@@ -88,6 +119,7 @@ export function SentpoUsersPage() {
       sortable: true,
       render: (r) => <LastLoginCell row={r} dormantAfterDays={dormantDays ? Number(dormantDays) : 30} />,
     },
+    { key: 'onboarding', header: 'Onboarding', render: (r) => <OnboardingCell state={r.onboarding} /> },
     {
       key: 'journey_stage',
       header: 'Journey',
@@ -149,6 +181,20 @@ export function SentpoUsersPage() {
                 <option value="">Any stage</option>
                 <option value="1">Stage 1 · Exploring</option>
                 <option value="2">Stage 2 · Committed</option>
+              </CompactSelect>
+              <CompactSelect
+                value={onboarding}
+                onChange={(e) => {
+                  setOnboarding(e.target.value)
+                  resetPaging()
+                }}
+                label="Onboarding"
+              >
+                {ONBOARDING_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </CompactSelect>
               <CompactSelect
                 value={dormantDays}

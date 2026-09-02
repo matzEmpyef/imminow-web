@@ -14378,7 +14378,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Sentpo user directory (docs/PROGRESS.md §4 Step 3) — one row per student, never blended with the immiNow console directory (see /admin/users/imminow). Gated to platform_staff_administration, same as Platform Team. Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, last_login_at, name. filter[x]= accepts stage=1|2, dormant_days=<integer> (last_login_at older than N days, or never logged in), from=<date>/to=<date> over created_at (signed-up range). search matches name and email. */
+        /** Sentpo user directory (docs/PROGRESS.md §4 Step 3) — one row per student, never blended with the immiNow console directory (see /admin/users/imminow). Gated to platform_staff_administration, same as Platform Team. Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, last_login_at, name. filter[x]= accepts stage=1|2, dormant_days=<integer> (last_login_at older than N days, or never logged in), from=<date>/to=<date> over created_at (signed-up range), and onboarding=never_logged_in|stuck|onboarded|pending (2026-09-02; `pending` = the two not-onboarded states together, which is what the Platform Dashboard's Stuck at Onboarding card links to). search matches name and email. */
         get: {
             parameters: {
                 query?: {
@@ -15296,7 +15296,7 @@ export interface components {
         };
         /** @description Super Admin Dashboard (build reference 1.23). */
         AdminDashboardSummary: {
-            /** @description Keys (2026-09-02, after the user asked why "Total Students" and "Active Aspirants/Applicants" disagreed): `total_consultancies`; `total_students` — student ACCOUNTS registered in the Sentpo app, the same count the Sentpo Users page shows; `active_aspirants` — Stage 1: open lead conversations, native AND imported by a consultancy (imported leads have no Sentpo account, which is exactly why this can exceed `total_students`); `active_applicants` — Stage 2 journeys in progress; `completed_cases`; `total_colleges`; `total_courses`; `courses_missing_requirements`. Every card carries a one-line `hint` saying what it counts; the console links each key to the page where that population is managed. */
+            /** @description Keys (2026-09-02, after the user asked why "Total Students" and "Active Aspirants/Applicants" disagreed): `total_consultancies`; `total_students` — student ACCOUNTS registered in the Sentpo app, the same count the Sentpo Users page shows; `stuck_onboarding` — student accounts that never got through onboarding (the directory's `onboarding != onboarded`), a to-do rather than a statistic; `study_abroad_students` / `study_home_students` — distinct students whose target countries include somewhere other than / their own country of residence (a student targeting both is in both; the four-way split lives on Supply & Demand); `active_aspirants` — Stage 1: open lead conversations, native AND imported by a consultancy (imported leads have no Sentpo account, which is exactly why this can exceed `total_students`); `active_applicants` — Stage 2 journeys in progress; `completed_cases`; `total_colleges`; `total_courses`; `courses_missing_requirements`. Every card carries a one-line `hint` saying what it counts; the console links each key to the page where that population is managed. */
             stat_cards: {
                 key?: string;
                 label?: string;
@@ -17521,6 +17521,11 @@ export interface components {
              * @description Signed up.
              */
             created_at: string;
+            /**
+             * @description Where the student is in onboarding (2026-09-02, so the console can find students to help). Derived from the SAME rule the app uses for its preferences prompt — no study level, no target countries, no journey means not onboarded. `never_logged_in` = that gap with no login at all (signed up, never came back); `stuck` = logs in but never got through the preference screens; `onboarded` = everyone else.
+             * @enum {string}
+             */
+            onboarding: "never_logged_in" | "stuck" | "onboarded";
             /** Format: date-time */
             last_login_at?: string | null;
             /**
@@ -17576,9 +17581,22 @@ export interface components {
         SupplyDemandResponse: {
             /** Format: date-time */
             collecting_since: string;
+            /** @description Abroad vs home at a glance (2026-09-02, user: "how many students are looking for study abroad or india"). DISTINCT students, so the four buckets sum to `total_students` — unlike `demand_by_country`, where a student appears once per target country. "Home" is each student's own resident country. */
+            destination_split: {
+                /** @description Every target country is outside the student's country of residence. */
+                abroad_only: number;
+                /** @description The only target country is the student's own. */
+                home_only: number;
+                both: number;
+                /** @description No target country declared yet — the not-yet-onboarded. */
+                no_preference: number;
+                total_students: number;
+            };
             demand_by_country: {
                 country: string;
                 student_count: number;
+                /** @description Whole-number share of students WITH a declared preference who target this country (2026-09-02). */
+                share_pct: number;
             }[];
             demand_by_field: {
                 field: string;
