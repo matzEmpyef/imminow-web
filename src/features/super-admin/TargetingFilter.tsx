@@ -10,6 +10,11 @@ import { GENDERS, genderLabel, type Gender } from '@/lib/genders'
 interface TargetingFilterProps {
   value: Targeting
   onChange: (next: Targeting) => void
+  /**
+   * Show the account-lifecycle controls (joined within / hasn't signed in for). Broadcast wants
+   * them (2026-09-03, user: "these 2 filter for broadcast also"); ads and quizzes don't ask.
+   */
+  lifecycle?: boolean
   /** Country names for the two country pickers — pass `useCountries().data ?? []`. */
   countries: string[]
   /**
@@ -32,7 +37,7 @@ interface TargetingFilterProps {
  *
  * Adding a dimension now means adding it here once, and all three surfaces get it.
  */
-export function TargetingFilter({ value, onChange, countries, unknownDataPolicy }: TargetingFilterProps) {
+export function TargetingFilter({ value, onChange, countries, unknownDataPolicy, lifecycle = false }: TargetingFilterProps) {
   const institutions = useInstitutions()
   // Keyed by id, labelled "Name — City": two schools share the name "The Choice School", so a
   // label without its city would make the two rows indistinguishable in this list.
@@ -187,6 +192,37 @@ export function TargetingFilter({ value, onChange, countries, unknownDataPolicy 
         </SelectField>
       </div>
       {ageError && <p className="text-caption text-error">{ageError}</p>}
+
+      {lifecycle && (
+        // Account lifecycle (2026-09-03) — the same 2 weeks / 1 month / 3 months presets the Sentpo
+        // Users directory offers, so "everyone who joined this month" or "everyone who drifted off
+        // for a month" is one pick here and one pick there. Days, not dates: a broadcast is sent
+        // now, so "within the last N days" is the only shape that means the same thing tomorrow.
+        <div className="grid grid-cols-2 gap-sm">
+          <SelectField
+            label="Joined within"
+            id="targeting-joined-within"
+            value={value.joined_within_days == null ? '' : String(value.joined_within_days)}
+            onChange={(e) => set({ joined_within_days: e.target.value === '' ? null : Number(e.target.value) })}
+          >
+            <option value="">Any time</option>
+            <option value="14">Last 2 weeks</option>
+            <option value="30">Last month</option>
+            <option value="90">Last 3 months</option>
+          </SelectField>
+          <SelectField
+            label="Hasn't signed in for"
+            id="targeting-dormant-days"
+            value={value.dormant_days == null ? '' : String(value.dormant_days)}
+            onChange={(e) => set({ dormant_days: e.target.value === '' ? null : Number(e.target.value) })}
+          >
+            <option value="">Any activity</option>
+            <option value="14">2+ weeks</option>
+            <option value="30">1+ month</option>
+            <option value="90">3+ months</option>
+          </SelectField>
+        </div>
+      )}
     </div>
   )
 }

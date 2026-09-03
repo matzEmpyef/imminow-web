@@ -28,6 +28,14 @@ type Audience = NonNullable<components['schemas']['BroadcastInput']['audience']>
 type BroadcastTargeting = components['schemas']['Targeting']
 type Broadcast = NonNullable<ReturnType<typeof useBroadcastHistory>['data']>['items'][number]
 
+// The lifecycle presets are stored as days; read them back as the words the sender picked.
+function describeDays(days: number): string {
+  if (days === 14) return '2 weeks'
+  if (days === 30) return 'a month'
+  if (days === 90) return '3 months'
+  return `${days} days`
+}
+
 // Renders a stored targeting object back as the sentence the sender meant. Send history is the
 // only record of who a past broadcast went to, and "Filtered segment" on its own says nothing.
 function describeSegment(targeting: Broadcast['targeting']): string {
@@ -36,6 +44,8 @@ function describeSegment(targeting: Broadcast['targeting']): string {
   if (t?.resident_country?.length) parts.push(`living in ${t.resident_country.join(', ')}`)
   if (t?.study_level?.length) parts.push(`studying ${t.study_level.join(', ')}`)
   if (t?.stage) parts.push(t.stage === 1 ? 'at lead stage' : 'at client stage')
+  if (t?.joined_within_days) parts.push(`who joined in the last ${describeDays(t.joined_within_days)}`)
+  if (t?.dormant_days) parts.push(`with no sign-in for ${describeDays(t.dormant_days)}`)
   return parts.length ? `Students ${parts.join(', ')}.` : 'Every student — no filters were set.'
 }
 
@@ -183,6 +193,7 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
         {isSegment && (
           <div className="flex flex-col gap-sm rounded-md border border-border bg-background p-sm">
             <TargetingFilter
+              lifecycle
               value={targeting}
               onChange={setTargeting}
               countries={countries.data ?? []}

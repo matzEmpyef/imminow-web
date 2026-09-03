@@ -10,12 +10,28 @@ import { formatDate, formatDateTime } from '@/lib/time'
 
 type Row = NonNullable<ReturnType<typeof useSentpoUserDirectory>['data']>['items'][number]
 
+// 2 weeks / 1 month / 3 months (user, 2026-09-03) — was 7/30/90 days. The same three presets the
+// Broadcast targeting form offers, so a list here and an audience there mean the same people.
 const DORMANT_DAYS_OPTIONS = [
   { value: '', label: 'Any activity' },
-  { value: '7', label: 'No login in 7+ days' },
-  { value: '30', label: 'No login in 30+ days' },
-  { value: '90', label: 'No login in 90+ days' },
+  { value: '14', label: 'No login in 2+ weeks' },
+  { value: '30', label: 'No login in 1+ month' },
+  { value: '90', label: 'No login in 3+ months' },
 ]
+
+// "Joined in the last…" (user, 2026-09-03). Presets resolve to a signed-up-from date on the way
+// to the server (which only knows from/to); "Custom" reveals the two date inputs.
+const JOINED_OPTIONS = [
+  { value: '', label: 'Joined any time' },
+  { value: '14', label: 'Joined in last 2 weeks' },
+  { value: '30', label: 'Joined in last month' },
+  { value: '90', label: 'Joined in last 3 months' },
+  { value: 'custom', label: 'Joined between dates…' },
+]
+
+function daysAgoIsoDate(days: number): string {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+}
 
 // Subtle warning, not red alarm (task spec) — the same soft-tinted Badge every other status pill
 // on this platform uses, just the `warning` color rather than `error`.
@@ -89,6 +105,7 @@ export function SentpoUsersPage() {
   const [onboarding, setOnboarding] = useState(searchParams.get('onboarding') ?? '')
   const [dormantDays, setDormantDays] = useState('')
   const [platform, setPlatform] = useState('')
+  const [joined, setJoined] = useState('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
@@ -104,8 +121,9 @@ export function SentpoUsersPage() {
     onboarding: onboarding || undefined,
     dormant_days: dormantDays ? Number(dormantDays) : undefined,
     platform: platform || undefined,
-    from: from || undefined,
-    to: to || undefined,
+    // A preset becomes a signed-up-from date; only "Custom" sends what the date inputs hold.
+    from: joined && joined !== 'custom' ? daysAgoIsoDate(Number(joined)) : joined === 'custom' && from ? from : undefined,
+    to: joined === 'custom' && to ? to : undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
     cursor: paging.cursor,
     limit: 20,
@@ -181,7 +199,7 @@ export function SentpoUsersPage() {
           loading={directory.isLoading}
           error={directory.isError ? 'Could not load the Sentpo user directory.' : undefined}
           emptyMessage={
-            search || stage || onboarding || dormantDays || platform || from || to
+            search || stage || onboarding || dormantDays || platform || joined
               ? 'No students match these filters.'
               : 'No students have signed up yet. Every Sentpo app account appears here.'
           }
@@ -254,26 +272,44 @@ export function SentpoUsersPage() {
                   </option>
                 ))}
               </CompactSelect>
-              <input
-                type="date"
-                value={from}
+              <CompactSelect
+                value={joined}
                 onChange={(e) => {
-                  setFrom(e.target.value)
+                  setJoined(e.target.value)
                   resetPaging()
                 }}
-                aria-label="Signed up from"
-                className="h-10 rounded-md border border-border bg-background px-3 text-body-sm"
-              />
-              <input
-                type="date"
-                value={to}
-                onChange={(e) => {
-                  setTo(e.target.value)
-                  resetPaging()
-                }}
-                aria-label="Signed up to"
-                className="h-10 rounded-md border border-border bg-background px-3 text-body-sm"
-              />
+                label="Joined"
+              >
+                {JOINED_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </CompactSelect>
+              {joined === 'custom' && (
+                <>
+                  <input
+                    type="date"
+                    value={from}
+                    onChange={(e) => {
+                      setFrom(e.target.value)
+                      resetPaging()
+                    }}
+                    aria-label="Signed up from"
+                    className="h-10 rounded-md border border-border bg-background px-3 text-body-sm"
+                  />
+                  <input
+                    type="date"
+                    value={to}
+                    onChange={(e) => {
+                      setTo(e.target.value)
+                      resetPaging()
+                    }}
+                    aria-label="Signed up to"
+                    className="h-10 rounded-md border border-border bg-background px-3 text-body-sm"
+                  />
+                </>
+              )}
             </>
           }
           pagination={{

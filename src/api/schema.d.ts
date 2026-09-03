@@ -16954,6 +16954,10 @@ export interface components {
              * @enum {string|null}
              */
             gender?: "male" | "female" | "other" | "prefer_not_to_say" | null;
+            /** @description Account lifecycle (2026-09-03). Matches students whose `users.created_at` is within the last N days — the Sentpo Users directory's "Joined in the last 2 weeks / month / 3 months" presets (14 / 30 / 90) and the same control on Broadcast targeting. Any positive whole number of days is accepted. Always decidable, so the unknown-data policy never applies (a seed row with no created_at is the only blank, treated per `strict`). */
+            joined_within_days?: number | null;
+            /** @description Account lifecycle (2026-09-03). Matches students whose `users.last_login_at` is older than N days, or who have never logged in — the directory's "No login in 2+ weeks / 1+ month / 3+ months" presets and the same control on Broadcast targeting (a re-engagement push to people who drifted away). Any positive whole number of days. */
+            dormant_days?: number | null;
         };
         AdBanner: {
             id: components["schemas"]["UUID"];
