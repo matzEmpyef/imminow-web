@@ -15986,7 +15986,7 @@ export interface components {
             /** @enum {integer} */
             current_stage: 1 | 2;
             /** @enum {string} */
-            status: "exploring" | "awaiting_match" | "commit_confirm" | "pending_plan_assignment" | "in_plan" | "plan_complete" | "closed_switched" | "closed_completed";
+            status: "exploring" | "awaiting_match" | "commit_confirm" | "pending_plan_assignment" | "in_plan" | "plan_complete" | "closed" | "closed_switched" | "closed_completed";
             /** @enum {string} */
             case_type: "student" | "pr";
             /** @description Sentpo Mobile's Stage 2 Home status card (build reference 2.2) — null until a consultancy is assigned. A handful of display-only fields below are additive to the aggregate-root fields above, kept minimal and nullable rather than duplicating Client's full denormalized set, since a Stage-1 (exploring) Journey has none of them. */
@@ -16035,7 +16035,7 @@ export interface components {
              * @description The Stage-2 subset of Journey.status — Stage-1-only values (exploring, awaiting_match, commit_confirm, closed_switched) can't appear on a Client. `closed` (user-requested, 2026-08-15) is a generic manual close, mirroring `Lead.status`'s own `closed` — set via `POST /clients/{id}/close`, reversed via `POST /clients/{id}/reopen-case`. Distinct from `closed_completed` (a fully wound-down completed case) and from `plan_complete` (the plan finished; not itself closed).
              * @enum {string}
              */
-            status: "pending_plan_assignment" | "in_plan" | "plan_complete" | "closed" | "closed_completed";
+            status: "pending_plan_assignment" | "in_plan" | "plan_complete" | "closed_switched" | "closed" | "closed_completed";
             /** @enum {string} */
             case_type: "student" | "pr";
             address?: string | null;
