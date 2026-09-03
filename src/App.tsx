@@ -236,7 +236,7 @@ function useScreenViewAnalytics() {
     track('screen_viewed', { properties: { module } })
     // Deliberately keyed on pathname only, not search/hash — a filter or tab change within the
     // same page is not a new screen view.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `location` as a whole would refire on search/hash; pathname is the screen
   }, [location.pathname])
 }
 

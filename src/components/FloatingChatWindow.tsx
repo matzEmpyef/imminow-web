@@ -40,17 +40,20 @@ export function FloatingChatWindow() {
   const sendClientMessage = useSendClientMessage(clientId ?? '')
   const sendInternalMessage = useSendInternalMessage(internalId)
   const unsendInternalMessage = useUnsendInternalMessage(internalId)
-  const markLeadRead = useMarkLeadRead()
-  const markClientRead = useMarkClientRead()
-  const markInternalRead = useMarkInternalConversationRead()
+  const { mutate: markLeadRead } = useMarkLeadRead()
+  const { mutate: markClientRead } = useMarkClientRead()
+  const { mutate: markInternalRead } = useMarkInternalConversationRead()
+  // Scalars, so the effect below keys on the conversation's identity rather than the object —
+  // and the three `mutate`s are stable in React Query v5, so all five are real deps (B5, 2026-09-03).
+  const conversationId = conversation?.id
+  const conversationType = conversation?.type
 
   useEffect(() => {
-    if (!conversation) return
-    if (conversation.type === 'lead') markLeadRead.mutate(conversation.id)
-    else if (conversation.type === 'client') markClientRead.mutate(conversation.id)
-    else markInternalRead.mutate(conversation.id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutate() is stable, conversation id/type are the real trigger
-  }, [conversation?.id, conversation?.type])
+    if (!conversationId) return
+    if (conversationType === 'lead') markLeadRead(conversationId)
+    else if (conversationType === 'client') markClientRead(conversationId)
+    else markInternalRead(conversationId)
+  }, [conversationId, conversationType, markLeadRead, markClientRead, markInternalRead])
 
   if (!conversation) return null
 

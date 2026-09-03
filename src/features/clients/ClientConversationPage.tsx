@@ -12,14 +12,15 @@ export function ClientConversationPage() {
   const client = useClient(id)
   const messages = useClientMessages(id)
   const sendMessage = useSendClientMessage(id)
-  const markRead = useMarkClientRead()
+  const { mutate: markRead } = useMarkClientRead()
   const openFloating = useChatWindowStore((s) => s.open)
   const [draft, setDraft] = useState('')
 
+  // `mutate` is destructured because it is referentially stable in React Query v5, so it can be
+  // a real dependency: the rule is satisfied and `id` stays the only trigger (B5, 2026-09-03).
   useEffect(() => {
-    if (id) markRead.mutate(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutate() is stable, id is the real trigger
-  }, [id])
+    if (id) markRead(id)
+  }, [id, markRead])
 
   function handleSend(e: FormEvent) {
     e.preventDefault()

@@ -112,6 +112,22 @@ export function SearchSelect({
           setOpen(true)
           setQuery('')
         }}
+        // Keyboard pass, B7 (2026-09-03): the list only ever closed on an outside CLICK, so
+        // tabbing to the next field left it hanging open over the form. It now closes when focus
+        // leaves the component; focus moving onto one of its own options (a mouse press on a
+        // button focuses it first) keeps it open so the click still lands.
+        onBlur={(e) => {
+          if (containerRef.current?.contains(e.relatedTarget as Node | null)) return
+          setOpen(false)
+          setQuery('')
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape' && open) {
+            e.preventDefault()
+            setOpen(false)
+            setQuery('')
+          }
+        }}
         placeholder={placeholder}
         disabled={disabled}
         autoComplete="off"

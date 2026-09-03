@@ -108,7 +108,7 @@ function RateMatrixModal({
     if (consultancyId && country) {
       setMatrix(matrixFromExistingRates(allRates, consultancyId, country))
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- allRates and touched are read, not triggers: re-seeding on every rates refetch would wipe an open, untouched form back to server values
   }, [consultancyId, country])
 
   const selectedConsultancy = consultancies.data?.items?.find((c) => c.id === consultancyId)

@@ -76,6 +76,23 @@ export function Combobox({ label, value, onChange, options, required }: Combobox
     setFocused(false)
   }
 
+  // Keyboard pass, B7 (2026-09-03): the panel only ever closed on an outside CLICK, so tabbing to
+  // the next field left it hanging open over the form. Leaving by keyboard now behaves like
+  // leaving any text field: typed text is kept (this is free text underneath), an emptied field
+  // falls back to the saved value, and focus moving onto one of the panel's own rows (a mouse
+  // press focuses the button first) keeps it open so the click still lands.
+  function handleBlur(e: FocusEvent<HTMLInputElement>) {
+    const to = e.relatedTarget as Node | null
+    if (containerRef.current?.contains(to) || dropdownRef.current?.contains(to)) return
+    if (trimmedDraft) {
+      commitDraft()
+    } else {
+      setOpen(false)
+      setFocused(false)
+      setDraft(value)
+    }
+  }
+
   const floated = focused || Boolean(draft)
 
   return (
@@ -90,6 +107,7 @@ export function Combobox({ label, value, onChange, options, required }: Combobox
             updateCoords()
           }}
           onFocus={handleFocus}
+          onBlur={handleBlur}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault()

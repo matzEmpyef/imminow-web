@@ -281,7 +281,7 @@ export function LeadConversationPage() {
   const lead = useLead(id)
   const messages = useLeadMessages(id)
   const sendMessage = useSendLeadMessage(id)
-  const markRead = useMarkLeadRead()
+  const { mutate: markRead } = useMarkLeadRead()
   const requestShortlist = useRequestShortlist(id)
   const openFloating = useChatWindowStore((s) => s.open)
   const [draft, setDraft] = useState('')
@@ -303,10 +303,11 @@ export function LeadConversationPage() {
   // entitlement, same flag as Reopen Case/Reopen Plan on the client side.
   const canReopenLead = useFeature('case_reopening')
 
+  // `mutate` is destructured because it is referentially stable in React Query v5, so it can be
+  // a real dependency: the rule is satisfied and `id` stays the only trigger (B5, 2026-09-03).
   useEffect(() => {
-    if (id) markRead.mutate(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutate() is stable, id is the real trigger
-  }, [id])
+    if (id) markRead(id)
+  }, [id, markRead])
 
   function handleSend(e: FormEvent) {
     e.preventDefault()

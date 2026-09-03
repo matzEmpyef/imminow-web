@@ -32,7 +32,7 @@ export function InternalMessagingPage() {
   const messages = useInternalConversationMessages(id)
   const sendMessage = useSendInternalMessage(id)
   const unsendMessage = useUnsendInternalMessage(id)
-  const markRead = useMarkInternalConversationRead()
+  const { mutate: markRead } = useMarkInternalConversationRead()
   const openFloating = useChatWindowStore((s) => s.open)
 
   const items = conversations.data?.items ?? EMPTY_CONVERSATIONS
@@ -44,10 +44,11 @@ export function InternalMessagingPage() {
 
   const selected = items.find((c) => c.id === id)
 
+  // `mutate` is destructured because it is referentially stable in React Query v5, so it can be
+  // a real dependency: the rule is satisfied and `id` stays the only trigger (B5, 2026-09-03).
   useEffect(() => {
-    if (id) markRead.mutate(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutate() is stable, id is the real trigger
-  }, [id])
+    if (id) markRead(id)
+  }, [id, markRead])
 
   function handleSend(e: FormEvent) {
     e.preventDefault()

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLeads } from '@/queries/leads'
 import { useClients } from '@/queries/clients'
@@ -18,6 +18,11 @@ export function GlobalSearch() {
   const [query, setQuery] = useState('')
   const debouncedQuery = useDebouncedValue(query.trim())
   const [open, setOpen] = useState(false)
+  // Keyboard pass, B6 (2026-09-03): results were Tab-reachable but a combobox is expected to
+  // move through them with the arrow keys and open one with Enter, announcing the active row via
+  // aria-activedescendant. -1 means nothing is active; it resets whenever the query changes.
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const listId = useId()
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -60,15 +65,31 @@ export function GlobalSearch() {
     })),
   ]
   const hasResults = results.length > 0
+  // Clamped rather than reset in an effect: results can shrink under a stale index.
+  const active = activeIndex < results.length ? activeIndex : -1
 
   function goTo(path: string) {
     navigate(path)
     setQuery('')
+    setActiveIndex(-1)
     setOpen(false)
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Escape') {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!hasResults) return
+      e.preventDefault()
+      setOpen(true)
+      setActiveIndex((i) =>
+        e.key === 'ArrowDown' ? (i + 1) % results.length : i <= 0 ? results.length - 1 : i - 1,
+      )
+    } else if (e.key === 'Enter') {
+      const target = results[active]
+      if (target) {
+        e.preventDefault()
+        goTo(target.path)
+      }
+    } else if (e.key === 'Escape') {
       setOpen(false)
       e.currentTarget.blur()
     }
@@ -94,11 +115,19 @@ export function GlobalSearch() {
         </svg>
         <input
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setActiveIndex(-1)
+          }}
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
           placeholder="Search leads and applicants…"
           aria-label="Search leads and applicants"
+          role="combobox"
+          aria-expanded={open && searchActive}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
           className="h-11 w-full rounded-full border border-border bg-background pl-11 pr-md text-body text-text-primary outline-none focus:border-2 focus:border-primary"
         />
       </div>
@@ -116,14 +145,18 @@ export function GlobalSearch() {
           )}
 
           {!isLoading && !isError && hasResults && (
-            <div className="py-xs">
+            <div className="py-xs" role="listbox" id={listId}>
               {results.map((result, i) => (
                 <button
                   key={result.key}
+                  id={`${listId}-${i}`}
+                  role="option"
+                  aria-selected={i === active}
                   onClick={() => goTo(result.path)}
+                  onMouseEnter={() => setActiveIndex(i)}
                   className={`flex w-full items-center justify-between gap-md px-md py-sm text-left hover:bg-background ${
                     i > 0 ? 'border-t border-border' : ''
-                  }`}
+                  } ${i === active ? 'bg-background' : ''}`}
                 >
                   <span className="flex min-w-0 flex-col items-start">
                     <span className="text-body-sm font-medium text-text-primary">{result.name}</span>
