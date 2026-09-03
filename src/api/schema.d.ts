@@ -8451,7 +8451,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Edit template — "Editing opens the same step-builder used on individual applicants" (build reference 2.2) */
+        /**
+         * Edit template — "Editing opens the same step-builder used on individual applicants"
+         * @description A change to `steps` creates a new immutable version (new id, version + 1, same template_family_id) and returns it; a name-only edit updates the row in place (2026-09-03). (build reference 2.2)
+         */
         patch: {
             parameters: {
                 query?: never;
@@ -9324,7 +9327,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Edit — creates a new immutable version; in-progress responses stay bound to their original version (FR-098) */
+        /**
+         * Edit — creates a new immutable version; in-progress responses stay bound to their original version (FR-098)
+         * @description A change to `fields` creates a new immutable version (new id, version + 1, same form_family_id) and returns it; the previous version keeps its fields, so existing form_responses and plan-step form_links stay renderable. A name-only edit updates the row in place (2026-09-03).
+         */
         patch: {
             parameters: {
                 query?: never;
@@ -16209,6 +16215,8 @@ export interface components {
             name: string;
             /** @description Immutable version — FR-039. */
             version: number;
+            /** @description Groups every version of "the same template" (erd.md plan_templates). A content edit via PATCH creates a NEW row in this family with the next version and returns it — the response id differs from the request id; the previous version is never modified. GET /plan-templates lists the latest version per family; any version stays readable by id. */
+            readonly template_family_id?: components["schemas"]["UUID"];
             steps: components["schemas"]["StepTemplate"][];
             /**
              * Format: date-time
@@ -16343,6 +16351,8 @@ export interface components {
             plan_template_id?: components["schemas"]["UUID"];
             /** @description Immutable version — FR-098. */
             version: number;
+            /** @description Groups every version of "the same form" (erd.md form_templates). A change to fields via PATCH creates a NEW row in this family with the next version and returns it; the previous version keeps its fields forever, which is what form_responses.form_version and plan-step form_links point at. GET /form-templates lists the latest per family. */
+            readonly form_family_id?: components["schemas"]["UUID"];
             fields: components["schemas"]["FormField"][];
             /** Format: date-time */
             created_at: string;
