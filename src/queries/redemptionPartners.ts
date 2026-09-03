@@ -35,9 +35,27 @@ export function useCreatePartner() {
 export function useUpdatePartner(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (body: Partial<RedemptionPartnerInput>) => {
+    // `active` (2026-09-03): false retires the partner, true reactivates — never a delete.
+    mutationFn: async (body: Partial<RedemptionPartnerInput> & { active?: boolean }) => {
       const { data, error } = await api.PATCH('/redemption-partners/{id}', { params: { path: { id } }, body })
       if (error) throw new ApiError('Could not update this partner.', error)
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['redemption-partners'] }),
+  })
+}
+
+// Soft retire/reactivate a location (user, 2026-09-03 — DB audit H4). Locations are never
+// deleted: redemption history points at them.
+export function useUpdateLocation(partnerId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ locationId, ...body }: { locationId: string; active?: boolean } & Partial<PartnerLocationInput>) => {
+      const { data, error } = await api.PATCH('/redemption-partners/{id}/locations/{locationId}', {
+        params: { path: { id: partnerId, locationId } },
+        body,
+      })
+      if (error) throw new ApiError('Could not update this location.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['redemption-partners'] }),

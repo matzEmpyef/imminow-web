@@ -13,6 +13,7 @@ import {
   useCreatePartner,
   useRedemptionPartners,
   useRotateCode,
+  useUpdateLocation,
   useUpdatePartner,
 } from '@/queries/redemptionPartners'
 import type { components } from '@/api/schema'
@@ -66,10 +67,71 @@ function PartnerDetailModal({ partner, onClose }: { partner: RedemptionPartner; 
   const [showAddLocation, setShowAddLocation] = useState(false)
   const [sharedCodeDraft, setSharedCodeDraft] = useState('')
   const [locationCodeDrafts, setLocationCodeDrafts] = useState<Record<string, string>>({})
+  // Soft retire (user, 2026-09-03 — DB audit H4). Partners and locations are never deleted:
+  // coupons and redemption history point at them. Retiring hides the partner from the coupon
+  // picker and the student catalog and stops redemptions; reactivating brings it all back.
+  // Retire gets a confirm (user: "wherever there is delete, confirm popup is needed" — this is
+  // the closest thing to one); reactivate is a plain click, since it only restores.
+  const updateLocation = useUpdateLocation(partner.id!)
+  const [confirmRetire, setConfirmRetire] = useState<{ locationId?: string; label: string } | null>(null)
+  const retired = partner.active === false
+
+  function commitRetire() {
+    if (!confirmRetire) return
+    const done = { onSuccess: () => setConfirmRetire(null) }
+    if (confirmRetire.locationId) updateLocation.mutate({ locationId: confirmRetire.locationId, active: false }, done)
+    else updatePartner.mutate({ active: false }, done)
+  }
 
   return (
     <Modal onClose={onClose} title={`${partner.name} — Manage`} widthRem={34}>
       <div className="flex flex-col gap-md">
+        <div className="flex items-center justify-between gap-sm rounded-md border border-border bg-background p-sm">
+          <div className="min-w-0">
+            <p className="text-body-sm font-medium text-text-primary">
+              {retired ? 'Retired' : 'Active'}{' '}
+              {retired && <Badge color="secondary">not accepting coupons</Badge>}
+            </p>
+            <p className="text-caption text-text-secondary">
+              {retired
+                ? 'Hidden from the coupon picker and the student catalog. Coupons and redemption history are kept.'
+                : 'Retire this partner if the merchant leaves the programme — nothing is deleted.'}
+            </p>
+          </div>
+          {retired ? (
+            <Button variant="secondary" loading={updatePartner.isPending} onClick={() => updatePartner.mutate({ active: true })}>
+              Reactivate
+            </Button>
+          ) : (
+            <Button variant="destructive" onClick={() => setConfirmRetire({ label: partner.name! })}>
+              Retire Partner
+            </Button>
+          )}
+        </div>
+        {confirmRetire && (
+          <Modal
+            onClose={() => setConfirmRetire(null)}
+            title={confirmRetire.locationId ? 'Retire Location' : 'Retire Partner'}
+            widthRem={24}
+            footer={
+              <div className="flex justify-end gap-sm">
+                <Button variant="secondary" onClick={() => setConfirmRetire(null)}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" loading={updatePartner.isPending || updateLocation.isPending} onClick={commitRetire}>
+                  Retire
+                </Button>
+              </div>
+            }
+          >
+            <p className="text-body-sm text-text-secondary">
+              Retire <span className="font-medium text-text-primary">{confirmRetire.label}</span>?{' '}
+              {confirmRetire.locationId
+                ? 'Its merchant code will stop redeeming. Past redemptions are kept.'
+                : 'All its coupons disappear from the student catalog and stop redeeming. Coupons and past redemptions are kept, and you can reactivate it later.'}
+            </p>
+          </Modal>
+        )}
         <SelectField
           label="Code mode"
           id={`code-mode-${partner.id}`}
@@ -114,6 +176,28 @@ function PartnerDetailModal({ partner, onClose }: { partner: RedemptionPartner; 
                   {loc.state ? `, ${loc.state}` : ''}, {loc.country}
                 </span>
                 <Badge color="info">{loc.merchant_code}</Badge>
+                {loc.active === false ? (
+                  <>
+                    <Badge color="secondary">Retired</Badge>
+                    <button
+                      type="button"
+                      onClick={() => updateLocation.mutate({ locationId: loc.id!, active: true })}
+                      className="text-caption text-primary hover:underline"
+                    >
+                      Reactivate
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setConfirmRetire({ locationId: loc.id!, label: `${loc.city}${loc.state ? `, ${loc.state}` : ''}, ${loc.country}` })
+                    }
+                    className="text-caption text-error hover:underline"
+                  >
+                    Retire
+                  </button>
+                )}
               </div>
               {partner.code_mode === 'per_location' && (
                 <div className="flex items-end gap-sm">
@@ -226,7 +310,12 @@ export function RedemptionPartnersPage() {
       key: 'name',
       header: 'Partner',
       sortable: true,
-      render: (p) => <span className="font-medium text-text-primary">{p.name}</span>,
+      render: (p) => (
+        <span className="flex items-center gap-xs">
+          <span className={p.active === false ? 'font-medium text-text-secondary' : 'font-medium text-text-primary'}>{p.name}</span>
+          {p.active === false && <Badge color="secondary">Retired</Badge>}
+        </span>
+      ),
     },
     {
       key: 'category',

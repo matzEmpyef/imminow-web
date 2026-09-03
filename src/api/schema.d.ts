@@ -12532,6 +12532,8 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
+                        /** @description false retires the partner, true reactivates it (2026-09-03). */
+                        active?: boolean;
                         name?: string;
                         category?: string;
                         contact_person?: string;
@@ -12624,6 +12626,8 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
+                        /** @description false retires the location, true reactivates it (2026-09-03). */
+                        active?: boolean;
                         city?: string;
                         district?: string | null;
                         state?: string | null;
@@ -15119,7 +15123,7 @@ export interface components {
             /** @description Same computation as Lead.unread/Client.unread. */
             unread: boolean;
         };
-        /** @description Tag Management's own list (build reference 1.22) — leads/clients reference these by name, distinct from the free-text tag arrays stored on them. */
+        /** @description Tag Management's own list (build reference 1.22). Leads/imported leads/ clients/library documents reference these by a real FK internally (lead_tags, imported_lead_tags, journey_tags, library_document_tags — DB audit C1, 2026-09-03); the `tags` array on each of those resources is still plain strings on the wire, resolved from the FK server-side, so this schema's own shape didn't need to change for the fix. */
         Tag: {
             id: components["schemas"]["UUID"];
             name: string;
@@ -17111,6 +17115,11 @@ export interface components {
             readonly merchant_code: string;
             /** @enum {string} */
             code_mode: "shared" | "per_location";
+            /**
+             * @description Soft retire (2026-09-03). A retired location is hidden from location lists and its merchant code no longer redeems, but every redemption recorded against it stays resolvable. Never hard-deleted.
+             * @default true
+             */
+            active: boolean;
         };
         PartnerLocationInput: {
             city: string;
@@ -17130,6 +17139,11 @@ export interface components {
              */
             code_mode?: "shared" | "per_location";
             locations?: components["schemas"]["PartnerLocation"][];
+            /**
+             * @description Soft retire (2026-09-03). A retired partner drops out of the coupon picker and the student catalog (all its coupons become unavailable at once) and can no longer be redeemed against; it stays listed for the admin, reactivatable, and its coupons and redemption history are untouched. Never hard-deleted.
+             * @default true
+             */
+            active: boolean;
         };
         RedemptionPartnerInput: {
             name: string;

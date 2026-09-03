@@ -121,7 +121,8 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
             onChange={(e) => setPartnerId(e.target.value)}
           >
             <option value="">Select partner…</option>
-            {partners.data?.map((p) => (
+            {/* Retired partners (2026-09-03) can't take new coupons — the server rejects it too. */}
+            {partners.data?.filter((p) => p.active !== false).map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
