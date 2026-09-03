@@ -15164,6 +15164,11 @@ export interface components {
         };
         Consultancy: {
             id: components["schemas"]["UUID"];
+            /**
+             * Format: date-time
+             * @description When the consultancy was created on the platform (added 2026-09-03, DB audit M2 — the tenant row had no creation timestamp before).
+             */
+            readonly created_at?: string;
             name: string;
             logo_url?: string | null;
             description?: string;
