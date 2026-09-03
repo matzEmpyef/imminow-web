@@ -43,6 +43,15 @@ function LastLoginCell({ row, dormantAfterDays }: { row: Row; dormantAfterDays: 
 
 const STAGE_LABELS: Record<number, string> = { 1: 'Stage 1 · Exploring', 2: 'Stage 2 · Committed' }
 
+const PLATFORM_LABELS: Record<string, string> = { android: 'Android', ios: 'iOS', web: 'Web' }
+const PLATFORM_OPTIONS = [
+  { value: '', label: 'Any platform' },
+  { value: 'android', label: 'Android' },
+  { value: 'ios', label: 'iOS' },
+  { value: 'web', label: 'Web' },
+  { value: 'unknown', label: 'Not reported yet' },
+]
+
 // Where each student is in onboarding (2026-09-02, user: "list of Sentpo users who were stuck at
 // onboarding.. so that we can help them"). Server-derived from the app's own preferences-pending
 // rule, so this column and the app's onboarding prompt always agree.
@@ -79,6 +88,7 @@ export function SentpoUsersPage() {
   const [stage, setStage] = useState<'' | '1' | '2'>('')
   const [onboarding, setOnboarding] = useState(searchParams.get('onboarding') ?? '')
   const [dormantDays, setDormantDays] = useState('')
+  const [platform, setPlatform] = useState('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
@@ -93,6 +103,7 @@ export function SentpoUsersPage() {
     stage: stage ? (Number(stage) as 1 | 2) : undefined,
     onboarding: onboarding || undefined,
     dormant_days: dormantDays ? Number(dormantDays) : undefined,
+    platform: platform || undefined,
     from: from || undefined,
     to: to || undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
@@ -120,6 +131,21 @@ export function SentpoUsersPage() {
       render: (r) => <LastLoginCell row={r} dormantAfterDays={dormantDays ? Number(dormantDays) : 30} />,
     },
     { key: 'onboarding', header: 'Onboarding', render: (r) => <OnboardingCell state={r.onboarding} /> },
+    {
+      // The app the student last opened (2026-09-03, user: "if it is Android or iOS") — reported
+      // silently by the app at session start, so it is empty until they open a build that sends it.
+      key: 'platform',
+      header: 'Platform',
+      render: (r) =>
+        r.platform ? (
+          <div>
+            <p className="text-text-primary">{PLATFORM_LABELS[r.platform] ?? r.platform}</p>
+            {r.app_version && <p className="text-caption text-text-secondary">{r.app_version}</p>}
+          </div>
+        ) : (
+          <span className="text-text-secondary">—</span>
+        ),
+    },
     {
       key: 'journey_stage',
       header: 'Journey',
@@ -155,7 +181,7 @@ export function SentpoUsersPage() {
           loading={directory.isLoading}
           error={directory.isError ? 'Could not load the Sentpo user directory.' : undefined}
           emptyMessage={
-            search || stage || onboarding || dormantDays || from || to
+            search || stage || onboarding || dormantDays || platform || from || to
               ? 'No students match these filters.'
               : 'No students have signed up yet. Every Sentpo app account appears here.'
           }
@@ -195,6 +221,20 @@ export function SentpoUsersPage() {
                 label="Onboarding"
               >
                 {ONBOARDING_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </CompactSelect>
+              <CompactSelect
+                value={platform}
+                onChange={(e) => {
+                  setPlatform(e.target.value)
+                  resetPaging()
+                }}
+                label="Platform"
+              >
+                {PLATFORM_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>

@@ -15,6 +15,17 @@ type ArticleRow = PulseData['top_articles'][number]
 type ConsultancyRow = PulseData['top_consultancies'][number]
 type SearchCountryRow = PulseData['top_search_countries'][number]
 type SearchFieldRow = PulseData['top_search_fields'][number]
+type CountryRow = PulseData['student_countries'][number]
+
+// Who the students are (2026-09-03, user: "if it is Android or iOS" / "country of different
+// users… country of residence"). Both over the students who signed in inside the window, so the
+// cards follow the same 7/30/90 switch as everything else here.
+const PLATFORM_LABELS: Record<string, string> = { android: 'Android', ios: 'iOS', web: 'Web', unknown: 'Not reported yet' }
+
+const countryColumns: TableColumn<CountryRow>[] = [
+  { key: 'country', header: 'Country of residence', render: (r) => r.country },
+  { key: 'count', header: 'Students', align: 'right', render: (r) => r.count },
+]
 
 const WINDOWS: PlatformPulseWindow[] = [7, 30, 90]
 
@@ -176,6 +187,34 @@ export function PlatformPulsePage() {
             sections={data.imminow_sections}
             collectingSince={data.collecting_since}
           />
+        </div>
+
+        <div className="grid grid-cols-1 gap-lg lg:grid-cols-2">
+          <Card>
+            <h2 className="text-h3 text-text-primary">Students by Platform</h2>
+            <p className="text-caption text-text-secondary">
+              The app each active student last opened — {data.active_students} signed in within this window. "Not reported
+              yet" means the student hasn't opened a build that sends it.
+            </p>
+            <div className="mt-sm">
+              {data.student_platforms.length === 0 ? (
+                <p className="text-body-sm text-text-secondary">{sparse}</p>
+              ) : (
+                <DoughnutChart
+                  data={data.student_platforms.map((s) => ({ label: PLATFORM_LABELS[s.platform] ?? s.platform, value: s.count }))}
+                />
+              )}
+            </div>
+          </Card>
+          <Card>
+            <h2 className="text-h3 text-text-primary">Students by Country</h2>
+            <p className="text-caption text-text-secondary">
+              Country of residence from each student's profile, for the same active students. "Unknown" = residence not set.
+            </p>
+            <div className="mt-sm">
+              <Table bare columns={countryColumns} rows={data.student_countries} rowKey={(r) => r.country} emptyMessage={sparse} />
+            </div>
+          </Card>
         </div>
 
         <div className="grid grid-cols-1 gap-lg lg:grid-cols-2">

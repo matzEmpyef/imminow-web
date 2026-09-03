@@ -833,6 +833,13 @@ export interface paths {
                          *     A body containing ONLY this field is a system write, and the server must not run the profile-completion milestone check on it. Nobody is looking at a screen, and the response is discarded — letting it award would consume the once-only milestone and rob the student of the celebration an earlier edit had earned. `timezone` is not a completion field, so skipping the check can never suppress an award this write itself deserved.
                          */
                         timezone?: string | null;
+                        /**
+                         * @description Which app the device is (2026-09-03) — captured silently at session start alongside `timezone`, never asked. Records the platform LAST used; per-device identity lives on push_tokens. Also a system write for the milestone rule.
+                         * @enum {string}
+                         */
+                        platform?: "android" | "ios" | "web";
+                        /** @description The app's own version string (e.g. `2.0.0+4`), sent with `platform` so a support conversation can start from what the student actually runs. */
+                        app_version?: string | null;
                     };
                 };
             };
@@ -14388,7 +14395,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Sentpo user directory (docs/PROGRESS.md §4 Step 3) — one row per student, never blended with the immiNow console directory (see /admin/users/imminow). Gated to platform_staff_administration, same as Platform Team. Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, last_login_at, name. filter[x]= accepts stage=1|2, dormant_days=<integer> (last_login_at older than N days, or never logged in), from=<date>/to=<date> over created_at (signed-up range), and onboarding=never_logged_in|stuck|onboarded|pending (2026-09-02; `pending` = the two not-onboarded states together, which is what the Platform Dashboard's Stuck at Onboarding card links to). search matches name and email. */
+        /** Sentpo user directory (docs/PROGRESS.md §4 Step 3) — one row per student, never blended with the immiNow console directory (see /admin/users/imminow). Gated to platform_staff_administration, same as Platform Team. Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, last_login_at, name. filter[x]= accepts stage=1|2, dormant_days=<integer> (last_login_at older than N days, or never logged in), from=<date>/to=<date> over created_at (signed-up range), and onboarding=never_logged_in|stuck|onboarded|pending platform=android|ios|web|unknown (2026-09-03, the app the student last opened), and (2026-09-02; `pending` = the two not-onboarded states together, which is what the Platform Dashboard's Stuck at Onboarding card links to). search matches name and email. */
         get: {
             parameters: {
                 query?: {
@@ -17558,6 +17565,13 @@ export interface components {
             /** Format: date-time */
             last_login_at?: string | null;
             /**
+             * @description The app the student last opened (2026-09-03); null until the app has reported once. filter[platform]=android|ios|web|unknown.
+             * @enum {string|null}
+             */
+            platform?: "android" | "ios" | "web" | null;
+            /** @description Version string the student last reported with `platform`. */
+            app_version?: string | null;
+            /**
              * @description 1 = pre-commit (exploring or awaiting_match), 2 = committed to a consultancy. Same derivation GET /journeys/me already uses.
              * @enum {integer}
              */
@@ -17661,6 +17675,19 @@ export interface components {
             collecting_since: string;
             /** @description Echoes the resolved `window_days` query parameter back (7, 30, or 90 — 30 when omitted or invalid), so the UI can label what it's showing without re-deriving it. */
             window_days: number;
+            /** @description Students who signed in inside the window — the population the two breakdowns below are over (2026-09-03). */
+            active_students: number;
+            /** @description Active students by the app they last opened (2026-09-03). `unknown` = the app has never reported a platform. Descending by count. */
+            student_platforms: {
+                /** @enum {string} */
+                platform: "android" | "ios" | "web" | "unknown";
+                count: number;
+            }[];
+            /** @description Active students by country of residence (student_preferences. resident_country), top 10 descending; `Unknown` when never set (2026-09-03). */
+            student_countries: {
+                country: string;
+                count: number;
+            }[];
             /** @description `screen_viewed` events within the window, grouped by `properties.module`, restricted to rows whose server-derived `product` is `sentpo` (the student mobile app) — students and console staff are never blended into one list (AnalyticsEvent's own recorded principle: a purpose-built column can't answer a question nobody asked, and blending two populations answers no question at all). Capped at 5, sorted by views descending. */
             sentpo_sections: {
                 module: string;

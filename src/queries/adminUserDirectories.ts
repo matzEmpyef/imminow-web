@@ -13,6 +13,8 @@ export interface SentpoUserDirectoryFilters {
   /** never_logged_in | stuck | onboarded, or `pending` for both not-onboarded states. */
   onboarding?: string
   dormant_days?: number
+  /** android | ios | web | unknown — the app the student last opened (2026-09-03). */
+  platform?: string
   from?: string
   to?: string
   sort?: string
@@ -29,6 +31,7 @@ export function useSentpoUserDirectory(filters: SentpoUserDirectoryFilters = {})
       if (filters.stage) filter.stage = String(filters.stage)
       if (filters.onboarding) filter.onboarding = filters.onboarding
       if (filters.dormant_days) filter.dormant_days = String(filters.dormant_days)
+      if (filters.platform) filter.platform = filters.platform
       if (filters.from) filter.from = filters.from
       if (filters.to) filter.to = filters.to
 
