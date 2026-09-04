@@ -82,7 +82,7 @@ export function QuizBrandingModal({ event, onClose }: { event: Event; onClose: (
           label="In-quiz banner image"
           value={inQuizBanner}
           onChange={setInQuizBanner}
-          hint="Thin strip above the question. Ideal size 320×50px."
+          hint="The only image shown DURING the quiz — a thin strip above every question. Also used as the background of the quiz's Happening Now card on Home. Ideal size 320×50px."
         />
         <ImageUploadField
           label="Results screen image"
