@@ -19,8 +19,10 @@ import { type Event } from './quizShared'
 // (user: "We should be able to upload the image. No point just giving image name.. these are not
 // mandatory images") — each placement stays independently optional, with a Remove (X) affordance
 // once one is set. Ideal-size hints added the same day for Pre-load screen (320×250px) and
-// In-quiz banner (320×50px) per the user's own numbers; Results screen has none since none were
-// given.
+// In-quiz banner (320×50px) per the user's own numbers; Results screen had none since none were
+// given. Re-dimensioned 2026-09-04 (user): Pre-load and Results share one 8:5 card size
+// (640×400) so the same creative works on both screens, and the In-quiz banner is 8:3 (640×240)
+// so one upload fits both the strip above the question counter and the Happening Now card on Home.
 export function QuizBrandingModal({ event, onClose }: { event: Event; onClose: () => void }) {
   const updateEvent = useUpdateEvent(event.id!)
   const branding = (event.branding ?? {}) as Record<string, unknown>
@@ -76,19 +78,19 @@ export function QuizBrandingModal({ event, onClose }: { event: Event; onClose: (
           label="Pre-load screen image"
           value={preloadScreen}
           onChange={setPreloadScreen}
-          hint="Portrait card shown before the quiz starts. Ideal size 320×250px."
+          hint="640×400px (8:5), the same size as the Results screen image. Shown on the Ready screen before the quiz starts."
         />
         <ImageUploadField
           label="In-quiz banner image"
           value={inQuizBanner}
           onChange={setInQuizBanner}
-          hint="The only image shown DURING the quiz — a thin strip above every question. Also used as the background of the quiz's Happening Now card on Home. Ideal size 320×50px."
+          hint="640×240px (8:3). The only image shown DURING the quiz — a banner above the question counter on every question. Also used as the background of the quiz's Happening Now card on Home."
         />
         <ImageUploadField
           label="Results screen image"
           value={resultsScreen}
           onChange={setResultsScreen}
-          hint="Shown with the student's score. Ideal size 320×250px."
+          hint="640×400px (8:5), the same size as the Pre-load screen image. Shown with the student's score."
         />
       </form>
     </Modal>
