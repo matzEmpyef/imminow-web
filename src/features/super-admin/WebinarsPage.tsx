@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { Pencil } from 'lucide-react'
+import { EventListingToggle } from '@/features/super-admin/EventListingToggle'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { SelectField } from '@/components/SelectField'
 import { Button } from '@/components/Button'
@@ -271,6 +272,7 @@ export function WebinarsPage() {
           >
             <Pencil className="h-4 w-4" />
           </button>
+          <EventListingToggle event={e} />
         </div>
       ),
     },

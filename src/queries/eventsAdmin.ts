@@ -39,7 +39,9 @@ export function useCreateEvent() {
 export function useUpdateEvent(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (body: Partial<EventInput>) => {
+    // `listed` (2026-09-04): false unlists the event for students, true restores it — a PATCH-only
+    // field, so it sits beside EventInput rather than inside it.
+    mutationFn: async (body: Partial<EventInput> & { listed?: boolean }) => {
       // Static message, not `error.error.message` — this PATCH's response schema only declares
       // 200, no error variant, so `error` types as `never` here (same reason every other
       // mutation hook in this codebase already throws a static string instead of reading a

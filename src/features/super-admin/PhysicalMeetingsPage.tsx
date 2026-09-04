@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { Pencil } from 'lucide-react'
+import { EventListingToggle } from '@/features/super-admin/EventListingToggle'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
@@ -245,6 +246,7 @@ export function PhysicalMeetingsPage() {
           >
             <Pencil className="h-4 w-4" />
           </button>
+          <EventListingToggle event={e} />
         </div>
       ),
     },

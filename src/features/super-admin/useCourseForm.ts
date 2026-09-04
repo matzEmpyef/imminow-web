@@ -28,6 +28,8 @@ export interface CourseFormValue {
   setDurationMonths: (v: string) => void
   credentials: string
   setCredentials: (v: string) => void
+  courseUrl: string
+  setCourseUrl: (v: string) => void
   language: string
   setLanguage: (v: string) => void
   benefits: string
@@ -127,6 +129,7 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
     editingCourse?.duration_months != null ? String(editingCourse.duration_months) : '',
   )
   const [credentials, setCredentials] = useState(editingCourse?.credentials ?? '')
+  const [courseUrl, setCourseUrl] = useState(editingCourse?.course_url ?? '')
   const [language, setLanguage] = useState(editingCourse?.language ?? '')
   const [benefits, setBenefits] = useState(editingCourse?.benefits ?? '')
 
@@ -270,6 +273,7 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
       eligibility,
       intakes,
       credentials,
+      course_url: courseUrl.trim() || null,
       language,
       campus_ids: campusIds,
     }
@@ -290,6 +294,8 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
     setDurationMonths,
     credentials,
     setCredentials,
+    courseUrl,
+    setCourseUrl,
     language,
     setLanguage,
     benefits,

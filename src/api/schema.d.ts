@@ -10154,6 +10154,8 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
+                        /** @description false unlists (soft-deletes) the event for students; true restores it. */
+                        listed?: boolean;
                         title?: string;
                         description?: string | null;
                         /** Format: date-time */
@@ -15789,6 +15791,11 @@ export interface components {
             eligibility?: string;
             intakes?: string[];
             credentials?: string;
+            /**
+             * Format: uri
+             * @description Optional link to the course on the college's own site (2026-09-04). The app shows it as "Visit course page" and opens it in the phone's default browser.
+             */
+            course_url?: string | null;
             /** @description Language of teaching. Required at capture time in the admin form since 2026-08-21 (user, courses-module discussion) — surfaces as a search filter and on course cards. */
             language?: string;
             campus_ids?: components["schemas"]["UUID"][];
@@ -15946,6 +15953,11 @@ export interface components {
             eligibility?: string;
             intakes?: string[];
             credentials?: string;
+            /**
+             * Format: uri
+             * @description Optional link to the course on the college's own site (2026-09-04). The app shows it as "Visit course page" and opens it in the phone's default browser.
+             */
+            course_url?: string | null;
             language?: string;
             campus_ids?: components["schemas"]["UUID"][];
             active?: boolean;
@@ -16536,6 +16548,11 @@ export interface components {
             };
             /** @description Quiz only — admin can void a published quiz, reversing any points already awarded (build reference 1.13). */
             voided?: boolean;
+            /**
+             * @description Soft delete for webinars and physical meetings (2026-09-04). false removes the event from the student app (list and detail) while staff keep it, with RSVPs and attendance intact, and can restore it. Set via PATCH /events/{id}.
+             * @default true
+             */
+            listed: boolean;
             /** @description Quiz only (user-requested, 2026-08-15) — computed, never stored. `!voided && questions.length >= questions_per_attempt`. A quiz is created inactive with zero questions (two-step creation — see POST /events) and flips to active on its own once the pool catches up; there's no admin toggle for this. */
             readonly active?: boolean | null;
             /** @description Participation points (user-requested, 2026-08-15) — overrides the generic earn-rule value for this specific event, credited to everyone who completes it regardless of leaderboard position. Distinct from position_prizes below, which is rank-based and optional. */
