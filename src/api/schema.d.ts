@@ -996,6 +996,123 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/profile/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request a copy of my data — self-serve right to access (FR-018)
+         * @description The signed-in user's own data-access request. Same job as the support-mediated
+         *     `POST /users/{id}/export`, scoped to the caller: the export is generated in the background
+         *     and delivered to the account's verified email address, so the app never streams personal
+         *     data to the device. A second request while one is still queued returns the same export_id
+         *     (idempotent within the window). Added 2026-09-04 for the app-store privacy requirements —
+         *     Apple 5.1.1 and Google Play's User Data policy expect a self-serve path, not a support ticket.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Export job queued; the file is emailed when ready */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            export_id: components["schemas"]["UUID"];
+                            /** @enum {string} */
+                            status: "queued";
+                            /**
+                             * Format: email
+                             * @description Where the export will be sent, masked for display (e.g. a***l@example.com).
+                             */
+                            delivery_email?: string | null;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profile/erase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete my account — self-serve right to erasure (FR-019/020)
+         * @description The signed-in user's own account deletion. Runs the same erasure as the Super Admin's
+         *     `POST /users/{id}/erase` (hard-delete of profile PII, anonymisation of business records,
+         *     30-day completion window, build reference 1.4) but for the caller, with no reason
+         *     required. Every session for the account is revoked immediately, so the app must treat a
+         *     202 as a completed logout. The FR-020 lockout guard still applies: the sole Consultancy
+         *     Admin or sole active Super Admin gets a 409 and must hand the role over first. Required by
+         *     Apple App Store Review Guideline 5.1.1(v) and Google Play's account-deletion policy.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @description Optional — why the user is leaving, for the product team; never required. */
+                        reason?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Erasure job queued — 30-day completion window; all sessions revoked */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            status: "erasure_queued";
+                        };
+                    };
+                };
+                /** @description Sole Admin/Super Admin lockout guard triggered (FR-020) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/walkthrough-seen": {
         parameters: {
             query?: never;
