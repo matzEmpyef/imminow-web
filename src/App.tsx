@@ -28,6 +28,9 @@ import { Skeleton } from '@/components/QueryState'
 const ForgotPasswordPage = lazy(() =>
   import('@/features/auth/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })),
 )
+const GuardianApprovalPage = lazy(() =>
+  import('@/features/guardian/GuardianApprovalPage').then((m) => ({ default: m.GuardianApprovalPage })),
+)
 const ResetPasswordPage = lazy(() =>
   import('@/features/auth/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })),
 )
@@ -290,6 +293,10 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        {/* Public, no account: the page a parent opens from the message Sentpo sent them to
+            approve a 16- or 17-year-old's account (2026-09-05). Sits with login and password
+            reset because it is the same kind of route — reachable with no session at all. */}
+        <Route path="/guardian/:token" element={<GuardianApprovalPage />} />
         <Route path="/set-password/:token" element={<SetPasswordPage />} />
         <Route element={<ProtectedLayout />}>
           <Route path="/account" element={<MyAccountPage />} />

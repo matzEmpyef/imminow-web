@@ -26,6 +26,37 @@ export function useExportUserData() {
   })
 }
 
+// The escalation behind the guardian flow (2026-09-05): a 16- or 17-year-old whose parent
+// declined twice, or who mistyped an address and used their one retry, cannot send another link
+// themselves. Support can, and doing so clears the decline count — that IS the point of the
+// escalation. Mandatory reason, audit-logged, like every other action on this page.
+export function useResendGuardianLink() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      reason,
+      guardian_name,
+      email,
+      phone,
+    }: {
+      id: string
+      reason: string
+      guardian_name?: string
+      email?: string
+      phone?: string
+    }) => {
+      const { data, error } = await api.POST('/users/{id}/guardian-consent/resend', {
+        params: { path: { id } },
+        body: { reason, guardian_name, email, phone },
+      })
+      if (error) throw new ApiError('Could not send the guardian link again.', error)
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user-search'] }),
+  })
+}
+
 export function useUpdateUserEmail() {
   const queryClient = useQueryClient()
   return useMutation({

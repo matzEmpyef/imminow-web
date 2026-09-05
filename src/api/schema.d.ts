@@ -541,6 +541,11 @@ export interface paths {
                         signup_token: string;
                         first_name: string;
                         last_name: string;
+                        /**
+                         * Format: date
+                         * @description Required since 2026-09-05. Under 16 is refused with 422 `below_minimum_age`; 16 and 17 create the account in the waiting state described by `GuardianConsent`. Immutable afterwards.
+                         */
+                        date_of_birth: string;
                         /** Format: email */
                         email?: string | null;
                         phone?: string | null;
@@ -569,6 +574,15 @@ export interface paths {
                 };
                 /** @description `identifier_in_use` — the optional second identifier belongs to an existing account. detail carries the masked login identifier of that account. */
                 409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `below_minimum_age` — the date of birth puts this person under 16, the floor below which Sentpo does not open an account at all (user decision, 2026-09-05). Nothing is created. */
+                422: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1098,6 +1112,295 @@ export interface paths {
                 };
                 /** @description Sole Admin/Super Admin lockout guard triggered (FR-020) */
                 409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profile/guardian": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Name a parent or guardian and send them the approval link
+         * @description The student's own call, for a 16- or 17-year-old whose account is waiting (2026-09-05). Accepts a guardian's name and exactly one of `email` or `phone`, mints a single-use token, and sends the link on that channel.
+         *     Calling it again replaces a pending request, which is how a mistyped address is fixed; after a decline it consumes one of `retries_remaining` and 409s at zero. 403 for anyone whose `guardian_consent.status` is `not_required` or already `approved`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        guardian_name: string;
+                        /** Format: email */
+                        email?: string | null;
+                        phone?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Link sent (or accepted and queued, see delivery_pending) */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GuardianConsent"];
+                    };
+                };
+                /** @description Missing name, or neither/both of email and phone. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description This account does not need a guardian, or already has one. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `guardian_retries_exhausted` — a guardian has already declined twice. Support has to step in. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guardian-consent/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the guardian's approval page shows (public, no account)
+         * @description Deliberately unauthenticated: a parent has no Sentpo account and must not need one to answer. The token is the only credential, is single-use for the decision, expires after seven days, and is stored hashed. An unknown, spent or expired token returns 404 rather than saying which — a probe learns nothing.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The request to approve */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GuardianConsentPrompt"];
+                    };
+                };
+                /** @description Unknown, already answered, or expired. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Guardian approves or declines (public, no account)
+         * @description Records the decision against the student's account. The token is NOT burned: it stops being able to decide anything the moment the status leaves `pending`, which is what stops a forwarded link being answered twice, but the guardian keeps one durable link that shows what they agreed to and withdraws it later. `approve` lifts the restrictions immediately; `decline` leaves the student browsing with one retry.
+         *     `confirms_adult_guardian` must be true. It is a self-declaration, not proof: clicking a link proves control of a mailbox and nothing more. `method` is stored on the record so a stronger check (a DigiLocker age token, which the draft DPDP rules point to) can replace this step later without changing the flow around it.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        decision: "approve" | "decline";
+                        guardian_name: string;
+                        confirms_adult_guardian: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Decision recorded */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GuardianConsentPrompt"];
+                    };
+                };
+                /** @description Missing decision, name, or the adult confirmation. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unknown, already answered, or expired. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guardian-consent/{token}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guardian withdraws a previous approval (public, no account)
+         * @description Reached from the same link the guardian used to approve. Withdrawal is a right, not a favour, so it asks nothing beyond possession of that link. The account returns to the same restrictions as before approval and the student is told.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Consent withdrawn */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GuardianConsentPrompt"];
+                    };
+                };
+                /** @description Unknown token, or nothing to withdraw. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{id}/guardian-consent/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Support Tools — send the guardian link again
+         * @description For the student who mistyped an address and used their retry, or whose guardian declined twice. Requires the `support` permission and a reason, and is audit-logged like every other Support Tools action. Optionally replaces the guardian's details at the same time.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        reason: string;
+                        guardian_name?: string | null;
+                        /** Format: email */
+                        email?: string | null;
+                        phone?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Link sent again */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GuardianConsent"];
+                    };
+                };
+                /** @description Reason missing, or this user needs no guardian. */
+                400: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -14827,6 +15130,14 @@ export interface components {
              */
             readonly last_login_at?: string | null;
             /**
+             * Format: date
+             * @description Captured at sign-up (2026-09-05) and IMMUTABLE afterwards: it decides whether the account needs a guardian's approval, so a student who could edit it could lift their own gate. PATCH /profile ignores it; Support Tools corrects a genuine mistake.
+             *     Students only. `student_preferences.date_of_birth` mirrors this value for display and is no longer written by the app.
+             */
+            date_of_birth?: string | null;
+            /** @description Present on the caller's own profile. `status: not_required` for anyone 18 or over — the gate is recomputed from `date_of_birth` on every read, so a student who turns 18 while waiting is released without anything having to run. */
+            readonly guardian_consent?: components["schemas"]["GuardianConsent"];
+            /**
              * Format: date-time
              * @description When this student finished OR skipped the first-login spotlight tour (Session 37, 2026-08-30), stamped exactly once by POST /me/walkthrough-seen. Null means the tour has not run yet — Sentpo Mobile's Home screen gates the 5-stop tour on exactly this field being null on first landing after the profile fetch succeeds. Students only; always null for every other role, which has no such tour.
              */
@@ -14849,6 +15160,43 @@ export interface components {
             readonly points_awarded?: number | null;
             /** @description Human-readable companion to points_awarded ("Profile 30% complete"), written by the server at credit time. Null whenever points_awarded is. */
             readonly award_reason?: string | null;
+        };
+        /**
+         * @description Where a 16- or 17-year-old's account stands with their parent or guardian (DPDP Act 2023, which treats everyone under 18 as a child; user decision 2026-09-05). Sign-up refuses anyone under 16 outright, so this only ever describes a 16- or 17-year-old.
+         *     Until `status` is `approved` the student may browse, read and edit their own profile, but may not chat with a consultancy, commit, upload a document or RSVP to an in-person meeting. The server enforces that; the app only mirrors it.
+         */
+        GuardianConsent: {
+            /**
+             * @description `not_required` for 18 and over. `pending` once a guardian has been named and the link sent. `expired` when the link aged out unanswered; the student can send a fresh one. `withdrawn` is a guardian revoking a previous approval, which returns the account to the same restrictions as `pending`.
+             * @enum {string}
+             */
+            status: "not_required" | "pending" | "approved" | "declined" | "withdrawn" | "expired";
+            guardian_name?: string | null;
+            /** @enum {string|null} */
+            channel?: "email" | "sms" | null;
+            /** @description The guardian's address or number, masked for display back to the student. */
+            contact_masked?: string | null;
+            /** Format: date-time */
+            requested_at?: string | null;
+            /** Format: date-time */
+            responded_at?: string | null;
+            /** Format: date-time */
+            expires_at?: string | null;
+            /** @description How many more times the student may name a different guardian. One retry after a decline (user, 2026-09-05): enough for a mistyped address or the wrong relative, not enough to shop around for a permissive adult. A second decline needs Support. */
+            retries_remaining: number;
+            /** @description True when the request was accepted but the channel cannot deliver yet — today only SMS, which waits on the provider and DLT registration still open for one-time codes. The app tells the student to add an email address instead. */
+            delivery_pending?: boolean;
+        };
+        /** @description What the public approval page shows a parent who has no Sentpo account and never will. Deliberately thin: a first name and an age, never the student's contact details, address, documents or messages — a leaked link must not become a way to read a child's data. */
+        GuardianConsentPrompt: {
+            student_first_name: string;
+            student_age?: number | null;
+            guardian_name?: string | null;
+            /** @enum {string} */
+            status: "pending" | "approved" | "declined" | "withdrawn" | "expired";
+            /** Format: date-time */
+            expires_at?: string | null;
+            policy_version?: string | null;
         };
         TokenPair: {
             access_token: string;
@@ -17579,6 +17927,8 @@ export interface components {
             /** Format: email */
             email: string;
             phone?: string | null;
+            /** @description Where an under-18 student stands with their guardian, so a Support agent can see whether resending the link is the right move before they do it (2026-09-05). Null for every non-student; `not_required` for a student aged 18 or over. */
+            readonly guardian_consent?: components["schemas"]["GuardianConsent"] | null;
             /** @enum {string} */
             role: "student" | "consultancy_admin" | "consultant" | "super_admin" | "platform_staff" | "freelancer";
             /** @description Student results only — their current journey's status, if any. */

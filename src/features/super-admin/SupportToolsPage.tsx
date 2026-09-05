@@ -13,6 +13,7 @@ import { useAdminConsultancies } from '@/queries/adminConsultancies'
 import {
   useEraseUserData,
   useExportUserData,
+  useResendGuardianLink,
   useSwitchConsultancy,
   useUpdateUserEmail,
   useUserSearch,
@@ -212,6 +213,76 @@ function ExportAction({ result }: { result: UserSearchResult }) {
   )
 }
 
+// Only ever rendered for a student, since nobody else can be under 18 — but the server is the
+// one that decides, answering 400 for an adult, so a stale search row cannot cause a wrong write.
+function GuardianAction({ result }: { result: UserSearchResult }) {
+  const resend = useResendGuardianLink()
+  const [reason, setReason] = useState('')
+  const [guardianName, setGuardianName] = useState('')
+  const [email, setEmail] = useState('')
+
+  const consent = result.guardian_consent
+  // Hidden for anyone the question cannot apply to: every non-student, and any student the server
+  // reports as not_required (18 or over). Showing an inert panel would invite a Support agent to
+  // wonder whether it failed (2026-09-05).
+  if (result.role !== 'student' || !consent || consent.status === 'not_required') return null
+
+  return (
+    <ActionSection
+      title="Guardian approval"
+      description="Sends the parent or guardian link again, for a student under 18 whose guardian declined or never received it. Clears their decline count."
+    >
+      <div className="flex flex-wrap items-center gap-sm rounded-md bg-background p-sm">
+        <Badge color={consent.status === 'approved' ? 'success' : consent.status === 'declined' ? 'error' : 'warning'}>
+          {consent.status.replace(/_/g, ' ')}
+        </Badge>
+        <span className="text-body-sm text-text-secondary">
+          {consent.guardian_name
+            ? `${consent.guardian_name}${consent.contact_masked ? ` · ${consent.contact_masked}` : ''}`
+            : 'No guardian named yet.'}
+          {` · ${consent.retries_remaining} retr${consent.retries_remaining === 1 ? 'y' : 'ies'} left`}
+        </span>
+      </div>
+      <div className="grid gap-sm sm:grid-cols-2">
+        <TextField label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} />
+        <TextField
+          label="Guardian name (optional)"
+          value={guardianName}
+          onChange={(e) => setGuardianName(e.target.value)}
+        />
+      </div>
+      <TextField
+        label="Guardian email (optional — leave blank to reuse the one on file)"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
+      <div className="flex items-center justify-between gap-sm">
+        <ActionResult
+          isSuccess={resend.isSuccess}
+          isError={resend.isError}
+          successText="Link sent again."
+          errorText={resend.error?.message}
+        />
+        <Button
+          variant="secondary"
+          disabled={!reason.trim()}
+          loading={resend.isPending}
+          onClick={() =>
+            resend.mutate({
+              id: result.id!,
+              reason: reason.trim(),
+              guardian_name: guardianName.trim() || undefined,
+              email: email.trim() || undefined,
+            })
+          }
+        >
+          Resend Guardian Link
+        </Button>
+      </div>
+    </ActionSection>
+  )
+}
+
 function EraseAction({ result }: { result: UserSearchResult }) {
   const eraseData = useEraseUserData()
   const [reason, setReason] = useState('')
@@ -290,6 +361,7 @@ function ActionsPanel({ result }: { result: UserSearchResult }) {
 
       <SwitchConsultancyAction result={result} />
       <UpdateEmailAction result={result} />
+      <GuardianAction result={result} />
       <ExportAction result={result} />
       <EraseAction result={result} />
     </div>
