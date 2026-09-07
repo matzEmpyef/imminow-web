@@ -4038,6 +4038,8 @@ export interface paths {
             parameters: {
                 query?: {
                     served?: boolean;
+                    /** @description Management screens only. Disabled countries are omitted by default, which is the whole point of disabling one — every picker on both products reads this endpoint. */
+                    include_inactive?: boolean;
                 };
                 header?: never;
                 path?: never;
@@ -17721,6 +17723,8 @@ export interface components {
             /** @description Matches the shared Countries list entry exactly. */
             name: string;
             iso2?: string | null;
+            /** @description Whether the country is still OFFERED (2026-09-07). False removes it from `GET /countries` — the list every picker on both products reads — and therefore from Countries Served, campus country, target countries and the rest, while leaving every record that already names it untouched and searchable. This is the reversible alternative to `DELETE /countries/{name}`, which is a hard delete with no reference check: it destroys the country's guide (the write-up lives on this same row) and leaves existing campuses, `countries_served` and `target_countries` entries pointing at a country the platform no longer lists. */
+            active?: boolean;
             /**
              * @description ISO 4217 code. INR when nobody has set one — the platform's home market.
              * @example INR

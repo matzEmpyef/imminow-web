@@ -1,5 +1,9 @@
-import { useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { Archive, ArchiveRestore, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
+import { CompactSelect } from '@/components/CompactSelect'
+import { CountryFlag } from '@/components/CountryFlag'
+import { StopPropagation } from '@/components/StopPropagation'
+import { RichTextEditor } from '@/components/RichTextEditor'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { SelectField } from '@/components/SelectField'
 import { Button } from '@/components/Button'
@@ -19,14 +23,28 @@ import {
   useUpdatePlatformSettings,
 } from '@/queries/catalogSettings'
 import { useCreateStudyLevel, useStudyLevels, useUpdateStudyLevel } from '@/queries/studyLevels'
+import {
+  useCountrySettings,
+  useCreateCountry,
+  useDeleteCountry,
+  useSetCountryActive,
+  useUpdateCountryCurrency,
+} from '@/queries/countries'
+import {
+  useCountryContent,
+  useDeleteCountryContent,
+  useSaveCountryContent,
+  type CountryContent,
+} from '@/queries/countryContent'
 import { formatDate } from '@/lib/time'
 import type { components } from '@/api/schema'
 
 type Exam = components['schemas']['Exam']
 type ExchangeRate = components['schemas']['ExchangeRate']
 type StudyLevel = components['schemas']['StudyLevel']
+type CountrySetting = components['schemas']['CountrySetting']
 
-const TABS = ['Exams', 'Study Levels', 'Exchange Rates', 'Course Popularity'] as const
+const TABS = ['Countries', 'Exams', 'Study Levels', 'Exchange Rates', 'Course Popularity'] as const
 
 const SCORE_TYPES = [
   { value: 'band', label: 'Band (e.g. IELTS 0–9)' },
@@ -43,12 +61,15 @@ const SCORE_TYPES = [
  * compares against — display always stays in the native currency.
  */
 export function CatalogSettingsPage() {
-  const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>('Exams')
+  const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>('Countries')
 
   return (
     <AdminShell>
       <div className="flex flex-col gap-lg">
-        <h1 className="text-h1 text-text-primary">Catalog Settings</h1>
+        {/* "Settings", not "Catalog Settings" (user, 2026-09-07). The page had already grown
+            past the catalog — Countries drives Consultancy Management's Countries Served and
+            Redemption Partners' locations too, neither of which is catalog. */}
+        <h1 className="text-h1 text-text-primary">Settings</h1>
         <div className="flex gap-sm border-b border-border">
           {TABS.map((tab) => (
             <button
@@ -65,7 +86,9 @@ export function CatalogSettingsPage() {
             </button>
           ))}
         </div>
-        {activeTab === 'Exams' ? (
+        {activeTab === 'Countries' ? (
+          <CountriesTab />
+        ) : activeTab === 'Exams' ? (
           <ExamsTab />
         ) : activeTab === 'Study Levels' ? (
           <StudyLevelsTab />
@@ -76,6 +99,396 @@ export function CatalogSettingsPage() {
         )}
       </div>
     </AdminShell>
+  )
+}
+
+// The currencies a country can default to (2026-09-02). Every code the exchange-rate table
+// already holds plus the major source-market units — a country defaulting to a currency with no
+// rate would show its students every fee as nothing at all, so the list is deliberately closed
+// rather than a free-text field. INR is the platform's own fallback for a country nobody has set.
+const CURRENCY_OPTIONS = [
+  'AED', 'AUD', 'BDT', 'BRL', 'CAD', 'CHF', 'CNY', 'EGP', 'EUR', 'GBP', 'GHS', 'IDR', 'INR', 'JPY', 'KES',
+  'KRW', 'LKR', 'MAD', 'MXN', 'MYR', 'NGN', 'NPR', 'NZD', 'PHP', 'PKR', 'SAR', 'SEK', 'SGD', 'TRY', 'UGX',
+  'USD', 'VND', 'ZAR',
+]
+
+/**
+ * Countries — the shared reference list, each country's default fee currency, and its editorial
+ * guide, in one row (moved in here 2026-09-07 at the user's request; the guides had already been
+ * merged into the countries page the same day, and the countries page into Settings after it).
+ *
+ * DISABLE vs DELETE, because the difference is not obvious and one of them is destructive.
+ * Disabling drops the country from `GET /countries` — the list every picker on both products
+ * reads — so nobody can newly choose it, while every campus, `countries_served` entry and
+ * `target_countries` entry that already names it keeps working and every course in it stays
+ * searchable. Deleting is a hard delete with no reference check: it also destroys the country's
+ * guide, because the write-up lives on the same row. Disable is what an admin almost always
+ * means, so it is the row's primary control and delete is tucked behind a confirm.
+ */
+function CountriesTab() {
+  const countries = useCountrySettings()
+  const content = useCountryContent()
+  const [search, setSearch] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [editingGuide, setEditingGuide] = useState<string | null>(null)
+
+  // Every country gets a row whether or not anyone has written about it — listing only the
+  // written ones would hide the gap the guide half of this tab exists to close.
+  const rows = useMemo(() => {
+    const byCountry = new Map((content.data ?? []).map((c) => [c.country, c]))
+    return (countries.data ?? []).map((country) => ({ ...country, guide: byCountry.get(country.name) }))
+  }, [countries.data, content.data])
+
+  const needle = search.trim().toLowerCase()
+  const visible = rows.filter(
+    (c) => !needle || c.name.toLowerCase().includes(needle) || (c.iso2 ?? '').toLowerCase().includes(needle),
+  )
+  const offered = rows.filter((r) => r.active !== false).length
+  const published = rows.filter((r) => r.guide?.published).length
+
+  const columns: TableColumn<(typeof rows)[number]>[] = [
+    {
+      key: 'name',
+      header: 'Country',
+      render: (row) => (
+        <span className="flex items-center gap-sm">
+          <CountryFlag iso2={row.iso2} />
+          <span className={row.active === false ? 'text-text-secondary' : 'font-medium text-text-primary'}>
+            {row.name}
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: 'iso2',
+      header: 'ISO',
+      hideBelow: 'sm',
+      render: (row) => <span className="text-text-secondary">{row.iso2 ?? '—'}</span>,
+    },
+    { key: 'currency', header: 'Default fee currency', render: (row) => <DefaultCurrencyCell row={row} /> },
+    {
+      key: 'guide',
+      header: 'Guide',
+      render: (row) =>
+        !row.guide ? (
+          <Badge color="secondary">Not written</Badge>
+        ) : row.guide.published ? (
+          <Badge color="success">Published</Badge>
+        ) : (
+          <Badge color="warning">Draft</Badge>
+        ),
+    },
+    {
+      key: 'offered',
+      header: 'Offered',
+      render: (row) => <CountryActiveToggle row={row} />,
+    },
+    {
+      key: 'actions',
+      header: '',
+      align: 'right',
+      render: (row) => (
+        <StopPropagation className="flex items-center justify-end gap-xs">
+          <button
+            type="button"
+            onClick={() => setEditingGuide(row.name)}
+            aria-label={`Edit ${row.name} guide`}
+            title="Edit guide"
+            className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <DeleteCountryTrigger country={row.name} />
+        </StopPropagation>
+      ),
+    },
+  ]
+
+  return (
+    <div className="flex flex-col gap-md">
+      <div className="flex items-start justify-between gap-md">
+        <p className="max-w-2xl text-body-sm text-text-secondary">
+          The shared list every consultancy picks from for Countries Served, and every catalog country field
+          (campuses, commission rates, redemption partners) draws from. A country&apos;s default fee currency is what
+          a student living there sees course fees in until they pick another in the app, and its guide is what they
+          read before adding it to their target countries. {offered} of {rows.length} offered, {published} guides
+          published.
+        </p>
+        <Button size="sm" onClick={() => setAdding(true)}>
+          Add Country
+        </Button>
+      </div>
+      <Table
+        columns={columns}
+        rows={visible}
+        rowKey={(row) => row.name}
+        loading={countries.isLoading || content.isLoading}
+        error={countries.isError || content.isError ? 'Could not load countries.' : undefined}
+        emptyMessage={needle ? 'No countries match.' : 'No countries yet.'}
+        search={{ value: search, onChange: setSearch, placeholder: 'Search countries…' }}
+        onRowClick={(row) => setEditingGuide(row.name)}
+      />
+      {adding && <AddCountryModal onClose={() => setAdding(false)} />}
+      {editingGuide && (
+        <GuideEditorModal
+          country={editingGuide}
+          entry={(content.data ?? []).find((c) => c.country === editingGuide)}
+          onClose={() => setEditingGuide(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function AddCountryModal({ onClose }: { onClose: () => void }) {
+  const createCountry = useCreateCountry()
+  const [name, setName] = useState('')
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!name.trim()) return
+    createCountry.mutate(name.trim(), { onSuccess: onClose })
+  }
+
+  return (
+    <Modal
+      onClose={onClose}
+      title="Add Country"
+      widthRem={26}
+      footer={
+        <>
+          {createCountry.isError && (
+            <p className="mr-auto self-center text-body-sm text-error">{createCountry.error.message}</p>
+          )}
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" form="add-country-form" loading={createCountry.isPending} disabled={!name.trim()}>
+            Add Country
+          </Button>
+        </>
+      }
+    >
+      <form id="add-country-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
+        <TextField label="Country name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <p className="text-caption text-text-secondary">
+          Adding it here offers it platform-wide — in Countries Served, campus country, commission rates, redemption
+          partner locations and the Sentpo app&apos;s target countries. Its ISO code and flag fill in from the server
+          where it knows the country; its guide can be written afterwards from this same list.
+        </p>
+      </form>
+    </Modal>
+  )
+}
+
+// Offered / not offered. A toggle rather than a menu because it is one reversible bit, and it
+// saves on change like the currency select beside it — the mutation invalidates the list, so the
+// row re-renders with what the server actually stored.
+function CountryActiveToggle({ row }: { row: CountrySetting }) {
+  const setActive = useSetCountryActive()
+  return (
+    <StopPropagation className="flex items-center gap-xs">
+      <Toggle
+        checked={row.active !== false}
+        onChange={(checked) => setActive.mutate({ name: row.name, active: checked })}
+        label={`Offer ${row.name}`}
+      />
+      {setActive.isError && <span className="text-caption text-error">Not saved</span>}
+    </StopPropagation>
+  )
+}
+
+// One row's currency control. Saves on change — a per-row "Save" button for a single select is
+// more chrome than the decision deserves.
+function DefaultCurrencyCell({ row }: { row: CountrySetting }) {
+  const update = useUpdateCountryCurrency()
+  const options = CURRENCY_OPTIONS.includes(row.default_currency)
+    ? CURRENCY_OPTIONS
+    : [row.default_currency, ...CURRENCY_OPTIONS]
+  return (
+    <StopPropagation className="flex items-center gap-xs">
+      <CompactSelect
+        label={`Default currency for ${row.name}`}
+        dense
+        value={row.default_currency}
+        disabled={update.isPending}
+        onChange={(e) => update.mutate({ name: row.name, currency: e.target.value })}
+      >
+        {options.map((code) => (
+          <option key={code} value={code}>
+            {code}
+          </option>
+        ))}
+      </CompactSelect>
+      {update.isError && <span className="text-caption text-error">Not saved</span>}
+    </StopPropagation>
+  )
+}
+
+// User-requested (2026-08-15) — "wherever there is delete, confirm popup is needed." The confirm
+// now spells out what delete does that disabling does not, because the two sit on the same row.
+function DeleteCountryTrigger({ country }: { country: string }) {
+  const deleteCountry = useDeleteCountry()
+  const [confirming, setConfirming] = useState(false)
+
+  return (
+    <>
+      <button
+        onClick={() => setConfirming(true)}
+        className="text-caption text-error hover:underline"
+        aria-label={`Remove ${country}`}
+      >
+        ✕
+      </button>
+      {confirming && (
+        <Modal
+          onClose={() => setConfirming(false)}
+          title="Remove Country"
+          widthRem={28}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setConfirming(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                loading={deleteCountry.isPending}
+                onClick={() => deleteCountry.mutate(country, { onSuccess: () => setConfirming(false) })}
+              >
+                Remove
+              </Button>
+            </>
+          }
+        >
+          <div className="flex flex-col gap-sm">
+            <p className="text-body-sm text-text-secondary">
+              Remove <span className="font-medium text-text-primary">{country}</span> from the shared list. Colleges,
+              courses and consultancies already in {country} keep working and stay searchable — but nobody can choose
+              it again, and <span className="font-medium text-text-primary">its guide is deleted with it</span>.
+            </p>
+            <p className="text-body-sm text-text-secondary">
+              To stop offering {country} without losing the write-up, switch <em>Offered</em> off instead — that is
+              reversible.
+            </p>
+          </div>
+        </Modal>
+      )}
+    </>
+  )
+}
+
+function GuideEditorModal({
+  country,
+  entry,
+  onClose,
+}: {
+  country: string
+  entry?: CountryContent
+  onClose: () => void
+}) {
+  const save = useSaveCountryContent()
+  const [summary, setSummary] = useState(entry?.summary ?? '')
+  const [bodyHtml, setBodyHtml] = useState(entry?.body_html ?? '')
+  const [published, setPublished] = useState(entry?.published ?? false)
+
+  function handleSave() {
+    save.mutate({ country, summary: summary.trim(), body_html: bodyHtml, published }, { onSuccess: () => onClose() })
+  }
+
+  return (
+    <Modal
+      onClose={onClose}
+      title={`${country} — Country Guide`}
+      widthRem={52}
+      footer={
+        <>
+          {save.isError && <p className="mr-auto self-center text-body-sm text-error">{save.error.message}</p>}
+          <div className="mr-auto flex items-center gap-sm self-center">
+            <Toggle checked={published} onChange={setPublished} label={`Publish ${country} guide`} />
+            <span className="text-body-sm text-text-secondary">
+              {published ? 'Visible to students' : 'Draft — students see nothing'}
+            </span>
+          </div>
+          {/* Deleting the WRITE-UP lives in here, not on the row: the row already carries a
+              remove-the-country control, and two destructive buttons side by side — one clearing
+              a paragraph, one unlisting a destination — is a mis-click waiting to happen. */}
+          {entry && <DeleteGuideTrigger country={country} onDeleted={onClose} />}
+          <Button onClick={handleSave} loading={save.isPending}>
+            Save
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-md">
+        <TextField
+          label="Summary"
+          value={summary}
+          onChange={(e) => setSummary(e.target.value)}
+          placeholder="One line under the country name when a student opens the guide"
+        />
+        <div className="flex flex-col gap-xs">
+          {/* A <label> can't reach a contentEditable div, so the visible caption is a span and
+              the accessible name goes in via the editor's own ariaLabel prop. */}
+          <span className="text-body-sm font-medium text-text-primary">Write-up</span>
+          <RichTextEditor
+            value={bodyHtml}
+            onChange={setBodyHtml}
+            ariaLabel="Country write-up"
+            placeholder="Why a student should consider this country — costs, work rights, what happens after they graduate…"
+          />
+          <p className="text-caption text-text-secondary">
+            Headings, bold, lists, quotes and links are kept. Anything else is stripped when you save, so the app
+            renders it the same way every time.
+          </p>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function DeleteGuideTrigger({ country, onDeleted }: { country: string; onDeleted: () => void }) {
+  const remove = useDeleteCountryContent()
+  const [confirming, setConfirming] = useState(false)
+
+  return (
+    <>
+      <Button variant="secondary" onClick={() => setConfirming(true)}>
+        Delete write-up
+      </Button>
+      {confirming && (
+        <Modal
+          onClose={() => setConfirming(false)}
+          title="Remove Country Guide"
+          widthRem={26}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setConfirming(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                loading={remove.isPending}
+                onClick={() =>
+                  remove.mutate(country, {
+                    onSuccess: () => {
+                      setConfirming(false)
+                      onDeleted()
+                    },
+                  })
+                }
+              >
+                Remove
+              </Button>
+            </>
+          }
+        >
+          <p className="text-body text-text-primary">
+            Delete the write-up for <strong>{country}</strong>? The country itself stays in the shared list. Students
+            will stop seeing the guide immediately, and the text is not recoverable.
+          </p>
+        </Modal>
+      )}
+    </>
   )
 }
 

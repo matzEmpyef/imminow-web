@@ -136,9 +136,6 @@ const CollegeDetailPage = lazy(() =>
 const InstitutionsPage = lazy(() =>
   import('@/features/super-admin/InstitutionsPage').then((m) => ({ default: m.InstitutionsPage })),
 )
-const CountriesPage = lazy(() =>
-  import('@/features/super-admin/CountriesPage').then((m) => ({ default: m.CountriesPage })),
-)
 const CatalogSettingsPage = lazy(() =>
   import('@/features/super-admin/CatalogSettingsPage').then((m) => ({ default: m.CatalogSettingsPage })),
 )
@@ -431,14 +428,18 @@ function App() {
           <Route path="/admin/colleges" element={<CollegesCoursesPage />} />
           <Route path="/admin/colleges/:id" element={<CollegeDetailPage />} />
           <Route path="/admin/course-suggestions-review" element={<CourseSuggestionsReviewPage />} />
-          <Route path="/admin/countries" element={<CountriesPage />} />
+          {/* Countries folded into Settings on 2026-09-07. Both old paths redirect rather than
+              404 — they are in bookmarks and history, and a dead end for a page that still exists
+              under another name is a worse answer than taking someone there. */}
+          <Route path="/admin/countries" element={<Navigate to="/admin/settings" replace />} />
+          <Route path="/admin/catalog-settings" element={<Navigate to="/admin/settings" replace />} />
+          <Route path="/admin/settings" element={<CatalogSettingsPage />} />
           <Route path="/admin/institutions" element={<InstitutionsPage />} />
           {/* Country Guides folded into Countries on 2026-09-07 — they were already one record.
               Kept as a redirect rather than deleted: the old path is in people's bookmarks and
               history, and a 404 for a page that still exists under another name is a worse
               answer than taking them there. */}
           <Route path="/admin/country-guides" element={<Navigate to="/admin/countries" replace />} />
-          <Route path="/admin/catalog-settings" element={<CatalogSettingsPage />} />
         </Route>
         <Route element={<PlatformLayout permission="ads" />}>
           <Route path="/admin/ads" element={<AdsManagerPage />} />

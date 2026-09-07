@@ -12,7 +12,6 @@ import {
   DollarSign,
   Gift,
   GraduationCap,
-  Globe,
   Handshake,
   HelpCircle,
   History,
@@ -119,7 +118,8 @@ const SECTIONS: AdminSection[] = [
       p.startsWith('/admin/countries') ||
       p.startsWith('/admin/institutions') ||
       p.startsWith('/admin/country-guides') ||
-      p.startsWith('/admin/catalog-settings'),
+      p.startsWith('/admin/catalog-settings') ||
+      p.startsWith('/admin/settings'),
     sidebarLinks: [
       { label: 'Colleges & Courses', path: '/admin/colleges', permission: 'catalog', icon: School },
       {
@@ -128,11 +128,10 @@ const SECTIONS: AdminSection[] = [
         permission: 'catalog',
         icon: ClipboardCheck,
       },
-      { label: 'Countries', path: '/admin/countries', permission: 'catalog', icon: Globe },
       // The student's OWN school/college, not a destination — sits under Catalog because it is
       // reference data staff curate, and carries the mapping queue.
       { label: 'Institutions', path: '/admin/institutions', permission: 'catalog', icon: School },
-      { label: 'Catalog Settings', path: '/admin/catalog-settings', permission: 'catalog', icon: SlidersHorizontal },
+      { label: 'Settings', path: '/admin/settings', permission: 'catalog', icon: SlidersHorizontal },
     ],
   },
   {

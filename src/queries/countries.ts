@@ -64,6 +64,23 @@ export function useUpdateCountryCurrency() {
   })
 }
 
+/// Disable / re-enable, the REVERSIBLE alternative to deleting. See CountrySetting.active in the
+/// contract for why an admin almost always wants this instead.
+export function useSetCountryActive() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ name, active }: { name: string; active: boolean }) => {
+      const { data, error } = await api.PATCH('/countries/{name}', {
+        params: { path: { name } },
+        body: { active },
+      })
+      if (error) throw new ApiError('Could not update this country.', error)
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['countries'] }),
+  })
+}
+
 export function useDeleteCountry() {
   const queryClient = useQueryClient()
   return useMutation({
