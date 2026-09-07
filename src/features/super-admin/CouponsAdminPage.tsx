@@ -22,8 +22,8 @@ type CouponType = NonNullable<Coupon['type']>
 
 const relevanceScopeLabels: Record<RelevanceScope, string> = {
   city: 'City',
-  district: 'District',
-  state: 'State',
+  district: 'District/County',
+  state: 'State/Province',
   country: 'Country',
 }
 
@@ -204,8 +204,8 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
           onChange={(e) => setRelevanceScope(e.target.value as RelevanceScope)}
         >
           <option value="city">City</option>
-          <option value="district">District</option>
-          <option value="state">State</option>
+          <option value="district">District/County</option>
+          <option value="state">State/Province</option>
           <option value="country">Country</option>
         </SelectField>
         <p className="text-caption text-text-secondary">

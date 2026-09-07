@@ -173,7 +173,7 @@ function CampusFormModal({
           placeholder="e.g. Toronto"
         />
         <TextField
-          label="Province/State"
+          label="State/Province"
           required
           value={provinceState}
           onChange={(e) => setProvinceState(e.target.value)}

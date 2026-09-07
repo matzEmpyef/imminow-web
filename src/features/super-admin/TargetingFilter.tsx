@@ -81,14 +81,14 @@ export function TargetingFilter({ value, onChange, countries, unknownDataPolicy,
 
       <div className="grid grid-cols-3 gap-sm">
         <MultiSelect
-          label="Province / state"
+          label="State/Province"
           options={[]}
           selected={value.state ?? []}
           onChange={(next) => set({ state: list(next) })}
           allowCustom
         />
         <MultiSelect
-          label="District / county"
+          label="District/County"
           options={[]}
           selected={value.district ?? []}
           onChange={(next) => set({ district: list(next) })}

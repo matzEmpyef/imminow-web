@@ -85,7 +85,7 @@ function CreateInstitutionModal({
           deliberate: &ldquo;The Choice School&rdquo; in Kochi and in Thiruvalla are separate schools, and a row whose
           name carries its city is unambiguous everywhere it appears. The same name in the same city is refused.
         </p>
-        <TextField label="State" value={state} onChange={(e) => setState(e.target.value)} />
+        <TextField label="State/Province" value={state} onChange={(e) => setState(e.target.value)} />
         <SelectField
           label="Type"
           id="institution-type"
@@ -169,7 +169,7 @@ export function InstitutionsPage() {
   const columns: TableColumn<Institution>[] = [
     { key: 'name', header: 'Institution', render: (i) => i.name },
     { key: 'city', header: 'City', render: (i) => i.city },
-    { key: 'state', header: 'State', render: (i) => i.state ?? '—' },
+    { key: 'state', header: 'State/Province', render: (i) => i.state ?? '—' },
     {
       key: 'type',
       header: 'Type',
