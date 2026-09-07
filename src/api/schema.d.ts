@@ -5147,7 +5147,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Start a chat with this consultancy (Stage 1, Sentpo Mobile Wave 3 — Consultancy Detail's "Start Chat" button) — creates a new Sentpo-sourced lead for the caller, or returns their existing active one with this consultancy if they already have it (never a duplicate). Max 5 concurrent active leads per student, application-enforced (erd.md). */
+        /** Start a chat with this consultancy (Stage 1, Sentpo Mobile Wave 3 — Consultancy Detail's "Start Chat" button) — creates a new Sentpo-sourced lead for the caller, or returns their existing active one with this consultancy if they already have it (never a duplicate). Max 15 concurrent active leads per student (raised from 5 on 2026-09-07), application-enforced — see `leads` in erd.md. Exceeding it is a 409 `lead_limit_reached` whose message names the number, so a client can surface the refusal without hardcoding it. */
         post: {
             parameters: {
                 query?: never;
@@ -5193,7 +5193,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Lead Chat List (Stage 1, build reference 2.2) — the caller's own up-to-5 active lead chats, most-recently-active first. Distinct from GET /leads (consultancy-side). */
+        /** Lead Chat List (Stage 1, build reference 2.2) — the caller's own up-to-15 active lead chats, most-recently-active first. Distinct from GET /leads (consultancy-side). */
         get: {
             parameters: {
                 query?: never;
