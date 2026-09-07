@@ -139,9 +139,6 @@ const InstitutionsPage = lazy(() =>
 const CountriesPage = lazy(() =>
   import('@/features/super-admin/CountriesPage').then((m) => ({ default: m.CountriesPage })),
 )
-const CountryGuidesPage = lazy(() =>
-  import('@/features/super-admin/CountryGuidesPage').then((m) => ({ default: m.CountryGuidesPage })),
-)
 const CatalogSettingsPage = lazy(() =>
   import('@/features/super-admin/CatalogSettingsPage').then((m) => ({ default: m.CatalogSettingsPage })),
 )
@@ -436,7 +433,11 @@ function App() {
           <Route path="/admin/course-suggestions-review" element={<CourseSuggestionsReviewPage />} />
           <Route path="/admin/countries" element={<CountriesPage />} />
           <Route path="/admin/institutions" element={<InstitutionsPage />} />
-          <Route path="/admin/country-guides" element={<CountryGuidesPage />} />
+          {/* Country Guides folded into Countries on 2026-09-07 — they were already one record.
+              Kept as a redirect rather than deleted: the old path is in people's bookmarks and
+              history, and a 404 for a page that still exists under another name is a worse
+              answer than taking them there. */}
+          <Route path="/admin/country-guides" element={<Navigate to="/admin/countries" replace />} />
           <Route path="/admin/catalog-settings" element={<CatalogSettingsPage />} />
         </Route>
         <Route element={<PlatformLayout permission="ads" />}>
