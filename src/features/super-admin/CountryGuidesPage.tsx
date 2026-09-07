@@ -170,7 +170,7 @@ function GuideEditorModal({
           label="Summary"
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
-          placeholder="One line shown under the country name in the picker"
+          placeholder="One line under the country name when a student opens the guide"
         />
         <div className="flex flex-col gap-xs">
           {/* A <label> can't reach a contentEditable div, so the visible caption is a span and

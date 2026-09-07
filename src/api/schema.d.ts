@@ -15372,12 +15372,17 @@ export interface components {
             accepted_at?: string;
             consultancy_id?: components["schemas"]["UUID"];
         };
+        /**
+         * @description One exam attempt. `exam_id` references the admin-managed exams catalog — the SAME key a course's `requirements.english[]`/`aptitude[]` uses, which is the point.
+         *     Until 2026-09-07 this stored a free-text NAME and the eligibility engine bridged the two sides by resolving the requirement's id to a name and comparing strings exactly. Every way that could go wrong, did: Profile offered "Duolingo" while the catalog said "Duolingo English Test", so those scores matched nothing, silently; Profile offered "SAT", which the catalog did not contain at all; and neither picker offered JEE Main, NEET, CAT, CUET or GATE, so a seeded course requiring CUET >= 90 could not be satisfied by any student alive. An id cannot drift from a rename, and the server rejects one it does not know.
+         */
         TestScoreEntry: {
-            /** @description IELTS, TOEFL, PTE, GRE, GMAT, SAT, Duolingo — free string, app offers a picker of the common ones. */
-            exam: string;
+            exam_id: components["schemas"]["UUID"];
+            /** @description The exam's display name, resolved server-side from `exam_id` — same "clients send the structured value, the server derives the summary" convention as `exam_status` and `education_level`. Sent by the server for display; anything a client sends here is ignored. */
+            readonly exam?: string;
             /** @enum {string} */
             status: "planning" | "booked" | "completed";
-            /** @description Only meaningful when status = completed; a string because exam scales differ (7.5 band vs 320 vs C1). */
+            /** @description Only meaningful when status = completed. A string because exam scales differ (a 7.5 band, a 320, a 99.4 percentile), but it is VALIDATED against the referenced exam's own `min_value`/`max_value` on write (2026-09-07): the catalog knows IELTS runs 0-9, so an 85 typed into an IELTS row is refused rather than stored and then silently skipped by the engine, which is what used to happen to anything `Number()` could not parse. */
             score?: string | null;
             /**
              * Format: date
@@ -16259,6 +16264,11 @@ export interface components {
             max_value?: number | null;
             /** @description IELTS/TOEFL/PTE ≈ 24; entrance exams are often per-cycle (null = never expires for matching purposes). */
             validity_months?: number | null;
+            /**
+             * @description No `default` here on purpose: the Dart generator emits an uncompilable `const ExamCategoryEnum._('aptitude')` for a defaulted enum. The default lives server-side, where POST /exams treats anything but `english` as `aptitude`. Which requirement block this exam belongs to, using `CourseRequirements`' OWN two words rather than a third vocabulary — `english` exams are matched by `requirements.english[]`, everything else by `requirements.aptitude[]`. Added 2026-09-07 so the Sentpo app can group a 12-item picker, and so "has this student given an English test?" stops meaning "has this student given ANY test?", which is what it meant while nothing recorded the difference (a GMAT score dismissed the add-an-English-score nudge).
+             * @enum {string}
+             */
+            category?: "english" | "aptitude";
             /** @default false */
             has_section_bands: boolean;
             /** @default true */
@@ -16271,6 +16281,8 @@ export interface components {
             min_value?: number | null;
             max_value?: number | null;
             validity_months?: number | null;
+            /** @enum {string} */
+            category?: "english" | "aptitude";
             has_section_bands?: boolean;
             active?: boolean;
         };

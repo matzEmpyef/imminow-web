@@ -139,9 +139,6 @@ const InstitutionsPage = lazy(() =>
 const CountriesPage = lazy(() =>
   import('@/features/super-admin/CountriesPage').then((m) => ({ default: m.CountriesPage })),
 )
-const StudyLevelsPage = lazy(() =>
-  import('@/features/super-admin/StudyLevelsPage').then((m) => ({ default: m.StudyLevelsPage })),
-)
 const CountryGuidesPage = lazy(() =>
   import('@/features/super-admin/CountryGuidesPage').then((m) => ({ default: m.CountryGuidesPage })),
 )
@@ -438,7 +435,6 @@ function App() {
           <Route path="/admin/colleges/:id" element={<CollegeDetailPage />} />
           <Route path="/admin/course-suggestions-review" element={<CourseSuggestionsReviewPage />} />
           <Route path="/admin/countries" element={<CountriesPage />} />
-          <Route path="/admin/study-levels" element={<StudyLevelsPage />} />
           <Route path="/admin/institutions" element={<InstitutionsPage />} />
           <Route path="/admin/country-guides" element={<CountryGuidesPage />} />
           <Route path="/admin/catalog-settings" element={<CatalogSettingsPage />} />
