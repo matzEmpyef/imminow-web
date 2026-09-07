@@ -16639,7 +16639,7 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
-        /** @description FR-007. Aggregate root — see TRD Section 2.2/8.2. Uniqueness constraint resolved in erd.md's "Resolved" section — UNIQUE (student_id) WHERE status NOT IN (closed_switched, closed_completed). Field names below are final. */
+        /** @description FR-007. Aggregate root — see TRD Section 2.2/8.2. Uniqueness constraint resolved in erd.md's "Resolved" section — UNIQUE (student_id) WHERE status NOT IN (closed, closed_switched, closed_completed). `closed` joined that list on 2026-09-07 — it is a terminal state set by POST /clients/{id}/close, but every reader treated it as live, so a student whose consultancy closed on them was stranded on a dead Stage 2 case and could never commit to anyone else. A failed case now returns them to Stage 1. Field names below are final. */
         Journey: {
             id: components["schemas"]["UUID"];
             student_id: components["schemas"]["UUID"];
