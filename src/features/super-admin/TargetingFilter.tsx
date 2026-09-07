@@ -3,7 +3,7 @@ import { useInstitutions, institutionLabel } from '@/queries/institutions'
 import { MultiSelect } from '@/components/MultiSelect'
 import { SelectField } from '@/components/SelectField'
 import { TextField } from '@/components/TextField'
-import { STUDY_LEVELS, studyLevelLabel, type StudyLevel } from '@/lib/studyLevels'
+import { useStudyLevels } from '@/queries/studyLevels'
 import { GENDERS, genderLabel, type Gender } from '@/lib/genders'
 
 
@@ -42,6 +42,8 @@ export function TargetingFilter({ value, onChange, countries, unknownDataPolicy,
   // Keyed by id, labelled "Name — City": two schools share the name "The Choice School", so a
   // label without its city would make the two rows indistinguishable in this list.
   const institutionById = new Map((institutions.data?.items ?? []).map((i) => [i.id, institutionLabel(i)]))
+  const studyLevels = useStudyLevels().data ?? []
+  const studyLevelLabels = new Map(studyLevels.map((level) => [level.code, level.label]))
   // Every field is optional in the contract, so a patch merges onto whatever is already set.
   const set = (patch: Partial<Targeting>) => onChange({ ...value, ...patch })
 
@@ -129,14 +131,19 @@ export function TargetingFilter({ value, onChange, countries, unknownDataPolicy,
         </p>
       </div>
 
+      {/*
+        The server-managed ladder since 2026-09-07 — the same list the course form and the Sentpo
+        app read, not a copy. It was a hardcoded seven here, and before that free text; targeting
+        on a level the students' own column never holds is an audience of zero with nothing to say
+        so. Still closed (no allowCustom): the server rejects any code outside the ladder, and the
+        control should not be able to author a request the server will refuse.
+      */}
       <MultiSelect
-        label="Study level"
-        options={STUDY_LEVELS}
+        label="Target study level"
+        options={studyLevels.map((level) => level.code)}
         selected={value.study_level ?? []}
-        // Closed to STUDY_LEVELS with no allowCustom, so every value the control can emit is a
-        // StudyLevel and the assertion is sound.
-        onChange={(next) => set({ study_level: list(next) as StudyLevel[] | undefined })}
-        renderLabel={studyLevelLabel}
+        onChange={(next) => set({ study_level: list(next) })}
+        renderLabel={(code) => studyLevelLabels.get(code) ?? code}
       />
 
       <div className="grid grid-cols-2 gap-sm">

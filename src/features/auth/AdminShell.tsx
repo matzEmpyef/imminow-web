@@ -20,6 +20,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   ListChecks,
+  ListOrdered,
   MapPin,
   Megaphone,
   MessageSquareWarning,
@@ -117,6 +118,7 @@ const SECTIONS: AdminSection[] = [
       p.startsWith('/admin/colleges') ||
       p.startsWith('/admin/course-suggestions-review') ||
       p.startsWith('/admin/countries') ||
+      p.startsWith('/admin/study-levels') ||
       p.startsWith('/admin/institutions') ||
       p.startsWith('/admin/country-guides') ||
       p.startsWith('/admin/catalog-settings'),
@@ -129,6 +131,9 @@ const SECTIONS: AdminSection[] = [
         icon: ClipboardCheck,
       },
       { label: 'Countries', path: '/admin/countries', permission: 'catalog', icon: Globe },
+      // The ladder a course's Level and a student's Target study level BOTH read from — reference
+      // data, so it sits beside Countries rather than in Settings.
+      { label: 'Study Levels', path: '/admin/study-levels', permission: 'catalog', icon: ListOrdered },
       // The student's OWN school/college, not a destination — sits under Catalog because it is
       // reference data staff curate, and carries the mapping queue.
       { label: 'Institutions', path: '/admin/institutions', permission: 'catalog', icon: School },

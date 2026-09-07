@@ -8,6 +8,7 @@ import { SelectField } from '@/components/SelectField'
 import { Table, type TableColumn } from '@/components/Table'
 import { useCourseSuggestions, useSuggestNewCourse } from '@/queries/courseSuggestions'
 import { usePartnerColleges } from '@/queries/partnerColleges'
+import { useStudyLevels } from '@/queries/studyLevels'
 import { formatDate } from '@/lib/time'
 
 const STATUS_COLOR = { pending: 'warning', approved: 'success', rejected: 'error' } as const
@@ -67,6 +68,7 @@ function SuggestNewCourseModal({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('')
   const [collegeId, setCollegeId] = useState('')
   const [level, setLevel] = useState('')
+  const { data: studyLevels } = useStudyLevels()
   const [fieldOfStudy, setFieldOfStudy] = useState('')
 
   const selectedCollege = activeColleges.find((c) => c.id === collegeId)
@@ -125,7 +127,21 @@ function SuggestNewCourseModal({ onClose }: { onClose: () => void }) {
             ))}
           </SelectField>
         )}
-        <TextField label="Level" value={level} onChange={(e) => setLevel(e.target.value)} placeholder="e.g. masters" />
+        {/*
+          The shared ladder, not free text (2026-09-07). An approved suggestion is copied
+          straight into the catalogue, so "MSc" typed here used to become a course level the
+          student app's filter — which offered a hardcoded, title-cased four — could never
+          match. The server rejects unknown codes now; this picker is what stops a consultancy
+          hitting that rejection in the first place.
+        */}
+        <SelectField label="Level" value={level} onChange={(e) => setLevel(e.target.value)}>
+          <option value="">Not set</option>
+          {(studyLevels ?? []).map((l) => (
+            <option key={l.code} value={l.code}>
+              {l.label}
+            </option>
+          ))}
+        </SelectField>
         <TextField label="Field of study" value={fieldOfStudy} onChange={(e) => setFieldOfStudy(e.target.value)} />
         {suggestNew.isError && <p className="text-body-sm text-error">{suggestNew.error.message}</p>}
       </form>

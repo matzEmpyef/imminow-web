@@ -6,6 +6,7 @@ import { FieldLabel } from '@/components/FieldLabel'
 import type { components } from '@/api/schema'
 import { CURRENCIES, MONTHS, SELECT_CLASS, TEXTAREA_CLASS, type AptitudeReq, type EnglishReq } from './courseFormShared'
 import type { CourseFormValue } from './useCourseForm'
+import { useStudyLevels } from '@/queries/studyLevels'
 
 type College = components['schemas']['College']
 type Exam = components['schemas']['Exam']
@@ -22,6 +23,7 @@ type Exam = components['schemas']['Exam']
 const panelClass = (hidden: boolean) => (hidden ? 'hidden' : 'flex flex-col gap-md')
 
 export function CourseBasicsPanel({ hidden, form }: { hidden: boolean; form: CourseFormValue }) {
+  const { data: studyLevels } = useStudyLevels()
   return (
     <div className={panelClass(hidden)}>
       <TextField label="Course name" required value={form.name} onChange={(e) => form.setName(e.target.value)} />
@@ -36,12 +38,29 @@ export function CourseBasicsPanel({ hidden, form }: { hidden: boolean; form: Cou
         />
       </div>
       <div className="grid grid-cols-2 gap-sm">
-        <TextField
-          label="Level"
-          value={form.level}
-          onChange={(e) => form.setLevel(e.target.value)}
-          placeholder="e.g. masters"
-        />
+        {/*
+          A dropdown off the shared ladder since 2026-09-07, not a text box. As free text this
+          field could hold "Masters", "MSc" or "PG" while the student app filtered against a
+          hardcoded, title-cased four — a course typed either of the last two was invisible to
+          every student who filtered by level, and nothing reported it. The server now rejects
+          codes outside the table, so the picker is not the only guard, just the one that keeps
+          an admin from meeting the guard.
+        */}
+        <SelectField label="Level" value={form.level} onChange={(e) => form.setLevel(e.target.value)}>
+          <option value="">Not set</option>
+          {(studyLevels ?? [])
+            .filter((level) => level.active !== false || level.code === form.level)
+            .map((level) => (
+              <option key={level.code} value={level.code}>
+                {level.label}
+              </option>
+            ))}
+          {/* A level saved before the table existed still shows, so editing another field on
+              that course does not silently blank it. */}
+          {form.level && !(studyLevels ?? []).some((level) => level.code === form.level) && (
+            <option value={form.level}>{form.level} (not in the list)</option>
+          )}
+        </SelectField>
         <TextField
           label="Field of study"
           value={form.fieldOfStudy}

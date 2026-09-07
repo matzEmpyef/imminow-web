@@ -3886,6 +3886,146 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/study-levels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The education ladder — every rung both the student's target level and a course's level draw from (2026-09-07)
+         * @description Ordered by `sort_order`. Any authenticated caller may read it; the Sentpo app uses it for the Target study level picker and both course-search level filters, and immiNow uses it for a course's Level. Managing the list needs the `catalog` platform permission — the same gate as `/countries`, its sibling reference list, since the people who enter colleges and courses are the people who need a rung.
+         *     Inactive rungs are omitted unless `include_inactive=true`, which immiNow's management screen passes so an admin can see and reactivate what has been retired.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    include_inactive?: boolean;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StudyLevel"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Add a rung (platform catalog permission) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        code: string;
+                        label: string;
+                        sort_order?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StudyLevel"];
+                    };
+                };
+                /** @description That code already exists */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/study-levels/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Rename, reorder or retire a rung (platform catalog permission)
+         * @description `code` is not editable — see the schema. Setting `active: false` retires a rung, and is REFUSED with 409 while any course or any student preference still references it: a rung that vanishes from the table while rows point at it turns a filter into a silent under-report, which is the failure this whole table exists to prevent.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    code: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        label?: string;
+                        sort_order?: number;
+                        active?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StudyLevel"];
+                    };
+                };
+                /** @description No such code */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Still referenced by courses or student preferences */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        trace?: never;
+    };
     "/countries": {
         parameters: {
             query?: never;
@@ -7757,7 +7897,7 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        /** @description The proposed new course's fields (name, level, field_of_study, fee, etc. — same shape as Course, minus id). */
+                        /** @description The proposed new course's fields (name, level, field_of_study, fee, etc. — same shape as Course, minus id). `level`, if present, must be a `StudyLevel.code` from `GET /study-levels` — an approved suggestion is copied straight into the course catalogue, so an unknown level here would become a course no student's level filter can match. */
                         payload: {
                             [key: string]: unknown;
                         };
@@ -12328,7 +12468,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    study_level?: ("10th" | "11th" | "12th" | "diploma" | "bachelors" | "masters" | "phd")[];
+                    study_level?: string[];
                     target_country?: string[];
                     /** @description Resolved from `student_preferences.resident_country` by user id, NOT from the lead's or journey's embedded preferences snapshot — the same source the serve path reads, so the estimate cannot disagree with the ad's actual reach. */
                     resident_country?: string[];
@@ -15250,14 +15390,31 @@ export interface components {
             company?: string | null;
             years?: number | null;
         };
+        /** @description One rung of the education ladder, managed by Super Admins rather than compiled into the clients (2026-09-07). Both `StudentPreferences.study_level` (what a student is aiming at) and `Course.level` (what a course teaches at) reference `code`, because search and matching compare the two directly. */
+        StudyLevel: {
+            /** @description IMMUTABLE and never reused. Renaming a rung changes `label`; changing `code` would orphan every course and every student preference already carrying it, silently, with no error anywhere — which is exactly the class of failure this table exists to end. */
+            code: string;
+            /** @description What people see. Editable, because wording changes and meaning does not. */
+            label: string;
+            /** @description Display order. Explicit because the ladder is not alphabetical — bachelors before masters before phd is the only order that reads as a ladder. */
+            sort_order?: number;
+            /**
+             * @description Retired rungs stay in the table so historical rows still resolve to a label; they simply stop being offered. There is no delete: see `DELETE` absence on `/study-levels/{code}`.
+             * @default true
+             */
+            active: boolean;
+            /** @description How many visible courses currently teach at this rung. The Sentpo app pre-fills its course-search level filter from the student's own target level; this is what keeps that pre-fill from opening the screen on a guaranteed-empty result. A student aiming at `12th` has said something true about themselves, but if the catalogue holds nothing at `12th`, seeding it would show them zero courses and no reason why. The client cannot compute this — it would need the whole catalogue — so the server says it. */
+            readonly course_count?: number;
+        };
         /** @description FR-022 — the flexible, none-mandatory preference pool. */
         StudentPreferences: {
             /**
-             * @description The education ladder, closed as of 2026-08-27. It was free text, and the seed already held `masters` while ad targeting held `Masters` — only a toLowerCase() on both sides kept that working. "10th" / "Xth" / "class 10" would all have arrived as distinct values the moment school students joined.
+             * @description What the student wants to study NEXT — a `StudyLevel.code` from `GET /study-levels`.
+             *     History matters here. This was free text until 2026-08-27, which is how the seed came to hold `masters` while ad targeting held `Masters`, working only because both sides were lowercased before comparing; "10th" / "Xth" / "class 10" would all have arrived as distinct values the moment school students joined. It was closed into an enum that day, and reopened as a SERVER-MANAGED list on 2026-09-07 — not back to free text. The server rejects any code not in the table, so the guarantee the enum gave is kept; what changes is that adding a level no longer needs an app release. That matters because the ladder is not universal: 10th and 12th mean nothing in the UK or the US, and Sentpo intends to open in more source countries.
+             *     `Course.level` draws from the SAME table, because the two are compared to each other in search and matching. Two lists here would be the 2026-08-27 bug wearing a hat.
              *     One field deliberately spans school and higher education, so targeting a class needs no separate column.
-             * @enum {string|null}
              */
-            study_level?: "10th" | "11th" | "12th" | "diploma" | "bachelors" | "masters" | "phd" | null;
+            study_level?: string | null;
             /** @description Student's own location (user request 7, 2026-08-19 — "yes add to profile"), together with district/state below. Feeds coupon relevance_scope matching (a district-scoped coupon shows only where a partner location shares the student's district) and quiz location targeting. Unknown location always PASSES both — location narrows reach, never blanks a catalog for a student who hasn't filled it in. */
             city?: string | null;
             district?: string | null;
@@ -16248,6 +16405,7 @@ export interface components {
             /** @description Read-model convenience field (user-requested, 2026-08-19) — the course's first linked campus's `Campus.country`, same resolution `GET /courses`' `filter[country]` already performs. Null if the course has no `campus_ids`. Lets the Selected Colleges "Add College" picker and its cross-country confirm check compare countries without resolving campuses client-side. */
             readonly country?: string | null;
             description?: string;
+            /** @description The level this course teaches at — a `StudyLevel.code` from `GET /study-levels`, the same table `StudentPreferences.study_level` draws from, because search matches one against the other. Free text until 2026-09-07, when immiNow's plain text box (with the placeholder "e.g. masters") was found able to store `Masters`, `MSc` or `PG` while the student-side filter offered a hardcoded, title-cased four. */
             level?: string;
             field_of_study?: string;
             duration?: string;
@@ -16410,6 +16568,7 @@ export interface components {
             name: string;
             college_id: components["schemas"]["UUID"];
             description?: string;
+            /** @description The level this course teaches at — a `StudyLevel.code` from `GET /study-levels`, the same table `StudentPreferences.study_level` draws from, because search matches one against the other. Free text until 2026-09-07, when immiNow's plain text box (with the placeholder "e.g. masters") was found able to store `Masters`, `MSc` or `PG` while the student-side filter offered a hardcoded, title-cased four. */
             level?: string;
             field_of_study?: string;
             duration?: string;
@@ -17409,8 +17568,8 @@ export interface components {
             city?: string[];
             /** @description Where the student wants to STUDY — matched against any of `student_preferences.target_countries`. Not to be confused with `resident_country` above; the two are different questions and the names are the only thing that says so. */
             target_country?: string[];
-            /** @description Matches if the student's own study_level is any of these. Closed list as of 2026-08-27, identical to StudentPreferences.study_level. */
-            study_level?: ("10th" | "11th" | "12th" | "diploma" | "bachelors" | "masters" | "phd")[];
+            /** @description Matches if the student's own study_level is any of these. `StudyLevel.code` values from `GET /study-levels`, validated server-side on every targeting write — same source as StudentPreferences.study_level, which is the point. */
+            study_level?: string[];
             /**
              * @description The student's own school or college (see /institutions). The only targeting dimension backed by a real foreign key rather than free text, which makes it the most reliable of the twelve — but a student whose typed-in school is still awaiting staff mapping has `institution_raw` set and no id, and so counts as unknown here like any other blank.
              *     That is correct behaviour, not a bug: you cannot filter on a string nobody has verified. It does mean the staff mapping queue is load-bearing — let it grow and institution filters quietly under-report, with no error anywhere to say so.
