@@ -16660,10 +16660,9 @@ export interface components {
             kyc_verified?: boolean;
             /**
              * @description Which kind of company this account is (INSTITUTE_ACCOUNT_PLAN D6, 2026-09-10). An INSTITUTE is a college or university running its own account — same record, same staff/branch/plan/chat/document machinery, same `journeys.consultancy_id` ownership, same subscription ladder and the same commission machinery (D2 as revised 2026-09-10: commission is the platform's cut of a placement, which an institute owes like any other tenant). It differs in exactly three ways, all of them server-enforced: its course catalogue is scoped to its own `college_id`, its partner colleges are one fixed row that is itself, and `applicant_transfer` is suppressed in `features`. Absent or `consultancy` on every pre-existing record. Clients render an "Institute" tag from this, and the tag must carry the consequence — a student choosing an institute is narrowing to one college.
-             * @default consultancy
              * @enum {string}
              */
-            kind: "consultancy" | "institute";
+            kind?: "consultancy" | "institute";
             /** @description The college this institute speaks for; null for every `kind: consultancy` account, and also for an institute created before its college was attached (D8's create-the-login-first direction — see `PATCH /consultancies/{id}`). At most ONE institute account per college: a second is refused 409 `college_already_linked`, because two accounts for one college would both appear in discovery as the same institution. Write-once — settable at creation or by a later PATCH while null, never moved afterwards, since moving it would silently reassign every case, application and commission entry on the account. */
             college_id?: components["schemas"]["UUID"];
             /** @description The rating to DISPLAY. Server-computed as the mean of every submitted star rating (the cooldown-gated Stage 1 `ratings`) and every Verified Review, to one decimal — unless a Super Admin override is set, in which case this is the override. Null means nobody has rated this consultancy and no override exists; render "Not rated yet", never 0. Read `rating_source` to tell the three apart. */
@@ -16743,10 +16742,9 @@ export interface components {
             tier?: "starter" | "business" | "ultimate";
             /**
              * @description See `Consultancy.kind`. A `consultancy` carrying a `college_id` is refused 400.
-             * @default consultancy
              * @enum {string}
              */
-            kind: "consultancy" | "institute";
+            kind?: "consultancy" | "institute";
             /** @description The college an institute account speaks for. Optional even for `kind: institute` — omitting it creates the account unlinked (D8's create-the-login-first direction) and `PATCH /consultancies/{id}` attaches the college later. An unlinked institute is scoped to NO catalogue at all in the meantime, which is the fail-closed reading: "not linked yet" must never resolve to "sees everything". A college that already has an institute account is refused 409 `college_already_linked`. */
             college_id?: components["schemas"]["UUID"];
             branch_address: string;

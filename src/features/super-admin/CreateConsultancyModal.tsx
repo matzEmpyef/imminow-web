@@ -6,6 +6,7 @@ import { Modal } from '@/components/Modal'
 import { TextField } from '@/components/TextField'
 import { SearchSelect } from '@/components/SearchSelect'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { useAuthStore } from '@/stores/authStore'
 import { useCreateConsultancy } from '@/queries/adminConsultancies'
 import { useAdminColleges } from '@/queries/adminColleges'
 import { useUserSearch } from '@/queries/supportTools'
@@ -40,6 +41,19 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
   // T8: one key per modal open — see the N7 payment fix for the pattern.
   const [idempotencyKey] = useState(() => crypto.randomUUID())
 
+  // ONLY A SUPER ADMIN CREATES AN INSTITUTE, and ATTACH is institute-only (user, 2026-09-10).
+  // One decision in two halves, and the second half is what makes the first work.
+  //
+  // The attach form needs to find the user, and the only endpoint that searches people is gated on
+  // `support` while creating an account is gated on `consultancy_approval`. A Super Admin holds
+  // every flag, so confining institutes to them removes the mismatch — but only once attach stops
+  // being reachable for CONSULTANCY creation too, where a staffer with `consultancy_approval`
+  // alone would meet the same empty picker. Attach exists FOR institutes (D8's create-the-login-
+  // first direction); a consultancy has always been invite-only.
+  //
+  // The server enforces both (403 and 400). This hides what the caller cannot use, so nobody
+  // fills in a form that was going to be refused.
+  const isSuperAdmin = useAuthStore((state) => state.user?.role === 'super_admin')
   const [kind, setKind] = useState<AccountKind>('consultancy')
   const [adminMode, setAdminMode] = useState<AdminMode>('invite')
   const [name, setName] = useState('')
@@ -142,12 +156,18 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
           : "One submission creates the consultancy, its primary branch, and the Consultancy Admin's invite."}
       </p>
       <form id="create-consultancy-form" onSubmit={handleSubmit} className="flex flex-col gap-lg">
+        {isSuperAdmin && (
         <SegmentedControl<AccountKind>
           label="Account type"
           value={kind}
           onChange={(next) => {
             setKind(next)
-            if (next === 'consultancy') setCollegeId('')
+            if (next === 'consultancy') {
+              setCollegeId('')
+              // Attach is institute-only, so leaving the mode behind would submit a body the
+              // server refuses with a 400 the user did nothing to deserve.
+              setAdminMode('invite')
+            }
           }}
           options={[
             {
@@ -164,6 +184,7 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
             },
           ]}
         />
+        )}
 
         <div className="flex flex-col gap-md">
           <p className="text-body-sm font-medium text-text-primary">Company Details</p>
@@ -240,16 +261,24 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
 
         <div className="flex flex-col gap-md border-t border-border pt-md">
           <p className="text-body-sm font-medium text-text-primary">First Admin</p>
-          <SegmentedControl<AdminMode>
-            label="How this account gets its first admin"
-            hideLabel
-            value={adminMode}
-            onChange={setAdminMode}
-            options={[
-              { value: 'invite', label: 'Invite a new admin', description: 'Sends them a set-password link' },
-              { value: 'attach', label: 'Attach an existing user', description: 'Someone already on the platform' },
-            ]}
-          />
+          {isInstitute ? (
+            <SegmentedControl<AdminMode>
+              label="How this account gets its first admin"
+              hideLabel
+              value={adminMode}
+              onChange={setAdminMode}
+              options={[
+                { value: 'invite', label: 'Invite a new admin', description: 'Sends them a set-password link' },
+                { value: 'attach', label: 'Attach an existing user', description: 'Someone already on the platform' },
+              ]}
+            />
+          ) : (
+            // A consultancy is invite-only, so there is no choice to offer — see the note at the
+            // top of this file for why attach is confined to institutes.
+            <p className="text-body-sm text-text-secondary">
+              The Consultancy Admin is invited by email and sets their own password.
+            </p>
+          )}
           {adminMode === 'invite' ? (
             <>
               <div className="grid grid-cols-2 gap-md">
