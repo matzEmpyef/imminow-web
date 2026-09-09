@@ -136,6 +136,16 @@ export function ClientProfilePage() {
                     whether a college was accepted and whether the student actually went, so it
                     is a fact about the case rather than a label someone chose. */}
                 {data.outcome && <span className="ml-xs">&middot; {data.outcome}</span>}
+                {/* The consultant who worked their last case has no other way to know this is the
+                    same student coming back — the file number is new and nothing else says so. */}
+                {data.is_returning && data.previous_journey_id && (
+                  <>
+                    {' '}&middot;{' '}
+                    <Link to={`/clients/${data.previous_journey_id}`} className="text-primary hover:underline">
+                      returning — see their previous case
+                    </Link>
+                  </>
+                )}
               </p>
             </div>
           </div>

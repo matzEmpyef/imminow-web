@@ -205,13 +205,45 @@ export function ClientsListPage() {
       key: 'progress',
       header: 'Plan',
       sortable: true,
+      // A case can now run several plans and several applications at once, so one fraction no
+      // longer describes it. The case plan's progress stays on the first line — it is still the
+      // shared work, and it is what this column has always meant — with the applications summed
+      // underneath, because "4 applications · 1 offer" is the thing a consultant scanning their
+      // book actually needs and could not previously see at all.
+      render: (client) => {
+        const summary = client.case_summary
+        const applications = summary?.application_total ?? 0
+        const parts: string[] = []
+        if (applications > 0) parts.push(`${applications} application${applications === 1 ? '' : 's'}`)
+        if (summary?.offers) parts.push(`${summary.offers} offer${summary.offers === 1 ? '' : 's'}`)
+        if (summary?.accepted) parts.push('accepted')
+        return (
+          <div className="flex flex-col">
+            <span className="text-text-secondary">
+              {client.plan_template_name ? `${client.plan_template_name} (${client.progress})` : 'No plan assigned'}
+            </span>
+            {parts.length > 0 && <span className="text-caption text-text-secondary">{parts.join(' · ')}</span>}
+            {/* Every step done and nobody has answered. A consultant scanning for who needs
+                chasing should be able to tell that apart from a case that is simply behind. */}
+            {summary?.waiting_on_colleges && (
+              <span className="text-caption text-warning">Waiting on colleges</span>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      key: 'case_state',
+      header: 'State',
+      // A case under mediation is nobody's to work on, and a consultant should learn that from the
+      // list rather than by opening it and finding every action gone.
       render: (client) =>
-        client.plan_template_name ? (
-          <span className="text-text-secondary">
-            {client.plan_template_name} ({client.progress})
-          </span>
+        client.status === 'in_dispute' ? (
+          <Badge color="warning">In dispute</Badge>
+        ) : client.outcome ? (
+          <Badge color={client.outcome === 'success' ? 'success' : 'secondary'}>{client.outcome}</Badge>
         ) : (
-          <span className="text-text-secondary">No plan assigned</span>
+          <span className="text-text-secondary">—</span>
         ),
     },
     {

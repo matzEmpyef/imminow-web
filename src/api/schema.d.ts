@@ -17246,6 +17246,9 @@ export interface components {
              */
             progress: string;
             readonly case_summary?: components["schemas"]["CaseSummary"];
+            /** @description The case this one continues, when the student has been with this consultancy before (2026-09-09). A returning student used to arrive as a stranger: blank address, no branch, no consultant and a fresh file number, with nothing linking the two records — so the consultant who worked the first case had no way to know it was the same person coming back. Only the SAME consultancy's history is carried; handing another one the address this one collected would leak a tenant's data. */
+            readonly previous_journey_id?: components["schemas"]["UUID"];
+            readonly is_returning?: boolean;
             /**
              * @description How the case ended, DERIVED at close from whether a college was accepted and whether the student actually went — never chosen by the consultancy (2026-09-09). Null while live.
              * @enum {string|null}
