@@ -8,6 +8,7 @@ import { SelectField } from '@/components/SelectField'
 import { Table, type TableColumn } from '@/components/Table'
 import { useCourseSuggestions, useSuggestNewCourse } from '@/queries/courseSuggestions'
 import { usePartnerColleges } from '@/queries/partnerColleges'
+import { useMyConsultancy } from '@/queries/consultancy'
 import { useStudyLevels } from '@/queries/studyLevels'
 import { formatDate } from '@/lib/time'
 
@@ -60,10 +61,18 @@ function formatLegacyValue(v: unknown): string {
 // consultant proposing a course for a college they have no working relation with was always a
 // contradiction the free-text field let through silently; the dropdown makes it structurally
 // impossible. Inactive relations are excluded — a lapsed partnership is not one to add courses to.
+//
+// For an INSTITUTE the college is not a choice at all (INSTITUTE_ACCOUNT_PLAN D7/D13,
+// 2026-09-10): its partner colleges are itself, and the server fixes the catalogue to that one
+// college regardless of what any request says. So the dropdown collapses to a stated fact — a
+// control whose only option is already selected is worse than no control, since it invites a
+// decision that does not exist.
 function SuggestNewCourseModal({ onClose }: { onClose: () => void }) {
   const suggestNew = useSuggestNewCourse()
   const partners = usePartnerColleges()
+  const myConsultancy = useMyConsultancy()
   const activeColleges = (partners.data ?? []).filter((p) => p.active !== false)
+  const isInstitute = myConsultancy.data?.kind === 'institute'
 
   const [name, setName] = useState('')
   const [collegeId, setCollegeId] = useState('')
@@ -71,7 +80,8 @@ function SuggestNewCourseModal({ onClose }: { onClose: () => void }) {
   const { data: studyLevels } = useStudyLevels()
   const [fieldOfStudy, setFieldOfStudy] = useState('')
 
-  const selectedCollege = activeColleges.find((c) => c.id === collegeId)
+  // An institute has exactly one relation and it is itself, so there is nothing to pick.
+  const selectedCollege = isInstitute ? activeColleges[0] : activeColleges.find((c) => c.id === collegeId)
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -107,6 +117,13 @@ function SuggestNewCourseModal({ onClose }: { onClose: () => void }) {
         <TextField label="Course name" value={name} onChange={(e) => setName(e.target.value)} required />
         {partners.isLoading ? (
           <p className="text-body-sm text-text-secondary">Loading your partner colleges…</p>
+        ) : isInstitute ? (
+          <div className="flex flex-col gap-xs">
+            <p className="text-body-sm font-medium text-text-primary">College</p>
+            <p className="text-body-sm text-text-secondary">
+              {selectedCollege?.college_name ?? 'No college linked to this account yet.'}
+            </p>
+          </div>
         ) : activeColleges.length === 0 ? (
           <p className="text-body-sm text-error">
             No active partner colleges on file — add one under Partner Colleges before suggesting a course for it.

@@ -102,7 +102,11 @@ export function usePlatformSettings() {
 export function useUpdatePlatformSettings() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (body: { show_course_view_counts?: boolean }) => {
+    // `featured_institutes` is the ordered, hand-picked Top Institutes rail on Sentpo Home
+    // (INSTITUTE_ACCOUNT_PLAN D15) — platform-wide merchandising, which is why it sits beside the
+    // other platform levers rather than on any one account. The server validates on write: a
+    // non-institute id, a duplicate, or a fourth entry is refused 400.
+    mutationFn: async (body: { show_course_view_counts?: boolean; featured_institutes?: string[] }) => {
       const { data, error } = await api.PATCH('/platform/settings', { body })
       if (error) throw new ApiError('Could not save this setting.', error)
       return data

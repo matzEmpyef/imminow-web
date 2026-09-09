@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { SelectField } from '@/components/SelectField'
 import { Trash2 } from 'lucide-react'
+import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { CountryLabel } from '@/components/CountryLabel'
 import { Modal } from '@/components/Modal'
@@ -29,7 +30,27 @@ const needsCommission = (payer: PayerMethod | '') => payer === 'college' || paye
 // One shared panel serves the consultancy's own Consultancy Management tab AND the platform
 // admin's configure-on-behalf modal in Manage Consultancies (`consultancyId` set) — same rule
 // the backend applies, so the two UIs can't drift.
-export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string }) {
+//
+// READ-ONLY FOR AN INSTITUTE (INSTITUTE_ACCOUNT_PLAN D13, 2026-09-10). An institute's partner
+// colleges are itself and only itself: one self-referencing row created with the account, which
+// it can neither extend nor edit nor remove. The gate is `kind`, deliberately NOT a feature flag
+// — registering a `partner_colleges` entitlement would make it a valid `entitlement_overrides`
+// key, and that would hand a Super Admin a switch that turns Partner Colleges off for an ORDINARY
+// consultancy, the screen where their commission terms are set. Enforcement is the server's 403
+// `not_applicable_for_institute`, which refuses add, edit AND remove; this just declines to
+// render controls that can only fail.
+//
+// The row is NOT degenerate — its commission fields stay live, because an institute earns and
+// owes commission like any other tenant (D2, revised 2026-09-10). What is fixed is the
+// counterparty, not the money, which is why the figures are still shown, just not edited here.
+export function PartnerCollegesPanel({
+  consultancyId,
+  kind,
+}: {
+  consultancyId?: string
+  kind?: 'consultancy' | 'institute'
+}) {
+  const readOnly = kind === 'institute'
   const relations = usePartnerColleges(consultancyId)
   const addRelation = useAddPartnerCollege(consultancyId)
   const updateRelation = useUpdatePartnerCollege(consultancyId)
@@ -58,14 +79,16 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
     .filter((c) => !partneredIds.has(c.id))
     .map((c) => ({ id: c.id, label: c.name }))
 
-
   const columns: TableColumn<PartnerCollege>[] = [
     {
       key: 'college',
       header: 'College',
       render: (r) => (
         <div className="flex flex-col">
-          <span className="font-medium text-text-primary">{r.college_name}</span>
+          <span className="flex items-center gap-sm">
+            <span className="font-medium text-text-primary">{r.college_name}</span>
+            {readOnly && <Badge color="info">This institute</Badge>}
+          </span>
           {r.college_country && (
             <CountryLabel name={r.college_country} textClassName="text-caption text-text-secondary" />
           )}
@@ -77,6 +100,16 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
       header: 'Payer method',
       render: (r) => {
         const options = ALL_PAYERS
+        if (readOnly) {
+          return (
+            <div className="flex flex-col">
+              <span className="text-body-sm text-text-primary">{PAYER_LABEL[r.payer_method]}</span>
+              {needsCommission(r.payer_method) && r.commission_percent != null && (
+                <span className="text-caption text-text-secondary">{r.commission_percent}% of tuition</span>
+              )}
+            </div>
+          )
+        }
         return (
           <div className="flex flex-col gap-xs">
             <CompactSelect
@@ -124,118 +157,133 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
             <span className="text-body-sm text-text-primary">
               {excluded === 0 ? `All ${total} included` : `${Math.max(total - excluded, 0)} of ${total} included`}
             </span>
-            <button type="button" className="text-body-sm text-primary hover:underline" onClick={() => setManaging(r)}>
-              Manage courses
-            </button>
+            {!readOnly && (
+              <button
+                type="button"
+                className="text-body-sm text-primary hover:underline"
+                onClick={() => setManaging(r)}
+              >
+                Manage courses
+              </button>
+            )}
           </div>
         )
       },
     },
-    {
-      key: 'actions',
-      header: '',
-      align: 'right',
-      render: (r) => (
-        <button
-          type="button"
-          aria-label={`Remove ${r.college_name}`}
-          className="rounded-md p-1.5 text-text-secondary hover:bg-background hover:text-error"
-          onClick={() => setRemoving(r)}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
-      ),
-    },
+    // Removal is refused by the server for an institute (403 not_applicable_for_institute), so
+    // the whole column goes rather than rendering a bin that only produces an error.
+    ...(readOnly
+      ? []
+      : [
+          {
+            key: 'actions',
+            header: '',
+            align: 'right' as const,
+            render: (r: PartnerCollege) => (
+              <button
+                type="button"
+                aria-label={`Remove ${r.college_name}`}
+                className="rounded-md p-1.5 text-text-secondary hover:bg-background hover:text-error"
+                onClick={() => setRemoving(r)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            ),
+          },
+        ]),
   ]
 
   return (
     <div className="flex flex-col gap-md">
       <p className="text-body-sm text-text-secondary">
-        Colleges this consultancy works with. New courses of a partner college are included automatically — exclude
-        specific ones from Manage courses. Payer-method changes are applied immediately, audited, and visible to the
-        platform team.
+        {readOnly
+          ? 'An institute works with one college — itself. The relation below is created with the account and cannot be added to, edited or removed; its commercial terms are set by the platform. Every course of this college is included, and this account sees no other college’s catalogue.'
+          : 'Colleges this consultancy works with. New courses of a partner college are included automatically — exclude specific ones from Manage courses. Payer-method changes are applied immediately, audited, and visible to the platform team.'}
       </p>
 
       {/* Full-width row (user-requested, 2026-08-27): the college picker was a fixed w-64, which
           left it cramped and wrapping inside the Manage Consultancies modal while the row had space
           going spare. It now flexes to fill, with the payer select and Add button sized to their
-          content at the end. */}
-      <div className="flex flex-wrap items-end gap-sm">
-        <div className="min-w-[16rem] flex-1">
-          <label className="mb-xs block text-body-sm font-medium text-text-primary" htmlFor="pc-college">
-            Add a college
-          </label>
-          <SearchSelect
-            id="pc-college"
-            options={collegeOptions}
-            value={addCollegeId}
-            onChange={(id) => {
-              setAddCollegeId(id)
-              setAddPayer('')
-            }}
-            placeholder="Search colleges…"
-          />
-        </div>
-        <SelectField
-          label="Payer method"
-          id="pc-payer"
-          className="w-48 shrink-0"
-          value={addPayer}
-          disabled={!addCollegeId}
-          onChange={(e) => {
-            setAddPayer(e.target.value as PayerMethod)
-            setAddCommissionPercent('')
-          }}
-        >
-          <option value="">Select…</option>
-          {ALL_PAYERS.map((m) => (
-            <option key={m} value={m}>
-              {PAYER_LABEL[m]}
-            </option>
-          ))}
-        </SelectField>
-        {needsCommission(addPayer) && (
-          <TextField
-            label="% of tuition to consultancy"
-            id="pc-commission-percent"
-            type="number"
-            min={0}
-            max={100}
-            step="0.1"
-            required
+          content at the end. Absent entirely for an institute — POST /consultancy-colleges is
+          refused 403 `not_applicable_for_institute`, so there is nothing this row could do. */}
+      {!readOnly && (
+        <div className="flex flex-wrap items-end gap-sm">
+          <div className="min-w-[16rem] flex-1">
+            <label className="mb-xs block text-body-sm font-medium text-text-primary" htmlFor="pc-college">
+              Add a college
+            </label>
+            <SearchSelect
+              id="pc-college"
+              options={collegeOptions}
+              value={addCollegeId}
+              onChange={(id) => {
+                setAddCollegeId(id)
+                setAddPayer('')
+              }}
+              placeholder="Search colleges…"
+            />
+          </div>
+          <SelectField
+            label="Payer method"
+            id="pc-payer"
             className="w-48 shrink-0"
-            value={addCommissionPercent}
-            onChange={(e) => setAddCommissionPercent(e.target.value)}
-          />
-        )}
-        <Button
-          disabled={
-            !addCollegeId ||
-            !addPayer ||
-            (needsCommission(addPayer) &&
-              (addCommissionPercent === '' || Number(addCommissionPercent) < 0 || Number(addCommissionPercent) > 100))
-          }
-          loading={addRelation.isPending}
-          onClick={() =>
-            addRelation.mutate(
-              {
-                college_id: addCollegeId,
-                payer_method: addPayer as PayerMethod,
-                ...(needsCommission(addPayer) ? { commission_percent: Number(addCommissionPercent) } : {}),
-              },
-              {
-                onSuccess: () => {
-                  setAddCollegeId('')
-                  setAddPayer('')
-                  setAddCommissionPercent('')
+            value={addPayer}
+            disabled={!addCollegeId}
+            onChange={(e) => {
+              setAddPayer(e.target.value as PayerMethod)
+              setAddCommissionPercent('')
+            }}
+          >
+            <option value="">Select…</option>
+            {ALL_PAYERS.map((m) => (
+              <option key={m} value={m}>
+                {PAYER_LABEL[m]}
+              </option>
+            ))}
+          </SelectField>
+          {needsCommission(addPayer) && (
+            <TextField
+              label="% of tuition to consultancy"
+              id="pc-commission-percent"
+              type="number"
+              min={0}
+              max={100}
+              step="0.1"
+              required
+              className="w-48 shrink-0"
+              value={addCommissionPercent}
+              onChange={(e) => setAddCommissionPercent(e.target.value)}
+            />
+          )}
+          <Button
+            disabled={
+              !addCollegeId ||
+              !addPayer ||
+              (needsCommission(addPayer) &&
+                (addCommissionPercent === '' || Number(addCommissionPercent) < 0 || Number(addCommissionPercent) > 100))
+            }
+            loading={addRelation.isPending}
+            onClick={() =>
+              addRelation.mutate(
+                {
+                  college_id: addCollegeId,
+                  payer_method: addPayer as PayerMethod,
+                  ...(needsCommission(addPayer) ? { commission_percent: Number(addCommissionPercent) } : {}),
                 },
-              },
-            )
-          }
-        >
-          Add
-        </Button>
-      </div>
+                {
+                  onSuccess: () => {
+                    setAddCollegeId('')
+                    setAddPayer('')
+                    setAddCommissionPercent('')
+                  },
+                },
+              )
+            }
+          >
+            Add
+          </Button>
+        </div>
+      )}
 
       <Table
         columns={columns}
@@ -289,7 +337,11 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
           saving={updateRelation.isPending}
           onSave={(percent) =>
             updateRelation.mutate(
-              { id: pendingPayerChange.relation.id, payer_method: pendingPayerChange.payer, commission_percent: percent },
+              {
+                id: pendingPayerChange.relation.id,
+                payer_method: pendingPayerChange.payer,
+                commission_percent: percent,
+              },
               { onSuccess: () => setPendingPayerChange(null) },
             )
           }

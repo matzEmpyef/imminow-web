@@ -4420,7 +4420,10 @@ export interface paths {
             };
         };
         put?: never;
-        /** Add a partner college (consultancy settings.edit_profile permission, or platform admin with consultancy_id). Defaults to all courses included. */
+        /**
+         * Add a partner college (consultancy settings.edit_profile permission, or platform admin with consultancy_id). Defaults to all courses included.
+         * @description 403 `not_applicable_for_institute` when the target account is a `kind: institute` (INSTITUTE_ACCOUNT_PLAN D13, 2026-09-10): an institute's partner colleges are itself and only itself, one row created with the account (`payer_method: applicant`, because `college` would mean the institute paying itself). The same refusal applies to DELETE. The row is NOT degenerate — its commission fields stay live, because an institute earns and owes commission like any other tenant (D2 as revised 2026-09-10). What is fixed for an institute is the counterparty, not the money.
+         */
         post: {
             parameters: {
                 query?: {
@@ -4445,6 +4448,15 @@ export interface paths {
                         "application/json": components["schemas"]["ConsultancyCollege"];
                     };
                 };
+                /** @description `not_applicable_for_institute` — the account is an institute, whose partner college is itself and is created with the account. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -4463,7 +4475,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove a partner college relation. */
+        /**
+         * Remove a partner college relation.
+         * @description 403 `not_applicable_for_institute` for a `kind: institute` account — see the POST above.
+         */
         delete: {
             parameters: {
                 query?: {
@@ -4483,6 +4498,15 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description `not_applicable_for_institute` — an institute cannot remove its own self-relation. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -4610,9 +4634,13 @@ export interface paths {
                     /** @description Match against name (Manage Consultancies). */
                     search?: string;
                     tier?: "starter" | "business" | "ultimate";
+                    /** @description Narrows to one kind of account (INSTITUTE_ACCOUNT_PLAN D10, 2026-09-10). Institutes are already rows in this list under D6, so discovery needs a tag and a filter rather than a new screen. Discovery's institute "view all" is this plus the endpoint's own default `sort=name` ascending — alphabetical, deliberately NOT `-rating` or `match`, because D15 removes the ranking problem by not ranking institutes against consultancies at all. */
+                    kind?: "consultancy" | "institute";
                     active?: boolean;
                     /** @description Discovery List's country filter — matches against countries_served. */
                     "filter[country]"?: string;
+                    /** @description Home's curated Top Institutes rail (INSTITUTE_ACCOUNT_PLAN D15, 2026-09-10). Returns the institutes named by `PlatformSettings.featured_institutes`, IN THAT ORDER — the stored order is the whole content of the decision, so this answer is not sorted or paginated and ignores `sort`. The section looks like Top Consultancies but is selected differently: that one is algorithmic (`sort=-rating` narrowed by target countries), this one is hand-picked by the platform. An EMPTY result is the normal state, not an edge case — there are no institutes at launch — and clients MUST hide the whole section rather than render a half-empty rail. */
+                    "filter[featured]"?: boolean;
                     /** @description Home's Top Consultancies personalization (user-requested 2026-08-21 — "top 3 rated consultancy that matches Target Countries. if no matching still show top 3 rated"). When true, narrows to consultancies serving ANY of the caller's own StudentPreferences.target_countries — but falls back to the UNFILTERED list when the caller has no target countries set or nothing matches, so the section is never empty. Combine with sort=-rating for "top rated among relevant". */
                     "filter[preferred]"?: boolean;
                 };
@@ -4669,6 +4697,15 @@ export interface paths {
                         "application/json": components["schemas"]["Consultancy"];
                     };
                 };
+                /** @description `college_already_linked` — another institute account already holds this college (INSTITUTE_ACCOUNT_PLAN D6), or `file_number_prefix_taken`. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -4712,7 +4749,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Edit profile (admin, by id) — everything shown to students is consultancy-editable; fires a Super Admin notification (FR-030). The consultancy's own staff use PATCH /consultancies/me for the same fields instead. */
+        /** Edit profile (admin, by id) — everything shown to students is consultancy-editable; fires a Super Admin notification (FR-030). The consultancy's own staff use PATCH /consultancies/me for the same fields instead. Also the second half of institute onboarding (INSTITUTE_ACCOUNT_PLAN D8) — see `college_id`. */
         patch: {
             parameters: {
                 query?: never;
@@ -4730,6 +4767,8 @@ export interface paths {
                         about_us?: string;
                         countries_served?: string[];
                         city?: string;
+                        /** @description Attaches a college to an institute account created without one (D8, the "create the login first, attach the college after" direction — in practice the order institutes arrive in). Accepted only when `kind` is `institute` and `college_id` is currently null; a second attempt is refused 409 `college_already_linked`, because moving an account between colleges is not a supported operation — it would silently reassign every case, application and commission entry on it. Attaching also creates the institute's single self-referencing `ConsultancyCollege` row (`payer_method: applicant`) and is audited as `link_college`, exactly as attaching at creation is. Refused 400 for a `kind: consultancy` account, for an unknown college, and for an explicit null (a link cannot be cleared). */
+                        college_id?: components["schemas"]["UUID"];
                     };
                 };
             };
@@ -4741,6 +4780,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Consultancy"];
+                    };
+                };
+                /** @description `college_already_linked` — this institute already has a college, or the college already has an institute account. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -6916,7 +6964,10 @@ export interface paths {
             };
         };
         put?: never;
-        /** Add course to shortlist. Idempotent — adding a course already on the shortlist returns the existing row rather than creating a duplicate. APPROVAL SIDE EFFECT (user decision, 2026-08-28): if the course matches a `suggested` row on the caller's own journey, saving it IS the student's approval — the row flips to `considering`, enters the consultant's Selected Colleges tab, and the assigned consultant is notified. Only then can anything be applied on the student's behalf. */
+        /**
+         * Add course to shortlist. Idempotent — adding a course already on the shortlist returns the existing row rather than creating a duplicate. APPROVAL SIDE EFFECT (user decision, 2026-08-28): if the course matches a `suggested` row on the caller's own journey, saving it IS the student's approval — the row flips to `considering`, enters the consultant's Selected Colleges tab, and the assigned consultant is notified. Only then can anything be applied on the student's behalf.
+         * @description 409 `institute_scoped` when the caller is committed to an INSTITUTE and the course belongs to a different college (INSTITUTE_ACCOUNT_PLAN D14, 2026-09-10). This is the save-time half of D5's commit-time pruning and ships WITH it, never after: without it the pruning is theatre — seven courses lost at confirm and re-saved the same evening, which reads to the student as a bug and would be reported as one. It lives here rather than in the UI, which can only hide a button, and the message names the institute and says why, so the student is told rather than merely stopped. A student with no committed counterparty, or one committed to a consultancy, is unaffected.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -6939,6 +6990,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["ShortlistItem"];
+                    };
+                };
+                /** @description `institute_scoped` — the caller is committed to an institute and this course is at another college. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -7035,7 +7095,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Search catalog — country, campus province/state, level, field, course (FR-057). Paginated for 10K+ scale (build reference 1.23) — list rows return campus_count/ course_count instead of embedding full campus/course objects; fetch GET /colleges/{id} for the full detail (unfiltered — Sentpo Mobile's Study Abroad/Study in [Home Country] never call this list endpoint directly, only GET /courses, whose own filter[visible]=true note above is what actually keeps inactive colleges from ever surfacing as a tappable Search Result in the first place). filter[country] matches any of the college's campuses; filter[active] is "true"/"false". sort accepts name (default asc). */
+        /** Search catalog — country, campus province/state, level, field, course (FR-057). Paginated for 10K+ scale (build reference 1.23) — list rows return campus_count/ course_count instead of embedding full campus/course objects; fetch GET /colleges/{id} for the full detail (unfiltered — Sentpo Mobile's Study Abroad/Study in [Home Country] never call this list endpoint directly, only GET /courses, whose own filter[visible]=true note above is what actually keeps inactive colleges from ever surfacing as a tappable Search Result in the first place). filter[country] matches any of the college's campuses; filter[active] is "true"/"false". sort accepts name (default asc). SCOPED FOR INSTITUTES (INSTITUTE_ACCOUNT_PLAN D7, 2026-09-10) — staff of a `kind=institute` account see only their own college, one row, and an institute not yet linked to a college sees none. Applied server-side to the source set before any query filter runs, so no parameter can widen it. */
         get: {
             parameters: {
                 query?: {
@@ -7109,7 +7169,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** College detail with campuses & courses */
+        /**
+         * College detail with campuses & courses
+         * @description 404 for an institute caller asking about any college but its own (INSTITUTE_ACCOUNT_PLAN D7) — not found rather than forbidden, the same "never confirm existence" convention every cross-tenant lookup in this contract uses, so a deep link cannot be used to enumerate the catalogue an institute is scoped out of.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -7491,7 +7554,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Search courses directly (Course Suggestions' catalog browser, build reference 2.2; Colleges & Courses admin's per-college Courses table, build reference 1.23; and Sentpo Mobile Wave 5's Study Abroad / Study in [Home Country] Search Results, which are this endpoint's primary student-facing caller) — /colleges nests campuses but not courses, so both a flat course browser and a college detail view need this endpoint. Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, college_name, level. search matches name, college_name, and field_of_study. filter[college_id] scopes to one college's courses (Colleges & Courses admin); filter[country] matches any of the course's linked campuses; filter[level] matches the course's own level directly; filter[province_state] matches any of the course's linked campuses' province_state — build reference 1.11's full "country, campus province/state, study level, field of study, course" search filter set.
+         * Search courses directly (Course Suggestions' catalog browser, build reference 2.2; Colleges & Courses admin's per-college Courses table, build reference 1.23; and Sentpo Mobile Wave 5's Study Abroad / Study in [Home Country] Search Results, which are this endpoint's primary student-facing caller) — /colleges nests campuses but not courses, so both a flat course browser and a college detail view need this endpoint. Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, college_name, level. search matches name, college_name, and field_of_study. filter[college_id] narrows to one college's courses (Colleges & Courses admin) — note that for a `kind=institute` caller the college is FORCE-APPLIED server-side from the account's own `college_id` before this or any other filter runs (INSTITUTE_ACCOUNT_PLAN D7, 2026-09-10), so filter[college_id] can only narrow further and never widens the scope; an institute not yet linked to a college sees no courses at all. The same scope applies to GET /courses/{id} (404 outside it), /courses/fields, /courses/fee-range, /courses/{id}/consultancies, POST /courses/{id}/suggest-correction, POST /leads/{id}/suggest-course and POST /clients/{id}/applications. filter[country] matches any of the course's linked campuses; filter[level] matches the course's own level directly; filter[province_state] matches any of the course's linked campuses' province_state — build reference 1.11's full "country, campus province/state, study level, field of study, course" search filter set.
          *     filter[field_of_study] (multi-value since user decision 2026-08-30, same comma-separated idiom as filter[country]) matches a course whose field_of_study is ANY of the listed values — the union, since a course only ever carries one field_of_study. A single value is simply a one-element list, so existing single-value callers are unaffected. Backs the Field of Study choosers on both immiNow's Course Finder (a multi-select) and Sentpo Mobile's Search Root (the student's stated fields_of_interest as toggleable chips, all selected by default) — both fed by GET /courses/fields' full catalog list rather than a hardcoded subset. filter[intake] is "first_half"|"second_half" (added 2026-08-19, user request 17) — the half expands to its six month names and matches any of the course's intake months; Sentpo Mobile defaults it from the student's own intended_intake preference. filter[visible] is "true"/"false", same computed active-AND-parent-college-active meaning as Course.visible — Sentpo Mobile's own search screens always pass filter[visible]=true explicitly (this endpoint doesn't filter out inactive/hidden courses by default, same reasoning as Wave 3's GET /consultancies fix — Colleges & Courses admin needs to see hidden courses too).
          *     Courses-module filters (COURSES_MODULE_PLAN.md §3.1, 2026-08-21) — filter[country] accepts a comma-separated list (multi-country was single before); filter[fee_max] / filter[fee_min] compare against fee_normalized_inr (INR); filter[study_mode], filter[delivery], filter[language] exact-match; filter[coop], filter[psw], filter[scholarship], filter[app_fee_waived] are "true" flags; filter[open_now]="true" keeps courses with at least one intake whose deadline is today or later and status open; filter[duration_max_months] / filter[duration_min_months] numeric (the min counterpart added 2026-08-31, same pairing convention as fee_min/fee_max, to back Sentpo Mobile's and immiNow Course Finder's duration-range filter chips); filter[city] matches linked campuses' city. sort= additionally accepts fee (normalized INR asc), duration (duration_months asc), and intake (earliest upcoming open intake first). Missing data NEVER excludes — a course without fee_normalized_inr passes fee filters, one without duration_months passes duration filters — filters narrow on known facts, they don't punish catalog gaps (plan §0.2).
          *     filter[fee_currency] (2026-08-22) names the currency filter[fee_max] / filter[fee_min] are expressed in, defaulting to INR for older callers. The server converts the bound to the INR pivot before comparing against fee_normalized_inr, so the app never multiplies by a rate itself — that would be business logic on the client, and would drift the moment a rate changed. It is not a filter in its own right and narrows nothing on its own. An unconvertible currency compares raw rather than returning nothing.
@@ -7672,7 +7735,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** One course by id — the Course Detail screen's read (COURSES_MODULE_PLAN.md §3.2, Tier 2 2026-08-22). Same response shape as a GET /courses row, including the read-model conveniences (college_logo_url, campus_city, next_intake, consultancies_count). Student callers pass include_eligibility=true to get `fit` decorated against their own profile, exactly like the list. Visibility is the caller's problem to respect for admin surfaces; student clients should treat a non-visible course as gone. */
+        /** One course by id — the Course Detail screen's read (COURSES_MODULE_PLAN.md §3.2, Tier 2 2026-08-22). Same response shape as a GET /courses row, including the read-model conveniences (college_logo_url, campus_city, next_intake, consultancies_count). Student callers pass include_eligibility=true to get `fit` decorated against their own profile, exactly like the list. Visibility is the caller's problem to respect for admin surfaces; student clients should treat a non-visible course as gone. 404 for an institute caller asking about a course at any college but its own (INSTITUTE_ACCOUNT_PLAN D7) — not found rather than forbidden, so a deep link cannot be used to enumerate the catalogue an institute is scoped out of. */
         get: {
             parameters: {
                 query?: {
@@ -7761,7 +7824,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Consultancies that can help with this course (COURSES_MODULE_PLAN.md §3.5, workstream E) — every consultancy with an ACTIVE consultancy_colleges relation to the course's college that has NOT excluded this course, decorated per-caller with has_existing_chat so the "Ask a consultancy" picker can list "Continue with X" (existing chats) before "Start new chat". Payer methods and commission mechanics are deliberately absent — students never see money mechanics (plan §0). A bare array, small-list convention. Courses with zero rows show normally in the catalog — never hidden for business reasons (plan §3.2). */
+        /** Consultancies that can help with this course (COURSES_MODULE_PLAN.md §3.5, workstream E) — every consultancy with an ACTIVE consultancy_colleges relation to the course's college that has NOT excluded this course, decorated per-caller with has_existing_chat so the "Ask a consultancy" picker can list "Continue with X" (existing chats) before "Start new chat". Payer methods and commission mechanics are deliberately absent — students never see money mechanics (plan §0). A bare array, small-list convention. Courses with zero rows show normally in the catalog — never hidden for business reasons (plan §3.2). ORDER (INSTITUTE_ACCOUNT_PLAN D15, 2026-09-10): the institute that OWNS this course is pinned first, then existing chats, then rating, then A-Z. Only one institute can offer a given course — it owns the college — so this is a single pinned row, not a ranking. It deliberately OUTRANKS `has_existing_chat`, so a student mid-conversation with a consultancy sees the institute first on that course; that follows from D15 as stated and is the accepted consequence. An institute CALLER sees this route only for its own courses (D7) — any other course is a 404, the same as `GET /courses/{id}`. */
         get: {
             parameters: {
                 query?: never;
@@ -7972,7 +8035,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Commit to a consultancy — atomic: stage change + close other lead chats + expire proposals + PII grant (FR-010, TRD Section 4). Sentpo Mobile Wave 3's Commit-to-Consultancy Confirm — `lead_id` identifies which of the student's (up to 5) active lead chats is becoming the Stage 2 journey; every other active lead the student has closes permanently in the same transaction. */
+        /**
+         * Commit to a consultancy — atomic: stage change + close other lead chats + expire proposals + PII grant (FR-010, TRD Section 4). Sentpo Mobile Wave 3's Commit-to-Consultancy Confirm — `lead_id` identifies which of the student's (up to 5) active lead chats is becoming the Stage 2 journey; every other active lead the student has closes permanently in the same transaction.
+         * @description The new journey is stamped with the LEAD's consultancy, not the caller's — the caller here is the student, who belongs to none. When that counterparty is an INSTITUTE (INSTITUTE_ACCOUNT_PLAN D5, 2026-09-10), every shortlist item whose course belongs to a different college is removed in the SAME atomic block, and the response reports exactly which. An institute can only act on its own courses, so a dream board full of other colleges' would be a list of things nobody on the case can help with. Committing to a CONSULTANCY prunes nothing — it works across colleges, so the board stays meaningful. There is no preview endpoint: the confirm sheet counts client-side from the shortlist it already holds, and the app confirms afterwards against `removed_shortlist_course_ids`, which is what actually happened rather than what was predicted. D14's matching save-time refusal ships with this, never after it — see `POST /shortlist`.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -7998,7 +8064,12 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Journey"];
+                        "application/json": components["schemas"]["Journey"] & {
+                            /** @description The courses cleared from the student's Dream Courses by this commit (D5) — always empty when the counterparty is a consultancy. */
+                            removed_shortlist_course_ids: components["schemas"]["UUID"][];
+                            /** @description Length of the array above, so a confirmation can be worded without walking it. 0 for a consultancy commit. */
+                            removed_shortlist_count: number;
+                        };
                     };
                 };
             };
@@ -15934,7 +16005,7 @@ export interface components {
         /** @description Uniform error envelope, every error response, every endpoint (TRD Section 7). */
         Error: {
             error: {
-                /** @description Stable machine-readable code, e.g. permission_denied, validation_failed, insufficient_balance. Clients branch on this, never on message text. `feature_locked` (build reference 1.16 made real, 2026-08-29) is returned 403 by every endpoint gated on a consultancy feature-entitlement flag — own_leads, create_applicant, designations, tags, allocation_rule, phonebook, document_library, case_reopening, audit_log, activity_queue, internal_messaging, multi_branch, applicant_transfer — when the caller's consultancy lacks that flag (see `Consultancy.features`). `message` names the plan that includes it. Distinct from `permission_denied`, which is about what an individual employee within an already-entitled consultancy may do. */
+                /** @description Stable machine-readable code, e.g. permission_denied, validation_failed, insufficient_balance. Clients branch on this, never on message text. `feature_locked` (build reference 1.16 made real, 2026-08-29) is returned 403 by every endpoint gated on a consultancy feature-entitlement flag — own_leads, create_applicant, designations, tags, allocation_rule, phonebook, document_library, case_reopening, audit_log, activity_queue, internal_messaging, multi_branch, applicant_transfer — when the caller's consultancy lacks that flag (see `Consultancy.features`). `message` names the plan that includes it. Distinct from `permission_denied`, which is about what an individual employee within an already-entitled consultancy may do. Institute accounts (INSTITUTE_ACCOUNT_PLAN, 2026-09-10) add three codes: `college_already_linked` (409) when a college already has an institute account or an institute already has a college — see `Consultancy.college_id`; `not_applicable_for_institute` (403) when an institute tries to add or remove a partner college, deliberately NOT `feature_locked`, since nothing is behind a plan and telling an institute to upgrade would be a lie; and `institute_scoped` (409) when a student committed to an institute tries to save a course at another college (D14). */
                 code: string;
                 message: string;
                 /** @description Field-level validation details where applicable. */
@@ -16585,7 +16656,16 @@ export interface components {
             city?: string;
             public_email?: string | null;
             public_phone?: string | null;
+            /** @description An institute account is created with this already true (INSTITUTE_ACCOUNT_PLAN D3) — verification happens offline before onboarding, so the tag is a consequence of the account existing rather than a workflow anyone runs afterwards. */
             kyc_verified?: boolean;
+            /**
+             * @description Which kind of company this account is (INSTITUTE_ACCOUNT_PLAN D6, 2026-09-10). An INSTITUTE is a college or university running its own account — same record, same staff/branch/plan/chat/document machinery, same `journeys.consultancy_id` ownership, same subscription ladder and the same commission machinery (D2 as revised 2026-09-10: commission is the platform's cut of a placement, which an institute owes like any other tenant). It differs in exactly three ways, all of them server-enforced: its course catalogue is scoped to its own `college_id`, its partner colleges are one fixed row that is itself, and `applicant_transfer` is suppressed in `features`. Absent or `consultancy` on every pre-existing record. Clients render an "Institute" tag from this, and the tag must carry the consequence — a student choosing an institute is narrowing to one college.
+             * @default consultancy
+             * @enum {string}
+             */
+            kind: "consultancy" | "institute";
+            /** @description The college this institute speaks for; null for every `kind: consultancy` account, and also for an institute created before its college was attached (D8's create-the-login-first direction — see `PATCH /consultancies/{id}`). At most ONE institute account per college: a second is refused 409 `college_already_linked`, because two accounts for one college would both appear in discovery as the same institution. Write-once — settable at creation or by a later PATCH while null, never moved afterwards, since moving it would silently reassign every case, application and commission entry on the account. */
+            college_id?: components["schemas"]["UUID"];
             /** @description The rating to DISPLAY. Server-computed as the mean of every submitted star rating (the cooldown-gated Stage 1 `ratings`) and every Verified Review, to one decimal — unless a Super Admin override is set, in which case this is the override. Null means nobody has rated this consultancy and no override exists; render "Not rated yet", never 0. Read `rating_source` to tell the three apart. */
             rating?: number | null;
             /** @description How many submissions the computed rating is based on. Always the REAL count, even when an override is in force, so "4.6" from one student and 4.6 from a thousand are distinguishable. Show it next to the rating. */
@@ -16630,7 +16710,7 @@ export interface components {
             active?: boolean;
             /** @description User-requested (2026-08-19) — Super-Admin-set, gates two things at once — a Freelancer Commission Table row's `freelancer_sourced_rate` only actually applies when this is true (build reference 1.17), and Applicant Allocation only offers this consultancy as a target for `freelancer_sourced` queue entries when true (build reference 1.19). Has no bearing on the Direct rate or on consultancy-change allocations, which are unaffected either way. */
             freelancer_enabled?: boolean;
-            /** @description The RESOLVED feature map (build reference 1.16 made real, 2026-08-29) — tier preset merged with `entitlement_overrides`, one boolean per registry flag: `own_leads`, `create_applicant`, `designations`, `tags`, `allocation_rule`, `phonebook`, `document_library`, `case_reopening`, `audit_log` (Business-tier preset), and `activity_queue`, `internal_messaging`, `multi_branch`, `applicant_transfer` (Ultimate-tier preset). Starter-core capabilities (Lead Pool, Active Leads, Clients, commissions, Invoices, Receipts, Forms, Course Finder, Plan Templates, Course Suggestions, Employees simple mode, single branch, Consultancy Management) have no flag — they are always reachable on every tier and never appear here. Every server endpoint gated on one of these flags returns 403 `feature_locked` (naming the plan that includes it) when the caller's consultancy lacks it. Clients MUST gate on this map, never on the raw `tier` enum, since a Super Admin override can grant or withhold an individual flag independent of tier. */
+            /** @description The RESOLVED feature map (build reference 1.16 made real, 2026-08-29) — tier preset merged with `entitlement_overrides`, one boolean per registry flag: `own_leads`, `create_applicant`, `designations`, `tags`, `allocation_rule`, `phonebook`, `document_library`, `case_reopening`, `audit_log` (Business-tier preset), and `activity_queue`, `internal_messaging`, `multi_branch`, `applicant_transfer` (Ultimate-tier preset). Other Starter-core capabilities (Lead Pool, Active Leads, Clients, Partner Colleges, commissions, Invoices, Receipts, Forms, Course Finder, Plan Templates, Course Suggestions, Employees simple mode, single branch, Consultancy Management) have no flag — they are always reachable on every tier and never appear here. For `kind: institute` (INSTITUTE_ACCOUNT_PLAN D11, 2026-09-10) exactly ONE flag is forced false regardless of tier or override — `applicant_transfer`, which has nowhere to transfer an applicant to when the tenant is the college itself. This is a FLOOR applied after the override merge, not another override: a Super Admin cannot switch on a feature the account type has no meaning for. Partner Colleges is restricted for an institute just as hard (D13) but deliberately carries NO flag: registering one would make it a valid `entitlement_overrides` key, handing a Super Admin a switch that turns Partner Colleges off for an ORDINARY consultancy — the screen where their commission terms are set. A console rendering that panel read-only reads `kind`; the restriction is enforced by the 403 `not_applicable_for_institute` on `/consultancy-colleges`, which refuses add, edit and remove alike. Every server endpoint gated on one of these flags returns 403 `feature_locked` (naming the plan that includes it) when the caller's consultancy lacks it. Clients MUST gate on this map, never on the raw `tier` enum, since a Super Admin override can grant or withhold an individual flag independent of tier. */
             readonly features?: {
                 [key: string]: boolean;
             };
@@ -16654,18 +16734,29 @@ export interface components {
             title?: string | null;
             caption?: string | null;
         };
-        /** @description Create Consultancy's guided flow (build reference 1.15, 1.23) — one submission creates the consultancy, its primary branch, and the Consultancy Admin employee, then fires their invite email (all mocked server-side, same simplification as POST /staff/employees). */
+        /** @description Create Consultancy's guided flow (build reference 1.15, 1.23) — one submission creates the consultancy, its primary branch, and the Consultancy Admin employee, then fires their invite email (all mocked server-side, same simplification as POST /staff/employees). Also creates an INSTITUTE account (INSTITUTE_ACCOUNT_PLAN D6/D8, 2026-09-10) via `kind` and `college_id`. The admin is given in exactly ONE of two mutually exclusive forms, and a request carrying both or neither is refused 400: the `admin_first_name`/`admin_last_name`/`admin_email` trio INVITES a new login, while `admin_user_id` ATTACHES an existing one. The second is the common institute case — the college has been in the catalogue with its campuses and courses since long before anyone from it had an account, so what is new is the person, not the college (D8). Unlike the invite form, `admin_user_id` really does create the Consultancy Admin employee row, because there is an account to attach and a tenant nobody can log into is not an onboarded tenant. */
         ConsultancyCreateInput: {
             name: string;
             city: string;
             countries_served?: string[];
             /** @enum {string} */
             tier?: "starter" | "business" | "ultimate";
+            /**
+             * @description See `Consultancy.kind`. A `consultancy` carrying a `college_id` is refused 400.
+             * @default consultancy
+             * @enum {string}
+             */
+            kind: "consultancy" | "institute";
+            /** @description The college an institute account speaks for. Optional even for `kind: institute` — omitting it creates the account unlinked (D8's create-the-login-first direction) and `PATCH /consultancies/{id}` attaches the college later. An unlinked institute is scoped to NO catalogue at all in the meantime, which is the fail-closed reading: "not linked yet" must never resolve to "sees everything". A college that already has an institute account is refused 409 `college_already_linked`. */
+            college_id?: components["schemas"]["UUID"];
             branch_address: string;
-            admin_first_name: string;
-            admin_last_name: string;
+            /** @description With admin_last_name and admin_email — the INVITE form. Mutually exclusive with `admin_user_id`; the three are required together. */
+            admin_first_name?: string;
+            admin_last_name?: string;
             /** Format: email */
-            admin_email: string;
+            admin_email?: string;
+            /** @description The ATTACH form (D8) — an existing login becomes this account's Consultancy Admin instead of a new one being invited. Mutually exclusive with the `admin_*` trio. Refused 400 if the user does not exist, or is already active staff of another consultancy: every tenancy check on this server derives from one employee row per user, so a second would make the answer depend on row order. */
+            admin_user_id?: components["schemas"]["UUID"];
             /** @description User-requested (2026-08-15) — 3 uppercase letters. If omitted, derived server-side from the first 3 letters of `name`. See `Consultancy.file_number_prefix`. */
             file_number_prefix?: string | null;
         };
@@ -17098,6 +17189,11 @@ export interface components {
         CourseConsultancy: {
             consultancy_id: components["schemas"]["UUID"];
             name: string;
+            /**
+             * @description See `Consultancy.kind`. Present so the picker can TAG the pinned first row — a row that outranks the student's own conversation and does not say why reads as a bug.
+             * @enum {string}
+             */
+            kind?: "consultancy" | "institute";
             /** @description True when the calling student already has a lead chat with this consultancy — resolved per-caller at read. */
             has_existing_chat: boolean;
         };
@@ -17139,6 +17235,8 @@ export interface components {
         PlatformSettings: {
             /** @description Whether students see course view counts and the most-viewed tag. Views are always counted regardless; this governs visibility only. Platform staff always see the numbers, since they are what the decision is being made about. */
             show_course_view_counts?: boolean;
+            /** @description The ordered, hand-picked institutes on Sentpo Home's Top Institutes rail (INSTITUTE_ACCOUNT_PLAN D15, 2026-09-10) — a merchandising decision about the student app rather than a property of any one account, which is why it lives here beside the other platform-wide levers. Order is the ranking; up to three, matching the sibling Top Consultancies section. Validated on write, not filtered on read: an id that is not a `kind: institute` account, a duplicate, or a fourth entry is refused 400, so a Super Admin is never left looking at a saved selection the app quietly declines to show. Empty by default — read it with `GET /consultancies?filter[featured]=true`, and hide the section when that is empty. */
+            featured_institutes?: components["schemas"]["UUID"][];
         };
         /** @description Server-driven app-lifecycle configuration for Sentpo Mobile (Session 37, 2026-08-30): the version gate (force-update vs. dismissible what's-new) and the in-app store-rating prompt's thresholds. GET is PUBLIC — no auth — because the version gate has to work BEFORE login: a below-minimum install must be blocked on launch, before the student ever reaches sign-in. */
         AppConfig: {

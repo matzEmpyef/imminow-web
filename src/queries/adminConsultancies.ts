@@ -10,6 +10,9 @@ type ConsultancyAdminPatchInput = components['schemas']['ConsultancyAdminPatchIn
 export interface ConsultancyFilters {
   search?: string
   tier?: 'starter' | 'business' | 'ultimate'
+  // INSTITUTE_ACCOUNT_PLAN D10 — institutes are rows in this same list under D6, so narrowing to
+  // one kind is a filter on the existing endpoint rather than a second screen.
+  kind?: 'consultancy' | 'institute'
   active?: boolean
   sort?: string
   cursor?: string
@@ -48,6 +51,31 @@ export function useCreateConsultancy() {
 function invalidateConsultancy(queryClient: ReturnType<typeof useQueryClient>, id: string) {
   queryClient.invalidateQueries({ queryKey: ['admin-consultancies'] })
   queryClient.invalidateQueries({ queryKey: ['admin-consultancies', id] })
+}
+
+/**
+ * The second half of institute onboarding (INSTITUTE_ACCOUNT_PLAN D8) — attach the college to an
+ * institute account that was created without one.
+ *
+ * WRITE-ONCE. The server accepts this only while `college_id` is null and refuses a second
+ * attempt 409 `college_already_linked`, because moving an account between colleges would silently
+ * reassign every case, application and commission entry on it. The console mirrors that by
+ * offering the form only while the account is unlinked and rendering the college as plain text
+ * afterwards — the 409 is the enforcement, this is just not putting a door where there is a wall.
+ */
+export function useLinkCollege(id: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (collegeId: string) => {
+      const { data, error } = await api.PATCH('/consultancies/{id}', {
+        params: { path: { id } },
+        body: { college_id: collegeId },
+      })
+      if (error) throw new ApiError('Could not link this college.', error)
+      return data
+    },
+    onSuccess: () => invalidateConsultancy(queryClient, id),
+  })
 }
 
 export function useChangeTier(id: string) {

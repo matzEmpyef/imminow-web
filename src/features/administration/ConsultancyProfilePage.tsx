@@ -70,7 +70,12 @@ export function ConsultancyProfilePage() {
 
         {activeTab === 'Profile' && <ProfileTab consultancy={consultancy.data} />}
         {activeTab === 'Subscription' && <SubscriptionTab consultancy={consultancy.data} />}
-        {activeTab === 'Partner Colleges' && <PartnerCollegesPanel />}
+        {/* `kind`, not a feature flag (INSTITUTE_ACCOUNT_PLAN D13): an institute's partner
+            colleges are itself and only itself, so the panel renders read-only. A
+            `partner_colleges` entitlement key was deliberately NOT registered — it would have
+            handed a Super Admin a switch to turn this screen off for an ordinary consultancy,
+            where their commission terms live. */}
+        {activeTab === 'Partner Colleges' && <PartnerCollegesPanel kind={consultancy.data.kind} />}
         {activeTab === 'Commission Rates' && <CommissionRatesTab consultancy={consultancy.data} />}
         {activeTab === 'Allocation Rule' && <AllocationTab />}
         {activeTab === 'Tag Management' && <TagManagementTab />}

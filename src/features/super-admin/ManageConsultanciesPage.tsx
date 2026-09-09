@@ -11,10 +11,13 @@ import { Toggle } from '@/components/Toggle'
 import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
+import { SearchSelect } from '@/components/SearchSelect'
 import { PartnerCollegesPanel } from '@/features/administration/PartnerCollegesPanel'
+import { useAdminColleges, useCollegeDetail } from '@/queries/adminColleges'
 import {
   useAdminConsultancies,
   useChangeTier,
+  useLinkCollege,
   useReactivateConsultancy,
   useSuspendConsultancy,
   useSetConsultancyRating,
@@ -35,32 +38,42 @@ function presetOn(tier: string | undefined, flag: FeatureDef) {
   return TIER_ORDER.indexOf((tier ?? 'starter') as (typeof TIER_ORDER)[number]) >= TIER_ORDER.indexOf(flag.tier)
 }
 
+// Flags the SERVER forces off for an institute regardless of tier or override
+// (INSTITUTE_ACCOUNT_PLAN D11) — a floor applied after the override merge, not another override.
+// Listed here only so the toggle can say so: a switch a Super Admin can move while the server
+// ignores it is worse than one that isn't offered.
+const INSTITUTE_SUPPRESSED_FLAGS: Record<string, string> = {
+  applicant_transfer: 'No meaning for an institute — there is nowhere to transfer an applicant to when the tenant is the college itself.',
+}
+
 function FeatureToggleRow({
   flag,
   tier,
   overrides,
   onToggle,
   onReset,
+  suppressedReason,
 }: {
   flag: FeatureDef
   tier: string | undefined
   overrides: Record<string, boolean>
   onToggle: (key: string, nextValue: boolean) => void
   onReset: (key: string) => void
+  suppressedReason?: string
 }) {
   const preset = presetOn(tier, flag)
   const isOverridden = flag.key in overrides
-  const effective = isOverridden ? overrides[flag.key] : preset
+  const effective = suppressedReason ? false : isOverridden ? overrides[flag.key] : preset
   return (
     <div className="flex items-center justify-between gap-sm">
       <div className="min-w-0">
         <p className="text-body-sm text-text-primary">{flag.label}</p>
-        <p className="truncate text-caption text-text-secondary" title={flag.description}>
-          {flag.description}
+        <p className="truncate text-caption text-text-secondary" title={suppressedReason ?? flag.description}>
+          {suppressedReason ?? flag.description}
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-sm">
-        {isOverridden && (
+        {isOverridden && !suppressedReason && (
           <button
             type="button"
             onClick={() => onReset(flag.key)}
@@ -69,7 +82,12 @@ function FeatureToggleRow({
             Reset
           </button>
         )}
-        <Toggle checked={effective} onChange={() => onToggle(flag.key, !effective)} label={flag.label} />
+        <Toggle
+          checked={effective}
+          disabled={Boolean(suppressedReason)}
+          onChange={() => onToggle(flag.key, !effective)}
+          label={flag.label}
+        />
       </div>
     </div>
   )
@@ -275,6 +293,75 @@ function KycSection({ consultancyId, kycVerified }: { consultancyId: string; kyc
   )
 }
 
+/**
+ * The institute's college, and the second half of D8's linking when it has none yet.
+ *
+ * Both directions are surfaced here because both really happen: an account created with its
+ * college shows it as settled fact, and one created without shows the picker that attaches it.
+ * The attach is WRITE-ONCE — the server refuses a second attempt 409 `college_already_linked`,
+ * because moving an account between colleges would silently reassign every case, application and
+ * commission entry on it — so once linked there is no control at all rather than one that fails.
+ */
+function InstituteCollegeSection({ consultancy }: { consultancy: Consultancy }) {
+  const linkCollege = useLinkCollege(consultancy.id!)
+  const linkedCollege = useCollegeDetail(consultancy.college_id ?? undefined)
+  const colleges = useAdminColleges({ limit: 100 })
+  const [collegeId, setCollegeId] = useState('')
+
+  const collegeOptions = (colleges.data?.items ?? []).map((c) => ({
+    id: c.id,
+    label: c.name,
+    sublabel: c.course_count != null ? `${c.course_count} course${c.course_count === 1 ? '' : 's'}` : undefined,
+  }))
+
+  return (
+    <div className="flex flex-col gap-sm rounded-md border border-border p-md">
+      <div className="flex items-center justify-between gap-sm">
+        <p className="text-body-sm font-medium text-text-primary">College</p>
+        <Badge color="info">Institute</Badge>
+      </div>
+      {consultancy.college_id ? (
+        <>
+          <p className="text-body-sm text-text-primary">{linkedCollege.data?.name ?? 'Loading…'}</p>
+          <p className="text-caption text-text-secondary">
+            This account&rsquo;s course catalogue is fixed to this college, and its partner colleges are itself. The
+            link is set once and cannot be moved — reassigning an institute to another college would carry every case
+            on it across.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="text-caption text-text-secondary">
+            Not linked yet. Until a college is attached this account sees <strong>no</strong> catalogue at all — the
+            fail-closed reading of &ldquo;not linked&rdquo;. Attaching is permanent.
+          </p>
+          <div className="flex flex-wrap items-end gap-sm">
+            <div className="min-w-[16rem] flex-1">
+              <SearchSelect
+                id="institute-link-college"
+                label="College"
+                options={collegeOptions}
+                value={collegeId}
+                onChange={setCollegeId}
+                placeholder={colleges.isLoading ? 'Loading colleges…' : 'Search the catalogue…'}
+                disabled={colleges.isLoading}
+              />
+            </div>
+            <Button
+              disabled={!collegeId}
+              loading={linkCollege.isPending}
+              onClick={() => linkCollege.mutate(collegeId, { onSuccess: () => setCollegeId('') })}
+            >
+              Link college
+            </Button>
+          </div>
+          {linkCollege.isError && <p className="text-caption text-error">{linkCollege.error.message}</p>}
+        </>
+      )}
+    </div>
+  )
+}
+
 function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy; onClose: () => void }) {
   const changeTier = useChangeTier(consultancy.id!)
   const updateEntitlements = useUpdateEntitlements(consultancy.id!)
@@ -288,6 +375,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
   const [freelancerEnabled, setFreelancerEnabled] = useState(Boolean(consultancy.freelancer_enabled))
   const [confirmingSuspend, setConfirmingSuspend] = useState(false)
   const [showPartnerColleges, setShowPartnerColleges] = useState(false)
+  const isInstitute = consultancy.kind === 'institute'
 
   useEffect(() => {
     setTier(consultancy.tier)
@@ -375,12 +463,21 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
       }
     >
       <div className="flex flex-col gap-lg">
+        {isInstitute && <InstituteCollegeSection consultancy={consultancy} />}
         <div className="flex items-center justify-between">
-          <p className="text-body-sm font-medium text-text-primary">Partner Colleges</p>
+          <div>
+            <p className="text-body-sm font-medium text-text-primary">Partner Colleges</p>
+            {isInstitute && (
+              <p className="text-caption text-text-secondary">
+                Itself, and only itself — not editable for an institute (D13).
+              </p>
+            )}
+          </div>
           {/* Configure-on-behalf (plan §1.7 — "editable by the consultancy admin AND by
-              platform admin on behalf") — same shared panel the consultancy's own tab uses. */}
+              platform admin on behalf") — same shared panel the consultancy's own tab uses.
+              For an institute the panel renders read-only, so this opens a view, not an editor. */}
           <Button variant="secondary" onClick={() => setShowPartnerColleges(true)}>
-            Configure
+            {isInstitute ? 'View' : 'Configure'}
           </Button>
         </div>
         <div className="flex items-center justify-between">
@@ -411,7 +508,10 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
             widthRem={50}
             onClose={() => setShowPartnerColleges(false)}
           >
-            <PartnerCollegesPanel consultancyId={consultancy.id!} />
+            {/* `kind`, deliberately NOT a feature flag: a `partner_colleges` entitlement key
+                would hand a Super Admin a switch that turns Partner Colleges off for an ORDINARY
+                consultancy — the screen where their commission terms live. */}
+            <PartnerCollegesPanel consultancyId={consultancy.id!} kind={consultancy.kind} />
           </Modal>
         )}
 
@@ -532,6 +632,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
                   overrides={overrides}
                   onToggle={toggleFlag}
                   onReset={resetFlag}
+                  suppressedReason={isInstitute ? INSTITUTE_SUPPRESSED_FLAGS[flag.key] : undefined}
                 />
               ))}
             </div>
@@ -548,6 +649,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
                   overrides={overrides}
                   onToggle={toggleFlag}
                   onReset={resetFlag}
+                  suppressedReason={isInstitute ? INSTITUTE_SUPPRESSED_FLAGS[flag.key] : undefined}
                 />
               ))}
             </div>
@@ -580,6 +682,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
 export function ManageConsultanciesPage() {
   const [search, setSearch] = useState('')
   const [tierFilter, setTierFilter] = useState('')
+  const [kindFilter, setKindFilter] = useState('')
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [managingId, setManagingId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
@@ -588,6 +691,9 @@ export function ManageConsultanciesPage() {
   const consultancies = useAdminConsultancies({
     search: search || undefined,
     tier: (tierFilter || undefined) as 'starter' | 'business' | 'ultimate' | undefined,
+    // INSTITUTE_ACCOUNT_PLAN D10 — an institute is a row in this same list under D6, so the list
+    // grows a tag and a filter rather than a second screen.
+    kind: (kindFilter || undefined) as 'consultancy' | 'institute' | undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
     cursor: paging.cursor,
     limit: 20,
@@ -606,7 +712,16 @@ export function ManageConsultanciesPage() {
       key: 'name',
       header: 'Name',
       sortable: true,
-      render: (c) => <span className="font-medium text-text-primary">{c.name}</span>,
+      // The kind tag sits ON the name rather than in a column of its own (D10's "a tag, not a new
+      // screen"): only institutes carry one, so a Type column would be a mostly-empty column, and
+      // an "Institute" pill beside the name is the same idiom the student app's discovery list
+      // uses for the same fact.
+      render: (c) => (
+        <span className="flex items-center gap-sm">
+          <span className="font-medium text-text-primary">{c.name}</span>
+          {c.kind === 'institute' && <Badge color="info">Institute</Badge>}
+        </span>
+      ),
     },
     {
       key: 'tier',
@@ -677,7 +792,10 @@ export function ManageConsultanciesPage() {
       <div className="flex flex-col gap-lg">
         <div className="flex items-start justify-between gap-md">
           <h1 className="text-h1 text-text-primary">Manage Consultancies</h1>
-          <Button onClick={() => setCreating(true)}>Create Consultancy</Button>
+          {/* "Account" rather than "Consultancy" since 2026-09-10: the same form now creates
+              institute accounts (D6), and a button that names one of the two kinds would hide
+              the other. The page keeps its name — an institute IS a consultancy record. */}
+          <Button onClick={() => setCreating(true)}>Create Account</Button>
         </div>
 
         {creating && <CreateConsultancyModal onClose={() => setCreating(false)} />}
@@ -712,8 +830,8 @@ export function ManageConsultanciesPage() {
           loading={consultancies.isLoading}
           error={consultancies.isError ? 'Could not load consultancies.' : undefined}
           emptyMessage={
-            search || tierFilter
-              ? 'No consultancies match these filters.'
+            search || tierFilter || kindFilter
+              ? 'No accounts match these filters.'
               : 'No consultancies yet. Create the first one with the button above.'
           }
           sort={sort}
@@ -730,20 +848,34 @@ export function ManageConsultanciesPage() {
             placeholder: 'Search by name…',
           }}
           filters={
-            <CompactSelect
-              value={tierFilter}
-              onChange={(e) => {
-                setTierFilter(e.target.value)
-                resetPaging()
-              }}
-              label="Plan"
-              className="capitalize"
-            >
-              <option value="">Any plan</option>
-              <option value="starter">Starter</option>
-              <option value="business">Business</option>
-              <option value="ultimate">Ultimate</option>
-            </CompactSelect>
+            <>
+              <CompactSelect
+                value={kindFilter}
+                onChange={(e) => {
+                  setKindFilter(e.target.value)
+                  resetPaging()
+                }}
+                label="Type"
+              >
+                <option value="">Any type</option>
+                <option value="consultancy">Consultancies</option>
+                <option value="institute">Institutes</option>
+              </CompactSelect>
+              <CompactSelect
+                value={tierFilter}
+                onChange={(e) => {
+                  setTierFilter(e.target.value)
+                  resetPaging()
+                }}
+                label="Plan"
+                className="capitalize"
+              >
+                <option value="">Any plan</option>
+                <option value="starter">Starter</option>
+                <option value="business">Business</option>
+                <option value="ultimate">Ultimate</option>
+              </CompactSelect>
+            </>
           }
           pagination={{
             hasNext: Boolean(consultancies.data?.meta.next_cursor),
