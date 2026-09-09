@@ -22,6 +22,7 @@ import {
   MapPin,
   Megaphone,
   MessageSquareWarning,
+  PhoneCall,
   Scale,
   Newspaper,
   Percent,
@@ -208,6 +209,8 @@ const SECTIONS: AdminSection[] = [
       p.startsWith('/admin/support-tools') ||
       p.startsWith('/admin/complaints') ||
       p.startsWith('/admin/disputes') ||
+      p.startsWith('/admin/case-followups') ||
+      p.startsWith('/admin/applicants/') ||
       p.startsWith('/admin/platform-team') ||
       p.startsWith('/admin/notification-channel-config') ||
       p.startsWith('/admin/app-config') ||
@@ -222,6 +225,9 @@ const SECTIONS: AdminSection[] = [
       // handling one usually wants to see the other. Complaints are the student's side and never
       // freeze anything; a dispute is the frozen case itself, raised from either side.
       { label: 'Disputes', path: '/admin/disputes', permission: 'support', icon: Scale },
+      // Next to Disputes rather than under Finance: both are cases that need a human to pick up a
+      // phone, and the person working one is usually the person working the other.
+      { label: 'Follow-ups', path: '/admin/case-followups', permission: 'support', icon: PhoneCall },
       { label: 'Visit Requests', path: '/admin/visit-requests', permission: 'support', icon: CalendarClock },
       {
         label: 'Platform Team',

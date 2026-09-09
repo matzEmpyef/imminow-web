@@ -186,6 +186,12 @@ const SupportToolsPage = lazy(() =>
 const DisputesPage = lazy(() =>
   import('@/features/super-admin/DisputesPage').then((m) => ({ default: m.DisputesPage })),
 )
+const CaseFollowupsPage = lazy(() =>
+  import('@/features/super-admin/CaseFollowupsPage').then((m) => ({ default: m.CaseFollowupsPage })),
+)
+const ApplicantCaseViewPage = lazy(() =>
+  import('@/features/super-admin/ApplicantCaseViewPage').then((m) => ({ default: m.ApplicantCaseViewPage })),
+)
 const ComplaintsPage = lazy(() =>
   import('@/features/super-admin/ComplaintsPage').then((m) => ({ default: m.ComplaintsPage })),
 )
@@ -471,6 +477,8 @@ function App() {
         <Route element={<PlatformLayout permission="support" />}>
           <Route path="/admin/support-tools" element={<SupportToolsPage />} />
           <Route path="/admin/disputes" element={<DisputesPage />} />
+          <Route path="/admin/case-followups" element={<CaseFollowupsPage />} />
+          <Route path="/admin/applicants/:id" element={<ApplicantCaseViewPage />} />
           <Route path="/admin/complaints" element={<ComplaintsPage />} />
           <Route path="/admin/visit-requests" element={<VisitRequestsPage />} />
         </Route>

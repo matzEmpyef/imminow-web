@@ -9291,6 +9291,147 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/case-followups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cases the payments team should chase (2026-09-09), sorted by what is most likely to be stuck rather than by date — a case with money on it and no movement outranks a merely old one. Read-only and side-effect free: working the queue is a phone call, not a button. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items?: components["schemas"]["CaseFollowupRow"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clients/{id}/followups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every note left on this case by the platform team. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** Record that someone called. Deliberately minimal — no status, no assignment, no workflow (user, 2026-09-09: "no need of complicated stuff, just a small note section"). It exists so the next person knows when this case was last chased and what was said. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        note: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Recorded */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/applicants/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where a given applicant actually is (2026-09-09). Platform staff previously had the allocation queue and a switch-consultancy button and nothing else, so anyone mediating a dispute or chasing a payment was deciding blind.
+         *     DELIBERATELY CARRIES NO DOCUMENTS AND NO CHAT. The student's locker is theirs, shared with a consultancy by explicit grant; the platform is not a party to those grants and does not get a back door to them. Chat is out for the same reason — it is the consultancy's own record with their client.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApplicantCaseView"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/disputes": {
         parameters: {
             query?: never;
@@ -17464,6 +17605,97 @@ export interface components {
             position: number;
             components: components["schemas"]["Component"][];
         };
+        /** @description Where a given applicant is, for platform staff (2026-09-09). Carries NO documents and NO chat, deliberately: the student's locker is theirs and is shared with a consultancy by their own grant, and the conversation is the consultancy's record with their client. */
+        ApplicantCaseView: {
+            journey_id?: components["schemas"]["UUID"];
+            file_number?: string | null;
+            student?: {
+                id?: components["schemas"]["UUID"];
+                name?: string;
+                email?: string;
+                phone?: string | null;
+            };
+            consultancy_id?: components["schemas"]["UUID"];
+            consultancy_name?: string | null;
+            consultant_name?: string | null;
+            status?: string;
+            outcome?: string | null;
+            close_sub_reason?: string | null;
+            finalized_country?: string | null;
+            previous_journey_id?: components["schemas"]["UUID"];
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            closed_at?: string | null;
+            days_since_started?: number | null;
+            case_progress?: components["schemas"]["CaseSummary"];
+            applications?: {
+                id?: components["schemas"]["UUID"];
+                status?: string;
+                country?: string | null;
+                course_name?: string | null;
+                college_name?: string | null;
+                /** Format: date-time */
+                status_changed_at?: string | null;
+                days_since_status_change?: number | null;
+            }[];
+            plans?: {
+                id?: components["schemas"]["UUID"];
+                /** @enum {string} */
+                scope?: "case" | "application";
+                progress?: string;
+                college_name?: string | null;
+            }[];
+            /** @description Null until a college is accepted. `recognized_at` is the line between earned and due — an entry without one is money on paper that nobody owes yet. */
+            commission?: {
+                status?: string;
+                /** Format: date-time */
+                recognized_at?: string | null;
+                /** Format: date-time */
+                reversed_at?: string | null;
+                platform_due_inr?: number;
+            } | null;
+            signals?: {
+                code?: string;
+                label?: string;
+                detail?: string;
+                ask_student?: boolean;
+            }[];
+            amount_at_stake_inr?: number;
+        };
+        /**
+         * @description One case the platform's payments team should chase (2026-09-09).
+         *     WHY IT EXISTS: closing a case is a consultancy action, and closing is what makes the commission due — so a consultancy controls when it owes the platform money. The contract enforces the obligation; this is how the platform notices when it has not happened.
+         *     NOTHING HERE CLOSES ANYTHING. Every signal is a queue row for a person to work. There is no auto-close, no inactivity rule and no timer, because an auto-close would move money on a case nobody looked at and end a student's case with no one able to say why. A signal that fired and was never worked is a staffing problem, not a reason to let the system decide.
+         */
+        CaseFollowupRow: {
+            journey_id?: components["schemas"]["UUID"];
+            student_name?: string;
+            consultancy_name?: string | null;
+            status?: string;
+            outcome?: string | null;
+            signals?: {
+                /** @enum {string} */
+                code?: "closed_without_acceptance" | "accepted_not_closed" | "failed_despite_acceptance" | "stalled_application" | "long_running";
+                label?: string;
+                detail?: string;
+                /** @description Whether this signal escalates straight to the student rather than through the consultancy first. True only for the two that mean a case ended owing nothing, where the student is the other witness. */
+                ask_student?: boolean;
+            }[];
+            days_since_started?: number | null;
+            days_since_last_status_change?: number | null;
+            case_progress?: components["schemas"]["CaseSummary"];
+            /** @description The platform's cut on an entry that exists but is not yet recognised — earned on paper, not yet due. The queue sorts on it, because a case with money on it and no movement outranks a merely old one. */
+            amount_at_stake_inr?: number;
+            /** @description The last time someone actually called. No status, no assignment, no workflow — it exists so the next person knows. */
+            last_followup?: {
+                id?: components["schemas"]["UUID"];
+                note?: string;
+                /** Format: date-time */
+                created_at?: string;
+            } | null;
+            followup_count?: number;
+        };
         /** @description What one progress fraction can no longer say, now that a case runs several plans at once (2026-09-09). `Client.progress` stays the CASE plan's fraction so every reader that predates scopes keeps working and keeps meaning the same thing; this sits beside it. */
         CaseSummary: {
             /** @description The case plan's "done/total", or null if no case plan is assigned yet. */
@@ -18402,6 +18634,10 @@ export interface components {
             /** @description Matches the shared Countries list entry exactly. */
             name: string;
             iso2?: string | null;
+            /** @description APPLICATION to DECISION. How long to wait after a college is marked `applied` before asking the student whether they have heard anything. Default 30. Not a platform constant because a UK decision and a Canadian one are not the same wait. */
+            offer_turnaround_days?: number;
+            /** @description ACCEPTANCE to CLOSE — visa application, visa decision, departure. Default 120, and explicitly a FIRST ESTIMATE rather than a researched figure: it should be checked against real processing times for the countries actually in play before the accepted-but-not-closed signal starts flagging cases on it. Easily confused with `offer_turnaround_days` above; they are different spans. */
+            expected_close_days?: number;
             /** @description Whether the country is still OFFERED (2026-09-07). False removes it from `GET /countries` — the list every picker on both products reads — and therefore from Countries Served, campus country, target countries and the rest, while leaving every record that already names it untouched and searchable. This is the reversible alternative to `DELETE /countries/{name}`, which is a hard delete with no reference check: it destroys the country's guide (the write-up lives on this same row) and leaves existing campuses, `countries_served` and `target_countries` entries pointing at a country the platform no longer lists. */
             active?: boolean;
             /**
