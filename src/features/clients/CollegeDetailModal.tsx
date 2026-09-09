@@ -1,4 +1,5 @@
 import { Modal } from '@/components/Modal'
+import { CountryLabel } from '@/components/CountryLabel'
 import { useCourses } from '@/queries/courseSuggestions'
 import type { components } from '@/api/schema'
 
@@ -68,7 +69,13 @@ export function CollegeDetailModal({ college, onClose }: { college: College; onC
             <span className="text-body-sm font-medium text-text-primary">Campuses</span>
             {college.campuses.map((campus) => (
               <p key={campus.id} className="text-body-sm text-text-secondary">
-                {[campus.city, campus.province_state, campus.country].filter(Boolean).join(', ')}
+                {[campus.city, campus.province_state].filter(Boolean).join(', ')}
+                {campus.country && (
+                  <>
+                    {[campus.city, campus.province_state].filter(Boolean).length > 0 ? ', ' : ''}
+                    <CountryLabel name={campus.country} />
+                  </>
+                )}
               </p>
             ))}
           </div>

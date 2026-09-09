@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
+import { CountryLabel } from '@/components/CountryLabel'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useClient, useCommissions } from '@/queries/clients'
 import { useDeleteInstallment } from '@/queries/commissionEntries'
@@ -93,13 +94,16 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
           <div>
             <h2 className="text-h3 text-text-primary">
               {entry.case_type === 'pr'
-                ? `PR case — ${entry.destination_country}`
+                ? <>PR case — <CountryLabel name={entry.destination_country} /></>
                 : (entry.course_name ?? 'Accepted course')}
             </h2>
             <p className="mt-xs text-body-sm text-text-secondary">
               {entry.case_type === 'pr'
                 ? 'Applicant contribution'
-                : `${entry.college_name ?? ''} · ${entry.destination_country}${entry.course_start ? ` · starts ${entry.course_start.month} ${entry.course_start.year}` : ''}`}
+                : <>
+                    {entry.college_name ?? ''} · <CountryLabel name={entry.destination_country} />
+                    {entry.course_start ? ` · starts ${entry.course_start.month} ${entry.course_start.year}` : ''}
+                  </>}
             </p>
           </div>
           <Badge color="info" className="capitalize">

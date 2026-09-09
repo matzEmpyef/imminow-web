@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
+import { CountryLabel, CountryLabelList } from '@/components/CountryLabel'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useClient, useApplications, useUpdateApplication } from '@/queries/clients'
 import { formatMoney } from '@/lib/money'
@@ -111,7 +112,8 @@ export function ApplicationsTab({ clientId }: { clientId: string }) {
         <Card className="border-warning bg-warning-subtle">
           <p className="text-body-sm font-medium text-warning">Countries of courses are different</p>
           <p className="text-caption text-text-secondary">
-            Selected colleges span {selectedCountries.join(', ')} — worth confirming with the client which country
+            Selected colleges span <CountryLabelList names={selectedCountries} /> — worth confirming with the client
+            which country
             they're actually applying to.
           </p>
         </Card>
@@ -177,7 +179,13 @@ function ApplicationRow({
           <p className="text-body font-medium text-text-primary">{row.course.name}</p>
           <p className="text-caption text-text-secondary">
             {row.course.college_name}
-            {row.course.country ? ` · ${row.course.country}` : ''} ·{' '}
+            {row.course.country && (
+              <>
+                {' · '}
+                <CountryLabel name={row.course.country} />
+              </>
+            )}{' '}
+            ·{' '}
             {formatMoney(row.course.fee?.currency, row.course.fee?.amount)}
           </p>
         </div>

@@ -1,6 +1,7 @@
 import { useParams, Link } from 'react-router-dom'
 import { Card } from '@/components/Card'
 import { Badge } from '@/components/Badge'
+import { CountryLabel } from '@/components/CountryLabel'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useQuery } from '@tanstack/react-query'
@@ -138,7 +139,11 @@ export function ApplicantCaseViewPage() {
                 <p className="text-body-sm text-text-primary">{a.college_name ?? 'College'}</p>
                 <p className="text-caption text-text-secondary">
                   {a.course_name}
-                  {a.country && <> &middot; {a.country}</>}
+                  {a.country && (
+                    <>
+                      {' '}&middot; <CountryLabel name={a.country} />
+                    </>
+                  )}
                 </p>
               </div>
               <div className="flex items-center gap-sm">

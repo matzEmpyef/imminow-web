@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { SelectField } from '@/components/SelectField'
 import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/Button'
+import { CountryLabel } from '@/components/CountryLabel'
 import { Modal } from '@/components/Modal'
 import { TextField } from '@/components/TextField'
 import { SearchSelect } from '@/components/SearchSelect'
@@ -65,7 +66,9 @@ export function PartnerCollegesPanel({ consultancyId }: { consultancyId?: string
       render: (r) => (
         <div className="flex flex-col">
           <span className="font-medium text-text-primary">{r.college_name}</span>
-          {r.college_country && <span className="text-caption text-text-secondary">{r.college_country}</span>}
+          {r.college_country && (
+            <CountryLabel name={r.college_country} textClassName="text-caption text-text-secondary" />
+          )}
         </div>
       ),
     },

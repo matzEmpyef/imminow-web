@@ -1,5 +1,6 @@
 import { ListChecks, ListPlus } from 'lucide-react'
 import { Badge } from '@/components/Badge'
+import { CountryLabel } from '@/components/CountryLabel'
 import { Button } from '@/components/Button'
 import type { TableColumn } from '@/components/Table'
 import type { components } from '@/api/schema'
@@ -132,7 +133,12 @@ export function buildCourseFinderColumns({
             ) : (
               c.college_name
             )}
-            {c.country ? ` · ${c.country}` : ''}
+            {c.country && (
+              <>
+                {' · '}
+                <CountryLabel name={c.country} />
+              </>
+            )}
             {c.language ? ` · ${c.language}` : ''}
           </span>
         </div>

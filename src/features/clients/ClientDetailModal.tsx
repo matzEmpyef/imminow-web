@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Modal } from '@/components/Modal'
+import { CountryLabel } from '@/components/CountryLabel'
 import { Badge } from '@/components/Badge'
 import { StudentProfileFields } from '@/components/StudentProfileFields'
 import type { components } from '@/api/schema'
@@ -36,7 +37,11 @@ export function ClientDetailModal({ client, onClose }: { client: Client; onClose
           <div className="flex items-start justify-between gap-md">
             <dt className="shrink-0 text-text-secondary">Finalized country</dt>
             <dd className="min-w-0 text-right text-text-primary">
-              {client.finalized_country ?? <span className="text-text-secondary">Not finalized yet</span>}
+              {client.finalized_country ? (
+                <CountryLabel name={client.finalized_country} />
+              ) : (
+                <span className="text-text-secondary">Not finalized yet</span>
+              )}
             </dd>
           </div>
         </dl>

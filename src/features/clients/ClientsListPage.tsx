@@ -8,6 +8,7 @@ import { Modal } from '@/components/Modal'
 import { FieldLabel } from '@/components/FieldLabel'
 import { SearchSelect, type SearchSelectOption } from '@/components/SearchSelect'
 import { Table, type TableColumn } from '@/components/Table'
+import { CountryLabel } from '@/components/CountryLabel'
 import { CompactSelect } from '@/components/CompactSelect'
 import { TagEditorMenu } from '@/components/TagEditorMenu'
 import { StopPropagation } from '@/components/StopPropagation'
@@ -251,7 +252,7 @@ export function ClientsListPage() {
       header: 'Country',
       render: (client) =>
         client.finalized_country ? (
-          <span className="text-text-secondary">{client.finalized_country}</span>
+          <CountryLabel name={client.finalized_country} textClassName="text-text-secondary" />
         ) : (
           <span className="text-text-secondary">—</span>
         ),

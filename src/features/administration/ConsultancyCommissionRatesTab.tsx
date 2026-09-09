@@ -1,5 +1,6 @@
 // Split out of ConsultancyProfilePage.tsx (Phase 3 plan, Tier B2, 2026-09-03) — pure movement, no logic change.
 import { Card } from '@/components/Card'
+import { CountryLabel } from '@/components/CountryLabel'
 import { Badge } from '@/components/Badge'
 import { useMyConsultancy } from '@/queries/consultancy'
 import { useMyCommissionRates } from '@/queries/commissionRates'
@@ -54,7 +55,7 @@ export function CommissionRatesTab({
           {[...ratesByCountry.entries()].map(([country, countryRates]) => (
             <div key={country} className="flex flex-col gap-xs border-b border-border pb-md last:border-0 last:pb-0">
               <Badge color="secondary" className="w-fit">
-                {country}
+                <CountryLabel name={country} />
               </Badge>
               {countryRates.map((rate) => (
                 <div key={rate.id} className="flex items-center justify-between text-body-sm">

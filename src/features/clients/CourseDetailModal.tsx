@@ -1,4 +1,5 @@
 import { Modal } from '@/components/Modal'
+import { CountryLabel } from '@/components/CountryLabel'
 import { Badge } from '@/components/Badge'
 import { SuggestCorrectionButton } from '@/features/clients/SuggestCorrectionButton'
 import { useExams } from '@/queries/catalogSettings'
@@ -81,7 +82,12 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
         <p className="text-body-sm text-text-secondary">
           {course.college_name}
           {course.campus_city ? `, ${course.campus_city}` : ''}
-          {course.country ? ` · ${course.country}` : ''}
+          {course.country && (
+            <>
+              {' · '}
+              <CountryLabel name={course.country} />
+            </>
+          )}
         </p>
         {course.description && <p className="text-body-sm text-text-secondary">{course.description}</p>}
 
