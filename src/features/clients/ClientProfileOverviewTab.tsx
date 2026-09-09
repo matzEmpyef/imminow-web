@@ -16,6 +16,8 @@ import { useFeature } from '@/lib/features'
 import { useBranches, useEmployees } from '@/queries/staff'
 import { useCreateTag, useTags } from '@/queries/tags'
 import { usePermission } from '@/lib/permissions'
+import { usePlans } from '@/queries/plans'
+import { Skeleton } from '@/components/QueryState'
 import { TransferApplicantModal } from './TransferApplicantModal'
 import { EditClientDetailsModal } from './EditClientDetailsModal'
 
@@ -33,7 +35,15 @@ const STATUS_INFO: Record<string, { label: string; color: 'warning' | 'info' | '
 // Contact list; now an avatar + status header, a fuller Contact block (adds Consultant), editable
 // Tags (parity with Clients List's own TagEditorMenu — Overview never had tag editing before),
 // and a Plan summary card with a progress bar that jumps to the full Plan tab on click.
-export function OverviewTab({ clientId, onViewPlan }: { clientId: string; onViewPlan: () => void }) {
+export function OverviewTab({
+  clientId,
+  onViewPlan,
+}: {
+  clientId: string
+  // Takes the plan to open, so the Plan tab lands on the one that was clicked rather than
+  // whichever happens to be first (2026-09-09).
+  onViewPlan: (planId?: string) => void
+}) {
   const client = useClient(clientId)
   const tags = useTags()
   const createTag = useCreateTag()
@@ -54,13 +64,12 @@ export function OverviewTab({ clientId, onViewPlan }: { clientId: string; onView
   const hasApplicantTransfer = useFeature('applicant_transfer')
   const canTransferApplicant = hasTransferPermission && hasApplicantTransfer
   const canAssignTemplate = usePermission('clients.assign_template')
+  const plans = usePlans(clientId)
+  const planItems = plans.data?.items ?? []
   const navigate = useNavigate()
   if (!client.data) return null
   const data = client.data
   const statusInfo = STATUS_INFO[data.status] ?? { label: data.status.replace(/_/g, ' '), color: 'secondary' as const }
-  const [doneRaw, totalRaw] = data.progress.split('/')
-  const total = Number(totalRaw) || 0
-  const percent = total > 0 ? Math.round((Number(doneRaw) / total) * 100) : 0
   // Scoped to the assigned consultant's own branches (user-requested, 2026-08-15 — "can be
   // changed to any of the branch consultant is mapped to"), not every consultancy branch, unlike
   // the equivalent Lead widget. Mirrors the PATCH /clients/{id}/branch server-side constraint,
@@ -185,17 +194,14 @@ export function OverviewTab({ clientId, onViewPlan }: { clientId: string; onView
       </Card>
 
       <div className="col-span-1 flex flex-col gap-md">
+        {/* EVERY plan, one below the other (user, 2026-09-09) — not the first one with a "+2"
+            after it. That summary was written for a column in a table, where there is room for one
+            line; here there is room for the list, and a consultant opening a case should see the
+            work it is actually running. Each row opens that plan in the Plan tab. */}
         <Card className="flex flex-col gap-sm">
-          <h2 className="text-h3 text-text-primary">Plan</h2>
-          {data.plan_template_name ? (
-            <button type="button" onClick={onViewPlan} className="flex flex-col gap-xs text-left">
-              <p className="text-body-sm font-medium text-text-primary hover:underline">{data.plan_template_name}</p>
-              <div className="h-2 overflow-hidden rounded-full bg-background">
-                <div className="h-full rounded-full bg-success" style={{ width: `${percent}%` }} />
-              </div>
-              <p className="text-caption text-text-secondary">{data.progress} steps complete</p>
-            </button>
-          ) : (
+          <h2 className="text-h3 text-text-primary">{planItems.length > 1 ? 'Plans' : 'Plan'}</h2>
+          {plans.isLoading && <Skeleton className="h-16 rounded-lg" />}
+          {!plans.isLoading && planItems.length === 0 && (
             <>
               <p className="text-body-sm text-text-secondary">No plan assigned yet.</p>
               {canAssignTemplate && (
@@ -204,6 +210,39 @@ export function OverviewTab({ clientId, onViewPlan }: { clientId: string; onView
                 </Button>
               )}
             </>
+          )}
+          {planItems.map((plan) => {
+            const [doneRaw, totalRaw] = (plan.progress ?? '0/0').split('/')
+            const total = Number(totalRaw) || 0
+            const percent = total > 0 ? Math.round((Number(doneRaw) / total) * 100) : 0
+            // The step this plan has got to. `active` is the one in flight whether or not the
+            // student can act on it — naming it is what makes the row worth reading.
+            const current = plan.steps.find((s) => s.status === 'active')
+            return (
+              <button
+                key={plan.id}
+                type="button"
+                onClick={() => onViewPlan(plan.id)}
+                // Named for a screen reader: the visible label is three stacked elements, and a
+                // row of buttons that all announce as "button" is a row nobody can navigate.
+                aria-label={`Open the ${plan.name} plan`}
+                className="flex flex-col gap-xs text-left"
+              >
+                <p className="text-body-sm font-medium text-text-primary hover:underline">{plan.name}</p>
+                <div className="h-2 overflow-hidden rounded-full bg-background">
+                  <div className="h-full rounded-full bg-success" style={{ width: `${percent}%` }} />
+                </div>
+                <p className="text-caption text-text-secondary">
+                  {plan.progress} steps complete
+                  {current && <> &middot; {current.title}</>}
+                </p>
+              </button>
+            )
+          })}
+          {planItems.length > 0 && canAssignTemplate && (
+            <Button variant="secondary" className="w-fit" onClick={() => setShowAssignPlan(true)}>
+              Add a plan
+            </Button>
           )}
         </Card>
 

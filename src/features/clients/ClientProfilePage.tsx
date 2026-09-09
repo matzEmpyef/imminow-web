@@ -56,14 +56,20 @@ export function ClientProfilePage() {
   const canViewCommissions = usePermission('clients.view_commissions')
   const tabParam = searchParams.get('tab')
   const activeTab: Tab = (TABS as readonly string[]).includes(tabParam ?? '') ? (tabParam as Tab) : 'Overview'
+  // Which plan the Plan tab should open, when the consultant arrived by clicking one on
+  // Overview (2026-09-09). Lives in the URL for the same reason the tab does: a refresh
+  // mid-review should not lose their place.
+  const initialPlanId = searchParams.get('plan') ?? undefined
   // replace, not push: tab flips shouldn't turn the Back button into a tour of every tab visited.
-  function setActiveTab(tab: Tab) {
+  function setActiveTab(tab: Tab, planId?: string) {
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev)
         if (tab === 'Overview') next.delete('tab')
         else next.set('tab', tab)
         next.delete('step')
+        if (planId) next.set('plan', planId)
+        else next.delete('plan')
         return next
       },
       { replace: true },
@@ -248,8 +254,12 @@ export function ClientProfilePage() {
           ))}
         </div>
 
-        {activeTab === 'Overview' && <OverviewTab clientId={id} onViewPlan={() => setActiveTab('Plan')} />}
-        {activeTab === 'Plan' && <PlanTab clientId={id} initialStepId={initialStepId} />}
+        {activeTab === 'Overview' && (
+          <OverviewTab clientId={id} onViewPlan={(planId) => setActiveTab('Plan', planId)} />
+        )}
+        {activeTab === 'Plan' && (
+          <PlanTab clientId={id} initialStepId={initialStepId} initialPlanId={initialPlanId} />
+        )}
         {activeTab === 'Forms' && hasLinkedForms && <FormsTab clientId={id} />}
         {activeTab === 'Commissions' && canSeeCommissions && <CommissionsTab clientId={id} />}
         {activeTab === 'Applications' && <ApplicationsTab clientId={id} />}

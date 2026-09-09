@@ -18,7 +18,17 @@ import type { components } from '@/api/schema'
 
 type Plan = components['schemas']['Plan']
 
-export function PlanTab({ clientId, initialStepId }: { clientId: string; initialStepId?: string }) {
+export function PlanTab({
+  clientId,
+  initialStepId,
+  initialPlanId,
+}: {
+  clientId: string
+  initialStepId?: string
+  // The plan a consultant clicked on Overview. Without it, clicking the third plan there opened
+  // the Plan tab on the first one, which reads as the click having done nothing.
+  initialPlanId?: string
+}) {
   const plans = usePlans(clientId)
   const [showAddPlan, setShowAddPlan] = useState(false)
   const canAssignTemplate = usePermission('clients.assign_template')
@@ -35,7 +45,8 @@ export function PlanTab({ clientId, initialStepId }: { clientId: string; initial
   const deepLinkedPlan = initialStepId
     ? items.find((p) => p.steps.some((s) => s.id === initialStepId))
     : undefined
-  const activePlanId = openPlanId ?? deepLinkedPlan?.id ?? items[0]?.id ?? null
+  const activePlanId =
+    openPlanId ?? deepLinkedPlan?.id ?? items.find((p) => p.id === initialPlanId)?.id ?? items[0]?.id ?? null
 
   return (
     <div className="flex flex-col gap-lg">
