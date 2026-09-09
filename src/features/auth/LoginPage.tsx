@@ -2,7 +2,6 @@ import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { BRAND_LOGO } from '@/lib/brand'
 import loginBg from '@/assets/brand/login-bg.png'
-import googleIcon from '@/assets/brand/google-icon.png'
 import { TextField } from '@/components/TextField'
 import { Button } from '@/components/Button'
 import { useLogin } from '@/queries/auth'
@@ -127,33 +126,16 @@ export function LoginPage() {
             <Button type="submit" loading={login.isPending}>
               Log in
             </Button>
-            <div className="flex items-center gap-sm text-body-sm text-text-secondary">
-              <span className="h-px flex-1 bg-border" />
-              or
-              <span className="h-px flex-1 bg-border" />
-            </div>
-            {/* Google OAuth is a real documented login method (build reference 1.1) and
-                `POST /auth/login` accepts a `google_token`, but the mock server only implements
-                email/password and no OAuth client is configured — so the button is correctly
-                branded with the supplied Google mark and stays disabled. The reason is a visible
-                caption rather than a `title` tooltip: a tooltip never appears on touch, and it
-                also overrode the button's own accessible name (verified in the a11y tree — the
-                button read as the tooltip text instead of "Continue with Google"). */}
-            <div className="flex flex-col items-center gap-xs">
-              <Button
-                type="button"
-                variant="secondary"
-                disabled
-                aria-describedby="google-unavailable"
-                className="inline-flex w-full items-center justify-center gap-sm"
-              >
-                <img src={googleIcon} alt="" aria-hidden="true" className="h-5 w-5" />
-                Continue with Google
-              </Button>
-              <p id="google-unavailable" className="text-caption text-text-secondary">
-                Needs a configured OAuth client — unavailable in this build.
-              </p>
-            </div>
+            {/* No Google sign-in here (user, 2026-09-09: "for immiNow, there is no need of Google
+                login"). It had been rendering as a permanently DISABLED button under an "or"
+                divider, with a caption explaining that no OAuth client is configured — an
+                affordance that has never worked, cannot be used, and gives a consultant a second
+                door to try before the one that opens. immiNow accounts arrive by invite and sign
+                in with email and password; there is no self-service signup for a console user to
+                pair a Google identity with.
+
+                Deliberately scoped to immiNow. Sentpo's own Google sign-in is untouched: a
+                STUDENT signs themselves up, and for them it is a real and useful door. */}
             <div className="flex flex-col items-center gap-xs pt-sm text-body-sm">
               <Link to="/forgot-password" className="text-primary hover:underline">
                 Forgot password?
