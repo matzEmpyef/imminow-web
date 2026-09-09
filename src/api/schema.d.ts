@@ -8931,6 +8931,315 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/document-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The document catalog (2026-09-09). A student sees only the platform-global types — showing them a consultancy's private type would leak that consultancy's process to a student who may be talking to three others. Consultancy staff see the global types plus their own. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items?: components["schemas"]["DocumentType"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Mint a consultancy-private document type. The pressure valve for a country that changed its rules this morning: private types work immediately and never wait on a platform callback. 409 `code_taken` if the code already exists globally or for this consultancy — two things called "Passport" with different rules is exactly the confusion the shared vocabulary exists to prevent. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        code: string;
+                        name: string;
+                        description?: string | null;
+                        allowed_mime_types?: string[];
+                        max_size_mb?: number;
+                        /** @enum {string} */
+                        cardinality?: "singleton" | "instance";
+                        expires?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DocumentType"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The student's own locker. Returns their documents AND the catalog, because this screen is a checklist and a checklist needs its unticked rows. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items?: components["schemas"]["StudentDocument"][];
+                            types?: components["schemas"]["DocumentType"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Upload a document into the locker. Multipart. The type's `allowed_mime_types`, `max_size_mb` and `expires` rules are all enforced here (422). A `singleton` REPLACES the current version, bumps `version`, carries its shares forward and DROPS every verification — a verified passport that quietly becomes a different file is the whole point of verifying gone; the consultancies holding one are notified. An `instance` simply accumulates.
+         *     UPLOADING SHARES NOTHING. The default is deny; see POST /me/documents/{id}/share.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "multipart/form-data": {
+                        document_type_id: components["schemas"]["UUID"];
+                        /** Format: binary */
+                        file: string;
+                        label?: string | null;
+                        /** Format: date */
+                        issued_on?: string | null;
+                        /** Format: date */
+                        expires_on?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Stored */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StudentDocument"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/documents/{id}/share": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grant one consultancy access to one document. Idempotent.
+         *     In practice a student rarely calls this directly: picking a document to satisfy a plan step's `file_upload` component IS the grant (PATCH /steps/{id}/responses). There is deliberately no "manage sharing" screen to visit first, because no student would ever visit one — the grant belongs at the only moment they are actually thinking about the document.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        consultancy_id: components["schemas"]["UUID"];
+                    };
+                };
+            };
+            responses: {
+                /** @description Shared */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StudentDocument"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/documents/{id}/share/{consultancyId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke one consultancy's access. STOPS FUTURE READS ONLY — it cannot un-download what they already saved, and no part of any UI may imply otherwise. */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    consultancyId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Revoked */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clients/{id}/student-documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What THIS student has shared with THIS consultancy — never the whole locker. Each row carries the reader's own `verified` state, not anyone else's. A case in dispute returns nothing: the freeze takes document access with it. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items?: components["schemas"]["StudentDocument"][];
+                            types?: components["schemas"]["DocumentType"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Upload on the student's behalf — the consultant scanned their passport at the desk. Multipart, same validation as the student's own upload. It lands in the STUDENT's locker and follows them everywhere, because it is their passport; the uploading consultancy is granted access, and the student can revoke that like any other share.
+         *     Distinct from POST /uploads, which is the consultancy's OWN work product — a drafted SOP, a checklist — and stays journey-scoped. That line is the difference between the student's asset and the consultancy's output.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "multipart/form-data": {
+                        document_type_id: components["schemas"]["UUID"];
+                        /** Format: binary */
+                        file: string;
+                        label?: string | null;
+                        /** Format: date */
+                        issued_on?: string | null;
+                        /** Format: date */
+                        expires_on?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Stored */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StudentDocument"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/clients/{id}/raise-issue": {
         parameters: {
             query?: never;
@@ -16385,7 +16694,10 @@ export interface components {
         HomeBadges: {
             /** @description Threads with a message the student has not read. Stage 1 counts lead threads, Stage 2 the single journey thread; a student is in one stage or the other, so these never double-count. Distinct from the `unread` flag on Lead/Client, which means "the student said something STAFF have not read" — the mirror image. */
             chat_unread: number;
-            /** @description Suggested courses created since the student last opened Dream Courses. Time-based rather than a per-row flag, since opening the screen has seen all of them at once. */
+            /**
+             * @description Anything on Dream Courses the student has not looked at since they last opened it — a course their consultant suggested, OR an application whose status has moved (broadened 2026-09-09). Both are the same kind of event to that screen now that it shows the student their own applications: go and look. Time-based rather than a per-row flag, since opening the screen has seen all of them at once.
+             *     THE CLIENT RENDERS THIS AS A DOT, NOT A NUMBER (user, 2026-09-09). The count still decides whether the indicator appears; it is deliberately not displayed, because "3" on Dream Courses answers a question nobody asked — the student only needs to know something moved. The notifications badge keeps its number, where it earns one.
+             */
             suggestions_unseen: number;
             /** @description Events running RIGHT NOW that this student can see (2026-09-02) — started and not yet ended, an event with no `ends_at` counting as one hour. Drives the animated ring around the footer's Events tab; rides on this call so the shell needs no extra poll. */
             live_events?: number;
@@ -17188,6 +17500,64 @@ export interface components {
             /** Format: date-time */
             resolved_at?: string | null;
         };
+        /** @description What a consultancy may ask a student for (2026-09-09). TWO TIERS on purpose: "we will include every possible document" is a promise nobody can keep — documents are country × visa-type × college × year specific and change when a government changes its rules on a Tuesday. A platform-global type (`consultancy_id` null) is the shared vocabulary every consultancy draws on; a private one belongs to the consultancy that created it, is invisible to students and to other consultancies, and exists so a consultancy blocked on a visa deadline is never waiting on a platform callback. */
+        DocumentType: {
+            id: components["schemas"]["UUID"];
+            /** @description Null means platform-global. Set means private to that consultancy. */
+            consultancy_id?: components["schemas"]["UUID"];
+            code: string;
+            name: string;
+            /** @description The instructions the student actually reads — "both sides in one PDF", "all pages", "on their letterhead". */
+            description?: string | null;
+            /** @description ENFORCED server-side (422 `unsupported_file_type`), not merely described. A rule stated here and checked nowhere is worse than no rule — it teaches people to trust a promise nothing keeps. */
+            allowed_mime_types?: string[];
+            max_size_mb?: number;
+            /**
+             * @description LOAD-BEARING, not a label. A `singleton` — passport, transcript, test score — is one per student: re-uploading replaces it and bumps its version, and it AUTO-SATISFIES every step that asks for that type. That is the whole point of the locker, and what stops a student applying to four colleges being asked for their passport four times. An `instance` — payment receipt, bank statement for a named window, one letter per recommender — accumulates and NEVER auto-satisfies. Without the split, instalment 2's step silently greens itself with instalment 1's receipt.
+             * @enum {string}
+             */
+            cardinality: "singleton" | "instance";
+            /** @description When true, an upload without `expires_on` is refused (422 `expiry_required`) — a document that can lapse is no use if nobody can be warned in time. */
+            expires?: boolean;
+            active?: boolean;
+        };
+        /** @description One document in the student's own locker (2026-09-09). Owned by the STUDENT, not by a case: it survives the case ending, a retry, and a change of consultancy. Before this, documents were journey-scoped, so a student who was closed and re-engaged re-uploaded everything. */
+        StudentDocument: {
+            id: components["schemas"]["UUID"];
+            document_type_id: components["schemas"]["UUID"];
+            readonly document_type_name?: string | null;
+            readonly document_type_code?: string | null;
+            /** @enum {string} */
+            readonly cardinality?: "singleton" | "instance";
+            /** @description A singleton bumps this on replacement. An approved step keeps pointing at the version it accepted, so a renewed passport never rewrites a step already signed off. */
+            version: number;
+            /** @description Per-instance name — "Instalment 2", "Reference from Dr Rao". Only meaningful on an `instance` type. */
+            label?: string | null;
+            filename: string;
+            mime_type?: string | null;
+            size_bytes?: number | null;
+            /** Format: date */
+            issued_on?: string | null;
+            /** Format: date */
+            expires_on?: string | null;
+            /** @description Computed at read time, never stored — a stored flag is wrong the morning after it is written. */
+            readonly expired?: boolean;
+            /** @enum {string} */
+            uploaded_by?: "student" | "consultant";
+            /** @description AVAILABLE IS NOT ACCEPTED. Green on the student's card means they have provided it; this means a consultant has actually read it, and it is stamped when they approve the step it was attached to. PER CONSULTANCY — consultancy B never inherits A's verification, because the platform would otherwise be underwriting a check it never made on a document it never saw. Null when the reader is the student, who has no verification of their own. */
+            readonly verified?: boolean | null;
+            /** Format: date-time */
+            readonly verified_at?: string | null;
+            /** @description Who can currently open this. Only returned to the student — it is their list to see and to revoke from. Null for a consultancy reader. */
+            readonly shared_with?: {
+                consultancy_id?: components["schemas"]["UUID"];
+                consultancy_name?: string | null;
+                /** Format: date-time */
+                granted_at?: string;
+            }[] | null;
+            /** Format: date-time */
+            created_at: string;
+        };
         /** @description Just enough of the application for a plan card to name its college without a second request. Deliberately a NAMED schema rather than an inline `allOf` composition on the list endpoint: openapi-generator-dio does not follow allOf and emitted `List<Object>`, which cost an afternoon on 2026-09-09. */
         PlanApplicationRef: {
             id?: components["schemas"]["UUID"];
@@ -17254,8 +17624,16 @@ export interface components {
             type: "text" | "file_upload" | "checklist" | "questionnaire" | "form_link";
             label?: string;
             position: number;
+            /** @description Resolved on the STUDENT's read of a step (GET /steps/{id}) when a `file_upload` component's payload names a `document_type_id` (2026-09-09). Carries the rules and the instructions so the picker can state them rather than the student guessing. */
+            readonly document_type?: components["schemas"]["DocumentType"] | null;
             /**
-             * @description Free-form per type (build reference 1.7). For type=form_link specifically (Sentpo Mobile Wave 4), payload carries a single `form_template_id` (uuid) — the Form Link component "deep-links the applicant to fill their Applicant Form" for one specific `FormTemplate`, per build reference 1.20's "a Plan will select a Form, not the other way around."
+             * @description THE POINT OF THE WHOLE LOCKER. Non-null means the student already holds this document and does not have to provide it again — the component renders as satisfied with a "use this" affordance rather than an empty file picker. Without it, a student applying to four colleges is asked for their passport by four plans.
+             *     Only ever set for a `singleton` type. An `instance` — a payment receipt, a bank statement for a named window — must always be a fresh upload, or instalment 2's step greens itself with instalment 1's receipt.
+             *     An EXPIRED document is still offered here, marked `expired`: the student should be told their passport ran out, not silently asked for one as though they never had it.
+             */
+            readonly already_provided?: components["schemas"]["StudentDocument"] | null;
+            /**
+             * @description Free-form per type (build reference 1.7). A `file_upload` component may carry a `document_type_id` (uuid) naming a catalog type — that is what turns it from a blank file field into a request for a specific document, and what lets the locker satisfy it. For type=form_link specifically (Sentpo Mobile Wave 4), payload carries a single `form_template_id` (uuid) — the Form Link component "deep-links the applicant to fill their Applicant Form" for one specific `FormTemplate`, per build reference 1.20's "a Plan will select a Form, not the other way around."
              *     For type=questionnaire, payload carries `questions` (array of strings) and, optionally, `options` — the answer choices EVERY question in that component uses. Yes/No was hardcoded in the app until 2026-08-23, so a component authored before then has no `options` key and must still render Yes/No; a saved list of fewer than two is likewise treated as unconfigured rather than rendering a control with nothing to choose between. For type=checklist, payload carries `items` (array of strings).
              */
             payload: {
