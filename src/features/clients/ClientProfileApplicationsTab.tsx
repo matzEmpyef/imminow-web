@@ -7,8 +7,6 @@ import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useClient, useApplications, useUpdateApplication } from '@/queries/clients'
 import { formatMoney } from '@/lib/money'
 import { AddApplicationModal } from './AddApplicationModal'
-import { AssignPlanModal } from './AssignPlanModal'
-import { usePlans } from '@/queries/plans'
 import { AcceptCollegeModal } from './AcceptCollegeModal'
 import { RevertAcceptanceModal } from './RevertAcceptanceModal'
 
@@ -45,7 +43,6 @@ export function ApplicationsTab({ clientId }: { clientId: string }) {
   const client = useClient(clientId)
   const colleges = useApplications(clientId)
   const updateStatus = useUpdateApplication(clientId)
-  const plans = usePlans(clientId)
   const [showAddCollege, setShowAddCollege] = useState(false)
   if (colleges.isLoading) return <Skeleton className="h-24 rounded-lg" />
   if (!colleges.data) {
@@ -106,13 +103,6 @@ export function ApplicationsTab({ clientId }: { clientId: string }) {
   // are excluded — they are not selections yet, so they cannot contradict one.
   const selectedCountries = [...new Set(selected.map((sc) => sc.course.country).filter((c): c is string => Boolean(c)))]
   const countryMismatch = selectedCountries.length > 1
-  // Which colleges already have their own plan. A college with different steps from the others
-  // gets its own plan here rather than being folded into the case plan, which is what stops a
-  // student applying to several from being walked through them one at a time.
-  const plannedApplicationIds = new Set(
-    (plans.data?.items ?? []).filter((pl) => pl.scope === 'application').map((pl) => pl.application_id),
-  )
-
   return (
     <div className="flex flex-col gap-md">
       {addCollegeButton}
@@ -134,7 +124,6 @@ export function ApplicationsTab({ clientId }: { clientId: string }) {
             row={sc}
             acceptedElsewhere={selected.find((o) => o.status === 'accepted' && o.id !== sc.id)?.course.name ?? null}
             journeyPayerMethod={client.data?.payer_method ?? null}
-            hasPlan={plannedApplicationIds.has(sc.id)}
             onAdvance={(status) => updateStatus.mutate({ applicationId: sc.id, status })}
             advanceError={
               updateStatus.variables?.applicationId === sc.id && updateStatus.isError ? updateStatus.error.message : null
@@ -157,7 +146,6 @@ function ApplicationRow({
   row,
   acceptedElsewhere,
   journeyPayerMethod,
-  hasPlan,
   onAdvance,
   advanceError,
   advancing,
@@ -169,8 +157,6 @@ function ApplicationRow({
   // the UAT sweep (M4, 2026-08-29) caught the queue offering a click that could never work.
   acceptedElsewhere: string | null
   journeyPayerMethod: 'college' | 'applicant' | 'split' | null
-  // Whether this college already has its own plan — one each, enforced server-side.
-  hasPlan: boolean
   // `suggested` is not an advance target — the map never yields it, and the PATCH enum
   // rightly excludes it.
   onAdvance: (status: Exclude<CollegeStatus, 'suggested'>) => void
@@ -179,7 +165,6 @@ function ApplicationRow({
 }) {
   const [showAccept, setShowAccept] = useState(false)
   const [showRevert, setShowRevert] = useState(false)
-  const [showPlan, setShowPlan] = useState(false)
   const [confirmReject, setConfirmReject] = useState(false)
   const status = row.status as CollegeStatus
   const info = COLLEGE_STATUS_INFO[status] ?? { label: row.status, color: 'secondary' as const }
@@ -241,17 +226,6 @@ function ApplicationRow({
               Change acceptance
             </Button>
           )}
-          {/* Not offered on a `suggested` row: the student has not taken that college into their
-              Dream Courses yet, so there is nothing agreed to plan against, and the server
-              refuses it anyway. */}
-          {status !== 'suggested' &&
-            (hasPlan ? (
-              <span className="text-caption text-text-secondary">Has a plan</span>
-            ) : (
-              <Button size="sm" variant="secondary" onClick={() => setShowPlan(true)}>
-                Create plan
-              </Button>
-            ))}
         </div>
       </div>
       {advanceError && <p className="text-body-sm text-error">{advanceError}</p>}
@@ -261,13 +235,6 @@ function ApplicationRow({
           row={row}
           journeyPayerMethod={journeyPayerMethod}
           onClose={() => setShowAccept(false)}
-        />
-      )}
-      {showPlan && (
-        <AssignPlanModal
-          clientId={clientId}
-          application={{ id: row.id, collegeName: row.course.college_name ?? row.course.name }}
-          onClose={() => setShowPlan(false)}
         />
       )}
       {showRevert && (

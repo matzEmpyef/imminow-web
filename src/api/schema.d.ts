@@ -9805,7 +9805,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Assign a template — creates an editable per-applicant copy, template itself untouched (FR-039). The first step activates immediately; since 2026-08-29 that activation also derives its `expected_end_date` from `start_date + expected_duration_days` when the template step carries a duration. Every later step gets the same derivation the moment `POST /steps/{id}/approve` activates it, not before — locked/future steps stay undated. */
+        /** Assign a template — creates an editable per-applicant copy, template itself untouched (FR-039). The first step activates immediately; since 2026-08-29 that activation also derives its `expected_end_date` from `start_date + expected_duration_days` when the template step carries a duration. Every later step gets the same derivation the moment `POST /steps/{id}/approve` activates it, not before — locked/future steps stay undated. A case may hold as many plans as the consultancy runs; there is no uniqueness rule and no 409 (2026-09-09). */
         post: {
             parameters: {
                 query?: never;
@@ -9822,13 +9822,8 @@ export interface paths {
                 content: {
                     "application/json": {
                         template_id: components["schemas"]["UUID"];
-                        /**
-                         * @description Added 2026-09-09, see `Plan.scope`. OMITTED MEANS `case`, which is what every caller predating scopes meant — the server applies that default. Deliberately NOT declared as a schema-level `default:`: openapi-generator-dio mishandles a default on an enum-typed property and emits Dart that does not compile (`const ...ScopeEnum._('case')`, a constructor the generated enum never declares), which broke sixteen mobile test files on 2026-09-09. The default is server behaviour and belongs in this description, not in the schema.
-                         * @enum {string}
-                         */
-                        scope?: "case" | "application";
-                        /** @description Required when `scope` is `application`; rejected otherwise. 404 if the application is not on this case, 422 if the student has not yet approved it by saving the course to their Dream Courses (status still `suggested`). */
-                        application_id?: components["schemas"]["UUID"];
+                        /** @description What this plan is called on the case — "Canada applications", "Study permit". Omitted or blank means the template's own name, which is the right default for the common case of one plan per template. Renameable later via `PATCH /plans/{planId}`. */
+                        name?: string;
                     };
                 };
             };
@@ -9841,13 +9836,6 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["Plan"];
                     };
-                };
-                /** @description `plan_already_assigned` — this scope already holds a plan. Enforced here because it stands in for two partial unique indexes; without it a second assign pushes a row Postgres would reject and, because the readers take the first match, the new plan is INVISIBLE while the API keeps serving the old one. */
-                409: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
                 };
             };
         };
@@ -9864,7 +9852,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Every plan on the case, case plan first then application plans oldest-first (2026-09-09). Each carries its own `progress` fraction and, for application plans, the application and course it belongs to. `summary` is the case-level rollup the Clients list and the student's plan screen need now that one fraction cannot describe a case — including `waiting_on_colleges`, the long-lived state where every step is done and no college has answered yet. */
+        /**
+         * Every plan on the case, oldest first (2026-09-09). Each carries its own `progress` fraction. `summary` is the case-level rollup the Clients list and the student's plan screen need now that one fraction cannot describe a case — including `waiting_on_colleges`, the long-lived state where every step is done and no college has answered yet.
+         *
+         *     This REPLACED the singular `GET /clients/{id}/plan`, which was removed the same day. It answered with "the" plan, which stopped being a thing that exists the moment a case could run several: a caller asking for one of three plans and handed whichever happens to be first is a bug waiting for its second plan.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -9886,44 +9878,6 @@ export interface paths {
                             items?: components["schemas"]["Plan"][];
                             summary?: components["schemas"]["CaseSummary"];
                         };
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/clients/{id}/plan": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get the client's active plan — Sentpo Mobile Wave 4's Plan Overview screen, plus immiNow's own Plan tab. Access restricted to the owning student or any consultant/staff caller (`studentOwnsJourney`, same convention as Wave 3's `studentOwnsLead`). */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Plan"];
                     };
                 };
             };
@@ -10269,6 +10223,8 @@ export interface paths {
                 content: {
                     "application/json": {
                         title?: string;
+                        /** @description What happens in this step, in the consultant's own words. The one field here editable at ANY status — title and components lock the moment a step starts, because the student may already be working inside it, but rewording what a step MEANS is the opposite of changing the work. */
+                        description?: string | null;
                         /** Format: date-time */
                         expected_end_date?: string | null;
                         components?: components["schemas"]["ComponentInput"][];
@@ -10292,7 +10248,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/clients/{id}/plan/steps": {
+    "/plans/{planId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -10301,13 +10257,57 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add Step (Plan Editor "Add Step" builder, build reference 2.2): title, expected duration, components — components use `ComponentInput` (a step can hold more than one of the same type, each with its own `label`), same as Plan Templates. */
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Rename a plan. A name a consultant cannot correct is a name they will not write. */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    planId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        name: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Renamed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Plan"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/plans/{planId}/steps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Step (Plan Editor "Add Step" builder, build reference 2.2): title, description, expected duration, components — components use `ComponentInput` (a step can hold more than one of the same type, each with its own `label`), same as Plan Templates. Keyed on the PLAN, not the client (2026-09-09): this used to be `POST /clients/{id}/plan/steps` and silently meant the case plan, an address that stopped picking one plan out the moment a case could run several. */
         post: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
-                    id: string;
+                    planId: string;
                 };
                 cookie?: never;
             };
@@ -10315,6 +10315,7 @@ export interface paths {
                 content: {
                     "application/json": {
                         title: string;
+                        description?: string | null;
                         expected_duration_days?: number;
                         components?: components["schemas"]["ComponentInput"][];
                     };
@@ -10338,7 +10339,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/clients/{id}/plan/reorder": {
+    "/plans/{planId}/reorder": {
         parameters: {
             query?: never;
             header?: never;
@@ -10347,19 +10348,20 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Drag-to-reorder the step list (build reference 2.2) — full ordered list of step ids, positions reassigned server-side from array order rather than one PATCH per moved step */
+        /** Drag-to-reorder the step list (build reference 2.2) — full ordered list of step ids, positions reassigned server-side from array order rather than one PATCH per moved step. Keyed on the plan since 2026-09-09, for the same reason as `/plans/{planId}/steps`. */
         post: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
-                    id: string;
+                    planId: string;
                 };
                 cookie?: never;
             };
             requestBody?: {
                 content: {
                     "application/json": {
+                        /** @description Every step on this plan, exactly once, in the order wanted. A list that is not a permutation of the plan's own steps is rejected 400 rather than silently dropping the steps it left out. */
                         step_ids: components["schemas"]["UUID"][];
                     };
                 };
@@ -17685,6 +17687,8 @@ export interface components {
             /** @description Omit for a new step — the server assigns one and its position from array order. Include an existing step's id to preserve it across an edit. */
             id?: components["schemas"]["UUID"];
             title: string;
+            /** @description See `Step.description`. Optional — a step nobody described simply has none. */
+            description?: string | null;
             expected_duration_days?: number;
             components?: components["schemas"]["ComponentInput"][];
         };
@@ -17695,6 +17699,8 @@ export interface components {
         StepTemplate: {
             id: components["schemas"]["UUID"];
             title: string;
+            /** @description What happens in this step, in the consultant's own words — written once here and copied onto every plan assigned from this template. See `Step.description`. */
+            description?: string | null;
             expected_duration_days?: number;
             position: number;
             components: components["schemas"]["Component"][];
@@ -17790,10 +17796,12 @@ export interface components {
             } | null;
             followup_count?: number;
         };
-        /** @description What one progress fraction can no longer say, now that a case runs several plans at once (2026-09-09). `Client.progress` stays the CASE plan's fraction so every reader that predates scopes keeps working and keeps meaning the same thing; this sits beside it. */
+        /** @description What one progress fraction can no longer say, now that a case runs several plans at once (2026-09-09). `Client.progress` carries the same summed fraction as `plan_progress` below; everything else here is what that number cannot say. */
         CaseSummary: {
-            /** @description The case plan's "done/total", or null if no case plan is assigned yet. */
-            case_progress?: string | null;
+            /** @description Every step across EVERY plan on the case, as one "done/total" — null until a plan is assigned. A case has one body of work however many plans it is split into, so adding a plan grows the denominator and the fraction goes down. That is the honest reading, and it is why this is not the first plan's own fraction. */
+            plan_progress?: string | null;
+            /** @description How many plans the case is running. */
+            plan_count?: number;
             /** @description Applications the student has actually agreed to — `suggested` rows are a consultant's proposal awaiting the student and are not counted. */
             application_total?: number;
             applied?: number;
@@ -17887,36 +17895,32 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
-        /** @description Just enough of the application for a plan card to name its college without a second request. Deliberately a NAMED schema rather than an inline `allOf` composition on the list endpoint: openapi-generator-dio does not follow allOf and emitted `List<Object>`, which cost an afternoon on 2026-09-09. */
-        PlanApplicationRef: {
-            id?: components["schemas"]["UUID"];
-            status?: string;
-            course?: components["schemas"]["Course"] | null;
-        };
+        /**
+         * @description A case runs SEVERAL PLANS AT ONCE (2026-09-09) — not several KINDS of plan. A short-lived `scope` enum (`case` / `application`) tried to say otherwise and was removed the same week: there is one kind, "a plan", and a consultancy runs as many as the case needs.
+         *     A plan is NOT bound to an application, a course or a college (user, 2026-09-09). Binding it would have forced a consultancy running ONE plan across four colleges to invent three plans it does not want, and would have made every "here is what is next for THIS college" line a lie the moment two colleges shared a plan. What a plan carries instead is a `name` the consultant writes, and a `description` per step saying what happens in it.
+         *     There is no uniqueness rule. Two plans off the same template on one case is a normal thing to want; telling them apart is what the name is for.
+         */
         Plan: {
             id: components["schemas"]["UUID"];
             journey_id: components["schemas"]["UUID"];
-            /**
-             * @description Added 2026-09-09. A plan used to belong to a journey, one each, which forced a student applying to four colleges into a single linear queue that pretended the four were sequential. `case` is the one plan per journey holding everything shared — profile, documents, test prep. `application` is one per college applied to, holding that college's own procedure, and carries `application_id`. Uniqueness is per scope, not per journey: one case plan per journey, one plan per application, both enforced (409 `plan_already_assigned`). There is deliberately NO visa scope — visa work goes wherever the consultancy wants it or nowhere at all, because the student may be handling it themselves. Every plan created before this date is a `case` plan by definition.
-             * @enum {string}
-             */
-            scope: "case" | "application";
-            /** @description Set if and only if `scope` is `application`. */
-            application_id?: components["schemas"]["UUID"];
+            /** @description What the consultant calls this plan — "Canada applications", "Study permit", "Documents". Defaults to the name of the template it was assigned from, and is editable afterwards via `PATCH /plans/{planId}`. Rows created before 2026-09-09 are backfilled with their template's name on load. */
+            name: string;
             template_id?: components["schemas"]["UUID"];
             /**
              * @description This plan's own done/total, so a list of plans does not have to count steps client-side.
              * @example 2/4
              */
             readonly progress?: string | null;
-            /** @description The college this plan belongs to. Null on a case plan. */
-            application?: components["schemas"]["PlanApplicationRef"];
+            /** Format: date-time */
+            created_at?: string | null;
             steps: components["schemas"]["Step"][];
         };
         /** @description FR-033. Container of Components, no fixed type. */
         Step: {
             id: components["schemas"]["UUID"];
             title: string;
+            /** @description What actually happens in this step, in the consultant's own words (user, 2026-09-09): "so that consultant can write what happens in that step in short". A title is a label — "Profile Evaluation" tells a student nothing — and this is the sentence that explains it. Written once on the plan template and copied onto every plan assigned from it, editable per step afterwards. Unlike title and components it stays editable at ANY status: rewording what a step means is the opposite of changing the work. */
+            description?: string | null;
             /** @enum {string} */
             status: "locked" | "active" | "done";
             position: number;

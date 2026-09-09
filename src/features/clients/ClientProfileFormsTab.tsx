@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { ErrorState, Skeleton } from '@/components/QueryState'
-import { useLatestFormResponse, usePlan, useSaveFormResponse } from '@/queries/plans'
+import { useLatestFormResponse, usePlans, useSaveFormResponse } from '@/queries/plans'
 import { useFormTemplate } from '@/queries/formTemplates'
 import { formatDateTime } from '@/lib/time'
 
@@ -213,13 +213,15 @@ function LinkedFormViewer({ formId, formName, clientId }: { formId: string; form
 // Manage Questions/Course Suggestions detail popups already use elsewhere in this app for
 // paging through a set one at a time.
 export function FormsTab({ clientId }: { clientId: string }) {
-  const plan = usePlan(clientId)
+  // Every plan on the case, not just one (2026-09-09) — a form linked from the second plan is no
+  // less the student's to fill than one linked from the first.
+  const plans = usePlans(clientId)
   const [index, setIndex] = useState(0)
-  if (plan.isLoading) return <Skeleton className="h-24 rounded-lg" />
-  if (!plan.data) return <ErrorState message="Could not load the plan." onRetry={() => plan.refetch()} />
+  if (plans.isLoading) return <Skeleton className="h-24 rounded-lg" />
+  if (!plans.data) return <ErrorState message="Could not load the plans." onRetry={() => plans.refetch()} />
 
-  const links = [...plan.data.steps]
-    .sort((a, b) => a.position - b.position)
+  const links = (plans.data.items ?? [])
+    .flatMap((plan) => [...plan.steps].sort((a, b) => a.position - b.position))
     .flatMap((step) =>
       step.components
         .filter((c) => c.type === 'form_link')

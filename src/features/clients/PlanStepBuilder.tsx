@@ -12,15 +12,16 @@ import { ComponentBlock } from '@/components/PlanComponentBlock'
 import { ComponentFill } from '@/components/ComponentFill'
 import { AddStepModal, type StepDraft } from '@/components/AddStepModal'
 import { AddComponentModal } from '@/components/AddComponentModal'
-import { ErrorState, Skeleton } from '@/components/QueryState'
 import { StopPropagation } from '@/components/StopPropagation'
-import { useAddStep, useDeleteStep, usePlan, useReorderSteps, useUpdateStep } from '@/queries/plans'
+import { useAddStep, useDeleteStep, useReorderSteps, useUpdateStep } from '@/queries/plans'
 import { useApproveStep, useRejectStep } from '@/queries/steps'
 import { usePermission } from '@/lib/permissions'
+import { FieldLabel } from '@/components/FieldLabel'
 import { formatDate, formatDateTime } from '@/lib/time'
 import type { ComponentInput } from '@/lib/planComponents'
 import type { components } from '@/api/schema'
 
+type Plan = components['schemas']['Plan']
 type Step = components['schemas']['Step']
 
 // Ported from the now-retired standalone Step Approvals page (user-requested, 2026-08-19 —
@@ -151,17 +152,26 @@ const STATUS_COLOR = { locked: 'secondary', active: 'info', done: 'success' } as
 // that also carries `title`/`components`, so the title field isn't just hidden here, it's never
 // sent — plus an optional reason, since moving an already-started step's date reaches the
 // applicant (`step_due_date_changed`) and the reason rides along into that notification.
+//
+// The DESCRIPTION is the exception to that split (2026-09-09): it is editable in both modes,
+// because rewording what a step means is the opposite of changing the work the student has
+// already started. Sent on its own PATCH so an active step's edit never carries `title`.
 function EditLiveStepModal({
   step,
   onSubmit,
   onClose,
 }: {
   step: Step
-  onSubmit: (data: { title: string; expected_end_date: string | null } | { expected_end_date: string | null; reason?: string }) => void
+  onSubmit: (
+    data:
+      | { title: string; description: string | null; expected_end_date: string | null }
+      | { description: string | null; expected_end_date: string | null; reason?: string },
+  ) => void
   onClose: () => void
 }) {
   const isActive = step.status === 'active'
   const [title, setTitle] = useState(step.title)
+  const [description, setDescription] = useState(step.description ?? '')
   const [date, setDate] = useState(step.expected_end_date ? step.expected_end_date.slice(0, 10) : '')
   const [reason, setReason] = useState('')
 
@@ -169,7 +179,12 @@ function EditLiveStepModal({
     e.preventDefault()
     if (!isActive && !title) return
     const expected_end_date = date ? new Date(date).toISOString() : null
-    onSubmit(isActive ? { expected_end_date, reason: reason || undefined } : { title, expected_end_date })
+    const nextDescription = description.trim() || null
+    onSubmit(
+      isActive
+        ? { description: nextDescription, expected_end_date, reason: reason || undefined }
+        : { title, description: nextDescription, expected_end_date },
+    )
     onClose()
   }
 
@@ -191,6 +206,16 @@ function EditLiveStepModal({
               This step has already started, so only its expected completion date can change —
               the applicant is notified when it does.
             </p>
+            <div className="flex flex-col gap-xs">
+              <FieldLabel htmlFor="live-step-description">What happens in this step</FieldLabel>
+              <textarea
+                id="live-step-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                className="rounded-md border border-border bg-surface p-sm text-body text-text-primary"
+              />
+            </div>
             <TextField label="Expected end date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             <TextField
               label="Reason for the change (shown to the applicant, optional)"
@@ -201,6 +226,16 @@ function EditLiveStepModal({
         ) : (
           <>
             <TextField label="Step title" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <div className="flex flex-col gap-xs">
+              <FieldLabel htmlFor="live-step-description">What happens in this step</FieldLabel>
+              <textarea
+                id="live-step-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                className="rounded-md border border-border bg-surface p-sm text-body text-text-primary"
+              />
+            </div>
             <TextField label="Expected end date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </>
         )}
@@ -367,21 +402,31 @@ function LiveStepPreviewRow({
 // tab can show the whole step-builder inline instead of linking out. Defaults to Preview — the
 // consultant sees exactly what the student sees — with the same Edit-mode toggle Plan Templates
 // itself has.
-export function PlanStepBuilder({ clientId, initialStepId }: { clientId: string; initialStepId?: string }) {
-  const plan = usePlan(clientId)
-  const addStep = useAddStep(clientId)
+//
+// Takes the PLAN, not the client (2026-09-09). It used to fetch "the" plan itself, which stopped
+// being a thing that exists once a case could run several — the Plan tab has the whole list
+// already and hands one down, so this renders the plan it was given rather than guessing.
+export function PlanStepBuilder({
+  clientId,
+  plan,
+  initialStepId,
+}: {
+  clientId: string
+  plan: Plan
+  initialStepId?: string
+}) {
+  const addStep = useAddStep(clientId, plan.id)
   const updateStep = useUpdateStep(clientId)
   const deleteStep = useDeleteStep(clientId)
-  const reorder = useReorderSteps(clientId)
+  const reorder = useReorderSteps(clientId, plan.id)
 
   // Defaults to whichever step Activity's Step Approvals row deep-linked here (user-requested,
   // 2026-08-19 — "redirect to client plan tab and to the specific step"), falling back to the
   // active step (user-requested, 2026-08-15 — "open active step be default") when there's no
   // deep-link, rather than nothing selected. Lazy initializer only, not an effect — this only
-  // needs to run once on mount; PlanTab already guards on plan.data existing before rendering this
-  // component at all, so it's already in the query cache here.
+  // needs to run once on mount.
   const [selectedStepId, setSelectedStepId] = useState<string | undefined>(
-    () => initialStepId ?? plan.data?.steps.find((s) => s.status === 'active')?.id,
+    () => initialStepId ?? plan.steps.find((s) => s.status === 'active')?.id,
   )
   const [mode, setMode] = useState<'edit' | 'preview'>('preview')
   const [showAddStep, setShowAddStep] = useState(false)
@@ -393,12 +438,7 @@ export function PlanStepBuilder({ clientId, initialStepId }: { clientId: string;
   // the clients.edit_plan enforcement on the server's plan-mutation routes.
   const canEditPlan = usePermission('clients.edit_plan')
 
-  if (plan.isLoading) return <Skeleton className="h-24 rounded-lg" />
-  // usePlan sets retry: false, so this Retry button is genuinely the only recovery path here.
-  if (plan.isError || !plan.data)
-    return <ErrorState message="Could not load the plan." onRetry={() => plan.refetch()} />
-
-  const steps = [...plan.data.steps].sort((a, b) => a.position - b.position)
+  const steps = [...plan.steps].sort((a, b) => a.position - b.position)
   const selectedStep = steps.find((s) => s.id === selectedStepId) ?? null
   const selectedIndex = selectedStep ? steps.findIndex((s) => s.id === selectedStep.id) : -1
   const canEdit = mode === 'edit' && selectedStep?.status === 'locked'
@@ -429,7 +469,11 @@ export function PlanStepBuilder({ clientId, initialStepId }: { clientId: string;
 
   function handleAddStep(draft: StepDraft) {
     addStep.mutate(
-      { title: draft.title, expected_duration_days: draft.expected_duration_days },
+      {
+        title: draft.title,
+        description: draft.description ?? null,
+        expected_duration_days: draft.expected_duration_days,
+      },
       { onSuccess: (newStep) => setSelectedStepId(newStep?.id) },
     )
   }
@@ -554,6 +598,11 @@ export function PlanStepBuilder({ clientId, initialStepId }: { clientId: string;
                   </button>
                 )}
               </div>
+              {/* What happens in this step, in the consultant's own words — the same sentence
+                  the student reads under the title in the app (user, 2026-09-09). */}
+              {selectedStep.description && (
+                <p className="text-body-sm text-text-secondary">{selectedStep.description}</p>
+              )}
               {selectedStep.expected_end_date && (
                 <p className="text-caption text-text-secondary">
                   Expected by {formatDate(selectedStep.expected_end_date)}

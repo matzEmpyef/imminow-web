@@ -20,25 +20,12 @@ export function usePlanTemplates() {
   })
 }
 
-export function usePlan(clientId: string | undefined) {
-  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
-  return useQuery({
-    queryKey: ['clients', clientId, 'plan'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/clients/{id}/plan', {
-        params: { path: { id: clientId! } },
-      })
-      if (error) throw new ApiError('Could not load the plan.', error)
-      return data
-    },
-    enabled: isAuthed && Boolean(clientId),
-    retry: false,
-  })
-}
-
 /**
- * Every plan on the case — the case plan first, then one per college applied to. `usePlan` above
- * still answers with the CASE plan alone, which is what every caller predating scopes meant.
+ * Every plan on the case, oldest first.
+ *
+ * The singular `usePlan` was deleted with `GET /clients/{id}/plan` (2026-09-09). It answered with
+ * "the" plan, and a case can run several — a caller asking for one of three and handed whichever
+ * is first is a bug waiting for its second plan.
  */
 export function usePlans(clientId: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
@@ -62,31 +49,48 @@ export function useAssignPlan(clientId: string) {
     mutationFn: async ({
       templateId,
       idempotencyKey,
-      scope = 'case',
-      applicationId,
+      name,
     }: {
       templateId: string
       idempotencyKey: string
-      // Omitted means the case plan, matching the server default and every caller that predates
-      // scopes. `applicationId` is required when scope is 'application' and ignored otherwise.
-      scope?: 'case' | 'application'
-      applicationId?: string
+      // What this plan is called on the case. Blank means the template's own name, which is the
+      // right default for a case running one plan.
+      name?: string
     }) => {
       const { data, error } = await api.POST('/clients/{id}/plan/assign', {
         params: { path: { id: clientId }, header: { 'Idempotency-Key': idempotencyKey } },
-        body: { template_id: templateId, scope, ...(applicationId ? { application_id: applicationId } : {}) },
+        body: { template_id: templateId, ...(name?.trim() ? { name: name.trim() } : {}) },
       })
       if (error) throw new ApiError('Could not assign this plan.', error)
       return data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plans'] })
-      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plan'] })
+      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plans'] })
       queryClient.invalidateQueries({ queryKey: ['clients', clientId] })
       queryClient.invalidateQueries({ queryKey: ['clients'] })
       // Assigning a plan derives the first step's expected_end_date and can move the client out
       // of "pending plan assignment" — both feed Activity now (2026-08-29).
       queryClient.invalidateQueries({ queryKey: ['activity-feed'] })
+    },
+  })
+}
+
+// A name a consultant cannot correct is a name they will not write.
+export function useRenamePlan(clientId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ planId, name }: { planId: string; name: string }) => {
+      const { data, error } = await api.PATCH('/plans/{planId}', {
+        params: { path: { planId } },
+        body: { name },
+      })
+      if (error) throw new ApiError('Could not rename this plan.', error)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plans'] })
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
     },
   })
 }
@@ -132,18 +136,26 @@ export function useDuplicatePlanTemplate() {
   })
 }
 
-export function useAddStep(clientId: string) {
+// Keyed on the PLAN, not the client (2026-09-09) — `/clients/{id}/plan/steps` silently meant the
+// case plan, and a case runs several now. `clientId` stays a parameter purely so the mutation can
+// invalidate the right list.
+export function useAddStep(clientId: string, planId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (body: { title: string; expected_duration_days?: number; components?: ComponentInput[] }) => {
-      const { data, error } = await api.POST('/clients/{id}/plan/steps', {
-        params: { path: { id: clientId } },
+    mutationFn: async (body: {
+      title: string
+      description?: string | null
+      expected_duration_days?: number
+      components?: ComponentInput[]
+    }) => {
+      const { data, error } = await api.POST('/plans/{planId}/steps', {
+        params: { path: { planId } },
         body,
       })
       if (error) throw new ApiError('Could not add this step.', error)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plan'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plans'] }),
   })
 }
 
@@ -154,7 +166,7 @@ export function useAddStep(clientId: string) {
 // 2026-08-29: an `active` step's `expected_end_date` alone stays editable, and an optional
 // `reason` rides along — the server notifies the applicant when the date actually changes.
 // Parameterized by clientId rather than stepId so it can invalidate the right
-// `['clients', clientId, 'plan']` query, same shape as useAddStep.
+// `['clients', clientId, 'plans']` query, same shape as useAddStep.
 export function useUpdateStep(clientId: string) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -164,6 +176,7 @@ export function useUpdateStep(clientId: string) {
     }: {
       stepId: string
       title?: string
+      description?: string | null
       expected_end_date?: string | null
       components?: ComponentInput[]
       reason?: string
@@ -176,7 +189,7 @@ export function useUpdateStep(clientId: string) {
       return data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plan'] })
+      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plans'] })
       // A date change on an active step now feeds Activity's overdue/Coming Up sections
       // (2026-08-29).
       queryClient.invalidateQueries({ queryKey: ['activity-feed'] })
@@ -192,7 +205,7 @@ export function useDeleteStep(clientId: string) {
       const { error } = await api.DELETE('/steps/{id}', { params: { path: { id: stepId } } })
       if (error) throw new ApiError('Could not remove this step.', error)
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plan'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plans'] }),
   })
 }
 
@@ -210,7 +223,7 @@ export function useSaveStepResponses(clientId: string) {
       if (error) throw new ApiError('Could not save.', error)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plan'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plans'] }),
   })
 }
 
@@ -271,17 +284,17 @@ export function useSaveFormResponse(formId: string, clientId: string) {
   })
 }
 
-export function useReorderSteps(clientId: string) {
+export function useReorderSteps(clientId: string, planId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (stepIds: string[]) => {
-      const { data, error } = await api.POST('/clients/{id}/plan/reorder', {
-        params: { path: { id: clientId } },
+      const { data, error } = await api.POST('/plans/{planId}/reorder', {
+        params: { path: { planId } },
         body: { step_ids: stepIds },
       })
       if (error) throw new ApiError('Could not reorder the steps.', error)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plan'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plans'] }),
   })
 }

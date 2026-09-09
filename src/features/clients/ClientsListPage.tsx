@@ -206,8 +206,8 @@ export function ClientsListPage() {
       header: 'Plan',
       sortable: true,
       // A case can now run several plans and several applications at once, so one fraction no
-      // longer describes it. The case plan's progress stays on the first line — it is still the
-      // shared work, and it is what this column has always meant — with the applications summed
+      // longer describes it. The first line names the plans — one name, or the first plus "+N"
+      // when there are several — with the summed step fraction beside it, and the applications
       // underneath, because "4 applications · 1 offer" is the thing a consultant scanning their
       // book actually needs and could not previously see at all.
       render: (client) => {

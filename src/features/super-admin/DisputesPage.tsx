@@ -71,7 +71,10 @@ export function DisputesPage() {
                 deciding blind. */}
             {d.case_progress && (
               <div className="flex flex-wrap gap-md rounded-md bg-surface-muted px-3 py-sm text-caption text-text-secondary">
-                <span>Case plan {d.case_progress.case_progress ?? 'not assigned'}</span>
+                <span>
+                  {d.case_progress.plan_progress ?? 'No plan'}
+                  {(d.case_progress.plan_count ?? 0) > 1 && ` across ${d.case_progress.plan_count} plans`}
+                </span>
                 <span>{plural(d.case_progress.application_total, 'application')}</span>
                 <span>{plural(d.case_progress.offers, 'offer')}</span>
                 <span>{d.case_progress.accepted ?? 0} accepted</span>

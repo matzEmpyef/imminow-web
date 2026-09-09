@@ -46,6 +46,7 @@ function TemplateEditor({ template, onDone }: { template: PlanTemplate | null; o
     template?.steps.map((s) => ({
       id: s.id,
       title: s.title,
+      description: s.description,
       expected_duration_days: s.expected_duration_days,
       components: s.components,
     })) ?? [],
@@ -63,7 +64,13 @@ function TemplateEditor({ template, onDone }: { template: PlanTemplate | null; o
     const id = crypto.randomUUID()
     setSteps((prev) => [
       ...prev,
-      { id, title: draft.title, expected_duration_days: draft.expected_duration_days, components: [] },
+      {
+        id,
+        title: draft.title,
+        description: draft.description,
+        expected_duration_days: draft.expected_duration_days,
+        components: [],
+      },
     ])
     setSelectedStepId(id)
   }
@@ -71,7 +78,14 @@ function TemplateEditor({ template, onDone }: { template: PlanTemplate | null; o
   function updateStep(id: string, draft: StepDraft) {
     setSteps((prev) =>
       prev.map((s) =>
-        s.id === id ? { ...s, title: draft.title, expected_duration_days: draft.expected_duration_days } : s,
+        s.id === id
+          ? {
+              ...s,
+              title: draft.title,
+              description: draft.description,
+              expected_duration_days: draft.expected_duration_days,
+            }
+          : s,
       ),
     )
   }
@@ -239,6 +253,11 @@ function TemplateEditor({ template, onDone }: { template: PlanTemplate | null; o
                   </button>
                 )}
               </div>
+              {/* Written once here and copied onto every plan assigned from this template
+                  (user, 2026-09-09) — the sentence a student reads under the step title. */}
+              {selectedStep.description && (
+                <p className="text-body-sm text-text-secondary">{selectedStep.description}</p>
+              )}
               {selectedStep.expected_duration_days != null && (
                 <p className="text-caption text-text-secondary">
                   Expected duration: {selectedStep.expected_duration_days} day
@@ -300,7 +319,11 @@ function TemplateEditor({ template, onDone }: { template: PlanTemplate | null; o
       {showAddStep && <AddStepModal onSubmit={addStep} onClose={() => setShowAddStep(false)} />}
       {editingStep && (
         <AddStepModal
-          editingStep={{ title: editingStep.title, expected_duration_days: editingStep.expected_duration_days }}
+          editingStep={{
+            title: editingStep.title,
+            description: editingStep.description,
+            expected_duration_days: editingStep.expected_duration_days,
+          }}
           onSubmit={(draft) => updateStep(editingStep.id!, draft)}
           onClose={() => setEditingStep(null)}
         />

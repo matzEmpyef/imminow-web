@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
+import { TextField } from '@/components/TextField'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useAssignPlan, usePlanTemplates } from '@/queries/plans'
 
@@ -11,33 +12,36 @@ import { useAssignPlan, usePlanTemplates } from '@/queries/plans'
 // popup so both Overview and Plan tab can trigger the same flow inline, same move this session
 // already made for Create Applicant/Add Lead/etc.
 /**
- * Since 2026-09-09 a plan belongs to a scope. Opened with no `application`, this assigns the CASE
- * plan — the one plan per case holding everything shared across every college, and what every
- * caller predating scopes meant. Opened WITH an application, it assigns that college's own plan,
- * so a student applying to four colleges gets four parallel plans instead of one queue pretending
- * the four are sequential.
+ * A case can run as many plans as the consultancy wants (2026-09-09), so this modal adds ONE more
+ * — there is nothing to choose between and no scope to pick. The short-lived `application` prop
+ * that bound a plan to a college is gone with the model that needed it: a plan is not tied to an
+ * application, a course or a college, because a consultancy running one plan across four colleges
+ * would otherwise have been made to invent three plans it does not want.
+ *
+ * What it asks for instead is a NAME. It is prefilled from the chosen template, which is right for
+ * the common case, and editable, which is what makes two plans off one template usable.
  */
-export function AssignPlanModal({
-  clientId,
-  application,
-  onClose,
-}: {
-  clientId: string
-  application?: { id: string; collegeName: string }
-  onClose: () => void
-}) {
+export function AssignPlanModal({ clientId, onClose }: { clientId: string; onClose: () => void }) {
   const templates = usePlanTemplates()
   const assignPlan = useAssignPlan(clientId)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [name, setName] = useState('')
+  // Tracks whether the consultant has typed their own name, so prefilling from the template never
+  // overwrites something they wrote.
+  const [nameEdited, setNameEdited] = useState(false)
   // T8: one key per modal open — double-clicking Assign is one operation.
   const [idempotencyKey] = useState(() => crypto.randomUUID())
 
   const selected = templates.data?.find((t) => t.id === selectedId)
 
+  useEffect(() => {
+    if (!nameEdited && selected) setName(selected.name)
+  }, [selected, nameEdited])
+
   return (
     <Modal
       onClose={onClose}
-      title={application ? `Plan for ${application.collegeName}` : 'Assign the Case Plan'}
+      title="Add a plan"
       widthRem={36}
       footer={
         <>
@@ -50,35 +54,18 @@ export function AssignPlanModal({
             onClick={() =>
               selected &&
               !assignPlan.isPending &&
-              assignPlan.mutate(
-                {
-                  templateId: selected.id,
-                  idempotencyKey,
-                  scope: application ? 'application' : 'case',
-                  ...(application ? { applicationId: application.id } : {}),
-                },
-                { onSuccess: onClose },
-              )
+              assignPlan.mutate({ templateId: selected.id, idempotencyKey, name }, { onSuccess: onClose })
             }
           >
-            Assign This Plan
+            Add This Plan
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-md">
         <p className="text-body-sm text-text-secondary">
-          {application ? (
-            <>
-              Steps for this college&rsquo;s own procedure — its form, its fee, its interview. Anything shared across
-              every college belongs on the case plan instead, so the student is only asked once.
-            </>
-          ) : (
-            <>
-              The one plan per case: profile, documents, test prep — everything shared across every college the student
-              applies to. Each college gets its own plan from the Applications tab.
-            </>
-          )}
+          Pick the template to start from. A case can run several plans side by side &mdash; documents, one per
+          country, the visa &mdash; so the student works through them in parallel instead of one queue.
         </p>
         {templates.isLoading && <Skeleton className="h-40 rounded-lg" />}
         {templates.isError && (
@@ -99,19 +86,36 @@ export function AssignPlanModal({
         </div>
 
         {selected && (
-          <div className="rounded-md border border-border p-md">
-            <h3 className="text-body-sm font-medium text-text-primary">Step Preview</h3>
-            <ol className="mt-sm flex flex-col gap-xs">
-              {selected.steps.map((step, i) => (
-                <li key={step.id} className="text-body-sm text-text-primary">
-                  {i + 1}. {step.title}
-                  {step.expected_duration_days && (
-                    <span className="text-text-secondary"> — ~{step.expected_duration_days} days</span>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </div>
+          <>
+            <div className="flex flex-col gap-xs">
+              <TextField
+                label="Call this plan"
+                required
+                value={name}
+                onChange={(e) => {
+                  setNameEdited(true)
+                  setName(e.target.value)
+                }}
+              />
+              <p className="text-caption text-text-secondary">
+                What the student sees at the top of this plan. Two plans from the same template need different names.
+              </p>
+            </div>
+            <div className="rounded-md border border-border p-md">
+              <h3 className="text-body-sm font-medium text-text-primary">Step Preview</h3>
+              <ol className="mt-sm flex flex-col gap-xs">
+                {selected.steps.map((step, i) => (
+                  <li key={step.id} className="text-body-sm text-text-primary">
+                    {i + 1}. {step.title}
+                    {step.expected_duration_days && (
+                      <span className="text-text-secondary"> &mdash; ~{step.expected_duration_days} days</span>
+                    )}
+                    {step.description && <p className="text-caption text-text-secondary">{step.description}</p>}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </>
         )}
       </div>
     </Modal>

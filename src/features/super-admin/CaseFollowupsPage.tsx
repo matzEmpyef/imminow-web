@@ -78,7 +78,10 @@ export function CaseFollowupsPage() {
               <div className="flex flex-wrap gap-md rounded-md bg-surface-muted px-3 py-sm text-caption text-text-secondary">
                 <span>{row.days_since_started ?? '—'} days running</span>
                 <span>{row.days_since_last_status_change ?? '—'} days since anything moved</span>
-                <span>Case plan {row.case_progress?.case_progress ?? 'none'}</span>
+                <span>
+                  {row.case_progress?.plan_progress ?? 'No plan'}
+                  {(row.case_progress?.plan_count ?? 0) > 1 && ` across ${row.case_progress?.plan_count} plans`}
+                </span>
                 <span>{row.case_progress?.application_total ?? 0} applications</span>
                 <span>{row.case_progress?.offers ?? 0} offers</span>
               </div>

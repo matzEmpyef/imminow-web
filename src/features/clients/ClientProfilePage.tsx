@@ -7,7 +7,7 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useClient, useReopenPlan } from '@/queries/clients'
-import { usePlan } from '@/queries/plans'
+import { usePlans } from '@/queries/plans'
 import { useFeature } from '@/lib/features'
 import { usePermission } from '@/lib/permissions'
 import { CloseClientModal } from './CloseClientModal'
@@ -44,7 +44,7 @@ export function ClientProfilePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const initialStepId = searchParams.get('step') ?? undefined
   const client = useClient(id)
-  const plan = usePlan(id)
+  const plans = usePlans(id)
   const reopenPlan = useReopenPlan(id)
   // Reopening a completed plan is an elevated action — "defaulting to Consultancy Admin only,
   // delegable to trusted staff" (build reference §374). The permission key shipped with the
@@ -102,7 +102,9 @@ export function ClientProfilePage() {
   // Forms tab only appears once the plan actually has something to show (user-requested,
   // 2026-08-19 — "if there are any forms linked to the plan involved, then show the forms") —
   // same cached query PlanTab itself uses, so this doesn't add a second fetch.
-  const hasLinkedForms = (plan.data?.steps ?? []).some((step) => step.components.some((c) => c.type === 'form_link'))
+  const hasLinkedForms = (plans.data?.items ?? []).some((plan) =>
+    plan.steps.some((step) => step.components.some((c) => c.type === 'form_link')),
+  )
   const visibleTabs = TABS.filter((tab) => {
     if (tab === 'Commissions') return canSeeCommissions
     if (tab === 'Applications') return data.case_type === 'student'
