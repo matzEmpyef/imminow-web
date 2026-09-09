@@ -18736,6 +18736,10 @@ export interface components {
             offer_turnaround_days?: number;
             /** @description ACCEPTANCE to CLOSE — visa application, visa decision, departure. Default 120, and explicitly a FIRST ESTIMATE rather than a researched figure: it should be checked against real processing times for the countries actually in play before the accepted-but-not-closed signal starts flagging cases on it. Easily confused with `offer_turnaround_days` above; they are different spans. */
             expected_close_days?: number;
+            /** @description Whether the number above was CHOSEN for this country or is the platform default nobody has looked at (2026-09-09). Both fields resolve to a value, which made the two states indistinguishable: all 119 seeded countries reported 30/120 and no surface could show which had actually been reviewed. */
+            readonly offer_turnaround_days_reviewed?: boolean;
+            /** @description As above, for `expected_close_days`. This is the more important of the two: the 120-day default is an admitted guess and every accepted-but-not-closed signal on the platform derives from it, so "which countries are still running on the default" is an operational question, not a cosmetic one. */
+            readonly expected_close_days_reviewed?: boolean;
             /** @description Whether the country is still OFFERED (2026-09-07). False removes it from `GET /countries` — the list every picker on both products reads — and therefore from Countries Served, campus country, target countries and the rest, while leaving every record that already names it untouched and searchable. This is the reversible alternative to `DELETE /countries/{name}`, which is a hard delete with no reference check: it destroys the country's guide (the write-up lives on this same row) and leaves existing campuses, `countries_served` and `target_countries` entries pointing at a country the platform no longer lists. */
             active?: boolean;
             /**

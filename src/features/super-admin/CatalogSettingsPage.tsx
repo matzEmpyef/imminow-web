@@ -25,6 +25,7 @@ import {
 import { useCreateStudyLevel, useStudyLevels, useUpdateStudyLevel } from '@/queries/studyLevels'
 import {
   useCountrySettings,
+  useUpdateCountryWindow,
   useCreateCountry,
   useDeleteCountry,
   useSetCountryActive,
@@ -166,6 +167,12 @@ function CountriesTab() {
       render: (row) => <span className="text-text-secondary">{row.iso2 ?? '—'}</span>,
     },
     { key: 'currency', header: 'Default fee currency', render: (row) => <DefaultCurrencyCell row={row} /> },
+    {
+      key: 'windows',
+      header: 'Decision windows',
+      hideBelow: 'md',
+      render: (row) => <CountryWindowCells row={row} />,
+    },
     {
       key: 'guide',
       header: 'Guide',
@@ -322,6 +329,83 @@ function DefaultCurrencyCell({ row }: { row: CountrySetting }) {
       </CompactSelect>
       {update.isError && <span className="text-caption text-error">Not saved</span>}
     </StopPropagation>
+  )
+}
+
+// The two per-country waits, and whether anyone has actually chosen them.
+//
+// Both fields resolve server-side, so every unreviewed country reported 30 / 120 and looked exactly
+// like one somebody had set deliberately. `_reviewed` is what separates them, and it is shown as
+// plain italic "default" text rather than a badge — 119 badges would read as 119 problems, when the
+// honest message is "nobody has looked at this yet".
+//
+// `expected_close_days` is the one that matters: its 120-day default is an admitted guess and every
+// accepted-but-not-closed signal on the platform is derived from it.
+function CountryWindowCells({ row }: { row: CountrySetting }) {
+  return (
+    <StopPropagation className="flex flex-col gap-xs">
+      <CountryWindowField
+        row={row}
+        field="offer_turnaround_days"
+        label="Offer"
+        value={row.offer_turnaround_days}
+        reviewed={row.offer_turnaround_days_reviewed !== false}
+      />
+      <CountryWindowField
+        row={row}
+        field="expected_close_days"
+        label="Close"
+        value={row.expected_close_days}
+        reviewed={row.expected_close_days_reviewed !== false}
+      />
+    </StopPropagation>
+  )
+}
+
+function CountryWindowField({
+  row,
+  field,
+  label,
+  value,
+  reviewed,
+}: {
+  row: CountrySetting
+  field: 'offer_turnaround_days' | 'expected_close_days'
+  label: string
+  value: number | undefined
+  reviewed: boolean
+}) {
+  const update = useUpdateCountryWindow()
+  const [draft, setDraft] = useState(String(value ?? ''))
+  // Commits on blur, not per keystroke: a number field that PATCHes on every character sends "1",
+  // "12", "120" and audits all three.
+  function commit() {
+    const days = Number(draft)
+    if (!Number.isInteger(days) || days < 1 || days > 1000) {
+      setDraft(String(value ?? ''))
+      return
+    }
+    if (days === value) return
+    update.mutate({ name: row.name, field, days })
+  }
+  return (
+    <span className="flex items-center gap-xs whitespace-nowrap text-caption">
+      <span className="w-10 text-text-secondary">{label}</span>
+      <input
+        type="number"
+        min={1}
+        max={1000}
+        value={draft}
+        aria-label={`${label === 'Offer' ? 'Offer turnaround' : 'Expected close'} days for ${row.name}`}
+        disabled={update.isPending}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+        className="w-16 rounded-md border border-border bg-surface px-xs py-[2px] text-caption tabular-nums text-text-primary"
+      />
+      {!reviewed && <span className="italic text-text-secondary">default</span>}
+      {update.isError && <span className="text-error">Not saved</span>}
+    </span>
   )
 }
 

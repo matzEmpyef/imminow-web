@@ -81,6 +81,34 @@ export function useSetCountryActive() {
   })
 }
 
+/// The two decision windows (2026-09-09). Both were PATCHable from the day they were added and
+/// editable from nowhere — the console showed the resolved number and offered no way to change it,
+/// so setting one meant a curl. `expected_close_days` in particular is an admitted guess that
+/// drives every accepted-but-not-closed signal, which makes "unreachable from the console" the
+/// wrong place for it to live.
+export function useUpdateCountryWindow() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      name,
+      field,
+      days,
+    }: {
+      name: string
+      field: 'offer_turnaround_days' | 'expected_close_days'
+      days: number
+    }) => {
+      const { data, error } = await api.PATCH('/countries/{name}', {
+        params: { path: { name } },
+        body: { [field]: days },
+      })
+      if (error) throw new ApiError('Could not update this window.', error)
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['countries'] }),
+  })
+}
+
 export function useDeleteCountry() {
   const queryClient = useQueryClient()
   return useMutation({
