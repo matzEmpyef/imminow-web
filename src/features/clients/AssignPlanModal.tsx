@@ -10,7 +10,22 @@ import { useAssignPlan, usePlanTemplates } from '@/queries/plans'
 // /clients/:id/assign-plan) reached only from Plan tab's own "no plan yet" state — folded into a
 // popup so both Overview and Plan tab can trigger the same flow inline, same move this session
 // already made for Create Applicant/Add Lead/etc.
-export function AssignPlanModal({ clientId, onClose }: { clientId: string; onClose: () => void }) {
+/**
+ * Since 2026-09-09 a plan belongs to a scope. Opened with no `application`, this assigns the CASE
+ * plan — the one plan per case holding everything shared across every college, and what every
+ * caller predating scopes meant. Opened WITH an application, it assigns that college's own plan,
+ * so a student applying to four colleges gets four parallel plans instead of one queue pretending
+ * the four are sequential.
+ */
+export function AssignPlanModal({
+  clientId,
+  application,
+  onClose,
+}: {
+  clientId: string
+  application?: { id: string; collegeName: string }
+  onClose: () => void
+}) {
   const templates = usePlanTemplates()
   const assignPlan = useAssignPlan(clientId)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -22,7 +37,7 @@ export function AssignPlanModal({ clientId, onClose }: { clientId: string; onClo
   return (
     <Modal
       onClose={onClose}
-      title="Assign a Plan"
+      title={application ? `Plan for ${application.collegeName}` : 'Assign the Case Plan'}
       widthRem={36}
       footer={
         <>
@@ -35,7 +50,15 @@ export function AssignPlanModal({ clientId, onClose }: { clientId: string; onClo
             onClick={() =>
               selected &&
               !assignPlan.isPending &&
-              assignPlan.mutate({ templateId: selected.id, idempotencyKey }, { onSuccess: onClose })
+              assignPlan.mutate(
+                {
+                  templateId: selected.id,
+                  idempotencyKey,
+                  scope: application ? 'application' : 'case',
+                  ...(application ? { applicationId: application.id } : {}),
+                },
+                { onSuccess: onClose },
+              )
             }
           >
             Assign This Plan
@@ -44,6 +67,19 @@ export function AssignPlanModal({ clientId, onClose }: { clientId: string; onClo
       }
     >
       <div className="flex flex-col gap-md">
+        <p className="text-body-sm text-text-secondary">
+          {application ? (
+            <>
+              Steps for this college&rsquo;s own procedure — its form, its fee, its interview. Anything shared across
+              every college belongs on the case plan instead, so the student is only asked once.
+            </>
+          ) : (
+            <>
+              The one plan per case: profile, documents, test prep — everything shared across every college the student
+              applies to. Each college gets its own plan from the Applications tab.
+            </>
+          )}
+        </p>
         {templates.isLoading && <Skeleton className="h-40 rounded-lg" />}
         {templates.isError && (
           <ErrorState message="Could not load plan templates." onRetry={() => templates.refetch()} />

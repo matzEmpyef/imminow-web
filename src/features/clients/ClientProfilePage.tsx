@@ -11,6 +11,7 @@ import { usePlan } from '@/queries/plans'
 import { useFeature } from '@/lib/features'
 import { usePermission } from '@/lib/permissions'
 import { CloseClientModal } from './CloseClientModal'
+import { RaiseIssueModal } from './RaiseIssueModal'
 import { ReopenClientModal } from './ReopenClientModal'
 import { OverviewTab } from './ClientProfileOverviewTab'
 import { PlanTab } from './ClientProfilePlanTab'
@@ -71,6 +72,7 @@ export function ClientProfilePage() {
   const [showReopen, setShowReopen] = useState(false)
   const [reopenReason, setReopenReason] = useState('')
   const [showCloseCase, setShowCloseCase] = useState(false)
+  const [showRaiseIssue, setShowRaiseIssue] = useState(false)
   const [showReopenCase, setShowReopenCase] = useState(false)
 
   if (client.isLoading) {
@@ -128,7 +130,13 @@ export function ClientProfilePage() {
                   <span className="ml-sm text-body-sm font-normal text-text-secondary">{data.file_number}</span>
                 )}
               </h1>
-              <p className="text-body-sm text-text-secondary">{data.status.replace(/_/g, ' ')}</p>
+              <p className="text-body-sm text-text-secondary">
+                {data.status.replace(/_/g, ' ')}
+                {/* A closed case now says HOW it ended. The outcome is derived at close from
+                    whether a college was accepted and whether the student actually went, so it
+                    is a fact about the case rather than a label someone chose. */}
+                {data.outcome && <span className="ml-xs">&middot; {data.outcome}</span>}
+              </p>
             </div>
           </div>
           <div className="flex gap-sm">
@@ -146,10 +154,21 @@ export function ClientProfilePage() {
                   Reopen Case
                 </Button>
               )
+            ) : data.status === 'in_dispute' ? (
+              // Under mediation nothing here is the consultancy's to press. Saying so beats
+              // greying out buttons with no explanation.
+              <p className="self-center text-body-sm text-text-secondary">Sentpo is reviewing this case.</p>
             ) : (
-              <Button variant="destructive" onClick={() => setShowCloseCase(true)}>
-                Close Case
-              </Button>
+              <>
+                {/* Two buttons, not one dropdown. An accusation must not sit in the same list as
+                    an outcome, or a consultant will pick it and close the case. */}
+                <Button variant="secondary" onClick={() => setShowRaiseIssue(true)}>
+                  Raise an Issue
+                </Button>
+                <Button variant="destructive" onClick={() => setShowCloseCase(true)}>
+                  Close Case
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -158,7 +177,15 @@ export function ClientProfilePage() {
           <CloseClientModal
             clientId={id}
             clientName={`${data.student.first_name} ${data.student.last_name}`}
+            hasAcceptedCollege={(data.case_summary?.accepted ?? 0) > 0}
             onClose={() => setShowCloseCase(false)}
+          />
+        )}
+        {showRaiseIssue && (
+          <RaiseIssueModal
+            clientId={id}
+            clientName={`${data.student.first_name} ${data.student.last_name}`}
+            onClose={() => setShowRaiseIssue(false)}
           />
         )}
         {showReopenCase && (

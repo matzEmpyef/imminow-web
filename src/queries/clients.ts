@@ -428,15 +428,52 @@ function invalidateClients(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ['clients'] })
 }
 
+/**
+ * Every neutral reason a case can end. Each is a FACT about the case, never a verdict on the
+ * student — "they would not cooperate" is an accusation and belongs in `useRaiseIssue` below,
+ * which opens mediation instead of ending someone's case by assertion.
+ */
+export const CLOSE_SUB_REASONS = [
+  { value: 'rejected_by_colleges', label: 'Rejected by the colleges' },
+  { value: 'visa_refused', label: 'Visa refused' },
+  { value: 'student_withdrew', label: 'Student withdrew' },
+  { value: 'lost_contact', label: 'Lost contact with the student' },
+  { value: 'other', label: 'Something else' },
+] as const
+
+export type CloseSubReason = (typeof CLOSE_SUB_REASONS)[number]['value']
+
 export function useCloseClient() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+    mutationFn: async ({ id, reason, subReason }: { id: string; reason: string; subReason?: CloseSubReason }) => {
       const { data, error } = await api.POST('/clients/{id}/close', {
+        params: { path: { id } },
+        body: { reason, ...(subReason ? { sub_reason: subReason } : {}) },
+      })
+      if (error) throw new ApiError('Could not close this client.', error)
+      return data
+    },
+    onSuccess: (_data, { id }) => {
+      invalidateClients(queryClient)
+      queryClient.invalidateQueries({ queryKey: ['clients', id] })
+    },
+  })
+}
+
+/**
+ * Raise an issue — deliberately NOT a close. The case freezes for platform mediation; only the
+ * platform decides how it ends.
+ */
+export function useRaiseIssue() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const { data, error } = await api.POST('/clients/{id}/raise-issue', {
         params: { path: { id } },
         body: { reason },
       })
-      if (error) throw new ApiError('Could not close this client.', error)
+      if (error) throw new ApiError('Could not raise this issue.', error)
       return data
     },
     onSuccess: (_data, { id }) => {

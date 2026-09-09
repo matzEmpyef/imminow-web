@@ -11,12 +11,12 @@ import { useRevertAcceptance } from '@/queries/clients'
  */
 export function RevertAcceptanceModal({
   clientId,
-  collegeId,
+  applicationId,
   courseName,
   onClose,
 }: {
   clientId: string
-  collegeId: string
+  applicationId: string
   courseName: string
   onClose: () => void
 }) {
@@ -26,7 +26,7 @@ export function RevertAcceptanceModal({
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!reason.trim()) return
-    revert.mutate({ collegeId, reason: reason.trim() }, { onSuccess: onClose })
+    revert.mutate({ applicationId, reason: reason.trim() }, { onSuccess: onClose })
   }
 
   return (

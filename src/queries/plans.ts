@@ -36,19 +36,51 @@ export function usePlan(clientId: string | undefined) {
   })
 }
 
+/**
+ * Every plan on the case — the case plan first, then one per college applied to. `usePlan` above
+ * still answers with the CASE plan alone, which is what every caller predating scopes meant.
+ */
+export function usePlans(clientId: string | undefined) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['clients', clientId, 'plans'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/clients/{id}/plans', {
+        params: { path: { id: clientId! } },
+      })
+      if (error) throw new ApiError('Could not load this case\u2019s plans.', error)
+      return data
+    },
+    enabled: isAuthed && Boolean(clientId),
+  })
+}
+
 export function useAssignPlan(clientId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     // T8: key minted once per modal open by the caller — a per-attempt UUID defeated the header.
-    mutationFn: async ({ templateId, idempotencyKey }: { templateId: string; idempotencyKey: string }) => {
+    mutationFn: async ({
+      templateId,
+      idempotencyKey,
+      scope = 'case',
+      applicationId,
+    }: {
+      templateId: string
+      idempotencyKey: string
+      // Omitted means the case plan, matching the server default and every caller that predates
+      // scopes. `applicationId` is required when scope is 'application' and ignored otherwise.
+      scope?: 'case' | 'application'
+      applicationId?: string
+    }) => {
       const { data, error } = await api.POST('/clients/{id}/plan/assign', {
         params: { path: { id: clientId }, header: { 'Idempotency-Key': idempotencyKey } },
-        body: { template_id: templateId },
+        body: { template_id: templateId, scope, ...(applicationId ? { application_id: applicationId } : {}) },
       })
       if (error) throw new ApiError('Could not assign this plan.', error)
       return data
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plans'] })
       queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plan'] })
       queryClient.invalidateQueries({ queryKey: ['clients', clientId] })
       queryClient.invalidateQueries({ queryKey: ['clients'] })

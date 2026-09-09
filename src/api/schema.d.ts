@@ -9276,8 +9276,7 @@ export interface paths {
                     "application/json": {
                         template_id: components["schemas"]["UUID"];
                         /**
-                         * @description Added 2026-09-09, see `Plan.scope`. Omitted means `case`, which is what every caller predating scopes meant.
-                         * @default case
+                         * @description Added 2026-09-09, see `Plan.scope`. OMITTED MEANS `case`, which is what every caller predating scopes meant — the server applies that default. Deliberately NOT declared as a schema-level `default:`: openapi-generator-dio mishandles a default on an enum-typed property and emits Dart that does not compile (`const ...ScopeEnum._('case')`, a constructor the generated enum never declares), which broke sixteen mobile test files on 2026-09-09. The default is server behaviour and belongs in this description, not in the schema.
                          * @enum {string}
                          */
                         scope?: "case" | "application";
@@ -9337,7 +9336,19 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            items?: components["schemas"]["Plan"][];
+                            items?: (components["schemas"]["Plan"] & {
+                                /**
+                                 * @description This plan's own done/total, so the list does not have to count steps client-side.
+                                 * @example 2/4
+                                 */
+                                readonly progress?: string;
+                                /** @description The college this plan belongs to. Null on the case plan. */
+                                readonly application?: {
+                                    id?: components["schemas"]["UUID"];
+                                    status?: string;
+                                    course?: components["schemas"]["Course"] | null;
+                                } | null;
+                            })[];
                             summary?: components["schemas"]["CaseSummary"];
                         };
                     };
