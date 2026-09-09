@@ -22,6 +22,7 @@ import {
   MapPin,
   Megaphone,
   MessageSquareWarning,
+  Scale,
   Newspaper,
   Percent,
   Radio,
@@ -206,6 +207,7 @@ const SECTIONS: AdminSection[] = [
     matches: (p) =>
       p.startsWith('/admin/support-tools') ||
       p.startsWith('/admin/complaints') ||
+      p.startsWith('/admin/disputes') ||
       p.startsWith('/admin/platform-team') ||
       p.startsWith('/admin/notification-channel-config') ||
       p.startsWith('/admin/app-config') ||
@@ -216,6 +218,10 @@ const SECTIONS: AdminSection[] = [
     sidebarLinks: [
       { label: 'Support Tools', path: '/admin/support-tools', permission: 'support', icon: LifeBuoy },
       { label: 'Complaints', path: '/admin/complaints', permission: 'support', icon: MessageSquareWarning },
+      // Sits beside Complaints on purpose: both are a case going wrong, and a platform admin
+      // handling one usually wants to see the other. Complaints are the student's side and never
+      // freeze anything; a dispute is the frozen case itself, raised from either side.
+      { label: 'Disputes', path: '/admin/disputes', permission: 'support', icon: Scale },
       { label: 'Visit Requests', path: '/admin/visit-requests', permission: 'support', icon: CalendarClock },
       {
         label: 'Platform Team',

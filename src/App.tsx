@@ -183,6 +183,9 @@ const FinanceDashboardPage = lazy(() =>
 const SupportToolsPage = lazy(() =>
   import('@/features/super-admin/SupportToolsPage').then((m) => ({ default: m.SupportToolsPage })),
 )
+const DisputesPage = lazy(() =>
+  import('@/features/super-admin/DisputesPage').then((m) => ({ default: m.DisputesPage })),
+)
 const ComplaintsPage = lazy(() =>
   import('@/features/super-admin/ComplaintsPage').then((m) => ({ default: m.ComplaintsPage })),
 )
@@ -467,6 +470,7 @@ function App() {
         <Route path="/admin/freelancer-rates" element={<Navigate to="/admin/freelancers" replace />} />
         <Route element={<PlatformLayout permission="support" />}>
           <Route path="/admin/support-tools" element={<SupportToolsPage />} />
+          <Route path="/admin/disputes" element={<DisputesPage />} />
           <Route path="/admin/complaints" element={<ComplaintsPage />} />
           <Route path="/admin/visit-requests" element={<VisitRequestsPage />} />
         </Route>
