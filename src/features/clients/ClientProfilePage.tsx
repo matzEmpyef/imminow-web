@@ -15,7 +15,7 @@ import { ReopenClientModal } from './ReopenClientModal'
 import { OverviewTab } from './ClientProfileOverviewTab'
 import { PlanTab } from './ClientProfilePlanTab'
 import { CommissionsTab } from './ClientProfileCommissionsTab'
-import { SelectedCollegesTab } from './ClientProfileSelectedCollegesTab'
+import { ApplicationsTab } from './ClientProfileApplicationsTab'
 import { DocumentsTab } from './ClientProfileDocumentsTab'
 import { InternalNotesTab } from './ClientProfileInternalNotesTab'
 import { ActivityTab } from './ClientProfileActivityTab'
@@ -26,7 +26,7 @@ const TABS = [
   'Plan',
   'Forms',
   'Commissions',
-  'Selected Colleges',
+  'Applications',
   'Documents',
   'Internal Notes',
   'Activity',
@@ -103,7 +103,7 @@ export function ClientProfilePage() {
   const hasLinkedForms = (plan.data?.steps ?? []).some((step) => step.components.some((c) => c.type === 'form_link'))
   const visibleTabs = TABS.filter((tab) => {
     if (tab === 'Commissions') return canSeeCommissions
-    if (tab === 'Selected Colleges') return data.case_type === 'student'
+    if (tab === 'Applications') return data.case_type === 'student'
     if (tab === 'Forms') return hasLinkedForms
     return true
   })
@@ -213,7 +213,7 @@ export function ClientProfilePage() {
         {activeTab === 'Plan' && <PlanTab clientId={id} initialStepId={initialStepId} />}
         {activeTab === 'Forms' && hasLinkedForms && <FormsTab clientId={id} />}
         {activeTab === 'Commissions' && canSeeCommissions && <CommissionsTab clientId={id} />}
-        {activeTab === 'Selected Colleges' && <SelectedCollegesTab clientId={id} />}
+        {activeTab === 'Applications' && <ApplicationsTab clientId={id} />}
         {activeTab === 'Documents' && <DocumentsTab clientId={id} />}
         {activeTab === 'Internal Notes' && <InternalNotesTab clientId={id} />}
         {activeTab === 'Activity' && <ActivityTab clientId={id} />}

@@ -8538,14 +8538,14 @@ export interface paths {
         };
         trace?: never;
     };
-    "/clients/{id}/selected-colleges": {
+    "/clients/{id}/applications": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Selected Colleges tab (student cases only) */
+        /** Applications tab (student cases only) */
         get: {
             parameters: {
                 query?: never;
@@ -8563,7 +8563,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["SelectedCollege"][];
+                        "application/json": components["schemas"]["Application"][];
                     };
                 };
             };
@@ -8593,7 +8593,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["SelectedCollege"];
+                        "application/json": components["schemas"]["Application"];
                     };
                 };
             };
@@ -8604,7 +8604,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/clients/{id}/selected-colleges/{collegeId}": {
+    "/clients/{id}/applications/{applicationId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -8624,7 +8624,7 @@ export interface paths {
                 header?: never;
                 path: {
                     id: string;
-                    collegeId: string;
+                    applicationId: string;
                 };
                 cookie?: never;
             };
@@ -8654,7 +8654,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["SelectedCollege"];
+                        "application/json": components["schemas"]["Application"];
                     };
                 };
                 409: components["responses"]["ErrorResponse"];
@@ -8663,7 +8663,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/clients/{id}/selected-colleges/{collegeId}/revert-acceptance": {
+    "/clients/{id}/applications/{applicationId}/revert-acceptance": {
         parameters: {
             query?: never;
             header?: never;
@@ -8679,7 +8679,7 @@ export interface paths {
                 header?: never;
                 path: {
                     id: string;
-                    collegeId: string;
+                    applicationId: string;
                 };
                 cookie?: never;
             };
@@ -8697,7 +8697,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["SelectedCollege"];
+                        "application/json": components["schemas"]["Application"];
                     };
                 };
                 409: components["responses"]["ErrorResponse"];
@@ -16730,7 +16730,7 @@ export interface components {
             readonly preferences?: components["schemas"]["StudentPreferences"] | null;
         };
         /** @description Client Profile's Selected Colleges tab (build reference 1.22), student cases only. Distinct from ShortlistItem — that's Stage-1 browsing; this has an editable status lifecycle a plain shortlist row has no field for (erd.md Marketplace/Journey sections). */
-        SelectedCollege: {
+        Application: {
             id: components["schemas"]["UUID"];
             course: components["schemas"]["Course"];
             /**

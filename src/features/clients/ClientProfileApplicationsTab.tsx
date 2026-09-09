@@ -4,13 +4,13 @@ import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { ErrorState, Skeleton } from '@/components/QueryState'
-import { useClient, useSelectedColleges, useUpdateSelectedCollege } from '@/queries/clients'
+import { useClient, useApplications, useUpdateApplication } from '@/queries/clients'
 import { formatMoney } from '@/lib/money'
-import { AddSelectedCollegeModal } from './AddSelectedCollegeModal'
+import { AddApplicationModal } from './AddApplicationModal'
 import { AcceptCollegeModal } from './AcceptCollegeModal'
 import { RevertAcceptanceModal } from './RevertAcceptanceModal'
 
-type SelectedCollegeRowData = import('@/api/schema').components['schemas']['SelectedCollege']
+type ApplicationRowData = import('@/api/schema').components['schemas']['Application']
 
 // FORWARD-ONLY lifecycle (user decision, 2026-08-28) — mirrors the server's transition map:
 // one step at a time, rejected legal from applied or offer_received, accepted/rejected final
@@ -39,10 +39,10 @@ const COLLEGE_NEXT_STEPS: Record<CollegeStatus, CollegeStatus[]> = {
   rejected: [],
 }
 
-export function SelectedCollegesTab({ clientId }: { clientId: string }) {
+export function ApplicationsTab({ clientId }: { clientId: string }) {
   const client = useClient(clientId)
-  const colleges = useSelectedColleges(clientId)
-  const updateStatus = useUpdateSelectedCollege(clientId)
+  const colleges = useApplications(clientId)
+  const updateStatus = useUpdateApplication(clientId)
   const [showAddCollege, setShowAddCollege] = useState(false)
   if (colleges.isLoading) return <Skeleton className="h-24 rounded-lg" />
   if (!colleges.data) {
@@ -57,7 +57,7 @@ export function SelectedCollegesTab({ clientId }: { clientId: string }) {
     </div>
   )
   const addCollegeModal = showAddCollege && (
-    <AddSelectedCollegeModal
+    <AddApplicationModal
       clientId={clientId}
       finalizedCountry={client.data?.finalized_country ?? null}
       takenCourseIds={colleges.data.map((sc) => sc.course.id)}
@@ -96,7 +96,7 @@ export function SelectedCollegesTab({ clientId }: { clientId: string }) {
     )
   }
   // User-requested (2026-08-19) — "if the country of the all the courses is not same them show
-  // an alert in Selected Colleges tab (saying counties of courses are different)." Computed
+  // an alert in Applications tab (saying counties of courses are different)." Computed
   // entirely from `course.country` on each row already resolved server-side — no stored flag,
   // so it can never drift out of sync with the actual selection (covers both auto-transferred
   // shortlist courses from a conversion and manually added ones alike). Awaiting suggestions
@@ -119,17 +119,17 @@ export function SelectedCollegesTab({ clientId }: { clientId: string }) {
       )}
       <div className="flex flex-col gap-xs">
         {selected.map((sc) => (
-          <SelectedCollegeRow
+          <ApplicationRow
             key={sc.id}
             clientId={clientId}
             row={sc}
             acceptedElsewhere={selected.find((o) => o.status === 'accepted' && o.id !== sc.id)?.course.name ?? null}
             journeyPayerMethod={client.data?.payer_method ?? null}
-            onAdvance={(status) => updateStatus.mutate({ collegeId: sc.id, status })}
+            onAdvance={(status) => updateStatus.mutate({ applicationId: sc.id, status })}
             advanceError={
-              updateStatus.variables?.collegeId === sc.id && updateStatus.isError ? updateStatus.error.message : null
+              updateStatus.variables?.applicationId === sc.id && updateStatus.isError ? updateStatus.error.message : null
             }
-            advancing={updateStatus.variables?.collegeId === sc.id && updateStatus.isPending}
+            advancing={updateStatus.variables?.applicationId === sc.id && updateStatus.isPending}
           />
         ))}
       </div>
@@ -142,7 +142,7 @@ export function SelectedCollegesTab({ clientId }: { clientId: string }) {
 // Accepting never fires directly — it opens the Accept popup, which is where the money
 // agreement (and thus the commission entry) is captured. Rejecting is terminal, so it takes a
 // second click to confirm rather than firing on the first.
-function SelectedCollegeRow({
+function ApplicationRow({
   clientId,
   row,
   acceptedElsewhere,
@@ -152,7 +152,7 @@ function SelectedCollegeRow({
   advancing,
 }: {
   clientId: string
-  row: SelectedCollegeRowData
+  row: ApplicationRowData
   // The course name of ANOTHER row already accepted on this journey, if any. Accept can then
   // only ever 409 (single accepted case per student), so the button is not shown at all —
   // the UAT sweep (M4, 2026-08-29) caught the queue offering a click that could never work.
@@ -241,7 +241,7 @@ function SelectedCollegeRow({
       {showRevert && (
         <RevertAcceptanceModal
           clientId={clientId}
-          collegeId={row.id}
+          applicationId={row.id}
           courseName={row.course.name}
           onClose={() => setShowRevert(false)}
         />

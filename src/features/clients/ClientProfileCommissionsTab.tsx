@@ -71,7 +71,7 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
           <p className="mt-xs text-body-sm text-text-secondary">
             {isPr
               ? 'Record the applicant’s agreed contribution to start tracking payments for this PR case.'
-              : 'The entry is created when a college is accepted on the Selected Colleges tab — the Accept popup captures the agreed amounts.'}
+              : 'The entry is created when a college is accepted on the Applications tab — the Accept popup captures the agreed amounts.'}
           </p>
         </div>
         {isPr && canRecord && <Button onClick={() => setShowPrEntry(true)}>Record Applicant Contribution</Button>}

@@ -12,7 +12,7 @@ import { CourseFinderNotesDrawer } from './CourseFinderNotesDrawer'
 import { CourseFinderSuggestModal } from './CourseFinderSuggestModal'
 import { buildCourseFinderColumns } from './CourseFinderColumns'
 import { useCourseFinderState, DURATION_BUCKETS, type SelectedPerson } from './courseFinderState'
-import { useSelectedColleges, useAddSelectedCollege } from '@/queries/clients'
+import { useApplications, useAddApplication } from '@/queries/clients'
 import { useSuggestCourseToLead, useLeadMessages } from '@/queries/leads'
 import { usePersonPicker } from '@/lib/usePersonPicker'
 import { useCourseFinder } from '@/queries/courseFinder'
@@ -92,13 +92,13 @@ export function CourseFinderPage() {
   // `course_share` messages in their own thread (there is no journey for a lead to attach a row
   // to — see `POST /leads/{id}/suggest-course`'s doc comment). Each hook is a no-op unless that
   // kind of person is actually selected.
-  const selectedColleges = useSelectedColleges(selectedClient?.id)
-  const addSelected = useAddSelectedCollege(selectedClient?.id ?? '')
+  const applications = useApplications(selectedClient?.id)
+  const addSelected = useAddApplication(selectedClient?.id ?? '')
   const leadMessages = useLeadMessages(selectedLead?.id)
   const suggestToLead = useSuggestCourseToLead(selectedLead?.id ?? '')
   const suggestedCourseIds = new Set(
     (selectedClient
-      ? (selectedColleges.data ?? []).map((sc) => sc.course?.id)
+      ? (applications.data ?? []).map((sc) => sc.course?.id)
       : (leadMessages.data?.items ?? [])
           .filter((m) => m.type === 'course_share' && m.sender === 'consultant')
           .map((m) => m.shared_course?.id)
@@ -231,7 +231,7 @@ export function CourseFinderPage() {
         />
 
         {collegeDetailId && (
-          <CollegeDetailModalById collegeId={collegeDetailId} onClose={() => setCollegeDetailId(null)} />
+          <CollegeDetailModalById applicationId={collegeDetailId} onClose={() => setCollegeDetailId(null)} />
         )}
         {courseDetail && <CourseDetailModal course={courseDetail} onClose={() => setCourseDetail(null)} />}
         {showClientDetail && selectedClient && (
@@ -254,7 +254,7 @@ export function CourseFinderPage() {
               selectedClient ? (
                 <>
                   {' '}
-                  will be added to {selectedClient.student.first_name}&rsquo;s Selected Colleges, and they&rsquo;ll get
+                  will be added to {selectedClient.student.first_name}&rsquo;s Applications, and they&rsquo;ll get
                   a notification pointing them at it.
                 </>
               ) : selectedLead?.origin === 'sentpo' && selectedLead.student_id ? (
@@ -277,8 +277,8 @@ export function CourseFinderPage() {
 // Thin id→data wrapper so the click handler above can stay a plain string setter — CollegeDetailModal
 // itself takes a loaded College, matching EventDetailsModal's own shape (caller already has the
 // object in hand there; here it has to be fetched first).
-function CollegeDetailModalById({ collegeId, onClose }: { collegeId: string; onClose: () => void }) {
-  const college = useCollegeDetail(collegeId)
+function CollegeDetailModalById({ applicationId, onClose }: { applicationId: string; onClose: () => void }) {
+  const college = useCollegeDetail(applicationId)
   if (!college.data) return null
   return <CollegeDetailModal college={college.data} onClose={onClose} />
 }

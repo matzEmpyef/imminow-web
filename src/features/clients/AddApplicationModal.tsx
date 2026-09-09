@@ -3,11 +3,11 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { SearchSelect } from '@/components/SearchSelect'
 import { useCourses } from '@/queries/courseSuggestions'
-import { useAddSelectedCollege } from '@/queries/clients'
+import { useAddApplication } from '@/queries/clients'
 
 type Course = NonNullable<ReturnType<typeof useCourses>['data']>['items'][number]
 
-// User-requested (2026-08-19) — Selected Colleges had a working POST /clients/{id}/selected-
+// User-requested (2026-08-19) — Applications had a working POST /clients/{id}/
 // colleges endpoint and mutation hook, but no frontend surface ever called it: there was no way
 // to add a college at all. This is that missing entry point, plus the cross-country check asked
 // for alongside it — "once country is decided, if colleges other than of that country selected
@@ -17,11 +17,11 @@ type Course = NonNullable<ReturnType<typeof useCourses>['data']>['items'][number
 // M7 (2026-08-29): the plain list here offered no type-to-filter and happily listed courses
 // already on the journey (a consultant could "add" the same course twice, landing on a 409 or a
 // silent duplicate row). Now takes the journey's already-selected course ids from the caller
-// (SelectedCollegesTab already has them via useSelectedColleges — no second fetch needed here)
+// (ApplicationsTab already has them via useApplications — no second fetch needed here)
 // and filters them out before they ever reach the picker, and uses the shared SearchSelect
 // (same pattern as CreateInvoiceForm's applicant picker) instead of a hand-rolled list, so this
 // scales the same way past the seed catalog as every other course/client picker in the app.
-export function AddSelectedCollegeModal({
+export function AddApplicationModal({
   clientId,
   finalizedCountry,
   takenCourseIds,
@@ -33,7 +33,7 @@ export function AddSelectedCollegeModal({
   onClose: () => void
 }) {
   const courses = useCourses({ limit: 100 })
-  const addCollege = useAddSelectedCollege(clientId)
+  const addCollege = useAddApplication(clientId)
   const [confirmCourse, setConfirmCourse] = useState<Course | null>(null)
   const [pickedId, setPickedId] = useState('')
 

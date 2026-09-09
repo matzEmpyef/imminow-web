@@ -178,12 +178,12 @@ export function useAssignClient(clientId: string) {
   })
 }
 
-export function useSelectedColleges(clientId: string | undefined) {
+export function useApplications(clientId: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
-    queryKey: ['clients', clientId, 'selected-colleges'],
+    queryKey: ['clients', clientId, 'applications'],
     queryFn: async () => {
-      const { data, error } = await api.GET('/clients/{id}/selected-colleges', {
+      const { data, error } = await api.GET('/clients/{id}/applications', {
         params: { path: { id: clientId! } },
       })
       if (error) throw new ApiError('Could not load selected colleges.', error)
@@ -195,14 +195,14 @@ export function useSelectedColleges(clientId: string | undefined) {
 
 type CollegeStatus = 'considering' | 'applied' | 'offer_received' | 'accepted' | 'rejected'
 
-export function useAddSelectedCollege(clientId: string) {
+export function useAddApplication(clientId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     // No status: a consultant's add is by definition a SUGGESTION (user decision, 2026-08-28) —
     // the server births every row `suggested`, and only the student's own save to Dream Courses
     // turns it into a selected college.
     mutationFn: async (body: { course_id: string }) => {
-      const { data, error } = await api.POST('/clients/{id}/selected-colleges', {
+      const { data, error } = await api.POST('/clients/{id}/applications', {
         params: { path: { id: clientId } },
         body,
       })
@@ -210,7 +210,7 @@ export function useAddSelectedCollege(clientId: string) {
       return data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'selected-colleges'] })
+      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'applications'] })
       // A new suggested/considering row can feed Activity's ready_to_apply (2026-08-29).
       queryClient.invalidateQueries({ queryKey: ['activity-feed'] })
     },
@@ -225,28 +225,28 @@ export interface AcceptCommissionBody {
   course_start: { month: string; year: number }
 }
 
-export function useUpdateSelectedCollege(clientId: string) {
+export function useUpdateApplication(clientId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({
-      collegeId,
+      applicationId,
       status,
       commission,
     }: {
-      collegeId: string
+      applicationId: string
       status: CollegeStatus
       // Required by the server when status is 'accepted' — the Accept popup's money agreement.
       commission?: AcceptCommissionBody
     }) => {
-      const { data, error } = await api.PATCH('/clients/{id}/selected-colleges/{collegeId}', {
-        params: { path: { id: clientId, collegeId } },
+      const { data, error } = await api.PATCH('/clients/{id}/applications/{applicationId}', {
+        params: { path: { id: clientId, applicationId } },
         body: { status, ...(commission ? { commission } : {}) },
       })
       if (error) throw new ApiError('Could not update this college.', error)
       return data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'selected-colleges'] })
+      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'applications'] })
       // Accepting creates the commission entry, so every money view is downstream of this.
       queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'commissions'] })
       queryClient.invalidateQueries({ queryKey: ['commission'] })
@@ -260,16 +260,16 @@ export function useUpdateSelectedCollege(clientId: string) {
 export function useRevertAcceptance(clientId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ collegeId, reason }: { collegeId: string; reason: string }) => {
-      const { data, error } = await api.POST('/clients/{id}/selected-colleges/{collegeId}/revert-acceptance', {
-        params: { path: { id: clientId, collegeId } },
+    mutationFn: async ({ applicationId, reason }: { applicationId: string; reason: string }) => {
+      const { data, error } = await api.POST('/clients/{id}/applications/{applicationId}/revert-acceptance', {
+        params: { path: { id: clientId, applicationId } },
         body: { reason },
       })
       if (error) throw new ApiError('Could not revert this acceptance.', error)
       return data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'selected-colleges'] })
+      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'applications'] })
       queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'commissions'] })
       queryClient.invalidateQueries({ queryKey: ['commission'] })
       queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] })

@@ -4,13 +4,13 @@ import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { SelectField } from '@/components/SelectField'
-import { useUpdateSelectedCollege, type AcceptCommissionBody } from '@/queries/clients'
+import { useUpdateApplication, type AcceptCommissionBody } from '@/queries/clients'
 import { usePartnerColleges } from '@/queries/partnerColleges'
 import { MONTHS, CURRENCIES } from '@/features/super-admin/courseFormShared'
 import { formatMoney } from '@/lib/money'
 import type { components } from '@/api/schema'
 
-type SelectedCollege = components['schemas']['SelectedCollege']
+type Application = components['schemas']['Application']
 type PayerMethod = 'college' | 'applicant' | 'split'
 
 const PAYER_LABELS: Record<PayerMethod, string> = {
@@ -47,11 +47,11 @@ export function AcceptCollegeModal({
   onClose,
 }: {
   clientId: string
-  row: SelectedCollege
+  row: Application
   journeyPayerMethod: PayerMethod | null
   onClose: () => void
 }) {
-  const updateStatus = useUpdateSelectedCollege(clientId)
+  const updateStatus = useUpdateApplication(clientId)
   const partnerColleges = usePartnerColleges()
 
   const course = row.course
@@ -119,7 +119,7 @@ export function AcceptCollegeModal({
     const commission: AcceptCommissionBody = { course_start: { month: startMonth, year: startYear } }
     if (needsCollege) commission.expected_from_college = { amount: Number(collegeAmount), currency: feeCurrency }
     if (needsStudent) commission.expected_from_student = { amount: Number(studentAmount), currency: studentCurrency }
-    updateStatus.mutate({ collegeId: row.id, status: 'accepted', commission }, { onSuccess: onClose })
+    updateStatus.mutate({ applicationId: row.id, status: 'accepted', commission }, { onSuccess: onClose })
   }
 
   const yearOptions = [now.getFullYear(), now.getFullYear() + 1, now.getFullYear() + 2, now.getFullYear() + 3]
