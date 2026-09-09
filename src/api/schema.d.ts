@@ -6959,7 +6959,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove a course from the shortlist. Restricted to the owning student. */
+        /**
+         * Remove a course from the shortlist. Restricted to the owning student.
+         * @description 409 `application_in_progress` once the consultancy has actually applied to this college (2026-09-09). Before `applied` a saved course is freely removable; after it, the application exists whether or not the card does, and removing the card would only hide it from the one person it matters to.
+         */
         delete: {
             parameters: {
                 query?: never;
@@ -9336,19 +9339,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            items?: (components["schemas"]["Plan"] & {
-                                /**
-                                 * @description This plan's own done/total, so the list does not have to count steps client-side.
-                                 * @example 2/4
-                                 */
-                                readonly progress?: string;
-                                /** @description The college this plan belongs to. Null on the case plan. */
-                                readonly application?: {
-                                    id?: components["schemas"]["UUID"];
-                                    status?: string;
-                                    course?: components["schemas"]["Course"] | null;
-                                } | null;
-                            })[];
+                            items?: components["schemas"]["Plan"][];
                             summary?: components["schemas"]["CaseSummary"];
                         };
                     };
@@ -16420,11 +16411,19 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
-        /** @description erd.md's `shortlist_items` table — Sentpo Mobile Wave 5's Shortlist screen. Private to the student by design (build reference 2.2) — nothing about saving a course here is ever visible to any consultancy; "Share with consultant" is the one explicit, opt-in action that surfaces any of it (`POST /leads/{id}/share-shortlist` / `POST /clients/{id}/share-shortlist`). */
+        /**
+         * @description erd.md's `shortlist_items` table — Sentpo's Dream Courses screen.
+         *     PRIVACY CHANGED AT COMMITMENT (2026-09-09). While the student is browsing in Stage 1 this is private and nothing about it reaches any consultancy; sharing is the one explicit, opt-in action (`POST /leads/{id}/share-shortlist`). Once they COMMIT to a consultancy, Dream Courses and the case's applications are kept in sync in both directions — a course saved here becomes an application at `considering`, and one the consultant adds appears here — because two lists that only agreed by accident meant a course the student found themselves was visible to nobody who could act on it.
+         */
         ShortlistItem: {
             id: components["schemas"]["UUID"];
             student_id: components["schemas"]["UUID"];
             course_id: components["schemas"]["UUID"];
+            /**
+             * @description THE STUDENT'S ONLY VIEW OF THEIR OWN APPLICATION (2026-09-09). The lifecycle was consultant-only until now: `GET /clients/{id}/applications` answered the owning student, but no Sentpo screen ever called it, so a student learned they had an offer by email from the college. Null until the consultancy marks `applied` — a `considering` row is a saved course, and putting a status on it would make every idle save look like an application in flight. Scoped to the student's LIVE case, so a returning student's closed case never leaks its old statuses onto their new board.
+             * @enum {string|null}
+             */
+            readonly application_status?: "applied" | "offer_received" | "accepted" | "rejected" | null;
             /** @description Resolved at read time (same convention as `LeadMessage.shared_courses`) so the Shortlist screen never needs a second round-trip per row. */
             course?: components["schemas"]["Course"];
             /** Format: date-time */
@@ -17189,6 +17188,12 @@ export interface components {
             /** Format: date-time */
             resolved_at?: string | null;
         };
+        /** @description Just enough of the application for a plan card to name its college without a second request. Deliberately a NAMED schema rather than an inline `allOf` composition on the list endpoint: openapi-generator-dio does not follow allOf and emitted `List<Object>`, which cost an afternoon on 2026-09-09. */
+        PlanApplicationRef: {
+            id?: components["schemas"]["UUID"];
+            status?: string;
+            course?: components["schemas"]["Course"] | null;
+        };
         Plan: {
             id: components["schemas"]["UUID"];
             journey_id: components["schemas"]["UUID"];
@@ -17200,6 +17205,13 @@ export interface components {
             /** @description Set if and only if `scope` is `application`. */
             application_id?: components["schemas"]["UUID"];
             template_id?: components["schemas"]["UUID"];
+            /**
+             * @description This plan's own done/total, so a list of plans does not have to count steps client-side.
+             * @example 2/4
+             */
+            readonly progress?: string | null;
+            /** @description The college this plan belongs to. Null on a case plan. */
+            application?: components["schemas"]["PlanApplicationRef"];
             steps: components["schemas"]["Step"][];
         };
         /** @description FR-033. Container of Components, no fixed type. */
