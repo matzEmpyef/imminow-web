@@ -8874,7 +8874,70 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Close a client's case (user-requested, 2026-08-15) — a generic manual close, mandatory reason, audit-logged. Same shape as POST /leads/{id}/close. Distinct from Transfer Applicant (consultancy switch, sets closed_switched) and Reopen Plan (reopens the last step after plan_complete, POST /clients/{id}/reopen above) — neither of those is affected by this action. */
+        /**
+         * Close a client's case. Consultancy staff only — until 2026-09-09 this carried `requireAuth` alone, so any logged-in caller holding a journey id could end someone's case.
+         *     THE OUTCOME IS DERIVED, NEVER CHOSEN (2026-09-09). Success means an accepted application exists and the consultancy is not claiming the student failed to go; anything else is a failure and needs a `sub_reason`. A consultancy therefore cannot close as a failure to dodge the commission, nor claim success without an acceptance.
+         *     CLOSE IS THE MONEY EVENT. The commission entry was created back at acceptance, because that is when the amounts became knowable, but an entry with no `recognized_at` is not revenue and appears in no finance report. A success close stamps `recognized_at`; a failure close REVERSES the entry — a deliberately different status from `voided`, because voided means the acceptance itself was wrong while reversed means it was real and the student still never went, and finance has to tell those apart.
+         *     Never automatic. No timer, inactivity rule or stale-after-N-days sweep ever closes a case (user, 2026-09-09) — every detection signal produces a queue row for a person to work, because an auto-close would move money on a case nobody looked at and end a student's case with no one able to say why.
+         *     409 `case_in_dispute` if the case is frozen: a case under mediation is the platform's to end. Distinct from Transfer Applicant (sets closed_switched) and Reopen Plan.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @description Free text for the audit trail. Always required. */
+                        reason: string;
+                        /**
+                         * @description Required (422 `sub_reason_required`) whenever the derived outcome is a failure. Every value is a FACT about the case, never a verdict on the student: "the consultancy says the student would not cooperate" is an accusation and does not close a case — it opens a dispute through POST /clients/{id}/raise-issue. The three marked below say the student never actually went, so an acceptance plus one of them is a failure and reverses the commission; colleges do not pay for a student who does not arrive.
+                         * @enum {string|null}
+                         */
+                        sub_reason?: "rejected_by_colleges" | "visa_refused" | "student_withdrew" | "lost_contact" | "other" | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Client"];
+                    };
+                };
+                /** @description `sub_reason_required` — a case closing without an accepted college needs one. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clients/{id}/raise-issue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Raise an issue with a case, freezing it for platform mediation (2026-09-09). Consultancy staff only, and deliberately NOT a way to close: "the student would not cooperate" is an accusation, and a consultancy able to end someone's case by asserting fault leaves the student no reply and no route back. The case moves to `in_dispute`, where plan work and chat stop — a HARD freeze with no exemption for a case mid-visa-filing, whose accepted cost is that a frozen student can miss a deadline and whose mitigation is mediation speed. The platform then resumes, closes or reassigns through POST /disputes/{id}/resolve. The student's half of this path already existed and is untouched: a complaint creates an applicant_allocation_queue row the platform works from. */
         post: {
             parameters: {
                 query?: never;
@@ -8892,13 +8955,106 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Updated */
+                /** @description Case frozen, dispute opened */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CaseDispute"];
+                    };
+                };
+                /** @description `dispute_already_open` — both sides raising at once is a race, not a second problem. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/disputes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The platform's dispute queue (2026-09-09). Each row carries `case_progress`, because a mediator deciding between a consultancy and a student needs to know how far along the case was — a consultancy 80 per cent of the way through has a very different claim from one that never started, and without it the platform arbitrates blind. */
+        get: {
+            parameters: {
+                query?: {
+                    status?: "open" | "resolved" | "all";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Client"];
+                        "application/json": {
+                            items?: components["schemas"]["CaseDispute"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/disputes/{id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End a dispute (2026-09-09). Mediation itself happens off-platform, which is why `resolution_note` is REQUIRED rather than optional: this is the one decision in the system with real legal exposure and everything else about it happened in a phone call. `resume` returns the case to whatever it was doing; `close` ends it as a failure and reverses any commission; `reassign` puts it into the same Applicant Allocation queue a student complaint already feeds, and the case stays frozen until an admin allocates — it must not sit live with a consultancy the platform has decided to move it away from. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        action: "resume" | "close" | "reassign";
+                        resolution_note: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Resolved */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CaseDispute"];
                     };
                 };
             };
@@ -9119,6 +9275,14 @@ export interface paths {
                 content: {
                     "application/json": {
                         template_id: components["schemas"]["UUID"];
+                        /**
+                         * @description Added 2026-09-09, see `Plan.scope`. Omitted means `case`, which is what every caller predating scopes meant.
+                         * @default case
+                         * @enum {string}
+                         */
+                        scope?: "case" | "application";
+                        /** @description Required when `scope` is `application`; rejected otherwise. 404 if the application is not on this case, 422 if the student has not yet approved it by saving the course to their Dream Courses (status still `suggested`). */
+                        application_id?: components["schemas"]["UUID"];
                     };
                 };
             };
@@ -9132,8 +9296,56 @@ export interface paths {
                         "application/json": components["schemas"]["Plan"];
                     };
                 };
+                /** @description `plan_already_assigned` — this scope already holds a plan. Enforced here because it stands in for two partial unique indexes; without it a second assign pushes a row Postgres would reject and, because the readers take the first match, the new plan is INVISIBLE while the API keeps serving the old one. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clients/{id}/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every plan on the case, case plan first then application plans oldest-first (2026-09-09). Each carries its own `progress` fraction and, for application plans, the application and course it belongs to. `summary` is the case-level rollup the Clients list and the student's plan screen need now that one fraction cannot describe a case — including `waiting_on_colleges`, the long-lived state where every step is done and no college has answered yet. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items?: components["schemas"]["Plan"][];
+                            summary?: components["schemas"]["CaseSummary"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -16698,7 +16910,7 @@ export interface components {
              * @description The Stage-2 subset of Journey.status — Stage-1-only values (exploring, awaiting_match, commit_confirm, closed_switched) can't appear on a Client. `closed` (user-requested, 2026-08-15) is a generic manual close, mirroring `Lead.status`'s own `closed` — set via `POST /clients/{id}/close`, reversed via `POST /clients/{id}/reopen-case`. Distinct from `closed_completed` (a fully wound-down completed case) and from `plan_complete` (the plan finished; not itself closed).
              * @enum {string}
              */
-            status: "pending_plan_assignment" | "in_plan" | "plan_complete" | "closed_switched" | "closed" | "closed_completed";
+            status: "pending_plan_assignment" | "in_plan" | "in_dispute" | "plan_complete" | "closed_switched" | "closed" | "closed_completed";
             /** @enum {string} */
             case_type: "student" | "pr";
             address?: string | null;
@@ -16706,8 +16918,21 @@ export interface components {
             finalized_country?: string | null;
             /** @enum {string|null} */
             payer_method?: "college" | "applicant" | "split" | null;
-            /** @example 3/10 */
+            /**
+             * @description The CASE plan's fraction. Unchanged in meaning since scopes arrived (2026-09-09) — see `case_summary` for everything one fraction can no longer say.
+             * @example 3/10
+             */
             progress: string;
+            readonly case_summary?: components["schemas"]["CaseSummary"];
+            /**
+             * @description How the case ended, DERIVED at close from whether a college was accepted and whether the student actually went — never chosen by the consultancy (2026-09-09). Null while live.
+             * @enum {string|null}
+             */
+            readonly outcome?: "success" | "failure" | null;
+            /** @description The neutral fact recorded at close. See POST /clients/{id}/close. */
+            readonly close_sub_reason?: string | null;
+            /** Format: date-time */
+            readonly closed_at?: string | null;
             /** @description Plan tab's "active-step summary" (build reference 2.2). Null once plan_complete or before a plan exists. */
             active_step_title?: string | null;
             /** @description User-requested (2026-08-15) — the assigned Plan Template's name, for Clients List's "Plan (stage)" column, e.g. "Study Abroad — Masters (Canada)" alongside `progress`'s "2/10". Null before a plan is assigned (Clients List shows "No plan assigned" in that case). */
@@ -16769,9 +16994,9 @@ export interface components {
             case_type: "student" | "pr";
             /**
              * Format: uuid
-             * @description Null for PR entries — a PR case has no Selected Colleges lifecycle.
+             * @description The accepted application that earned this entry, stamped at acceptance. Renamed from `selected_college_id` 2026-09-09 with the entity. Null for PR entries — a PR case has no application lifecycle.
              */
-            selected_college_id?: string | null;
+            application_id?: string | null;
             /** Format: uuid */
             course_id?: string | null;
             course_name?: string | null;
@@ -16802,11 +17027,15 @@ export interface components {
             received_from_college?: components["schemas"]["Money"] | null;
             received_from_student?: components["schemas"]["Money"] | null;
             /**
-             * @description Voided means the acceptance was reverted (reason recorded, audited); a journey has at most one active entry.
+             * @description A journey has at most one active entry. `voided` means the acceptance itself was reverted (reason recorded, audited). `reversed` (2026-09-09) means the acceptance was real and the student still never went — a visa refusal, a withdrawal, a no-show — so the money was earned on paper and then was not. Finance has to tell those two apart, which is why closing a case as a failure does NOT reuse `voided`.
              * @enum {string}
              */
-            status: "active" | "voided";
+            status: "active" | "voided" | "reversed";
             void_reason?: string | null;
+            /** @description The close sub_reason that caused the reversal. */
+            reversal_reason?: string | null;
+            /** Format: date-time */
+            reversed_at?: string | null;
             /** Format: date-time */
             created_at: string;
         };
@@ -16910,9 +17139,55 @@ export interface components {
             position: number;
             components: components["schemas"]["Component"][];
         };
+        /** @description What one progress fraction can no longer say, now that a case runs several plans at once (2026-09-09). `Client.progress` stays the CASE plan's fraction so every reader that predates scopes keeps working and keeps meaning the same thing; this sits beside it. */
+        CaseSummary: {
+            /** @description The case plan's "done/total", or null if no case plan is assigned yet. */
+            case_progress?: string | null;
+            /** @description Applications the student has actually agreed to — `suggested` rows are a consultant's proposal awaiting the student and are not counted. */
+            application_total?: number;
+            applied?: number;
+            offers?: number;
+            accepted?: number;
+            rejected?: number;
+            /** @description Every step on every plan is done and at least one college has not answered. A real and long-lived state — the consultancy's work for a college finishes long before the college decides — and the one the student's plan screen must name outright, because a wall of ticks reads as "finished" when it actually means "waiting". */
+            waiting_on_colleges?: boolean;
+        };
+        /** @description A frozen case under platform mediation (2026-09-09). Not a way of closing: a dispute is the state a case sits in WHILE the platform decides, after which it is resumed, closed or reassigned. */
+        CaseDispute: {
+            id: components["schemas"]["UUID"];
+            journey_id: components["schemas"]["UUID"];
+            consultancy_id?: components["schemas"]["UUID"];
+            /** @enum {string} */
+            raised_by: "consultancy" | "student";
+            raised_by_user_id?: components["schemas"]["UUID"];
+            reason: string;
+            /** @enum {string} */
+            status: "open" | "resolved";
+            /** @description Required to resolve — mediation happens off-platform, so the decision and its reasoning are the only part of it the record ever gets. */
+            resolution_note?: string | null;
+            /** @enum {string|null} */
+            resolution_action?: "resume" | "close" | "reassign" | null;
+            /** @description Set when a second dispute on the same case is closed as a duplicate of the first, so the link is real rather than a note. */
+            duplicate_of?: components["schemas"]["UUID"];
+            readonly student_name?: string | null;
+            readonly consultancy_name?: string | null;
+            /** @description How far along the case was. The mediator needs this before deciding anything. */
+            readonly case_progress?: components["schemas"]["CaseSummary"] | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            resolved_at?: string | null;
+        };
         Plan: {
             id: components["schemas"]["UUID"];
             journey_id: components["schemas"]["UUID"];
+            /**
+             * @description Added 2026-09-09. A plan used to belong to a journey, one each, which forced a student applying to four colleges into a single linear queue that pretended the four were sequential. `case` is the one plan per journey holding everything shared — profile, documents, test prep. `application` is one per college applied to, holding that college's own procedure, and carries `application_id`. Uniqueness is per scope, not per journey: one case plan per journey, one plan per application, both enforced (409 `plan_already_assigned`). There is deliberately NO visa scope — visa work goes wherever the consultancy wants it or nowhere at all, because the student may be handling it themselves. Every plan created before this date is a `case` plan by definition.
+             * @enum {string}
+             */
+            scope: "case" | "application";
+            /** @description Set if and only if `scope` is `application`. */
+            application_id?: components["schemas"]["UUID"];
             template_id?: components["schemas"]["UUID"];
             steps: components["schemas"]["Step"][];
         };
