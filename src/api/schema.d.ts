@@ -9002,6 +9002,100 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/offer-prompts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Whether to ask this student about an offer (2026-09-09).
+         *     WHY THIS EXISTS: the platform learns an admission happened only from the consultancy — the party who owes it money for that admission. The student is the other witness, and the one with no reason to hide good news.
+         *     Returns at most ONE prompt. A student opening Dream Courses to four questions closes the app. A prompt appears only once an application has sat at `applied` past that COUNTRY's `offer_turnaround_days`, never before — there is nothing to report earlier, and asking would teach the student to dismiss it. Capped at two unanswered asks per application: nagging someone who has just been rejected is a good way to lose them, and after that it belongs to the platform's follow-up queue and a phone call.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items?: {
+                                application_id?: components["schemas"]["UUID"];
+                                course_id?: components["schemas"]["UUID"];
+                                college_name?: string | null;
+                                course_name?: string | null;
+                                asked_count?: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/offer-prompts/{applicationId}/respond": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The student's answer.
+         *     IT NEVER MOVES THE APPLICATION. The student is a witness, not the record-keeper, and advancing a case on one party's say-so is exactly the unilateral action this design keeps refusing elsewhere. `got_an_offer` notifies the platform — the highest-value signal there is, and the only one that comes from outside the party that owes the money. `not_yet` and `did_not_apply` are recorded and change nothing on their own: a student saying they never applied somewhere their consultancy says they did is a dispute for a person to work, not a data correction.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    applicationId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        answer: "got_an_offer" | "not_yet" | "did_not_apply";
+                    };
+                };
+            };
+            responses: {
+                /** @description Recorded */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/documents": {
         parameters: {
             query?: never;
