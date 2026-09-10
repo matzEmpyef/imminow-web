@@ -122,7 +122,28 @@ export function DocumentsTab({ clientId }: { clientId: string }) {
                 <p className="text-text-primary">{doc.filename}</p>
                 <p className="text-caption text-text-secondary">Sent {formatDate(doc.created_at)}</p>
               </div>
-              <button onClick={() => downloadUrl.mutate(doc.id)} className="text-primary hover:underline">
+              {/* Fetched the signed link and never opened it (found 2026-09-10) — the button did
+                  nothing. The tab is opened on the click itself, so a pop-up blocker allows it,
+                  then pointed at the file once the short-lived link arrives. */}
+              <button
+                onClick={() => {
+                  const tab = window.open('', '_blank')
+                  downloadUrl.mutate(doc.id, {
+                    onSuccess: (url) => {
+                      // No tab when the browser blocks new windows outright — open it here
+                      // instead, so Download always does something.
+                      if (!tab) {
+                        window.location.assign(url)
+                        return
+                      }
+                      tab.opener = null
+                      tab.location.href = url
+                    },
+                    onError: () => tab?.close(),
+                  })
+                }}
+                className="text-primary hover:underline"
+              >
                 Download
               </button>
             </div>
