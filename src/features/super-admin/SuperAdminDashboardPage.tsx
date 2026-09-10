@@ -225,7 +225,7 @@ export function SuperAdminDashboardPage() {
                 data={dashboard.data?.revenue_over_time ?? []}
                 series={[
                   { key: 'consultancy', label: 'Consultancies', color: 'var(--color-success)' },
-                  { key: 'institute', label: 'Institutes', color: 'var(--color-secondary)' },
+                  { key: 'institute', label: 'Institutes', color: 'var(--color-primary)' },
                 ]}
               />
             </div>
