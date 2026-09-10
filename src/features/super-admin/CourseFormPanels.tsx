@@ -89,7 +89,7 @@ export function CourseBasicsPanel({ hidden, form }: { hidden: boolean; form: Cou
       </div>
       {/* Optional (user, 2026-09-04) — the app shows it as "Visit course page" in the phone's browser. */}
       <TextField
-        label="Course page URL"
+        label="Course Page"
         type="url"
         value={form.courseUrl}
         onChange={(e) => form.setCourseUrl(e.target.value)}

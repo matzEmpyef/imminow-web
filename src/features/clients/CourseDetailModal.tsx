@@ -198,7 +198,7 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
         </p>
       </div>
       {/* Right side of the header, as on the college popup: the course's own page (the admin form's
-          "Course page URL"), and only that (user, 2026-09-10: "I want course page url, not College
+          "Course Page"), and only that (user, 2026-09-10: "I want course page url, not College
           website"). A course without one offers + Add instead. */}
       <div className="flex shrink-0 flex-col items-end gap-xs self-center">
         {course.course_url ? (
@@ -213,7 +213,7 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
           </a>
         ) : (
           <span className="inline-flex items-center gap-xs text-body-sm text-text-primary">
-            Course page URL: {gap('course_url', 'Course page URL')}
+            Course Page: {gap('course_url', 'Course Page')}
           </span>
         )}
       </div>
