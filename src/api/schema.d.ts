@@ -17226,11 +17226,11 @@ export interface components {
                 label: string;
                 count: number;
             }[];
-            /** @description Applicant (journey) count per consultancy, for a doughnut chart (user-requested, 2026-08-18 — "how many users for each consultancy"). Only one consultancy in this environment has real branches/employees/journeys behind it — the others report a real 0, not a fabricated figure (see Applicant Allocation's matching Northstar-only scoping note in the build reference). */
-            applicants_by_consultancy?: {
-                consultancy_name: string;
-                count: number;
-            }[];
+            /** @description CURRENT applicants per organisation, split by kind (2026-09-10 — replaced `applicants_by_consultancy`, which listed every organisation's all-time case count and could not scale). Same "active applicant" rule as the active_applicants stat card, so consultancies.total + institutes.total equals that card. */
+            applicants_by_organisation?: {
+                consultancies: components["schemas"]["OrgApplicantRanking"];
+                institutes: components["schemas"]["OrgApplicantRanking"];
+            };
             /** @description Confirmed commission revenue by calendar month, for a bar chart (user-requested, 2026-08-18). */
             revenue_over_time?: {
                 /** @description YYYY-MM */
@@ -19906,6 +19906,24 @@ export interface components {
                 demand: number;
                 supply: number;
             }[];
+        };
+        /** @description One kind of organisation ranked by current applicants (2026-09-10): the top 10 with at least one, the rest rolled into `others`, and organisations at zero only counted — sized to stay readable however many organisations are onboarded. */
+        OrgApplicantRanking: {
+            /** @description Current applicants across every organisation of this kind. */
+            total: number;
+            organisations_with_applicants: number;
+            organisations_without_applicants: number;
+            /** @description Up to 10, most applicants first (ties by name). Never contains a zero. */
+            top: {
+                id: string;
+                name: string;
+                count: number;
+            }[];
+            /** @description Everything with applicants beyond the top 10, as one row. */
+            others: {
+                organisations: number;
+                count: number;
+            };
         };
         /** @description One sign-in attempt (2026-09-10, erd.md login_events). `ip` is personal data — shown to platform staff with user_directory for security checks only; retention is a pre-production decision (PROGRESS.md checklist). */
         SignInEvent: {

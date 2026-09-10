@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Card } from '@/components/Card'
 import { Badge } from '@/components/Badge'
@@ -23,6 +23,80 @@ const STAT_CARD_LINKS: Record<string, string> = {
   total_colleges: '/admin/colleges',
   total_courses: '/admin/colleges',
   courses_missing_requirements: '/admin/colleges',
+}
+
+type DashboardData = NonNullable<ReturnType<typeof useAdminDashboard>['data']>
+type OrgRanking = NonNullable<DashboardData['applicants_by_organisation']>['consultancies']
+
+// Current applicants per organisation (user, 2026-09-10) — a ranked list rather than a doughnut,
+// which could not hold 100 organisations. Top 10, the rest as one Others row, zeros only counted.
+function OrgApplicantsCard({
+  title,
+  singular,
+  plural,
+  ranking,
+}: {
+  title: string
+  singular: string
+  plural: string
+  ranking: OrgRanking
+}) {
+  const noun = (n: number) => (n === 1 ? singular : plural)
+  const max = Math.max(1, ...ranking.top.map((r) => r.count), ranking.others.count)
+  return (
+    <Card>
+      <div className="flex items-center justify-between gap-sm">
+        <h2 className="text-h3 text-text-primary">{title}</h2>
+        <Link to="/admin/performance-league" className="text-body-sm text-primary hover:underline">
+          View all
+        </Link>
+      </div>
+      <p className="text-caption text-text-secondary">
+        {ranking.total} active applicant{ranking.total === 1 ? '' : 's'} across {ranking.organisations_with_applicants}{' '}
+        {noun(ranking.organisations_with_applicants)}
+      </p>
+      {ranking.top.length === 0 ? (
+        <p className="mt-sm text-body-sm text-text-secondary">No {plural} have active applicants right now.</p>
+      ) : (
+        <ol className="mt-md flex flex-col gap-sm">
+          {ranking.top.map((r) => (
+            <OrgBar key={r.id} label={r.name} count={r.count} max={max} />
+          ))}
+          {ranking.others.organisations > 0 && (
+            <OrgBar
+              label={`Others (${ranking.others.organisations} ${noun(ranking.others.organisations)})`}
+              count={ranking.others.count}
+              max={max}
+              muted
+            />
+          )}
+        </ol>
+      )}
+      {ranking.organisations_without_applicants > 0 && (
+        <p className="mt-sm text-caption text-text-secondary">
+          {ranking.organisations_without_applicants} more {noun(ranking.organisations_without_applicants)} with no active
+          applicants.
+        </p>
+      )}
+    </Card>
+  )
+}
+
+function OrgBar({ label, count, max, muted }: { label: string; count: number; max: number; muted?: boolean }) {
+  return (
+    <li className="flex flex-col gap-xs">
+      <div className="flex items-baseline justify-between gap-sm">
+        <span className={`truncate text-body-sm ${muted ? 'text-text-secondary' : 'text-text-primary'}`}>{label}</span>
+        <span className="text-body-sm font-medium tabular-nums text-text-primary">{count}</span>
+      </div>
+      <div className="h-2 rounded-full bg-background">
+        <div
+          className={`h-2 rounded-full ${muted ? 'bg-text-secondary/40' : 'bg-primary'}`}
+          style={{ width: `${(count / max) * 100}%` }}
+        />
+      </div>
+    </li>
+  )
 }
 
 export function SuperAdminDashboardPage() {
@@ -146,22 +220,24 @@ export function SuperAdminDashboardPage() {
           </Card>
         </div>
 
+        {dashboard.data.applicants_by_organisation && (
+          <div className="grid grid-cols-1 gap-lg md:grid-cols-2">
+            <OrgApplicantsCard
+              title="Applicants by Consultancy"
+              singular="consultancy"
+              plural="consultancies"
+              ranking={dashboard.data.applicants_by_organisation.consultancies}
+            />
+            <OrgApplicantsCard
+              title="Applicants by Institute"
+              singular="institute"
+              plural="institutes"
+              ranking={dashboard.data.applicants_by_organisation.institutes}
+            />
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-lg md:grid-cols-2">
-          <Card>
-            <h2 className="text-h3 text-text-primary">Applicants by Consultancy</h2>
-            <p className="text-caption text-text-secondary">
-              Only one consultancy in this environment has real applicant data behind it — the rest show 0, not a
-              fabricated figure.
-            </p>
-            <div className="mt-sm">
-              <DoughnutChart
-                data={(dashboard.data?.applicants_by_consultancy ?? []).map((d) => ({
-                  label: d.consultancy_name,
-                  value: d.count,
-                }))}
-              />
-            </div>
-          </Card>
           <Card>
             <h2 className="text-h3 text-text-primary">Confirmed Revenue by Month</h2>
             <p className="text-caption text-text-secondary">Last 12 months, confirmed platform commission only.</p>
@@ -173,22 +249,21 @@ export function SuperAdminDashboardPage() {
               />
             </div>
           </Card>
+          <Card>
+            <h2 className="text-h3 text-text-primary">Completed Cases by Month</h2>
+            <p className="text-caption text-text-secondary">
+              Last 12 months. Grouped by when the case was created, as a stand-in for a real completion date — no seeded
+              case has one recorded yet.
+            </p>
+            <div className="mt-sm">
+              <MonthlyBarChart
+                data={(dashboard.data?.completed_cases_over_time ?? []).map((d) => ({ month: d.month, value: d.count }))}
+                valueLabel="Completed cases"
+                color="var(--color-warning)"
+              />
+            </div>
+          </Card>
         </div>
-
-        <Card>
-          <h2 className="text-h3 text-text-primary">Completed Cases by Month</h2>
-          <p className="text-caption text-text-secondary">
-            Last 12 months. Grouped by when the case was created, as a stand-in for a real completion date — no seeded
-            case has one recorded yet.
-          </p>
-          <div className="mt-sm">
-            <MonthlyBarChart
-              data={(dashboard.data?.completed_cases_over_time ?? []).map((d) => ({ month: d.month, value: d.count }))}
-              valueLabel="Completed cases"
-              color="var(--color-warning)"
-            />
-          </div>
-        </Card>
       </div>
     </AdminShell>
   )
