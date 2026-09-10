@@ -106,7 +106,9 @@ export function CourseFinderPage() {
   )
 
   function suggestCourse(courseId: string) {
-    if (selectedClient) addSelected.mutate({ course_id: courseId })
+    // A client hears about it in their chat as well as in Applications (user, 2026-09-10) —
+    // the same thing a lead already gets.
+    if (selectedClient) addSelected.mutate({ course_id: courseId, message_student: true })
     else if (selectedLead) suggestToLead.mutate(courseId)
   }
   const suggestPending = selectedClient ? addSelected.isPending : suggestToLead.isPending
@@ -254,8 +256,8 @@ export function CourseFinderPage() {
               selectedClient ? (
                 <>
                   {' '}
-                  will be added to {selectedClient.student.first_name}&rsquo;s Applications, and they&rsquo;ll get
-                  a notification pointing them at it.
+                  will be added to {selectedClient.student.first_name}&rsquo;s Applications and sent to them as a
+                  message in their chat, and they&rsquo;ll get a notification pointing them at it.
                 </>
               ) : selectedLead?.origin === 'sentpo' && selectedLead.student_id ? (
                 <>

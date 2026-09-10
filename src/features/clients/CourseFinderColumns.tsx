@@ -1,4 +1,4 @@
-import { ListChecks, ListPlus } from 'lucide-react'
+import { Check, ListChecks, ListPlus, Send } from 'lucide-react'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import type { TableColumn } from '@/components/Table'
@@ -193,14 +193,23 @@ export function buildCourseFinderColumns({
             >
               {shortlisted ? <ListChecks className="h-4 w-4" /> : <ListPlus className="h-4 w-4" />}
             </button>
+            {/* Compact, with an icon (user, 2026-09-10: "add an icon and also make font size
+                smaller"). A paper plane, because Suggest now also sends the course to the
+                student's chat; the badge that replaces it carries a tick to match. */}
             {suggestedCourseIds.has(c.id) ? (
-              <Badge color="secondary">Suggested</Badge>
+              <Badge color="secondary" className="gap-xs">
+                <Check className="h-3 w-3" aria-hidden />
+                Suggested
+              </Badge>
             ) : (
               <Button
                 variant="secondary"
+                size="sm"
+                className="inline-flex items-center gap-xs"
                 onClick={() => onSuggest({ id: c.id, name: c.name })}
                 loading={suggestPending && suggestingId === c.id}
               >
+                <Send className="h-3.5 w-3.5 text-primary" aria-hidden />
                 Suggest
               </Button>
             )}

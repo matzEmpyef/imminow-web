@@ -8773,6 +8773,11 @@ export interface paths {
                 content: {
                     "application/json": {
                         course_id: components["schemas"]["UUID"];
+                        /**
+                         * @description Also post the suggestion into the client's chat as a course_share message (2026-09-10; Course Finder sends it). Skipped while the chat is frozen; the row is added either way.
+                         * @default false
+                         */
+                        message_student?: boolean;
                     };
                 };
             };
