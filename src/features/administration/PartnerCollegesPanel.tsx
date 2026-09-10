@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { SelectField } from '@/components/SelectField'
-import { Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { CountryLabel } from '@/components/CountryLabel'
@@ -62,9 +62,17 @@ export function PartnerCollegesPanel({
   // unpriced method now simply prices at the flagged 10% fallback until the platform sets the
   // rate, and Commission Details badges it.
 
+  const [adding, setAdding] = useState(false)
   const [addCollegeId, setAddCollegeId] = useState('')
   const [addPayer, setAddPayer] = useState<PayerMethod | ''>('')
   const [addCommissionPercent, setAddCommissionPercent] = useState('')
+
+  function closeAdd() {
+    setAdding(false)
+    setAddCollegeId('')
+    setAddPayer('')
+    setAddCommissionPercent('')
+  }
   const [managing, setManaging] = useState<PartnerCollege | null>(null)
   const [removing, setRemoving] = useState<PartnerCollege | null>(null)
   // Set when the payer select is switched to college/split on a row that has no commission %
@@ -195,23 +203,62 @@ export function PartnerCollegesPanel({
 
   return (
     <div className="flex flex-col gap-md">
-      <p className="text-body-sm text-text-secondary">
-        {readOnly
-          ? 'An institute works with one college — itself. The relation below is created with the account and cannot be added to, edited or removed; its commercial terms are set by the platform. Every course of this college is included, and this account sees no other college’s catalogue.'
-          : 'Colleges this consultancy works with. New courses of a partner college are included automatically — exclude specific ones from Manage courses. Payer-method changes are applied immediately, audited, and visible to the platform team.'}
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-md">
+        <p className="min-w-0 flex-1 text-body-sm text-text-secondary">
+          {readOnly
+            ? 'An institute works with one college — itself. The relation below is created with the account and cannot be added to, edited or removed; its commercial terms are set by the platform. Every course of this college is included, and this account sees no other college’s catalogue.'
+            : 'Colleges this consultancy works with. New courses of a partner college are included automatically — exclude specific ones from Manage courses. Payer-method changes are applied immediately, audited, and visible to the platform team.'}
+        </p>
+        {/* Adding a college happens in a popup (user, 2026-09-10: "use popup to add not inline").
+            Absent entirely for an institute — POST /consultancy-colleges is refused 403
+            `not_applicable_for_institute`, so there is nothing it could do. */}
+        {!readOnly && (
+          <Button onClick={() => setAdding(true)} className="inline-flex shrink-0 items-center gap-xs">
+            <Plus className="h-4 w-4" aria-hidden />
+            Add partner college
+          </Button>
+        )}
+      </div>
 
-      {/* Full-width row (user-requested, 2026-08-27): the college picker was a fixed w-64, which
-          left it cramped and wrapping inside the Manage Consultancies modal while the row had space
-          going spare. It now flexes to fill, with the payer select and Add button sized to their
-          content at the end. Absent entirely for an institute — POST /consultancy-colleges is
-          refused 403 `not_applicable_for_institute`, so there is nothing this row could do. */}
-      {!readOnly && (
-        <div className="flex flex-wrap items-end gap-sm">
-          <div className="min-w-[16rem] flex-1">
+      {adding && (
+        <Modal
+          title="Add partner college"
+          onClose={closeAdd}
+          widthRem={30}
+          footer={
+            <div className="flex justify-end gap-sm">
+              <Button variant="secondary" onClick={closeAdd}>
+                Cancel
+              </Button>
+              <Button
+                disabled={
+                  !addCollegeId ||
+                  !addPayer ||
+                  (needsCommission(addPayer) &&
+                    (addCommissionPercent === '' || Number(addCommissionPercent) < 0 || Number(addCommissionPercent) > 100))
+                }
+                loading={addRelation.isPending}
+                onClick={() =>
+                  addRelation.mutate(
+                    {
+                      college_id: addCollegeId,
+                      payer_method: addPayer as PayerMethod,
+                      ...(needsCommission(addPayer) ? { commission_percent: Number(addCommissionPercent) } : {}),
+                    },
+                    { onSuccess: closeAdd },
+                  )
+                }
+              >
+                Add college
+              </Button>
+            </div>
+          }
+        >
+          <div className="flex flex-col gap-md">
             <SearchSelect
               id="pc-college"
-              label="Add a college"
+              label="College"
+              required
               options={collegeOptions}
               value={addCollegeId}
               onChange={(id) => {
@@ -220,67 +267,40 @@ export function PartnerCollegesPanel({
               }}
               placeholder="Search colleges…"
             />
-          </div>
-          <SelectField
-            label="Payer method"
-            id="pc-payer"
-            className="w-48 shrink-0"
-            value={addPayer}
-            disabled={!addCollegeId}
-            onChange={(e) => {
-              setAddPayer(e.target.value as PayerMethod)
-              setAddCommissionPercent('')
-            }}
-          >
-            <option value="">Select…</option>
-            {ALL_PAYERS.map((m) => (
-              <option key={m} value={m}>
-                {PAYER_LABEL[m]}
-              </option>
-            ))}
-          </SelectField>
-          {needsCommission(addPayer) && (
-            <TextField
-              label="% of tuition to consultancy"
-              id="pc-commission-percent"
-              type="number"
-              min={0}
-              max={100}
-              step="0.1"
+            <SelectField
+              label="Payer method"
+              id="pc-payer"
               required
-              className="w-48 shrink-0"
-              value={addCommissionPercent}
-              onChange={(e) => setAddCommissionPercent(e.target.value)}
-            />
-          )}
-          <Button
-            disabled={
-              !addCollegeId ||
-              !addPayer ||
-              (needsCommission(addPayer) &&
-                (addCommissionPercent === '' || Number(addCommissionPercent) < 0 || Number(addCommissionPercent) > 100))
-            }
-            loading={addRelation.isPending}
-            onClick={() =>
-              addRelation.mutate(
-                {
-                  college_id: addCollegeId,
-                  payer_method: addPayer as PayerMethod,
-                  ...(needsCommission(addPayer) ? { commission_percent: Number(addCommissionPercent) } : {}),
-                },
-                {
-                  onSuccess: () => {
-                    setAddCollegeId('')
-                    setAddPayer('')
-                    setAddCommissionPercent('')
-                  },
-                },
-              )
-            }
-          >
-            Add
-          </Button>
-        </div>
+              value={addPayer}
+              disabled={!addCollegeId}
+              onChange={(e) => {
+                setAddPayer(e.target.value as PayerMethod)
+                setAddCommissionPercent('')
+              }}
+            >
+              <option value="">{addCollegeId ? 'Select…' : 'Choose a college first'}</option>
+              {ALL_PAYERS.map((m) => (
+                <option key={m} value={m}>
+                  {PAYER_LABEL[m]}
+                </option>
+              ))}
+            </SelectField>
+            {needsCommission(addPayer) && (
+              <TextField
+                label="% of tuition to consultancy"
+                id="pc-commission-percent"
+                type="number"
+                min={0}
+                max={100}
+                step="0.1"
+                required
+                value={addCommissionPercent}
+                onChange={(e) => setAddCommissionPercent(e.target.value)}
+              />
+            )}
+            {addRelation.isError && <p className="text-body-sm text-error">{addRelation.error.message}</p>}
+          </div>
+        </Modal>
       )}
 
       <Table
@@ -289,7 +309,7 @@ export function PartnerCollegesPanel({
         rowKey={(r) => r.id}
         loading={relations.isLoading}
         error={relations.isError ? 'Could not load partner colleges.' : undefined}
-        emptyMessage="No partner colleges yet — add the first one above."
+        emptyMessage="No partner colleges yet — use Add partner college to add the first one."
       />
 
       {managing && (

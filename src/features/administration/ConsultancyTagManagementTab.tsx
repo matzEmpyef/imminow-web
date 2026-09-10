@@ -1,5 +1,6 @@
 // Split out of ConsultancyProfilePage.tsx (Phase 3 plan, Tier B2, 2026-09-03) — pure movement, no logic change.
 import { useState, type FormEvent } from 'react'
+import { Plus } from 'lucide-react'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
@@ -52,30 +53,57 @@ function DeleteTagTrigger({ tagId, tagName }: { tagId: string; tagName: string }
   )
 }
 
-export function TagManagementTab() {
-  const tags = useTags()
+// Adding a tag happens in a popup (user, 2026-09-10: "use popup to add not inline"), same as every
+// other "add" on this console, instead of a form row permanently occupying the top of the tab.
+function AddTagModal({ onClose }: { onClose: () => void }) {
   const createTag = useCreateTag()
   const [name, setName] = useState('')
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    if (!name) return
-    createTag.mutate(name, { onSuccess: () => setName('') })
+  function handleSubmit(e?: FormEvent) {
+    e?.preventDefault()
+    if (!name.trim()) return
+    createTag.mutate(name.trim(), { onSuccess: onClose })
   }
 
   return (
-    <>
-      <p className="text-body-sm text-text-secondary">Tags applied to leads and clients, filterable in list views.</p>
-
-      <Card className="max-w-[32rem]">
-        <form onSubmit={handleSubmit} className="flex items-end gap-sm">
-          <TextField label="New tag" value={name} onChange={(e) => setName(e.target.value)} className="flex-1" />
-          <Button type="submit" loading={createTag.isPending} disabled={!name}>
-            Add
+    <Modal
+      onClose={onClose}
+      title="Add tag"
+      widthRem={26}
+      footer={
+        <div className="flex justify-end gap-sm">
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
           </Button>
-        </form>
-        {createTag.isError && <p className="mt-sm text-body-sm text-error">{createTag.error.message}</p>}
-      </Card>
+          <Button onClick={() => handleSubmit()} loading={createTag.isPending} disabled={!name.trim()}>
+            Add tag
+          </Button>
+        </div>
+      }
+    >
+      <form onSubmit={handleSubmit} className="flex flex-col gap-sm">
+        <TextField label="Tag name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <p className="text-caption text-text-secondary">Tags apply to leads and clients and can be filtered on in lists.</p>
+        {createTag.isError && <p className="text-body-sm text-error">{createTag.error.message}</p>}
+      </form>
+    </Modal>
+  )
+}
+
+export function TagManagementTab() {
+  const tags = useTags()
+  const [adding, setAdding] = useState(false)
+
+  return (
+    <>
+      <div className="flex max-w-[32rem] items-center justify-between gap-md">
+        <p className="text-body-sm text-text-secondary">Tags applied to leads and clients, filterable in list views.</p>
+        <Button onClick={() => setAdding(true)} className="inline-flex shrink-0 items-center gap-xs">
+          <Plus className="h-4 w-4" aria-hidden />
+          Add tag
+        </Button>
+      </div>
+      {adding && <AddTagModal onClose={() => setAdding(false)} />}
 
       <Card className="max-w-[32rem]">
         {tags.isLoading && <p className="text-body-sm text-text-secondary">Loading…</p>}
