@@ -52,6 +52,17 @@ const STAT_LINKS: Record<string, string> = {
   pending_allocation: '/clients?unassigned=true',
 }
 
+// The link a card opens, for the scope the viewer is looking at (user, 2026-09-10). At Personal
+// scope the Active Leads and Unattended Leads cards count only the viewer's OWN leads, so the page
+// they open has to be narrowed the same way — otherwise the card says 1 and the page shows the
+// whole team's list. The Active Leads page reads `assigned_to_me` for exactly this.
+function statLinkFor(key: string, scope: Scope): string | undefined {
+  const base = STAT_LINKS[key]
+  if (!base || scope !== 'personal') return base
+  if (key !== 'active_leads' && key !== 'unattended') return base
+  return `${base}${base.includes('?') ? '&' : '?'}assigned_to_me=true`
+}
+
 // Renders as a plain Card (or bare div, for the hero card which already supplies its own full
 // background/shadow classes) when no link is registered for this stat's key (STAT_LINKS above),
 // otherwise as a Link styled identically — so callers don't need to know which one they got.
@@ -183,7 +194,7 @@ export function DashboardPage() {
         <div className="grid grid-cols-4 gap-md">
           {heroCard && (
             <CardOrLink
-              to={STAT_LINKS[heroCard.key]}
+              to={statLinkFor(heroCard.key, scope)}
               bare
               className="col-span-1 flex flex-col justify-between rounded-lg bg-primary p-lg text-text-on-primary shadow-card transition-opacity hover:opacity-90"
             >
@@ -201,7 +212,7 @@ export function DashboardPage() {
           {restCards.map((card) => {
             const meta = STAT_META[card.key]
             return (
-              <CardOrLink key={card.key} to={STAT_LINKS[card.key]} className="flex flex-col justify-between">
+              <CardOrLink key={card.key} to={statLinkFor(card.key, scope)} className="flex flex-col justify-between">
                 <div className="flex items-center justify-between">
                   <p className="text-caption text-text-secondary">{card.label}</p>
                   {meta && <IconBadge color={meta.color}>{meta.icon}</IconBadge>}

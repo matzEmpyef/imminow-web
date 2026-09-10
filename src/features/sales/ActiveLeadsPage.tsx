@@ -52,7 +52,9 @@ export function ActiveLeadsPage() {
   // the checkbox is toggled, matching how this page's other filters have never round-tripped
   // through the URL either.
   const [searchParams] = useSearchParams()
-  const [assignedToMe, setAssignedToMe] = useState(false)
+  // Read from the URL so the dashboard's Personal-scope cards can open this page already
+  // narrowed to the viewer's own leads, matching the number on the card.
+  const [assignedToMe, setAssignedToMe] = useState(() => searchParams.get('assigned_to_me') === 'true')
   const [unattendedOnly, setUnattendedOnly] = useState(() => searchParams.get('unattended') === 'true')
   const [showClosed, setShowClosed] = useState(false)
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
