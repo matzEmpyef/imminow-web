@@ -13,6 +13,9 @@ export interface SidebarSubLink {
   path: string
   icon: LucideIcon
   hidden?: boolean
+  /** When the link stands for a group of pages (the platform console's tab groups, 2026-09-10),
+   *  it is highlighted on any of them. Omitted, only its own path highlights it. */
+  matches?: (pathname: string) => boolean
   // Small count pill after the label (user-requested, 2026-08-19 — "show number of activities
   // that need action today as a counter in Activities side menu"), same red-badge treatment
   // NotificationsDropdown's own unread count already uses. Omitted or 0 renders nothing.
@@ -129,7 +132,7 @@ export function SidebarShell({ sections, roleBadge, search, headerActions, child
         <nav className="sidebar-nav-scroll flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-sm pb-sm pt-md">
           {activeLinks.map((link) => {
             const LinkIcon = link.icon
-            const linkActive = location.pathname === link.path
+            const linkActive = link.matches ? link.matches(location.pathname) : location.pathname === link.path
             return (
               <Link
                 key={link.path}

@@ -1367,7 +1367,7 @@ export interface paths {
         put?: never;
         /**
          * Support Tools — send the guardian link again
-         * @description For the student who mistyped an address and used their retry, or whose guardian declined twice. Requires the `support` permission and a reason, and is audit-logged like every other Support Tools action. Optionally replaces the guardian's details at the same time.
+         * @description For the student who mistyped an address and used their retry, or whose guardian declined twice. Requires the `support_tools` permission (`support` before the 2026-09-10 split) and a reason, and is audit-logged like every other Support Tools action. Optionally replaces the guardian's details at the same time.
          */
         post: {
             parameters: {
@@ -3901,7 +3901,7 @@ export interface paths {
         };
         /**
          * The education ladder — every rung both the student's target level and a course's level draw from (2026-09-07)
-         * @description Ordered by `sort_order`. Any authenticated caller may read it; the Sentpo app uses it for the Target study level picker and both course-search level filters, and immiNow uses it for a course's Level. Managing the list needs the `catalog` platform permission — the same gate as `/countries`, its sibling reference list, since the people who enter colleges and courses are the people who need a rung.
+         * @description Ordered by `sort_order`. Any authenticated caller may read it; the Sentpo app uses it for the Target study level picker and both course-search level filters, and immiNow uses it for a course's Level. Managing the list needs the `catalog_settings` platform permission — the same gate as `/countries`, its sibling reference list, since the people who enter colleges and courses are the people who need a rung.
          *     Inactive rungs are omitted unless `include_inactive=true`, which immiNow's management screen passes so an admin can see and reactivate what has been retired.
          */
         get: {
@@ -3927,7 +3927,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Add a rung (platform catalog permission) */
+        /** Add a rung (platform catalog_settings permission) */
         post: {
             parameters: {
                 query?: never;
@@ -3983,7 +3983,7 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Rename, reorder or retire a rung (platform catalog permission)
+         * Rename, reorder or retire a rung (platform catalog_settings permission)
          * @description `code` is not editable — see the schema. Setting `active: false` retires a rung, and is REFUSED with 409 while any course or any student preference still references it: a rung that vanishes from the table while rows point at it turns a filter into a silent under-report, which is the failure this whole table exists to prevent.
          */
         patch: {
@@ -4172,7 +4172,7 @@ export interface paths {
         };
         options?: never;
         head?: never;
-        /** Update a country's platform settings (platform `catalog` permission, 2026-09-02). Changing `default_currency` re-derives `display_currency` for every resident student who has not explicitly picked one. */
+        /** Update a country's platform settings (platform `catalog_settings` permission since 2026-09-10; `catalog` from 2026-09-02). Changing `default_currency` re-derives `display_currency` for every resident student who has not explicitly picked one. */
         patch: {
             parameters: {
                 query?: never;
@@ -4242,7 +4242,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Add an exam (platform catalog permission — same gate as Countries). */
+        /** Add an exam (platform catalog_settings permission — same gate as Countries). */
         post: {
             parameters: {
                 query?: never;
@@ -4286,7 +4286,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Edit/deactivate an exam (platform catalog permission). Deactivating hides it from new use; existing student scores referencing it stay intact. */
+        /** Edit/deactivate an exam (platform catalog_settings permission). Deactivating hides it from new use; existing student scores referencing it stay intact. */
         patch: {
             parameters: {
                 query?: never;
@@ -4322,7 +4322,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Platform exchange-rate table (COURSES_MODULE_PLAN.md §1.5). Any authenticated user may read (clients show "≈ ₹" conversions); editing is platform catalog permission. */
+        /** Platform exchange-rate table (COURSES_MODULE_PLAN.md §1.5). Any authenticated user may read (clients show "≈ ₹" conversions); editing is platform catalog_settings permission. */
         get: {
             parameters: {
                 query?: never;
@@ -4359,7 +4359,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Upsert one currency's INR rate (platform catalog permission). Changing a rate re-materializes every course's fee_normalized_inr. */
+        /** Upsert one currency's INR rate (platform catalog_settings permission). Changing a rate re-materializes every course's fee_normalized_inr. */
         put: {
             parameters: {
                 query?: never;
@@ -7478,7 +7478,7 @@ export interface paths {
         head?: never;
         /**
          * Change a platform display setting
-         * @description Requires the `catalog` platform permission. Every change is audited.
+         * @description Requires the `catalog_settings` platform permission (was `catalog` before the 2026-09-10 split). Every change is audited.
          */
         patch: {
             parameters: {
@@ -7511,7 +7511,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description Caller lacks the `catalog` platform permission. */
+                /** @description Caller lacks the `catalog_settings` platform permission. */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -7562,7 +7562,7 @@ export interface paths {
         head?: never;
         /**
          * Change the app-lifecycle configuration
-         * @description Requires the `platform_staff_administration` platform permission. Every change is audited.
+         * @description Requires the `app_config` platform permission (part of `platform_staff_administration` before the 2026-09-10 split). Every change is audited.
          */
         patch: {
             parameters: {
@@ -7595,7 +7595,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description Caller lacks the `platform_staff_administration` platform permission. */
+                /** @description Caller lacks the `app_config` platform permission. */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -15969,7 +15969,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Sentpo user directory (docs/PROGRESS.md §4 Step 3) — one row per student, never blended with the immiNow console directory (see /admin/users/imminow). Gated to platform_staff_administration, same as Platform Team. Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, last_login_at, last_active_at, name. filter[x]= accepts stage=1|2, dormant_days=<integer> (last_active_at older than N days, or never active), from=<date>/to=<date> over created_at (signed-up range), and onboarding=never_logged_in|stuck|onboarded|pending platform=android|ios|web|unknown (2026-09-03, the app the student last opened), and (2026-09-02; `pending` = the two not-onboarded states together, which is what the Platform Dashboard's Stuck at Onboarding card links to). search matches name and email. */
+        /** Sentpo user directory (docs/PROGRESS.md §4 Step 3) — one row per student, never blended with the immiNow console directory (see /admin/users/imminow). Gated to user_directory (platform_staff_administration before the 2026-09-10 split). Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, last_login_at, last_active_at, name. filter[x]= accepts stage=1|2, dormant_days=<integer> (last_active_at older than N days, or never active), from=<date>/to=<date> over created_at (signed-up range), and onboarding=never_logged_in|stuck|onboarded|pending platform=android|ios|web|unknown (2026-09-03, the app the student last opened), and (2026-09-02; `pending` = the two not-onboarded states together, which is what the Platform Dashboard's Stuck at Onboarding card links to). search matches name and email. */
         get: {
             parameters: {
                 query?: {
@@ -16020,7 +16020,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** immiNow console user directory (docs/PROGRESS.md §4 Step 3) — every consultancy's employees plus platform staff, distinguished by `kind`, never blended with the Sentpo student directory (see /admin/users/sentpo). Gated to platform_staff_administration, same as Platform Team. Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, invited_at, last_login_at. filter[x]= accepts consultancy_id, active=true|false, never_active=true (invited or accepted but last_login_at null). search matches name and email. */
+        /** immiNow console user directory (docs/PROGRESS.md §4 Step 3) — every consultancy's employees plus platform staff, distinguished by `kind`, never blended with the Sentpo student directory (see /admin/users/sentpo). Gated to user_directory (platform_staff_administration before the 2026-09-10 split). Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, invited_at, last_login_at. filter[x]= accepts consultancy_id, active=true|false, never_active=true (invited or accepted but last_login_at null). search matches name and email. */
         get: {
             parameters: {
                 query?: {
@@ -16071,7 +16071,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Super Admin supply/demand market intelligence (docs/PROGRESS.md §4 Step 4). Gated with requirePlatformAccount — any active platform account, not one specific permission flag — because this is a strategic overview akin to the landing Platform Dashboard (/admin/dashboard, which is gated the same way) rather than an operational area matching one of the eight console permission flags. */
+        /** Super Admin supply/demand market intelligence (docs/PROGRESS.md §4 Step 4). Gated with requirePlatformAccount — any active platform account, not one specific permission flag — because this is a strategic overview akin to the landing Platform Dashboard (/admin/dashboard, which is gated the same way) rather than an operational area matching one of the console permission flags. */
         get: {
             parameters: {
                 query?: never;
@@ -16108,7 +16108,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Super Admin platform-wide popularity surface (2026-08-31) — most-viewed sections, courses, colleges, articles, consultancies, and recurring search filter values. Gated with requirePlatformAccount, the same broad "any active platform account" gate as /admin/supply-demand and the landing Platform Dashboard, since this is a strategic overview rather than an operational area matching one of the eight console permission flags. */
+        /** Super Admin platform-wide popularity surface (2026-08-31) — most-viewed sections, courses, colleges, articles, consultancies, and recurring search filter values. Gated with requirePlatformAccount, the same broad "any active platform account" gate as /admin/supply-demand and the landing Platform Dashboard, since this is a strategic overview rather than an operational area matching one of the console permission flags. */
         get: {
             parameters: {
                 query?: {
@@ -19468,24 +19468,48 @@ export interface components {
             active: boolean;
             permissions: components["schemas"]["PlatformPermissions"];
         };
-        /** @description The eight console permission flags (build reference 1.23). Each flag gates one area of the platform console, both as route access in the React shell and as server-side enforcement on that area's admin endpoints — a Finance-only staffer gets Finance and nothing else. Super Admin resolves to every flag true, permanently. The console dashboard (landing page) is deliberately not behind any flag — any active platform account sees it. */
+        /**
+         * @description The console permission flags (build reference 1.23; split from eight to eighteen on 2026-09-10 so each area can be handed to one person). Each flag gates one area of the platform console, both as route access in the React shell and as server-side enforcement on that area's admin endpoints. Super Admin resolves to every flag true, permanently. The console dashboard is deliberately not behind any flag — any active platform account sees it.
+         *
+         *     Pre-split flags map onto their parts, so nobody gained or lost access: content → events, jobs, blog; platform_staff_administration → team_management, user_directory, notifications, app_config, audit_log; consultancy_approval also grants applicant_allocation, catalog also catalog_settings, finance also freelancers, support also support_tools — unless that part has been set explicitly since.
+         */
         PlatformPermissions: {
-            /** @description Consultancy Management — create/manage/suspend consultancies, tiers and entitlements, KYC verification, Applicant Allocation. */
+            /** @description Manage Consultancies — create/approve/suspend consultancies, plans and features, KYC verification, rating overrides, Performance League. */
             consultancy_approval: boolean;
-            /** @description Colleges & Courses (incl. CSV import), Course Suggestions Review, the shared Countries list. */
+            /** @description Applicant Allocation — assign applicants waiting for a consultancy. */
+            applicant_allocation: boolean;
+            /** @description Colleges & Courses (incl. CSV import), Course Suggestions Review, Institutions. */
             catalog: boolean;
+            /** @description Catalog Settings — countries and their guides, exams, study levels, exchange rates, course popularity and featured institutes. */
+            catalog_settings: boolean;
             /** @description Ads Manager, including audience counts. */
             ads: boolean;
             /** @description Earn Rules, Coupons (incl. claim lists), Redemption Partners. */
             points_coupons: boolean;
-            /** @description Events (webinars/quizzes/in-person meetings, incl. attendance and leaderboard contact columns), Jobs, Blog administration. */
-            content: boolean;
-            /** @description Commission Rates, Freelancer Rates & Payouts, Finance Dashboard. */
+            /** @description Webinars, quizzes and in-person meetings, incl. attendance and leaderboard contact columns. */
+            events: boolean;
+            /** @description Job listings. */
+            jobs: boolean;
+            /** @description Blog articles and category mapping. */
+            blog: boolean;
+            /** @description Commission Rates, platform payment confirmation, Finance Dashboard. */
             finance: boolean;
-            /** @description Support Tools — user search, consultancy switch, locked-out email update, data export. Erase User Data stays Super Admin only regardless of this flag. */
+            /** @description Freelancers, their rates, referrals and payouts. */
+            freelancers: boolean;
+            /** @description Cases — complaints, disputes, case follow-ups, visit requests and the applicant case view. */
             support: boolean;
-            /** @description Platform Team, Notification Channel Config, Broadcast, and the platform-wide Audit Log (a Finance-only staffer doesn't need full audit visibility — build reference 1.23). */
-            platform_staff_administration: boolean;
+            /** @description Support Tools — user search, data export, locked-out email update, consultancy switch, guardian-consent re-send. Erase User Data stays Super Admin only regardless of this flag. */
+            support_tools: boolean;
+            /** @description Platform Team — invite staff, disable them and change anyone's permissions (including their own), so hand it out sparingly. */
+            team_management: boolean;
+            /** @description The Sentpo and immiNow user directories. */
+            user_directory: boolean;
+            /** @description Notification Channel Config and Broadcast. */
+            notifications: boolean;
+            /** @description App Config (minimum app version and other app-wide settings). */
+            app_config: boolean;
+            /** @description The platform-wide Audit Log (a Finance-only staffer doesn't need full audit visibility — build reference 1.23). */
+            audit_log: boolean;
         };
         PlatformStaffInput: {
             name: string;

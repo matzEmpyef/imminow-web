@@ -428,22 +428,29 @@ function App() {
           <Route path="/admin/supply-demand" element={<SupplyDemandPage />} />
           <Route path="/admin/platform-pulse" element={<PlatformPulsePage />} />
         </Route>
+        {/* One PlatformLayout per console permission flag — eighteen since the 2026-09-10 split, so
+            each area can be handed to one person. The sidebar (AdminShell) groups these pages as
+            tabs; the routes themselves never moved, so every bookmark still works. */}
         <Route element={<PlatformLayout permission="consultancy_approval" />}>
           <Route path="/admin/consultancies" element={<ManageConsultanciesPage />} />
-          <Route path="/admin/applicant-allocation" element={<ApplicantAllocationPage />} />
           <Route path="/admin/performance-league" element={<PerformanceLeaguePage />} />
+        </Route>
+        <Route element={<PlatformLayout permission="applicant_allocation" />}>
+          <Route path="/admin/applicant-allocation" element={<ApplicantAllocationPage />} />
         </Route>
         <Route element={<PlatformLayout permission="catalog" />}>
           <Route path="/admin/colleges" element={<CollegesCoursesPage />} />
           <Route path="/admin/colleges/:id" element={<CollegeDetailPage />} />
           <Route path="/admin/course-suggestions-review" element={<CourseSuggestionsReviewPage />} />
+          <Route path="/admin/institutions" element={<InstitutionsPage />} />
+        </Route>
+        <Route element={<PlatformLayout permission="catalog_settings" />}>
           {/* Countries folded into Settings on 2026-09-07. Both old paths redirect rather than
               404 — they are in bookmarks and history, and a dead end for a page that still exists
               under another name is a worse answer than taking someone there. */}
           <Route path="/admin/countries" element={<Navigate to="/admin/settings" replace />} />
           <Route path="/admin/catalog-settings" element={<Navigate to="/admin/settings" replace />} />
           <Route path="/admin/settings" element={<CatalogSettingsPage />} />
-          <Route path="/admin/institutions" element={<InstitutionsPage />} />
           {/* Country Guides folded into Countries on 2026-09-07 — they were already one record.
               Kept as a redirect rather than deleted: the old path is in people's bookmarks and
               history, and a 404 for a page that still exists under another name is a worse
@@ -458,37 +465,53 @@ function App() {
           <Route path="/admin/coupons" element={<CouponsAdminPage />} />
           <Route path="/admin/redemption-partners" element={<RedemptionPartnersPage />} />
         </Route>
-        <Route element={<PlatformLayout permission="content" />}>
+        <Route element={<PlatformLayout permission="events" />}>
           <Route path="/admin/webinars" element={<WebinarsPage />} />
           <Route path="/admin/quiz" element={<QuizAdminPage />} />
           <Route path="/admin/physical-meetings" element={<PhysicalMeetingsPage />} />
+        </Route>
+        <Route element={<PlatformLayout permission="jobs" />}>
           <Route path="/admin/jobs" element={<JobsAdminPage />} />
+        </Route>
+        <Route element={<PlatformLayout permission="blog" />}>
           <Route path="/admin/blog" element={<BlogAdminPage />} />
         </Route>
         <Route element={<PlatformLayout permission="finance" />}>
           <Route path="/admin/commission-rates" element={<CommissionRatesPage />} />
+          <Route path="/admin/finance-dashboard" element={<FinanceDashboardPage />} />
+        </Route>
+        <Route element={<PlatformLayout permission="freelancers" />}>
           <Route path="/admin/freelancer-payouts" element={<FreelancerPayoutsPage />} />
           <Route path="/admin/freelancers" element={<FreelancersPage />} />
-          <Route path="/admin/finance-dashboard" element={<FinanceDashboardPage />} />
         </Route>
         {/* Merged into Freelancers as a tab (2026-08-27). The old path is kept as a redirect so
             existing bookmarks and any link still pointing here land somewhere real. */}
         <Route path="/admin/freelancer-rates" element={<Navigate to="/admin/freelancers" replace />} />
         <Route element={<PlatformLayout permission="support" />}>
-          <Route path="/admin/support-tools" element={<SupportToolsPage />} />
           <Route path="/admin/disputes" element={<DisputesPage />} />
           <Route path="/admin/case-followups" element={<CaseFollowupsPage />} />
           <Route path="/admin/applicants/:id" element={<ApplicantCaseViewPage />} />
           <Route path="/admin/complaints" element={<ComplaintsPage />} />
           <Route path="/admin/visit-requests" element={<VisitRequestsPage />} />
         </Route>
-        <Route element={<PlatformLayout permission="platform_staff_administration" />}>
+        <Route element={<PlatformLayout permission="support_tools" />}>
+          <Route path="/admin/support-tools" element={<SupportToolsPage />} />
+        </Route>
+        <Route element={<PlatformLayout permission="team_management" />}>
           <Route path="/admin/platform-team" element={<PlatformTeamPage />} />
+        </Route>
+        <Route element={<PlatformLayout permission="user_directory" />}>
           <Route path="/admin/users/sentpo" element={<SentpoUsersPage />} />
           <Route path="/admin/users/imminow" element={<ImminowUsersPage />} />
+        </Route>
+        <Route element={<PlatformLayout permission="notifications" />}>
           <Route path="/admin/notification-channel-config" element={<NotificationChannelConfigPage />} />
-          <Route path="/admin/app-config" element={<AppConfigPage />} />
           <Route path="/admin/broadcast" element={<BroadcastPage />} />
+        </Route>
+        <Route element={<PlatformLayout permission="app_config" />}>
+          <Route path="/admin/app-config" element={<AppConfigPage />} />
+        </Route>
+        <Route element={<PlatformLayout permission="audit_log" />}>
           <Route path="/admin/audit-log-platform" element={<PlatformAuditLogPage />} />
         </Route>
         <Route element={<FreelancerLayout />}>

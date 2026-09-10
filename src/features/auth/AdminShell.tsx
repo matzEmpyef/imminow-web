@@ -1,294 +1,325 @@
-import type { ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import {
-  Activity,
-  Award,
   BarChart3,
   Bell,
-  BookOpen,
   Briefcase,
   Building2,
   CalendarClock,
-  ClipboardCheck,
   DollarSign,
   Gift,
   GraduationCap,
-  Handshake,
-  HelpCircle,
   History,
   Image,
   LayoutDashboard,
   LifeBuoy,
   ListChecks,
-  MapPin,
   Megaphone,
   MessageSquareWarning,
-  PhoneCall,
-  Scale,
   Newspaper,
   Percent,
-  Radio,
   School,
+  ShieldCheck,
   Shuffle,
+  SlidersHorizontal,
   Smartphone,
-  Ticket,
-  TrendingUp,
-  User,
   Users,
   Video,
-  SlidersHorizontal,
+  Wrench,
+  type LucideIcon,
 } from 'lucide-react'
-import { useMemo } from 'react'
 import { SidebarShell, type SidebarSection } from '@/components/SidebarShell'
 import { NotificationsDropdown } from '@/components/NotificationsDropdown'
 import { useAuthStore } from '@/stores/authStore'
 import type { PlatformPermissionKey } from '@/features/auth/PlatformRoute'
 
-// Every sidebar link names the console permission flag that owns it (build reference 1.23 /
-// user request #12); a Platform Staff account sees exactly the links its flags cover — locked
-// areas are hidden entirely, never greyed out (the 1.16 convention). Super Admin arrives with
-// every flag true, so nothing filters for them. `PlatformRoute` + the server enforce the same
-// flags — hiding a link is presentation, never the security boundary.
-type AdminLink = SidebarSection['sidebarLinks'] extends (infer L)[] | undefined
-  ? L & { permission?: PlatformPermissionKey }
-  : never
+// Every page names the console permission flag that owns it (build reference 1.23 / user request
+// #12); a Platform Staff account sees exactly the pages its flags cover — locked areas are hidden
+// entirely, never greyed out (the 1.16 convention). Super Admin arrives with every flag true, so
+// nothing filters for them. `PlatformRoute` + the server enforce the same flags — hiding a link is
+// presentation, never the security boundary.
 
-type AdminSection = Omit<SidebarSection, 'sidebarLinks'> & { sidebarLinks: AdminLink[] }
+/** One page in a link's tab group. */
+interface AdminTab {
+  label: string
+  path: string
+  permission?: PlatformPermissionKey
+}
 
-// The platform console — Sentpo's own internal tooling (build reference 1.23), a distinct
-// surface from AppShell (which is immiNow's consultancy-facing shell). Only sections with real,
-// built pages appear here, same "only show what's built" rule as AppShell — Waves 5a/5b/5c
-// together cover every section below; Wave 6 (Freelancer) has its own separate shell.
+/**
+ * One sidebar link. A link with several `tabs` is a GROUP (2026-09-10, user: "can we reduce the
+ * menu item for super admin"): it shows once in the sidebar, and a tab strip above the page
+ * switches between its pages. Every page keeps its own route, so bookmarks and deep links still
+ * work, and each tab carries its own permission — a staffer sees only the tabs they may open, and
+ * the link disappears when that is none of them.
+ */
+interface AdminLink {
+  label: string
+  icon: LucideIcon
+  tabs: AdminTab[]
+  /** Paths that belong to this link without being a tab (detail pages, old redirects). */
+  alsoMatches?: string[]
+}
+
+interface AdminSection {
+  key: string
+  label: string
+  icon: LucideIcon
+  links: AdminLink[]
+}
+
+const startsWithAny = (pathname: string, prefixes: string[]) => prefixes.some((p) => pathname.startsWith(p))
+
+// The platform console — Sentpo's own internal tooling (build reference 1.23), a distinct surface
+// from AppShell (immiNow's consultancy-facing shell). Seven sections and 21 links since 2026-09-10
+// (was eight sections and 29 links, twelve of them under one "Platform" heading).
 const SECTIONS: AdminSection[] = [
   {
     key: 'dashboard',
     label: 'Dashboard',
-    path: '/admin/dashboard',
     icon: LayoutDashboard,
-    matches: (p) =>
-      p.startsWith('/admin/dashboard') ||
-      p.startsWith('/admin/supply-demand') ||
-      p.startsWith('/admin/platform-pulse'),
-    sidebarLinks: [
-      { label: 'Overview', path: '/admin/dashboard', icon: LayoutDashboard },
-      // No `permission` (docs/PROGRESS.md §4 Step 4) — gated server-side to requirePlatformAccount,
-      // the same broad "any platform account" gate Overview itself uses, not one of the eight
-      // console permission flags: this is a strategic landing-page overview, not an operational area.
-      { label: 'Supply & Demand', path: '/admin/supply-demand', icon: TrendingUp },
-      // Same gate as Supply & Demand above (Platform Pulse, 2026-08-31) — a popularity overview,
-      // not an operational area.
-      { label: 'Platform Pulse', path: '/admin/platform-pulse', icon: Activity },
+    links: [
+      {
+        label: 'Dashboard',
+        icon: LayoutDashboard,
+        // No permission on any of these (docs/PROGRESS.md §4 Step 4; Platform Pulse 2026-08-31) —
+        // strategic overviews behind the bare requirePlatformAccount gate.
+        tabs: [
+          { label: 'Overview', path: '/admin/dashboard' },
+          { label: 'Supply & Demand', path: '/admin/supply-demand' },
+          { label: 'Platform Pulse', path: '/admin/platform-pulse' },
+        ],
+      },
     ],
   },
   {
     key: 'consultancies',
-    label: 'Consultancy Management',
-    path: '/admin/consultancies',
+    label: 'Consultancies',
     icon: Building2,
-    matches: (p) =>
-      p.startsWith('/admin/consultancies') ||
-      p.startsWith('/admin/applicant-allocation') ||
-      p.startsWith('/admin/performance-league'),
-    sidebarLinks: [
+    links: [
       {
         label: 'Manage Consultancies',
-        path: '/admin/consultancies',
-        permission: 'consultancy_approval',
         icon: ListChecks,
+        tabs: [
+          { label: 'Consultancies', path: '/admin/consultancies', permission: 'consultancy_approval' },
+          // A ranking of the same consultancies, so it sits beside them rather than on its own.
+          { label: 'Performance League', path: '/admin/performance-league', permission: 'consultancy_approval' },
+        ],
       },
       {
         label: 'Applicant Allocation',
-        path: '/admin/applicant-allocation',
-        permission: 'consultancy_approval',
         icon: Shuffle,
-      },
-      {
-        label: 'Performance League',
-        path: '/admin/performance-league',
-        permission: 'consultancy_approval',
-        icon: Award,
+        tabs: [{ label: 'Applicant Allocation', path: '/admin/applicant-allocation', permission: 'applicant_allocation' }],
       },
     ],
   },
   {
     key: 'catalog',
     label: 'Catalog',
-    path: '/admin/colleges',
     icon: GraduationCap,
-    matches: (p) =>
-      p.startsWith('/admin/colleges') ||
-      p.startsWith('/admin/course-suggestions-review') ||
-      p.startsWith('/admin/countries') ||
-      p.startsWith('/admin/institutions') ||
-      p.startsWith('/admin/country-guides') ||
-      p.startsWith('/admin/catalog-settings') ||
-      p.startsWith('/admin/settings'),
-    sidebarLinks: [
-      { label: 'Colleges & Courses', path: '/admin/colleges', permission: 'catalog', icon: School },
+    links: [
       {
-        label: 'Course Suggestions Review',
-        path: '/admin/course-suggestions-review',
-        permission: 'catalog',
-        icon: ClipboardCheck,
+        label: 'Colleges & Courses',
+        icon: School,
+        tabs: [
+          { label: 'Colleges & Courses', path: '/admin/colleges', permission: 'catalog' },
+          { label: 'Suggestions Review', path: '/admin/course-suggestions-review', permission: 'catalog' },
+        ],
       },
-      // The student's OWN school/college, not a destination — sits under Catalog because it is
-      // reference data staff curate, and carries the mapping queue.
-      { label: 'Institutions', path: '/admin/institutions', permission: 'catalog', icon: School },
-      { label: 'Settings', path: '/admin/settings', permission: 'catalog', icon: SlidersHorizontal },
+      // The student's OWN school/college, not a destination — reference data staff curate, with
+      // the mapping queue.
+      {
+        label: 'Institutions',
+        icon: School,
+        tabs: [{ label: 'Institutions', path: '/admin/institutions', permission: 'catalog' }],
+      },
+      {
+        label: 'Settings',
+        icon: SlidersHorizontal,
+        tabs: [{ label: 'Settings', path: '/admin/settings', permission: 'catalog_settings' }],
+        // Old paths that redirect here (folded in on 2026-09-07).
+        alsoMatches: ['/admin/countries', '/admin/catalog-settings', '/admin/country-guides'],
+      },
     ],
   },
   {
-    key: 'advertising',
-    label: 'Advertising',
-    path: '/admin/ads',
+    // Advertising, Points & Coupons and Content were three sections of one to five links each
+    // (until 2026-09-10) — all of it is reaching students, so it is one section now.
+    key: 'marketing',
+    label: 'Marketing',
     icon: Megaphone,
-    matches: (p) => p.startsWith('/admin/ads'),
-    sidebarLinks: [{ label: 'Ads Manager', path: '/admin/ads', permission: 'ads', icon: Image }],
-  },
-  {
-    key: 'points-coupons',
-    label: 'Points & Coupons',
-    path: '/admin/earn-rules',
-    icon: Gift,
-    matches: (p) =>
-      p.startsWith('/admin/earn-rules') || p.startsWith('/admin/coupons') || p.startsWith('/admin/redemption-partners'),
-    sidebarLinks: [
-      { label: 'Earn Rules', path: '/admin/earn-rules', permission: 'points_coupons', icon: Award },
-      { label: 'Coupons', path: '/admin/coupons', permission: 'points_coupons', icon: Ticket },
+    links: [
+      { label: 'Ads', icon: Image, tabs: [{ label: 'Ads', path: '/admin/ads', permission: 'ads' }] },
       {
-        label: 'Redemption Partners',
-        path: '/admin/redemption-partners',
-        permission: 'points_coupons',
-        icon: Handshake,
+        label: 'Points & Coupons',
+        icon: Gift,
+        tabs: [
+          { label: 'Earn Rules', path: '/admin/earn-rules', permission: 'points_coupons' },
+          { label: 'Coupons', path: '/admin/coupons', permission: 'points_coupons' },
+          { label: 'Redemption Partners', path: '/admin/redemption-partners', permission: 'points_coupons' },
+        ],
       },
-    ],
-  },
-  {
-    key: 'content',
-    label: 'Content',
-    path: '/admin/webinars',
-    icon: BookOpen,
-    matches: (p) =>
-      p.startsWith('/admin/webinars') ||
-      p.startsWith('/admin/quiz') ||
-      p.startsWith('/admin/physical-meetings') ||
-      p.startsWith('/admin/jobs') ||
-      p.startsWith('/admin/blog'),
-    sidebarLinks: [
-      { label: 'Webinars', path: '/admin/webinars', permission: 'content', icon: Video },
-      { label: 'Quiz', path: '/admin/quiz', permission: 'content', icon: HelpCircle },
-      { label: 'In-person Meetings', path: '/admin/physical-meetings', permission: 'content', icon: MapPin },
-      { label: 'Jobs', path: '/admin/jobs', permission: 'content', icon: Briefcase },
-      { label: 'Blog', path: '/admin/blog', permission: 'content', icon: Newspaper },
+      {
+        label: 'Events',
+        icon: Video,
+        tabs: [
+          { label: 'Webinars', path: '/admin/webinars', permission: 'events' },
+          { label: 'Quizzes', path: '/admin/quiz', permission: 'events' },
+          { label: 'In-person Meetings', path: '/admin/physical-meetings', permission: 'events' },
+        ],
+      },
+      { label: 'Jobs', icon: Briefcase, tabs: [{ label: 'Jobs', path: '/admin/jobs', permission: 'jobs' }] },
+      { label: 'Blog', icon: Newspaper, tabs: [{ label: 'Blog', path: '/admin/blog', permission: 'blog' }] },
     ],
   },
   {
     key: 'finance',
     label: 'Finance',
-    path: '/admin/commission-rates',
     icon: DollarSign,
-    matches: (p) =>
-      p.startsWith('/admin/commission-rates') ||
-      p.startsWith('/admin/freelancers') ||
-      // Redirects to /admin/freelancers; kept so the section stays highlighted mid-redirect.
-      p.startsWith('/admin/freelancer-rates') ||
-      p.startsWith('/admin/freelancer-payouts') ||
-      p.startsWith('/admin/finance-dashboard'),
-    sidebarLinks: [
-      { label: 'Commission Rates', path: '/admin/commission-rates', permission: 'finance', icon: Percent },
-      { label: 'Freelancers', path: '/admin/freelancers', permission: 'finance', icon: Users },
-      { label: 'Freelancer Payouts', path: '/admin/freelancer-payouts', permission: 'finance', icon: DollarSign },
-      { label: 'Finance Dashboard', path: '/admin/finance-dashboard', permission: 'finance', icon: BarChart3 },
+    links: [
+      // First, because it is the page Finance opens to see where the money stands.
+      {
+        label: 'Finance Dashboard',
+        icon: BarChart3,
+        tabs: [{ label: 'Finance Dashboard', path: '/admin/finance-dashboard', permission: 'finance' }],
+      },
+      {
+        label: 'Commission Rates',
+        icon: Percent,
+        tabs: [{ label: 'Commission Rates', path: '/admin/commission-rates', permission: 'finance' }],
+      },
+      {
+        label: 'Freelancers',
+        icon: Users,
+        tabs: [
+          { label: 'Freelancers', path: '/admin/freelancers', permission: 'freelancers' },
+          { label: 'Payouts', path: '/admin/freelancer-payouts', permission: 'freelancers' },
+        ],
+        alsoMatches: ['/admin/freelancer-rates'],
+      },
     ],
   },
   {
-    key: 'platform',
-    label: 'Platform',
-    path: '/admin/support-tools',
+    key: 'support',
+    label: 'Support',
     icon: LifeBuoy,
-    matches: (p) =>
-      p.startsWith('/admin/support-tools') ||
-      p.startsWith('/admin/complaints') ||
-      p.startsWith('/admin/disputes') ||
-      p.startsWith('/admin/case-followups') ||
-      p.startsWith('/admin/applicants/') ||
-      p.startsWith('/admin/platform-team') ||
-      p.startsWith('/admin/notification-channel-config') ||
-      p.startsWith('/admin/app-config') ||
-      p.startsWith('/admin/broadcast') ||
-      p.startsWith('/admin/audit-log-platform') ||
-      p.startsWith('/admin/visit-requests') ||
-      p.startsWith('/admin/users/'),
-    sidebarLinks: [
-      { label: 'Support Tools', path: '/admin/support-tools', permission: 'support', icon: LifeBuoy },
-      { label: 'Complaints', path: '/admin/complaints', permission: 'support', icon: MessageSquareWarning },
-      // Sits beside Complaints on purpose: both are a case going wrong, and a platform admin
-      // handling one usually wants to see the other. Complaints are the student's side and never
-      // freeze anything; a dispute is the frozen case itself, raised from either side.
-      { label: 'Disputes', path: '/admin/disputes', permission: 'support', icon: Scale },
-      // Next to Disputes rather than under Finance: both are cases that need a human to pick up a
-      // phone, and the person working one is usually the person working the other.
-      { label: 'Follow-ups', path: '/admin/case-followups', permission: 'support', icon: PhoneCall },
-      { label: 'Visit Requests', path: '/admin/visit-requests', permission: 'support', icon: CalendarClock },
+    links: [
+      // One inbox for a case going wrong (2026-09-10). Complaints are the student's side and never
+      // freeze anything, a dispute is the frozen case itself, a follow-up needs someone to pick up
+      // a phone — and the person working one is usually working the others.
       {
-        label: 'Platform Team',
-        path: '/admin/platform-team',
-        permission: 'platform_staff_administration',
+        label: 'Cases',
+        icon: MessageSquareWarning,
+        tabs: [
+          { label: 'Complaints', path: '/admin/complaints', permission: 'support' },
+          { label: 'Disputes', path: '/admin/disputes', permission: 'support' },
+          { label: 'Follow-ups', path: '/admin/case-followups', permission: 'support' },
+        ],
+        alsoMatches: ['/admin/applicants/'],
+      },
+      {
+        label: 'Visit Requests',
+        icon: CalendarClock,
+        tabs: [{ label: 'Visit Requests', path: '/admin/visit-requests', permission: 'support' }],
+      },
+      {
+        label: 'Support Tools',
+        icon: Wrench,
+        tabs: [{ label: 'Support Tools', path: '/admin/support-tools', permission: 'support_tools' }],
+      },
+    ],
+  },
+  {
+    key: 'admin',
+    label: 'Admin',
+    icon: ShieldCheck,
+    links: [
+      // Two directories, never one (docs/PROGRESS.md §4 Step 3) — the Sentpo (student) and immiNow
+      // (console) populations are never blended; they stay separate tabs with separate endpoints.
+      {
+        label: 'Team & Users',
         icon: Users,
-      },
-      // Two directories, never one (docs/PROGRESS.md §4 Step 3) — the Sentpo (student) and
-      // immiNow (console) populations are never blended in one screen, mirroring the two
-      // separate GET endpoints behind them.
-      {
-        label: 'Sentpo Users',
-        path: '/admin/users/sentpo',
-        permission: 'platform_staff_administration',
-        icon: User,
+        tabs: [
+          { label: 'Platform Team', path: '/admin/platform-team', permission: 'team_management' },
+          { label: 'Sentpo Users', path: '/admin/users/sentpo', permission: 'user_directory' },
+          { label: 'immiNow Users', path: '/admin/users/imminow', permission: 'user_directory' },
+        ],
       },
       {
-        label: 'immiNow Users',
-        path: '/admin/users/imminow',
-        permission: 'platform_staff_administration',
-        icon: Users,
-      },
-      {
-        label: 'Notification Channel Config',
-        path: '/admin/notification-channel-config',
-        permission: 'platform_staff_administration',
+        label: 'Notifications',
         icon: Bell,
+        tabs: [
+          { label: 'Channel Config', path: '/admin/notification-channel-config', permission: 'notifications' },
+          { label: 'Broadcast', path: '/admin/broadcast', permission: 'notifications' },
+        ],
       },
       {
         label: 'App Config',
-        path: '/admin/app-config',
-        permission: 'platform_staff_administration',
         icon: Smartphone,
+        tabs: [{ label: 'App Config', path: '/admin/app-config', permission: 'app_config' }],
       },
-      { label: 'Broadcast', path: '/admin/broadcast', permission: 'platform_staff_administration', icon: Radio },
       {
         label: 'Audit Log',
-        path: '/admin/audit-log-platform',
-        permission: 'platform_staff_administration',
         icon: History,
+        tabs: [{ label: 'Audit Log', path: '/admin/audit-log-platform', permission: 'audit_log' }],
       },
     ],
   },
 ]
 
+type Permissions = Partial<Record<PlatformPermissionKey, boolean>>
+
+function visibleTabs(link: AdminLink, permissions: Permissions): AdminTab[] {
+  return link.tabs.filter((tab) => !tab.permission || permissions[tab.permission])
+}
+
+function linkPaths(link: AdminLink, tabs: AdminTab[]): string[] {
+  return [...tabs.map((t) => t.path), ...(link.alsoMatches ?? [])]
+}
+
 export function AdminShell({ children }: { children: ReactNode }) {
   const permissions = useAuthStore((s) => s.user?.platform_permissions)
   const isSuperAdmin = useAuthStore((s) => s.user?.role === 'super_admin')
+  const { pathname } = useLocation()
 
   const sections = useMemo<SidebarSection[]>(() => {
     if (!permissions) return []
     return SECTIONS.flatMap((section) => {
-      const sidebarLinks = section.sidebarLinks
-        .filter((link) => !link.permission || permissions[link.permission])
-        .map(({ permission: _permission, ...link }) => link)
+      const sidebarLinks = section.links.flatMap((link) => {
+        const tabs = visibleTabs(link, permissions)
+        if (tabs.length === 0) return []
+        const paths = linkPaths(link, tabs)
+        return [{ label: link.label, icon: link.icon, path: tabs[0].path, matches: (p: string) => startsWithAny(p, paths) }]
+      })
       if (sidebarLinks.length === 0) return []
+      const sectionPaths = section.links.flatMap((link) => linkPaths(link, link.tabs))
       // The section's own top-nav target must be a page the caller can actually open — a
-      // support-only staffer's Platform section starts at Support Tools, not Platform Team.
-      return [{ ...section, sidebarLinks, path: sidebarLinks[0].path }]
+      // support-tools-only staffer's Support section starts at Support Tools, not Cases.
+      return [
+        {
+          key: section.key,
+          label: section.label,
+          icon: section.icon,
+          path: sidebarLinks[0].path,
+          matches: (p: string) => startsWithAny(p, sectionPaths),
+          sidebarLinks,
+        },
+      ]
     })
   }, [permissions])
+
+  // The tab strip for the group the current page belongs to — only when the caller can open more
+  // than one of its pages; a group they see one page of is simply that page.
+  const groupTabs = useMemo(() => {
+    if (!permissions) return []
+    for (const section of SECTIONS) {
+      for (const link of section.links) {
+        const tabs = visibleTabs(link, permissions)
+        if (startsWithAny(pathname, linkPaths(link, tabs))) return tabs.length > 1 ? tabs : []
+      }
+    }
+    return []
+  }, [permissions, pathname])
 
   return (
     <SidebarShell
@@ -296,6 +327,27 @@ export function AdminShell({ children }: { children: ReactNode }) {
       roleBadge={isSuperAdmin ? 'Super Admin' : 'Platform Staff'}
       headerActions={<NotificationsDropdown />}
     >
+      {groupTabs.length > 0 && (
+        <nav aria-label="Pages in this section" className="mb-lg flex gap-xs overflow-x-auto border-b border-border">
+          {groupTabs.map((tab) => {
+            const active = pathname.startsWith(tab.path)
+            return (
+              <Link
+                key={tab.path}
+                to={tab.path}
+                aria-current={active ? 'page' : undefined}
+                className={`shrink-0 border-b-2 px-md py-sm text-body-sm ${
+                  active
+                    ? 'border-primary font-medium text-primary'
+                    : 'border-transparent text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                {tab.label}
+              </Link>
+            )
+          })}
+        </nav>
+      )}
       {children}
     </SidebarShell>
   )
