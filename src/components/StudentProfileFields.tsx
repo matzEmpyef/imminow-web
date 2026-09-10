@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { formatDate, formatIntake } from '@/lib/time'
 import { formatMoney } from '@/lib/money'
+import { STUDY_LEVEL_LABELS } from '@/lib/studyLevels'
 import type { components } from '@/api/schema'
 
 type StudentPreferences = components['schemas']['StudentPreferences']
@@ -16,18 +17,8 @@ function ProfileRow({ label, value }: { label: string; value: ReactNode }) {
   )
 }
 
-// C1: study_level and funding_source are closed wire enums (10th/11th/12th/diploma/bachelors/
-// masters/phd and self/loan/scholarship_dependent) — labeled here rather than shown raw.
-const STUDY_LEVEL_LABELS: Record<string, string> = {
-  '10th': '10th',
-  '11th': '11th',
-  '12th': '12th',
-  diploma: 'Diploma',
-  bachelors: "Bachelor's",
-  masters: "Master's",
-  phd: 'PhD',
-}
-
+// C1: funding_source is a closed wire enum (self/loan/scholarship_dependent) — labeled here rather
+// than shown raw. Study level labels live in @/lib/studyLevels, shared with the Lead Pool table.
 const FUNDING_SOURCE_LABELS: Record<string, string> = {
   self: 'Self-funded',
   loan: 'Loan',

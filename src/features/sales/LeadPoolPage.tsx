@@ -10,7 +10,10 @@ import { useEmployees } from '@/queries/staff'
 import { useAllocateLead, useBulkAllocateLeads, useLeads } from '@/queries/leads'
 import { useCursorPagination } from '@/lib/pagination'
 import { usePermissionChecker } from '@/lib/permissions'
-import { formatDate } from '@/lib/time'
+import { formatDate, formatIntake } from '@/lib/time'
+import { formatMoney } from '@/lib/money'
+import { studyLevelLabel } from '@/lib/studyLevels'
+import { CountryLabelList } from '@/components/CountryLabel'
 
 type Lead = NonNullable<ReturnType<typeof useLeads>['data']>['items'][number]
 
@@ -96,6 +99,54 @@ export function LeadPoolPage() {
           </Link>
         </div>
       ),
+    },
+    // STUDY PREFERENCES IN THE TABLE ITSELF (user, 2026-09-10). Picking which lead to take from the
+    // pool is a matching decision — level, subject, destination, timing, money — and it used to
+    // take a click into every lead to make it. Imported leads have no student account and so no
+    // preferences; they show a dash, as Source already does for a missing value.
+    {
+      key: 'study_plan',
+      header: 'Study plan',
+      render: (lead) => {
+        const p = lead.preferences
+        if (!p) return <span className="text-text-secondary">—</span>
+        const headline = [studyLevelLabel(p.study_level), p.fields_of_interest?.join(', ')].filter(Boolean).join(' · ')
+        return (
+          <div className="flex flex-col">
+            <span className="text-text-primary">{headline || '—'}</span>
+            {p.intended_intake && (
+              <span className="text-caption text-text-secondary">
+                Intake {formatIntake(p.intended_intake, p.intended_year)}
+              </span>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      key: 'countries',
+      header: 'Countries',
+      hideBelow: 'md',
+      render: (lead) => (
+        <CountryLabelList names={lead.preferences?.target_countries} empty={<span className="text-text-secondary">—</span>} />
+      ),
+    },
+    {
+      key: 'budget',
+      header: 'Budget',
+      hideBelow: 'lg',
+      // The server already withholds the figure unless the student chose to share it, so "Not
+      // shared" is the honest reading of a null here — not "unknown".
+      render: (lead) => {
+        const p = lead.preferences
+        if (!p) return <span className="text-text-secondary">—</span>
+        if (!p.budget_shared) return <span className="text-text-secondary">Not shared</span>
+        return p.budget?.amount != null ? (
+          formatMoney(p.budget.currency, p.budget.amount)
+        ) : (
+          <span className="text-text-secondary">—</span>
+        )
+      },
     },
     {
       key: 'source',
