@@ -100,10 +100,9 @@ export function OverviewTab({
                 below the name not in contact card"). */}
             <div className="mt-xs flex flex-wrap items-center gap-xs">
               <Badge color={statusInfo.color}>{statusInfo.label}</Badge>
+              {/* "PR Case", not a capitalised "Pr case" (user, 2026-09-10). */}
               {data.case_type && (
-                <Badge color="secondary" className="capitalize">
-                  {data.case_type.replace(/_/g, ' ')} case
-                </Badge>
+                <Badge color="secondary">{data.case_type === 'pr' ? 'PR Case' : 'Student Case'}</Badge>
               )}
             </div>
           </div>

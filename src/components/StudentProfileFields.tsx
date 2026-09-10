@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import {
   BookOpen,
   Briefcase,
@@ -150,7 +150,9 @@ function plainCountries(names: string[]): ReactNode {
 
 /** Every profile fact, in display order, with the one icon and colour each one uses. */
 function profileFacts(prefs: StudentPreferences | null | undefined, { countryPills = true } = {}) {
-  const one = (v: ReactNode | null | undefined): Lines => (v == null || v === '' ? null : [v])
+  // Keyed, because `lines` renders as a list and an element here (the target-countries label)
+  // would otherwise trip React's missing-key warning.
+  const one = (v: ReactNode | null | undefined): Lines => (v == null || v === '' ? null : [<Fragment key="v">{v}</Fragment>])
   return {
     studyPlan: [
       {

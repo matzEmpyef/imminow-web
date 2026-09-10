@@ -1,5 +1,7 @@
 // Split out of ClientProfilePage.tsx (Phase 3 plan, Tier B1, 2026-09-03) — pure movement, no logic change.
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { GraduationCap, Search } from 'lucide-react'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
@@ -89,8 +91,24 @@ export function ApplicationsTab({ clientId }: { clientId: string }) {
       <div className="flex flex-col gap-md">
         {addCollegeButton}
         {awaitingNote}
-        <Card>
-          <p className="text-body text-text-secondary">No colleges selected yet.</p>
+        {/* Says WHY it is empty and what to do about it (user, 2026-09-10): applications come from
+            the student's Dream Courses, so an empty tab means they haven't added any yet. */}
+        <Card className="flex flex-col items-center gap-sm py-xl text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <GraduationCap className="h-6 w-6" aria-hidden />
+          </span>
+          <h3 className="text-h3 text-text-primary">No applications yet</h3>
+          <p className="max-w-prose text-body-sm text-text-secondary">
+            {client.data?.student.first_name ?? 'The client'} hasn&rsquo;t added any courses to their Dream Courses. Ask
+            them to add the courses they like in the Sentpo app, or find courses in Course Finder and suggest them. Once
+            they accept a suggestion, it shows up here as an application.
+          </p>
+          <Link to="/clients/course-finder" className="mt-xs">
+            <Button className="inline-flex items-center gap-xs">
+              <Search className="h-4 w-4" aria-hidden />
+              Go to Course Finder
+            </Button>
+          </Link>
         </Card>
         {addCollegeModal}
       </div>

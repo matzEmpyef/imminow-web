@@ -252,6 +252,10 @@ export function useUpdateApplication(clientId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'applications'] })
+      // The client's case_summary counts accepted colleges, and Close Case reads it to say
+      // whether the case closes as a success — stale, it told the consultant "failure" right
+      // after they had accepted a college (found 2026-09-10).
+      queryClient.invalidateQueries({ queryKey: ['clients', clientId] })
       // Accepting creates the commission entry, so every money view is downstream of this.
       queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'commissions'] })
       queryClient.invalidateQueries({ queryKey: ['commission'] })
@@ -275,6 +279,8 @@ export function useRevertAcceptance(clientId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'applications'] })
+      // Same reason as accepting: case_summary.accepted drops, and Close Case must see it.
+      queryClient.invalidateQueries({ queryKey: ['clients', clientId] })
       queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'commissions'] })
       queryClient.invalidateQueries({ queryKey: ['commission'] })
       queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] })

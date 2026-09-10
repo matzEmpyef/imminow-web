@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { CLOSE_SUB_REASONS, useCloseClient, type CloseSubReason } from '@/queries/clients'
@@ -13,6 +14,11 @@ const DID_NOT_GO: CloseSubReason[] = ['visa_refused', 'student_withdrew', 'lost_
  * DERIVED, never chosen — a consultancy can't close as a failure to dodge the commission, or
  * claim success without an accepted college. This modal's job is to make that derivation visible
  * BEFORE the consultant commits, because the same button now moves money.
+ *
+ * It also says how to GET to a success (user, 2026-09-10: "mention these things — how to close
+ * successfully"): without an accepted college the dropdown still lists Success, greyed out, and a
+ * note points at the Applications tab where a college is marked Accepted. With one, it warns that
+ * an accepted case can still fail if the student doesn't go.
  *
  * Distinct from Raise an Issue, which freezes the case for platform mediation instead of ending
  * it: "the student wouldn't cooperate" is an accusation, not an outcome, and doesn't belong here.
@@ -66,11 +72,13 @@ export function CloseClientModal({
             <Button
               type="submit"
               form="close-client-form"
-              variant="destructive"
+              // A success is the good ending, not a destructive act (user, 2026-09-10) — only a
+              // failure keeps the red button.
+              variant={outcome === 'success' ? 'primary' : 'destructive'}
               loading={closeClient.isPending}
               disabled={!canSubmit}
             >
-              Close Case
+              {outcome === 'success' ? 'Close as Success' : 'Close Case'}
             </Button>
             <Button type="button" variant="secondary" onClick={onClose}>
               Cancel
@@ -80,10 +88,41 @@ export function CloseClientModal({
       }
     >
       <form id="close-client-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
+        {/* "Returns to Stage 1, free to start again" read wrong for a student who got in and is
+            going (user, 2026-09-10), so the success wording talks about the case being done. */}
         <p className="text-body-sm text-text-secondary">
-          <strong className="text-text-primary">{clientName}</strong> drops out of Clients List and returns to Stage 1,
-          free to start again with any consultancy. Nothing is deleted — the full case history stays intact.
+          {outcome === 'success' ? (
+            <>
+              <strong className="text-text-primary">{clientName}</strong>&rsquo;s case is complete and moves out of
+              your Clients List. Nothing is deleted — the full case history stays intact.
+            </>
+          ) : (
+            <>
+              <strong className="text-text-primary">{clientName}</strong> drops out of Clients List and returns to
+              Stage 1, free to start again with any consultancy. Nothing is deleted — the full case history stays
+              intact.
+            </>
+          )}
         </p>
+
+        {/* How a case closes as a success — the answer to "why is Success greyed out?". */}
+        {!hasAcceptedCollege && (
+          <div className="rounded-md border border-border bg-background px-3 py-sm text-body-sm text-text-secondary">
+            <p className="font-medium text-text-primary">Want to close this as a success?</p>
+            <p className="mt-xs">
+              A case closes as a success only once a college is marked <strong>Accepted</strong>. In the Applications
+              tab, move the college the student is joining to Offer Received, then choose Accept&hellip; and record the
+              commission. Come back here afterwards.
+            </p>
+            <Link
+              to={`/clients/${clientId}?tab=Applications`}
+              onClick={onClose}
+              className="mt-xs inline-block font-medium text-primary hover:underline"
+            >
+              Go to Applications
+            </Link>
+          </div>
+        )}
 
         <div className="flex flex-col gap-xs">
           <label className="text-body-sm font-medium text-text-primary" htmlFor="close-client-sub-reason">
@@ -95,13 +134,30 @@ export function CloseClientModal({
             onChange={(e) => setSubReason(e.target.value as CloseSubReason | '')}
             className="rounded-md border border-border bg-surface px-3 py-sm text-body"
           >
-            <option value="">{hasAcceptedCollege ? 'The student is going — nothing went wrong' : 'Select one…'}</option>
+            {hasAcceptedCollege ? (
+              <option value="">Success — the student is going</option>
+            ) : (
+              <>
+                <option value="">Select one…</option>
+                {/* Listed so the consultant sees the option exists; the note above says how to
+                    reach it. Not selectable — the outcome is derived, never picked. */}
+                <option value="__success" disabled>
+                  Success — needs an accepted college
+                </option>
+              </>
+            )}
             {CLOSE_SUB_REASONS.map((r) => (
               <option key={r.value} value={r.value}>
                 {r.label}
               </option>
             ))}
           </select>
+          {hasAcceptedCollege && (
+            <p className="text-caption text-text-secondary">
+              An accepted case can still fail. If the visa was refused, the student withdrew, or you lost contact,
+              choose that here — it closes as a failure and the commission is reversed.
+            </p>
+          )}
         </div>
 
         {/* The consequence, spelled out. This button moves money now, and a consultant should not
