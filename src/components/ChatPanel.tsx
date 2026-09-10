@@ -1,4 +1,4 @@
-import { ArrowUp, CalendarClock, Undo2 } from 'lucide-react'
+import { ArrowUp, CalendarClock, Lock, Undo2 } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Button } from './Button'
 import { Modal } from './Modal'
@@ -75,6 +75,10 @@ interface ChatPanelProps {
   // optional and Lead/Client conversations simply never pass it. Rejects (e.g. the server's
   // 409 already_read) surface inside the confirm popup, which stays open so the reader sees why.
   onUnsend?: (messageId: string) => Promise<unknown>
+  // When set, the composer is replaced by this notice and nothing can be sent — a lead still in
+  // the pool, which no one on staff may reply to until it is allocated (user, 2026-09-10). The
+  // server refuses those replies too; this only says why before anyone types.
+  composerLocked?: ReactNode
 }
 
 // Shared conversation UI for Lead (Aspirant), Client (Applicant), and Internal (colleague/Team)
@@ -102,6 +106,7 @@ export function ChatPanel({
   className,
   heightClassName = 'h-96',
   onUnsend,
+  composerLocked,
 }: ChatPanelProps) {
   // Confirm-gated per the platform's standing delete rule; owned here (not per caller) so both
   // the Internal Messaging page and the floating window get one identical implementation.
@@ -358,22 +363,29 @@ export function ChatPanel({
         </Modal>
       )}
 
-      <form onSubmit={onSend} className="flex shrink-0 items-center gap-sm border-t border-border px-md py-sm">
-        <input
-          value={draft}
-          onChange={(e) => onDraftChange(e.target.value)}
-          placeholder="Write a message…"
-          className="h-11 flex-1 rounded-full border border-border bg-background px-md text-body text-text-primary outline-none focus:border-2 focus:border-primary"
-        />
-        <button
-          type="submit"
-          disabled={sending || !draft.trim()}
-          aria-label="Send message"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-text-on-primary disabled:opacity-40"
-        >
-          <ArrowUp className="h-5 w-5" />
-        </button>
-      </form>
+      {composerLocked ? (
+        <div className="flex shrink-0 items-center gap-sm border-t border-border bg-background px-md py-md text-body-sm text-text-secondary">
+          <Lock className="h-4 w-4 shrink-0" aria-hidden />
+          <span>{composerLocked}</span>
+        </div>
+      ) : (
+        <form onSubmit={onSend} className="flex shrink-0 items-center gap-sm border-t border-border px-md py-sm">
+          <input
+            value={draft}
+            onChange={(e) => onDraftChange(e.target.value)}
+            placeholder="Write a message…"
+            className="h-11 flex-1 rounded-full border border-border bg-background px-md text-body text-text-primary outline-none focus:border-2 focus:border-primary"
+          />
+          <button
+            type="submit"
+            disabled={sending || !draft.trim()}
+            aria-label="Send message"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-text-on-primary disabled:opacity-40"
+          >
+            <ArrowUp className="h-5 w-5" />
+          </button>
+        </form>
+      )}
     </div>
   )
 }

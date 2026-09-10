@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { UserPlus } from 'lucide-react'
+import { UserPlus, type LucideIcon } from 'lucide-react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { StopPropagation } from '@/components/StopPropagation'
@@ -18,6 +18,9 @@ interface AssignConsultantMenuProps {
   variant?: 'icon' | 'button'
   buttonText?: string
   disabled?: boolean
+  // UserPlus means "give this to someone". Reassigning passes ArrowRightLeft instead, so moving a
+  // lead between consultants doesn't read as allocating it (user, 2026-09-10).
+  icon?: LucideIcon
 }
 
 // Shared "pick a consultant" popup — replaces a bare `<select>` both for the per-row Allocate
@@ -34,6 +37,7 @@ export function AssignConsultantMenu({
   variant = 'icon',
   buttonText,
   disabled,
+  icon: Icon = UserPlus,
 }: AssignConsultantMenuProps) {
   const [open, setOpen] = useState(false)
   const [choice, setChoice] = useState('')
@@ -64,7 +68,7 @@ export function AssignConsultantMenu({
           title={label}
           className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <UserPlus className="h-4 w-4" />
+          <Icon className="h-4 w-4" />
         </button>
       ) : (
         <button
@@ -73,7 +77,7 @@ export function AssignConsultantMenu({
           disabled={disabled}
           className="flex h-10 items-center gap-xs rounded-full bg-primary px-md text-button font-medium text-text-on-primary shadow-card hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <UserPlus className="h-4 w-4" />
+          <Icon className="h-4 w-4" />
           {buttonText ?? label}
         </button>
       )}

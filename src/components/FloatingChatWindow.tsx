@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ExternalLink, Minus, X } from 'lucide-react'
 import { ChatPanel } from './ChatPanel'
 import { useChatWindowStore } from '@/stores/chatWindowStore'
-import { useLeadMessages, useMarkLeadRead, useSendLeadMessage } from '@/queries/leads'
+import { useLead, useLeadMessages, useMarkLeadRead, useSendLeadMessage } from '@/queries/leads'
 import { useClientMessages, useMarkClientRead, useSendClientMessage } from '@/queries/clients'
 import {
   useInternalConversationMessages,
@@ -34,6 +34,8 @@ export function FloatingChatWindow() {
   const internalId = isInternal ? conversation.id : undefined
 
   const leadMessages = useLeadMessages(leadId)
+  // Only to know whether the lead is still in the pool; no one replies to it until it is allocated.
+  const lead = useLead(leadId)
   const clientMessages = useClientMessages(clientId)
   const internalMessages = useInternalConversationMessages(internalId)
   const sendLeadMessage = useSendLeadMessage(leadId ?? '')
@@ -144,6 +146,11 @@ export function FloatingChatWindow() {
         draft={draft}
         onDraftChange={setDraft}
         onSend={handleSend}
+          composerLocked={
+            isLead && lead.data && !lead.data.assigned_employee_id
+              ? 'Allocate this lead to a consultant from Lead Pool to reply.'
+              : undefined
+          }
         sending={sending}
         onUnsend={isInternal ? (messageId) => unsendInternalMessage.mutateAsync(messageId) : undefined}
         className="shadow-lg"

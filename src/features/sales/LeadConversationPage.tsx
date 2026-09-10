@@ -388,7 +388,8 @@ export function LeadConversationPage() {
                   ) : (
                     <Button
                       variant="secondary"
-                      disabled={state === 'requested'}
+                      disabled={state === 'requested' || !data.assigned_employee_id}
+                      title={data.assigned_employee_id ? undefined : 'Allocate this lead first'}
                       loading={requestShortlist.isPending}
                       onClick={() => requestShortlist.mutate()}
                     >
@@ -450,6 +451,9 @@ export function LeadConversationPage() {
               onSend={handleSend}
               sending={sendMessage.isPending}
               heightClassName="h-full"
+              composerLocked={
+                data.assigned_employee_id ? undefined : 'Allocate this lead to a consultant from Lead Pool to reply.'
+              }
               headerActions={
                 <button
                   onClick={() => openFloating({ id, type: 'lead', name: data.name })}

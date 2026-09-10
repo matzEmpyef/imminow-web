@@ -5642,6 +5642,13 @@ export interface paths {
                         "application/json": components["schemas"]["LeadMessage"];
                     };
                 };
+                /** @description lead_not_allocated (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
             };
         };
         delete?: never;
@@ -6225,6 +6232,13 @@ export interface paths {
                         "application/json": components["schemas"]["LeadMessage"];
                     };
                 };
+                /** @description lead_not_allocated (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
             };
         };
         delete?: never;
@@ -6262,6 +6276,13 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["LeadMessage"];
                     };
+                };
+                /** @description lead_not_allocated (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
                 };
             };
         };
@@ -6347,6 +6368,13 @@ export interface paths {
                 };
                 /** @description Lead or college not found */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description lead_not_allocated (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -6461,6 +6489,13 @@ export interface paths {
                     };
                     content?: never;
                 };
+                /** @description lead_not_allocated (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
             };
         };
         delete?: never;
@@ -6507,6 +6542,13 @@ export interface paths {
                 };
                 /** @description Lead or course not found */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description lead_not_allocated (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -6617,6 +6659,13 @@ export interface paths {
                     };
                     content?: never;
                 };
+                /** @description lead_not_allocated (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
                 422: components["responses"]["ErrorResponse"];
             };
         };
@@ -6713,6 +6762,13 @@ export interface paths {
                 };
                 /** @description Lead not found */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description lead_not_allocated (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };

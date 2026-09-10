@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { RotateCcw } from 'lucide-react'
+import { ArrowRightLeft, RotateCcw } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Badge } from '@/components/Badge'
 import { Table, type TableColumn } from '@/components/Table'
@@ -161,6 +161,7 @@ export function ActiveLeadsPage() {
             label={`Reassign ${lead.name}`}
             description="Choose which consultant this should be reassigned to."
             variant="icon"
+            icon={ArrowRightLeft}
           />
         ),
     },

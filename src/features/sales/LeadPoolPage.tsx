@@ -237,16 +237,25 @@ export function LeadPoolPage() {
           filters={
             canAllocate &&
             selected.size > 0 && (
+              // The count lives in the button itself (user, 2026-09-10: "Allocate 1 selected"), so what
+              // it will do and to how many is one thing to read.
               <div className="flex items-center gap-sm">
-                <span className="text-body-sm text-text-primary">{selected.size} selected</span>
                 <AssignConsultantMenu
                   employees={consultantOptions}
                   onSelect={handleBulkAllocate}
-                  label="Allocate Selected"
-                  description={`Choose which consultant these ${selected.size} lead${selected.size === 1 ? '' : 's'} should be allocated to.`}
+                  label={`Allocate ${selected.size} lead${selected.size === 1 ? '' : 's'}`}
+                  buttonText={`Allocate ${selected.size} selected`}
+                  description={`Choose which consultant ${selected.size === 1 ? 'this lead' : `these ${selected.size} leads`} should be allocated to.`}
                   variant="button"
                   disabled={bulkAllocate.isPending}
                 />
+                <button
+                  type="button"
+                  onClick={() => setSelected(new Set())}
+                  className="rounded-md px-sm py-xs text-body-sm text-text-secondary hover:bg-background hover:text-text-primary"
+                >
+                  Clear
+                </button>
               </div>
             )
           }
