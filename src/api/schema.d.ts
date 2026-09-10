@@ -1983,7 +1983,10 @@ export interface paths {
             };
         };
         put?: never;
-        /** Create a tag */
+        /**
+         * Create a tag
+         * @description Names cannot contain a comma (400 validation_failed): tag filters take a comma-separated list (2026-09-10), so such a tag could never be filtered on by itself.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -2407,7 +2410,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Document Library (user-requested rebuild, 2026-08-15, build reference 2.2) — the consultancy's own pool of common documents, independent of any client. filter[x]= accepts tag=<name>, mime_type=<type>, from=<date>, to=<date>. search matches filename. sort accepts filename, created_at. */
+        /** Document Library (user-requested rebuild, 2026-08-15, build reference 2.2) — the consultancy's own pool of common documents, independent of any client. filter[x]= accepts tag=<name>[,<name>…] (ANY of the listed; comma-separated, 2026-09-10), mime_type=<type>, from=<date>, to=<date>. search matches filename. sort accepts filename, created_at. */
         get: {
             parameters: {
                 query?: {
@@ -5317,7 +5320,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List leads (consultancy-side; student-side via /journeys/me). Merges leads and imported_leads into one list. Default sort last_message_at desc (falls back to created_at for leads that have never messaged), id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, created_at, last_message_at, consultant_name. filter[x]= accepts unallocated=true|false (Lead Pool vs Active Leads), assigned_to_me=true, unattended=true, tag=<name>, show_closed=true (user-requested — `status=closed` leads are excluded by default regardless of any other filter; this is the only way to see them again, deliberately not folded into a generic `status=` filter since hiding closed leads is the default everywhere this endpoint is used, not an opt-in). search matches name, email, or phone. */
+        /** List leads (consultancy-side; student-side via /journeys/me). Merges leads and imported_leads into one list. Default sort last_message_at desc (falls back to created_at for leads that have never messaged), id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, created_at, last_message_at, consultant_name. filter[x]= accepts unallocated=true|false (Lead Pool vs Active Leads), assigned_to_me=true, unattended=true, tag=<name>[,<name>…] (ANY of the listed; comma-separated, 2026-09-10), show_closed=true (user-requested — `status=closed` leads are excluded by default regardless of any other filter; this is the only way to see them again, deliberately not folded into a generic `status=` filter since hiding closed leads is the default everywhere this endpoint is used, not an opt-in). search matches name, email, or phone. */
         get: {
             parameters: {
                 query?: {
@@ -7095,7 +7098,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Search catalog — country, campus province/state, level, field, course (FR-057). Paginated for 10K+ scale (build reference 1.23) — list rows return campus_count/ course_count instead of embedding full campus/course objects; fetch GET /colleges/{id} for the full detail (unfiltered — Sentpo Mobile's Study Abroad/Study in [Home Country] never call this list endpoint directly, only GET /courses, whose own filter[visible]=true note above is what actually keeps inactive colleges from ever surfacing as a tappable Search Result in the first place). filter[country] matches any of the college's campuses; filter[active] is "true"/"false". sort accepts name (default asc). SCOPED FOR INSTITUTES (INSTITUTE_ACCOUNT_PLAN D7, 2026-09-10) — staff of a `kind=institute` account see only their own college, one row, and an institute not yet linked to a college sees none. Applied server-side to the source set before any query filter runs, so no parameter can widen it. */
+        /** Search catalog — country, campus province/state, level, field, course (FR-057). Paginated for 10K+ scale (build reference 1.23) — list rows return campus_count/ course_count instead of embedding full campus/course objects; fetch GET /colleges/{id} for the full detail (unfiltered — Sentpo Mobile's Study Abroad/Study in [Home Country] never call this list endpoint directly, only GET /courses, whose own filter[visible]=true note above is what actually keeps inactive colleges from ever surfacing as a tappable Search Result in the first place). filter[country] takes one or more comma-separated countries (2026-09-10) and matches a college with a campus in ANY of them; filter[active] is "true"/"false". sort accepts name (default asc). SCOPED FOR INSTITUTES (INSTITUTE_ACCOUNT_PLAN D7, 2026-09-10) — staff of a `kind=institute` account see only their own college, one row, and an institute not yet linked to a college sees none. Applied server-side to the source set before any query filter runs, so no parameter can widen it. */
         get: {
             parameters: {
                 query?: {
@@ -8130,7 +8133,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Clients list (consultancy-side). Default sort last_message_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, created_at, last_message_at, status, progress, consultant_name. filter[x]= accepts assigned_to_me=true, unattended=true, unassigned=true (2026-09-10 — clients with no consultant yet; what the dashboard's Pending Consultant Allocation card counts, so the card deep-links to exactly its own rows), tag=<name>, show_closed=true (user-requested, 2026-08-15 — closed, closed_switched, closed_completed, and plan_complete clients are excluded by default regardless of any other filter; this is the only way to see them again, same idiom GET /leads's show_closed already uses), country=<name> (user-requested, 2026-08-19 — filters on `Client.finalized_country`, exact match). search matches the applicant's name, email, phone, or file_number (user-requested, 2026-08-15). */
+        /** Clients list (consultancy-side). Default sort last_message_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, created_at, last_message_at, status, progress, consultant_name. filter[x]= accepts assigned_to_me=true, unattended=true, unassigned=true (2026-09-10 — clients with no consultant yet; what the dashboard's Pending Consultant Allocation card counts, so the card deep-links to exactly its own rows), tag=<name>[,<name>…] (ANY of the listed; comma-separated, 2026-09-10), show_closed=true (user-requested, 2026-08-15 — closed, closed_switched, closed_completed, and plan_complete clients are excluded by default regardless of any other filter; this is the only way to see them again, same idiom GET /leads's show_closed already uses), country=<name>[,<name>…] (ANY of the listed; comma-separated, 2026-09-10) (user-requested, 2026-08-19 — filters on `Client.finalized_country`, exact match). search matches the applicant's name, email, phone, or file_number (user-requested, 2026-08-15). */
         get: {
             parameters: {
                 query?: {
