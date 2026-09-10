@@ -347,8 +347,9 @@ export function StudentProfilePanels({
   // Completeness counts only what the STUDENT fills in — the same 15 for a lead and a client. A
   // caller's extra fact (the client's Finalized country, which the consultancy sets) is shown but
   // not counted, or an applicant would read "of 16" against a lead's "of 15" for the same profile.
-  // An omitted fact is not counted either: the bar measures what the page actually shows.
-  const all = [...facts.studyPlan, ...facts.background, ...facts.about]
+  // An omitted fact IS still counted (user, 2026-09-10): a page only omits a fact it already shows
+  // elsewhere — Overview's contact card carries "Lives in" — so the profile is still 15 items there.
+  const all = [...full.studyPlan, ...full.background, ...full.about]
   const added = all.filter((f) => f.lines).length
   const pct = Math.round((added / all.length) * 100)
 
