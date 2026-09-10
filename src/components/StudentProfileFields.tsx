@@ -160,7 +160,8 @@ function profileFacts(prefs: StudentPreferences | null | undefined, { countryPil
         lines: one(prefs?.study_level ? (STUDY_LEVEL_LABELS[prefs.study_level] ?? prefs.study_level) : null),
       },
       {
-        label: 'Study mode',
+        // "Preferred" — it is what the student would like, not a mode anyone has fixed (2026-09-10).
+        label: 'Preferred study mode',
         icon: <Clock className="h-5 w-5" />,
         color: 'success' as IconColor,
         lines: one(prefs?.preferred_study_mode ? STUDY_MODE_LABELS[prefs.preferred_study_mode] : null),
