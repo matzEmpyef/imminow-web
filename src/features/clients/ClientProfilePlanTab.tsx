@@ -150,16 +150,13 @@ export function PlanTab({
             </p>
           )}
         </div>
-        <div className="flex items-baseline gap-md">
-          {summary?.plan_progress && multiple && (
-            <p className="text-body-sm tabular-nums text-text-secondary">{summary.plan_progress} steps done overall</p>
-          )}
-          {canAssignTemplate && items.length > 0 && (
-            <Button variant="secondary" onClick={() => setShowAddPlan(true)}>
-              Add a plan
-            </Button>
-          )}
-        </div>
+        {/* No combined "x/y steps done overall" (user, 2026-09-10: "make no sense to show
+            combined") — plans run side by side, so each card carries its own progress instead. */}
+        {canAssignTemplate && items.length > 0 && (
+          <Button variant="secondary" onClick={() => setShowAddPlan(true)}>
+            Add a plan
+          </Button>
+        )}
       </div>
 
       {items.length === 0 ? (
