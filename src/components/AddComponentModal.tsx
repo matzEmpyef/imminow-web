@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { X } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { CheckSquare, Plus, X } from 'lucide-react'
 import { SelectField } from '@/components/SelectField'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
@@ -31,30 +31,131 @@ function plainToHtml(text: string): string {
     .join('')
 }
 
-// The "Other — not in this list" choice for a File Upload: no catalog document, the Label says
-// what is wanted. Also what an older File Upload (made before the dropdown) opens as.
-const OTHER_DOCUMENT = 'other'
-
 function htmlHasText(html: string): boolean {
   return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim().length > 0
 }
 
+// The "Other — not in this list" choice for a File Upload: no catalog document, the name is typed
+// in. Also what an older File Upload (made before the dropdown) opens as.
+const OTHER_DOCUMENT = 'other'
+
+const DEFAULT_OPTIONS = ['Yes', 'No']
+
+/** Everything type-specific the popup edits. */
+interface Draft {
+  label: string
+  content: string
+  entries: string[]
+  options: string[]
+  formId: string
+  url: string
+  buttonText: string
+  documentTypeId: string
+  documentDetail: string
+}
+
+/**
+ * The draft for `type`: the component's saved values when it IS that type, blank otherwise.
+ * Switching type rebuilds the draft from this (user, 2026-09-10: "When we switch the component
+ * type, reset the content also please") — checklist items used to follow you into Questionnaire
+ * because both read the same list. Switching back to the type being edited restores what it had.
+ */
+function draftFor(component: ComponentInput | undefined, type: ComponentType): Draft {
+  const same = component?.type === type
+  const payload = same ? readPayload(component) : {}
+  const label = same ? (component?.label ?? '') : ''
+  const rawContent = typeof payload.content === 'string' ? payload.content : ''
+  const savedDocumentName = typeof payload.document_type_name === 'string' ? payload.document_type_name : ''
+  const list = (key: string) => (Array.isArray(payload[key]) ? (payload[key] as string[]) : [])
+  return {
+    label,
+    // Rich text (user, 2026-09-10: "i want rich text also"), stored as HTML with format 'html'.
+    content: payload.format === 'html' ? rawContent : plainToHtml(rawContent),
+    entries: type === 'checklist' ? list('items') : type === 'questionnaire' ? list('questions') : [],
+    // Answer options for a questionnaire (2026-08-23). Yes/No was hardcoded in the app until then,
+    // so an existing component with no `options` falls back to that pair, as does a new one.
+    options: list('options').length >= 2 ? list('options') : DEFAULT_OPTIONS,
+    // `form_template_id` is the CONTRACT key; `form_id` is a legacy key read as a fallback so old
+    // components stay editable, never written again.
+    formId:
+      typeof payload.form_template_id === 'string'
+        ? payload.form_template_id
+        : typeof payload.form_id === 'string'
+          ? payload.form_id
+          : '',
+    // Web Link (2026-09-10): the address the student's phone opens, and optional button wording.
+    url: typeof payload.url === 'string' ? payload.url : '',
+    buttonText: typeof payload.button_text === 'string' ? payload.button_text : '',
+    documentTypeId:
+      typeof payload.document_type_id === 'string' ? payload.document_type_id : same && type === 'file_upload' ? OTHER_DOCUMENT : '',
+    documentDetail:
+      savedDocumentName && label.startsWith(`${savedDocumentName} — `) ? label.slice(savedDocumentName.length + 3) : '',
+  }
+}
+
+function Panel({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-sm rounded-lg border border-border bg-background p-md">
+      <p className="text-body-sm font-medium text-text-primary">
+        {title}
+        {count != null && count > 0 && <span className="ml-xs text-caption text-text-secondary">({count})</span>}
+      </p>
+      {children}
+    </section>
+  )
+}
+
+// A small "+ Add …" button level with the input beside it (user, 2026-09-10: "button needs to have
+// icon and smaller font"). Enter in the input does the same.
+function AddRow({
+  label,
+  value,
+  onChange,
+  onAdd,
+  buttonText,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  onAdd: () => void
+  buttonText: string
+}) {
+  return (
+    <div className="flex items-center gap-sm">
+      <TextField
+        label={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            onAdd()
+          }
+        }}
+        className="flex-1"
+      />
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        onClick={onAdd}
+        disabled={!value.trim()}
+        className="inline-flex shrink-0 items-center gap-xs"
+      >
+        <Plus className="h-3.5 w-3.5" aria-hidden />
+        {buttonText}
+      </Button>
+    </div>
+  )
+}
+
 // User-requested — "just like a WordPress page setup.. the already mentioned components can be
-// added multiple times... Don't want a checkbox to select which component." Replaces the old
-// fixed checkbox set (0 or 1 of each type, baked into a single "Add Step" action) with a
-// repeatable popup: click "Add Component" as many times as you want, even for the same type —
-// each instance gets its own Label so multiple "File Upload" components are distinguishable.
-// Doubles as the Edit Component popup when `editingComponent` is supplied, same pre-fill +
-// title/button-swap pattern as every other Add/Edit popup this session. Shared between Plan
-// Templates and the live client Plan editor.
-//
-// Type/Label alone left no way to actually enter a text component's content, a checklist's
-// items, a questionnaire's questions, or which form a form_link points to — user-reported ("I
-// don't see any place to enter the text... Form link, how do I select the form!!") — so each
-// type now gets its own payload field below the Type/Label row: a content textarea for `text`,
-// an add-and-list builder (shared between checklist items and questionnaire questions, since
-// they're structurally identical string lists), and a form picker sourced from `useFormTemplates`
-// for `form_link`. `file_upload` picks which catalog document it collects (2026-09-10).
+// added multiple times... Don't want a checkbox to select which component." A repeatable popup:
+// click "Add Component" as many times as you want, even for the same type. Doubles as the Edit
+// Component popup when `editingComponent` is supplied. Shared between Plan Templates and the live
+// client Plan editor. Each type gets its own fields below the Type row: rich text for `text`, an
+// item list for `checklist`, questions and answer options for `questionnaire`, a form picker for
+// `form_link`, the catalog document for `file_upload` (2026-09-10) and an address for `weblink`.
 export function AddComponentModal({
   editingComponent,
   onSubmit,
@@ -65,108 +166,76 @@ export function AddComponentModal({
   onClose: () => void
 }) {
   const isEditing = Boolean(editingComponent)
-  const payload = readPayload(editingComponent)
   const [type, setType] = useState<ComponentType>(editingComponent?.type ?? 'text')
-  const [label, setLabel] = useState(editingComponent?.label ?? '')
-  // Rich text (user, 2026-09-10: "i want rich text also"), stored as HTML with format 'html'.
-  const [content, setContent] = useState(() => {
-    const raw = typeof payload.content === 'string' ? payload.content : ''
-    return payload.format === 'html' ? raw : plainToHtml(raw)
-  })
-  const [entries, setEntries] = useState<string[]>(
-    Array.isArray(payload.items)
-      ? (payload.items as string[])
-      : Array.isArray(payload.questions)
-        ? (payload.questions as string[])
-        : [],
-  )
+  const [draft, setDraft] = useState<Draft>(() => draftFor(editingComponent, editingComponent?.type ?? 'text'))
+  // What is being typed into an "add" input — not part of the component until added.
   const [entryDraft, setEntryDraft] = useState('')
-  // Answer options for a questionnaire (2026-08-23). Yes/No was hardcoded in the app until now,
-  // so an existing component has no `options` key — it falls back to that same pair, and this
-  // seeds the editor with it so nobody has to retype the common case.
-  const [options, setOptions] = useState<string[]>(
-    Array.isArray(payload.options) && (payload.options as string[]).length >= 2
-      ? (payload.options as string[])
-      : ['Yes', 'No'],
-  )
   const [optionDraft, setOptionDraft] = useState('')
 
-  function addOption() {
-    const next = optionDraft.trim()
-    if (!next || options.includes(next)) return
-    setOptions((prev) => [...prev, next])
-    setOptionDraft('')
-  }
-  // `form_template_id` is the CONTRACT key (openapi.yaml Component.payload; the mobile app and
-  // mock server both read it). `form_id` is the legacy key this modal briefly wrote before the
-  // drift was caught (2026-08-20 — "I cannot see the Form associated with the plan") — read as a
-  // fallback so old components stay editable, but never written again.
-  const [formId, setFormId] = useState(
-    typeof payload.form_template_id === 'string'
-      ? payload.form_template_id
-      : typeof payload.form_id === 'string'
-        ? payload.form_id
-        : '',
-  )
-
   const forms = useFormTemplates()
-
-  // Web Link (2026-09-10): the address the student's phone opens in its browser, and optional
-  // wording for the button ("Open link" when left blank).
-  const [url, setUrl] = useState(typeof payload.url === 'string' ? payload.url : '')
-  const [buttonText, setButtonText] = useState(typeof payload.button_text === 'string' ? payload.button_text : '')
-  const urlValid = isHttpUrl(url)
-
-  // File Upload names WHICH document it collects (user, 2026-09-10: "I thought we will be
-  // selecting from a dropdown the name of the file"), from the document catalog — the platform's
-  // shared list plus this consultancy's own. payload.document_type_id is what lets the Sentpo app
-  // show that document's instructions and offer a copy the student already uploaded.
+  // File Upload names WHICH document it collects (user, 2026-09-10), from the document catalog —
+  // the platform's shared list plus this consultancy's own. payload.document_type_id is what lets
+  // the Sentpo app show that document's instructions and offer a copy the student already has.
   const documentTypes = useDocumentTypes()
   const documentOptions = documentTypes.data?.items ?? []
-  const [documentTypeId, setDocumentTypeId] = useState(
-    typeof payload.document_type_id === 'string'
-      ? payload.document_type_id
-      : editingComponent?.type === 'file_upload'
-        ? OTHER_DOCUMENT
-        : '',
-  )
-  const chosenDocument = documentOptions.find((t) => t.id === documentTypeId)
+  const chosenDocument = documentOptions.find((t) => t.id === draft.documentTypeId)
 
-  function chooseDocument(id: string) {
-    const previousName = documentOptions.find((t) => t.id === documentTypeId)?.name
-    const nextName = documentOptions.find((t) => t.id === id)?.name
-    // Fill the Label with the document's name, unless the consultant has written their own.
-    if (nextName && (!label.trim() || label === previousName)) setLabel(nextName)
-    setDocumentTypeId(id)
+  function update(patch: Partial<Draft>) {
+    setDraft((prev) => ({ ...prev, ...patch }))
+  }
+
+  function changeType(next: ComponentType) {
+    setType(next)
+    setDraft(draftFor(editingComponent, next))
+    setEntryDraft('')
+    setOptionDraft('')
   }
 
   function addEntry() {
-    if (!entryDraft) return
-    setEntries((prev) => [...prev, entryDraft])
+    const next = entryDraft.trim()
+    if (!next) return
+    update({ entries: [...draft.entries, next] })
     setEntryDraft('')
   }
 
-  function removeEntry(index: number) {
-    setEntries((prev) => prev.filter((_, i) => i !== index))
+  function addOption() {
+    const next = optionDraft.trim()
+    if (!next || draft.options.includes(next)) return
+    update({ options: [...draft.options, next] })
+    setOptionDraft('')
+  }
+
+  const urlValid = isHttpUrl(draft.url)
+
+  // NO LABEL for a catalog document (user, 2026-09-10: "Why we need label for File Upload?") —
+  // the document's own name says what is being collected, and becomes the label on save. "Other"
+  // needs a name typed in; a document collected more than once (an `instance` type) takes an
+  // optional "Which one?": "Letter of recommendation — from your employer".
+  function fileUploadLabel(): string {
+    if (!chosenDocument) return draft.label
+    return chosenDocument.cardinality === 'instance' && draft.documentDetail.trim()
+      ? `${chosenDocument.name} — ${draft.documentDetail.trim()}`
+      : chosenDocument.name
   }
 
   function buildPayload(): Record<string, unknown> {
     switch (type) {
       case 'text':
-        return { content, format: 'html' }
+        return { content: draft.content, format: 'html' }
       case 'checklist':
-        return { items: entries }
+        return { items: draft.entries }
       case 'questionnaire':
-        return { questions: entries, options }
+        return { questions: draft.entries, options: draft.options }
       case 'form_link': {
-        if (!formId) return {}
-        const form = forms.data?.find((f) => f.id === formId)
-        // `form_name` is a display convenience only; `form_template_id` is what the contract,
-        // the mobile app, and the Forms tab all key on.
-        return { form_template_id: formId, form_name: form?.name ?? '' }
+        if (!draft.formId) return {}
+        const form = forms.data?.find((f) => f.id === draft.formId)
+        // `form_name` is a display convenience only; `form_template_id` is what counts.
+        return { form_template_id: draft.formId, form_name: form?.name ?? '' }
       }
       case 'weblink':
-        return buttonText.trim() ? { url: url.trim(), button_text: buttonText.trim() } : { url: url.trim() }
+        return draft.buttonText.trim()
+          ? { url: draft.url.trim(), button_text: draft.buttonText.trim() }
+          : { url: draft.url.trim() }
       case 'file_upload':
         // `document_type_name` is display only (builder row, preview); the id is what counts.
         return chosenDocument ? { document_type_id: chosenDocument.id, document_type_name: chosenDocument.name } : {}
@@ -175,30 +244,40 @@ export function AddComponentModal({
     }
   }
 
-  // User-requested — "In Type Text.. change Label to Title (Title should not be mandatory)."
-  // Every other type keeps "Label" and stays required; a plain instructional paragraph doesn't
-  // always need a heading, so `text` alone gets the relaxed rule.
   // Text has no label at all (user, 2026-09-10: "No need of label for Text component"); it needs
-  // content instead. Every other type keeps a required Label.
-  const labelRequired = type !== 'text'
+  // content instead. A File Upload of a catalog document takes its label from the document.
+  const labelRequired = type !== 'text' && !(type === 'file_upload' && chosenDocument)
   const canSubmit =
-    !(labelRequired && !label) &&
+    !(labelRequired && !draft.label.trim()) &&
     (type !== 'weblink' || urlValid) &&
-    (type !== 'text' || htmlHasText(content)) &&
-    (type !== 'file_upload' || Boolean(documentTypeId))
+    (type !== 'text' || htmlHasText(draft.content)) &&
+    (type !== 'file_upload' || Boolean(draft.documentTypeId))
 
   function handleSubmit() {
     if (!canSubmit) return
     onSubmit({
       id: editingComponent?.id ?? newComponentId(),
       type,
-      label: type === 'text' ? '' : label,
+      label: type === 'text' ? '' : type === 'file_upload' ? fileUploadLabel() : draft.label,
       payload: buildPayload(),
     })
     onClose()
   }
 
-  const entryNoun = type === 'checklist' ? 'item' : 'question'
+  function removeButton(name: string, onRemove: () => void, disabled = false) {
+    return (
+      <button
+        type="button"
+        onClick={onRemove}
+        disabled={disabled}
+        aria-label={`Remove ${name}`}
+        title="Remove"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-text-secondary hover:bg-error/10 hover:text-error disabled:cursor-not-allowed disabled:opacity-30"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+    )
+  }
 
   return (
     <Modal
@@ -216,7 +295,7 @@ export function AddComponentModal({
           label="Type"
           id="component-type"
           value={type}
-          onChange={(e) => setType(e.target.value as ComponentType)}
+          onChange={(e) => changeType(e.target.value as ComponentType)}
         >
           {COMPONENT_TYPES.map((t) => (
             <option key={t} value={t}>
@@ -225,14 +304,16 @@ export function AddComponentModal({
           ))}
         </SelectField>
 
-        {type !== 'text' && <TextField label="Label" value={label} onChange={(e) => setLabel(e.target.value)} />}
+        {type !== 'text' && type !== 'file_upload' && (
+          <TextField label="Label" value={draft.label} onChange={(e) => update({ label: e.target.value })} />
+        )}
 
         {type === 'text' && (
           <div className="flex flex-col gap-xs">
             <p className="text-body-sm font-medium text-text-primary">Content to display</p>
             <RichTextEditor
-              value={content}
-              onChange={setContent}
+              value={draft.content}
+              onChange={(content) => update({ content })}
               minHeightRem={10}
               ariaLabel="Content to display"
               placeholder="Instructions, notes, anything the student should read in this step…"
@@ -240,99 +321,105 @@ export function AddComponentModal({
           </div>
         )}
 
-        {(type === 'checklist' || type === 'questionnaire') && (
-          <div className="flex flex-col gap-xs">
-            <p className="text-body-sm font-medium text-text-primary">
-              {type === 'checklist' ? 'Checklist items' : 'Questions'}
-            </p>
-            {entries.length === 0 && <p className="text-caption text-text-secondary">None added yet.</p>}
-            {entries.length > 0 && (
-              <div className="flex flex-col gap-xs">
-                {entries.map((entry, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-xs rounded-md border border-border bg-background px-sm py-xs"
-                  >
-                    <span className="min-w-0 flex-1 truncate text-body-sm text-text-primary">{entry}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeEntry(i)}
-                      aria-label={`Remove ${entry}`}
-                      className="text-text-secondary hover:text-error"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
+        {type === 'checklist' && (
+          <Panel title="Checklist items" count={draft.entries.length}>
+            {draft.entries.length === 0 ? (
+              <p className="text-caption text-text-secondary">No items yet. Each one becomes a box the student ticks.</p>
+            ) : (
+              <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-md border border-border bg-surface">
+                {draft.entries.map((entry, i) => (
+                  <li key={i} className="flex items-start gap-sm px-sm py-xs">
+                    <CheckSquare className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+                    <span className="min-w-0 flex-1 break-words text-body-sm text-text-primary">{entry}</span>
+                    {removeButton(entry, () => update({ entries: draft.entries.filter((_, n) => n !== i) }))}
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
-            <div className="flex items-end gap-sm">
-              <TextField
-                label={type === 'checklist' ? 'Item' : 'Question'}
-                value={entryDraft}
-                onChange={(e) => setEntryDraft(e.target.value)}
-              />
-              <Button type="button" variant="secondary" onClick={addEntry} disabled={!entryDraft}>
-                Add {entryNoun === 'item' ? 'Item' : 'Question'}
-              </Button>
-            </div>
-          </div>
+            <AddRow label="New item" value={entryDraft} onChange={setEntryDraft} onAdd={addEntry} buttonText="Add item" />
+          </Panel>
         )}
 
+        {/* Questions, then the answers every question offers, then how one will look to the
+            student (user, 2026-09-10: "Add Question also improve the UX"). */}
         {type === 'questionnaire' && (
-          <div className="flex flex-col gap-xs">
-            <p className="text-body-sm font-medium text-text-primary">Answer options</p>
-            <p className="text-caption text-text-secondary">
-              Every question in this component uses the same options. Two minimum — the app falls back to Yes/No if
-              fewer are saved.
-            </p>
-            <div className="flex flex-wrap gap-xs">
-              {options.map((option, i) => (
-                <span
-                  key={i}
-                  className="flex items-center gap-xs rounded-full border border-border bg-background px-sm py-xs text-body-sm text-text-primary"
-                >
-                  {option}
-                  <button
-                    type="button"
-                    // Never below two: one option is not a question, it is a statement.
-                    disabled={options.length <= 2}
-                    onClick={() => setOptions((prev) => prev.filter((_, n) => n !== i))}
-                    aria-label={`Remove ${option}`}
-                    className="text-text-secondary hover:text-error disabled:opacity-30"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
-            <div className="flex items-end gap-sm">
-              <TextField
-                label="Add an option"
-                value={optionDraft}
-                onChange={(e) => setOptionDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    addOption()
-                  }
-                }}
-                className="flex-1"
+          <>
+            <Panel title="Questions" count={draft.entries.length}>
+              {draft.entries.length === 0 ? (
+                <p className="text-caption text-text-secondary">No questions yet.</p>
+              ) : (
+                <ol className="flex flex-col divide-y divide-border overflow-hidden rounded-md border border-border bg-surface">
+                  {draft.entries.map((entry, i) => (
+                    <li key={i} className="flex items-start gap-sm px-sm py-xs">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-caption font-medium text-primary">
+                        {i + 1}
+                      </span>
+                      <span className="min-w-0 flex-1 break-words text-body-sm text-text-primary">{entry}</span>
+                      {removeButton(entry, () => update({ entries: draft.entries.filter((_, n) => n !== i) }))}
+                    </li>
+                  ))}
+                </ol>
+              )}
+              <AddRow
+                label="New question"
+                value={entryDraft}
+                onChange={setEntryDraft}
+                onAdd={addEntry}
+                buttonText="Add question"
               />
-              <Button variant="secondary" onClick={addOption} disabled={!optionDraft.trim()}>
-                Add
-              </Button>
+            </Panel>
+
+            <Panel title="Answer options">
+              <p className="text-caption text-text-secondary">Every question is answered with one of these. Keep at least two.</p>
+              <div className="flex flex-wrap gap-xs">
+                {draft.options.map((option, i) => (
+                  <span
+                    key={option}
+                    className="flex items-center gap-0.5 rounded-full border border-border bg-surface py-0.5 pl-sm pr-0.5 text-body-sm text-text-primary"
+                  >
+                    {option}
+                    {/* Never below two: one option is not a question, it is a statement. */}
+                    {removeButton(
+                      option,
+                      () => update({ options: draft.options.filter((_, n) => n !== i) }),
+                      draft.options.length <= 2,
+                    )}
+                  </span>
+                ))}
+              </div>
+              <AddRow
+                label="New option"
+                value={optionDraft}
+                onChange={setOptionDraft}
+                onAdd={addOption}
+                buttonText="Add option"
+              />
+            </Panel>
+
+            <div className="flex flex-col gap-xs rounded-lg border border-dashed border-border p-md">
+              <p className="text-caption font-medium uppercase tracking-wide text-text-secondary">How the student sees it</p>
+              <p className="text-body-sm text-text-primary">{draft.entries[0] ?? 'Your first question'}</p>
+              <div className="flex flex-wrap gap-xs">
+                {draft.options.map((option) => (
+                  <span
+                    key={option}
+                    className="rounded-full border border-border bg-surface px-sm py-0.5 text-caption font-medium text-text-primary"
+                  >
+                    {option}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
+          </>
         )}
 
         {type === 'form_link' && (
           <div className="flex flex-col gap-xs">
             <SelectField
-              label="Form to link"
+              label="immiNow form"
               id="component-form"
-              value={formId}
-              onChange={(e) => setFormId(e.target.value)}
+              value={draft.formId}
+              onChange={(e) => update({ formId: e.target.value })}
               disabled={forms.isLoading}
             >
               <option value="">{forms.isLoading ? 'Loading forms…' : 'Select a form…'}</option>
@@ -354,8 +441,8 @@ export function AddComponentModal({
               label="Document"
               id="component-document"
               required
-              value={documentTypeId}
-              onChange={(e) => chooseDocument(e.target.value)}
+              value={draft.documentTypeId}
+              onChange={(e) => update({ documentTypeId: e.target.value })}
               disabled={documentTypes.isLoading}
             >
               <option value="" disabled>
@@ -368,16 +455,23 @@ export function AddComponentModal({
               ))}
               <option value={OTHER_DOCUMENT}>Other — not in this list</option>
             </SelectField>
-            {chosenDocument ? (
-              <p className="text-caption text-text-secondary">
-                {chosenDocument.description ? `${chosenDocument.description} ` : ''}
-                {chosenDocument.cardinality === 'singleton'
-                  ? 'A student who has already uploaded this can reuse it.'
-                  : 'The student uploads a fresh file each time.'}
-              </p>
-            ) : documentTypeId === OTHER_DOCUMENT ? (
-              <p className="text-caption text-text-secondary">Use the Label to say which document you need.</p>
-            ) : null}
+            {draft.documentTypeId === OTHER_DOCUMENT && (
+              <TextField
+                label="Document name"
+                required
+                value={draft.label}
+                onChange={(e) => update({ label: e.target.value })}
+                placeholder="e.g. Visa application form"
+              />
+            )}
+            {chosenDocument?.cardinality === 'instance' && (
+              <TextField
+                label="Which one? (optional)"
+                value={draft.documentDetail}
+                onChange={(e) => update({ documentDetail: e.target.value })}
+                placeholder="e.g. from your employer"
+              />
+            )}
             {documentTypes.isError && <p className="text-caption text-error">Could not load the document list.</p>}
           </div>
         )}
@@ -385,22 +479,21 @@ export function AddComponentModal({
         {type === 'weblink' && (
           <div className="flex flex-col gap-md">
             <p className="text-caption text-text-secondary">
-              The student taps a button in the Sentpo app and the link opens in their phone&rsquo;s browser — a visa
-              portal, a college application page, a fee payment page.
+              The student taps a button in the Sentpo app and the link opens in their phone&rsquo;s browser
             </p>
             <TextField
               label="Web address"
               type="url"
               required
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
+              value={draft.url}
+              onChange={(e) => update({ url: e.target.value })}
               placeholder="https://"
-              error={url.trim() && !urlValid ? 'Enter a full address starting with https:// or http://' : undefined}
+              error={draft.url.trim() && !urlValid ? 'Enter a full address starting with https:// or http://' : undefined}
             />
             <TextField
               label="Button text"
-              value={buttonText}
-              onChange={(e) => setButtonText(e.target.value)}
+              value={draft.buttonText}
+              onChange={(e) => update({ buttonText: e.target.value })}
               placeholder="Open link"
             />
           </div>

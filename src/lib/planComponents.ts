@@ -11,7 +11,8 @@ export const COMPONENT_TYPE_LABELS: Record<ComponentType, string> = {
   file_upload: 'File Upload',
   checklist: 'Checklist',
   questionnaire: 'Questionnaire',
-  form_link: 'Form Link',
+  // Renamed from "Form Link" (user, 2026-09-10) — it links one of this console's own forms.
+  form_link: 'immiNow Form',
   weblink: 'Web Link',
 }
 
