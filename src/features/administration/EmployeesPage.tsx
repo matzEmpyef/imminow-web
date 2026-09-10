@@ -64,14 +64,16 @@ export function EmployeesPage() {
       ),
     },
     {
-      key: 'email',
-      header: 'Email',
-      render: (employee) => <span className="text-text-secondary">{employee.user!.email}</span>,
-    },
-    {
-      key: 'phone',
-      header: 'Phone',
-      render: (employee) => <span className="text-text-secondary">{employee.user!.phone ?? '—'}</span>,
+      key: 'contact',
+      header: 'Contact',
+      // One column, email above phone (user, 2026-09-10) — same as the Clients list: they are read
+      // together, and two columns spent the table's width on one piece of information.
+      render: (employee) => (
+        <div className="flex flex-col">
+          <span className="text-text-secondary">{employee.user!.email}</span>
+          <span className="text-text-secondary">{employee.user!.phone ?? '—'}</span>
+        </div>
+      ),
     },
     {
       key: 'designation',
