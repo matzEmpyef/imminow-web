@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Pencil } from 'lucide-react'
+import { Pencil, Plus } from 'lucide-react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
@@ -33,7 +33,11 @@ export function SuggestCorrectionButton({
   courseId: string
   field: string
   label: string
-  current: string
+  // Null when the course has no value for this field yet. The button then reads "+ Add" rather
+  // than a pencil, since the consultant is supplying something missing, not correcting it
+  // (user, 2026-09-10: "show all the fields which have missing data too, so that if a consultant
+  // wants to provide it then they can"). Same review queue either way; it shows null as "—".
+  current: string | null
   // Fee is the one field where the admin's review popup can apply the value with one click
   // (2026-08-24: "the super admin can update the field just by clicking OK... add, add with
   // modification"). That only works if what lands in `suggested` is a clean number — a formatted
@@ -46,9 +50,25 @@ export function SuggestCorrectionButton({
   const [suggested, setSuggested] = useState('')
   const [note, setNote] = useState('')
   const suggest = useSuggestCorrection()
+  const isMissing = current == null
 
   return (
     <>
+      {isMissing ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            setOpen(true)
+          }}
+          aria-label={`Add ${label}`}
+          title="Suggest a value"
+          className="inline-flex shrink-0 items-center gap-0.5 rounded-sm px-xs text-caption font-medium not-italic text-primary hover:bg-primary/10"
+        >
+          <Plus className="h-3 w-3" aria-hidden />
+          Add
+        </button>
+      ) : (
       <button
         type="button"
         onClick={(e) => {
@@ -72,10 +92,11 @@ export function SuggestCorrectionButton({
       >
         <Pencil className="h-3 w-3" />
       </button>
+      )}
       {open && (
         <Modal
           onClose={() => setOpen(false)}
-          title={`Suggest a correction — ${label}`}
+          title={isMissing ? `Suggest a value — ${label}` : `Suggest a correction — ${label}`}
           footer={
             <div className="flex justify-end gap-sm">
               <Button variant="secondary" onClick={() => setOpen(false)}>
@@ -100,10 +121,17 @@ export function SuggestCorrectionButton({
           }
         >
           <div className="flex flex-col gap-md">
-            <p className="text-body-sm text-text-secondary">
-              Currently shows <span className="font-medium text-text-primary">{current}</span>. A Platform Admin reviews
-              this before it changes anything.
-            </p>
+            {isMissing ? (
+              <p className="text-body-sm text-text-secondary">
+                This course has no {label.toLowerCase()} yet. A Platform Admin reviews what you suggest before it
+                appears on the course.
+              </p>
+            ) : (
+              <p className="text-body-sm text-text-secondary">
+                Currently shows <span className="font-medium text-text-primary">{current}</span>. A Platform Admin
+                reviews this before it changes anything.
+              </p>
+            )}
             {/* No autoFocus — useDialogA11y already places initial focus inside the dialog on
                 mount, same as every other modal in the app (jsx-a11y/no-autofocus). */}
             <TextField

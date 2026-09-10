@@ -8,6 +8,9 @@ interface ModalProps {
   children: ReactNode
   widthRem?: number
   footer?: ReactNode
+  // Replaces the plain title text in the pinned header bar with richer content — a logo, badges,
+  // actions (Course details, 2026-09-10). `title` still names the dialog for screen readers.
+  header?: ReactNode
 }
 
 // Shared centered popup — click the backdrop or the X to close. Width is capped via inline style
@@ -22,7 +25,7 @@ interface ModalProps {
 // pair) never scrolls out of view. Callers move their trailing Button(s) here instead of leaving
 // them as the last element inside the scrollable `children`; omitting `footer` keeps the old
 // everything-scrolls-together behavior for short forms/read-only popups that don't need it.
-export function Modal({ onClose, title, children, widthRem = 32, footer }: ModalProps) {
+export function Modal({ onClose, title, children, widthRem = 32, footer, header }: ModalProps) {
   const dialogRef = useDialogA11y<HTMLDivElement>(onClose)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/40 px-md">
@@ -40,8 +43,12 @@ export function Modal({ onClose, title, children, widthRem = 32, footer }: Modal
         style={{ maxWidth: `${widthRem}rem`, maxHeight: '90vh' }}
         className="relative flex w-full flex-col overflow-hidden rounded-lg bg-surface shadow-card outline-none"
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-border px-lg py-md">
-          <h2 className="text-h2 text-text-primary">{title}</h2>
+        <div
+          className={`flex shrink-0 justify-between gap-md border-b border-border px-lg ${
+            header ? 'items-start py-lg' : 'items-center py-md'
+          }`}
+        >
+          {header ?? <h2 className="text-h2 text-text-primary">{title}</h2>}
           <button
             type="button"
             onClick={onClose}
