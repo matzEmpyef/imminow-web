@@ -12,17 +12,39 @@ import { formatMoney } from '@/lib/money'
 // pool and demand shows on Supply & Demand; applicants and completed cases sit with their
 // consultancy in Manage Consultancies; catalog counts open Colleges & Courses.
 const STAT_CARD_LINKS: Record<string, string> = {
-  total_consultancies: '/admin/consultancies',
+  total_consultancies: '/admin/consultancies?kind=consultancy',
+  total_institutes: '/admin/consultancies?kind=institute',
   total_students: '/admin/users/sentpo',
   stuck_onboarding: '/admin/users/sentpo?onboarding=pending',
   study_abroad_students: '/admin/supply-demand',
-  study_home_students: '/admin/supply-demand',
   active_aspirants: '/admin/supply-demand',
   active_applicants: '/admin/consultancies',
   completed_cases: '/admin/consultancies',
   total_colleges: '/admin/colleges',
   total_courses: '/admin/colleges',
-  courses_missing_requirements: '/admin/colleges',
+}
+
+// Added this month vs last month (user, 2026-09-10) — an arrow for the direction, both numbers
+// shown so a small base is never mistaken for a big swing.
+function TrendLine({
+  thisMonth,
+  lastMonth,
+  format = String,
+}: {
+  thisMonth: number
+  lastMonth: number
+  format?: (n: number) => string
+}) {
+  const up = thisMonth > lastMonth
+  const down = thisMonth < lastMonth
+  return (
+    <p className="mt-xs text-caption text-text-secondary">
+      <span className={up ? 'text-success' : down ? 'text-error' : 'text-text-secondary'}>
+        {up ? '▲' : down ? '▼' : '•'} {format(thisMonth)} this month
+      </span>{' '}
+      · {format(lastMonth)} last month
+    </p>
+  )
 }
 
 type DashboardData = NonNullable<ReturnType<typeof useAdminDashboard>['data']>
@@ -78,6 +100,94 @@ function OrgApplicantsCard({
   )
 }
 
+type FunnelStage = NonNullable<DashboardData['journey_funnel']>[number]
+type CaseOutcomes = NonNullable<DashboardData['case_outcomes']>
+
+// Where students drop off (user, 2026-09-10): each stage is the furthest a student has reached,
+// so the bars only narrow; the % is how many made it from the stage before.
+function JourneyFunnelCard({ stages }: { stages: FunnelStage[] }) {
+  const widest = Math.max(1, stages[0]?.count ?? 0)
+  return (
+    <Card>
+      <h2 className="text-h3 text-text-primary">Student Journey Funnel</h2>
+      <p className="text-caption text-text-secondary">
+        Sentpo students by the furthest stage they have reached, with the share who got there from the stage before.
+      </p>
+      <ol className="mt-md flex flex-col gap-sm">
+        {stages.map((s) => (
+          <li key={s.stage} className="flex flex-col gap-xs">
+            <div className="flex items-baseline justify-between gap-sm">
+              <span className="text-body-sm text-text-primary">{s.label}</span>
+              <span className="text-body-sm tabular-nums text-text-primary">
+                <span className="font-medium">{s.count}</span>
+                {s.pct_of_previous != null && (
+                  <span className="ml-xs text-caption text-text-secondary">{s.pct_of_previous}% of previous</span>
+                )}
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-background">
+              <div className="h-2 rounded-full bg-primary" style={{ width: `${(s.count / widest) * 100}%` }} />
+            </div>
+          </li>
+        ))}
+      </ol>
+    </Card>
+  )
+}
+
+// How cases end (user, 2026-09-10): successful vs not, and the recorded reason for the rest.
+function CaseOutcomesCard({ outcomes }: { outcomes: CaseOutcomes }) {
+  const successRate = outcomes.closed ? Math.round((outcomes.successful / outcomes.closed) * 100) : null
+  const widest = Math.max(1, ...outcomes.failure_reasons.map((r) => r.count))
+  return (
+    <Card>
+      <h2 className="text-h3 text-text-primary">Case Outcomes</h2>
+      <p className="text-caption text-text-secondary">Every closed case, all time — and why the unsuccessful ones closed.</p>
+      {outcomes.closed === 0 ? (
+        <p className="mt-sm text-body-sm text-text-secondary">No cases have been closed yet.</p>
+      ) : (
+        <div className="mt-md flex flex-col gap-md">
+          <div className="grid grid-cols-3 gap-sm">
+            <div className="flex flex-col gap-xs">
+              <span className="text-caption text-text-secondary">Closed</span>
+              <span className="text-h3 font-semibold tabular-nums text-text-primary">{outcomes.closed}</span>
+            </div>
+            <div className="flex flex-col gap-xs">
+              <span className="text-caption text-text-secondary">Successful</span>
+              <span className="text-h3 font-semibold tabular-nums text-success">
+                {outcomes.successful}
+                {successRate != null && <span className="ml-xs text-caption text-text-secondary">{successRate}%</span>}
+              </span>
+            </div>
+            <div className="flex flex-col gap-xs">
+              <span className="text-caption text-text-secondary">Unsuccessful</span>
+              <span className="text-h3 font-semibold tabular-nums text-text-primary">{outcomes.failed}</span>
+            </div>
+          </div>
+          {outcomes.failure_reasons.length > 0 && (
+            <div className="flex flex-col gap-sm">
+              <h3 className="text-body-sm font-semibold text-text-primary">Why cases did not succeed</h3>
+              <ol className="flex flex-col gap-sm">
+                {outcomes.failure_reasons.map((r) => (
+                  <li key={r.reason} className="flex flex-col gap-xs">
+                    <div className="flex items-baseline justify-between gap-sm">
+                      <span className="text-body-sm text-text-primary">{r.label}</span>
+                      <span className="text-body-sm font-medium tabular-nums text-text-primary">{r.count}</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-background">
+                      <div className="h-2 rounded-full bg-warning" style={{ width: `${(r.count / widest) * 100}%` }} />
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  )
+}
+
 export function SuperAdminDashboardPage() {
   const navigate = useNavigate()
   const dashboard = useAdminDashboard()
@@ -128,7 +238,13 @@ export function SuperAdminDashboardPage() {
                   <p className="text-caption text-text-secondary">{card.label}</p>
                   {alert && <Badge color="error">Needs help</Badge>}
                 </div>
-                <p className={`mt-xs text-h1 ${alert ? 'text-error' : 'text-text-primary'}`}>{card.value}</p>
+                <p className={`mt-xs text-h1 ${alert ? 'text-error' : 'text-text-primary'}`}>
+                  {card.value == null ? '—' : card.value}
+                  {card.value != null && card.unit && (
+                    <span className="ml-xs text-body-sm text-text-secondary">{card.unit}</span>
+                  )}
+                </p>
+                {card.trend && <TrendLine thisMonth={card.trend.this_month} lastMonth={card.trend.last_month} />}
                 {card.hint && <p className="mt-xs text-caption text-text-secondary">{card.hint}</p>}
               </Card>
             )
@@ -144,7 +260,28 @@ export function SuperAdminDashboardPage() {
             <p className="mt-xs text-h1 text-text-primary">
               {formatMoney(dashboard.data?.revenue_snapshot?.currency, dashboard.data?.revenue_snapshot?.amount)}
             </p>
-            <p className="mt-xs text-caption text-text-secondary">Confirmed platform commission received.</p>
+            {dashboard.data.revenue_trend && (
+              <TrendLine
+                thisMonth={dashboard.data.revenue_trend.this_month}
+                lastMonth={dashboard.data.revenue_trend.last_month}
+                format={(n) => formatMoney('INR', n)}
+              />
+            )}
+            <p className="mt-xs text-caption text-text-secondary">Confirmed platform commission received, all time.</p>
+          </Card>
+          {/* Owed, not yet paid (user, 2026-09-10) — the Finance dashboard's "Outstanding to
+              immiNow" with no filters, which is where it is chased. */}
+          <Card
+            onClick={() => navigate('/admin/finance-dashboard')}
+            className="cursor-pointer transition-colors hover:bg-background"
+          >
+            <p className="text-caption text-text-secondary">Dues Outstanding</p>
+            <p className="mt-xs text-h1 text-text-primary">
+              {formatMoney(dashboard.data.dues_outstanding?.currency ?? 'INR', dashboard.data.dues_outstanding?.amount ?? 0)}
+            </p>
+            <p className="mt-xs text-caption text-text-secondary">
+              Platform commission owed by consultancies and institutes, not yet paid.
+            </p>
           </Card>
         </div>
 
@@ -198,6 +335,13 @@ export function SuperAdminDashboardPage() {
             </div>
           </Card>
         </div>
+
+        {dashboard.data.journey_funnel && dashboard.data.case_outcomes && (
+          <div className="grid grid-cols-1 gap-lg md:grid-cols-2">
+            <JourneyFunnelCard stages={dashboard.data.journey_funnel} />
+            <CaseOutcomesCard outcomes={dashboard.data.case_outcomes} />
+          </div>
+        )}
 
         {dashboard.data.applicants_by_organisation && (
           <div className="grid grid-cols-1 gap-lg md:grid-cols-2">

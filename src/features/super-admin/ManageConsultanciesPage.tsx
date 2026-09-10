@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { SelectField } from '@/components/SelectField'
 import { Settings } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
@@ -831,9 +832,12 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
 }
 
 export function ManageConsultanciesPage() {
+  // `?kind=consultancy|institute` pre-filters the list — the Overview's Consultancies and
+  // Institutes cards link here that way (2026-09-10).
+  const [searchParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const [tierFilter, setTierFilter] = useState('')
-  const [kindFilter, setKindFilter] = useState('')
+  const [kindFilter, setKindFilter] = useState(searchParams.get('kind') ?? '')
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [managingId, setManagingId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)

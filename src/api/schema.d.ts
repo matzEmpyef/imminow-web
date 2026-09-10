@@ -17196,17 +17196,52 @@ export interface components {
         };
         /** @description Super Admin Dashboard (build reference 1.23). */
         AdminDashboardSummary: {
-            /** @description Keys (2026-09-02, after the user asked why "Total Students" and "Active Aspirants/Applicants" disagreed): `total_consultancies`; `total_students` — student ACCOUNTS registered in the Sentpo app, the same count the Sentpo Users page shows; `stuck_onboarding` — student accounts that never got through onboarding (the directory's `onboarding != onboarded`), a to-do rather than a statistic; `study_abroad_students` / `study_home_students` — distinct students whose target countries include somewhere other than / their own country of residence (a student targeting both is in both; the four-way split lives on Supply & Demand); `active_aspirants` — Stage 1: open lead conversations, native AND imported by a consultancy (imported leads have no Sentpo account, which is exactly why this can exceed `total_students`); `active_applicants` — Stage 2 journeys in progress; `completed_cases` — cases closed successfully, the same count as the Enrolled slice (2026-09-10; plan_complete cases before); `total_colleges`; `total_courses`; `courses_missing_requirements`. Every card carries a one-line `hint` saying what it counts; the console links each key to the page where that population is managed. */
+            /** @description Keys (2026-09-02, after the user asked why "Total Students" and "Active Aspirants/Applicants" disagreed): `total_consultancies` — ACTIVE consultancies; `total_institutes` — active institutes (split 2026-09-10; one number used to hold both kinds, inactive included); `total_students` — student ACCOUNTS registered in the Sentpo app, the same count the Sentpo Users page shows; `stuck_onboarding` — student accounts that never got through onboarding (the directory's `onboarding != onboarded`), a to-do rather than a statistic; `study_abroad_students` — distinct students with a target country other than their own (the four-way split, home included, lives on Supply & Demand; `study_home_students` left the Overview 2026-09-10); `active_aspirants` — Stage 1: open lead conversations, native AND imported by a consultancy (imported leads have no Sentpo account, which is exactly why this can exceed `total_students`); `active_applicants` — Stage 2 journeys in progress; `completed_cases` — cases closed successfully, the same count as the Enrolled slice (2026-09-10; plan_complete cases before); `total_colleges`; `total_courses`; `median_days_to_enrol` — median days from a case opening to its successful close, null until one exists (`courses_missing_requirements` moved to Needs attention 2026-09-10). Cards where "added this month" is a real flow carry `trend`. Every card carries a one-line `hint` saying what it counts; the console links each key to the page where that population is managed. */
             stat_cards: {
                 key?: string;
                 label?: string;
-                value?: number;
+                /** @description Null when there is nothing to measure yet (median_days_to_enrol). */
+                value?: number | null;
+                /** @description Shown after the number, e.g. `days`. */
+                unit?: string | null;
                 /** @description One line under the number saying exactly what is counted. */
                 hint?: string | null;
+                /** @description Added this calendar month vs last month (2026-09-10) — new consultancies, institutes, students, leads, cases, successful closes. Absent on stock-only cards. */
+                trend?: {
+                    this_month: number;
+                    last_month: number;
+                } | null;
             }[];
             /** @description Pending course suggestions/corrections awaiting review. */
             pending_actions_count: number;
             revenue_snapshot?: components["schemas"]["Money"];
+            /** @description Confirmed platform commission (INR) this calendar month vs last (2026-09-10). */
+            revenue_trend?: {
+                this_month: number;
+                last_month: number;
+            };
+            /** @description Platform commission owed and not yet paid (2026-09-10) — the same figure as the Finance dashboard's unfiltered `running_total` (active entries' platform dues net of confirmed payments). */
+            dues_outstanding?: components["schemas"]["Money"];
+            /** @description Sentpo students by the furthest stage reached (2026-09-10): signed_up, onboarded, aspirant, applicant, enrolled. Each stage contains the ones after it, so counts only narrow; `pct_of_previous` is the share that reached this stage from the one before (null on the first, or when the previous is 0). Consultancy-created people (Channel B) have no Sentpo account and are not in it. */
+            journey_funnel?: {
+                /** @enum {string} */
+                stage: "signed_up" | "onboarded" | "aspirant" | "applicant" | "enrolled";
+                label: string;
+                count: number;
+                pct_of_previous: number | null;
+            }[];
+            /** @description Every closed case, all time (2026-09-10): successful (= Enrolled) vs not, and the close sub_reason of each unsuccessful one, most frequent first. */
+            case_outcomes?: {
+                closed: number;
+                successful: number;
+                failed: number;
+                failure_reasons: {
+                    /** @enum {string} */
+                    reason: "rejected_by_colleges" | "visa_refused" | "student_withdrew" | "lost_contact" | "other";
+                    label: string;
+                    count: number;
+                }[];
+            };
             /** @description New registrations per month by acquisition channel (A = Sentpo direct, B = consultancy-sourced, C = freelancer referral) over a fixed trailing 12-calendar-month window ending at "now" — always exactly 12 entries, zero-filled. Distinct people, each counted once in the month they arrived (user, 2026-09-10: count only new users onboarded, not users who start in Stage 1 and move to Stage 2). A and C are student accounts by created_at (C = signed up with a freelancer's referral code); B is everyone a consultancy creates, when it creates them — its own leads (Add Lead / Import Leads) and Create Applicant clients. A lead converting to a client (Sentpo or the consultancy's own) is the same person and is never counted again. Replaced the aspirants/applicants series (which counted records, not people) on 2026-09-10. */
             registrations_over_time?: {
                 /** @description YYYY-MM */
@@ -19867,6 +19902,12 @@ export interface components {
         SupplyDemandResponse: {
             /** Format: date-time */
             collecting_since: string;
+            /** @description Where applicants are actually heading (2026-09-10) — each case's `finalized_country` (set when a college is accepted), for current applicants (the Active Applicants rule, so the column adds up to that card) and everyone enrolled. Cases with no accepted college yet are grouped as "Not decided yet", listed last. */
+            applicant_destinations: {
+                country: string;
+                applicants: number;
+                enrolled: number;
+            }[];
             /** @description Abroad vs home at a glance (2026-09-02, user: "how many students are looking for study abroad or india"). DISTINCT students, so the four buckets sum to `total_students` — unlike `demand_by_country`, where a student appears once per target country. "Home" is each student's own resident country. */
             destination_split: {
                 /** @description Every target country is outside the student's country of residence. */

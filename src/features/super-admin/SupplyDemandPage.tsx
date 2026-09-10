@@ -10,6 +10,7 @@ import { formatDate } from '@/lib/time'
 
 type SupplyRow = NonNullable<ReturnType<typeof useSupplyDemand>['data']>['supply_by_country'][number]
 type MismatchRow = NonNullable<ReturnType<typeof useSupplyDemand>['data']>['mismatch'][number]
+type DestinationRow = NonNullable<ReturnType<typeof useSupplyDemand>['data']>['applicant_destinations'][number]
 
 // Weekly buckets (what the contract returns — docs/PROGRESS.md §4 Step 4) rolled up to monthly so
 // this reuses MonthlyBarChart exactly as every other dashboard chart does, rather than introducing
@@ -67,6 +68,12 @@ export function SupplyDemandPage() {
     { key: 'demand', header: 'Students wanting it', align: 'right', render: (r) => r.demand },
     { key: 'supply', header: 'Consultancies serving it', align: 'right', render: (r) => r.supply },
     { key: 'flag', header: '', render: (r) => <MismatchBadge row={r} /> },
+  ]
+
+  const destinationColumns: TableColumn<DestinationRow>[] = [
+    { key: 'country', header: 'Country', render: (r) => r.country },
+    { key: 'applicants', header: 'Applicants now', align: 'right', render: (r) => r.applicants },
+    { key: 'enrolled', header: 'Enrolled', align: 'right', render: (r) => r.enrolled },
   ]
 
   return (
@@ -129,6 +136,25 @@ export function SupplyDemandPage() {
             </div>
           </Card>
         </div>
+
+        {/* Where applicants are actually heading (user, 2026-09-10) — decided destinations, beside
+            the preferences above. */}
+        <Card>
+          <h2 className="text-h3 text-text-primary">Where Applicants Are Heading</h2>
+          <p className="text-caption text-text-secondary">
+            The country each case settled on once a college was accepted — current applicants and everyone enrolled.
+            Cases without an accepted college yet show as &quot;Not decided yet&quot;.
+          </p>
+          <div className="mt-sm">
+            <Table
+              bare
+              columns={destinationColumns}
+              rows={data.applicant_destinations}
+              rowKey={(r) => r.country}
+              emptyMessage="No applicants yet."
+            />
+          </div>
+        </Card>
 
         <Card>
           <h2 className="text-h3 text-text-primary">Signups Over Time</h2>
