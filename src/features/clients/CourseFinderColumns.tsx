@@ -3,7 +3,7 @@ import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import type { TableColumn } from '@/components/Table'
 import type { components } from '@/api/schema'
-import { formatCourseFee } from '@/lib/money'
+import { formatCourseFee, formatFeeApprox } from '@/lib/money'
 import type { SelectedPerson, ShortlistEntry } from './courseFinderState'
 
 type Course = components['schemas']['Course']
@@ -13,10 +13,10 @@ function formatFee(course: Course): string {
   return formatCourseFee(course.fee, course.fee_period)
 }
 
-function formatInrLakh(course: Course): string | null {
-  if (course.fee_normalized_inr == null) return null
-  if (course.fee?.currency === 'INR') return null
-  return `≈ ₹${(course.fee_normalized_inr / 100000).toFixed(1)}L`
+// The "≈" line in the consultancy's OWN currency (2026-09-10), converted server-side into
+// `fee_display` — it was a hardcoded "≈ ₹…L", meaningless to a consultancy outside India.
+function formatApproxFee(course: Course): string | null {
+  return formatFeeApprox(course.fee_display)
 }
 
 // The failed/borderline-rule detail line plan §4.1 asks for ("a red row reads 'IELTS band
@@ -149,7 +149,7 @@ export function buildCourseFinderColumns({
       render: (c) => (
         <div className="flex flex-col">
           <span>{formatFee(c)}</span>
-          {formatInrLakh(c) && <span className="text-caption text-text-secondary">{formatInrLakh(c)}</span>}
+          {formatApproxFee(c) && <span className="text-caption text-text-secondary">{formatApproxFee(c)}</span>}
         </div>
       ),
     },

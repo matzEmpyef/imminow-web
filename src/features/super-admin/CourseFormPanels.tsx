@@ -4,7 +4,8 @@ import { SelectField } from '@/components/SelectField'
 import { MultiSelect } from '@/components/MultiSelect'
 import { FieldLabel } from '@/components/FieldLabel'
 import type { components } from '@/api/schema'
-import { CURRENCIES, MONTHS, SELECT_CLASS, TEXTAREA_CLASS, type AptitudeReq, type EnglishReq } from './courseFormShared'
+import { MONTHS, SELECT_CLASS, TEXTAREA_CLASS, type AptitudeReq, type EnglishReq } from './courseFormShared'
+import { useCurrencyCodes } from '@/lib/currencies'
 import type { CourseFormValue } from './useCourseForm'
 import { useStudyLevels } from '@/queries/studyLevels'
 
@@ -203,6 +204,9 @@ export function CourseCampusIntakesPanel({
 }
 
 export function CourseFeesPanel({ hidden, form }: { hidden: boolean; form: CourseFormValue }) {
+  // A fee can be entered in any currency the rate table holds (2026-09-10) — a fixed six meant a
+  // Thai college's fee could not be entered in baht even after THB was added.
+  const currencyCodes = useCurrencyCodes(form.feeCurrency, form.effectiveAppFeeCurrency)
   return (
     <div className={panelClass(hidden)}>
       <div className="grid grid-cols-3 gap-sm">
@@ -218,7 +222,7 @@ export function CourseFeesPanel({ hidden, form }: { hidden: boolean; form: Cours
           value={form.feeCurrency}
           onChange={(e) => form.setFeeCurrency(e.target.value)}
         >
-          {CURRENCIES.map((currency) => (
+          {currencyCodes.map((currency) => (
             <option key={currency} value={currency}>
               {currency}
             </option>
@@ -247,7 +251,7 @@ export function CourseFeesPanel({ hidden, form }: { hidden: boolean; form: Cours
           value={form.effectiveAppFeeCurrency}
           onChange={(e) => form.onAppFeeCurrencyChange(e.target.value)}
         >
-          {CURRENCIES.map((currency) => (
+          {currencyCodes.map((currency) => (
             <option key={currency} value={currency}>
               {currency}
             </option>

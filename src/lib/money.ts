@@ -49,3 +49,21 @@ export function formatCourseFee(fee: MoneyLike | null | undefined, feePeriod?: s
   const period = feePeriod === 'per_year' ? '/yr' : ''
   return `${formatMoney(fee.currency, fee.amount)}${period}`
 }
+
+/**
+ * The "≈" companion for an amount converted into the viewer's own currency (2026-09-10) — e.g.
+ * "≈ THB 12,300". The SERVER converts (`approx` on money, `fee_display` on a course); this only
+ * formats. Null when there is nothing to show, so callers render nothing rather than a fallback.
+ */
+export function formatApprox(approx: MoneyLike | null | undefined): string | null {
+  if (!approx || approx.amount == null || !approx.currency) return null
+  return `≈ ${formatMoney(approx.currency, Math.round(approx.amount))}`
+}
+
+/** A course fee's "≈" — only when the server actually converted it into another currency. */
+export function formatFeeApprox(
+  feeDisplay: (MoneyLike & { approximate?: boolean | null }) | null | undefined,
+): string | null {
+  if (!feeDisplay?.approximate) return null
+  return formatApprox(feeDisplay)
+}

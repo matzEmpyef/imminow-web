@@ -18,7 +18,6 @@ export const MONTHS = [
   'November',
   'December',
 ]
-export const CURRENCIES = ['INR', 'USD', 'GBP', 'CAD', 'AUD', 'EUR']
 
 export const FORM_TABS = ['Basics', 'Campuses & Intakes', 'Fees', 'Entry Requirements', 'Flags'] as const
 export type FormTab = (typeof FORM_TABS)[number]

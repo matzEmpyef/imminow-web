@@ -6,7 +6,9 @@ import { TextField } from '@/components/TextField'
 import { SelectField } from '@/components/SelectField'
 import { useUpdateApplication, type AcceptCommissionBody } from '@/queries/clients'
 import { usePartnerColleges } from '@/queries/partnerColleges'
-import { MONTHS, CURRENCIES } from '@/features/super-admin/courseFormShared'
+import { MONTHS } from '@/features/super-admin/courseFormShared'
+import { useCurrencyCodes } from '@/lib/currencies'
+import { useMyConsultancy } from '@/queries/consultancy'
 import { formatMoney } from '@/lib/money'
 import type { components } from '@/api/schema'
 
@@ -26,7 +28,8 @@ const PAYER_LABELS: Record<PayerMethod, string> = {
  *
  * Which fields appear follows the payer method: college → the course fee prefilled, editable,
  * LOCKED to the course's own fee currency ("let it be in actual fee currency only"); applicant →
- * free amount + currency, INR by default; split → both. Course start prefills from the course's
+ * free amount + currency, the consultancy's own currency by default (INR until 2026-09-10);
+ * split → both. Course start prefills from the course's
  * nearest intake and stays editable.
  *
  * Deliberately absent: the platform's rate and cut. The tiered-visibility rule (round 2, same
@@ -98,7 +101,9 @@ export function AcceptCollegeModal({
   const [collegeAmount, setCollegeAmount] = useState('')
   const [collegeAmountTouched, setCollegeAmountTouched] = useState(false)
   const [studentAmount, setStudentAmount] = useState('')
-  const [studentCurrency, setStudentCurrency] = useState('INR')
+  const consultancyCurrency = useMyConsultancy().data?.display_currency ?? 'INR'
+  const [studentCurrency, setStudentCurrency] = useState(consultancyCurrency)
+  const currencyCodes = useCurrencyCodes(studentCurrency)
   const [startMonth, setStartMonth] = useState(defaultMonth)
   const [startYear, setStartYear] = useState(defaultYear)
 
@@ -205,7 +210,7 @@ export function AcceptCollegeModal({
                   onChange={(e) => setStudentAmount(e.target.value)}
                 />
                 <SelectField label="Currency" value={studentCurrency} onChange={(e) => setStudentCurrency(e.target.value)}>
-                  {CURRENCIES.map((c) => (
+                  {currencyCodes.map((c) => (
                     <option key={c} value={c}>
                       {c}
                     </option>

@@ -21,7 +21,7 @@ import { IconBadge } from '@/components/IconBadge'
 import { SuggestCorrectionButton } from '@/features/clients/SuggestCorrectionButton'
 import { useExams } from '@/queries/catalogSettings'
 import { useCollegeDetail } from '@/queries/adminColleges'
-import { formatCourseFee } from '@/lib/money'
+import { formatCourseFee, formatFeeApprox } from '@/lib/money'
 import { formatDate } from '@/lib/time'
 import type { components } from '@/api/schema'
 
@@ -264,6 +264,11 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
         </Fact>
         <Fact icon={<Wallet className="h-5 w-5" />} color="secondary" label="Tuition fee">
           {show(fee, 'fee.amount', 'Tuition fee', undefined, true)}
+          {/* The college's own fee stays the headline; this is the consultant's own currency
+              beside it when the two differ (2026-09-10). */}
+          {formatFeeApprox(course.fee_display) && (
+            <p className="text-caption font-normal text-text-secondary">{formatFeeApprox(course.fee_display)}</p>
+          )}
         </Fact>
         <Fact icon={<GraduationCap className="h-5 w-5" />} color="primary" label="Study mode">
           {show(

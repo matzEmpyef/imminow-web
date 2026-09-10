@@ -5,7 +5,8 @@ import { TextField } from '@/components/TextField'
 import { SelectField } from '@/components/SelectField'
 import { CountrySelect } from '@/components/CountrySelect'
 import { useCreatePrCommissionEntry } from '@/queries/clients'
-import { CURRENCIES } from '@/features/super-admin/courseFormShared'
+import { useCurrencyCodes } from '@/lib/currencies'
+import { useMyConsultancy } from '@/queries/consultancy'
 
 /**
  * PR cases have no colleges — the consultant records the applicant's agreed contribution
@@ -24,7 +25,10 @@ export function RecordPrContributionModal({
 }) {
   const create = useCreatePrCommissionEntry(clientId)
   const [amount, setAmount] = useState('')
-  const [currency, setCurrency] = useState('INR')
+  // Starts on the consultancy's own currency (2026-09-10) — was INR for everyone.
+  const consultancyCurrency = useMyConsultancy().data?.display_currency ?? 'INR'
+  const [currency, setCurrency] = useState(consultancyCurrency)
+  const currencyCodes = useCurrencyCodes(currency)
   const [country, setCountry] = useState(finalizedCountry ?? '')
   const [note, setNote] = useState('')
 
@@ -78,7 +82,7 @@ export function RecordPrContributionModal({
             onChange={(e) => setAmount(e.target.value)}
           />
           <SelectField label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)}>
-            {CURRENCIES.map((c) => (
+            {currencyCodes.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>

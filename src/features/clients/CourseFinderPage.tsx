@@ -16,6 +16,7 @@ import { useApplications, useAddApplication } from '@/queries/clients'
 import { useSuggestCourseToLead, useLeadMessages } from '@/queries/leads'
 import { usePersonPicker } from '@/lib/usePersonPicker'
 import { useCourseFinder } from '@/queries/courseFinder'
+import { useMyConsultancy } from '@/queries/consultancy'
 import { useCollegeDetail } from '@/queries/adminColleges'
 import type { components } from '@/api/schema'
 
@@ -58,7 +59,10 @@ export function CourseFinderPage() {
       ? { id: selectedLead.id, kind: 'lead' }
       : null
 
-  const feeMaxInr = state.feeMaxLakh ? Math.round(Number(state.feeMaxLakh) * 100000) : undefined
+  // Typed in the consultancy's own currency (2026-09-10) and converted server-side, with a small
+  // margin for courses priced in another currency — rates are set by hand, not live.
+  const feeCurrency = useMyConsultancy().data?.display_currency ?? 'INR'
+  const feeMax = state.feeMax ? Number(state.feeMax) : undefined
   const durationBucket = state.durationBucket ? DURATION_BUCKETS[state.durationBucket] : undefined
   // H12 fix (frontend review, 1 Sep 2026) — true once the consultant has done ANYTHING: picked an
   // applicant, searched, or set a filter. A bare page load (DEFAULT_STATE, no cached applicant)
@@ -69,7 +73,7 @@ export function CourseFinderPage() {
     state.country ||
     state.level ||
     state.fieldOfStudy.length ||
-    state.feeMaxLakh ||
+    state.feeMax ||
     state.durationBucket,
   )
   const courses = useCourseFinder(
@@ -79,7 +83,8 @@ export function CourseFinderPage() {
       country: state.country || undefined,
       level: state.level || undefined,
       fieldOfStudy: state.fieldOfStudy.length ? state.fieldOfStudy : undefined,
-      feeMaxInr: Number.isFinite(feeMaxInr) ? feeMaxInr : undefined,
+      feeMax: feeMax != null && Number.isFinite(feeMax) ? feeMax : undefined,
+      feeCurrency,
       durationMinMonths: durationBucket?.min,
       durationMaxMonths: durationBucket?.max,
       sort: state.sort || undefined,

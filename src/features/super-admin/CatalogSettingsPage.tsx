@@ -103,15 +103,6 @@ export function CatalogSettingsPage() {
   )
 }
 
-// The currencies a country can default to (2026-09-02). Every code the exchange-rate table
-// already holds plus the major source-market units — a country defaulting to a currency with no
-// rate would show its students every fee as nothing at all, so the list is deliberately closed
-// rather than a free-text field. INR is the platform's own fallback for a country nobody has set.
-const CURRENCY_OPTIONS = [
-  'AED', 'AUD', 'BDT', 'BRL', 'CAD', 'CHF', 'CNY', 'EGP', 'EUR', 'GBP', 'GHS', 'IDR', 'INR', 'JPY', 'KES',
-  'KRW', 'LKR', 'MAD', 'MXN', 'MYR', 'NGN', 'NPR', 'NZD', 'PHP', 'PKR', 'SAR', 'SEK', 'SGD', 'TRY', 'UGX',
-  'USD', 'VND', 'ZAR',
-]
 
 /**
  * Countries — the shared reference list, each country's default fee currency, and its editorial
@@ -309,9 +300,12 @@ function CountryActiveToggle({ row }: { row: CountrySetting }) {
 // more chrome than the decision deserves.
 function DefaultCurrencyCell({ row }: { row: CountrySetting }) {
   const update = useUpdateCountryCurrency()
-  const options = CURRENCY_OPTIONS.includes(row.default_currency)
-    ? CURRENCY_OPTIONS
-    : [row.default_currency, ...CURRENCY_OPTIONS]
+  // Only currencies the Exchange Rates tab holds (2026-09-10, was a fixed list of 33 codes, most
+  // without a rate): a default with no rate would give that country's users no "≈" anywhere. A
+  // currency added there shows up here straight away. INR is the fallback for a country nobody set.
+  const rates = useExchangeRates()
+  const codes = (rates.data ?? []).map((r) => r.currency).sort()
+  const options = codes.includes(row.default_currency) ? codes : [row.default_currency, ...codes]
   return (
     <StopPropagation className="flex items-center gap-xs">
       <CompactSelect

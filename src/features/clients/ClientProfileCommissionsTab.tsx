@@ -9,7 +9,7 @@ import { useClient, useCommissions } from '@/queries/clients'
 import { useDeleteInstallment } from '@/queries/commissionEntries'
 import { formatDate } from '@/lib/time'
 import { usePermission } from '@/lib/permissions'
-import { formatAmountOnly, formatMoneyAmount } from '@/lib/money'
+import { formatAmountOnly, formatApprox, formatMoneyAmount } from '@/lib/money'
 import { RecordInstallmentModal } from './RecordInstallmentModal'
 import { RecordPrContributionModal } from './RecordPrContributionModal'
 
@@ -21,10 +21,12 @@ function ExpectedVsReceived({
   received,
 }: {
   label: string
-  expected: { amount?: number | null; currency: string } | null | undefined
+  expected: { amount?: number | null; currency: string; approx?: { amount: number; currency: string } | null } | null | undefined
   received: { amount?: number | null; currency: string } | null | undefined
 }) {
   if (!expected) return null
+  // Shown in the currency it is collected in, with the consultancy's own beside it (2026-09-10).
+  const approx = formatApprox(expected.approx)
   const expectedAmount = expected.amount ?? 0
   const receivedAmount = received?.amount ?? 0
   const pct = expectedAmount > 0 ? Math.min(100, Math.round((receivedAmount / expectedAmount) * 100)) : 0
@@ -36,6 +38,7 @@ function ExpectedVsReceived({
         <span className="text-text-secondary">
           {formatAmountOnly(expected.currency, receivedAmount)} / {formatAmountOnly(expected.currency, expectedAmount)}{' '}
           {expected.currency}
+          {approx ? ` (${approx})` : ''}
           {settled ? ' · fully paid' : pct > 0 ? ` · ${pct}%` : ''}
         </span>
       </div>
@@ -145,6 +148,9 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
               <div key={inst.id} className="flex items-center justify-between gap-md text-body-sm">
                 <div>
                   <span className="font-medium text-text-primary">{formatMoneyAmount(inst.amount)}</span>
+                  {formatApprox(inst.amount.approx) && (
+                    <span className="text-text-secondary"> ({formatApprox(inst.amount.approx)})</span>
+                  )}
                   <span className="text-text-secondary">
                     {' '}
                     from {inst.source === 'student' ? 'applicant' : 'college'} · {formatDate(inst.received_on)}

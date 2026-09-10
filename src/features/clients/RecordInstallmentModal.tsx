@@ -4,7 +4,7 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { SelectField } from '@/components/SelectField'
 import { useRecordInstallment } from '@/queries/commissionEntries'
-import { CURRENCIES } from '@/features/super-admin/courseFormShared'
+import { useCurrencyCodes } from '@/lib/currencies'
 import { formatMoneyAmount } from '@/lib/money'
 import type { components } from '@/api/schema'
 
@@ -39,6 +39,8 @@ export function RecordInstallmentModal({
     (sources[0] === 'college' ? entry.expected_from_college?.currency : entry.expected_from_student?.currency) ?? 'INR'
   const [amount, setAmount] = useState('')
   const [currency, setCurrency] = useState(defaultCurrency)
+  // Every currency the rate table holds, not a fixed six (2026-09-10).
+  const currencyCodes = useCurrencyCodes(currency)
   const [receivedOn, setReceivedOn] = useState(new Date().toISOString().slice(0, 10))
   const [note, setNote] = useState('')
   const [receiptId, setReceiptId] = useState('')
@@ -104,7 +106,7 @@ export function RecordInstallmentModal({
             onChange={(e) => setAmount(e.target.value)}
           />
           <SelectField label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)}>
-            {CURRENCIES.map((c) => (
+            {currencyCodes.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>

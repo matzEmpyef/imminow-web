@@ -7,6 +7,7 @@ import { CountrySelect } from '@/components/CountrySelect'
 import { SearchSelect } from '@/components/SearchSelect'
 import { CompactSelect } from '@/components/CompactSelect'
 import { useCourseFields } from '@/queries/courseFinder'
+import { useMyConsultancy } from '@/queries/consultancy'
 import type { usePersonPicker } from '@/lib/usePersonPicker'
 import { DURATION_BUCKETS, type FinderState } from './courseFinderState'
 
@@ -34,6 +35,9 @@ export function CourseFinderFilters({
   personName,
 }: CourseFinderFiltersProps) {
   const { data: fields } = useCourseFields()
+  // The consultancy's own currency (2026-09-10) — the same one CourseFinderPage sends as
+  // filter[fee_currency]; a cached read, so the second call costs nothing.
+  const feeCurrency = useMyConsultancy().data?.display_currency ?? 'INR'
 
   return (
     <Card>
@@ -102,13 +106,20 @@ export function CourseFinderFilters({
           value={state.country}
           onChange={(country) => onChange({ country })}
         />
-        <TextField
-          label="Max fee (₹ lakh)"
-          type="number"
-          value={state.feeMaxLakh}
-          onChange={(e) => onChange({ feeMaxLakh: e.target.value })}
-          placeholder="e.g. 25"
-        />
+        <div className="flex flex-col gap-xs">
+          <TextField
+            label={`Max fee (${feeCurrency})`}
+            type="number"
+            value={state.feeMax}
+            onChange={(e) => onChange({ feeMax: e.target.value })}
+            placeholder="Any"
+          />
+          {/* Rates are set by hand, not live (user, 2026-09-10) — say so, since the margin can let
+              in a course that looks a little over the figure typed. */}
+          <p className="text-caption text-text-secondary">
+            Courses priced in another currency are converted, with a small margin as rates change.
+          </p>
+        </div>
         <SelectField
           id="cf-duration"
           label="Duration"

@@ -17,7 +17,10 @@ export interface CourseFinderFilters {
   // Multi-field (user decision, 2026-08-30) — empty/omitted = any field; comma-joined onto the
   // wire as one filter[field_of_study] value, the same idiom filter[country] already uses.
   fieldOfStudy?: string[]
-  feeMaxInr?: number
+  // In `feeCurrency` — the consultancy's own currency (2026-09-10). The server converts each
+  // course's fee into it, with a small margin for courses priced in another currency.
+  feeMax?: number
+  feeCurrency?: string
   // Duration-range bucket bounds, in months (2026-08-31, UAT item 3 — parity with Sentpo
   // Mobile's course search). Either or both may be set; either may be omitted for an open-ended
   // bucket ("Up to 1 year" has no min, "3+ years" has no max).
@@ -56,7 +59,10 @@ export function useCourseFinder(filters: CourseFinderFilters, hasFilters: boolea
       if (filters.country) filter.country = filters.country
       if (filters.level) filter.level = filters.level
       if (filters.fieldOfStudy?.length) filter.field_of_study = filters.fieldOfStudy.join(',')
-      if (filters.feeMaxInr) filter.fee_max = String(filters.feeMaxInr)
+      if (filters.feeMax) {
+        filter.fee_max = String(filters.feeMax)
+        filter.fee_currency = filters.feeCurrency ?? 'INR'
+      }
       if (filters.durationMinMonths != null) filter.duration_min_months = String(filters.durationMinMonths)
       if (filters.durationMaxMonths != null) filter.duration_max_months = String(filters.durationMaxMonths)
 
@@ -77,7 +83,7 @@ export function useCourseFinder(filters: CourseFinderFilters, hasFilters: boolea
             filters.country,
             filters.level,
             filters.fieldOfStudy?.length ? filters.fieldOfStudy : undefined,
-            filters.feeMaxInr,
+            filters.feeMax,
             // One facet even though a bucket can carry both bounds — same convention mobile's
             // own `_activeFacetCount` uses for the identical filter.
             filters.durationMinMonths ?? filters.durationMaxMonths,

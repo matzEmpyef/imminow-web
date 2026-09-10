@@ -29,7 +29,8 @@ export interface FinderState {
   // Multi-field (user decision, 2026-08-30) — empty = any field, same convention '' carried as a
   // string before this.
   fieldOfStudy: string[]
-  feeMaxLakh: string
+  // A plain amount in the consultancy's own currency (2026-09-10) — was ₹ lakh for everyone.
+  feeMax: string
   // Duration-range bucket key (2026-08-31, UAT item 3), same buckets Sentpo Mobile's filter
   // sheet offers — '' = any. Kept as a bucket KEY rather than raw min/max here so the SelectField
   // has a single value to bind to; DURATION_BUCKETS below is the one place that maps a key to
@@ -46,7 +47,7 @@ export const DEFAULT_STATE: FinderState = {
   country: '',
   level: '',
   fieldOfStudy: [],
-  feeMaxLakh: '',
+  feeMax: '',
   durationBucket: '',
   sort: '',
   eligibleOnly: true,

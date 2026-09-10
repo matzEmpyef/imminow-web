@@ -9,14 +9,28 @@ import { usePermissionChecker } from '@/lib/permissions'
 import { useCommission } from '@/queries/commission'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { formatDate } from '@/lib/time'
-import { formatMoney, formatMoneyAmount } from '@/lib/money'
+import { formatApprox, formatMoney, formatMoneyAmount } from '@/lib/money'
 import { RecordPlatformPaymentModal } from './RecordPlatformPaymentModal'
 import type { components } from '@/api/schema'
 
 type CommissionDue = components['schemas']['CommissionDue']
 type CommissionPayment = components['schemas']['CommissionPayment']
+type Money = components['schemas']['Money']
 
 const inr = formatMoneyAmount
+
+// Held in INR — mixed-currency agreements are summed through it, and immiNow collects its cut in
+// it — with the consultancy's own currency beneath when that differs (2026-09-10, user: "show the
+// currency in which it is collected and then give approx conversion").
+function InrAmount({ money }: { money: Money }) {
+  const approx = formatApprox(money.approx)
+  return (
+    <span className="inline-flex flex-col items-end">
+      <span>{formatMoneyAmount(money)}</span>
+      {approx && <span className="text-caption font-normal text-text-secondary">{approx}</span>}
+    </span>
+  )
+}
 
 const TABS = ['Active Cases', 'Payment History'] as const
 type Tab = (typeof TABS)[number]
@@ -165,7 +179,7 @@ export function CommissionDetailsPage() {
         <span className="capitalize">{due.payer_method === 'applicant' ? 'Applicant' : due.payer_method}</span>
       ),
     },
-    { key: 'expected', header: 'Expected', align: 'right', render: (due) => inr(due.expected_total) },
+    { key: 'expected', header: 'Expected', align: 'right', render: (due) => <InrAmount money={due.expected_total} /> },
     {
       key: 'received',
       header: 'Received',
@@ -174,7 +188,7 @@ export function CommissionDetailsPage() {
         const settled = (due.balance.amount ?? 0) <= 0
         return (
           <div className="flex items-center justify-end gap-sm">
-            <span>{inr(due.received_total)}</span>
+            <InrAmount money={due.received_total} />
             {settled ? (
               <Badge color="success">Paid</Badge>
             ) : (due.received_total.amount ?? 0) > 0 ? (
@@ -192,7 +206,9 @@ export function CommissionDetailsPage() {
       align: 'right',
       render: (due) => (
         <div className="flex items-center justify-end gap-sm">
-          <span className="font-medium">{inr(due.platform_due)}</span>
+          <span className="font-medium">
+            <InrAmount money={due.platform_due} />
+          </span>
           <span className="text-caption text-text-secondary">{due.rate_percent}%</span>
           {due.rate_source === 'fallback_default' && (
             // The 10% default applied because no Commission Rates row existed for this
@@ -234,6 +250,9 @@ export function CommissionDetailsPage() {
           <p className="mt-xs text-h2 text-text-primary">
             {formatMoney(data.currency, data.running_total)} running total
           </p>
+          {formatApprox(data.running_total_approx) && (
+            <p className="text-body-sm text-text-secondary">{formatApprox(data.running_total_approx)}</p>
+          )}
         </div>
 
         {payingDue && <RecordPlatformPaymentModal due={payingDue} onClose={() => setPayingDue(null)} />}
@@ -257,8 +276,9 @@ export function CommissionDetailsPage() {
             <div>
               <h2 className="text-h3 text-text-primary">Active Cases</h2>
               <p className="text-caption text-text-secondary">
-                One row per accepted case (or PR contribution). Mixed-currency agreements are shown INR-normalized;
-                per-source detail lives on each applicant&rsquo;s Commissions tab. This page is the one place the
+                One row per accepted case (or PR contribution). Amounts are held in INR, with your own currency
+                beneath where it differs (approximate — rates are set by hand); per-source detail, in the currency
+                each was agreed in, lives on each applicant&rsquo;s Commissions tab. This page is the one place the
                 platform&rsquo;s cut is visible.
                 {canRecordPayment && ' Click a case to record a payment against its due.'}
               </p>

@@ -8,7 +8,7 @@ import { Badge } from '@/components/Badge'
 import { CountryLabel, CountryLabelList } from '@/components/CountryLabel'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useClient, useApplications, useUpdateApplication } from '@/queries/clients'
-import { formatMoney } from '@/lib/money'
+import { formatFeeApprox, formatMoney } from '@/lib/money'
 import { AddApplicationModal } from './AddApplicationModal'
 import { AcceptCollegeModal } from './AcceptCollegeModal'
 import { RevertAcceptanceModal } from './RevertAcceptanceModal'
@@ -205,6 +205,7 @@ function ApplicationRow({
             )}{' '}
             ·{' '}
             {formatMoney(row.course.fee?.currency, row.course.fee?.amount)}
+            {formatFeeApprox(row.course.fee_display) && ` (${formatFeeApprox(row.course.fee_display)})`}
           </p>
         </div>
         <div className="flex items-center gap-sm">
