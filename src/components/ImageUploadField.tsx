@@ -28,6 +28,12 @@ export function ImageUploadField({ label, value, onChange, hint, disabled, requi
   const inputRef = useRef<HTMLInputElement>(null)
   const uploadMedia = useUploadMedia()
   const [error, setError] = useState<string | null>(null)
+  // The image address that failed to load, if any (2026-09-10: a consultancy logo pointing at a
+  // dead URL showed the browser's broken-image icon). Keyed by address, so uploading a new image
+  // clears it without any reset logic.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  const src = mediaUrl(value)
+  const broken = Boolean(value) && failedSrc === src
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -50,10 +56,15 @@ export function ImageUploadField({ label, value, onChange, hint, disabled, requi
         {hint && <p className="text-caption text-text-secondary">Ideal size: {hint}</p>}
       </div>
       <div className="flex items-center gap-sm">
-        {value ? (
+        {value && broken ? (
+          <div className="flex h-14 w-24 shrink-0 items-center justify-center rounded-md border border-dashed border-error px-xs text-center text-caption text-error">
+            Image unavailable
+          </div>
+        ) : value ? (
           <img
-            src={mediaUrl(value)}
+            src={src}
             alt=""
+            onError={() => setFailedSrc(src ?? null)}
             className="h-14 w-24 shrink-0 rounded-md border border-border bg-background object-cover"
           />
         ) : (
@@ -92,6 +103,9 @@ export function ImageUploadField({ label, value, onChange, hint, disabled, requi
         className="hidden"
       />
       {error && <span className="text-caption text-error">{error}</span>}
+      {broken && !error && (
+        <span className="text-caption text-error">This image couldn&rsquo;t be loaded. Upload a new one.</span>
+      )}
     </div>
   )
 }
