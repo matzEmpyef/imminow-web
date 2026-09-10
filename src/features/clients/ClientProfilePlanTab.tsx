@@ -2,13 +2,19 @@
 // Reworked 2026-09-09: a case runs SEVERAL PLANS, all of one kind.
 //
 // The "Case plan" / "College plans" split this file carried for a day is gone (user: "There is no
-// college plan, other plan or any other verity of plan. Just plan"). It made one plan privileged
-// and rendered the rest as one-line college cards, which is why a profile with three plans read as
-// a profile with one — the other two did not look like plans at all. Every plan is now the same
-// thing in the same list, expandable to its own step builder.
+// college plan, other plan or any other verity of plan. Just plan"). Every plan is the same thing.
+//
+// PLAN CARDS (user, 2026-09-10: "if there are multiple plans, it is difficult to understand there
+// are multiple plans"). Plans used to be stacked accordion rows, one open at a time — the open
+// plan's whole step builder landed between its row and the next, so the other plans sat a screen
+// further down and read as part of that plan rather than plans of their own. They are now a row of
+// cards above the builder: every plan visible at once, each with its progress, where it stands
+// and whether anything waits on the consultant, and the selected one's steps below.
 import { useState } from 'react'
+import { CheckCircle2, CircleDot, ClipboardCheck } from 'lucide-react'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
+import { Badge } from '@/components/Badge'
 import { AssignPlanModal } from '@/features/clients/AssignPlanModal'
 import { PlanStepBuilder } from '@/features/clients/PlanStepBuilder'
 import { ErrorState, Skeleton } from '@/components/QueryState'
@@ -17,6 +23,67 @@ import { usePermission } from '@/lib/permissions'
 import type { components } from '@/api/schema'
 
 type Plan = components['schemas']['Plan']
+
+/** What a plan card says about a plan, from its steps. */
+function planStanding(plan: Plan) {
+  const steps = [...plan.steps].sort((a, b) => a.position - b.position)
+  const total = steps.length
+  const done = steps.filter((s) => s.status === 'done').length
+  const active = steps.find((s) => s.status === 'active')
+  // A step the student has submitted and nobody has reviewed yet — the one thing on the card that
+  // asks the consultant to act.
+  const needsReview = steps.some((s) => s.status === 'active' && s.submitted_at)
+  const where =
+    total === 0
+      ? 'No steps yet'
+      : done === total
+        ? 'All steps done'
+        : active
+          ? `Now: ${active.title}`
+          : 'Not started'
+  return { total, done, where, needsReview, complete: total > 0 && done === total }
+}
+
+function PlanCard({ plan, selected, onSelect }: { plan: Plan; selected: boolean; onSelect: () => void }) {
+  const { total, done, where, needsReview, complete } = planStanding(plan)
+  const pct = total ? Math.round((done / total) * 100) : 0
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={`flex min-w-0 flex-col gap-sm rounded-lg border p-md text-left transition-colors ${
+        selected ? 'border-2 border-primary bg-primary/5 shadow-card' : 'border-border bg-surface hover:border-primary'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-sm">
+        <span className="min-w-0 text-body font-medium text-text-primary">{plan.name}</span>
+        {needsReview ? (
+          <Badge color="warning" className="shrink-0 gap-xs">
+            <ClipboardCheck className="h-3 w-3" aria-hidden />
+            Needs review
+          </Badge>
+        ) : complete ? (
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-success" aria-label="Complete" />
+        ) : null}
+      </div>
+      <div className="flex flex-col gap-xs">
+        <div className="h-1.5 overflow-hidden rounded-full bg-background">
+          <div className={`h-1.5 rounded-full ${complete ? 'bg-success' : 'bg-primary'}`} style={{ width: `${pct}%` }} />
+        </div>
+        <div className="flex items-center justify-between gap-sm text-caption">
+          <span className="flex min-w-0 items-center gap-xs text-text-secondary">
+            {!complete && total > 0 && <CircleDot className="h-3 w-3 shrink-0 text-primary" aria-hidden />}
+            <span className="truncate">{where}</span>
+          </span>
+          <span className="shrink-0 tabular-nums text-text-secondary">
+            {done} of {total} steps
+          </span>
+        </div>
+      </div>
+    </button>
+  )
+}
 
 export function PlanTab({
   clientId,
@@ -32,21 +99,23 @@ export function PlanTab({
   const plans = usePlans(clientId)
   const [showAddPlan, setShowAddPlan] = useState(false)
   const canAssignTemplate = usePermission('clients.assign_template')
-  // Which plan is open. Deep-linking to a step (Activity's Step Approvals) opens whichever plan
-  // holds it; otherwise the first plan is open, because a case with one plan should not make the
-  // consultant click to see it.
-  const [openPlanId, setOpenPlanId] = useState<string | null>(null)
+  // Which plan is shown. Deep-linking to a step (Activity's Step Approvals) opens whichever plan
+  // holds it; otherwise the plan Overview pointed at, otherwise the first. One is always shown.
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
 
   if (plans.isLoading) return <Skeleton className="h-24 rounded-lg" />
   if (plans.isError) return <ErrorState message="Could not load this case's plans." onRetry={() => plans.refetch()} />
 
   const items: Plan[] = plans.data?.items ?? []
   const summary = plans.data?.summary
-  const deepLinkedPlan = initialStepId
-    ? items.find((p) => p.steps.some((s) => s.id === initialStepId))
-    : undefined
-  const activePlanId =
-    openPlanId ?? deepLinkedPlan?.id ?? items.find((p) => p.id === initialPlanId)?.id ?? items[0]?.id ?? null
+  const deepLinkedPlan = initialStepId ? items.find((p) => p.steps.some((s) => s.id === initialStepId)) : undefined
+  const selectedPlan =
+    items.find((p) => p.id === selectedPlanId) ??
+    deepLinkedPlan ??
+    items.find((p) => p.id === initialPlanId) ??
+    items[0] ??
+    null
+  const multiple = items.length > 1
 
   return (
     <div className="flex flex-col gap-lg">
@@ -62,13 +131,18 @@ export function PlanTab({
         </Card>
       )}
 
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-h3 text-text-primary">
-          {items.length === 1 ? 'Plan' : `Plans (${items.length})`}
-        </h2>
+      <div className="flex items-baseline justify-between gap-md">
+        <div>
+          <h2 className="text-h3 text-text-primary">{multiple ? `${items.length} plans` : 'Plan'}</h2>
+          {multiple && (
+            <p className="text-body-sm text-text-secondary">
+              This case runs its plans side by side. Pick one to see its steps.
+            </p>
+          )}
+        </div>
         <div className="flex items-baseline gap-md">
-          {summary?.plan_progress && (
-            <p className="text-body-sm tabular-nums text-text-secondary">{summary.plan_progress} steps done</p>
+          {summary?.plan_progress && multiple && (
+            <p className="text-body-sm tabular-nums text-text-secondary">{summary.plan_progress} steps done overall</p>
           )}
           {canAssignTemplate && items.length > 0 && (
             <Button variant="secondary" onClick={() => setShowAddPlan(true)}>
@@ -90,31 +164,44 @@ export function PlanTab({
           {canAssignTemplate && <Button onClick={() => setShowAddPlan(true)}>Add a plan</Button>}
         </Card>
       ) : (
-        <div className="flex flex-col gap-md">
-          {items.map((plan) => {
-            const isOpen = plan.id === activePlanId
-            return (
-              <section key={plan.id} className="flex flex-col gap-sm">
-                <button
-                  type="button"
-                  onClick={() => setOpenPlanId(isOpen ? null : plan.id)}
-                  aria-expanded={isOpen}
-                  className="flex items-center justify-between rounded-lg border border-border bg-surface px-md py-sm text-left hover:border-primary"
-                >
-                  <span className="text-body font-medium text-text-primary">{plan.name}</span>
-                  <span className="text-body-sm tabular-nums text-text-secondary">{plan.progress}</span>
-                </button>
-                {isOpen && (
-                  <PlanStepBuilder
-                    clientId={clientId}
-                    plan={plan}
-                    initialStepId={deepLinkedPlan?.id === plan.id ? initialStepId : undefined}
-                  />
+        <>
+          {multiple && (
+            <div className="grid grid-cols-1 gap-md sm:grid-cols-2 lg:grid-cols-3" role="group" aria-label="Plans">
+              {items.map((plan) => (
+                <PlanCard
+                  key={plan.id}
+                  plan={plan}
+                  selected={plan.id === selectedPlan?.id}
+                  onSelect={() => setSelectedPlanId(plan.id)}
+                />
+              ))}
+            </div>
+          )}
+
+          {selectedPlan && (
+            <section className="flex flex-col gap-sm">
+              {/* Names the plan the steps below belong to — with several plans, the one thing a
+                  consultant must never have to guess. */}
+              <div className="flex items-baseline justify-between gap-md border-b border-border pb-xs">
+                <h3 className="text-body font-medium text-text-primary">
+                  {multiple && <span className="text-text-secondary">Steps in </span>}
+                  {selectedPlan.name}
+                </h3>
+                {selectedPlan.progress && (
+                  <span className="text-body-sm tabular-nums text-text-secondary">{selectedPlan.progress} steps done</span>
                 )}
-              </section>
-            )
-          })}
-        </div>
+              </div>
+              {/* Keyed by plan: the builder picks its selected step once, on mount, so switching
+                  plans must start it afresh rather than keep the previous plan's step selected. */}
+              <PlanStepBuilder
+                key={selectedPlan.id}
+                clientId={clientId}
+                plan={selectedPlan}
+                initialStepId={deepLinkedPlan?.id === selectedPlan.id ? initialStepId : undefined}
+              />
+            </section>
+          )}
+        </>
       )}
 
       {showAddPlan && <AssignPlanModal clientId={clientId} onClose={() => setShowAddPlan(false)} />}
