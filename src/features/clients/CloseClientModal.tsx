@@ -12,13 +12,14 @@ const DID_NOT_GO: CloseSubReason[] = ['visa_refused', 'student_withdrew', 'lost_
 /**
  * Closing a case (user-requested; mirrors CloseLeadModal). Since 2026-09-09 the OUTCOME IS
  * DERIVED, never chosen — a consultancy can't close as a failure to dodge the commission, or
- * claim success without an accepted college. This modal's job is to make that derivation visible
- * BEFORE the consultant commits, because the same button now moves money.
+ * claim success without the thing that earns it. This modal's job is to make that derivation
+ * visible BEFORE the consultant commits, because the same button now moves money.
  *
- * It also says how to GET to a success (user, 2026-09-10: "mention these things — how to close
- * successfully"): without an accepted college the dropdown still lists Success, greyed out, and a
- * note points at the Applications tab where a college is marked Accepted. With one, it warns that
- * an accepted case can still fail if the student doesn't go.
+ * What earns a success depends on the case type (2026-09-10): a student case needs a college
+ * marked Accepted; a PR case, which has no colleges, needs the applicant's contribution recorded.
+ * Without it the dropdown still lists Success, greyed out, and a note says how to get there
+ * (user: "mention these things — how to close successfully"). With it, a note warns that the case
+ * can still fail if the student doesn't go.
  *
  * Distinct from Raise an Issue, which freezes the case for platform mediation instead of ending
  * it: "the student wouldn't cooperate" is an accusation, not an outcome, and doesn't belong here.
@@ -26,24 +27,36 @@ const DID_NOT_GO: CloseSubReason[] = ['visa_refused', 'student_withdrew', 'lost_
 export function CloseClientModal({
   clientId,
   clientName,
+  caseType,
   hasAcceptedCollege,
+  contributionRecorded,
+  canOpenCommissions,
   onClose,
 }: {
   clientId: string
   clientName: string
+  caseType: 'student' | 'pr'
   hasAcceptedCollege: boolean
+  contributionRecorded: boolean
+  /** Whether this consultant can see the Commissions tab, where a PR contribution is recorded. */
+  canOpenCommissions: boolean
   onClose: () => void
 }) {
   const closeClient = useCloseClient()
   const [reason, setReason] = useState('')
   const [subReason, setSubReason] = useState<CloseSubReason | ''>('')
 
+  const isPr = caseType === 'pr'
+  const earned = isPr ? contributionRecorded : hasAcceptedCollege
   const didNotGo = subReason !== '' && DID_NOT_GO.includes(subReason)
-  const outcome: 'success' | 'failure' = hasAcceptedCollege && !didNotGo ? 'success' : 'failure'
+  const outcome: 'success' | 'failure' = earned && !didNotGo ? 'success' : 'failure'
   // A failure has to say why. A success doesn't need one, and asking for it would invite a
   // consultant to pick something that silently turns their own success into a failure.
-  const subReasonRequired = !hasAcceptedCollege
+  const subReasonRequired = !earned
   const canSubmit = Boolean(reason.trim()) && (!subReasonRequired || subReason !== '')
+  // A PR case was never sent to colleges, so "rejected by the colleges" can't be what happened.
+  const subReasons = isPr ? CLOSE_SUB_REASONS.filter((r) => r.value !== 'rejected_by_colleges') : CLOSE_SUB_REASONS
+  const money = isPr ? 'contribution' : 'commission'
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -106,21 +119,32 @@ export function CloseClientModal({
         </p>
 
         {/* How a case closes as a success — the answer to "why is Success greyed out?". */}
-        {!hasAcceptedCollege && (
+        {!earned && (
           <div className="rounded-md border border-border bg-background px-3 py-sm text-body-sm text-text-secondary">
             <p className="font-medium text-text-primary">Want to close this as a success?</p>
-            <p className="mt-xs">
-              A case closes as a success only once a college is marked <strong>Accepted</strong>. In the Applications
-              tab, move the college the student is joining to Offer Received, then choose Accept&hellip; and record the
-              commission. Come back here afterwards.
-            </p>
-            <Link
-              to={`/clients/${clientId}?tab=Applications`}
-              onClick={onClose}
-              className="mt-xs inline-block font-medium text-primary hover:underline"
-            >
-              Go to Applications
-            </Link>
+            {isPr ? (
+              <p className="mt-xs">
+                A PR case closes as a success only once the applicant&rsquo;s contribution is recorded.
+                {canOpenCommissions
+                  ? ' Record it in the Commissions tab, then come back here.'
+                  : ' Ask an admin to record it in the Commissions tab, then come back here.'}
+              </p>
+            ) : (
+              <p className="mt-xs">
+                A case closes as a success only once a college is marked <strong>Accepted</strong>. In the Applications
+                tab, move the college the student is joining to Offer Received, then choose Accept&hellip; and record
+                the commission. Come back here afterwards.
+              </p>
+            )}
+            {(!isPr || canOpenCommissions) && (
+              <Link
+                to={`/clients/${clientId}?tab=${isPr ? 'Commissions' : 'Applications'}`}
+                onClick={onClose}
+                className="mt-xs inline-block font-medium text-primary hover:underline"
+              >
+                {isPr ? 'Go to Commissions' : 'Go to Applications'}
+              </Link>
+            )}
           </div>
         )}
 
@@ -134,28 +158,29 @@ export function CloseClientModal({
             onChange={(e) => setSubReason(e.target.value as CloseSubReason | '')}
             className="rounded-md border border-border bg-surface px-3 py-sm text-body"
           >
-            {hasAcceptedCollege ? (
-              <option value="">Success — the student is going</option>
+            {earned ? (
+              <option value="">{isPr ? 'Success — the case went through' : 'Success — the student is going'}</option>
             ) : (
               <>
                 <option value="">Select one…</option>
                 {/* Listed so the consultant sees the option exists; the note above says how to
                     reach it. Not selectable — the outcome is derived, never picked. */}
                 <option value="__success" disabled>
-                  Success — needs an accepted college
+                  {isPr ? 'Success — needs a recorded contribution' : 'Success — needs an accepted college'}
                 </option>
               </>
             )}
-            {CLOSE_SUB_REASONS.map((r) => (
+            {subReasons.map((r) => (
               <option key={r.value} value={r.value}>
                 {r.label}
               </option>
             ))}
           </select>
-          {hasAcceptedCollege && (
+          {earned && (
             <p className="text-caption text-text-secondary">
-              An accepted case can still fail. If the visa was refused, the student withdrew, or you lost contact,
-              choose that here — it closes as a failure and the commission is reversed.
+              {isPr ? 'A case with a recorded contribution' : 'An accepted case'} can still fail. If the visa was
+              refused, the {isPr ? 'applicant' : 'student'} withdrew, or you lost contact, choose that here — it closes
+              as a failure and the {money} is reversed.
             </p>
           )}
         </div>
@@ -169,16 +194,20 @@ export function CloseClientModal({
         >
           {outcome === 'success' ? (
             <>
-              This closes as a <strong>success</strong>. The commission on the accepted college becomes due.
+              This closes as a <strong>success</strong>.{' '}
+              {isPr ? 'The recorded contribution becomes due.' : 'The commission on the accepted college becomes due.'}
             </>
-          ) : hasAcceptedCollege ? (
+          ) : earned ? (
             <>
-              This closes as a <strong>failure</strong>. The student was accepted but isn&rsquo;t travelling, so the
-              commission is reversed.
+              This closes as a <strong>failure</strong>.{' '}
+              {isPr
+                ? 'The contribution was recorded but the case didn’t go through, so it is reversed.'
+                : 'The student was accepted but isn’t travelling, so the commission is reversed.'}
             </>
           ) : (
             <>
-              This closes as a <strong>failure</strong>. No college was accepted, so no commission arises.
+              This closes as a <strong>failure</strong>.{' '}
+              {isPr ? 'No contribution was recorded, so no commission arises.' : 'No college was accepted, so no commission arises.'}
             </>
           )}
         </p>

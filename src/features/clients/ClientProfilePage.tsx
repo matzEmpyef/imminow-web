@@ -195,7 +195,10 @@ export function ClientProfilePage() {
           <CloseClientModal
             clientId={id}
             clientName={`${data.student.first_name} ${data.student.last_name}`}
+            caseType={data.case_type}
             hasAcceptedCollege={(data.case_summary?.accepted ?? 0) > 0}
+            contributionRecorded={data.case_summary?.contribution_recorded ?? false}
+            canOpenCommissions={canSeeCommissions}
             onClose={() => setShowCloseCase(false)}
           />
         )}

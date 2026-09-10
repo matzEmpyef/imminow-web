@@ -303,6 +303,8 @@ export function useCreatePrCommissionEntry(clientId: string) {
       return data
     },
     onSuccess: () => {
+      // case_summary.contribution_recorded flips, and Close Case reads it (2026-09-10).
+      queryClient.invalidateQueries({ queryKey: ['clients', clientId] })
       queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'commissions'] })
       queryClient.invalidateQueries({ queryKey: ['commission'] })
       queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] })

@@ -9075,6 +9075,7 @@ export interface paths {
         /**
          * Close a client's case. Consultancy staff only — until 2026-09-09 this carried `requireAuth` alone, so any logged-in caller holding a journey id could end someone's case.
          *     THE OUTCOME IS DERIVED, NEVER CHOSEN (2026-09-09). Success means an accepted application exists and the consultancy is not claiming the student failed to go; anything else is a failure and needs a `sub_reason`. A consultancy therefore cannot close as a failure to dodge the commission, nor claim success without an acceptance.
+         *     A PR case has no colleges, so its counterpart to an accepted application is the applicant's recorded contribution (POST /clients/{id}/commission-entry, 2026-09-10). Before this a PR case could never close as a success, and closing one reversed the contribution the consultant had recorded.
          *     CLOSE IS THE MONEY EVENT. The commission entry was created back at acceptance, because that is when the amounts became knowable, but an entry with no `recognized_at` is not revenue and appears in no finance report. A success close stamps `recognized_at`; a failure close REVERSES the entry — a deliberately different status from `voided`, because voided means the acceptance itself was wrong while reversed means it was real and the student still never went, and finance has to tell those apart.
          *     Never automatic. No timer, inactivity rule or stale-after-N-days sweep ever closes a case (user, 2026-09-09) — every detection signal produces a queue row for a person to work, because an auto-close would move money on a case nobody looked at and end a student's case with no one able to say why.
          *     409 `case_in_dispute` if the case is frozen: a case under mediation is the platform's to end. Distinct from Transfer Applicant (sets closed_switched) and Reopen Plan.
@@ -17783,7 +17784,7 @@ export interface components {
             readonly previous_journey_id?: components["schemas"]["UUID"];
             readonly is_returning?: boolean;
             /**
-             * @description How the case ended, DERIVED at close from whether a college was accepted and whether the student actually went — never chosen by the consultancy (2026-09-09). Null while live.
+             * @description How the case ended, DERIVED at close from whether a college was accepted (for a PR case, whether the applicant's contribution was recorded) and whether the student actually went — never chosen by the consultancy (2026-09-09). Null while live.
              * @enum {string|null}
              */
             readonly outcome?: "success" | "failure" | null;
@@ -18104,6 +18105,8 @@ export interface components {
             offers?: number;
             accepted?: number;
             rejected?: number;
+            /** @description PR cases only (2026-09-10) — the applicant's contribution has been recorded (POST /clients/{id}/commission-entry). It is a PR case's counterpart to `accepted`, since a PR case has no colleges, and it is what lets a PR case close as a success. Always false for a student case. */
+            contribution_recorded?: boolean;
             /** @description Every step on every plan is done and at least one college has not answered. A real and long-lived state — the consultancy's work for a college finishes long before the college decides — and the one the student's plan screen must name outright, because a wall of ticks reads as "finished" when it actually means "waiting". */
             waiting_on_colleges?: boolean;
         };
