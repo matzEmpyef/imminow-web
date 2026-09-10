@@ -1,6 +1,7 @@
 // Split out of ConsultancyProfilePage.tsx (Phase 3 plan, Tier B2, 2026-09-03).
-// Full width, Membership beside Seats and Billing (user, 2026-09-10: "cards in the tabs, use full
-// width. make the UI/UX better for all the tabs").
+// Full width (user, 2026-09-10: "cards in the tabs, use full width"): Seats and Billing side by
+// side in the first row, Membership full width below (user, same day: "Seat and billing in first
+// row and membership below").
 import { CheckCircle2 } from 'lucide-react'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
@@ -45,8 +46,27 @@ export function SubscriptionTab({ consultancy }: { consultancy: Consultancy }) {
         Your current plan, what it includes, and how many of your seats are in use.
       </p>
 
-      <div className="grid grid-cols-1 items-start gap-md lg:grid-cols-2">
-        <Card className="lg:row-span-2">
+      <div className="grid grid-cols-1 items-stretch gap-md lg:grid-cols-2">
+        <Card>
+          <div className="flex items-center justify-between gap-md">
+            <h2 className="text-h3 text-text-primary">Seats</h2>
+            <span className="text-body-sm tabular-nums text-text-secondary">
+              {seatsUsed} of {consultancy.seat_limit} used
+            </span>
+          </div>
+          <div className="mt-sm h-2 overflow-hidden rounded-full bg-background">
+            <div className={`h-2 rounded-full ${seatPct >= 90 ? 'bg-warning' : 'bg-primary'}`} style={{ width: `${seatPct}%` }} />
+          </div>
+          <p className="mt-sm text-caption text-text-secondary">
+            Each active employee account counts as one seat. Platform Admin adjusts your seat limit.
+          </p>
+        </Card>
+
+        <BillingCard consultancy={consultancy} />
+      </div>
+
+      <div>
+        <Card>
           <div className="flex items-center justify-between gap-md">
             <h2 className="text-h3 text-text-primary">Membership</h2>
             <Badge color={tier === 'ultimate' ? 'primary' : tier === 'business' ? 'secondary' : 'info'}>
@@ -54,7 +74,7 @@ export function SubscriptionTab({ consultancy }: { consultancy: Consultancy }) {
             </Badge>
           </div>
           <p className="mt-xs text-caption text-text-secondary">What your plan includes</p>
-          <ul className="mt-sm grid grid-cols-1 gap-x-md gap-y-xs sm:grid-cols-2">
+          <ul className="mt-sm grid grid-cols-1 gap-x-md gap-y-xs sm:grid-cols-2 lg:grid-cols-3">
             {included.map((feature) => (
               <li key={feature} className="flex items-start gap-xs text-body-sm text-text-primary">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />
@@ -87,23 +107,6 @@ export function SubscriptionTab({ consultancy }: { consultancy: Consultancy }) {
             </div>
           )}
         </Card>
-
-        <Card>
-          <div className="flex items-center justify-between gap-md">
-            <h2 className="text-h3 text-text-primary">Seats</h2>
-            <span className="text-body-sm tabular-nums text-text-secondary">
-              {seatsUsed} of {consultancy.seat_limit} used
-            </span>
-          </div>
-          <div className="mt-sm h-2 overflow-hidden rounded-full bg-background">
-            <div className={`h-2 rounded-full ${seatPct >= 90 ? 'bg-warning' : 'bg-primary'}`} style={{ width: `${seatPct}%` }} />
-          </div>
-          <p className="mt-sm text-caption text-text-secondary">
-            Each active employee account counts as one seat. Platform Admin adjusts your seat limit.
-          </p>
-        </Card>
-
-        <BillingCard consultancy={consultancy} />
       </div>
     </>
   )
