@@ -10,6 +10,7 @@ import {
   FileCheck2,
   GraduationCap,
   Languages,
+  MapPin,
   Receipt,
   Wallet,
 } from 'lucide-react'
@@ -19,6 +20,7 @@ import { Badge } from '@/components/Badge'
 import { IconBadge } from '@/components/IconBadge'
 import { SuggestCorrectionButton } from '@/features/clients/SuggestCorrectionButton'
 import { useExams } from '@/queries/catalogSettings'
+import { useCollegeDetail } from '@/queries/adminColleges'
 import { formatCourseFee } from '@/lib/money'
 import { formatDate } from '@/lib/time'
 import type { components } from '@/api/schema'
@@ -104,6 +106,12 @@ function RequirementRow({ label, children }: { label: string; children: ReactNod
 export function CourseDetailModal({ course, onClose }: { course: Course; onClose: () => void }) {
   const exams = useExams()
   const examName = (examId: string) => exams.data?.find((e) => e.id === examId)?.name ?? examId
+  // The college, for two collected facts the Course row can't show alone (user, 2026-09-10: "I
+  // told you to display all the details collected"): WHICH campuses offer the course (the row only
+  // carries campus_ids), and the college's website as the fallback link when the course has no
+  // page of its own.
+  const college = useCollegeDetail(course.college_id ?? undefined)
+  const offeredCampuses = (college.data?.campuses ?? []).filter((c) => (course.campus_ids ?? []).includes(c.id))
 
   // Every missing field rendered below registers here, so the count in the notice at the top can
   // never disagree with what the popup actually shows as missing.
@@ -189,23 +197,39 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
             </>
           )}
         </p>
-        <div className="mt-xs flex flex-wrap items-center gap-md">
-          {course.course_url ? (
-            <a
-              href={course.course_url}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex h-10 items-center gap-xs rounded-full bg-primary px-md text-button font-medium text-text-on-primary shadow-card hover:opacity-90"
-            >
-              Course website
-              <ExternalLink className="h-4 w-4" aria-hidden />
-            </a>
-          ) : (
+      </div>
+      {/* Right side of the header, as on the college popup. The course's own page when it has one;
+          otherwise the college's website (a real link, labelled as the college's), with the
+          missing course page offered for + Add underneath. */}
+      <div className="flex shrink-0 flex-col items-end gap-xs self-center">
+        {course.course_url ? (
+          <a
+            href={course.course_url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-10 items-center gap-xs rounded-full bg-primary px-md text-button font-medium text-text-on-primary shadow-card hover:opacity-90"
+          >
+            Course page
+            <ExternalLink className="h-4 w-4" aria-hidden />
+          </a>
+        ) : (
+          <>
+            {college.data?.website && (
+              <a
+                href={college.data.website}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-10 items-center gap-xs rounded-full border border-primary px-md text-button font-medium text-primary hover:bg-primary/10"
+              >
+                College website
+                <ExternalLink className="h-4 w-4" aria-hidden />
+              </a>
+            )}
             <span className="inline-flex items-center gap-xs text-body-sm text-text-primary">
-              Course website: {gap('course_url', 'Course website')}
+              Course page: {gap('course_url', 'Course page URL')}
             </span>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -230,7 +254,19 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
           {show(course.delivery ? (DELIVERY_LABELS[course.delivery] ?? course.delivery) : null, 'delivery', 'Delivery')}
         </Fact>
         <Fact icon={<Clock className="h-5 w-5" />} color="success" label="Duration">
-          {show(course.duration, 'duration', 'Duration')}
+          {/* The display text, plus the normalised months (used by filters) when the text doesn't
+              already say it, e.g. "2 years" becomes "2 years (24 months)". */}
+          {show(
+            course.duration
+              ? course.duration_months != null && !course.duration.includes(String(course.duration_months))
+                ? `${course.duration} (${course.duration_months} months)`
+                : course.duration
+              : course.duration_months != null
+                ? `${course.duration_months} months`
+                : null,
+            'duration',
+            'Duration',
+          )}
         </Fact>
         <Fact icon={<Languages className="h-5 w-5" />} color="info" label="Language">
           {show(course.language, 'language', 'Language')}
@@ -264,6 +300,15 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
           ) : (
             gap('application_fee.amount', 'Application fee', 'Not provided', true)
           )}
+        </Fact>
+        <Fact icon={<MapPin className="h-5 w-5" />} color="info" label="Campuses">
+          {(course.campus_ids ?? []).length === 0
+            ? gap('campus_ids', 'Campuses', 'None linked')
+            : offeredCampuses.length > 0
+              ? offeredCampuses.map((c) => [c.city, c.province_state].filter(Boolean).join(', ') || c.country).join(' · ')
+              : college.isLoading
+                ? 'Loading…'
+                : `${(course.campus_ids ?? []).length} linked`}
         </Fact>
         <Fact icon={<Award className="h-5 w-5" />} color="primary" label="Scholarship">
           {course.scholarship_available
