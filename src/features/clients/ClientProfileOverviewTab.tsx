@@ -1,7 +1,7 @@
 // Split out of ClientProfilePage.tsx (Phase 3 plan, Tier B1, 2026-09-03) — pure movement, no logic change.
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Pencil } from 'lucide-react'
+import { Mail, Phone } from 'lucide-react'
 import { Card } from '@/components/Card'
 import { CompactSelect } from '@/components/CompactSelect'
 import { Button } from '@/components/Button'
@@ -9,7 +9,7 @@ import { Badge } from '@/components/Badge'
 import { TagEditorMenu } from '@/components/TagEditorMenu'
 import { AssignPlanModal } from '@/features/clients/AssignPlanModal'
 import { AssignBranchMenu } from '@/components/AssignBranchMenu'
-import { StudentProfileFields } from '@/components/StudentProfileFields'
+import { StudentProfilePanels } from '@/components/StudentProfileFields'
 import { CountryLabel } from '@/components/CountryLabel'
 import { useClient, useSetClientBranch, useSetClientTags, useSetFinalizedCountry } from '@/queries/clients'
 import { useMyConsultancy } from '@/queries/consultancy'
@@ -20,7 +20,6 @@ import { usePermission } from '@/lib/permissions'
 import { usePlans } from '@/queries/plans'
 import { Skeleton } from '@/components/QueryState'
 import { TransferApplicantModal } from './TransferApplicantModal'
-import { EditClientDetailsModal } from './EditClientDetailsModal'
 
 const STATUS_INFO: Record<string, { label: string; color: 'warning' | 'info' | 'success' | 'secondary' }> = {
   pending_plan_assignment: { label: 'Pending Plan', color: 'warning' },
@@ -55,7 +54,6 @@ export function OverviewTab({
   const consultancy = useMyConsultancy()
   const setFinalizedCountry = useSetFinalizedCountry()
   const [showAssignPlan, setShowAssignPlan] = useState(false)
-  const [showEditDetails, setShowEditDetails] = useState(false)
   const [showTransfer, setShowTransfer] = useState(false)
   // Deliberately low prominence (user 2026-08-20: "Transfer Applicant should not be that
   // accessible") — a muted footer link, not a button, and permission-gated on top. Also gated on
@@ -84,7 +82,12 @@ export function OverviewTab({
 
   return (
     <div className="grid grid-cols-3 gap-md">
-      <Card className="col-span-2 flex flex-col gap-md">
+      {/* LEFT TWO-THIRDS: who the student is and what they want — name, email and phone, the
+          finalized country, then their study preference in full (user, 2026-09-10: "show study
+          preference in 2/3 section and contact details in 1/3 section. Keep Email and phone number
+          along with study preference"). */}
+      <div className="col-span-2 flex flex-col gap-md">
+      <Card className="flex flex-col gap-md">
         <div className="flex items-center gap-md">
           <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary-subtle text-h2 font-semibold text-primary">
             {data.student.first_name.charAt(0).toUpperCase()}
@@ -95,6 +98,17 @@ export function OverviewTab({
             </p>
             <Badge color={statusInfo.color}>{statusInfo.label}</Badge>
           </div>
+        </div>
+
+        <div className="flex flex-wrap gap-x-lg gap-y-xs text-body-sm">
+          <span className="inline-flex items-center gap-xs text-text-primary">
+            <Mail className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+            {data.student.email}
+          </span>
+          <span className="inline-flex items-center gap-xs text-text-primary">
+            <Phone className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+            {data.student.phone ?? <span className="text-text-secondary">No phone number</span>}
+          </span>
         </div>
 
         {/* User-requested (2026-08-19) — "consultant has to select country finalized to apply.
@@ -120,90 +134,15 @@ export function OverviewTab({
           </CompactSelect>
         </div>
 
-        <div>
-          <div className="flex items-center justify-between">
-            <h2 className="text-h3 text-text-primary">Contact</h2>
-            <button
-              type="button"
-              onClick={() => setShowEditDetails(true)}
-              aria-label="Edit contact details"
-              title="Edit contact details"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
-            >
-              <Pencil className="h-4 w-4" />
-            </button>
-          </div>
-          <dl className="mt-sm flex flex-col gap-xs text-body-sm">
-            <div className="flex justify-between">
-              <dt className="text-text-secondary">Email</dt>
-              <dd className="text-text-primary">{data.student.email}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-text-secondary">Phone</dt>
-              <dd className="text-text-primary">{data.student.phone ?? '—'}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-text-secondary">Address</dt>
-              <dd className="text-text-primary">{data.address ?? '—'}</dd>
-            </div>
-            {/* Where the student lives, from their own profile (user, 2026-09-10). */}
-            <div className="flex justify-between">
-              <dt className="text-text-secondary">State</dt>
-              <dd className="text-text-primary">{data.residence_state ?? '—'}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-text-secondary">Country of residence</dt>
-              <dd className="text-text-primary">
-                {data.residence_country ? <CountryLabel name={data.residence_country} /> : '—'}
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-text-secondary">Case type</dt>
-              <dd className="text-text-primary capitalize">{data.case_type}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-text-secondary">Consultant</dt>
-              <dd className="text-text-primary">{data.assigned_employee_name ?? 'Unassigned'}</dd>
-            </div>
-            <div className="flex items-center justify-between">
-              <dt className="text-text-secondary">Branch</dt>
-              <dd className="flex items-center gap-xs text-text-primary">
-                {branches.data?.find((b) => b.id === data.branch_id)?.name ?? 'Unassigned'}
-                {employeeBranches.length > 1 && (
-                  <AssignBranchMenu
-                    branches={employeeBranches.map((b) => ({ id: b.id!, name: b.name }))}
-                    currentBranchId={data.branch_id}
-                    onSelect={(branchId) => setClientBranch.mutate({ id: clientId, branchId })}
-                    label={`Set branch for ${data.student.first_name} ${data.student.last_name}`}
-                    description="Choose which of your branches this client should be mapped to."
-                    iconOnly={false}
-                  />
-                )}
-              </dd>
-            </div>
-          </dl>
-        </div>
-
-        <div>
-          <h2 className="text-h3 text-text-primary">Tags</h2>
-          <div className="mt-sm flex flex-wrap items-center gap-xs">
-            {(data.tags ?? []).length === 0 && <p className="text-body-sm text-text-secondary">No tags added.</p>}
-            {data.tags?.map((t) => (
-              <Badge key={t} color="secondary">
-                {t}
-              </Badge>
-            ))}
-            <TagEditorMenu
-              tags={data.tags ?? []}
-              catalog={tags.data ?? []}
-              onCreateTag={(name) => createTag.mutateAsync(name)}
-              onSave={(next) => setClientTags.mutate({ id: clientId, tags: next })}
-              saving={setClientTags.isPending}
-              label={`Edit tags for ${data.student.first_name} ${data.student.last_name}`}
-            />
-          </div>
-        </div>
       </Card>
+
+      {/* The same study preference the lead and client popups show, as panels — study plan,
+          background, about the student — with the completeness bar on top. */}
+      <section className="flex flex-col gap-sm">
+        <h2 className="text-h3 text-text-primary">Study Preference</h2>
+        <StudentProfilePanels prefs={data.preferences} />
+      </section>
+      </div>
 
       <div className="col-span-1 flex flex-col gap-md">
         {/* EVERY plan, one below the other (user, 2026-09-09) — not the first one with a "+2"
@@ -258,13 +197,71 @@ export function OverviewTab({
           )}
         </Card>
 
-        {/* The same course-selection-relevant slice of the student's own app profile Course
-            Finder's popups and Lead Details' "View study preference" already show, via the SAME
-            shared component (user, 2026-08-24: "we need to see mobile app profile details, show
-            it below plan card in overview"; renamed from "App Profile" the same session). */}
+        {/* RIGHT THIRD, read-only (user, 2026-09-10: "No need of edit for phone number and
+            address"). Email and phone sit with the student on the left. */}
         <Card className="flex flex-col gap-sm">
-          <h2 className="text-h3 text-text-primary">Study Preference</h2>
-          <StudentProfileFields prefs={data.preferences} />
+          <h2 className="text-h3 text-text-primary">Contact details</h2>
+          <dl className="flex flex-col gap-sm text-body-sm">
+            <div>
+              <dt className="text-caption text-text-secondary">Address</dt>
+              <dd className="text-text-primary">{data.address ?? '—'}</dd>
+            </div>
+            {/* Where the student lives, from their own profile (user, 2026-09-10). */}
+            <div>
+              <dt className="text-caption text-text-secondary">State</dt>
+              <dd className="text-text-primary">{data.residence_state ?? '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-caption text-text-secondary">Country of residence</dt>
+              <dd className="text-text-primary">
+                {data.residence_country ? <CountryLabel name={data.residence_country} /> : '—'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-caption text-text-secondary">Case type</dt>
+              <dd className="capitalize text-text-primary">{data.case_type}</dd>
+            </div>
+            <div>
+              <dt className="text-caption text-text-secondary">Consultant</dt>
+              <dd className="text-text-primary">{data.assigned_employee_name ?? 'Unassigned'}</dd>
+            </div>
+            <div>
+              <dt className="text-caption text-text-secondary">Branch</dt>
+              <dd className="flex items-center gap-xs text-text-primary">
+                {branches.data?.find((b) => b.id === data.branch_id)?.name ?? 'Unassigned'}
+                {employeeBranches.length > 1 && (
+                  <AssignBranchMenu
+                    branches={employeeBranches.map((b) => ({ id: b.id!, name: b.name }))}
+                    currentBranchId={data.branch_id}
+                    onSelect={(branchId) => setClientBranch.mutate({ id: clientId, branchId })}
+                    label={`Set branch for ${data.student.first_name} ${data.student.last_name}`}
+                    description="Choose which of your branches this client should be mapped to."
+                    iconOnly={false}
+                  />
+                )}
+              </dd>
+            </div>
+          </dl>
+        </Card>
+
+        <Card className="flex flex-col gap-sm">
+          <h2 className="text-h3 text-text-primary">Tags</h2>
+          <div className="flex flex-wrap items-center gap-xs">
+            {(data.tags ?? []).length === 0 && <p className="text-body-sm text-text-secondary">No tags added.</p>}
+            {data.tags?.map((t) => (
+              <Badge key={t} color="secondary">
+                {t}
+              </Badge>
+            ))}
+            <TagEditorMenu
+              tags={data.tags ?? []}
+              catalog={tags.data ?? []}
+              onCreateTag={(name) => createTag.mutateAsync(name)}
+              onSave={(next) => setClientTags.mutate({ id: clientId, tags: next })}
+              saving={setClientTags.isPending}
+              label={`Edit tags for ${data.student.first_name} ${data.student.last_name}`}
+            />
+          </div>
         </Card>
       </div>
 
@@ -281,14 +278,6 @@ export function OverviewTab({
       )}
 
       {showAssignPlan && <AssignPlanModal clientId={clientId} onClose={() => setShowAssignPlan(false)} />}
-      {showEditDetails && (
-        <EditClientDetailsModal
-          clientId={clientId}
-          currentAddress={data.address}
-          currentPhone={data.student.phone}
-          onClose={() => setShowEditDetails(false)}
-        />
-      )}
       {showTransfer && (
         <TransferApplicantModal
           clientId={clientId}
