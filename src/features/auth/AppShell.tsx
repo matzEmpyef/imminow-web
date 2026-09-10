@@ -58,10 +58,14 @@ const SECTIONS: GatedSection[] = [
       p.startsWith('/activity') ||
       p.startsWith('/administration/phonebook') ||
       p.startsWith('/administration/document-library') ||
-      p.startsWith('/administration/internal-messaging'),
+      p.startsWith('/administration/internal-messaging') ||
+      // Course Finder moved here from Clients (user, 2026-09-10). Its URL stays /clients/... so no
+      // link or bookmark breaks; this more specific match wins because Dashboard is checked first.
+      p.startsWith('/clients/course-finder'),
     sidebarLinks: [
       { label: 'Overview', path: '/dashboard', icon: LayoutDashboard },
       { label: 'Activity', path: '/activity', icon: Activity, feature: 'activity_queue' },
+      { label: 'Course Finder', path: '/clients/course-finder', icon: Compass },
       { label: 'Phonebook', path: '/administration/phonebook', icon: Phone, feature: 'phonebook' },
       {
         label: 'Document Library',
@@ -96,7 +100,6 @@ const SECTIONS: GatedSection[] = [
     matches: (p) => p.startsWith('/clients'),
     sidebarLinks: [
       { label: 'Clients List', path: '/clients', icon: ListChecks },
-      { label: 'Course Finder', path: '/clients/course-finder', icon: Compass },
       { label: 'Invoices', path: '/clients/invoices', icon: FileText },
       { label: 'Receipts', path: '/clients/receipts', icon: Receipt },
     ],
