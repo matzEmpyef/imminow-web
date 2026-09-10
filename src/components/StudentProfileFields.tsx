@@ -319,7 +319,7 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
  * (user, 2026-09-10: "can you improve this UI too.. both lead and client details popup"): three
  * panels of icon tiles, with a completeness bar on top so what's missing reads at a glance.
  * `extraStudyFacts` lets a caller add a fact of its own to Study Plan (the client's finalized
- * country), counted in the bar like any other.
+ * country); it is shown but not counted in the bar, which measures the student's own profile.
  */
 export function StudentProfilePanels({
   prefs,
@@ -330,7 +330,10 @@ export function StudentProfilePanels({
 }) {
   const facts = profileFacts(prefs, { countryPills: false })
   const studyPlan = [...extraStudyFacts, ...facts.studyPlan]
-  const all = [...studyPlan, ...facts.background, ...facts.about]
+  // Completeness counts only what the STUDENT fills in — the same 15 for a lead and a client. A
+  // caller's extra fact (the client's Finalized country, which the consultancy sets) is shown but
+  // not counted, or an applicant would read "of 16" against a lead's "of 15" for the same profile.
+  const all = [...facts.studyPlan, ...facts.background, ...facts.about]
   const added = all.filter((f) => f.lines).length
   const pct = Math.round((added / all.length) * 100)
 
