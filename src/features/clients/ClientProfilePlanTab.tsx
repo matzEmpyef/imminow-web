@@ -24,6 +24,16 @@ import type { components } from '@/api/schema'
 
 type Plan = components['schemas']['Plan']
 
+// Columns that the cards FILL (user, 2026-09-10: "What if there is four plans?"). A fixed three
+// columns left a fourth plan alone on a row of its own. Two and three plans sit in one row; four
+// sit in one row on a wide screen and 2×2 below that; five or more wrap three to a row.
+function planGridColumns(count: number): string {
+  if (count <= 2) return 'sm:grid-cols-2'
+  if (count === 3) return 'sm:grid-cols-2 lg:grid-cols-3'
+  if (count === 4) return 'sm:grid-cols-2 xl:grid-cols-4'
+  return 'sm:grid-cols-2 lg:grid-cols-3'
+}
+
 /** What a plan card says about a plan, from its steps. */
 function planStanding(plan: Plan) {
   const steps = [...plan.steps].sort((a, b) => a.position - b.position)
@@ -166,7 +176,7 @@ export function PlanTab({
       ) : (
         <>
           {multiple && (
-            <div className="grid grid-cols-1 gap-md sm:grid-cols-2 lg:grid-cols-3" role="group" aria-label="Plans">
+            <div className={`grid grid-cols-1 gap-md ${planGridColumns(items.length)}`} role="group" aria-label="Plans">
               {items.map((plan) => (
                 <PlanCard
                   key={plan.id}
