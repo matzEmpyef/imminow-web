@@ -228,7 +228,7 @@ export function ActiveLeadsPage() {
                   }}
                   className="h-4 w-4"
                 />
-                Show closed leads too
+                Show closed and converted leads
               </label>
             </>
           }
