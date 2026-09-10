@@ -10,10 +10,9 @@ import { useEmployees } from '@/queries/staff'
 import { useAllocateLead, useBulkAllocateLeads, useLeads } from '@/queries/leads'
 import { useCursorPagination } from '@/lib/pagination'
 import { usePermissionChecker } from '@/lib/permissions'
-import { formatDate, formatIntake } from '@/lib/time'
-import { formatMoney } from '@/lib/money'
-import { studyLevelLabel } from '@/lib/studyLevels'
-import { CountryLabelList } from '@/components/CountryLabel'
+import { Eye } from 'lucide-react'
+import { formatDate } from '@/lib/time'
+import { LeadDetailModal } from '@/features/clients/LeadDetailModal'
 
 type Lead = NonNullable<ReturnType<typeof useLeads>['data']>['items'][number]
 
@@ -73,6 +72,9 @@ export function LeadPoolPage() {
     [employees.data],
   )
 
+  // The lead whose study preference popup is open, or null.
+  const [prefsLead, setPrefsLead] = useState<Lead | null>(null)
+
   function handleBulkAllocate(employeeId: string) {
     // T8: pending guard + one key per confirmed selection — a double-fire of the same
     // confirmation is one allocation, not two.
@@ -100,53 +102,26 @@ export function LeadPoolPage() {
         </div>
       ),
     },
-    // STUDY PREFERENCES IN THE TABLE ITSELF (user, 2026-09-10). Picking which lead to take from the
-    // pool is a matching decision — level, subject, destination, timing, money — and it used to
-    // take a click into every lead to make it. Imported leads have no student account and so no
-    // preferences; they show a dash, as Source already does for a missing value.
+    // STUDY PREFERENCE IN A POPUP (user, 2026-09-10: "I need the popup... not inline table", and
+    // "all info"). View opens the same LeadDetailModal Course Finder uses, which now shows every
+    // preference field the lead carries. Imported leads have no student account, so no button.
     {
-      key: 'study_plan',
-      header: 'Study plan',
-      render: (lead) => {
-        const p = lead.preferences
-        if (!p) return <span className="text-text-secondary">—</span>
-        const headline = [studyLevelLabel(p.study_level), p.fields_of_interest?.join(', ')].filter(Boolean).join(' · ')
-        return (
-          <div className="flex flex-col">
-            <span className="text-text-primary">{headline || '—'}</span>
-            {p.intended_intake && (
-              <span className="text-caption text-text-secondary">
-                Intake {formatIntake(p.intended_intake, p.intended_year)}
-              </span>
-            )}
-          </div>
-        )
-      },
-    },
-    {
-      key: 'countries',
-      header: 'Countries',
-      hideBelow: 'md',
-      render: (lead) => (
-        <CountryLabelList names={lead.preferences?.target_countries} empty={<span className="text-text-secondary">—</span>} />
-      ),
-    },
-    {
-      key: 'budget',
-      header: 'Budget',
-      hideBelow: 'lg',
-      // The server already withholds the figure unless the student chose to share it, so "Not
-      // shared" is the honest reading of a null here — not "unknown".
-      render: (lead) => {
-        const p = lead.preferences
-        if (!p) return <span className="text-text-secondary">—</span>
-        if (!p.budget_shared) return <span className="text-text-secondary">Not shared</span>
-        return p.budget?.amount != null ? (
-          formatMoney(p.budget.currency, p.budget.amount)
-        ) : (
+      key: 'study_preference',
+      header: 'Study preference',
+      render: (lead) =>
+        lead.origin === 'imported' ? (
           <span className="text-text-secondary">—</span>
-        )
-      },
+        ) : (
+          <button
+            type="button"
+            onClick={() => setPrefsLead(lead)}
+            aria-label={`View study preference for ${lead.name}`}
+            className="inline-flex items-center gap-xs rounded-md px-sm py-xs text-body-sm font-medium text-primary hover:bg-primary/10"
+          >
+            <Eye className="h-4 w-4" aria-hidden />
+            View
+          </button>
+        ),
     },
     {
       key: 'source',
@@ -181,6 +156,7 @@ export function LeadPoolPage() {
   return (
     <AppShell>
       <div className="flex flex-col gap-lg">
+        {prefsLead && <LeadDetailModal lead={prefsLead} onClose={() => setPrefsLead(null)} />}
         <div className="flex items-center justify-between gap-md">
           <h1 className="text-h1 text-text-primary">Lead Pool</h1>
           {canImport && (
