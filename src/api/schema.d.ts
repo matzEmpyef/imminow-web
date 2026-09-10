@@ -17521,6 +17521,11 @@ export interface components {
             case_type: "student" | "pr";
             /** @description Sentpo Mobile's Stage 2 Home status card (build reference 2.2) — null until a consultancy is assigned. A handful of display-only fields below are additive to the aggregate-root fields above, kept minimal and nullable rather than duplicating Client's full denormalized set, since a Stage-1 (exploring) Journey has none of them. */
             consultancy_name?: string | null;
+            /**
+             * @description WHAT KIND of counterparty, beside WHICH one (2026-09-10). Every screen after commitment whose copy says "consultancy" needs this — Dream Courses' share action, the pre-chat consent sheet — and without it each would fetch the whole consultancy record to read one enum. `consultancy` on every pre-existing case, and clients read absence the same way, exactly as for `Consultancy.kind`.
+             * @enum {string}
+             */
+            consultancy_kind?: "consultancy" | "institute";
             /** @description e.g. "2/4" — null until a plan is assigned. */
             progress?: string | null;
             /** @description The current in-progress step's title — null until a plan is assigned. */
