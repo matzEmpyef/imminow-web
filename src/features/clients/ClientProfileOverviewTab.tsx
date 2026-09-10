@@ -160,7 +160,9 @@ export function OverviewTab({
       {/* On white (user, 2026-09-10: "study preference i need white background"). */}
       <Card className="flex flex-col gap-md">
         <h2 className="text-h3 text-text-primary">Study Preference</h2>
-        <StudentProfilePanels prefs={data.preferences} surface />
+        {/* No "Lives in" here (user, 2026-09-10: "Remove Lives in") — Contact details on the right
+            already carries the student's state and country of residence. */}
+        <StudentProfilePanels prefs={data.preferences} surface omit={['Lives in']} />
       </Card>
       </div>
 

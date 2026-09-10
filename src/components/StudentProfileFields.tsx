@@ -61,8 +61,9 @@ function educationLines(prefs: StudentPreferences | null | undefined): Lines {
   const entries = prefs?.education
   if (entries && entries.length > 0) {
     return entries.map((e, i) => (
-      <span key={i} className="capitalize">
-        {e.level}
+      <span key={i}>
+        {/* "12th", "Bachelor's" — not the stored codes "twelfth", "bachelors" (2026-09-10). */}
+        {EDUCATION_LEVEL_LABELS[e.level] ?? e.level}
         {e.stream ? ` — ${e.stream}` : ''}
         {e.score != null ? `, ${e.score}${e.scheme === 'percentage' ? '%' : ''}` : ''}
         {e.status === 'pursuing' ? ' (pursuing)' : ''}
@@ -327,17 +328,23 @@ export function StudentProfilePanels({
   prefs,
   extraStudyFacts = [],
   surface = false,
+  omit = [],
 }: {
   prefs: StudentPreferences | null | undefined
   extraStudyFacts?: { label: string; icon: ReactNode; color: IconColor; lines: Lines }[]
   /** White panels, for a page where they sit on a white card (client Overview, 2026-09-10). */
   surface?: boolean
+  /** Fact labels a page shows elsewhere and leaves out here — neither shown nor counted. */
+  omit?: string[]
 }) {
-  const facts = profileFacts(prefs, { countryPills: false })
+  const full = profileFacts(prefs, { countryPills: false })
+  const keep = <T extends { label: string }>(list: T[]) => list.filter((f) => !omit.includes(f.label))
+  const facts = { studyPlan: keep(full.studyPlan), background: keep(full.background), about: keep(full.about) }
   const studyPlan = [...extraStudyFacts, ...facts.studyPlan]
   // Completeness counts only what the STUDENT fills in — the same 15 for a lead and a client. A
   // caller's extra fact (the client's Finalized country, which the consultancy sets) is shown but
   // not counted, or an applicant would read "of 16" against a lead's "of 15" for the same profile.
+  // An omitted fact is not counted either: the bar measures what the page actually shows.
   const all = [...facts.studyPlan, ...facts.background, ...facts.about]
   const added = all.filter((f) => f.lines).length
   const pct = Math.round((added / all.length) * 100)
