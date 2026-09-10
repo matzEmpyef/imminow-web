@@ -11,7 +11,8 @@ export function useLogin() {
   const setSession = useAuthStore((s) => s.setSession)
   return useMutation({
     mutationFn: async (body: { email: string; password: string }) => {
-      const { data, error } = await api.POST('/auth/login', { body })
+      // `platform` lands on the sign-in event (2026-09-10) — the console is always the web app.
+      const { data, error } = await api.POST('/auth/login', { body: { ...body, platform: 'web' } })
       if (error) throw new ApiError('Could not sign in.', error)
       return data
     },

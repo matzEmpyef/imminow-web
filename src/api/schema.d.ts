@@ -123,6 +123,13 @@ export interface paths {
                         email?: string;
                         password?: string | null;
                         google_token?: string | null;
+                        /**
+                         * @description Which app is signing in (2026-09-10), recorded on the sign-in event. Optional; when omitted the event falls back to the platform the account last reported.
+                         * @enum {string|null}
+                         */
+                        platform?: "android" | "ios" | "web" | null;
+                        /** @description Version of the app signing in, recorded on the sign-in event. */
+                        app_version?: string | null;
                     };
                 };
             };
@@ -480,6 +487,13 @@ export interface paths {
                     "application/json": {
                         identifier: string;
                         code: string;
+                        /**
+                         * @description Which app is signing in (2026-09-10), recorded on the sign-in event. Optional; when omitted the event falls back to the platform the account last reported.
+                         * @enum {string|null}
+                         */
+                        platform?: "android" | "ios" | "web" | null;
+                        /** @description Version of the app signing in, recorded on the sign-in event. */
+                        app_version?: string | null;
                     };
                 };
             };
@@ -16069,7 +16083,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Sentpo user directory (docs/PROGRESS.md §4 Step 3) — one row per student, never blended with the immiNow console directory (see /admin/users/imminow). Gated to user_directory (platform_staff_administration before the 2026-09-10 split). Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, last_login_at, last_active_at, name. filter[x]= accepts stage=1|2, dormant_days=<integer> (last_active_at older than N days, or never active), from=<date>/to=<date> over created_at (signed-up range), and onboarding=never_logged_in|stuck|onboarded|pending platform=android|ios|web|unknown (2026-09-03, the app the student last opened), and (2026-09-02; `pending` = the two not-onboarded states together, which is what the Platform Dashboard's Stuck at Onboarding card links to). search matches name and email. */
+        /** Sentpo user directory (docs/PROGRESS.md §4 Step 3) — one row per student, never blended with the immiNow console directory (see /admin/users/imminow). Gated to user_directory (platform_staff_administration before the 2026-09-10 split). Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, last_active_at, name (last_login_at removed 2026-09-10). filter[x]= accepts stage=1|2, dormant_days=<integer> (last_active_at older than N days, or never active), from=<date>/to=<date> over created_at (signed-up range), and onboarding=never_logged_in|stuck|onboarded|pending platform=android|ios|web|unknown (2026-09-03, the app the student last opened), and (2026-09-02; `pending` = the two not-onboarded states together, which is what the Platform Dashboard's Stuck at Onboarding card links to). search matches name and email. */
         get: {
             parameters: {
                 query?: {
@@ -19713,12 +19727,10 @@ export interface components {
              */
             created_at: string;
             /**
-             * @description Where the student is in onboarding (2026-09-02, so the console can find students to help). Derived from the SAME rule the app uses for its preferences prompt — no study level, no target countries, no journey means not onboarded. `never_logged_in` = that gap with no login at all (signed up, never came back); `stuck` = logs in but never got through the preference screens; `onboarded` = everyone else.
+             * @description Where the student is in onboarding (2026-09-02, so the console can find students to help). Derived from the SAME rule the app uses for its preferences prompt — no study level, no target countries, no journey means not onboarded. `never_logged_in` = that gap with no activity after the day they signed up (signed up, never came back — the console labels it "Never came back"); `stuck` = came back on a later day but never got through the preference screens; `onboarded` = everyone else. Measured on last_active_at since 2026-09-10, not on sign-ins: signing up opens a session, so a student who kept using it never "logged in" and was wrongly counted as never returning. last_login_at was removed from this row the same day (students stay signed in, so it tracked reinstalls rather than use); sign-ins are recorded as login events instead.
              * @enum {string}
              */
             onboarding: "never_logged_in" | "stuck" | "onboarded";
-            /** Format: date-time */
-            last_login_at?: string | null;
             /**
              * Format: date-time
              * @description When the student last used the app (see User.last_active_at).
@@ -19773,7 +19785,7 @@ export interface components {
             response_time_median_hours?: number | null;
             /** @description Median days from lead created_at to its lead->converted status_transitions row. Null with no conversions yet in scope. */
             conversion_median_days?: number | null;
-            /** @description This consultancy's committed (Stage-2) students, bucketed by last_active_at recency (last_login_at before 2026-09-10). All four buckets are always present, even at 0, so the UI never has to guess the vocabulary. */
+            /** @description This consultancy's committed (Stage-2) students, bucketed by last_active_at recency (last_login_at before 2026-09-10); `never_logged_in` means never active in the app (labelled "Never active"). All four buckets are always present, even at 0, so the UI never has to guess the vocabulary. */
             active_student_engagement: {
                 /** @enum {string} */
                 bucket: "active_7d" | "quiet_30d" | "dormant_31d_plus" | "never_logged_in";
@@ -19826,7 +19838,45 @@ export interface components {
                 supply: number;
             }[];
         };
-        /** @description Platform-wide popularity surface for the Super Admin console (2026-08-31) — what people actually do across both products: which sections get opened, which courses/colleges get looked at and shortlisted, which articles/consultancies get opened, and which search filter values recur. Sibling to SupplyDemandResponse: same requirePlatformAccount gate, same `collecting_since` honesty convention for a still-young capture window. Every count is server-computed from analytics_events, course_views, the in-memory shortlist store, blog_articles, and consultancies — no new store. */
+        /** @description Sign-in health over the window (2026-09-10), from login_events — one row per sign-in ATTEMPT (password, email code or phone code; reopening the app on a saved session is not a sign-in). Aggregate operational figures only; an under-18 account's attempts are left out of these figures, the same line analytics_events draws, though the rows are kept as a security record. */
+        SignInPulse: {
+            attempts: number;
+            successes: number;
+            /** @description Whole-number percentage of attempts that succeeded; null when there were none. */
+            success_rate: number | null;
+            /** @description Only methods with at least one attempt, in a fixed order. */
+            by_method: {
+                /** @enum {string} */
+                method: "password" | "email_code" | "phone_code";
+                attempts: number;
+                successes: number;
+            }[];
+            /** @description Sentpo app vs immiNow console; `unknown` = an address that matches no account. Only products with at least one attempt. */
+            by_product: {
+                /** @enum {string} */
+                product: "sentpo" | "imminow" | "unknown";
+                attempts: number;
+                successes: number;
+            }[];
+            /** @description Failed attempts by reason, most frequent first. */
+            failures_by_outcome: {
+                /** @enum {string} */
+                outcome: "wrong_password" | "unknown_account" | "wrong_code" | "code_expired" | "too_many_attempts" | "rate_limited" | "account_disabled" | "subscription_lapsed";
+                count: number;
+            }[];
+            /** @description Successful sign-ins by someone who had not used the product for at least `returning_gap_days` days. */
+            returning_after_gap: number;
+            returning_gap_days: number;
+            /** @description One row per day of the window (UTC), oldest first, zeros included. `spike` marks a day whose failures reached at least 5 and at least 3 times the window's daily average. */
+            daily: {
+                /** Format: date */
+                date: string;
+                successes: number;
+                failures: number;
+                spike: boolean;
+            }[];
+        };
+        /** @description Platform-wide popularity surface for the Super Admin console (2026-08-31) — what people actually do across both products: which sections get opened, which courses/colleges get looked at and shortlisted, which articles/consultancies get opened, and which search filter values recur. Sibling to SupplyDemandResponse: same requirePlatformAccount gate, same `collecting_since` honesty convention for a still-young capture window. Every count is server-computed from analytics_events, course_views, the in-memory shortlist store, blog_articles, and consultancies — no new store — plus login_events for `sign_ins` (2026-09-10). */
         PlatformPulseResponse: {
             /**
              * Format: date-time
@@ -19835,7 +19885,7 @@ export interface components {
             collecting_since: string;
             /** @description Echoes the resolved `window_days` query parameter back (7, 30, or 90 — 30 when omitted or invalid), so the UI can label what it's showing without re-deriving it. */
             window_days: number;
-            /** @description Students who signed in inside the window — the population the two breakdowns below are over (2026-09-03). */
+            /** @description Students who used the app inside the window (last_active_at, since 2026-09-10; sign-ins before that) — the population the two breakdowns below are over (2026-09-03). */
             active_students: number;
             /** @description Active students by the app they last opened (2026-09-03). `unknown` = the app has never reported a platform. Descending by count. */
             student_platforms: {
@@ -19843,6 +19893,7 @@ export interface components {
                 platform: "android" | "ios" | "web" | "unknown";
                 count: number;
             }[];
+            sign_ins: components["schemas"]["SignInPulse"];
             /** @description Active students by country of residence (student_preferences. resident_country), top 10 descending; `Unknown` when never set (2026-09-03). */
             student_countries: {
                 country: string;

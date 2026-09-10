@@ -130,7 +130,8 @@ const ENGAGEMENT_BUCKET_LABELS: Record<string, string> = {
   active_7d: 'Active (≤7 days)',
   quiet_30d: 'Quiet (8–30 days)',
   dormant_31d_plus: 'Dormant (31+ days)',
-  never_logged_in: 'Never logged in',
+  // Measured on app activity, not sign-ins (2026-09-10) — students stay signed in.
+  never_logged_in: 'Never active',
 }
 
 export function DashboardPage() {

@@ -52,19 +52,6 @@ function LastActiveCell({ row, dormantAfterDays }: { row: Row; dormantAfterDays:
   )
 }
 
-// Kept (user: "keep last login") — when they last actually signed in with a password or OTP.
-function LastLoginCell({ row }: { row: Row }) {
-  if (!row.last_login_at) {
-    return (
-      <span className="flex items-center gap-xs">
-        <span className="text-text-secondary">Never</span>
-        <Badge color="warning">Never logged in</Badge>
-      </span>
-    )
-  }
-  return <span className="text-text-secondary">{formatDateTime(row.last_login_at)}</span>
-}
-
 const STAGE_LABELS: Record<number, string> = { 1: 'Stage 1 · Exploring', 2: 'Stage 2 · Committed' }
 
 const PLATFORM_LABELS: Record<string, string> = { android: 'Android', ios: 'iOS', web: 'Web' }
@@ -156,7 +143,6 @@ export function SentpoUsersPage() {
       sortable: true,
       render: (r) => <LastActiveCell row={r} dormantAfterDays={dormantDays ? Number(dormantDays) : 30} />,
     },
-    { key: 'last_login_at', header: 'Last login', sortable: true, render: (r) => <LastLoginCell row={r} /> },
     { key: 'onboarding', header: 'Onboarding', render: (r) => <OnboardingCell state={r.onboarding} /> },
     {
       // The app the student last opened (2026-09-03, user: "if it is Android or iOS") — reported

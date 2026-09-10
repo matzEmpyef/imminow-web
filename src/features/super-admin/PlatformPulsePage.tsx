@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Bar, BarChart, Cell, Legend, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Card } from '@/components/Card'
 import { Table, type TableColumn } from '@/components/Table'
@@ -16,15 +17,54 @@ type ConsultancyRow = PulseData['top_consultancies'][number]
 type SearchCountryRow = PulseData['top_search_countries'][number]
 type SearchFieldRow = PulseData['top_search_fields'][number]
 type CountryRow = PulseData['student_countries'][number]
+type SignIns = PulseData['sign_ins']
+type MethodRow = SignIns['by_method'][number]
+type OutcomeRow = SignIns['failures_by_outcome'][number]
 
 // Who the students are (2026-09-03, user: "if it is Android or iOS" / "country of different
-// users… country of residence"). Both over the students who signed in inside the window, so the
-// cards follow the same 7/30/90 switch as everything else here.
+// users… country of residence"). Both over the students who USED the app inside the window
+// (last active, 2026-09-10 — sign-ins are rare for anyone who stays signed in), so the cards
+// follow the same 7/30/90 switch as everything else here.
 const PLATFORM_LABELS: Record<string, string> = { android: 'Android', ios: 'iOS', web: 'Web', unknown: 'Not reported yet' }
 
 const countryColumns: TableColumn<CountryRow>[] = [
   { key: 'country', header: 'Country of residence', render: (r) => r.country },
   { key: 'count', header: 'Students', align: 'right', render: (r) => r.count },
+]
+
+// Sign-in health (user, 2026-09-10: "add login events"). Named by what a person did at the
+// sign-in screen, not by the server's error codes.
+const METHOD_LABELS: Record<string, string> = { password: 'Password', email_code: 'Email code', phone_code: 'Phone code' }
+const PRODUCT_LABELS: Record<string, string> = {
+  sentpo: 'Sentpo app',
+  imminow: 'immiNow console',
+  unknown: 'No matching account',
+}
+const OUTCOME_LABELS: Record<string, string> = {
+  wrong_password: 'Wrong password',
+  unknown_account: 'No account with that address',
+  wrong_code: 'Wrong code',
+  code_expired: 'Code expired',
+  too_many_attempts: 'Too many wrong codes',
+  rate_limited: 'Blocked after repeated failures',
+  account_disabled: 'Account disabled',
+  subscription_lapsed: 'Consultancy subscription lapsed',
+}
+
+const methodColumns: TableColumn<MethodRow>[] = [
+  { key: 'method', header: 'Method', render: (r) => METHOD_LABELS[r.method] ?? r.method },
+  { key: 'attempts', header: 'Attempts', align: 'right', render: (r) => r.attempts },
+  {
+    key: 'successes',
+    header: 'Succeeded',
+    align: 'right',
+    render: (r) => `${Math.round((r.successes / r.attempts) * 100)}%`,
+  },
+]
+
+const outcomeColumns: TableColumn<OutcomeRow>[] = [
+  { key: 'outcome', header: 'Reason', render: (r) => OUTCOME_LABELS[r.outcome] ?? r.outcome },
+  { key: 'count', header: 'Attempts', align: 'right', render: (r) => r.count },
 ]
 
 const WINDOWS: PlatformPulseWindow[] = [7, 30, 90]
@@ -33,6 +73,10 @@ const WINDOWS: PlatformPulseWindow[] = [7, 30, 90]
 // table, so a thin sample is never mistaken for "nothing is happening" (task's own instruction).
 function sparseMessage(collectingSince: string) {
   return `Collecting since ${formatDate(collectingSince)} — check back as usage accrues.`
+}
+
+function shortDay(isoDate: string) {
+  return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).format(new Date(`${isoDate}T00:00:00`))
 }
 
 function SectionChartCard({
@@ -57,6 +101,110 @@ function SectionChartCard({
           <DoughnutChart data={sections.map((s) => ({ label: s.module, value: s.views }))} />
         )}
       </div>
+    </Card>
+  )
+}
+
+function Figure({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+  return (
+    <div className="flex flex-col gap-xs">
+      <span className="text-caption text-text-secondary">{label}</span>
+      <span className="text-h3 font-semibold tabular-nums text-text-primary">{value}</span>
+      {hint && <span className="text-caption text-text-secondary">{hint}</span>}
+    </div>
+  )
+}
+
+function SignInsCard({ signIns, sparse }: { signIns: SignIns; sparse: string }) {
+  const failures = signIns.attempts - signIns.successes
+  const spikes = signIns.daily.filter((d) => d.spike)
+  const chartData = signIns.daily.map((d) => ({ ...d, day: shortDay(d.date) }))
+
+  return (
+    <Card>
+      <h2 className="text-h3 text-text-primary">Sign-ins</h2>
+      <p className="text-caption text-text-secondary">
+        Every sign-in attempt with a password or a one-time code, successful or not. Reopening the app on a saved session is
+        not a sign-in — that shows as activity, not here.
+      </p>
+      {signIns.attempts === 0 ? (
+        <p className="mt-sm text-body-sm text-text-secondary">{sparse}</p>
+      ) : (
+        <div className="mt-md flex flex-col gap-lg">
+          <div className="grid grid-cols-2 gap-md md:grid-cols-4">
+            <Figure label="Attempts" value={signIns.attempts} />
+            <Figure label="Success rate" value={signIns.success_rate == null ? '—' : `${signIns.success_rate}%`} />
+            <Figure label="Failed attempts" value={failures} />
+            <Figure
+              label="Came back after a break"
+              value={signIns.returning_after_gap}
+              hint={`Signed in after ${signIns.returning_gap_days}+ days away`}
+            />
+          </div>
+
+          <div className="flex flex-col gap-xs">
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={chartData} barCategoryGap="20%">
+                <XAxis
+                  dataKey="day"
+                  tickLine={false}
+                  axisLine={false}
+                  interval="preserveStartEnd"
+                  minTickGap={16}
+                  tick={{ fill: 'var(--color-text-secondary)', fontSize: 12 }}
+                />
+                <Tooltip
+                  cursor={{ fill: 'var(--color-background)' }}
+                  contentStyle={{
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--color-border)',
+                    background: 'var(--color-surface)',
+                    fontSize: 13,
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="successes" name="Succeeded" stackId="s" fill="var(--color-secondary)" isAnimationActive={false} />
+                <Bar dataKey="failures" name="Failed" stackId="s" fill="var(--color-warning)" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                  {chartData.map((d) => (
+                    <Cell key={d.date} fill={d.spike ? 'var(--color-error)' : 'var(--color-warning)'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            {spikes.length > 0 ? (
+              <p className="text-body-sm text-error">
+                Unusual number of failed sign-ins on{' '}
+                {spikes.map((d) => `${shortDay(d.date)} (${d.failures} failed)`).join(', ')} — shown in red. Check Why
+                sign-ins failed below: many "No account with that address" failures can mean someone is guessing passwords.
+              </p>
+            ) : (
+              <p className="text-caption text-text-secondary">No unusual days of failed sign-ins in this window.</p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-lg lg:grid-cols-2">
+            <div className="flex flex-col gap-xs">
+              <h3 className="text-body-sm font-semibold text-text-primary">By method</h3>
+              <Table bare columns={methodColumns} rows={signIns.by_method} rowKey={(r) => r.method} emptyMessage={sparse} />
+              <p className="text-caption text-text-secondary">
+                {signIns.by_product
+                  .map((p) => `${PRODUCT_LABELS[p.product] ?? p.product}: ${p.attempts}`)
+                  .join(' · ')}
+              </p>
+            </div>
+            <div className="flex flex-col gap-xs">
+              <h3 className="text-body-sm font-semibold text-text-primary">Why sign-ins failed</h3>
+              <Table
+                bare
+                columns={outcomeColumns}
+                rows={signIns.failures_by_outcome}
+                rowKey={(r) => r.outcome}
+                emptyMessage="No failed sign-ins in this window."
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   )
 }
@@ -193,7 +341,7 @@ export function PlatformPulsePage() {
           <Card>
             <h2 className="text-h3 text-text-primary">Students by Platform</h2>
             <p className="text-caption text-text-secondary">
-              The app each active student last opened — {data.active_students} signed in within this window. "Not reported
+              The app each active student last opened — {data.active_students} used the app within this window. "Not reported
               yet" means the student hasn't opened a build that sends it.
             </p>
             <div className="mt-sm">
@@ -216,6 +364,8 @@ export function PlatformPulsePage() {
             </div>
           </Card>
         </div>
+
+        <SignInsCard signIns={data.sign_ins} sparse={sparse} />
 
         <div className="grid grid-cols-1 gap-lg lg:grid-cols-2">
           <Card>
