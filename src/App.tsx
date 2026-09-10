@@ -124,6 +124,9 @@ const SupplyDemandPage = lazy(() =>
 const PlatformPulsePage = lazy(() =>
   import('@/features/super-admin/PlatformPulsePage').then((m) => ({ default: m.PlatformPulsePage })),
 )
+const NeedsAttentionPage = lazy(() =>
+  import('@/features/super-admin/NeedsAttentionPage').then((m) => ({ default: m.NeedsAttentionPage })),
+)
 const PerformanceLeaguePage = lazy(() =>
   import('@/features/super-admin/PerformanceLeaguePage').then((m) => ({ default: m.PerformanceLeaguePage })),
 )
@@ -425,6 +428,9 @@ function App() {
             overviews, not one of the eight console flags. */}
         <Route element={<PlatformLayout />}>
           <Route path="/admin/dashboard" element={<SuperAdminDashboardPage />} />
+          {/* No flag of its own (2026-09-10) — every platform account has a to-do list; the
+              server limits it to the queues the viewer's permissions cover. */}
+          <Route path="/admin/needs-attention" element={<NeedsAttentionPage />} />
           <Route path="/admin/supply-demand" element={<SupplyDemandPage />} />
           <Route path="/admin/platform-pulse" element={<PlatformPulsePage />} />
         </Route>

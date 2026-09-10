@@ -2,6 +2,7 @@ import { useMemo, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
   Activity,
+  BellRing,
   TrendingUp,
   BarChart3,
   Bell,
@@ -30,10 +31,14 @@ import {
   Wrench,
   type LucideIcon,
 } from 'lucide-react'
-import { SidebarShell, type SidebarSection } from '@/components/SidebarShell'
+import { SidebarShell, type SidebarSection, type SidebarSubLink } from '@/components/SidebarShell'
 import { NotificationsDropdown } from '@/components/NotificationsDropdown'
 import { useAuthStore } from '@/stores/authStore'
+import { useAdminAttention } from '@/queries/adminDashboard'
 import type { PlatformPermissionKey } from '@/features/auth/PlatformRoute'
+
+// The page whose sidebar link carries the open-items counter (2026-09-10).
+const NEEDS_ATTENTION_PATH = '/admin/needs-attention'
 
 // Every page names the console permission flag that owns it (build reference 1.23 / user request
 // #12); a Platform Staff account sees exactly the pages its flags cover — locked areas are hidden
@@ -90,6 +95,8 @@ const SECTIONS: AdminSection[] = [
         // strategic overviews behind the bare requirePlatformAccount gate.
         tabs: [
           { label: 'Overview', path: '/admin/dashboard', icon: LayoutDashboard },
+          // Everything waiting on the platform team (2026-09-10) — its link shows a counter.
+          { label: 'Needs attention', path: NEEDS_ATTENTION_PATH, icon: BellRing },
           { label: 'Supply & Demand', path: '/admin/supply-demand', icon: TrendingUp },
           { label: 'Platform Pulse', path: '/admin/platform-pulse', icon: Activity },
         ],
@@ -285,11 +292,14 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const permissions = useAuthStore((s) => s.user?.platform_permissions)
   const isSuperAdmin = useAuthStore((s) => s.user?.role === 'super_admin')
   const { pathname } = useLocation()
+  // Open items across the viewer's queues — the red counter on the Needs attention link, shown on
+  // every console page so work waiting is visible wherever someone is (2026-09-10).
+  const attentionCount = useAdminAttention().data?.open_count ?? 0
 
   const sections = useMemo<SidebarSection[]>(() => {
     if (!permissions) return []
     return SECTIONS.flatMap((section) => {
-      const sidebarLinks = section.links.flatMap((link) => {
+      const sidebarLinks = section.links.flatMap((link): SidebarSubLink[] => {
         const tabs = visibleTabs(link, permissions)
         if (tabs.length === 0) return []
         // A section whose only link is a group (Dashboard) shows its pages as plain sidebar links —
@@ -301,6 +311,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             icon: tab.icon ?? link.icon,
             path: tab.path,
             matches: (p: string) => p.startsWith(tab.path),
+            badge: tab.path === NEEDS_ATTENTION_PATH && attentionCount > 0 ? attentionCount : undefined,
           }))
         }
         const paths = linkPaths(link, tabs)
@@ -330,7 +341,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         },
       ]
     })
-  }, [permissions])
+  }, [permissions, attentionCount])
 
   // The tab strip for the group the current page belongs to — only when the caller can open more
   // than one of its pages; a group they see one page of is simply that page.

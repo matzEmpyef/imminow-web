@@ -8,67 +8,6 @@ import { useAdminDashboard } from '@/queries/adminDashboard'
 import { useApplicantAllocationQueue } from '@/queries/applicantAllocation'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { formatMoney } from '@/lib/money'
-import type { components } from '@/api/schema'
-
-type AttentionItem = NonNullable<components['schemas']['AdminDashboardSummary']['attention']>[number]
-
-// The platform team's to-do list (2026-09-10, user: "anything that needs platform team attention
-// will be alerted (or count card) in the dashboard. They should be able to identify..."). The
-// server builds it and already limits it to the queues this viewer's permissions cover. Queues
-// with work come first — urgent ones before the rest — and clear queues stay on the board, grey,
-// so "nothing to do" is visible rather than a card that silently vanished.
-function AttentionPanel({ items }: { items: AttentionItem[] }) {
-  const navigate = useNavigate()
-  const open = items.filter((item) => item.count > 0)
-  const total = open.reduce((sum, item) => sum + item.count, 0)
-  const rank = (item: AttentionItem) => (item.count > 0 ? (item.severity === 'urgent' ? 0 : 1) : 2)
-  const sorted = [...items].sort((a, b) => rank(a) - rank(b) || b.count - a.count)
-
-  return (
-    <section className="flex flex-col gap-sm" aria-labelledby="needs-attention-heading">
-      <div className="flex flex-wrap items-baseline justify-between gap-sm">
-        <h2 id="needs-attention-heading" className="text-h3 text-text-primary">
-          Needs attention
-        </h2>
-        <span className="text-body-sm text-text-secondary">
-          {open.length === 0
-            ? 'All clear — nothing is waiting on the platform team.'
-            : `${total} ${total === 1 ? 'item' : 'items'} across ${open.length} ${open.length === 1 ? 'queue' : 'queues'}`}
-        </span>
-      </div>
-      <div className="grid grid-cols-1 gap-sm sm:grid-cols-2 lg:grid-cols-4">
-        {sorted.map((item) => {
-          const hot = item.count > 0
-          const urgent = hot && item.severity === 'urgent'
-          return (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => navigate(item.link)}
-              className={`flex flex-col items-start gap-xs rounded-lg border p-md text-left transition-colors hover:bg-background ${
-                urgent ? 'border-error bg-error/5' : hot ? 'border-warning bg-warning/5' : 'border-border bg-surface'
-              }`}
-            >
-              <span className="flex w-full items-start justify-between gap-sm">
-                <span className={`text-body-sm font-medium ${hot ? 'text-text-primary' : 'text-text-secondary'}`}>
-                  {item.label}
-                </span>
-                <span
-                  className={`text-h2 tabular-nums leading-none ${
-                    urgent ? 'text-error' : hot ? 'text-warning' : 'text-text-secondary'
-                  }`}
-                >
-                  {item.count}
-                </span>
-              </span>
-              {item.hint && <span className="text-caption text-text-secondary">{item.hint}</span>}
-            </button>
-          )
-        })}
-      </div>
-    </section>
-  )
-}
 
 // Where each stat card's number is actually managed. Aspirants live in each consultancy's lead
 // pool and demand shows on Supply & Demand; applicants and completed cases sit with their
@@ -119,10 +58,6 @@ export function SuperAdminDashboardPage() {
             platform account sees, flags or not (#12); the old title lied to a Platform Staff
             viewer. */}
         <h1 className="text-h1 text-text-primary">Platform Dashboard</h1>
-
-        {dashboard.data.attention && dashboard.data.attention.length > 0 && (
-          <AttentionPanel items={dashboard.data.attention} />
-        )}
 
         <div className="grid grid-cols-2 gap-md md:grid-cols-4">
           {dashboard.data?.stat_cards.map((card) => {

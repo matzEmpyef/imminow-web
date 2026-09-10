@@ -16019,6 +16019,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/attention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What needs the platform team — the Needs attention page and its sidebar counter
+         * @description One entry per work queue where something waits on a person (2026-09-10), limited to the queues the caller's platform permissions cover, so each team member sees their own work. Clear queues are included with a count of 0 so they read as clear rather than missing. `open_count` is the total across all entries — the console shows it as a counter on the Needs attention link whenever it is above 0. Any active platform account.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["AttentionItem"][];
+                            open_count: number;
+                        };
+                    };
+                };
+                403: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/users/sentpo": {
         parameters: {
             query?: never;
@@ -17058,6 +17101,20 @@ export interface components {
             /** @description Who the student is with today, i.e. who they are asking to leave. */
             readonly current_consultancy_name?: string | null;
         };
+        /** @description One work queue that needs the platform team (2026-09-10, user: "anything that needs platform team attention will be alerted — they should be able to identify"). `link` is the console page where the queue is worked. */
+        AttentionItem: {
+            key: string;
+            label: string;
+            count: number;
+            hint?: string | null;
+            /** @description Console route where this queue is worked. */
+            link: string;
+            /**
+             * @description `urgent` for queues where a person is blocked or money or access is at stake (disputes, complaints, lapsed subscriptions, payments to confirm, applicants waiting); `normal` otherwise.
+             * @enum {string}
+             */
+            severity: "urgent" | "normal";
+        };
         /** @description Super Admin Dashboard (build reference 1.23). */
         AdminDashboardSummary: {
             /** @description Keys (2026-09-02, after the user asked why "Total Students" and "Active Aspirants/Applicants" disagreed): `total_consultancies`; `total_students` — student ACCOUNTS registered in the Sentpo app, the same count the Sentpo Users page shows; `stuck_onboarding` — student accounts that never got through onboarding (the directory's `onboarding != onboarded`), a to-do rather than a statistic; `study_abroad_students` / `study_home_students` — distinct students whose target countries include somewhere other than / their own country of residence (a student targeting both is in both; the four-way split lives on Supply & Demand); `active_aspirants` — Stage 1: open lead conversations, native AND imported by a consultancy (imported leads have no Sentpo account, which is exactly why this can exceed `total_students`); `active_applicants` — Stage 2 journeys in progress; `completed_cases`; `total_colleges`; `total_courses`; `courses_missing_requirements`. Every card carries a one-line `hint` saying what it counts; the console links each key to the page where that population is managed. */
@@ -17070,20 +17127,6 @@ export interface components {
             }[];
             /** @description Pending course suggestions/corrections awaiting review. */
             pending_actions_count: number;
-            /** @description The platform team's to-do list (2026-09-10, user: "anything that needs platform team attention will be alerted in the dashboard — they should be able to identify"). One entry per work queue that needs a person, limited to the queues the caller's platform permissions cover, so each team member sees their own work. Entries with a count of 0 are included so a clear queue reads as clear rather than missing; `link` is the console page where the work is done. */
-            attention?: {
-                key: string;
-                label: string;
-                count: number;
-                hint?: string | null;
-                /** @description Console route where this queue is worked. */
-                link: string;
-                /**
-                 * @description `urgent` for queues where a person is blocked or money or access is at stake (disputes, complaints, lapsed subscriptions, payments to confirm); `normal` otherwise.
-                 * @enum {string}
-                 */
-                severity: "urgent" | "normal";
-            }[];
             revenue_snapshot?: components["schemas"]["Money"];
             /** @description New leads (native + imported, "aspirants") and journeys ("applicants") as two stacked series over a fixed trailing 12-calendar-month window ending at "now" (user-requested, 2026-08-18 — "how many new users are registering each month"; refined 2026-08-19 — "if aspirants and applicants can be shown on top of another but in different color" / "user count (registrations)... of last 12 months"). Always exactly 12 entries, zero-filled, unlike a plain per-month grouping which would only emit months that actually have data. Not deduplicated against a lead that later converted into a journey, same simplification the `total_students` stat card already makes. */
             registrations_over_time?: {
