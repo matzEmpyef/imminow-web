@@ -17070,6 +17070,20 @@ export interface components {
             }[];
             /** @description Pending course suggestions/corrections awaiting review. */
             pending_actions_count: number;
+            /** @description The platform team's to-do list (2026-09-10, user: "anything that needs platform team attention will be alerted in the dashboard — they should be able to identify"). One entry per work queue that needs a person, limited to the queues the caller's platform permissions cover, so each team member sees their own work. Entries with a count of 0 are included so a clear queue reads as clear rather than missing; `link` is the console page where the work is done. */
+            attention?: {
+                key: string;
+                label: string;
+                count: number;
+                hint?: string | null;
+                /** @description Console route where this queue is worked. */
+                link: string;
+                /**
+                 * @description `urgent` for queues where a person is blocked or money or access is at stake (disputes, complaints, lapsed subscriptions, payments to confirm); `normal` otherwise.
+                 * @enum {string}
+                 */
+                severity: "urgent" | "normal";
+            }[];
             revenue_snapshot?: components["schemas"]["Money"];
             /** @description New leads (native + imported, "aspirants") and journeys ("applicants") as two stacked series over a fixed trailing 12-calendar-month window ending at "now" (user-requested, 2026-08-18 — "how many new users are registering each month"; refined 2026-08-19 — "if aspirants and applicants can be shown on top of another but in different color" / "user count (registrations)... of last 12 months"). Always exactly 12 entries, zero-filled, unlike a plain per-month grouping which would only emit months that actually have data. Not deduplicated against a lead that later converted into a journey, same simplification the `total_students` stat card already makes. */
             registrations_over_time?: {
