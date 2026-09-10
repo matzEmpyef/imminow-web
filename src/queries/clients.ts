@@ -10,6 +10,7 @@ interface ClientListFilters {
   tag?: string[]
   showClosed?: boolean
   country?: string[]
+  destination?: string[]
   search?: string
   sort?: string
   cursor?: string
@@ -28,6 +29,7 @@ export function useClients(filters: ClientListFilters = {}, options: { enabled?:
       if (filters.tag?.length) filter.tag = filters.tag.join(',')
       if (filters.showClosed !== undefined) filter.show_closed = String(filters.showClosed)
       if (filters.country?.length) filter.country = filters.country.join(',')
+      if (filters.destination?.length) filter.destination = filters.destination.join(',')
 
       const { data, error } = await api.GET('/clients', {
         params: {

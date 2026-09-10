@@ -138,7 +138,7 @@ export function ClientsListPage() {
   // shows exactly the rows it counted.
   const [unassignedOnly, setUnassignedOnly] = useState(() => searchParams.get('unassigned') === 'true')
   const [tagFilter, setTagFilter] = useState<string[]>([])
-  const [countryFilter, setCountryFilter] = useState<string[]>([])
+  const [destinationFilter, setDestinationFilter] = useState<string[]>([])
   const [showClosed, setShowClosed] = useState(false)
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
@@ -166,7 +166,7 @@ export function ClientsListPage() {
     unattended: unattendedOnly,
     unassigned: unassignedOnly,
     tag: tagFilter.length ? tagFilter : undefined,
-    country: countryFilter.length ? countryFilter : undefined,
+    destination: destinationFilter.length ? destinationFilter : undefined,
     showClosed,
     search: search || undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
@@ -253,11 +253,14 @@ export function ClientsListPage() {
       },
     },
     {
-      key: 'finalized_country',
-      header: 'Country',
-      // Plain text and sortable (user, 2026-09-10: "no need to show flag", "sort by country").
-      sortable: true,
-      render: (client) => <span className="text-text-secondary">{client.finalized_country ?? '—'}</span>,
+      key: 'preferred_destination',
+      header: 'Preferred Destination',
+      // Where the student wants to study, their target countries (user, 2026-09-10). Plain text,
+      // no flag, and filtered from the bar above rather than sorted.
+      render: (client) => {
+        const targets = client.preferences?.target_countries ?? []
+        return <span className="text-text-secondary">{targets.length > 0 ? targets.join(', ') : '—'}</span>
+      },
     },
     {
       key: 'tags',
@@ -341,7 +344,7 @@ export function ClientsListPage() {
           loading={clients.isLoading}
           error={clients.isError ? 'Could not load clients.' : undefined}
           emptyMessage={
-            search || tagFilter.length > 0 || countryFilter.length > 0 || assignedToMe || unattendedOnly || unassignedOnly
+            search || tagFilter.length > 0 || destinationFilter.length > 0 || assignedToMe || unattendedOnly || unassignedOnly
               ? 'No clients match your search or filters.'
               : 'No clients yet. A lead becomes a client when they accept your conversion proposal; applicants you create appear here too.'
           }
@@ -372,11 +375,11 @@ export function ClientsListPage() {
                 }}
               />
               <FilterMultiSelect
-                label="Country"
+                label="Preferred destination"
                 options={countries.data ?? []}
-                selected={countryFilter}
+                selected={destinationFilter}
                 onChange={(next) => {
-                  setCountryFilter(next)
+                  setDestinationFilter(next)
                   resetPaging()
                 }}
                 renderOption={(c) => <CountryLabel name={c} />}
@@ -425,7 +428,7 @@ export function ClientsListPage() {
                 />
                 Include closed & completed
               </label>
-              {(assignedToMe || unattendedOnly || unassignedOnly || showClosed || tagFilter.length > 0 || countryFilter.length > 0) && (
+              {(assignedToMe || unattendedOnly || unassignedOnly || showClosed || tagFilter.length > 0 || destinationFilter.length > 0) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -434,7 +437,7 @@ export function ClientsListPage() {
                     setUnassignedOnly(false)
                     setShowClosed(false)
                     setTagFilter([])
-                    setCountryFilter([])
+                    setDestinationFilter([])
                     resetPaging()
                   }}
                   className="text-body-sm font-medium text-primary hover:underline"
