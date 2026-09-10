@@ -133,8 +133,22 @@ function institutionText(prefs: StudentPreferences | null | undefined): string |
   return city ? `${name}, ${city}` : name
 }
 
+// Target countries as plain flag + name text for the popup panels (user, 2026-09-10: "no need to
+// show it in pill"), spaced apart rather than comma-separated — the flag already separates them,
+// and a comma after the label's own trailing space read as "Canada , Ireland". The plain list
+// keeps its chips.
+function plainCountries(names: string[]): ReactNode {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-md gap-y-0.5">
+      {names.map((n) => (
+        <CountryLabel key={n} name={n} />
+      ))}
+    </span>
+  )
+}
+
 /** Every profile fact, in display order, with the one icon and colour each one uses. */
-function profileFacts(prefs: StudentPreferences | null | undefined) {
+function profileFacts(prefs: StudentPreferences | null | undefined, { countryPills = true } = {}) {
   const one = (v: ReactNode | null | undefined): Lines => (v == null || v === '' ? null : [v])
   return {
     studyPlan: [
@@ -166,7 +180,13 @@ function profileFacts(prefs: StudentPreferences | null | undefined) {
         label: 'Target countries',
         icon: <Globe className="h-5 w-5" />,
         color: 'secondary' as IconColor,
-        lines: one(prefs?.target_countries?.length ? <CountryLabelList names={prefs.target_countries} /> : null),
+        lines: one(
+          prefs?.target_countries?.length
+            ? countryPills
+              ? <CountryLabelList names={prefs.target_countries} />
+              : plainCountries(prefs.target_countries)
+            : null,
+        ),
       },
       {
         // Budget is the one field the student explicitly gates (`budget_shared`) — shown only when
@@ -308,7 +328,7 @@ export function StudentProfilePanels({
   prefs: StudentPreferences | null | undefined
   extraStudyFacts?: { label: string; icon: ReactNode; color: IconColor; lines: Lines }[]
 }) {
-  const facts = profileFacts(prefs)
+  const facts = profileFacts(prefs, { countryPills: false })
   const studyPlan = [...extraStudyFacts, ...facts.studyPlan]
   const all = [...studyPlan, ...facts.background, ...facts.about]
   const added = all.filter((f) => f.lines).length
