@@ -20,6 +20,7 @@ import { useClients } from '@/queries/clients'
 import { useCreateTag, useTags } from '@/queries/tags'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
+import { FilterMultiSelect } from '@/components/FilterMultiSelect'
 
 type LibraryDocument = NonNullable<ReturnType<typeof useDocumentLibrary>['data']>['items'][number]
 
@@ -104,7 +105,7 @@ function DocumentRowActions({
 }
 
 export function DocumentLibraryPage() {
-  const [tag, setTag] = useState('')
+  const [tagFilter, setTagFilter] = useState<string[]>([])
   const [mimeType, setMimeType] = useState('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -113,7 +114,7 @@ export function DocumentLibraryPage() {
   const paging = useCursorPagination()
 
   const documents = useDocumentLibrary({
-    tag: tag || undefined,
+    tag: tagFilter.length ? tagFilter : undefined,
     mimeType: mimeType || undefined,
     from: from || undefined,
     to: to || undefined,
@@ -246,7 +247,7 @@ export function DocumentLibraryPage() {
           loading={documents.isLoading}
           error={documents.isError ? 'Could not load the document library.' : undefined}
           emptyMessage={
-            search || tag || mimeType || from || to
+            search || tagFilter.length > 0 || mimeType || from || to
               ? 'No documents match these filters.'
               : "The library is empty. Upload a document above; anything you share from here reaches the client's Documents tab."
           }
@@ -265,21 +266,15 @@ export function DocumentLibraryPage() {
           }}
           filters={
             <>
-              <CompactSelect
-                value={tag}
-                onChange={(e) => {
-                  setTag(e.target.value)
+              <FilterMultiSelect
+                label="Tag"
+                options={tags.data?.map((t) => t.name) ?? []}
+                selected={tagFilter}
+                onChange={(next) => {
+                  setTagFilter(next)
                   resetPaging()
                 }}
-                label="Tag"
-              >
-                <option value="">All tags</option>
-                {tags.data?.map((t) => (
-                  <option key={t.id} value={t.name}>
-                    {t.name}
-                  </option>
-                ))}
-              </CompactSelect>
+              />
               <CompactSelect
                 value={mimeType}
                 onChange={(e) => {

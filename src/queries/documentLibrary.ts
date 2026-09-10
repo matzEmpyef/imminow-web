@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 
 interface DocumentLibraryFilters {
-  tag?: string
+  tag?: string[]
   mimeType?: string
   from?: string
   to?: string
@@ -20,7 +20,7 @@ export function useDocumentLibrary(filters: DocumentLibraryFilters = {}) {
     queryKey: ['document-library', filters],
     queryFn: async () => {
       const filter: Record<string, string> = {}
-      if (filters.tag) filter.tag = filters.tag
+      if (filters.tag?.length) filter.tag = filters.tag.join(',')
       if (filters.mimeType) filter.mime_type = filters.mimeType
       if (filters.from) filter.from = filters.from
       if (filters.to) filter.to = filters.to

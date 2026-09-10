@@ -9,8 +9,8 @@ import { FieldLabel } from '@/components/FieldLabel'
 import { SearchSelect, type SearchSelectOption } from '@/components/SearchSelect'
 import { Table, type TableColumn } from '@/components/Table'
 import { CountryLabel } from '@/components/CountryLabel'
-import { CompactSelect } from '@/components/CompactSelect'
 import { FilterChip } from '@/components/FilterChip'
+import { FilterMultiSelect } from '@/components/FilterMultiSelect'
 import { Toggle } from '@/components/Toggle'
 import { TagEditorMenu } from '@/components/TagEditorMenu'
 import { StopPropagation } from '@/components/StopPropagation'
@@ -137,8 +137,8 @@ export function ClientsListPage() {
   // Deep-linked from the dashboard's Pending Consultant Allocation card, so the page it opens
   // shows exactly the rows it counted.
   const [unassignedOnly, setUnassignedOnly] = useState(() => searchParams.get('unassigned') === 'true')
-  const [tag, setTag] = useState('')
-  const [country, setCountry] = useState('')
+  const [tagFilter, setTagFilter] = useState<string[]>([])
+  const [countryFilter, setCountryFilter] = useState<string[]>([])
   const [showClosed, setShowClosed] = useState(false)
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
@@ -165,8 +165,8 @@ export function ClientsListPage() {
     assignedToMe,
     unattended: unattendedOnly,
     unassigned: unassignedOnly,
-    tag: tag || undefined,
-    country: country || undefined,
+    tag: tagFilter.length ? tagFilter : undefined,
+    country: countryFilter.length ? countryFilter : undefined,
     showClosed,
     search: search || undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
@@ -341,7 +341,7 @@ export function ClientsListPage() {
           loading={clients.isLoading}
           error={clients.isError ? 'Could not load clients.' : undefined}
           emptyMessage={
-            search || tag || country || assignedToMe || unattendedOnly || unassignedOnly
+            search || tagFilter.length > 0 || countryFilter.length > 0 || assignedToMe || unattendedOnly || unassignedOnly
               ? 'No clients match your search or filters.'
               : 'No clients yet. A lead becomes a client when they accept your conversion proposal; applicants you create appear here too.'
           }
@@ -361,6 +361,29 @@ export function ClientsListPage() {
             placeholder: 'Search clients…',
           }}
           filters={
+            <>
+              <FilterMultiSelect
+                label="Tag"
+                options={tags.data?.map((t) => t.name) ?? []}
+                selected={tagFilter}
+                onChange={(next) => {
+                  setTagFilter(next)
+                  resetPaging()
+                }}
+              />
+              <FilterMultiSelect
+                label="Country"
+                options={countries.data ?? []}
+                selected={countryFilter}
+                onChange={(next) => {
+                  setCountryFilter(next)
+                  resetPaging()
+                }}
+                renderOption={(c) => <CountryLabel name={c} />}
+              />
+            </>
+          }
+          quickFilters={
             <>
               <FilterChip
                 label="My clients"
@@ -386,36 +409,10 @@ export function ClientsListPage() {
                   resetPaging()
                 }}
               />
-              <CompactSelect
-                value={tag}
-                onChange={(e) => {
-                  setTag(e.target.value)
-                  resetPaging()
-                }}
-                label="Tag"
-              >
-                <option value="">All tags</option>
-                {tags.data?.map((t) => (
-                  <option key={t.id} value={t.name}>
-                    {t.name}
-                  </option>
-                ))}
-              </CompactSelect>
-              <CompactSelect
-                value={country}
-                onChange={(e) => {
-                  setCountry(e.target.value)
-                  resetPaging()
-                }}
-                label="Country"
-              >
-                <option value="">All countries</option>
-                {countries.data?.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </CompactSelect>
+            </>
+          }
+          filterActions={
+            <>
               <label htmlFor="clients-include-closed" className="flex items-center gap-sm text-body-sm text-text-secondary">
                 <Toggle
                   id="clients-include-closed"
@@ -428,7 +425,7 @@ export function ClientsListPage() {
                 />
                 Include closed & completed
               </label>
-              {(assignedToMe || unattendedOnly || unassignedOnly || showClosed || tag || country) && (
+              {(assignedToMe || unattendedOnly || unassignedOnly || showClosed || tagFilter.length > 0 || countryFilter.length > 0) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -436,8 +433,8 @@ export function ClientsListPage() {
                     setUnattendedOnly(false)
                     setUnassignedOnly(false)
                     setShowClosed(false)
-                    setTag('')
-                    setCountry('')
+                    setTagFilter([])
+                    setCountryFilter([])
                     resetPaging()
                   }}
                   className="text-body-sm font-medium text-primary hover:underline"

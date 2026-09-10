@@ -46,6 +46,10 @@ interface TableProps<T> {
   onSortChange?: (field: string, direction: 'asc' | 'desc') => void
   search?: { value: string; onChange: (debounced: string) => void; placeholder?: string }
   filters?: ReactNode
+  /** Second filter row, left: the yes/no quick filters (FilterChips). */
+  quickFilters?: ReactNode
+  /** Second filter row, right: things that act on the filters — an include switch, Clear. */
+  filterActions?: ReactNode
   pagination?: TablePagination
   selection?: TableSelection
   expandable?: TableExpandable<T>
@@ -84,6 +88,8 @@ export function Table<T>({
   onSortChange,
   search,
   filters,
+  quickFilters,
+  filterActions,
   pagination,
   selection,
   expandable,
@@ -112,8 +118,14 @@ export function Table<T>({
 
   return (
     <div className={bare ? '' : 'overflow-hidden rounded-lg bg-surface p-8 shadow-card'}>
-      {(search || filters) && (
-        <div className="flex flex-wrap items-center gap-sm border-b border-border p-md">
+      {/* Two rows, by kind of control (user, 2026-09-10: "put the entire filter in 2 lines").
+          Row 1 finds and picks values — search, then the dropdowns. Row 2 toggles: quick-filter
+          chips on the left, and on the right the controls that act on the filters as a whole.
+          Grouping by kind is what lets the eye find a control without reading every label. */}
+      {(search || filters || quickFilters || filterActions) && (
+        <div className="flex flex-col gap-sm border-b border-border p-md">
+          {(search || filters) && (
+        <div className="flex flex-wrap items-center gap-sm">
           <div className="flex min-w-0 flex-1 items-center">
             {search && (
               <input
@@ -126,6 +138,14 @@ export function Table<T>({
             )}
           </div>
           {filters && <div className="flex flex-wrap items-center gap-sm">{filters}</div>}
+        </div>
+          )}
+          {(quickFilters || filterActions) && (
+            <div className="flex flex-wrap items-center gap-sm">
+              {quickFilters && <div className="flex flex-wrap items-center gap-xs">{quickFilters}</div>}
+              {filterActions && <div className="ml-auto flex flex-wrap items-center gap-md">{filterActions}</div>}
+            </div>
+          )}
         </div>
       )}
 

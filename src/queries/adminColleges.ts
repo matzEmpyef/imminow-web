@@ -9,7 +9,7 @@ type CampusInput = components['schemas']['CampusInput']
 
 interface CollegeListFilters {
   search?: string
-  country?: string
+  country?: string[]
   active?: boolean
   sort?: string
   cursor?: string
@@ -26,7 +26,7 @@ export function useAdminColleges(filters: CollegeListFilters = {}) {
     queryKey: ['admin-colleges', filters],
     queryFn: async () => {
       const filter: Record<string, string> = {}
-      if (filters.country) filter.country = filters.country
+      if (filters.country?.length) filter.country = filters.country.join(',')
       if (filters.active !== undefined) filter.active = String(filters.active)
 
       const { data, error } = await api.GET('/colleges', {

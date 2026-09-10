@@ -7,7 +7,6 @@ import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { FieldLabel } from '@/components/FieldLabel'
 import { Table, type TableColumn } from '@/components/Table'
-import { CompactSelect } from '@/components/CompactSelect'
 import { StopPropagation } from '@/components/StopPropagation'
 import { Modal } from '@/components/Modal'
 import { ImageUploadField } from '@/components/ImageUploadField'
@@ -15,6 +14,8 @@ import { useAdminColleges, useCreateCollege, useImportColleges, useUpdateCollege
 import { useCountries } from '@/queries/countries'
 import { useCursorPagination } from '@/lib/pagination'
 import type { components } from '@/api/schema'
+import { FilterMultiSelect } from '@/components/FilterMultiSelect'
+import { CountryLabel } from '@/components/CountryLabel'
 
 type College = components['schemas']['College']
 
@@ -143,14 +144,14 @@ function AddCollegeModal({ onClose }: { onClose: () => void }) {
 export function CollegesCoursesPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
-  const [country, setCountry] = useState('')
+  const [countryFilter, setCountryFilter] = useState<string[]>([])
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const paging = useCursorPagination()
   const countries = useCountries()
 
   const colleges = useAdminColleges({
     search: search || undefined,
-    country: country || undefined,
+    country: countryFilter.length ? countryFilter : undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
     cursor: paging.cursor,
     limit: 20,
@@ -276,7 +277,7 @@ export function CollegesCoursesPage() {
           loading={colleges.isLoading}
           error={colleges.isError ? 'Could not load colleges.' : undefined}
           emptyMessage={
-            search || country
+            search || countryFilter.length > 0
               ? 'No colleges match these filters.'
               : 'No colleges yet. Add the first one with Add College above.'
           }
@@ -295,21 +296,16 @@ export function CollegesCoursesPage() {
             placeholder: 'Search college name…',
           }}
           filters={
-            <CompactSelect
-              value={country}
-              onChange={(e) => {
-                setCountry(e.target.value)
+            <FilterMultiSelect
+              label="Country"
+              options={countries.data ?? []}
+              selected={countryFilter}
+              onChange={(next) => {
+                setCountryFilter(next)
                 resetPaging()
               }}
-              label="Country"
-            >
-              <option value="">All countries</option>
-              {countries.data?.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </CompactSelect>
+              renderOption={(c) => <CountryLabel name={c} />}
+            />
           }
           pagination={{
             hasNext: Boolean(colleges.data?.meta.next_cursor),

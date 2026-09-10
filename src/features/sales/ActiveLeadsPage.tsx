@@ -196,7 +196,7 @@ export function ActiveLeadsPage() {
             },
             placeholder: 'Search leads…',
           }}
-          filters={
+          quickFilters={
             <>
               <FilterChip
                 label="My leads"
@@ -214,6 +214,10 @@ export function ActiveLeadsPage() {
                   resetPaging()
                 }}
               />
+            </>
+          }
+          filterActions={
+            <>
               <label htmlFor="leads-include-closed" className="flex items-center gap-sm text-body-sm text-text-secondary">
                 <Toggle
                   id="leads-include-closed"

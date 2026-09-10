@@ -7,9 +7,9 @@ interface ClientListFilters {
   assignedToMe?: boolean
   unattended?: boolean
   unassigned?: boolean
-  tag?: string
+  tag?: string[]
   showClosed?: boolean
-  country?: string
+  country?: string[]
   search?: string
   sort?: string
   cursor?: string
@@ -25,9 +25,9 @@ export function useClients(filters: ClientListFilters = {}, options: { enabled?:
       if (filters.assignedToMe !== undefined) filter.assigned_to_me = String(filters.assignedToMe)
       if (filters.unattended !== undefined) filter.unattended = String(filters.unattended)
       if (filters.unassigned !== undefined) filter.unassigned = String(filters.unassigned)
-      if (filters.tag) filter.tag = filters.tag
+      if (filters.tag?.length) filter.tag = filters.tag.join(',')
       if (filters.showClosed !== undefined) filter.show_closed = String(filters.showClosed)
-      if (filters.country) filter.country = filters.country
+      if (filters.country?.length) filter.country = filters.country.join(',')
 
       const { data, error } = await api.GET('/clients', {
         params: {

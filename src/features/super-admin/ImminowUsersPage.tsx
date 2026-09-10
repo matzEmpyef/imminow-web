@@ -157,6 +157,10 @@ export function ImminowUsersPage() {
                 <option value="true">Active</option>
                 <option value="false">Disabled</option>
               </CompactSelect>
+            </>
+          }
+          quickFilters={
+            <>
               <FilterChip
                 label="Never active"
                 active={neverActive}
