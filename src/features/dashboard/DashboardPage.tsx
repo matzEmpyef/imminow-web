@@ -29,6 +29,10 @@ const STAT_META: Record<string, { icon: ReactNode; color: 'primary' | 'secondary
   active_leads: { icon: <Users className="h-5 w-5" />, color: 'secondary' },
   unattended: { icon: <TriangleAlert className="h-5 w-5" />, color: 'warning' },
   converted: { icon: <CheckCircle2 className="h-5 w-5" />, color: 'success' },
+  // Personal scope swaps the fourth card for this one — see the server's clientsCount. Same icon
+  // and colour on purpose: it occupies the same slot and means the same kind of thing, so the row
+  // must not appear to gain a different card when the viewer changes scope.
+  clients: { icon: <CheckCircle2 className="h-5 w-5" />, color: 'success' },
 }
 
 // User-requested (2026-08-19) — "If any of KPIs should be redirected to another page, let us do
@@ -39,6 +43,9 @@ const STAT_LINKS: Record<string, string> = {
   active_leads: '/sales/active-leads',
   unattended: '/sales/active-leads?unattended=true',
   converted: '/clients',
+  // Filtered, unlike `converted`: this card counts only the viewer's own clients, so the page it
+  // opens has to agree with the number they just read.
+  clients: '/clients?assigned_to_me=true',
 }
 
 // Renders as a plain Card (or bare div, for the hero card which already supplies its own full

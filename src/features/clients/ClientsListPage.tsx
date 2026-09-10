@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowRightLeft, RotateCcw, UserPlus } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Badge } from '@/components/Badge'
@@ -125,7 +125,12 @@ function AssignClientTrigger({
 
 export function ClientsListPage() {
   const navigate = useNavigate()
-  const [assignedToMe, setAssignedToMe] = useState(false)
+  const [searchParams] = useSearchParams()
+  // Deep-linked from the dashboard's personal-scope Clients card, the same way Active Leads reads
+  // `?unattended=true`. Without it the card said 1 and the page it opened showed 3 — the card
+  // counts what the SCOPE means (mine), while the unfiltered page shows everything the viewer is
+  // allowed to see. A card that disagrees with the page it opens is worse than no card.
+  const [assignedToMe, setAssignedToMe] = useState(() => searchParams.get('assigned_to_me') === 'true')
   const [unattendedOnly, setUnattendedOnly] = useState(false)
   const [tag, setTag] = useState('')
   const [country, setCountry] = useState('')
