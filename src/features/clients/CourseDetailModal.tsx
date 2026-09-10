@@ -106,10 +106,9 @@ function RequirementRow({ label, children }: { label: string; children: ReactNod
 export function CourseDetailModal({ course, onClose }: { course: Course; onClose: () => void }) {
   const exams = useExams()
   const examName = (examId: string) => exams.data?.find((e) => e.id === examId)?.name ?? examId
-  // The college, for two collected facts the Course row can't show alone (user, 2026-09-10: "I
-  // told you to display all the details collected"): WHICH campuses offer the course (the row only
-  // carries campus_ids), and the college's website as the fallback link when the course has no
-  // page of its own.
+  // The college, for a collected fact the Course row can't show alone (user, 2026-09-10: "I told
+  // you to display all the details collected"): WHICH campuses offer the course — the row only
+  // carries campus_ids.
   const college = useCollegeDetail(course.college_id ?? undefined)
   const offeredCampuses = (college.data?.campuses ?? []).filter((c) => (course.campus_ids ?? []).includes(c.id))
 
@@ -198,9 +197,9 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
           )}
         </p>
       </div>
-      {/* Right side of the header, as on the college popup. The course's own page when it has one;
-          otherwise the college's website (a real link, labelled as the college's), with the
-          missing course page offered for + Add underneath. */}
+      {/* Right side of the header, as on the college popup: the course's own page (the admin form's
+          "Course page URL"), and only that (user, 2026-09-10: "I want course page url, not College
+          website"). A course without one offers + Add instead. */}
       <div className="flex shrink-0 flex-col items-end gap-xs self-center">
         {course.course_url ? (
           <a
@@ -209,26 +208,13 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
             rel="noreferrer"
             className="inline-flex h-10 items-center gap-xs rounded-full bg-primary px-md text-button font-medium text-text-on-primary shadow-card hover:opacity-90"
           >
-            Course page
+            Course Details
             <ExternalLink className="h-4 w-4" aria-hidden />
           </a>
         ) : (
-          <>
-            {college.data?.website && (
-              <a
-                href={college.data.website}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex h-10 items-center gap-xs rounded-full border border-primary px-md text-button font-medium text-primary hover:bg-primary/10"
-              >
-                College website
-                <ExternalLink className="h-4 w-4" aria-hidden />
-              </a>
-            )}
-            <span className="inline-flex items-center gap-xs text-body-sm text-text-primary">
-              Course page: {gap('course_url', 'Course page URL')}
-            </span>
-          </>
+          <span className="inline-flex items-center gap-xs text-body-sm text-text-primary">
+            Course page URL: {gap('course_url', 'Course page URL')}
+          </span>
         )}
       </div>
     </div>
