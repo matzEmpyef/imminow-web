@@ -131,8 +131,10 @@ export function SuperAdminDashboardPage() {
             </dl>
           </Card>
           <Card>
-            <h2 className="text-h3 text-text-primary">Aspirants vs Applicants</h2>
-            <p className="text-caption text-text-secondary">Stage 1 (not yet with a consultancy) vs Stage 2.</p>
+            <h2 className="text-h3 text-text-primary">Aspirants, Applicants &amp; Enrolled</h2>
+            <p className="text-caption text-text-secondary">
+              Open now: Stage 1 leads and Stage 2 cases. Enrolled: cases closed successfully, all time.
+            </p>
             <div className="mt-sm">
               <DoughnutChart
                 data={(dashboard.data?.applicant_stage_breakdown ?? []).map((d) => ({

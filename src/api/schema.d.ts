@@ -17221,7 +17221,7 @@ export interface components {
                 month: string;
                 count: number;
             }[];
-            /** @description Stage 1 (Aspirants — leads) vs Stage 2 (Applicants — journeys), for a doughnut chart (user-requested, 2026-08-18 — "how many aspirants, how many applicant"). */
+            /** @description Three slices for a doughnut chart (user-requested, 2026-08-18; made current 2026-09-10): `Aspirants (Stage 1)` = open leads now and `Applicants (Stage 2)` = open cases now — the same numbers as the active_aspirants / active_applicants stat cards — plus `Enrolled` = cases closed as a success, all time. Before 2026-09-10 the first two were every lead and every case ever created, closed and converted included. */
             applicant_stage_breakdown?: {
                 label: string;
                 count: number;
