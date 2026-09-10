@@ -105,10 +105,6 @@ export function SuperAdminDashboardPage() {
             {/* Actual new people by acquisition channel (user, 2026-09-10) — each person counted once,
                 in the month they arrived; an aspirant later becoming an applicant is not counted
                 again. Replaced the aspirants/applicants series, which counted records, not people. */}
-            <p className="text-caption text-text-secondary">
-              People new to the platform in each of the last 12 months, by channel. Each person is counted once, in the month
-              they joined — an aspirant who later becomes an applicant is not counted again.
-            </p>
             <div className="mt-sm">
               <MonthlyBarChart
                 data={dashboard.data?.registrations_over_time ?? []}
@@ -126,15 +122,11 @@ export function SuperAdminDashboardPage() {
               </div>
               <div>
                 <dt className="inline font-medium text-text-primary">Channel B · Consultancy-sourced</dt>
-                <dd className="inline">
-                  {' '}
-                  — added by a consultancy as a client (Create Applicant, or one of its own imported leads converted); joins
-                  directly as an applicant.
-                </dd>
+                <dd className="inline"> — anyone a consultancy adds: Add Lead, Import Leads or Create Applicant.</dd>
               </div>
               <div>
                 <dt className="inline font-medium text-text-primary">Channel C · Freelancer referral</dt>
-                <dd className="inline"> — signed up with a freelancer's referral code; Sentpo assigns them a consultancy.</dd>
+                <dd className="inline"> — signed up with a freelancer's referral code.</dd>
               </div>
             </dl>
           </Card>
