@@ -1,13 +1,100 @@
+export interface HelpSection {
+  heading: string
+  items: { term: string; text: string }[]
+}
+
 export interface HelpTopic {
   matches: (pathname: string) => boolean
   title: string
   body: string[]
+  // Named things explained one by one, under a heading — for pages whose question is "what does
+  // each of these mean" rather than "how do I do this" (the Dashboard's cards, 2026-09-10).
+  sections?: HelpSection[]
 }
 
 // Contextual Help Drawer (build reference 1.22/2.2) — "a '?' icon on pages with real complexity,
 // opening a static instructions panel." Only pages with a genuine multi-step flow or a
 // non-obvious rule get an entry here; plain list/CRUD pages don't need one.
 const HELP_TOPICS: HelpTopic[] = [
+  {
+    // What every card on the consultancy Dashboard counts (user, 2026-09-10). Worded from how the
+    // server computes each figure (GET /dashboard) — keep the two in step when either changes.
+    matches: (p) => p === '/dashboard',
+    title: 'Dashboard',
+    body: [
+      'The toggle at the top right picks whose numbers you see. Personal counts only the leads and clients assigned to you. Branch counts your branches. Whole Consultancy counts everyone. You only see the views that apply to your role.',
+      'Clicking a card opens the list it counts, already filtered to match the number.',
+    ],
+    sections: [
+      {
+        heading: 'Cards',
+        items: [
+          {
+            term: 'Unallocated Leads',
+            text: 'Students waiting in the Lead Pool who have not been allocated to a consultant yet. A pool lead belongs to no one, so this is always the whole pool, whichever view you pick. No one can reply to these leads until they are allocated.',
+          },
+          {
+            term: 'Active Leads',
+            text: 'Leads allocated to a consultant that are still leads: not yet converted to clients and not closed.',
+          },
+          {
+            term: 'Unattended Leads',
+            text: 'Active leads where the student sent the last message, so they are waiting on a reply from you.',
+          },
+          {
+            term: 'Clients (Personal view)',
+            text: 'The clients assigned to you right now. Closed and completed cases are not counted, the same as the Clients list.',
+          },
+          {
+            term: 'Pending Consultant Allocation (Branch and Whole Consultancy views)',
+            text: 'Clients with no consultant assigned. Each one is a student who has committed to your consultancy and is waiting for someone to start their case.',
+          },
+        ],
+      },
+      {
+        heading: 'Charts',
+        items: [
+          {
+            term: 'Leads Over Time',
+            text: 'New leads per day, by the day each lead came in.',
+          },
+          {
+            term: 'Conversion Funnel',
+            text: 'All leads in this view, whatever their status, against how many of them converted to clients.',
+          },
+          {
+            term: 'Applicant Status',
+            text: 'Your clients, split by the stage their case is at.',
+          },
+          {
+            term: 'New Applicants by Month',
+            text: 'How many students became clients in each month.',
+          },
+          {
+            term: 'Branch Breakdown',
+            text: "Leads handled by each branch's consultants, across the whole consultancy. Shown only when you have more than one branch.",
+          },
+        ],
+      },
+      {
+        heading: 'Usage Analytics',
+        items: [
+          {
+            term: 'Response time to new leads',
+            text: "The typical (median) time from a lead arriving to a consultant's first reply. Leads no one has replied to yet are left out.",
+          },
+          {
+            term: 'Lead → client conversion time',
+            text: 'The typical (median) number of days from a lead arriving to it converting to a client.',
+          },
+          {
+            term: 'Active-Student Engagement',
+            text: 'Your committed students grouped by when they last opened the app: within 7 days, 8–30 days, 31 or more days, or never.',
+          },
+        ],
+      },
+    ],
+  },
   {
     matches: (p) => p === '/activity',
     title: 'Activity',

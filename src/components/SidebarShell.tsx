@@ -240,6 +240,21 @@ export function SidebarShell({ sections, roleBadge, search, headerActions, child
                 {paragraph}
               </p>
             ))}
+            {helpTopic.sections?.map((section) => (
+              <section key={section.heading} className="flex flex-col gap-sm border-t border-border pt-md">
+                <h3 className="text-caption font-medium uppercase tracking-wide text-text-secondary">
+                  {section.heading}
+                </h3>
+                <dl className="flex flex-col gap-sm">
+                  {section.items.map((item) => (
+                    <div key={item.term}>
+                      <dt className="text-body-sm font-medium text-text-primary">{item.term}</dt>
+                      <dd className="text-body-sm text-text-secondary">{item.text}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            ))}
           </div>
         </Drawer>
       )}
