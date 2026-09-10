@@ -6,6 +6,7 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { RichTextEditor } from '@/components/RichTextEditor'
 import { useFormTemplates } from '@/queries/formTemplates'
+import { useDocumentTypes } from '@/queries/studentDocuments'
 import {
   COMPONENT_TYPES,
   COMPONENT_TYPE_LABELS,
@@ -30,6 +31,10 @@ function plainToHtml(text: string): string {
     .join('')
 }
 
+// The "Other — not in this list" choice for a File Upload: no catalog document, the Label says
+// what is wanted. Also what an older File Upload (made before the dropdown) opens as.
+const OTHER_DOCUMENT = 'other'
+
 function htmlHasText(html: string): boolean {
   return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim().length > 0
 }
@@ -49,8 +54,7 @@ function htmlHasText(html: string): boolean {
 // type now gets its own payload field below the Type/Label row: a content textarea for `text`,
 // an add-and-list builder (shared between checklist items and questionnaire questions, since
 // they're structurally identical string lists), and a form picker sourced from `useFormTemplates`
-// for `form_link`. `file_upload` needs nothing further — the consultant supplies the file itself
-// while processing.
+// for `form_link`. `file_upload` picks which catalog document it collects (2026-09-10).
 export function AddComponentModal({
   editingComponent,
   onSubmit,
@@ -113,6 +117,29 @@ export function AddComponentModal({
   const [buttonText, setButtonText] = useState(typeof payload.button_text === 'string' ? payload.button_text : '')
   const urlValid = isHttpUrl(url)
 
+  // File Upload names WHICH document it collects (user, 2026-09-10: "I thought we will be
+  // selecting from a dropdown the name of the file"), from the document catalog — the platform's
+  // shared list plus this consultancy's own. payload.document_type_id is what lets the Sentpo app
+  // show that document's instructions and offer a copy the student already uploaded.
+  const documentTypes = useDocumentTypes()
+  const documentOptions = documentTypes.data?.items ?? []
+  const [documentTypeId, setDocumentTypeId] = useState(
+    typeof payload.document_type_id === 'string'
+      ? payload.document_type_id
+      : editingComponent?.type === 'file_upload'
+        ? OTHER_DOCUMENT
+        : '',
+  )
+  const chosenDocument = documentOptions.find((t) => t.id === documentTypeId)
+
+  function chooseDocument(id: string) {
+    const previousName = documentOptions.find((t) => t.id === documentTypeId)?.name
+    const nextName = documentOptions.find((t) => t.id === id)?.name
+    // Fill the Label with the document's name, unless the consultant has written their own.
+    if (nextName && (!label.trim() || label === previousName)) setLabel(nextName)
+    setDocumentTypeId(id)
+  }
+
   function addEntry() {
     if (!entryDraft) return
     setEntries((prev) => [...prev, entryDraft])
@@ -140,6 +167,9 @@ export function AddComponentModal({
       }
       case 'weblink':
         return buttonText.trim() ? { url: url.trim(), button_text: buttonText.trim() } : { url: url.trim() }
+      case 'file_upload':
+        // `document_type_name` is display only (builder row, preview); the id is what counts.
+        return chosenDocument ? { document_type_id: chosenDocument.id, document_type_name: chosenDocument.name } : {}
       default:
         return {}
     }
@@ -152,7 +182,10 @@ export function AddComponentModal({
   // content instead. Every other type keeps a required Label.
   const labelRequired = type !== 'text'
   const canSubmit =
-    !(labelRequired && !label) && (type !== 'weblink' || urlValid) && (type !== 'text' || htmlHasText(content))
+    !(labelRequired && !label) &&
+    (type !== 'weblink' || urlValid) &&
+    (type !== 'text' || htmlHasText(content)) &&
+    (type !== 'file_upload' || Boolean(documentTypeId))
 
   function handleSubmit() {
     if (!canSubmit) return
@@ -312,6 +345,40 @@ export function AddComponentModal({
             {forms.data?.length === 0 && (
               <p className="text-caption text-text-secondary">No forms exist yet — create one under Forms first.</p>
             )}
+          </div>
+        )}
+
+        {type === 'file_upload' && (
+          <div className="flex flex-col gap-xs">
+            <SelectField
+              label="Document"
+              id="component-document"
+              required
+              value={documentTypeId}
+              onChange={(e) => chooseDocument(e.target.value)}
+              disabled={documentTypes.isLoading}
+            >
+              <option value="" disabled>
+                {documentTypes.isLoading ? 'Loading documents…' : 'Choose the document to collect…'}
+              </option>
+              {documentOptions.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+              <option value={OTHER_DOCUMENT}>Other — not in this list</option>
+            </SelectField>
+            {chosenDocument ? (
+              <p className="text-caption text-text-secondary">
+                {chosenDocument.description ? `${chosenDocument.description} ` : ''}
+                {chosenDocument.cardinality === 'singleton'
+                  ? 'A student who has already uploaded this can reuse it.'
+                  : 'The student uploads a fresh file each time.'}
+              </p>
+            ) : documentTypeId === OTHER_DOCUMENT ? (
+              <p className="text-caption text-text-secondary">Use the Label to say which document you need.</p>
+            ) : null}
+            {documentTypes.isError && <p className="text-caption text-error">Could not load the document list.</p>}
           </div>
         )}
 

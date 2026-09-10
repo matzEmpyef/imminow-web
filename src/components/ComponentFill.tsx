@@ -122,9 +122,12 @@ export function ComponentFill({
     case 'file_upload': {
       const fileName = typeof saved.file_name === 'string' ? saved.file_name : null
       const busy = uploadFile.isPending || save.isPending
+      // The catalog document it asks for (2026-09-10), when that isn't already what the label says.
+      const docName = typeof payload.document_type_name === 'string' ? payload.document_type_name : null
       return (
         <div>
           <span className="text-body-sm font-medium text-text-primary">{label}</span>
+          {docName && docName !== label && <span className="ml-xs text-caption text-text-secondary">· {docName}</span>}
           <div className="mt-xs flex h-10 items-center justify-between rounded-md border border-dashed border-border bg-background px-3">
             <span className="flex min-w-0 items-center gap-xs text-caption text-text-secondary">
               {fileName ? (

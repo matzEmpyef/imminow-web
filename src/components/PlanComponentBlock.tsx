@@ -17,6 +17,13 @@ function displayLabel(component: ComponentInput) {
   return COMPONENT_TYPE_LABELS[component.type]
 }
 
+// Which catalog document a File Upload collects (2026-09-10), or null for "Other"/older ones.
+function documentName(component: ComponentInput): string | null {
+  if (component.type !== 'file_upload') return null
+  const payload = (component.payload ?? {}) as Record<string, unknown>
+  return typeof payload.document_type_name === 'string' && payload.document_type_name ? payload.document_type_name : null
+}
+
 function textSnippet(component: ComponentInput): string {
   const payload = (component.payload ?? {}) as Record<string, unknown>
   const raw = typeof payload.content === 'string' ? payload.content : ''
@@ -74,7 +81,10 @@ export function ComponentBlock({
       <Icon className="h-4 w-4 shrink-0 text-text-secondary" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-body-sm font-medium text-text-primary">{label}</p>
-        <p className="text-caption text-text-secondary">{COMPONENT_TYPE_LABELS[component.type]}</p>
+        <p className="text-caption text-text-secondary">
+          {COMPONENT_TYPE_LABELS[component.type]}
+          {documentName(component) ? ` · ${documentName(component)}` : ''}
+        </p>
       </div>
       <button
         type="button"
@@ -127,7 +137,7 @@ function ComponentPreviewControl({ component }: { component: ComponentInput }) {
     case 'file_upload':
       return (
         <div className="flex h-9 items-center justify-between rounded-md border border-dashed border-border bg-background px-3 text-caption text-text-secondary">
-          <span>No file uploaded</span>
+          <span>{documentName(component) ? `${documentName(component)} — not uploaded yet` : 'No file uploaded'}</span>
           <span className="rounded-full border border-border px-sm py-xs text-caption font-medium text-text-primary">
             Upload
           </span>
