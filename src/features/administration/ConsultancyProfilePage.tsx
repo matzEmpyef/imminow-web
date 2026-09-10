@@ -15,7 +15,9 @@ const TABS = [
   'Profile',
   'Subscription',
   'Partner Colleges',
-  'Commission Rates',
+  // Renamed from "Commission Rates" (user, 2026-09-10): these are the rates immiNow charges the
+  // consultancy, not the commission a college pays it (that lives on Partner Colleges).
+  'Platform Commission Rates',
   'Allocation Rule',
   'Tag Management',
   'Incoming Transfers',
@@ -76,8 +78,10 @@ export function ConsultancyProfilePage() {
             handed a Super Admin a switch to turn this screen off for an ordinary consultancy,
             where their commission terms live. */}
         {activeTab === 'Partner Colleges' && <PartnerCollegesPanel kind={consultancy.data.kind} />}
-        {activeTab === 'Commission Rates' && <CommissionRatesTab consultancy={consultancy.data} />}
-        {activeTab === 'Allocation Rule' && <AllocationTab />}
+        {activeTab === 'Platform Commission Rates' && <CommissionRatesTab consultancy={consultancy.data} />}
+        {activeTab === 'Allocation Rule' && (
+          <AllocationTab enabled={Boolean(consultancy.data.features?.allocation_rule)} />
+        )}
         {activeTab === 'Tag Management' && <TagManagementTab />}
         {activeTab === 'Incoming Transfers' && canAcceptTransfers && <IncomingTransfersTab />}
       </div>

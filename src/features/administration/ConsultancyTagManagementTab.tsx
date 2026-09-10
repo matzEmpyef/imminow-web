@@ -1,9 +1,8 @@
 // Split out of ConsultancyProfilePage.tsx (Phase 3 plan, Tier B2, 2026-09-03) — pure movement, no logic change.
 import { useState, type FormEvent } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
-import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { Modal } from '@/components/Modal'
 import { useCreateTag, useDeleteTag, useTags } from '@/queries/tags'
@@ -17,11 +16,13 @@ function DeleteTagTrigger({ tagId, tagName }: { tagId: string; tagName: string }
   return (
     <>
       <button
+        type="button"
         onClick={() => setConfirming(true)}
-        className="text-caption text-error hover:underline"
+        className="flex h-5 w-5 items-center justify-center rounded-full text-text-secondary hover:bg-error/10 hover:text-error"
         aria-label={`Delete ${tagName}`}
+        title="Delete tag"
       >
-        ✕
+        <X className="h-3 w-3" />
       </button>
       {confirming && (
         <Modal
@@ -96,7 +97,7 @@ export function TagManagementTab() {
 
   return (
     <>
-      <div className="flex max-w-[32rem] items-center justify-between gap-md">
+      <div className="flex items-center justify-between gap-md">
         <p className="text-body-sm text-text-secondary">Tags applied to leads and clients, filterable in list views.</p>
         <Button onClick={() => setAdding(true)} className="inline-flex shrink-0 items-center gap-xs">
           <Plus className="h-4 w-4" aria-hidden />
@@ -105,15 +106,27 @@ export function TagManagementTab() {
       </div>
       {adding && <AddTagModal onClose={() => setAdding(false)} />}
 
-      <Card className="max-w-[32rem]">
-        {tags.isLoading && <p className="text-body-sm text-text-secondary">Loading…</p>}
-        {tags.data?.length === 0 && <p className="text-body-sm text-text-secondary">No tags yet.</p>}
-        <div className="flex flex-wrap gap-sm">
+      <Card>
+        <div className="flex items-center justify-between gap-md">
+          <h2 className="text-h3 text-text-primary">Tags</h2>
+          {tags.data && tags.data.length > 0 && (
+            <span className="text-body-sm tabular-nums text-text-secondary">{tags.data.length}</span>
+          )}
+        </div>
+        {tags.isLoading && <p className="mt-sm text-body-sm text-text-secondary">Loading…</p>}
+        {tags.data?.length === 0 && (
+          <p className="mt-sm text-body-sm text-text-secondary">No tags yet — use Add tag to create your first.</p>
+        )}
+        {/* Each tag a chip with its delete inside it, rather than a badge and a loose ✕ beside it. */}
+        <div className="mt-sm flex flex-wrap gap-sm">
           {tags.data?.map((tag) => (
-            <div key={tag.id} className="flex items-center gap-xs">
-              <Badge color="secondary">{tag.name}</Badge>
+            <span
+              key={tag.id}
+              className="inline-flex items-center gap-xs rounded-full border border-border bg-background py-0.5 pl-sm pr-0.5 text-body-sm text-text-primary"
+            >
+              {tag.name}
               <DeleteTagTrigger tagId={tag.id} tagName={tag.name} />
-            </div>
+            </span>
           ))}
         </div>
       </Card>

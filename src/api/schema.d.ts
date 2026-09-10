@@ -1901,7 +1901,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Allocation Rules (build reference 2.2) — manual vs. automatic round-robin for incoming leads */
+        /**
+         * Allocation Rules (build reference 2.2) — manual vs. automatic round-robin for incoming leads
+         * @description Applied since 2026-09-10. When mode is round_robin, a new Sentpo lead (POST /consultancies/{id}/leads) is assigned as it is created to the participating active employee with the fewest active leads, equal loads taking turns, and follows that employee's primary branch. Manual mode, or no active participant, leaves the lead unassigned in Lead Pool. Leads a consultancy adds or imports itself, and reassignment, are never touched by the rule. Requires the allocation_rule feature (Business plan and up).
+         */
         get: {
             parameters: {
                 query?: never;

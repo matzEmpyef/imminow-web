@@ -77,24 +77,28 @@ export function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnTyp
         Everything here is what students actually see. Any change notifies Platform Admin.
       </p>
 
-      <Card className="max-w-[42rem]">
+      {/* Full width, two columns on a wide screen (user, 2026-09-10: "cards in the tabs, use full
+          width"): short fields pair up, the long ones (description, about us, countries) span. */}
+      <Card>
         <h2 className="text-h2 text-text-primary">{consultancy.name}</h2>
-        <form onSubmit={handleSubmit} className="mt-md flex flex-col gap-md">
+        <form onSubmit={handleSubmit} className="mt-md grid grid-cols-1 gap-md lg:grid-cols-2">
           {/* `logo_url` has existed on Consultancy since the original schema but no screen ever
               collected it, so every row shipped null and Sentpo Mobile fell back to a generated
               initial for every consultancy. Added 2026-08-18. */}
-          <ImageUploadField
-            label="Logo"
-            value={logoUrl}
-            onChange={setLogoUrl}
-            hint="Square works best — shown at 48×48 in the student app. Ideal size 200×200px."
-          />
+          <div className="lg:col-span-2">
+            <ImageUploadField
+              label="Logo"
+              value={logoUrl}
+              onChange={setLogoUrl}
+              hint="Square works best — shown at 48×48 in the student app. Ideal size 200×200px."
+            />
+          </div>
           <TextField label="City" value={city} onChange={(e) => setCity(e.target.value)} />
           {/* Where the consultancy is based, NOT where it sends students — that's Countries
               Served below. Added 2026-08-23: invoices default to this country's currency, which
               until now was hardcoded to INR for everyone. */}
           <CountrySelect label="Country" value={country} onChange={setCountry} />
-          <div className="flex flex-col gap-xs">
+          <div className="flex flex-col gap-xs lg:col-span-2">
             <FieldLabel htmlFor="consultancy-description">Description</FieldLabel>
             <textarea
               id="consultancy-description"
@@ -107,7 +111,7 @@ export function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnTyp
               {descriptionWords} / {DESCRIPTION_WORD_LIMIT} words
             </p>
           </div>
-          <div className="flex flex-col gap-xs">
+          <div className="flex flex-col gap-xs lg:col-span-2">
             <FieldLabel htmlFor="consultancy-about-us">About Us</FieldLabel>
             <textarea
               id="consultancy-about-us"
@@ -117,43 +121,46 @@ export function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnTyp
               className="rounded-md border border-border bg-surface px-3 py-sm text-body"
             />
           </div>
-          <MultiSelect
-            label="Countries served"
-            options={countryOptions.data ?? []}
-            selected={countries}
-            onChange={setCountries}
-          />
-          <div className="grid grid-cols-2 gap-md">
-            <TextField
-              label="Public email"
-              type="email"
-              value={publicEmail}
-              onChange={(e) => setPublicEmail(e.target.value)}
-              error={publicEmailError}
-            />
-            <TextField
-              label="Public phone"
-              value={publicPhone}
-              onChange={(e) => setPublicPhone(e.target.value)}
-              error={publicPhoneError}
+          <div className="lg:col-span-2">
+            <MultiSelect
+              label="Countries served"
+              options={countryOptions.data ?? []}
+              selected={countries}
+              onChange={setCountries}
             />
           </div>
-          {updateProfile.isSuccess && <p className="text-body-sm text-success">Profile updated.</p>}
-          {updateProfile.isError && <p className="text-body-sm text-error">{updateProfile.error.message}</p>}
-          <Button
-            type="submit"
-            loading={updateProfile.isPending}
-            disabled={Boolean(publicEmailError || publicPhoneError || descriptionError)}
-            className="w-fit self-end mt-md"
-          >
-            Save Changes
-          </Button>
+          <TextField
+            label="Public email"
+            type="email"
+            value={publicEmail}
+            onChange={(e) => setPublicEmail(e.target.value)}
+            error={publicEmailError}
+          />
+          <TextField
+            label="Public phone"
+            value={publicPhone}
+            onChange={(e) => setPublicPhone(e.target.value)}
+            error={publicPhoneError}
+          />
+          <div className="flex items-center justify-end gap-md lg:col-span-2">
+            {updateProfile.isSuccess && <p className="text-body-sm text-success">Profile updated.</p>}
+            {updateProfile.isError && <p className="text-body-sm text-error">{updateProfile.error.message}</p>}
+            <Button
+              type="submit"
+              loading={updateProfile.isPending}
+              disabled={Boolean(publicEmailError || publicPhoneError || descriptionError)}
+            >
+              Save Changes
+            </Button>
+          </div>
         </form>
       </Card>
 
-      <GalleryCard consultancy={consultancy} />
-
-      <KycCard />
+      {/* Photos and KYC side by side on a wide screen rather than a long single column. */}
+      <div className="grid grid-cols-1 items-start gap-md xl:grid-cols-2">
+        <GalleryCard consultancy={consultancy} />
+        <KycCard />
+      </div>
     </>
   )
 }
@@ -183,7 +190,7 @@ function GalleryCard({ consultancy }: { consultancy: NonNullable<ReturnType<type
   const atCap = gallery.length >= GALLERY_MAX_IMAGES
 
   return (
-    <Card className="mt-lg max-w-2xl">
+    <Card>
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-h2 text-text-primary">Photos</h2>
@@ -196,7 +203,7 @@ function GalleryCard({ consultancy }: { consultancy: NonNullable<ReturnType<type
         </Badge>
       </div>
 
-      <div className="mt-md flex flex-col gap-md">
+      <div className="mt-md grid grid-cols-1 gap-md lg:grid-cols-2">
         {gallery.length === 0 && (
           <p className="text-body-sm text-text-secondary">
             No photos yet — students see today's layout unchanged until you add one.
@@ -394,14 +401,14 @@ function KycCard() {
   // nobody has fetched yet.
   if (kyc.isLoading) {
     return (
-      <Card className="mt-lg max-w-[42rem]">
+      <Card>
         <Skeleton className="h-24 rounded-lg" />
       </Card>
     )
   }
   if (kyc.isError) {
     return (
-      <Card className="mt-lg max-w-[42rem]">
+      <Card>
         <ErrorState message="Could not load your KYC status." onRetry={() => kyc.refetch()} />
       </Card>
     )
@@ -410,7 +417,7 @@ function KycCard() {
   const status = kyc.data?.status ?? 'not_submitted'
 
   return (
-    <Card className="mt-lg max-w-[42rem]">
+    <Card>
       <div className="flex items-center gap-sm">
         <h2 className="text-h2 text-text-primary">KYC Verification</h2>
         <Badge
