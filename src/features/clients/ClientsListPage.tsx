@@ -5,7 +5,6 @@ import { AppShell } from '@/features/auth/AppShell'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
-import { FieldLabel } from '@/components/FieldLabel'
 import { SearchSelect, type SearchSelectOption } from '@/components/SearchSelect'
 import { Table, type TableColumn } from '@/components/Table'
 import { CountryLabel } from '@/components/CountryLabel'
@@ -107,11 +106,10 @@ function AssignClientTrigger({
               to which consultant?
             </p>
             <div className="flex flex-col gap-xs">
-              <FieldLabel htmlFor="assign-employee" required>
-                Consultant
-              </FieldLabel>
               <SearchSelect
                 id="assign-employee"
+                label="Consultant"
+                required
                 options={employeeOptions}
                 value={employeeId}
                 onChange={setEmployeeId}

@@ -83,11 +83,9 @@ export function TransferApplicantModal({
           here closes as switched and drops out of your Clients List — this cannot be undone from your side.
         </p>
         <div className="flex flex-col gap-xs">
-          <label className="text-body-sm font-medium text-text-primary" htmlFor="transfer-consultancy">
-            New consultancy
-          </label>
           <SearchSelect
             id="transfer-consultancy"
+            label="New consultancy"
             options={options}
             value={newConsultancyId}
             onChange={setNewConsultancyId}

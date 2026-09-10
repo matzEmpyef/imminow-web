@@ -132,12 +132,21 @@ export function CourseFinderFilters({
             the effect, with the consequence spelled out underneath. */}
         {canCheckFit ? (
           <div className="flex flex-col gap-0.5">
-            <Toggle
-              checked={state.eligibleOnly}
-              onChange={(eligibleOnly) => onChange({ eligibleOnly })}
-              label={`Only show courses ${personName} qualifies for`}
-            />
-            <p className="text-caption text-text-secondary">
+            {/* The Toggle only carries an aria-label, so the switch showed with no visible text;
+                the label now sits beside it and is clickable too (2026-09-10). */}
+            <div className="flex items-center gap-sm">
+              <Toggle
+                id="cf-eligible"
+                checked={state.eligibleOnly}
+                onChange={(eligibleOnly) => onChange({ eligibleOnly })}
+                label={`Only show courses ${personName} qualifies for`}
+              />
+              <label htmlFor="cf-eligible" className="cursor-pointer text-body-sm font-medium text-text-primary">
+                Only show courses {personName} qualifies for
+              </label>
+            </div>
+            {/* Indented to start under the label text, not under the switch. */}
+            <p className="text-caption text-text-secondary" style={{ paddingLeft: '3.25rem' }}>
               Courses they clearly miss the requirements for are hidden. Anything still unknown — scores they have not
               added yet — stays visible.
             </p>

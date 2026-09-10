@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { ChevronDown, X } from 'lucide-react'
 
 export interface SearchSelectOption {
   id: string
@@ -20,6 +20,8 @@ interface SearchSelectProps {
   // adds a row the pill fields do not have and drops this column ~23px lower than its
   // neighbours. Omitted keeps the original compact shape, so existing call sites don't move.
   label?: string
+  // Tomato `*` after the floating label, same convention as TextField/SelectField.
+  required?: boolean
 }
 
 // Generic type-to-filter replacement for a plain <select> (user-requested, 2026-08-15 —
@@ -37,6 +39,7 @@ export function SearchSelect({
   id,
   disabled,
   label,
+  required,
 }: SearchSelectProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -131,20 +134,33 @@ export function SearchSelect({
         placeholder={placeholder}
         disabled={disabled}
         autoComplete="off"
-        className={`w-full border border-border bg-surface text-body outline-none transition-colors focus:border-2 focus:border-primary disabled:cursor-not-allowed disabled:opacity-50 ${
-          showClear ? 'pr-9' : ''
-        } ${label ? 'h-12 rounded-full px-5' : 'h-10 rounded-md px-3'}`}
+        // `block`: an inline input left a few pixels of line-height under itself, so the wrapper
+        // was taller than the 48px field and anything centred on the WRAPPER (the clear button)
+        // sat visibly low (2026-09-10). Right padding always leaves room for the chevron or ×.
+        className={`block w-full border border-border bg-surface text-body outline-none transition-colors focus:border-2 focus:border-primary disabled:cursor-not-allowed disabled:opacity-50 ${
+          label ? 'h-12 rounded-full pl-5 pr-11' : 'h-10 rounded-md pl-3 pr-9'
+        }`}
       />
-      {showClear && (
+      {showClear ? (
         <button
           type="button"
           onClick={() => onChange('')}
           aria-label="Clear"
           title="Clear"
-          className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-text-secondary hover:bg-background hover:text-text-primary"
+          className={`absolute top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-text-secondary hover:bg-background hover:text-text-primary ${
+            label ? 'right-3' : 'right-1.5'
+          }`}
         >
           <X className="h-4 w-4" />
         </button>
+      ) : (
+        // Reads as a dropdown like its neighbours until something is picked; then the × replaces it.
+        <ChevronDown
+          aria-hidden
+          className={`pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary ${
+            label ? 'right-4' : 'right-3'
+          }`}
+        />
       )}
       {label && (
         <label
@@ -152,6 +168,7 @@ export function SearchSelect({
           className="pointer-events-none absolute left-5 top-0 origin-left -translate-y-1/2 scale-[0.8] bg-surface px-xs text-body text-text-secondary"
         >
           {label}
+          {required && <span className="text-required"> *</span>}
         </label>
       )}
       {open && rect && (

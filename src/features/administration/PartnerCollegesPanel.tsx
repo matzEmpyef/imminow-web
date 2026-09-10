@@ -209,11 +209,9 @@ export function PartnerCollegesPanel({
       {!readOnly && (
         <div className="flex flex-wrap items-end gap-sm">
           <div className="min-w-[16rem] flex-1">
-            <label className="mb-xs block text-body-sm font-medium text-text-primary" htmlFor="pc-college">
-              Add a college
-            </label>
             <SearchSelect
               id="pc-college"
+              label="Add a college"
               options={collegeOptions}
               value={addCollegeId}
               onChange={(id) => {

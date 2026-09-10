@@ -1,6 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { ChevronDown, X } from 'lucide-react'
-import { FieldLabel } from './FieldLabel'
 
 interface MultiSelectProps {
   label: string
@@ -66,17 +65,22 @@ export function MultiSelect({ label, options, selected, onChange, allowCustom, r
 
   return (
     <div ref={containerRef} className="relative flex flex-col gap-xs">
-      <FieldLabel htmlFor={inputId} required={required}>
-        {label}
-      </FieldLabel>
-      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- the click is a mouse-convenience focus proxy into the real <input> below; keyboard users tab straight to the input, which owns all keyboard interaction */}
-      <div
-        onClick={() => {
-          setOpen(true)
-          inputRef.current?.focus()
-        }}
-        className="flex min-h-12 cursor-text flex-wrap items-center gap-xs rounded-lg border border-border bg-surface px-3 py-sm focus-within:border-2 focus-within:border-primary"
-      >
+      {/* Same shape as TextField/SelectField (2026-09-10: "when there is dropdown, alignment goes
+          all missing"): the label used to sit on its own line ABOVE a rounded-rectangle box, so
+          beside pill fields this column started a row lower and looked like a different control.
+          The label now notches the border like theirs, and always floats since the box is never
+          visually empty (it shows chips or the "Search…" placeholder). */}
+      <div className="relative">
+        {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- the click is a mouse-convenience focus proxy into the real <input> below; keyboard users tab straight to the input, which owns all keyboard interaction */}
+        <div
+          onClick={() => {
+            setOpen(true)
+            inputRef.current?.focus()
+          }}
+          // Inline radius: pill-round at one line, still soft when chips wrap to several lines.
+          style={{ borderRadius: '1.5rem' }}
+          className="flex min-h-12 cursor-text flex-wrap items-center gap-xs border border-border bg-surface py-sm pl-5 pr-md focus-within:border-2 focus-within:border-primary"
+        >
         {selected.map((option) => (
           <span
             key={option}
@@ -110,6 +114,14 @@ export function MultiSelect({ label, options, selected, onChange, allowCustom, r
           style={{ minWidth: '6rem' }}
         />
         <ChevronDown className="h-4 w-4 shrink-0 text-text-secondary" />
+        </div>
+        <label
+          htmlFor={inputId}
+          className="pointer-events-none absolute left-5 top-0 origin-left -translate-y-1/2 scale-[0.8] bg-surface px-xs text-body text-text-secondary"
+        >
+          {label}
+          {required && <span className="text-required"> *</span>}
+        </label>
       </div>
 
       {open && (

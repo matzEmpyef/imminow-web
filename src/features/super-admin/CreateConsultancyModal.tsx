@@ -233,11 +233,9 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
           <div className="flex flex-col gap-md border-t border-border pt-md">
             <p className="text-body-sm font-medium text-text-primary">College</p>
             <div className="flex flex-col gap-xs">
-              <label className="text-body-sm font-medium text-text-primary" htmlFor="institute-college">
-                College this institute speaks for
-              </label>
               <SearchSelect
                 id="institute-college"
+                label="College this institute speaks for"
                 options={collegeOptions}
                 value={collegeId}
                 onChange={setCollegeId}

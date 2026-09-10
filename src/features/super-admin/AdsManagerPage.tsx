@@ -5,7 +5,6 @@ import { SelectField } from '@/components/SelectField'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
-import { FieldLabel } from '@/components/FieldLabel'
 import { Table, type TableColumn } from '@/components/Table'
 import { Modal } from '@/components/Modal'
 import { ImageUploadField } from '@/components/ImageUploadField'
@@ -188,11 +187,10 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
             )}
             {destinationType === 'event' && (
               <div className="flex flex-col gap-xs">
-                <FieldLabel htmlFor="dest-event" required>
-                  Event
-                </FieldLabel>
                 <SearchSelect
                   id="dest-event"
+                  label="Event"
+                  required
                   options={eventOptions}
                   value={destinationId}
                   onChange={setDestinationId}
@@ -202,11 +200,10 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
             )}
             {destinationType === 'internal' && (
               <div className="flex flex-col gap-xs">
-                <FieldLabel htmlFor="dest-consultancy" required>
-                  Consultancy
-                </FieldLabel>
                 <SearchSelect
                   id="dest-consultancy"
+                  label="Consultancy"
+                  required
                   options={consultancyOptions}
                   value={destinationId}
                   onChange={setDestinationId}

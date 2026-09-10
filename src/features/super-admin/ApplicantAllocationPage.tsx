@@ -160,11 +160,10 @@ function AllocateAction({ entry, consultancies }: { entry: QueueEntry; consultan
               </p>
             )}
             <div className="flex flex-col gap-xs">
-              <FieldLabel htmlFor="allocate-consultancy" required>
-                Consultancy
-              </FieldLabel>
               <SearchSelect
                 id="allocate-consultancy"
+                label="Consultancy"
+                required
                 options={consultancyOptions}
                 value={consultancyId}
                 onChange={setConsultancyId}

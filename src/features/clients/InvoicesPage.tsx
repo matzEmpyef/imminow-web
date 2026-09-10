@@ -75,11 +75,9 @@ function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
     >
       <form id="create-invoice-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <div className="flex flex-col gap-xs">
-          <label className="text-body-sm font-medium text-text-primary" htmlFor="invoice-applicant">
-            Applicant
-          </label>
           <SearchSelect
             id="invoice-applicant"
+            label="Applicant"
             options={(clients.data?.items ?? []).map((c) => ({
               id: c.id,
               label: `${c.student.first_name} ${c.student.last_name}`,

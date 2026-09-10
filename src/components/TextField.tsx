@@ -54,7 +54,10 @@ export function TextField({
   const isEmail = type === 'email'
   const [focused, setFocused] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const floated = focused || Boolean(value)
+  // A field with placeholder text keeps its label floated even when empty (2026-09-10): a label
+  // resting in the middle sat ON TOP of the placeholder ("Search" over "Course or college" read as
+  // "Search or college"). Floated, it matches the selects beside it, whose labels always float.
+  const floated = focused || Boolean(value) || Boolean(props.placeholder)
   const resolvedType = isPassword ? (showPassword ? 'text' : 'password') : type
   const iconCount = (hasStatus ? 1 : 0) + (isPassword ? 1 : 0)
 

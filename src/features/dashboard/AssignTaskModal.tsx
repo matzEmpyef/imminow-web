@@ -84,11 +84,9 @@ export function AssignTaskModal({ onClose }: { onClose: () => void }) {
     >
       <form id="assign-task-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <div className="flex flex-col gap-xs">
-          <label className="text-body-sm font-medium text-text-primary" htmlFor="task-related">
-            Related client or lead
-          </label>
           <SearchSelect
             id="task-related"
+            label="Related client or lead"
             options={relatedOptions}
             value={relatedId}
             onChange={setRelatedId}
