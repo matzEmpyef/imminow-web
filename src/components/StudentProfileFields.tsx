@@ -1,23 +1,32 @@
 import type { ReactNode } from 'react'
+import {
+  BookOpen,
+  Briefcase,
+  Building2,
+  Cake,
+  CalendarDays,
+  Clock,
+  FileCheck2,
+  Flag,
+  Globe,
+  GraduationCap,
+  MapPin,
+  PiggyBank,
+  School,
+  ShieldAlert,
+  User,
+  Wallet,
+} from 'lucide-react'
 import { formatDate, formatIntake } from '@/lib/time'
 import { formatMoney } from '@/lib/money'
 import { STUDY_LEVEL_LABELS } from '@/lib/studyLevels'
 import { genderLabel } from '@/lib/genders'
 import { CountryLabel, CountryLabelList } from './CountryLabel'
+import { IconBadge } from './IconBadge'
 import type { components } from '@/api/schema'
 
 type StudentPreferences = components['schemas']['StudentPreferences']
-
-function ProfileRow({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="flex items-start justify-between gap-md">
-      <dt className="shrink-0 text-text-secondary">{label}</dt>
-      <dd className="min-w-0 text-right text-text-primary">
-        {value ?? <span className="text-text-secondary">Not added yet</span>}
-      </dd>
-    </div>
-  )
-}
+type IconColor = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
 
 // C1: funding_source is a closed wire enum (self/loan/scholarship_dependent) — labeled here rather
 // than shown raw. Study level labels live in @/lib/studyLevels, shared with the Lead Pool table.
@@ -25,35 +34,6 @@ const FUNDING_SOURCE_LABELS: Record<string, string> = {
   self: 'Self-funded',
   loan: 'Loan',
   scholarship_dependent: 'Scholarship-dependent',
-}
-
-function formatEducation(entries?: components['schemas']['EducationEntry'][]): ReactNode {
-  if (!entries || entries.length === 0) return null
-  return (
-    <div className="flex flex-col items-end gap-0.5">
-      {entries.map((e, i) => (
-        <span key={i} className="capitalize">
-          {e.level}
-          {e.stream ? ` — ${e.stream}` : ''}
-          {e.score != null ? `, ${e.score}${e.scheme === 'percentage' ? '%' : ''}` : ''}
-          {e.status === 'pursuing' ? ' (pursuing)' : ''}
-        </span>
-      ))}
-    </div>
-  )
-}
-
-function formatTestScores(entries?: components['schemas']['TestScoreEntry'][]): ReactNode {
-  if (!entries || entries.length === 0) return null
-  return (
-    <div className="flex flex-col items-end gap-0.5">
-      {entries.map((t, i) => (
-        <span key={i}>
-          {t.exam}: {t.status === 'completed' ? (t.score ?? 'scored') : t.status}
-        </span>
-      ))}
-    </div>
-  )
 }
 
 // `education_level` is server-derived from the education entries; shown only when there are no
@@ -71,67 +51,189 @@ const STUDY_MODE_LABELS: Record<string, string> = {
   part_time: 'Part-time',
 }
 
+// ---- value formatting, shared by the list and the panels ---------------------------------------
+// Multi-entry fields come back as LINES, and each layout decides how to stack them: the list
+// right-aligns them, the panels left-align them under their label.
+
+type Lines = ReactNode[] | null
+
+function educationLines(prefs: StudentPreferences | null | undefined): Lines {
+  const entries = prefs?.education
+  if (entries && entries.length > 0) {
+    return entries.map((e, i) => (
+      <span key={i} className="capitalize">
+        {e.level}
+        {e.stream ? ` — ${e.stream}` : ''}
+        {e.score != null ? `, ${e.score}${e.scheme === 'percentage' ? '%' : ''}` : ''}
+        {e.status === 'pursuing' ? ' (pursuing)' : ''}
+      </span>
+    ))
+  }
+  return prefs?.education_level ? [EDUCATION_LEVEL_LABELS[prefs.education_level] ?? prefs.education_level] : null
+}
+
 // `exam_status` is the server's per-exam summary ("ielts" -> "booked"). Detailed test_scores win
 // when present; this covers profiles that only carry the summary, which is why a lead with
 // "IELTS: booked" used to show "Not added yet" for tests.
-function formatExamStatus(status?: { [key: string]: unknown } | null): ReactNode {
-  const entries = Object.entries(status ?? {})
-  if (entries.length === 0) return null
-  return (
-    <div className="flex flex-col items-end gap-0.5">
-      {entries.map(([exam, state]) => (
-        <span key={exam}>
-          {exam.toUpperCase()}: {String(state)}
-        </span>
-      ))}
-    </div>
-  )
+function testLines(prefs: StudentPreferences | null | undefined): Lines {
+  const scores = prefs?.test_scores
+  if (scores && scores.length > 0) {
+    return scores.map((t, i) => (
+      <span key={i}>
+        {t.exam}: {t.status === 'completed' ? (t.score ?? 'scored') : t.status}
+      </span>
+    ))
+  }
+  const summary = Object.entries(prefs?.exam_status ?? {})
+  if (summary.length === 0) return null
+  return summary.map(([exam, state]) => (
+    <span key={exam}>
+      {exam.toUpperCase()}: {String(state)}
+    </span>
+  ))
 }
 
-function formatVisaRefusals(entries?: components['schemas']['VisaRefusalEntry'][]): ReactNode {
+function visaLines(prefs: StudentPreferences | null | undefined): Lines {
+  const entries = prefs?.visa_refusals
   if (!entries || entries.length === 0) return null
-  return (
-    <div className="flex flex-col items-end gap-0.5">
-      {entries.map((v, i) => (
-        <span key={i}>
-          {v.country}
-          {v.year ? `, ${v.year}` : ''}
-          {v.note ? ` — ${v.note}` : ''}
-        </span>
-      ))}
-    </div>
-  )
+  return entries.map((v, i) => (
+    <span key={i}>
+      {v.country}
+      {v.year ? `, ${v.year}` : ''}
+      {v.note ? ` — ${v.note}` : ''}
+    </span>
+  ))
 }
 
-function formatLocation(prefs: StudentPreferences | null | undefined): ReactNode {
+function workLines(prefs: StudentPreferences | null | undefined): Lines {
+  const entries = prefs?.work_experience
+  if (!entries || entries.length === 0) return null
+  return entries.map((w, i) => (
+    <span key={i}>
+      {w.title}
+      {w.company ? ` at ${w.company}` : ''}
+      {w.years ? ` (${w.years}y)` : ''}
+    </span>
+  ))
+}
+
+function locationLines(prefs: StudentPreferences | null | undefined): Lines {
   const place = [prefs?.city, prefs?.district, prefs?.state].filter(Boolean).join(', ')
   if (!place && !prefs?.resident_country) return null
-  return (
-    <div className="flex flex-col items-end gap-0.5">
-      {place && <span>{place}</span>}
-      {prefs?.resident_country && <CountryLabel name={prefs.resident_country} />}
-    </div>
-  )
+  const lines: ReactNode[] = []
+  if (place) lines.push(<span key="place">{place}</span>)
+  if (prefs?.resident_country) lines.push(<CountryLabel key="country" name={prefs.resident_country} />)
+  return lines
 }
 
-function formatInstitution(prefs: StudentPreferences | null | undefined): ReactNode {
+function institutionText(prefs: StudentPreferences | null | undefined): string | null {
   const name = prefs?.institution_name ?? prefs?.institution_raw
   if (!name) return null
   const city = prefs?.institution_name ? prefs?.institution_city : prefs?.institution_raw_city
   return city ? `${name}, ${city}` : name
 }
 
-function formatWorkExperience(entries?: components['schemas']['WorkExperienceEntry'][]): ReactNode {
-  if (!entries || entries.length === 0) return null
+/** Every profile fact, in display order, with the one icon and colour each one uses. */
+function profileFacts(prefs: StudentPreferences | null | undefined) {
+  const one = (v: ReactNode | null | undefined): Lines => (v == null || v === '' ? null : [v])
+  return {
+    studyPlan: [
+      {
+        label: 'Study level',
+        icon: <GraduationCap className="h-5 w-5" />,
+        color: 'primary' as IconColor,
+        lines: one(prefs?.study_level ? (STUDY_LEVEL_LABELS[prefs.study_level] ?? prefs.study_level) : null),
+      },
+      {
+        label: 'Study mode',
+        icon: <Clock className="h-5 w-5" />,
+        color: 'success' as IconColor,
+        lines: one(prefs?.preferred_study_mode ? STUDY_MODE_LABELS[prefs.preferred_study_mode] : null),
+      },
+      {
+        label: 'Intended intake',
+        icon: <CalendarDays className="h-5 w-5" />,
+        color: 'info' as IconColor,
+        lines: one(prefs?.intended_intake ? formatIntake(prefs.intended_intake, prefs.intended_year) : null),
+      },
+      {
+        label: 'Field(s) of interest',
+        icon: <BookOpen className="h-5 w-5" />,
+        color: 'primary' as IconColor,
+        lines: one(prefs?.fields_of_interest?.length ? prefs.fields_of_interest.join(', ') : null),
+      },
+      {
+        label: 'Target countries',
+        icon: <Globe className="h-5 w-5" />,
+        color: 'secondary' as IconColor,
+        lines: one(prefs?.target_countries?.length ? <CountryLabelList names={prefs.target_countries} /> : null),
+      },
+      {
+        // Budget is the one field the student explicitly gates (`budget_shared`) — shown only when
+        // they opted in; otherwise it still appears, but says so rather than the figure.
+        label: 'Budget',
+        icon: <Wallet className="h-5 w-5" />,
+        color: 'secondary' as IconColor,
+        lines: one(
+          !prefs
+            ? null
+            : prefs.budget_shared
+              ? prefs.budget?.amount != null
+                ? formatMoney(prefs.budget.currency, prefs.budget.amount)
+                : null
+              : 'Not shared by the applicant',
+        ),
+      },
+      {
+        label: 'Funding source',
+        icon: <PiggyBank className="h-5 w-5" />,
+        color: 'warning' as IconColor,
+        lines: one(prefs?.funding_source ? (FUNDING_SOURCE_LABELS[prefs.funding_source] ?? prefs.funding_source) : null),
+      },
+    ],
+    background: [
+      { label: 'Education', icon: <School className="h-5 w-5" />, color: 'primary' as IconColor, lines: educationLines(prefs) },
+      { label: 'Test scores', icon: <FileCheck2 className="h-5 w-5" />, color: 'info' as IconColor, lines: testLines(prefs) },
+      { label: 'Work experience', icon: <Briefcase className="h-5 w-5" />, color: 'warning' as IconColor, lines: workLines(prefs) },
+      { label: 'Visa refusals', icon: <ShieldAlert className="h-5 w-5" />, color: 'error' as IconColor, lines: visaLines(prefs) },
+    ],
+    about: [
+      {
+        label: 'Date of birth',
+        icon: <Cake className="h-5 w-5" />,
+        color: 'secondary' as IconColor,
+        lines: one(prefs?.date_of_birth ? formatDate(prefs.date_of_birth) : null),
+      },
+      {
+        label: 'Gender',
+        icon: <User className="h-5 w-5" />,
+        color: 'info' as IconColor,
+        lines: one(prefs?.gender ? genderLabel(prefs.gender) : null),
+      },
+      { label: 'Lives in', icon: <MapPin className="h-5 w-5" />, color: 'success' as IconColor, lines: locationLines(prefs) },
+      {
+        label: 'School / institution',
+        icon: <Building2 className="h-5 w-5" />,
+        color: 'primary' as IconColor,
+        lines: one(institutionText(prefs)),
+      },
+    ],
+  }
+}
+
+// ---- the plain list (Client Profile Overview, the lead page) -----------------------------------
+
+function ProfileRow({ label, lines }: { label: string; lines: Lines }) {
   return (
-    <div className="flex flex-col items-end gap-0.5">
-      {entries.map((w, i) => (
-        <span key={i}>
-          {w.title}
-          {w.company ? ` at ${w.company}` : ''}
-          {w.years ? ` (${w.years}y)` : ''}
-        </span>
-      ))}
+    <div className="flex items-start justify-between gap-md">
+      <dt className="shrink-0 text-text-secondary">{label}</dt>
+      <dd className="min-w-0 text-right text-text-primary">
+        {lines ? (
+          <div className="flex flex-col items-end gap-0.5">{lines}</div>
+        ) : (
+          <span className="text-text-secondary">Not added yet</span>
+        )}
+      </dd>
     </div>
   )
 }
@@ -148,71 +250,103 @@ function formatWorkExperience(entries?: components['schemas']['WorkExperienceEnt
  * message for "no account exists at all" (vs. "account exists, profile empty") render that
  * themselves instead of this component.
  *
- * Budget is the one field the student explicitly gates (`budget_shared`) — shown only when they
- * opted in; otherwise the row still appears, but says so rather than the figure.
+ * EVERY field the profile carries (user, 2026-09-10: "I need all info in View study preference"),
+ * grouped study plan, then background, then about the student. Settings that aren't about the
+ * student (display currency, blog topics) are deliberately left out.
  */
 export function StudentProfileFields({ prefs }: { prefs: StudentPreferences | null | undefined }) {
-  // EVERY field the profile carries (user, 2026-09-10: "I need all info in View study
-  // preference"), grouped study plan, then background, then about the student. Still never name,
-  // email or phone: those live on the lead/client record itself, not in this panel. Settings that
-  // aren't about the student (display currency, blog topics) are deliberately left out.
+  const facts = profileFacts(prefs)
   return (
     <dl className="flex flex-col gap-xs text-body-sm">
-      <ProfileRow
-        label="Study level"
-        value={prefs?.study_level ? (STUDY_LEVEL_LABELS[prefs.study_level] ?? prefs.study_level) : null}
-      />
-      <ProfileRow
-        label="Study mode"
-        value={prefs?.preferred_study_mode ? STUDY_MODE_LABELS[prefs.preferred_study_mode] : null}
-      />
-      <ProfileRow
-        label="Target countries"
-        value={prefs?.target_countries?.length ? <CountryLabelList names={prefs.target_countries} /> : null}
-      />
-      <ProfileRow
-        label="Field(s) of interest"
-        value={
-          prefs?.fields_of_interest && prefs.fields_of_interest.length > 0 ? prefs.fields_of_interest.join(', ') : null
-        }
-      />
-      <ProfileRow
-        label="Intended intake"
-        value={prefs?.intended_intake ? formatIntake(prefs.intended_intake, prefs.intended_year) : null}
-      />
-      <ProfileRow
-        label="Budget"
-        value={
-          !prefs
-            ? null
-            : prefs.budget_shared
-              ? prefs.budget?.amount != null
-                ? formatMoney(prefs.budget.currency, prefs.budget.amount)
-                : null
-              : 'Not shared by the applicant'
-        }
-      />
-      <ProfileRow
-        label="Funding source"
-        value={prefs?.funding_source ? (FUNDING_SOURCE_LABELS[prefs.funding_source] ?? prefs.funding_source) : null}
-      />
-      <ProfileRow
-        label="Education"
-        value={
-          formatEducation(prefs?.education) ??
-          (prefs?.education_level ? EDUCATION_LEVEL_LABELS[prefs.education_level] : null)
-        }
-      />
-      <ProfileRow
-        label="Test scores"
-        value={formatTestScores(prefs?.test_scores) ?? formatExamStatus(prefs?.exam_status)}
-      />
-      <ProfileRow label="Work experience" value={formatWorkExperience(prefs?.work_experience)} />
-      <ProfileRow label="Visa refusals" value={formatVisaRefusals(prefs?.visa_refusals)} />
-      <ProfileRow label="Date of birth" value={prefs?.date_of_birth ? formatDate(prefs.date_of_birth) : null} />
-      <ProfileRow label="Gender" value={prefs?.gender ? genderLabel(prefs.gender) : null} />
-      <ProfileRow label="Lives in" value={formatLocation(prefs)} />
-      <ProfileRow label="School / institution" value={formatInstitution(prefs)} />
+      {[...facts.studyPlan, ...facts.background, ...facts.about].map((f) => (
+        <ProfileRow key={f.label} label={f.label} lines={f.lines} />
+      ))}
     </dl>
   )
 }
+
+// ---- the panels (lead and client detail popups) ------------------------------------------------
+
+function Fact({ icon, color, label, lines }: { icon: ReactNode; color: IconColor; label: string; lines: Lines }) {
+  return (
+    <div className="flex min-w-0 items-start gap-sm">
+      <IconBadge color={color}>{icon}</IconBadge>
+      <div className="min-w-0">
+        <dt className="text-caption text-text-secondary">{label}</dt>
+        <dd className="text-body-sm font-medium text-text-primary">
+          {lines ? (
+            <div className="flex flex-col items-start gap-0.5">{lines}</div>
+          ) : (
+            <span className="font-normal italic text-text-secondary">Not added yet</span>
+          )}
+        </dd>
+      </div>
+    </div>
+  )
+}
+
+function Panel({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-md rounded-lg border border-border bg-background p-lg">
+      <h3 className="text-h3 text-text-primary">{title}</h3>
+      <dl className="grid grid-cols-1 gap-x-lg gap-y-md sm:grid-cols-2">{children}</dl>
+    </section>
+  )
+}
+
+/**
+ * The same facts as {@link StudentProfileFields}, laid out for the lead and client detail popups
+ * (user, 2026-09-10: "can you improve this UI too.. both lead and client details popup"): three
+ * panels of icon tiles, with a completeness bar on top so what's missing reads at a glance.
+ * `extraStudyFacts` lets a caller add a fact of its own to Study Plan (the client's finalized
+ * country), counted in the bar like any other.
+ */
+export function StudentProfilePanels({
+  prefs,
+  extraStudyFacts = [],
+}: {
+  prefs: StudentPreferences | null | undefined
+  extraStudyFacts?: { label: string; icon: ReactNode; color: IconColor; lines: Lines }[]
+}) {
+  const facts = profileFacts(prefs)
+  const studyPlan = [...extraStudyFacts, ...facts.studyPlan]
+  const all = [...studyPlan, ...facts.background, ...facts.about]
+  const added = all.filter((f) => f.lines).length
+  const pct = Math.round((added / all.length) * 100)
+
+  return (
+    <div className="flex flex-col gap-md">
+      <div className="flex flex-col gap-xs">
+        <div className="flex items-center justify-between text-body-sm">
+          <span className="font-medium text-text-primary">Profile completeness</span>
+          <span className="text-text-secondary">
+            {added} of {all.length} details added
+          </span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-background">
+          <div
+            className={`h-2 rounded-full ${pct >= 75 ? 'bg-success' : pct >= 40 ? 'bg-primary' : 'bg-warning'}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+      <Panel title="Study Plan">
+        {studyPlan.map((f) => (
+          <Fact key={f.label} {...f} />
+        ))}
+      </Panel>
+      <Panel title="Background">
+        {facts.background.map((f) => (
+          <Fact key={f.label} {...f} />
+        ))}
+      </Panel>
+      <Panel title="About">
+        {facts.about.map((f) => (
+          <Fact key={f.label} {...f} />
+        ))}
+      </Panel>
+    </div>
+  )
+}
+
+export const FinalizedCountryIcon = Flag
