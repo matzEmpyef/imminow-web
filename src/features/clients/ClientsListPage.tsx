@@ -231,9 +231,15 @@ export function ClientsListPage() {
         if (summary?.accepted) parts.push('accepted')
         return (
           <div className="flex flex-col">
-            <span className="text-text-secondary">
-              {client.plan_template_name ? `${client.plan_template_name} (${client.progress})` : 'No plan assigned'}
-            </span>
+            {/* No plan is something to act on, so it is a pill rather than grey text that read the
+                same as a plan name (user, 2026-09-10). */}
+            {client.plan_template_name ? (
+              <span className="text-text-secondary">{`${client.plan_template_name} (${client.progress})`}</span>
+            ) : (
+              <span>
+                <Badge color="warning">No plan assigned</Badge>
+              </span>
+            )}
             {parts.length > 0 && <span className="text-caption text-text-secondary">{parts.join(' · ')}</span>}
             {/* Every step done and nobody has answered. A consultant scanning for who needs
                 chasing should be able to tell that apart from a case that is simply behind. */}
