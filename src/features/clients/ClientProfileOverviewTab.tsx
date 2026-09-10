@@ -96,20 +96,39 @@ export function OverviewTab({
             <p className="truncate text-h3 text-text-primary">
               {data.student.first_name} {data.student.last_name}
             </p>
-            <Badge color={statusInfo.color}>{statusInfo.label}</Badge>
+            {/* Case type under the name, with the status (user, 2026-09-10: "Case type we need it
+                below the name not in contact card"). */}
+            <div className="mt-xs flex flex-wrap items-center gap-xs">
+              <Badge color={statusInfo.color}>{statusInfo.label}</Badge>
+              {data.case_type && (
+                <Badge color="secondary" className="capitalize">
+                  {data.case_type.replace(/_/g, ' ')} case
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-x-lg gap-y-xs text-body-sm">
-          <span className="inline-flex items-center gap-xs text-text-primary">
+        {/* Two to a row, each with room of its own (user, 2026-09-10: "space phone number and
+            email.. like only 2 item in the row"). */}
+        <dl className="grid grid-cols-1 gap-md text-body-sm sm:grid-cols-2">
+          <div className="flex min-w-0 items-center gap-sm">
             <Mail className="h-4 w-4 shrink-0 text-primary" aria-hidden />
-            {data.student.email}
-          </span>
-          <span className="inline-flex items-center gap-xs text-text-primary">
+            <div className="min-w-0">
+              <dt className="text-caption text-text-secondary">Email</dt>
+              <dd className="break-words text-text-primary">{data.student.email}</dd>
+            </div>
+          </div>
+          <div className="flex min-w-0 items-center gap-sm">
             <Phone className="h-4 w-4 shrink-0 text-primary" aria-hidden />
-            {data.student.phone ?? <span className="text-text-secondary">No phone number</span>}
-          </span>
-        </div>
+            <div className="min-w-0">
+              <dt className="text-caption text-text-secondary">Phone</dt>
+              <dd className="text-text-primary">
+                {data.student.phone ?? <span className="text-text-secondary">Not added yet</span>}
+              </dd>
+            </div>
+          </div>
+        </dl>
 
         {/* User-requested (2026-08-19) — "consultant has to select country finalized to apply.
             it should be prominent." A standalone highlighted banner rather than folded into the
@@ -138,10 +157,11 @@ export function OverviewTab({
 
       {/* The same study preference the lead and client popups show, as panels — study plan,
           background, about the student — with the completeness bar on top. */}
-      <section className="flex flex-col gap-sm">
+      {/* On white (user, 2026-09-10: "study preference i need white background"). */}
+      <Card className="flex flex-col gap-md">
         <h2 className="text-h3 text-text-primary">Study Preference</h2>
-        <StudentProfilePanels prefs={data.preferences} />
-      </section>
+        <StudentProfilePanels prefs={data.preferences} surface />
+      </Card>
       </div>
 
       <div className="col-span-1 flex flex-col gap-md">
@@ -217,10 +237,11 @@ export function OverviewTab({
                 {data.residence_country ? <CountryLabel name={data.residence_country} /> : '—'}
               </dd>
             </div>
-            <div>
-              <dt className="text-caption text-text-secondary">Case type</dt>
-              <dd className="capitalize text-text-primary">{data.case_type}</dd>
-            </div>
+          </dl>
+          {/* Where the student lives, then who handles the case — split by a line across the whole
+              card, with room above and below (user, 2026-09-10). */}
+          <hr className="-mx-lg my-sm border-0 border-t border-border" />
+          <dl className="flex flex-col gap-sm text-body-sm">
             <div>
               <dt className="text-caption text-text-secondary">Consultant</dt>
               <dd className="text-text-primary">{data.assigned_employee_name ?? 'Unassigned'}</dd>

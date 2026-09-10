@@ -305,9 +305,11 @@ function Fact({ icon, color, label, lines }: { icon: ReactNode; color: IconColor
   )
 }
 
-function Panel({ title, children }: { title: string; children: ReactNode }) {
+function Panel({ title, surface, children }: { title: string; surface?: boolean; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-md rounded-lg border border-border bg-background p-lg">
+    <section
+      className={`flex flex-col gap-md rounded-lg border border-border p-lg ${surface ? 'bg-surface' : 'bg-background'}`}
+    >
       <h3 className="text-h3 text-text-primary">{title}</h3>
       <dl className="grid grid-cols-1 gap-x-lg gap-y-md sm:grid-cols-2">{children}</dl>
     </section>
@@ -324,9 +326,12 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
 export function StudentProfilePanels({
   prefs,
   extraStudyFacts = [],
+  surface = false,
 }: {
   prefs: StudentPreferences | null | undefined
   extraStudyFacts?: { label: string; icon: ReactNode; color: IconColor; lines: Lines }[]
+  /** White panels, for a page where they sit on a white card (client Overview, 2026-09-10). */
+  surface?: boolean
 }) {
   const facts = profileFacts(prefs, { countryPills: false })
   const studyPlan = [...extraStudyFacts, ...facts.studyPlan]
@@ -353,17 +358,17 @@ export function StudentProfilePanels({
           />
         </div>
       </div>
-      <Panel title="Study Plan">
+      <Panel title="Study Plan" surface={surface}>
         {studyPlan.map((f) => (
           <Fact key={f.label} {...f} />
         ))}
       </Panel>
-      <Panel title="Background">
+      <Panel title="Background" surface={surface}>
         {facts.background.map((f) => (
           <Fact key={f.label} {...f} />
         ))}
       </Panel>
-      <Panel title="About">
+      <Panel title="About" surface={surface}>
         {facts.about.map((f) => (
           <Fact key={f.label} {...f} />
         ))}
