@@ -203,7 +203,8 @@ function GalleryCard({ consultancy }: { consultancy: NonNullable<ReturnType<type
         </Badge>
       </div>
 
-      <div className="mt-md grid grid-cols-1 gap-md lg:grid-cols-2">
+      {/* One photo per row (user, 2026-09-10: "no need of 2 per row. just 1 enough"). */}
+      <div className="mt-md flex flex-col gap-md">
         {gallery.length === 0 && (
           <p className="text-body-sm text-text-secondary">
             No photos yet — students see today's layout unchanged until you add one.
