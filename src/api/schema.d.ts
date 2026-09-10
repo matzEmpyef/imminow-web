@@ -19907,19 +19907,19 @@ export interface components {
                 supply: number;
             }[];
         };
-        /** @description One kind of organisation ranked by current applicants (2026-09-10): the top 10 with at least one, the rest rolled into `others`, and organisations at zero only counted — sized to stay readable however many organisations are onboarded. */
+        /** @description One kind of organisation ranked by current applicants (2026-09-10): the top 9 with at least one (a doughnut of 9 + one Others slice), the rest rolled into `others`, and organisations at zero only counted — sized to stay readable however many organisations are onboarded. */
         OrgApplicantRanking: {
             /** @description Current applicants across every organisation of this kind. */
             total: number;
             organisations_with_applicants: number;
             organisations_without_applicants: number;
-            /** @description Up to 10, most applicants first (ties by name). Never contains a zero. */
+            /** @description Up to 9, most applicants first (ties by name). Never contains a zero. */
             top: {
                 id: string;
                 name: string;
                 count: number;
             }[];
-            /** @description Everything with applicants beyond the top 10, as one row. */
+            /** @description Everything with applicants beyond the top 9, as one Others slice. */
             others: {
                 organisations: number;
                 count: number;

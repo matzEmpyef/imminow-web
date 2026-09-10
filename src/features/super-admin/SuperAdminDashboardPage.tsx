@@ -28,8 +28,9 @@ const STAT_CARD_LINKS: Record<string, string> = {
 type DashboardData = NonNullable<ReturnType<typeof useAdminDashboard>['data']>
 type OrgRanking = NonNullable<DashboardData['applicants_by_organisation']>['consultancies']
 
-// Current applicants per organisation (user, 2026-09-10) — a ranked list rather than a doughnut,
-// which could not hold 100 organisations. Top 10, the rest as one Others row, zeros only counted.
+// Current applicants per organisation (user, 2026-09-10). A doughnut of at most 10 slices — the
+// top 9 plus one Others slice for the rest — so it holds at any number of organisations; the old
+// one drew a slice per organisation. Organisations at zero are only counted.
 function OrgApplicantsCard({
   title,
   singular,
@@ -42,7 +43,12 @@ function OrgApplicantsCard({
   ranking: OrgRanking
 }) {
   const noun = (n: number) => (n === 1 ? singular : plural)
-  const max = Math.max(1, ...ranking.top.map((r) => r.count), ranking.others.count)
+  const slices = [
+    ...ranking.top.map((r) => ({ label: r.name, value: r.count })),
+    ...(ranking.others.organisations > 0
+      ? [{ label: `Others (${ranking.others.organisations} ${noun(ranking.others.organisations)})`, value: ranking.others.count }]
+      : []),
+  ]
   return (
     <Card>
       <div className="flex items-center justify-between gap-sm">
@@ -55,22 +61,12 @@ function OrgApplicantsCard({
         {ranking.total} active applicant{ranking.total === 1 ? '' : 's'} across {ranking.organisations_with_applicants}{' '}
         {noun(ranking.organisations_with_applicants)}
       </p>
-      {ranking.top.length === 0 ? (
+      {slices.length === 0 ? (
         <p className="mt-sm text-body-sm text-text-secondary">No {plural} have active applicants right now.</p>
       ) : (
-        <ol className="mt-md flex flex-col gap-sm">
-          {ranking.top.map((r) => (
-            <OrgBar key={r.id} label={r.name} count={r.count} max={max} />
-          ))}
-          {ranking.others.organisations > 0 && (
-            <OrgBar
-              label={`Others (${ranking.others.organisations} ${noun(ranking.others.organisations)})`}
-              count={ranking.others.count}
-              max={max}
-              muted
-            />
-          )}
-        </ol>
+        <div className="mt-sm">
+          <DoughnutChart data={slices} />
+        </div>
       )}
       {ranking.organisations_without_applicants > 0 && (
         <p className="mt-sm text-caption text-text-secondary">
@@ -79,23 +75,6 @@ function OrgApplicantsCard({
         </p>
       )}
     </Card>
-  )
-}
-
-function OrgBar({ label, count, max, muted }: { label: string; count: number; max: number; muted?: boolean }) {
-  return (
-    <li className="flex flex-col gap-xs">
-      <div className="flex items-baseline justify-between gap-sm">
-        <span className={`truncate text-body-sm ${muted ? 'text-text-secondary' : 'text-text-primary'}`}>{label}</span>
-        <span className="text-body-sm font-medium tabular-nums text-text-primary">{count}</span>
-      </div>
-      <div className="h-2 rounded-full bg-background">
-        <div
-          className={`h-2 rounded-full ${muted ? 'bg-text-secondary/40' : 'bg-primary'}`}
-          style={{ width: `${(count / max) * 100}%` }}
-        />
-      </div>
-    </li>
   )
 }
 
