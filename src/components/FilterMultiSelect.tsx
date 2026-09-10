@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Check, ChevronDown, Search } from 'lucide-react'
 
 interface FilterMultiSelectProps {
@@ -47,15 +47,18 @@ export function FilterMultiSelect({ label, options, selected, onChange, renderOp
   const [rect, setRect] = useState<DOMRect | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  const searchRef = useRef<HTMLInputElement>(null)
   const display = renderOption ?? ((value: string) => value)
 
-  // Focus moves into the search box when the list opens, but only because the user just opened
-  // it: a programmatic focus on their own action, not the page grabbing focus on load (which is
-  // what the autofocus lint rule exists to stop).
-  useEffect(() => {
-    if (open) searchRef.current?.focus()
-  }, [open])
+  // Focus moves into the search box the moment it appears — only ever because the user just opened
+  // the list, so it is their own action and not the page grabbing focus on load (what the autofocus
+  // lint rule exists to stop). A ref callback, not an effect: an effect keyed on `open` was
+  // measured (2026-09-10) leaving focus on <body> on a fresh page, while a manual focus() on the
+  // same input worked. The callback runs exactly when the input mounts. Stable identity
+  // (useCallback, no deps) so it runs on mount only — an inline callback would re-run on every
+  // render and yank focus back to the search each time an option was picked.
+  const focusOnMount = useCallback((el: HTMLInputElement | null) => {
+    el?.focus()
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -141,7 +144,7 @@ export function FilterMultiSelect({ label, options, selected, onChange, renderOp
               <div className="flex h-9 items-center gap-xs rounded-md border border-border bg-background px-sm focus-within:border-primary">
                 <Search className="h-4 w-4 shrink-0 text-text-secondary" aria-hidden />
                 <input
-                  ref={searchRef}
+                  ref={focusOnMount}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder={`Search ${label.toLowerCase()}…`}
