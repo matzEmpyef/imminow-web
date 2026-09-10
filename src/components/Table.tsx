@@ -46,9 +46,9 @@ interface TableProps<T> {
   onSortChange?: (field: string, direction: 'asc' | 'desc') => void
   search?: { value: string; onChange: (debounced: string) => void; placeholder?: string }
   filters?: ReactNode
-  /** Second filter row, left: the yes/no quick filters (FilterChips). */
+  /** Second filter row, right-aligned: the yes/no quick filters (FilterChips). */
   quickFilters?: ReactNode
-  /** Second filter row, right: things that act on the filters — an include switch, Clear. */
+  /** Second filter row, after the quick filters: things that act on them — an include switch, Clear. */
   filterActions?: ReactNode
   pagination?: TablePagination
   selection?: TableSelection
@@ -120,7 +120,7 @@ export function Table<T>({
     <div className={bare ? '' : 'overflow-hidden rounded-lg bg-surface p-8 shadow-card'}>
       {/* Two rows, by kind of control (user, 2026-09-10: "put the entire filter in 2 lines").
           Row 1 finds and picks values — search, then the dropdowns. Row 2 toggles: quick-filter
-          chips on the left, and on the right the controls that act on the filters as a whole.
+          chips, then the controls that act on the filters as a whole, right-aligned beneath row 1.
           Grouping by kind is what lets the eye find a control without reading every label. */}
       {(search || filters || quickFilters || filterActions) && (
         <div className="flex flex-col gap-sm border-b border-border p-md">
@@ -141,9 +141,12 @@ export function Table<T>({
         </div>
           )}
           {(quickFilters || filterActions) && (
-            <div className="flex flex-wrap items-center gap-sm">
+            // Right-aligned as one cluster (user, 2026-09-10: pills "right align next to toggle"),
+            // so row 2 lines up under row 1's dropdowns, which already sit on the right. Every
+            // control then shares one right edge and the eye scans a single column.
+            <div className="flex flex-wrap items-center justify-end gap-md">
               {quickFilters && <div className="flex flex-wrap items-center gap-xs">{quickFilters}</div>}
-              {filterActions && <div className="ml-auto flex flex-wrap items-center gap-md">{filterActions}</div>}
+              {filterActions && <div className="flex flex-wrap items-center gap-md">{filterActions}</div>}
             </div>
           )}
         </div>
