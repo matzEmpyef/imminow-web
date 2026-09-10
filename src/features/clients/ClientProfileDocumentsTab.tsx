@@ -160,7 +160,7 @@ export function DocumentsTab({ clientId }: { clientId: string }) {
                 className="inline-flex items-center gap-xs"
               >
                 <Upload className="h-3.5 w-3.5" aria-hidden />
-                Upload for them
+                Upload on their behalf
               </Button>
             }
           />
@@ -170,7 +170,7 @@ export function DocumentsTab({ clientId }: { clientId: string }) {
           ) : theirDocuments.length === 0 ? (
             <EmptyState>
               Nothing shared yet. Documents arrive when the student attaches one to a plan step, or when you upload one
-              for them.
+              on their behalf.
             </EmptyState>
           ) : (
             <ul className="flex flex-col divide-y divide-border">
