@@ -25,6 +25,11 @@ function rollUpToMonthly(weekly: { week: string; count: number }[]) {
   return [...byMonth.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, value]) => ({ month, value }))
 }
 
+// "62%" of all student accounts — the six buckets share one denominator, so the shares add up.
+function sharePct(value: number, total: number) {
+  return total > 0 ? `${Math.round((value / total) * 100)}%` : ''
+}
+
 function MismatchBadge({ row }: { row: MismatchRow }) {
   if (row.supply === 0) return <Badge color="error">No coverage</Badge>
   if (row.supply < row.demand) return <Badge color="warning">Limited coverage</Badge>
@@ -87,26 +92,72 @@ export function SupplyDemandPage() {
           </p>
         </div>
 
-        {/* Abroad vs home at a glance (user, 2026-09-02: "how many students are looking for
-            study abroad or india"). Distinct students — the four add up to every account — where
-            the per-country chart below counts a student once per target country. "Home" is each
-            student's own resident country. */}
-        <div className="grid grid-cols-2 gap-md md:grid-cols-4">
-          {(
-            [
-              ['Study Abroad only', data.destination_split.abroad_only, 'Every target country is outside where they live.'],
-              ['Study at Home only', data.destination_split.home_only, 'Only their own country of residence.'],
-              ['Both', data.destination_split.both, 'Targeting home and at least one country abroad.'],
-              ['No preference yet', data.destination_split.no_preference, 'Not through onboarding — nothing declared.'],
-            ] as const
-          ).map(([label, value, hint]) => (
-            <Card key={label}>
-              <p className="text-caption text-text-secondary">{label}</p>
-              <p className="mt-xs text-h1 text-text-primary">{value}</p>
-              <p className="mt-xs text-caption text-text-secondary">{hint}</p>
+        {/* Where students want to study (user, 2026-09-02; revised 2026-09-10). Distinct students
+            — the six add up to every account — where the per-country chart below counts a student
+            once per target country. "Home" is each student's own resident country. Not onboarded
+            is the same rule and number as Needs attention's "Students stuck at onboarding". */}
+        <section className="flex flex-col gap-sm">
+          <h2 className="text-h3 text-text-primary">Where students want to study</h2>
+          <div className="grid grid-cols-2 gap-md md:grid-cols-3">
+            {(
+              [
+                ['Study Abroad only', data.destination_split.abroad_only, 'Every target country is outside where they live.'],
+                ['Study at Home only', data.destination_split.home_only, 'Only their own country of residence.'],
+                ['Both', data.destination_split.both, 'Targeting home and at least one country abroad.'],
+                [
+                  'Residence not set',
+                  data.destination_split.residence_not_set,
+                  'Chose target countries but not where they live, so home vs abroad is unknown.',
+                ],
+                [
+                  'No target country',
+                  data.destination_split.no_target_country,
+                  'Onboarded (for example, has a case) but never chose a destination.',
+                ],
+                [
+                  'Not onboarded',
+                  data.destination_split.not_onboarded,
+                  'Signed up but never set a study level or target country — as on Needs attention.',
+                ],
+              ] as const
+            ).map(([label, value, hint]) => (
+              <Card key={label}>
+                <p className="text-caption text-text-secondary">{label}</p>
+                <p className="mt-xs text-h1 text-text-primary">
+                  {value}
+                  <span className="ml-xs text-body-sm text-text-secondary">{sharePct(value, data.destination_split.total_students)}</span>
+                </p>
+                <p className="mt-xs text-caption text-text-secondary">{hint}</p>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        {/* Supply at a glance (user, 2026-09-10) — the row above is demand only. */}
+        <section className="flex flex-col gap-sm">
+          <h2 className="text-h3 text-text-primary">Coverage</h2>
+          <div className="grid grid-cols-1 gap-md md:grid-cols-2">
+            <Card>
+              <p className="text-caption text-text-secondary">Countries With No Coverage</p>
+              <p className={`mt-xs text-h1 ${data.supply_summary.countries_without_coverage > 0 ? 'text-error' : 'text-text-primary'}`}>
+                {data.supply_summary.countries_without_coverage}
+              </p>
+              <p className="mt-xs text-caption text-text-secondary">
+                Students want to study there, but no consultancy or institute serves it. See the mismatch list below.
+              </p>
             </Card>
-          ))}
-        </div>
+            <Card>
+              <p className="text-caption text-text-secondary">Seat Usage</p>
+              <p className="mt-xs text-h1 text-text-primary">
+                {data.supply_summary.seat_usage.pct == null ? '—' : `${data.supply_summary.seat_usage.pct}%`}
+              </p>
+              <p className="mt-xs text-caption text-text-secondary">
+                {data.supply_summary.seat_usage.used} of {data.supply_summary.seat_usage.limit} seats in use across active
+                consultancies and institutes.
+              </p>
+            </Card>
+          </div>
+        </section>
 
         <div className="grid grid-cols-1 gap-lg md:grid-cols-2">
           <Card>

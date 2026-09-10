@@ -19900,6 +19900,15 @@ export interface components {
         };
         /** @description Platform-wide market intelligence (docs/PROGRESS.md §4 Step 4). Demand is read from student_preferences (target_countries/fields_of_interest); supply is read from consultancies.countries_served plus seat usage. `mismatch` is the actionable table: countries with real student demand and little or no consultancy coverage. */
         SupplyDemandResponse: {
+            /** @description Supply at a glance (2026-09-10): how many countries students want that no organisation serves (the `mismatch` rows at supply 0), and seat usage across ACTIVE consultancies and institutes (active employees vs summed seat limits; `pct` null when no seats). */
+            supply_summary: {
+                countries_without_coverage: number;
+                seat_usage: {
+                    used: number;
+                    limit: number;
+                    pct: number | null;
+                };
+            };
             /** Format: date-time */
             collecting_since: string;
             /** @description Where applicants are actually heading (2026-09-10) — each case's `finalized_country` (set when a college is accepted), for current applicants (the Active Applicants rule, so the column adds up to that card) and everyone enrolled. Cases with no accepted college yet are grouped as "Not decided yet", listed last. */
@@ -19908,15 +19917,19 @@ export interface components {
                 applicants: number;
                 enrolled: number;
             }[];
-            /** @description Abroad vs home at a glance (2026-09-02, user: "how many students are looking for study abroad or india"). DISTINCT students, so the four buckets sum to `total_students` — unlike `demand_by_country`, where a student appears once per target country. "Home" is each student's own resident country. */
+            /** @description Abroad vs home at a glance (2026-09-02, user: "how many students are looking for study abroad or india"). DISTINCT students, so the six buckets sum to `total_students` — unlike `demand_by_country`, where a student appears once per target country. "Home" is each student's own resident country. Revised 2026-09-10: `no_preference` was replaced by `not_onboarded` (the same rule as Needs attention's stuck_onboarding) and `no_target_country` (onboarded, no destination chosen); a student with targets but no residence is `residence_not_set` (was abroad_only). */
             destination_split: {
                 /** @description Every target country is outside the student's country of residence. */
                 abroad_only: number;
                 /** @description The only target country is the student's own. */
                 home_only: number;
                 both: number;
-                /** @description No target country declared yet — the not-yet-onboarded. */
-                no_preference: number;
+                /** @description Has target countries but no country of residence, so home vs abroad is unknown. */
+                residence_not_set: number;
+                /** @description Onboarded (e.g. has a case) but never chose a destination country. */
+                no_target_country: number;
+                /** @description Same rule and number as Needs attention's "Students stuck at onboarding". */
+                not_onboarded: number;
                 total_students: number;
             };
             demand_by_country: {
