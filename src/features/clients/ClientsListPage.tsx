@@ -10,6 +10,8 @@ import { SearchSelect, type SearchSelectOption } from '@/components/SearchSelect
 import { Table, type TableColumn } from '@/components/Table'
 import { CountryLabel } from '@/components/CountryLabel'
 import { CompactSelect } from '@/components/CompactSelect'
+import { FilterChip } from '@/components/FilterChip'
+import { Toggle } from '@/components/Toggle'
 import { TagEditorMenu } from '@/components/TagEditorMenu'
 import { StopPropagation } from '@/components/StopPropagation'
 import { CreateApplicantModal } from './CreateApplicantModal'
@@ -360,54 +362,30 @@ export function ClientsListPage() {
           }}
           filters={
             <>
-              <label className="flex items-center gap-xs text-body-sm text-text-primary">
-                <input
-                  type="checkbox"
-                  checked={assignedToMe}
-                  onChange={(e) => {
-                    setAssignedToMe(e.target.checked)
-                    resetPaging()
-                  }}
-                  className="h-4 w-4"
-                />
-                My clients only
-              </label>
-              <label className="flex items-center gap-xs text-body-sm text-text-primary">
-                <input
-                  type="checkbox"
-                  checked={unattendedOnly}
-                  onChange={(e) => {
-                    setUnattendedOnly(e.target.checked)
-                    resetPaging()
-                  }}
-                  className="h-4 w-4"
-                />
-                Pending Response only
-              </label>
-              <label className="flex items-center gap-xs text-body-sm text-text-primary">
-                <input
-                  type="checkbox"
-                  checked={unassignedOnly}
-                  onChange={(e) => {
-                    setUnassignedOnly(e.target.checked)
-                    resetPaging()
-                  }}
-                  className="h-4 w-4"
-                />
-                Awaiting a consultant
-              </label>
-              <label className="flex items-center gap-xs text-body-sm text-text-primary">
-                <input
-                  type="checkbox"
-                  checked={showClosed}
-                  onChange={(e) => {
-                    setShowClosed(e.target.checked)
-                    resetPaging()
-                  }}
-                  className="h-4 w-4"
-                />
-                Show closed & completed clients too
-              </label>
+              <FilterChip
+                label="My clients"
+                active={assignedToMe}
+                onChange={(v) => {
+                  setAssignedToMe(v)
+                  resetPaging()
+                }}
+              />
+              <FilterChip
+                label="Pending response"
+                active={unattendedOnly}
+                onChange={(v) => {
+                  setUnattendedOnly(v)
+                  resetPaging()
+                }}
+              />
+              <FilterChip
+                label="Awaiting consultant"
+                active={unassignedOnly}
+                onChange={(v) => {
+                  setUnassignedOnly(v)
+                  resetPaging()
+                }}
+              />
               <CompactSelect
                 value={tag}
                 onChange={(e) => {
@@ -438,6 +416,35 @@ export function ClientsListPage() {
                   </option>
                 ))}
               </CompactSelect>
+              <label htmlFor="clients-include-closed" className="flex items-center gap-sm text-body-sm text-text-secondary">
+                <Toggle
+                  id="clients-include-closed"
+                  checked={showClosed}
+                  onChange={(v) => {
+                    setShowClosed(v)
+                    resetPaging()
+                  }}
+                  label="Include closed & completed"
+                />
+                Include closed & completed
+              </label>
+              {(assignedToMe || unattendedOnly || unassignedOnly || showClosed || tag || country) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssignedToMe(false)
+                    setUnattendedOnly(false)
+                    setUnassignedOnly(false)
+                    setShowClosed(false)
+                    setTag('')
+                    setCountry('')
+                    resetPaging()
+                  }}
+                  className="text-body-sm font-medium text-primary hover:underline"
+                >
+                  Clear filters
+                </button>
+              )}
             </>
           }
           pagination={{

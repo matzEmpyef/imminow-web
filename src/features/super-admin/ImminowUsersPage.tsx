@@ -7,6 +7,7 @@ import { useAdminConsultancies } from '@/queries/adminConsultancies'
 import { useImminowUserDirectory } from '@/queries/adminUserDirectories'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
+import { FilterChip } from '@/components/FilterChip'
 
 type Row = NonNullable<ReturnType<typeof useImminowUserDirectory>['data']>['items'][number]
 
@@ -156,17 +157,14 @@ export function ImminowUsersPage() {
                 <option value="true">Active</option>
                 <option value="false">Disabled</option>
               </CompactSelect>
-              <label className="flex h-10 items-center gap-xs rounded-md border border-border bg-background px-3 text-body-sm text-text-primary">
-                <input
-                  type="checkbox"
-                  checked={neverActive}
-                  onChange={(e) => {
-                    setNeverActive(e.target.checked)
-                    resetPaging()
-                  }}
-                />
-                Never active
-              </label>
+              <FilterChip
+                label="Never active"
+                active={neverActive}
+                onChange={(v) => {
+                  setNeverActive(v)
+                  resetPaging()
+                }}
+              />
             </>
           }
           pagination={{

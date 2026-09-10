@@ -3,11 +3,14 @@ interface ToggleProps {
   onChange: (checked: boolean) => void
   disabled?: boolean
   label: string
+  /** Lets a visible `<label htmlFor>` point at the switch, so its text is clickable too. */
+  id?: string
 }
 
-export function Toggle({ checked, onChange, disabled, label }: ToggleProps) {
+export function Toggle({ checked, onChange, disabled, label, id }: ToggleProps) {
   return (
     <button
+      id={id}
       type="button"
       role="switch"
       aria-checked={checked}

@@ -13,6 +13,8 @@ import { useAllocateLead, useLeads, useSetLeadTags } from '@/queries/leads'
 import { useCreateTag, useTags } from '@/queries/tags'
 import { useCursorPagination } from '@/lib/pagination'
 import { usePermission } from '@/lib/permissions'
+import { FilterChip } from '@/components/FilterChip'
+import { Toggle } from '@/components/Toggle'
 
 type Lead = NonNullable<ReturnType<typeof useLeads>['data']>['items'][number]
 
@@ -196,42 +198,48 @@ export function ActiveLeadsPage() {
           }}
           filters={
             <>
-              <label className="flex items-center gap-xs text-body-sm text-text-primary">
-                <input
-                  type="checkbox"
-                  checked={assignedToMe}
-                  onChange={(e) => {
-                    setAssignedToMe(e.target.checked)
-                    resetPaging()
-                  }}
-                  className="h-4 w-4"
-                />
-                My leads only
-              </label>
-              <label className="flex items-center gap-xs text-body-sm text-text-primary">
-                <input
-                  type="checkbox"
-                  checked={unattendedOnly}
-                  onChange={(e) => {
-                    setUnattendedOnly(e.target.checked)
-                    resetPaging()
-                  }}
-                  className="h-4 w-4"
-                />
-                Pending Response only
-              </label>
-              <label className="flex items-center gap-xs text-body-sm text-text-primary">
-                <input
-                  type="checkbox"
+              <FilterChip
+                label="My leads"
+                active={assignedToMe}
+                onChange={(v) => {
+                  setAssignedToMe(v)
+                  resetPaging()
+                }}
+              />
+              <FilterChip
+                label="Pending response"
+                active={unattendedOnly}
+                onChange={(v) => {
+                  setUnattendedOnly(v)
+                  resetPaging()
+                }}
+              />
+              <label htmlFor="leads-include-closed" className="flex items-center gap-sm text-body-sm text-text-secondary">
+                <Toggle
+                  id="leads-include-closed"
                   checked={showClosed}
-                  onChange={(e) => {
-                    setShowClosed(e.target.checked)
+                  onChange={(v) => {
+                    setShowClosed(v)
                     resetPaging()
                   }}
-                  className="h-4 w-4"
+                  label="Include closed & converted"
                 />
-                Show closed and converted leads
+                Include closed & converted
               </label>
+              {(assignedToMe || unattendedOnly || showClosed) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssignedToMe(false)
+                    setUnattendedOnly(false)
+                    setShowClosed(false)
+                    resetPaging()
+                  }}
+                  className="text-body-sm font-medium text-primary hover:underline"
+                >
+                  Clear filters
+                </button>
+              )}
             </>
           }
           pagination={{
