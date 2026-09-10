@@ -219,26 +219,27 @@ export function SuperAdminDashboardPage() {
         <div className="grid grid-cols-1 gap-lg md:grid-cols-2">
           <Card>
             <h2 className="text-h3 text-text-primary">Confirmed Revenue by Month</h2>
-            <p className="text-caption text-text-secondary">Last 12 months, confirmed platform commission only.</p>
+            <p className="text-caption text-text-secondary">Platform commission confirmed each month (INR), last 12 months.</p>
             <div className="mt-sm">
               <MonthlyBarChart
-                data={(dashboard.data?.revenue_over_time ?? []).map((d) => ({ month: d.month, value: d.amount }))}
-                valueLabel="Revenue (INR)"
-                color="var(--color-success)"
+                data={dashboard.data?.revenue_over_time ?? []}
+                series={[
+                  { key: 'consultancy', label: 'Consultancies', color: 'var(--color-success)' },
+                  { key: 'institute', label: 'Institutes', color: 'var(--color-secondary)' },
+                ]}
               />
             </div>
           </Card>
           <Card>
             <h2 className="text-h3 text-text-primary">Completed Cases by Month</h2>
-            <p className="text-caption text-text-secondary">
-              Last 12 months. Grouped by when the case was created, as a stand-in for a real completion date — no seeded
-              case has one recorded yet.
-            </p>
+            <p className="text-caption text-text-secondary">Cases closed successfully each month, last 12 months.</p>
             <div className="mt-sm">
               <MonthlyBarChart
-                data={(dashboard.data?.completed_cases_over_time ?? []).map((d) => ({ month: d.month, value: d.count }))}
-                valueLabel="Completed cases"
-                color="var(--color-warning)"
+                data={dashboard.data?.completed_cases_over_time ?? []}
+                series={[
+                  { key: 'consultancy', label: 'Consultancies', color: 'var(--color-warning)' },
+                  { key: 'institute', label: 'Institutes', color: 'var(--color-primary)' },
+                ]}
               />
             </div>
           </Card>

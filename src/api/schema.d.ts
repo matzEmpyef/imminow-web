@@ -17215,11 +17215,12 @@ export interface components {
                 channel_b: number;
                 channel_c: number;
             }[];
-            /** @description journeys with status `plan_complete`, by calendar month, fixed trailing 12-month window (user-requested, 2026-08-19 — "Completed case each month graph of last 12 months"). Grouped by `created_at` as a practical stand-in for "when completed" — no seeded journey has `closed_at` populated yet (erd.md documents the column; nothing in this mock's write paths sets it). */
+            /** @description Cases closed successfully (the Enrolled slice's cases — status closed, outcome success) by the calendar month they were closed (`closed_at`), fixed trailing 12-month window, split by the kind of organisation (2026-09-10). Replaced the old single series, which counted plan_complete cases by their created_at month. */
             completed_cases_over_time?: {
                 /** @description YYYY-MM */
                 month: string;
-                count: number;
+                consultancy: number;
+                institute: number;
             }[];
             /** @description Three slices for a doughnut chart (user-requested, 2026-08-18; made current 2026-09-10): `Aspirants (Stage 1)` = open leads now and `Applicants (Stage 2)` = open cases now — the same numbers as the active_aspirants / active_applicants stat cards — plus `Enrolled` = cases closed as a success, all time. Before 2026-09-10 the first two were every lead and every case ever created, closed and converted included. */
             applicant_stage_breakdown?: {
@@ -17231,11 +17232,12 @@ export interface components {
                 consultancies: components["schemas"]["OrgApplicantRanking"];
                 institutes: components["schemas"]["OrgApplicantRanking"];
             };
-            /** @description Confirmed commission revenue by calendar month, for a bar chart (user-requested, 2026-08-18). */
+            /** @description Confirmed platform commission (INR) by the calendar month it was confirmed, fixed trailing 12-month window, split by the kind of organisation it came from (2026-09-10 — was one `amount` series). */
             revenue_over_time?: {
                 /** @description YYYY-MM */
                 month: string;
-                amount: number;
+                consultancy: number;
+                institute: number;
             }[];
         };
         /** @description A unified read model over both `leads` (Sentpo-sourced) and `imported_leads` (self-sourced) — the API merges the two so Lead Pool/Active Leads/Lead Conversation work against one consistent shape (erd.md Marketplace section). `origin` tells you which table backs a given row; write endpoints resolve `id` against the right one server-side. */
