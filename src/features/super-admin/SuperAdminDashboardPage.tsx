@@ -5,6 +5,7 @@ import { Badge } from '@/components/Badge'
 import { DoughnutChart } from '@/components/DoughnutChart'
 import { MonthlyBarChart } from '@/components/MonthlyBarChart'
 import { useAdminDashboard } from '@/queries/adminDashboard'
+import { useApplicantAllocationQueue } from '@/queries/applicantAllocation'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { formatMoney } from '@/lib/money'
 import type { components } from '@/api/schema'
@@ -89,6 +90,8 @@ const STAT_CARD_LINKS: Record<string, string> = {
 export function SuperAdminDashboardPage() {
   const navigate = useNavigate()
   const dashboard = useAdminDashboard()
+  const allocationQueue = useApplicantAllocationQueue()
+  const pendingAllocationCount = allocationQueue.data?.length ?? 0
 
   if (dashboard.isLoading) {
     return (
@@ -147,10 +150,60 @@ export function SuperAdminDashboardPage() {
           })}
         </div>
 
-        {/* Pending Actions and Pending Allocation cards removed 2026-09-10 (user-confirmed) — both
-            counts now live in Needs attention above, as "Course suggestions to review" and
-            "Applicants to allocate". */}
-        <div className="grid grid-cols-1 gap-lg md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-lg md:grid-cols-4">
+          {/* The whole card is the link (user, 2026-09-02: "no need of button, make whole card
+              button") — same treatment as every stat card and Pending Allocation beside it. */}
+          <Card
+            onClick={() => navigate('/admin/course-suggestions-review')}
+            className="cursor-pointer transition-colors hover:bg-background"
+          >
+            <p className="text-body-sm font-medium text-text-primary">Pending Actions</p>
+            <p className="mt-xs text-h1 text-text-primary">{dashboard.data?.pending_actions_count}</p>
+            <p className="text-caption text-text-secondary">Course suggestions/corrections awaiting review.</p>
+          </Card>
+
+          {/* User-requested (2026-08-18) — "Applicant Allocation - show it in dashboard count
+              (pending allocation) - clickable to page.. should be easily noticeable if count is
+              greater than 0." Reuses the same queue GET the Applicant Allocation page itself
+              already fetches (no new dashboard-stats field needed) — the count is either 0 or a
+              real number of people waiting on a consultancy, no separate aggregate to keep in
+              sync. `error`-colored count + a Badge, both only once there's something to notice;
+              at 0 this reads as a calm, ordinary stat like every other card here. */}
+          <Card
+            onClick={() => navigate('/admin/applicant-allocation')}
+            className="cursor-pointer transition-colors hover:bg-background"
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-body-sm font-medium text-text-primary">Pending Allocation</p>
+              {pendingAllocationCount > 0 && <Badge color="error">Needs allocation</Badge>}
+            </div>
+            {/* N5 (second-pass review): a failed queue fetch used to render as a calm 0 — the one
+                number on this card whose whole job is "is anyone stuck waiting", shown as "nobody".
+                Card-scoped, so a queue hiccup doesn't take down the rest of the dashboard. */}
+            {allocationQueue.isError ? (
+              <p className="mt-xs text-body-sm text-error">
+                Couldn't load the queue.{' '}
+                <button
+                  type="button"
+                  className="underline"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void allocationQueue.refetch()
+                  }}
+                >
+                  Retry
+                </button>
+              </p>
+            ) : (
+              <p className={`mt-xs text-h1 ${pendingAllocationCount > 0 ? 'text-error' : 'text-text-primary'}`}>
+                {allocationQueue.isLoading ? '…' : pendingAllocationCount}
+              </p>
+            )}
+            <p className="text-caption text-text-secondary">
+              Freelancer-sourced applicants, and students asking to change consultancy.
+            </p>
+          </Card>
+
           <Card
             onClick={() => navigate('/admin/finance-dashboard')}
             className="cursor-pointer transition-colors hover:bg-background"
