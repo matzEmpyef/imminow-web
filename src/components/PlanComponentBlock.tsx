@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Link2, Pencil, X } from 'lucide-react'
+import { ExternalLink, GripVertical, Link2, Pencil, X } from 'lucide-react'
 import { COMPONENT_TYPE_ICONS, COMPONENT_TYPE_LABELS, type ComponentInput } from '@/lib/planComponents'
 
 // Shared between Plan Templates' step-builder and the live client Plan editor (both build the
@@ -11,7 +11,35 @@ import { COMPONENT_TYPE_ICONS, COMPONENT_TYPE_LABELS, type ComponentInput } from
 // there). Falls back to the type's own display name ("Text", "Checklist", ...) wherever a
 // component's own label is blank, purely for presentation — never written back.
 function displayLabel(component: ComponentInput) {
-  return component.label || COMPONENT_TYPE_LABELS[component.type]
+  if (component.label) return component.label
+  // Text has no label (2026-09-10) — its builder row reads as the start of what it says.
+  if (component.type === 'text') return textSnippet(component) || COMPONENT_TYPE_LABELS.text
+  return COMPONENT_TYPE_LABELS[component.type]
+}
+
+function textSnippet(component: ComponentInput): string {
+  const payload = (component.payload ?? {}) as Record<string, unknown>
+  const raw = typeof payload.content === 'string' ? payload.content : ''
+  const text = raw
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return text.length > 60 ? `${text.slice(0, 57)}…` : text
+}
+
+/**
+ * A Text component's content as the student reads it. Rich text (format 'html', 2026-09-10) is
+ * drawn with the same prose styles as the blog preview; the server has already cleaned it to the
+ * blog allowlist. Older plain-text components keep their line breaks.
+ */
+export function TextComponentContent({ payload }: { payload: Record<string, unknown> }) {
+  const content = typeof payload.content === 'string' ? payload.content : ''
+  if (!content) return <p className="text-body-sm italic text-text-secondary">No content yet.</p>
+  if (payload.format === 'html') {
+    return <div className="prose-preview text-body-sm text-text-primary" dangerouslySetInnerHTML={{ __html: content }} />
+  }
+  return <p className="whitespace-pre-line text-body-sm text-text-secondary">{content}</p>
 }
 
 export function ComponentBlock({
@@ -76,10 +104,12 @@ export function ComponentBlock({
 // `payload.items`/`payload.questions`) and falls back to a generic placeholder for a freshly-added
 // component whose payload is still `{}`.
 export function ComponentPreview({ component }: { component: ComponentInput }) {
+  // A Text component shows just its content — no heading (2026-09-10) — unless an older one has one.
+  const showHeading = component.type !== 'text' || Boolean(component.label)
   return (
     <div>
-      <span className="text-body-sm font-medium text-text-primary">{displayLabel(component)}</span>
-      <div className="mt-xs">
+      {showHeading && <span className="text-body-sm font-medium text-text-primary">{displayLabel(component)}</span>}
+      <div className={showHeading ? 'mt-xs' : ''}>
         <ComponentPreviewControl component={component} />
       </div>
     </div>
@@ -90,13 +120,10 @@ function ComponentPreviewControl({ component }: { component: ComponentInput }) {
   const payload = (component.payload ?? {}) as Record<string, unknown>
 
   switch (component.type) {
-    case 'text': {
-      // Plain text, not a boxed control — user-reported ("Why text is inside a textbox?"): this
-      // is a note for the consultant to read, not a field they fill in, so it shouldn't look
-      // like an input.
-      const content = typeof payload.content === 'string' ? payload.content : 'Instructional text for the consultant.'
-      return <p className="text-body-sm text-text-secondary">{content}</p>
-    }
+    case 'text':
+      // Content, not a boxed control — user-reported ("Why text is inside a textbox?"): this is
+      // something to read, not a field to fill in, so it shouldn't look like an input.
+      return <TextComponentContent payload={payload} />
     case 'file_upload':
       return (
         <div className="flex h-9 items-center justify-between rounded-md border border-dashed border-border bg-background px-3 text-caption text-text-secondary">
@@ -138,6 +165,20 @@ function ComponentPreviewControl({ component }: { component: ComponentInput }) {
         <div className="flex h-9 w-fit items-center gap-xs rounded-full border border-border bg-background px-sm text-caption font-medium text-text-primary">
           <Link2 className="h-3 w-3" />
           {formName ? `Open "${formName}"` : 'Open Form'}
+        </div>
+      )
+    }
+    case 'weblink': {
+      // What the student sees in the app: one button that opens the address in their browser.
+      const url = typeof payload.url === 'string' ? payload.url : ''
+      const buttonText = typeof payload.button_text === 'string' && payload.button_text ? payload.button_text : 'Open link'
+      return (
+        <div className="flex flex-col gap-xs">
+          <div className="flex h-9 w-fit items-center gap-xs rounded-full border border-border bg-background px-sm text-caption font-medium text-text-primary">
+            <ExternalLink className="h-3 w-3" />
+            {buttonText}
+          </div>
+          {url && <span className="truncate text-caption text-text-secondary">{url}</span>}
         </div>
       )
     }

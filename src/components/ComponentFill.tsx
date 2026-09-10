@@ -1,6 +1,7 @@
 import { useRef } from 'react'
-import { FileText, Link2, Loader2, Upload } from 'lucide-react'
+import { ExternalLink, FileText, Link2, Loader2, Upload } from 'lucide-react'
 import { useSaveStepResponses, useUploadStepFile } from '@/queries/plans'
+import { TextComponentContent } from './PlanComponentBlock'
 import type { components } from '@/api/schema'
 
 type Component = components['schemas']['Component']
@@ -43,15 +44,16 @@ export function ComponentFill({
   }
 
   switch (component.type) {
-    case 'text': {
-      const content = typeof payload.content === 'string' ? payload.content : ''
+    case 'text':
+      // No heading unless an older component carries one (Text has no label since 2026-09-10).
       return (
         <div>
-          <span className="text-body-sm font-medium text-text-primary">{label}</span>
-          <p className="mt-xs text-body-sm text-text-secondary">{content}</p>
+          {component.label && <span className="text-body-sm font-medium text-text-primary">{component.label}</span>}
+          <div className={component.label ? 'mt-xs' : ''}>
+            <TextComponentContent payload={payload} />
+          </div>
         </div>
       )
-    }
 
     case 'checklist': {
       const items = Array.isArray(payload.items) ? (payload.items as string[]) : []
@@ -185,6 +187,34 @@ export function ComponentFill({
           <div className="mt-xs flex h-9 w-fit items-center gap-xs rounded-full border border-border bg-background px-sm text-caption font-medium text-text-secondary">
             <Link2 className="h-3 w-3" />
             View and fill in the Forms tab
+          </div>
+        </div>
+      )
+    }
+
+    case 'weblink': {
+      // Nothing to fill or save — the student opens it from the app. The consultant can open the
+      // same link here, in a new tab, to check where it goes.
+      const url = typeof payload.url === 'string' ? payload.url : ''
+      const buttonText = typeof payload.button_text === 'string' && payload.button_text ? payload.button_text : 'Open link'
+      return (
+        <div>
+          <span className="text-body-sm font-medium text-text-primary">{label}</span>
+          <div className="mt-xs flex flex-col gap-xs">
+            {url ? (
+              <a
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex h-9 w-fit items-center gap-xs rounded-full border border-border bg-background px-sm text-caption font-medium text-primary hover:bg-surface"
+              >
+                <ExternalLink className="h-3 w-3" />
+                {buttonText}
+              </a>
+            ) : (
+              <span className="text-caption italic text-text-secondary">No link set</span>
+            )}
+            {url && <span className="truncate text-caption text-text-secondary">{url}</span>}
           </div>
         </div>
       )

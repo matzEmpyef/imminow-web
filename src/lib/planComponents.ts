@@ -1,10 +1,10 @@
-import { CheckSquare, ClipboardList, FileUp, Link2, Type } from 'lucide-react'
+import { CheckSquare, ClipboardList, ExternalLink, FileUp, Link2, Type } from 'lucide-react'
 import type { components } from '@/api/schema'
 
 export type ComponentInput = components['schemas']['ComponentInput']
 export type ComponentType = ComponentInput['type']
 
-export const COMPONENT_TYPES: ComponentType[] = ['text', 'file_upload', 'checklist', 'questionnaire', 'form_link']
+export const COMPONENT_TYPES: ComponentType[] = ['text', 'file_upload', 'checklist', 'questionnaire', 'form_link', 'weblink']
 
 export const COMPONENT_TYPE_LABELS: Record<ComponentType, string> = {
   text: 'Text',
@@ -12,6 +12,21 @@ export const COMPONENT_TYPE_LABELS: Record<ComponentType, string> = {
   checklist: 'Checklist',
   questionnaire: 'Questionnaire',
   form_link: 'Form Link',
+  weblink: 'Web Link',
+}
+
+/**
+ * A Web Link's address must be a full http(s) URL (2026-09-10). The app hands it straight to the
+ * phone's browser, so anything else — a bare "www.site.com", or a `javascript:` URL — is refused
+ * here and again by the server.
+ */
+export function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value.trim())
+    return url.protocol === 'https:' || url.protocol === 'http:'
+  } catch {
+    return false
+  }
 }
 
 // Lives here rather than in PlanComponentBlock.tsx — a plain module export mixed into a file
@@ -22,6 +37,7 @@ export const COMPONENT_TYPE_ICONS: Record<ComponentType, typeof Type> = {
   checklist: CheckSquare,
   questionnaire: ClipboardList,
   form_link: Link2,
+  weblink: ExternalLink,
 }
 
 // New components get a client-generated id immediately (rather than leaving it undefined until

@@ -4,10 +4,12 @@ import { SelectField } from '@/components/SelectField'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
+import { RichTextEditor } from '@/components/RichTextEditor'
 import { useFormTemplates } from '@/queries/formTemplates'
 import {
   COMPONENT_TYPES,
   COMPONENT_TYPE_LABELS,
+  isHttpUrl,
   newComponentId,
   type ComponentInput,
   type ComponentType,
@@ -15,6 +17,21 @@ import {
 
 function readPayload(component: ComponentInput | undefined) {
   return (component?.payload ?? {}) as Record<string, unknown>
+}
+
+// Text components written before rich text (2026-09-10) hold plain text. Opened in the rich
+// editor as paragraphs, so editing one keeps its words and line breaks.
+function plainToHtml(text: string): string {
+  if (!text.trim()) return ''
+  const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return text
+    .split(/\n{2,}/)
+    .map((para) => `<p>${escape(para).replace(/\n/g, '<br>')}</p>`)
+    .join('')
+}
+
+function htmlHasText(html: string): boolean {
+  return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim().length > 0
 }
 
 // User-requested — "just like a WordPress page setup.. the already mentioned components can be
@@ -47,7 +64,11 @@ export function AddComponentModal({
   const payload = readPayload(editingComponent)
   const [type, setType] = useState<ComponentType>(editingComponent?.type ?? 'text')
   const [label, setLabel] = useState(editingComponent?.label ?? '')
-  const [content, setContent] = useState(typeof payload.content === 'string' ? payload.content : '')
+  // Rich text (user, 2026-09-10: "i want rich text also"), stored as HTML with format 'html'.
+  const [content, setContent] = useState(() => {
+    const raw = typeof payload.content === 'string' ? payload.content : ''
+    return payload.format === 'html' ? raw : plainToHtml(raw)
+  })
   const [entries, setEntries] = useState<string[]>(
     Array.isArray(payload.items)
       ? (payload.items as string[])
@@ -86,6 +107,12 @@ export function AddComponentModal({
 
   const forms = useFormTemplates()
 
+  // Web Link (2026-09-10): the address the student's phone opens in its browser, and optional
+  // wording for the button ("Open link" when left blank).
+  const [url, setUrl] = useState(typeof payload.url === 'string' ? payload.url : '')
+  const [buttonText, setButtonText] = useState(typeof payload.button_text === 'string' ? payload.button_text : '')
+  const urlValid = isHttpUrl(url)
+
   function addEntry() {
     if (!entryDraft) return
     setEntries((prev) => [...prev, entryDraft])
@@ -99,7 +126,7 @@ export function AddComponentModal({
   function buildPayload(): Record<string, unknown> {
     switch (type) {
       case 'text':
-        return { content }
+        return { content, format: 'html' }
       case 'checklist':
         return { items: entries }
       case 'questionnaire':
@@ -111,6 +138,8 @@ export function AddComponentModal({
         // the mobile app, and the Forms tab all key on.
         return { form_template_id: formId, form_name: form?.name ?? '' }
       }
+      case 'weblink':
+        return buttonText.trim() ? { url: url.trim(), button_text: buttonText.trim() } : { url: url.trim() }
       default:
         return {}
     }
@@ -119,14 +148,18 @@ export function AddComponentModal({
   // User-requested — "In Type Text.. change Label to Title (Title should not be mandatory)."
   // Every other type keeps "Label" and stays required; a plain instructional paragraph doesn't
   // always need a heading, so `text` alone gets the relaxed rule.
+  // Text has no label at all (user, 2026-09-10: "No need of label for Text component"); it needs
+  // content instead. Every other type keeps a required Label.
   const labelRequired = type !== 'text'
+  const canSubmit =
+    !(labelRequired && !label) && (type !== 'weblink' || urlValid) && (type !== 'text' || htmlHasText(content))
 
   function handleSubmit() {
-    if (labelRequired && !label) return
+    if (!canSubmit) return
     onSubmit({
       id: editingComponent?.id ?? newComponentId(),
       type,
-      label,
+      label: type === 'text' ? '' : label,
       payload: buildPayload(),
     })
     onClose()
@@ -138,9 +171,9 @@ export function AddComponentModal({
     <Modal
       onClose={onClose}
       title={isEditing ? 'Edit Component' : 'Add Component'}
-      widthRem={30}
+      widthRem={36}
       footer={
-        <Button type="button" onClick={handleSubmit} disabled={labelRequired && !label}>
+        <Button type="button" onClick={handleSubmit} disabled={!canSubmit}>
           {isEditing ? 'Save Changes' : 'Add Component'}
         </Button>
       }
@@ -159,23 +192,17 @@ export function AddComponentModal({
           ))}
         </SelectField>
 
-        <TextField
-          label={type === 'text' ? 'Title' : 'Label'}
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-        />
+        {type !== 'text' && <TextField label="Label" value={label} onChange={(e) => setLabel(e.target.value)} />}
 
         {type === 'text' && (
           <div className="flex flex-col gap-xs">
-            <label className="text-body-sm font-medium text-text-primary" htmlFor="component-content">
-              Content shown to the consultant
-            </label>
-            <textarea
-              id="component-content"
+            <p className="text-body-sm font-medium text-text-primary">Content to display</p>
+            <RichTextEditor
               value={content}
-              onChange={(e) => setContent(e.target.value)}
-              rows={4}
-              className="rounded-md border border-border bg-surface p-sm text-body text-text-primary"
+              onChange={setContent}
+              minHeightRem={10}
+              ariaLabel="Content to display"
+              placeholder="Instructions, notes, anything the student should read in this step…"
             />
           </div>
         )}
@@ -285,6 +312,30 @@ export function AddComponentModal({
             {forms.data?.length === 0 && (
               <p className="text-caption text-text-secondary">No forms exist yet — create one under Forms first.</p>
             )}
+          </div>
+        )}
+
+        {type === 'weblink' && (
+          <div className="flex flex-col gap-md">
+            <p className="text-caption text-text-secondary">
+              The student taps a button in the Sentpo app and the link opens in their phone&rsquo;s browser — a visa
+              portal, a college application page, a fee payment page.
+            </p>
+            <TextField
+              label="Web address"
+              type="url"
+              required
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://"
+              error={url.trim() && !urlValid ? 'Enter a full address starting with https:// or http://' : undefined}
+            />
+            <TextField
+              label="Button text"
+              value={buttonText}
+              onChange={(e) => setButtonText(e.target.value)}
+              placeholder="Open link"
+            />
           </div>
         )}
       </div>

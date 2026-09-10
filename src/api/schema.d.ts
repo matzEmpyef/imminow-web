@@ -17918,7 +17918,7 @@ export interface components {
             /** @description Omit for a new component — the server assigns one. Include an existing component's id to preserve it across an edit. */
             id?: components["schemas"]["UUID"];
             /** @enum {string} */
-            type: "text" | "file_upload" | "checklist" | "questionnaire" | "form_link";
+            type: "text" | "file_upload" | "checklist" | "questionnaire" | "form_link" | "weblink";
             /** @description User-requested — "just like a WordPress page setup.. the already mentioned components can be added multiple times." A step can hold more than one component of the same type (e.g. two file_upload components), so each instance needs its own display name to tell them apart in the builder — same idea as FormField.label. Optional, not required — for type=text specifically, the builder calls this field "Title" rather than "Label" and doesn't require it (a plain instructional paragraph doesn't always need a heading); the client falls back to the type's own display name ("Text", "Checklist", ...) wherever this is blank, purely for presentation. */
             label?: string;
             payload?: {
@@ -18196,7 +18196,7 @@ export interface components {
         Component: {
             id: components["schemas"]["UUID"];
             /** @enum {string} */
-            type: "text" | "file_upload" | "checklist" | "questionnaire" | "form_link";
+            type: "text" | "file_upload" | "checklist" | "questionnaire" | "form_link" | "weblink";
             label?: string;
             position: number;
             /** @description Resolved on the STUDENT's read of a step (GET /steps/{id}) when a `file_upload` component's payload names a `document_type_id` (2026-09-09). Carries the rules and the instructions so the picker can state them rather than the student guessing. */
@@ -18210,6 +18210,8 @@ export interface components {
             /**
              * @description Free-form per type (build reference 1.7). A `file_upload` component may carry a `document_type_id` (uuid) naming a catalog type — that is what turns it from a blank file field into a request for a specific document, and what lets the locker satisfy it. For type=form_link specifically (Sentpo Mobile Wave 4), payload carries a single `form_template_id` (uuid) — the Form Link component "deep-links the applicant to fill their Applicant Form" for one specific `FormTemplate`, per build reference 1.20's "a Plan will select a Form, not the other way around."
              *     For type=questionnaire, payload carries `questions` (array of strings) and, optionally, `options` — the answer choices EVERY question in that component uses. Yes/No was hardcoded in the app until 2026-08-23, so a component authored before then has no `options` key and must still render Yes/No; a saved list of fewer than two is likewise treated as unconfigured rather than rendering a control with nothing to choose between. For type=checklist, payload carries `items` (array of strings).
+             *     For type=weblink (2026-09-10), payload carries `url` — a full http(s) address, which the Sentpo app opens in the phone's default browser when the student taps the button — and optionally `button_text` (the app shows "Open link" when it is absent). A web link collects nothing, and never appears in `responses` or `submission`. Writes carrying a weblink without a valid http(s) url are refused with 400 validation_failed.
+             *     For type=text, payload carries `content`. With `format` set to html (2026-09-10) the content is rich text, cleaned on save to the same allowlist as blog articles (h2 to h4, p, strong, em, a, lists, blockquote, br); without `format` it is plain text, as every text component written before then is. The Text component carries no label.
              */
             payload: {
                 [key: string]: unknown;
