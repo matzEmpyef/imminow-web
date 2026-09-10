@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
-import { CheckCircle2, FolderKanban, TriangleAlert, Users } from 'lucide-react'
+import { CheckCircle2, FolderKanban, TriangleAlert, UserPlus, Users } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Badge } from '@/components/Badge'
 import { Card } from '@/components/Card'
@@ -33,6 +33,9 @@ const STAT_META: Record<string, { icon: ReactNode; color: 'primary' | 'secondary
   // and colour on purpose: it occupies the same slot and means the same kind of thing, so the row
   // must not appear to gain a different card when the viewer changes scope.
   clients: { icon: <CheckCircle2 className="h-5 w-5" />, color: 'success' },
+  // Branch and consultancy scope's fourth card (2026-09-10). Warning, not success: every one of
+  // these is a committed student waiting on the consultancy, so a non-zero count wants action.
+  pending_allocation: { icon: <UserPlus className="h-5 w-5" />, color: 'warning' },
 }
 
 // User-requested (2026-08-19) — "If any of KPIs should be redirected to another page, let us do
@@ -46,6 +49,7 @@ const STAT_LINKS: Record<string, string> = {
   // Filtered, unlike `converted`: this card counts only the viewer's own clients, so the page it
   // opens has to agree with the number they just read.
   clients: '/clients?assigned_to_me=true',
+  pending_allocation: '/clients?unassigned=true',
 }
 
 // Renders as a plain Card (or bare div, for the hero card which already supplies its own full

@@ -132,6 +132,9 @@ export function ClientsListPage() {
   // allowed to see. A card that disagrees with the page it opens is worse than no card.
   const [assignedToMe, setAssignedToMe] = useState(() => searchParams.get('assigned_to_me') === 'true')
   const [unattendedOnly, setUnattendedOnly] = useState(false)
+  // Deep-linked from the dashboard's Pending Consultant Allocation card, so the page it opens
+  // shows exactly the rows it counted.
+  const [unassignedOnly, setUnassignedOnly] = useState(() => searchParams.get('unassigned') === 'true')
   const [tag, setTag] = useState('')
   const [country, setCountry] = useState('')
   const [showClosed, setShowClosed] = useState(false)
@@ -159,6 +162,7 @@ export function ClientsListPage() {
   const clients = useClients({
     assignedToMe,
     unattended: unattendedOnly,
+    unassigned: unassignedOnly,
     tag: tag || undefined,
     country: country || undefined,
     showClosed,
@@ -335,7 +339,7 @@ export function ClientsListPage() {
           loading={clients.isLoading}
           error={clients.isError ? 'Could not load clients.' : undefined}
           emptyMessage={
-            search || tag || country || assignedToMe || unattendedOnly
+            search || tag || country || assignedToMe || unattendedOnly || unassignedOnly
               ? 'No clients match your search or filters.'
               : 'No clients yet. A lead becomes a client when they accept your conversion proposal; applicants you create appear here too.'
           }
@@ -379,6 +383,18 @@ export function ClientsListPage() {
                   className="h-4 w-4"
                 />
                 Pending Response only
+              </label>
+              <label className="flex items-center gap-xs text-body-sm text-text-primary">
+                <input
+                  type="checkbox"
+                  checked={unassignedOnly}
+                  onChange={(e) => {
+                    setUnassignedOnly(e.target.checked)
+                    resetPaging()
+                  }}
+                  className="h-4 w-4"
+                />
+                Awaiting a consultant
               </label>
               <label className="flex items-center gap-xs text-body-sm text-text-primary">
                 <input

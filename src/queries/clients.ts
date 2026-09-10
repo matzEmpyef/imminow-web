@@ -6,6 +6,7 @@ import { ApiError } from './auth'
 interface ClientListFilters {
   assignedToMe?: boolean
   unattended?: boolean
+  unassigned?: boolean
   tag?: string
   showClosed?: boolean
   country?: string
@@ -23,6 +24,7 @@ export function useClients(filters: ClientListFilters = {}, options: { enabled?:
       const filter: Record<string, string> = {}
       if (filters.assignedToMe !== undefined) filter.assigned_to_me = String(filters.assignedToMe)
       if (filters.unattended !== undefined) filter.unattended = String(filters.unattended)
+      if (filters.unassigned !== undefined) filter.unassigned = String(filters.unassigned)
       if (filters.tag) filter.tag = filters.tag
       if (filters.showClosed !== undefined) filter.show_closed = String(filters.showClosed)
       if (filters.country) filter.country = filters.country
