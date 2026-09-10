@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { AppShell } from '@/features/auth/AppShell'
 import { Button } from '@/components/Button'
 import { Table, type TableColumn } from '@/components/Table'
@@ -10,9 +9,10 @@ import { useEmployees } from '@/queries/staff'
 import { useAllocateLead, useBulkAllocateLeads, useLeads } from '@/queries/leads'
 import { useCursorPagination } from '@/lib/pagination'
 import { usePermissionChecker } from '@/lib/permissions'
-import { Eye } from 'lucide-react'
-import { formatDate } from '@/lib/time'
+import { Eye, XCircle } from 'lucide-react'
+import { formatDate, relativeTime } from '@/lib/time'
 import { LeadDetailModal } from '@/features/clients/LeadDetailModal'
+import { CloseLeadModal } from './CloseLeadModal'
 
 type Lead = NonNullable<ReturnType<typeof useLeads>['data']>['items'][number]
 
@@ -74,6 +74,10 @@ export function LeadPoolPage() {
 
   // The lead whose study preference popup is open, or null.
   const [prefsLead, setPrefsLead] = useState<Lead | null>(null)
+  // The lead being closed from its row, or null.
+  const [closingLead, setClosingLead] = useState<Lead | null>(null)
+  // Same permission that gates Close on the lead page.
+  const canClose = can('leads.close')
 
   function handleBulkAllocate(employeeId: string) {
     // T8: pending guard + one key per confirmed selection — a double-fire of the same
@@ -93,14 +97,24 @@ export function LeadPoolPage() {
       render: (lead) => (
         <div className="flex items-center gap-sm">
           <SourceIcon origin={lead.origin} />
-          <Link
-            to={`/sales/leads/${lead.id}`}
-            className="font-medium text-text-primary hover:text-primary hover:underline"
-          >
-            {lead.name}
-          </Link>
+          <span className="font-medium text-text-primary">{lead.name}</span>
         </div>
       ),
+    },
+    // THE STUDENT'S LAST MESSAGE (user, 2026-09-10), in place of the lead page: what they asked is
+    // what decides who to allocate them to. Two lines, then how long ago.
+    {
+      key: 'last_message',
+      header: 'Last message',
+      render: (lead) =>
+        lead.last_student_message ? (
+          <div className="flex flex-col" style={{ maxWidth: '24rem' }}>
+            <span className="line-clamp-2 text-text-primary">{lead.last_student_message.content}</span>
+            <span className="text-caption text-text-secondary">{relativeTime(lead.last_student_message.created_at)}</span>
+          </div>
+        ) : (
+          <span className="text-text-secondary">—</span>
+        ),
     },
     // STUDY PREFERENCE IN A POPUP (user, 2026-09-10: "I need the popup... not inline table", and
     // "all info"). View opens the same LeadDetailModal Course Finder uses, which now shows every
@@ -151,12 +165,36 @@ export function LeadPoolPage() {
           } satisfies TableColumn<Lead>,
         ]
       : []),
+    ...(canClose
+      ? [
+          {
+            key: 'close',
+            header: 'Close',
+            render: (lead) => (
+              <button
+                type="button"
+                onClick={() => setClosingLead(lead)}
+                aria-label={`Close ${lead.name}`}
+                title="Close lead"
+                className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-error/10 hover:text-error"
+              >
+                <XCircle className="h-4 w-4" aria-hidden />
+              </button>
+            ),
+          } satisfies TableColumn<Lead>,
+        ]
+      : []),
   ]
 
   return (
     <AppShell>
       <div className="flex flex-col gap-lg">
-        {prefsLead && <LeadDetailModal lead={prefsLead} onClose={() => setPrefsLead(null)} />}
+        {prefsLead && (
+          <LeadDetailModal lead={prefsLead} onClose={() => setPrefsLead(null)} showProfileLink={false} />
+        )}
+        {closingLead && (
+          <CloseLeadModal leadId={closingLead.id} leadName={closingLead.name} onClose={() => setClosingLead(null)} />
+        )}
         <div className="flex items-center justify-between gap-md">
           <h1 className="text-h1 text-text-primary">Lead Pool</h1>
           {canImport && (

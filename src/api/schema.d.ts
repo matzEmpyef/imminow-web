@@ -16881,6 +16881,12 @@ export interface components {
             unread?: boolean;
             /** @description Server-computed — true when the most recent message is from the student and the consultant hasn't replied yet. Unlike `unread`, this doesn't care whether anyone has opened the conversation, only whether anyone has responded. Shown as "Pending Response" on Active Leads (build reference 2.2) — the field name stays `unattended` for continuity with `unattended_cases`/`unattended=true` filtering elsewhere; only the on-screen label changed. */
             unattended: boolean;
+            /** @description The student's most recent message on this lead, shown in the Lead Pool table (2026-09-10). Null when the student has sent nothing, and always for imported leads. A shared Dream Courses card with no text reads "Shared their Dream Courses". */
+            readonly last_student_message?: {
+                content: string;
+                /** Format: date-time */
+                created_at: string;
+            } | null;
             /** @description Names drawn from this consultancy's `Tag` catalog (`GET /tags`) — same free-text-array-of-catalog-names idiom `Client.tags` already uses. Set via `PATCH /leads/{id}/tags`, filterable via `filter[tag]=<name>` on `GET /leads`. */
             tags: string[];
             /** @description Sourced from `student_preferences` when origin=sentpo — what the summary card on Lead Conversation shows (build reference 2.2). Always null for origin=imported, which has no student account to hold preferences. `budget` within this is null unless the student set `budget_shared` (server-enforced since 2026-08-24 — it was previously sent unredacted and only hidden client-side, which any network inspector could see past). */

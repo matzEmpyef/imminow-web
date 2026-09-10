@@ -12,7 +12,16 @@ type Lead = components['schemas']['Lead']
  * gets its own message rather than a wall of "Not added yet" rows, which would misleadingly
  * suggest an account exists and is simply empty.
  */
-export function LeadDetailModal({ lead, onClose }: { lead: Lead; onClose: () => void }) {
+export function LeadDetailModal({
+  lead,
+  onClose,
+  showProfileLink = true,
+}: {
+  lead: Lead
+  onClose: () => void
+  /** False from Lead Pool, where there is no lead page to go to (user, 2026-09-10). */
+  showProfileLink?: boolean
+}) {
   return (
     <Modal onClose={onClose} title={lead.name} widthRem={30}>
       <div className="flex flex-col gap-md">
@@ -34,9 +43,11 @@ export function LeadDetailModal({ lead, onClose }: { lead: Lead; onClose: () => 
           </div>
         )}
 
-        <Link to={`/sales/leads/${lead.id}`} className="text-body-sm text-primary hover:underline">
-          View full profile →
-        </Link>
+        {showProfileLink && (
+          <Link to={`/sales/leads/${lead.id}`} className="text-body-sm text-primary hover:underline">
+            View full profile →
+          </Link>
+        )}
       </div>
     </Modal>
   )
