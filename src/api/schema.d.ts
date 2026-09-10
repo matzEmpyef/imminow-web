@@ -15911,7 +15911,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Sentpo user directory (docs/PROGRESS.md §4 Step 3) — one row per student, never blended with the immiNow console directory (see /admin/users/imminow). Gated to platform_staff_administration, same as Platform Team. Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, last_login_at, name. filter[x]= accepts stage=1|2, dormant_days=<integer> (last_login_at older than N days, or never logged in), from=<date>/to=<date> over created_at (signed-up range), and onboarding=never_logged_in|stuck|onboarded|pending platform=android|ios|web|unknown (2026-09-03, the app the student last opened), and (2026-09-02; `pending` = the two not-onboarded states together, which is what the Platform Dashboard's Stuck at Onboarding card links to). search matches name and email. */
+        /** Sentpo user directory (docs/PROGRESS.md §4 Step 3) — one row per student, never blended with the immiNow console directory (see /admin/users/imminow). Gated to platform_staff_administration, same as Platform Team. Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, last_login_at, last_active_at, name. filter[x]= accepts stage=1|2, dormant_days=<integer> (last_active_at older than N days, or never active), from=<date>/to=<date> over created_at (signed-up range), and onboarding=never_logged_in|stuck|onboarded|pending platform=android|ios|web|unknown (2026-09-03, the app the student last opened), and (2026-09-02; `pending` = the two not-onboarded states together, which is what the Platform Dashboard's Stuck at Onboarding card links to). search matches name and email. */
         get: {
             parameters: {
                 query?: {
@@ -16220,9 +16220,14 @@ export interface components {
             /**
              * Format: date-time
              * @description Updated on each successful login. Null until the account first signs in.
-             *     Means different things per product and must never be averaged across them: for a student it is ordinary engagement, while for consultancy staff a growing gap is an early warning that clients are going unattended. Added 2026-08-25 — adding it later would have made every existing account look dormant until its next sign-in.
              */
             readonly last_login_at?: string | null;
+            /**
+             * Format: date-time
+             * @description Sentpo app users only (2026-09-10). When the student last used the app: any authenticated request, recorded at most once an hour, and every sign-in. Differs from last_login_at for anyone who stays signed in, since restoring a saved session is not a login. Drives dormancy and activity figures; null until first active.
+             *     Means different things per product and must never be averaged across them: for a student it is ordinary engagement, while for consultancy staff a growing gap is an early warning that clients are going unattended. Added 2026-08-25 — adding it later would have made every existing account look dormant until its next sign-in.
+             */
+            readonly last_active_at?: string | null;
             /**
              * Format: date
              * @description Captured at sign-up (2026-09-05) and IMMUTABLE afterwards: it decides whether the account needs a guardian's approval, so a student who could edit it could lift their own gate. PATCH /profile ignores it; Support Tools corrects a genuine mistake.
@@ -18857,7 +18862,7 @@ export interface components {
             gender?: "male" | "female" | "other" | "prefer_not_to_say" | null;
             /** @description Account lifecycle (2026-09-03). Matches students whose `users.created_at` is within the last N days — the Sentpo Users directory's "Joined in the last 2 weeks / month / 3 months" presets (14 / 30 / 90) and the same control on Broadcast targeting. Any positive whole number of days is accepted. Always decidable, so the unknown-data policy never applies (a seed row with no created_at is the only blank, treated per `strict`). */
             joined_within_days?: number | null;
-            /** @description Account lifecycle (2026-09-03). Matches students whose `users.last_login_at` is older than N days, or who have never logged in — the directory's "No login in 2+ weeks / 1+ month / 3+ months" presets and the same control on Broadcast targeting (a re-engagement push to people who drifted away). Any positive whole number of days. */
+            /** @description Account lifecycle (2026-09-03). Matches students whose `users.last_active_at` is older than N days (last_login_at before 2026-09-10), or who have never been active — the directory's "Inactive 2+ weeks / 1+ month / 3+ months" presets and the same control on Broadcast targeting (a re-engagement push to people who drifted away). Any positive whole number of days. */
             dormant_days?: number | null;
         };
         AdBanner: {
@@ -19482,6 +19487,11 @@ export interface components {
             /** Format: date-time */
             last_login_at?: string | null;
             /**
+             * Format: date-time
+             * @description When the student last used the app (see User.last_active_at).
+             */
+            last_active_at?: string | null;
+            /**
              * @description The app the student last opened (2026-09-03); null until the app has reported once. filter[platform]=android|ios|web|unknown.
              * @enum {string|null}
              */
@@ -19530,7 +19540,7 @@ export interface components {
             response_time_median_hours?: number | null;
             /** @description Median days from lead created_at to its lead->converted status_transitions row. Null with no conversions yet in scope. */
             conversion_median_days?: number | null;
-            /** @description This consultancy's committed (Stage-2) students, bucketed by last_login_at recency. All four buckets are always present, even at 0, so the UI never has to guess the vocabulary. */
+            /** @description This consultancy's committed (Stage-2) students, bucketed by last_active_at recency (last_login_at before 2026-09-10). All four buckets are always present, even at 0, so the UI never has to guess the vocabulary. */
             active_student_engagement: {
                 /** @enum {string} */
                 bucket: "active_7d" | "quiet_30d" | "dormant_31d_plus" | "never_logged_in";

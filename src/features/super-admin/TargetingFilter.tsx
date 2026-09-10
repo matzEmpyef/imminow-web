@@ -218,7 +218,7 @@ export function TargetingFilter({ value, onChange, countries, unknownDataPolicy,
             <option value="90">Last 3 months</option>
           </SelectField>
           <SelectField
-            label="Hasn't signed in for"
+            label="Hasn't used the app for"
             id="targeting-dormant-days"
             value={value.dormant_days == null ? '' : String(value.dormant_days)}
             onChange={(e) => set({ dormant_days: e.target.value === '' ? null : Number(e.target.value) })}

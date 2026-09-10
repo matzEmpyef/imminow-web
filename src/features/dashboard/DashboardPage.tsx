@@ -325,7 +325,7 @@ export function DashboardPage() {
             </div>
             <div className="mt-md">
               <p className="text-body-sm font-medium text-text-primary">Active-Student Engagement</p>
-              <p className="text-caption text-text-secondary">Committed students, by days since last login.</p>
+              <p className="text-caption text-text-secondary">Committed students, by days since they last used the app.</p>
               <div className="mt-sm flex flex-wrap gap-sm">
                 {data.analytics.active_student_engagement.map((bucket) => (
                   <Badge key={bucket.bucket} color={bucket.bucket === 'never_logged_in' ? 'warning' : 'secondary'}>

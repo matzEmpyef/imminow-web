@@ -45,7 +45,7 @@ function describeSegment(targeting: Broadcast['targeting']): string {
   if (t?.study_level?.length) parts.push(`studying ${t.study_level.join(', ')}`)
   if (t?.stage) parts.push(t.stage === 1 ? 'at lead stage' : 'at client stage')
   if (t?.joined_within_days) parts.push(`who joined in the last ${describeDays(t.joined_within_days)}`)
-  if (t?.dormant_days) parts.push(`with no sign-in for ${describeDays(t.dormant_days)}`)
+  if (t?.dormant_days) parts.push(`inactive for ${describeDays(t.dormant_days)}`)
   return parts.length ? `Students ${parts.join(', ')}.` : 'Every student — no filters were set.'
 }
 

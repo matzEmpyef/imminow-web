@@ -14,9 +14,9 @@ type Row = NonNullable<ReturnType<typeof useSentpoUserDirectory>['data']>['items
 // Broadcast targeting form offers, so a list here and an audience there mean the same people.
 const DORMANT_DAYS_OPTIONS = [
   { value: '', label: 'Any activity' },
-  { value: '14', label: 'No login in 2+ weeks' },
-  { value: '30', label: 'No login in 1+ month' },
-  { value: '90', label: 'No login in 3+ months' },
+  { value: '14', label: 'Inactive 2+ weeks' },
+  { value: '30', label: 'Inactive 1+ month' },
+  { value: '90', label: 'Inactive 3+ months' },
 ]
 
 // "Joined in the last…" (user, 2026-09-03). Presets resolve to a signed-up-from date on the way
@@ -39,7 +39,21 @@ function daysAgoIsoDate(days: number): string {
 // selected, a hardcoded 30 left 10-day-idle rows unbadged next to badged 31-day ones, so the
 // badge contradicted the very filter that produced the list. 30 stays the default when the
 // filter is "Any activity".
-function LastLoginCell({ row, dormantAfterDays }: { row: Row; dormantAfterDays: number }) {
+// The Dormant badge follows LAST ACTIVE (user, 2026-09-10): a student who stays signed in and
+// uses the app daily has an old last login but is anything but dormant.
+function LastActiveCell({ row, dormantAfterDays }: { row: Row; dormantAfterDays: number }) {
+  if (!row.last_active_at) return <span className="text-text-secondary">Never</span>
+  const daysSince = (Date.now() - new Date(row.last_active_at).getTime()) / (1000 * 60 * 60 * 24)
+  return (
+    <span className="flex items-center gap-xs">
+      <span className="text-text-primary">{formatDateTime(row.last_active_at)}</span>
+      {daysSince > dormantAfterDays && <Badge color="warning">Dormant</Badge>}
+    </span>
+  )
+}
+
+// Kept (user: "keep last login") — when they last actually signed in with a password or OTP.
+function LastLoginCell({ row }: { row: Row }) {
   if (!row.last_login_at) {
     return (
       <span className="flex items-center gap-xs">
@@ -48,13 +62,7 @@ function LastLoginCell({ row, dormantAfterDays }: { row: Row; dormantAfterDays: 
       </span>
     )
   }
-  const daysSince = (Date.now() - new Date(row.last_login_at).getTime()) / (1000 * 60 * 60 * 24)
-  return (
-    <span className="flex items-center gap-xs">
-      <span className="text-text-primary">{formatDateTime(row.last_login_at)}</span>
-      {daysSince > dormantAfterDays && <Badge color="warning">Dormant</Badge>}
-    </span>
-  )
+  return <span className="text-text-secondary">{formatDateTime(row.last_login_at)}</span>
 }
 
 const STAGE_LABELS: Record<number, string> = { 1: 'Stage 1 · Exploring', 2: 'Stage 2 · Committed' }
@@ -143,11 +151,12 @@ export function SentpoUsersPage() {
     },
     { key: 'created_at', header: 'Signed up', sortable: true, render: (r) => formatDate(r.created_at) },
     {
-      key: 'last_login_at',
-      header: 'Last login',
+      key: 'last_active_at',
+      header: 'Last active',
       sortable: true,
-      render: (r) => <LastLoginCell row={r} dormantAfterDays={dormantDays ? Number(dormantDays) : 30} />,
+      render: (r) => <LastActiveCell row={r} dormantAfterDays={dormantDays ? Number(dormantDays) : 30} />,
     },
+    { key: 'last_login_at', header: 'Last login', sortable: true, render: (r) => <LastLoginCell row={r} /> },
     { key: 'onboarding', header: 'Onboarding', render: (r) => <OnboardingCell state={r.onboarding} /> },
     {
       // The app the student last opened (2026-09-03, user: "if it is Android or iOS") — reported
