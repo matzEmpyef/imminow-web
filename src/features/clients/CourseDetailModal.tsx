@@ -11,7 +11,6 @@ import {
   GraduationCap,
   Languages,
   Receipt,
-  Users,
   Wallet,
 } from 'lucide-react'
 import { Modal } from '@/components/Modal'
@@ -204,13 +203,6 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
           ) : (
             <span className="inline-flex items-center gap-xs text-body-sm text-text-primary">
               Course website: {gap('course_url', 'Course website')}
-            </span>
-          )}
-          {(course.consultancies_count ?? 0) > 0 && (
-            <span className="inline-flex items-center gap-xs text-body-sm text-text-secondary">
-              <Users className="h-4 w-4 text-secondary" aria-hidden />
-              {course.consultancies_count} {course.consultancies_count === 1 ? 'consultancy' : 'consultancies'} can
-              help
             </span>
           )}
         </div>
