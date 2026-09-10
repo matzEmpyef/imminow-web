@@ -93,7 +93,7 @@ function OnboardingCell({ state }: { state: OnboardingState }) {
 // console directory (ImminowUsersPage.tsx / GET /admin/users/imminow). See docs/PROGRESS.md §4
 // Step 3: "two screens, never one; the two populations must not blend."
 export function SentpoUsersPage() {
-  // `?onboarding=pending` is how the dashboard's Stuck at Onboarding card lands here already
+  // `?onboarding=pending` is how Needs attention's "Students stuck at onboarding" lands here already
   // filtered to the students who need a hand.
   const [searchParams] = useSearchParams()
   const [search, setSearch] = useState('')

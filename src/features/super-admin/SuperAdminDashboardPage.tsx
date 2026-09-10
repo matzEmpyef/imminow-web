@@ -1,7 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Card } from '@/components/Card'
-import { Badge } from '@/components/Badge'
 import { DoughnutChart } from '@/components/DoughnutChart'
 import { MonthlyBarChart } from '@/components/MonthlyBarChart'
 import { useAdminDashboard } from '@/queries/adminDashboard'
@@ -15,7 +14,6 @@ const STAT_CARD_LINKS: Record<string, string> = {
   total_consultancies: '/admin/consultancies?kind=consultancy',
   total_institutes: '/admin/consultancies?kind=institute',
   total_students: '/admin/users/sentpo',
-  stuck_onboarding: '/admin/users/sentpo?onboarding=pending',
   study_abroad_students: '/admin/supply-demand',
   active_aspirants: '/admin/supply-demand',
   active_applicants: '/admin/consultancies',
@@ -225,20 +223,14 @@ export function SuperAdminDashboardPage() {
             // "link all the cards to some page... make sure numbers are correct"). Total
             // Consultancies had been the lone clickable card since 2026-08-19.
             const to = card.key ? STAT_CARD_LINKS[card.key] : undefined
-            // Stuck at Onboarding is a to-do, not a statistic — alert treatment once there is
-            // somebody to help, calm at zero.
-            const alert = card.key === 'stuck_onboarding' && (card.value ?? 0) > 0
             return (
               <Card
                 key={card.key}
                 onClick={to ? () => navigate(to) : undefined}
                 className={to ? 'cursor-pointer transition-colors hover:bg-background' : undefined}
               >
-                <div className="flex items-center justify-between gap-xs">
-                  <p className="text-caption text-text-secondary">{card.label}</p>
-                  {alert && <Badge color="error">Needs help</Badge>}
-                </div>
-                <p className={`mt-xs text-h1 ${alert ? 'text-error' : 'text-text-primary'}`}>
+                <p className="text-caption text-text-secondary">{card.label}</p>
+                <p className="mt-xs text-h1 text-text-primary">
                   {card.value == null ? '—' : card.value}
                   {card.value != null && card.unit && (
                     <span className="ml-xs text-body-sm text-text-secondary">{card.unit}</span>
