@@ -9291,6 +9291,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/shared-documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Files the student's consultancies have shared with their cases (2026-09-10)
+         * @description Consultant uploads to the student's case files ("Shared by us") and Document Library copies, across every case the student has had, newest first. Open one with GET /uploads/{id}. A share also sends the student a `document_shared` notification whose deep_link is /profile/documents?section=shared; a consultant adding to the student's own locker sends `document_added` linking to /profile/documents.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["SharedDocument"][];
+                        };
+                    };
+                };
+                /** @description Not a student account */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/documents": {
         parameters: {
             query?: never;
@@ -11085,7 +11133,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get signed download URL (short-lived, ~15 min) */
+        /**
+         * Get signed download URL (short-lived, ~15 min)
+         * @description The returned url opens the file itself and carries its own token, so a browser can open it without a bearer header; it expires after about 15 minutes. Students may only fetch files on their own case (404 otherwise), staff any case they can see (2026-09-10).
+         */
         get: {
             parameters: {
                 query?: never;
@@ -18337,6 +18388,18 @@ export interface components {
             readonly preferred_contact_value?: string | null;
             /** @description True when this complaint also raised a consultancy-change request on the Applicant Allocation queue. */
             readonly consultancy_change_requested?: boolean;
+        };
+        /** @description A file a consultancy shared with one of the student's cases (2026-09-10). */
+        SharedDocument: {
+            id: components["schemas"]["UUID"];
+            filename: string;
+            mime_type?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            journey_id: components["schemas"]["UUID"];
+            consultancy_name?: string | null;
+            /** @description True when it was copied from the consultancy's Document Library. */
+            from_library?: boolean;
         };
         Upload: {
             id: components["schemas"]["UUID"];

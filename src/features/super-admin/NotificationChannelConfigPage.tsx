@@ -31,6 +31,8 @@ const LABELS: Record<string, string> = {
   coupon_redeemed: 'Coupon redeemed',
   referral_signup: 'Referral signed up',
   course_suggested: 'Course suggested to a student',
+  document_shared: 'Consultancy shared a document with a student',
+  document_added: 'Consultant added a document to a student’s locker',
   cross_country_college_selected: 'College chosen outside the served country',
   complaint_received: 'Complaint received',
   incoming_transfer: 'Incoming consultancy transfer',
