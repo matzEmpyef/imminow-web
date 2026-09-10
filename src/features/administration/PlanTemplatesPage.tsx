@@ -20,6 +20,7 @@ import {
   useUpdatePlanTemplate,
 } from '@/queries/plans'
 import { formatDate } from '@/lib/time'
+import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard'
 import type { ComponentInput } from '@/lib/planComponents'
 import type { components } from '@/api/schema'
 
@@ -57,6 +58,20 @@ function TemplateEditor({ template, onDone }: { template: PlanTemplate | null; o
   const [editingStep, setEditingStep] = useState<StepTemplateInput | null>(null)
   const [showAddComponent, setShowAddComponent] = useState(false)
   const [editingComponent, setEditingComponent] = useState<ComponentInput | null>(null)
+
+  // ASK BEFORE LOSING WORK (user, 2026-09-10: "if someone was creating a new plan template and mid
+  // way accidently clicked Cancel or exit the page, can we ask confirmation? Only if some creation
+  // started"). A new template counts as started once it has a name or a step; an existing one once
+  // its name or steps differ from what was loaded. Snapshotted once, from the initial state.
+  const [initialSnapshot] = useState(() => JSON.stringify({ name, steps }))
+  const started = template ? JSON.stringify({ name, steps }) !== initialSnapshot : name.trim() !== '' || steps.length > 0
+  const saving = createTemplate.isPending || updateTemplate.isPending
+  const guard = useUnsavedChangesGuard(started && !saving, {
+    title: template ? 'Discard your changes?' : 'Discard this plan template?',
+    body: template
+      ? 'You have changed this template. If you leave now, those changes will be lost.'
+      : 'You have started creating a plan template. If you leave now, what you have added will be lost.',
+  })
 
   const selectedStep = steps.find((s) => s.id === selectedStepId) ?? null
 
@@ -155,7 +170,6 @@ function TemplateEditor({ template, onDone }: { template: PlanTemplate | null; o
     }
   }
 
-  const saving = createTemplate.isPending || updateTemplate.isPending
   const error = createTemplate.error ?? updateTemplate.error
   const selectedIndex = selectedStep ? steps.findIndex((s) => s.id === selectedStep.id) : -1
 
@@ -311,10 +325,11 @@ function TemplateEditor({ template, onDone }: { template: PlanTemplate | null; o
         <Button onClick={handleSave} loading={saving} disabled={!name || steps.length === 0}>
           {template ? 'Save Changes' : 'Create Template'}
         </Button>
-        <Button variant="secondary" onClick={onDone}>
+        <Button variant="secondary" onClick={() => guard.requestLeave(onDone)}>
           Cancel
         </Button>
       </div>
+      {guard.dialog}
 
       {showAddStep && <AddStepModal onSubmit={addStep} onClose={() => setShowAddStep(false)} />}
       {editingStep && (
