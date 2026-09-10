@@ -238,9 +238,9 @@ export function OverviewTab({
               </dd>
             </div>
           </dl>
-          {/* Where the student lives, then who handles the case — split by a line across the whole
-              card, with room above and below (user, 2026-09-10). */}
-          <hr className="-mx-lg my-sm border-0 border-t border-border" />
+          {/* Where the student lives, then who handles the case — split by a line inside the card's
+              padding, with room above and below (user, 2026-09-10: "need full padding"). */}
+          <hr className="my-sm border-0 border-t border-border" />
           <dl className="flex flex-col gap-sm text-body-sm">
             <div>
               <dt className="text-caption text-text-secondary">Consultant</dt>
