@@ -8133,7 +8133,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Clients list (consultancy-side). Default sort last_message_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, created_at, last_message_at, status, progress, consultant_name. filter[x]= accepts assigned_to_me=true, unattended=true, unassigned=true (2026-09-10 — clients with no consultant yet; what the dashboard's Pending Consultant Allocation card counts, so the card deep-links to exactly its own rows), tag=<name>[,<name>…] (ANY of the listed; comma-separated, 2026-09-10), show_closed=true (user-requested, 2026-08-15 — closed, closed_switched, closed_completed, and plan_complete clients are excluded by default regardless of any other filter; this is the only way to see them again, same idiom GET /leads's show_closed already uses), country=<name>[,<name>…] (ANY of the listed; comma-separated, 2026-09-10) (user-requested, 2026-08-19 — filters on `Client.finalized_country`, exact match). search matches the applicant's name, email, phone, or file_number (user-requested, 2026-08-15). */
+        /** Clients list (consultancy-side). Default sort last_message_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, created_at, last_message_at, status, progress, consultant_name, finalized_country. filter[x]= accepts assigned_to_me=true, unattended=true, unassigned=true (2026-09-10 — clients with no consultant yet; what the dashboard's Pending Consultant Allocation card counts, so the card deep-links to exactly its own rows), tag=<name>[,<name>…] (ANY of the listed; comma-separated, 2026-09-10), show_closed=true (user-requested, 2026-08-15 — closed, closed_switched, closed_completed, and plan_complete clients are excluded by default regardless of any other filter; this is the only way to see them again, same idiom GET /leads's show_closed already uses), country=<name>[,<name>…] (ANY of the listed; comma-separated, 2026-09-10) (user-requested, 2026-08-19 — filters on `Client.finalized_country`, exact match). search matches the applicant's name, email, phone, or file_number (user-requested, 2026-08-15). */
         get: {
             parameters: {
                 query?: {
@@ -17577,6 +17577,10 @@ export interface components {
             /** @enum {string} */
             case_type: "student" | "pr";
             address?: string | null;
+            /** @description The state or province the student lives in, from their own profile (2026-09-10). Read from the student's profile rather than the case's preferences, which never carried location; a client is a committed student, and commitment grants full profile access. */
+            readonly residence_state?: string | null;
+            /** @description The country the student lives in, from their own profile (2026-09-10). Same source as residence_state. */
+            readonly residence_country?: string | null;
             /** @description User-requested (2026-08-19) — "consultant has to select country finalized to apply. it should be prominent, it should also be displayed in client list and filterable on basis of country." Drawn from the same shared `countries` catalog as `Consultancy.countries_served`. Set via `PATCH /clients/{id}/finalized-country`, deliberately separate from the general details PATCH so this specific field's changes can drive the Selected Colleges cross-country confirm/notify check without conflating it with an address/phone edit. */
             finalized_country?: string | null;
             /** @enum {string|null} */

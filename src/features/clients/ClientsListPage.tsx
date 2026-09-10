@@ -204,14 +204,16 @@ export function ClientsListPage() {
       ),
     },
     {
-      key: 'email',
-      header: 'Email',
-      render: (client) => <span className="text-text-secondary">{client.student.email}</span>,
-    },
-    {
-      key: 'phone',
-      header: 'Phone',
-      render: (client) => <span className="text-text-secondary">{client.student.phone ?? '—'}</span>,
+      key: 'contact',
+      header: 'Contact',
+      // One column, email above phone (user, 2026-09-10): they are read together, and two
+      // columns spent the table's width on what is one piece of information.
+      render: (client) => (
+        <div className="flex flex-col">
+          <span className="text-text-secondary">{client.student.email}</span>
+          <span className="text-text-secondary">{client.student.phone ?? '—'}</span>
+        </div>
+      ),
     },
     {
       key: 'progress',
@@ -251,28 +253,11 @@ export function ClientsListPage() {
       },
     },
     {
-      key: 'case_state',
-      header: 'State',
-      // A case under mediation is nobody's to work on, and a consultant should learn that from the
-      // list rather than by opening it and finding every action gone.
-      render: (client) =>
-        client.status === 'in_dispute' ? (
-          <Badge color="warning">In dispute</Badge>
-        ) : client.outcome ? (
-          <Badge color={client.outcome === 'success' ? 'success' : 'secondary'}>{client.outcome}</Badge>
-        ) : (
-          <span className="text-text-secondary">—</span>
-        ),
-    },
-    {
       key: 'finalized_country',
       header: 'Country',
-      render: (client) =>
-        client.finalized_country ? (
-          <CountryLabel name={client.finalized_country} textClassName="text-text-secondary" />
-        ) : (
-          <span className="text-text-secondary">—</span>
-        ),
+      // Plain text and sortable (user, 2026-09-10: "no need to show flag", "sort by country").
+      sortable: true,
+      render: (client) => <span className="text-text-secondary">{client.finalized_country ?? '—'}</span>,
     },
     {
       key: 'tags',
@@ -280,6 +265,15 @@ export function ClientsListPage() {
       render: (client) => (
         <div className="flex items-center gap-xs">
           <div className="flex flex-wrap gap-xs">
+            {/* Case state as pills, ahead of the tags (user, 2026-09-10: "show case state in tags
+                instead" of a State column that was mostly dashes). A case under mediation is
+                nobody's to work on, and a consultant should learn that from the list. */}
+            {client.status === 'in_dispute' && <Badge color="warning">In dispute</Badge>}
+            {client.outcome && (
+              <Badge color={client.outcome === 'success' ? 'success' : 'secondary'} className="capitalize">
+                {client.outcome}
+              </Badge>
+            )}
             {client.tags?.map((t) => (
               <Badge key={t} color="secondary">
                 {t}

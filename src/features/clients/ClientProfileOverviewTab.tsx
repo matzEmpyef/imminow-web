@@ -10,6 +10,7 @@ import { TagEditorMenu } from '@/components/TagEditorMenu'
 import { AssignPlanModal } from '@/features/clients/AssignPlanModal'
 import { AssignBranchMenu } from '@/components/AssignBranchMenu'
 import { StudentProfileFields } from '@/components/StudentProfileFields'
+import { CountryLabel } from '@/components/CountryLabel'
 import { useClient, useSetClientBranch, useSetClientTags, useSetFinalizedCountry } from '@/queries/clients'
 import { useMyConsultancy } from '@/queries/consultancy'
 import { useFeature } from '@/lib/features'
@@ -144,6 +145,17 @@ export function OverviewTab({
             <div className="flex justify-between">
               <dt className="text-text-secondary">Address</dt>
               <dd className="text-text-primary">{data.address ?? '—'}</dd>
+            </div>
+            {/* Where the student lives, from their own profile (user, 2026-09-10). */}
+            <div className="flex justify-between">
+              <dt className="text-text-secondary">State</dt>
+              <dd className="text-text-primary">{data.residence_state ?? '—'}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-text-secondary">Country of residence</dt>
+              <dd className="text-text-primary">
+                {data.residence_country ? <CountryLabel name={data.residence_country} /> : '—'}
+              </dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-text-secondary">Case type</dt>
