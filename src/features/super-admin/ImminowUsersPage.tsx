@@ -8,6 +8,7 @@ import { useImminowUserDirectory } from '@/queries/adminUserDirectories'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
 import { FilterChip } from '@/components/FilterChip'
+import { SignInHistoryDrawer, type SignInHistoryPerson } from './SignInHistoryDrawer'
 
 type Row = NonNullable<ReturnType<typeof useImminowUserDirectory>['data']>['items'][number]
 
@@ -21,6 +22,7 @@ export function ImminowUsersPage() {
   const [neverActive, setNeverActive] = useState(false)
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const paging = useCursorPagination()
+  const [historyFor, setHistoryFor] = useState<SignInHistoryPerson | null>(null)
   const consultancies = useAdminConsultancies()
 
   function resetPaging() {
@@ -100,7 +102,7 @@ export function ImminowUsersPage() {
         <div>
           <h1 className="text-h1 text-text-primary">immiNow Users</h1>
           <p className="text-body-sm text-text-secondary">
-            Every consultancy's employees plus Sentpo's own platform staff. Gated to Platform Staff Administration.
+            Every consultancy's employees plus Sentpo's own platform staff. Select a person to see their sign-in history.
           </p>
         </div>
 
@@ -108,6 +110,7 @@ export function ImminowUsersPage() {
           columns={columns}
           rows={directory.data?.items ?? []}
           rowKey={(r) => r.id}
+          onRowClick={(r) => setHistoryFor({ id: r.id, name: r.name, email: r.email })}
           loading={directory.isLoading}
           error={directory.isError ? 'Could not load the immiNow user directory.' : undefined}
           emptyMessage={
@@ -179,6 +182,7 @@ export function ImminowUsersPage() {
             total: directory.data?.meta.total,
           }}
         />
+        <SignInHistoryDrawer person={historyFor} onClose={() => setHistoryFor(null)} />
       </div>
     </AdminShell>
   )

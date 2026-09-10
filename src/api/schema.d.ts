@@ -16178,6 +16178,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/users/{id}/sign-ins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One account's sign-in history (2026-09-10), newest first — every attempt with a password, email code or phone code, successful or not, from login_events. Opened from either user directory (a student or a staff member; `id` is the user id both directories return). Gated to user_directory, like the directories. For support ("why can't I get in") and security ("was that me"); not audit-logged, since the audit log records changes only. filter[outcome]= accepts `failed` (every outcome but success) or one exact outcome. */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
+                    filter?: components["parameters"]["FilterParam"];
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["SignInEvent"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                            summary: {
+                                /**
+                                 * Format: date-time
+                                 * @description Latest successful sign-in on record; null when none.
+                                 */
+                                last_success_at: string | null;
+                                /** @description Failed attempts in the last `failures_recent_days` days. */
+                                failures_recent: number;
+                                failures_recent_days: number;
+                                /**
+                                 * Format: date
+                                 * @description When sign-in recording began — an empty history before this date means "not recorded", not "never signed in".
+                                 */
+                                recording_since: string;
+                            };
+                        };
+                    };
+                };
+                403: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/supply-demand": {
         parameters: {
             query?: never;
@@ -19837,6 +19902,20 @@ export interface components {
                 demand: number;
                 supply: number;
             }[];
+        };
+        /** @description One sign-in attempt (2026-09-10, erd.md login_events). `ip` is personal data — shown to platform staff with user_directory for security checks only; retention is a pre-production decision (PROGRESS.md checklist). */
+        SignInEvent: {
+            id: string;
+            /** Format: date-time */
+            occurred_at: string;
+            /** @enum {string} */
+            method: "password" | "email_code" | "phone_code";
+            /** @enum {string} */
+            outcome: "success" | "wrong_password" | "unknown_account" | "wrong_code" | "code_expired" | "too_many_attempts" | "rate_limited" | "account_disabled" | "subscription_lapsed";
+            /** @enum {string|null} */
+            platform: "android" | "ios" | "web" | null;
+            app_version: string | null;
+            ip: string | null;
         };
         /** @description Sign-in health over the window (2026-09-10), from login_events — one row per sign-in ATTEMPT (password, email code or phone code; reopening the app on a saved session is not a sign-in). Aggregate operational figures only; an under-18 account's attempts are left out of these figures, the same line analytics_events draws, though the rows are kept as a security record. */
         SignInPulse: {

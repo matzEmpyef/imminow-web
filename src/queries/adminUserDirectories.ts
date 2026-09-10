@@ -53,6 +53,25 @@ export function useSentpoUserDirectory(filters: SentpoUserDirectoryFilters = {})
   })
 }
 
+// One account's sign-in history (2026-09-10), for the drawer both directories open. The latest
+// 50 attempts — enough for "why can't I get in" and "was that me"; the drawer says when more exist.
+export const SIGN_IN_HISTORY_LIMIT = 50
+
+export function useUserSignIns(userId: string | null) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['admin-user-sign-ins', userId],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/admin/users/{id}/sign-ins', {
+        params: { path: { id: userId ?? '' }, query: { limit: SIGN_IN_HISTORY_LIMIT } },
+      })
+      if (error) throw new ApiError('Could not load sign-in history.', error)
+      return data
+    },
+    enabled: isAuthed && Boolean(userId),
+  })
+}
+
 export interface ImminowUserDirectoryFilters {
   search?: string
   consultancy_id?: string

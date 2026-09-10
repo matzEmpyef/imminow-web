@@ -7,6 +7,7 @@ import { CompactSelect } from '@/components/CompactSelect'
 import { useSentpoUserDirectory } from '@/queries/adminUserDirectories'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate, formatDateTime } from '@/lib/time'
+import { SignInHistoryDrawer, type SignInHistoryPerson } from './SignInHistoryDrawer'
 
 type Row = NonNullable<ReturnType<typeof useSentpoUserDirectory>['data']>['items'][number]
 
@@ -105,6 +106,7 @@ export function SentpoUsersPage() {
   const [to, setTo] = useState('')
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const paging = useCursorPagination()
+  const [historyFor, setHistoryFor] = useState<SignInHistoryPerson | null>(null)
 
   function resetPaging() {
     paging.reset()
@@ -183,7 +185,7 @@ export function SentpoUsersPage() {
         <div>
           <h1 className="text-h1 text-text-primary">Sentpo Users</h1>
           <p className="text-body-sm text-text-secondary">
-            Every student account — signup, activity and journey stage. Gated to Platform Staff Administration.
+            Every student account — signup, activity and journey stage. Select a student to see their sign-in history.
           </p>
         </div>
 
@@ -191,6 +193,7 @@ export function SentpoUsersPage() {
           columns={columns}
           rows={directory.data?.items ?? []}
           rowKey={(r) => r.id}
+          onRowClick={(r) => setHistoryFor({ id: r.id, name: r.name, email: r.email })}
           loading={directory.isLoading}
           error={directory.isError ? 'Could not load the Sentpo user directory.' : undefined}
           emptyMessage={
@@ -315,6 +318,7 @@ export function SentpoUsersPage() {
             total: directory.data?.meta.total,
           }}
         />
+        <SignInHistoryDrawer person={historyFor} onClose={() => setHistoryFor(null)} />
       </div>
     </AdminShell>
   )

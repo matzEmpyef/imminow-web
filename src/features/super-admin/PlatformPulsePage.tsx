@@ -8,6 +8,7 @@ import { DoughnutChart } from '@/components/DoughnutChart'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { usePlatformPulse, type PlatformPulseWindow } from '@/queries/platformPulse'
 import { formatDate } from '@/lib/time'
+import { SIGN_IN_METHOD_LABELS as METHOD_LABELS, SIGN_IN_OUTCOME_LABELS as OUTCOME_LABELS } from '@/lib/signIns'
 
 type PulseData = NonNullable<ReturnType<typeof usePlatformPulse>['data']>
 type CourseRow = PulseData['top_courses'][number]
@@ -32,25 +33,13 @@ const countryColumns: TableColumn<CountryRow>[] = [
   { key: 'count', header: 'Students', align: 'right', render: (r) => r.count },
 ]
 
-// Sign-in health (user, 2026-09-10: "add login events"). Named by what a person did at the
-// sign-in screen, not by the server's error codes.
-const METHOD_LABELS: Record<string, string> = { password: 'Password', email_code: 'Email code', phone_code: 'Phone code' }
+// Sign-in health (user, 2026-09-10: "add login events"). Method/outcome wording is shared with
+// the Sign-in history drawer (lib/signIns.ts).
 const PRODUCT_LABELS: Record<string, string> = {
   sentpo: 'Sentpo app',
   imminow: 'immiNow console',
   unknown: 'No matching account',
 }
-const OUTCOME_LABELS: Record<string, string> = {
-  wrong_password: 'Wrong password',
-  unknown_account: 'No account with that address',
-  wrong_code: 'Wrong code',
-  code_expired: 'Code expired',
-  too_many_attempts: 'Too many wrong codes',
-  rate_limited: 'Blocked after repeated failures',
-  account_disabled: 'Account disabled',
-  subscription_lapsed: 'Consultancy subscription lapsed',
-}
-
 const methodColumns: TableColumn<MethodRow>[] = [
   { key: 'method', header: 'Method', render: (r) => METHOD_LABELS[r.method] ?? r.method },
   { key: 'attempts', header: 'Attempts', align: 'right', render: (r) => r.attempts },
