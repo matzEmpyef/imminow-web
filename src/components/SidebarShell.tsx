@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronsLeft, ChevronsRight, CircleHelp, LogOut, type LucideIcon } from 'lucide-react'
+import { ChevronRight, ChevronsLeft, ChevronsRight, CircleHelp, LogOut, type LucideIcon } from 'lucide-react'
 import { BRAND_LOGO } from '@/lib/brand'
 import { api } from '@/api/client'
 import { endSession } from '@/lib/session'
@@ -16,6 +16,10 @@ export interface SidebarSubLink {
   /** When the link stands for a group of pages (the platform console's tab groups, 2026-09-10),
    *  it is highlighted on any of them. Omitted, only its own path highlights it. */
   matches?: (pathname: string) => boolean
+  /** The pages a group link stands for (user, 2026-09-10: "make sure all pages are there"). Listed
+   *  indented under the link while you are in the group, so every page is visible in the sidebar;
+   *  an arrow on the link says there is more inside. */
+  children?: { label: string; path: string }[]
   // Small count pill after the label (user-requested, 2026-08-19 — "show number of activities
   // that need action today as a counter in Activities side menu"), same red-badge treatment
   // NotificationsDropdown's own unread count already uses. Omitted or 0 renders nothing.
@@ -133,25 +137,52 @@ export function SidebarShell({ sections, roleBadge, search, headerActions, child
           {activeLinks.map((link) => {
             const LinkIcon = link.icon
             const linkActive = link.matches ? link.matches(location.pathname) : location.pathname === link.path
+            const hasChildren = Boolean(link.children?.length)
             return (
-              <Link
-                key={link.path}
-                to={link.path}
-                title={collapsed ? link.label : undefined}
-                className={`flex items-center gap-sm rounded-md px-sm py-sm text-body-sm font-medium transition-colors ${
-                  linkActive
-                    ? 'bg-primary-subtle text-primary'
-                    : 'text-text-secondary hover:bg-primary-subtle hover:text-primary'
-                }`}
-              >
-                <LinkIcon className={`h-5 w-5 shrink-0 ${linkActive ? 'text-primary' : 'text-text-secondary'}`} />
-                {!collapsed && <span className="min-w-0 flex-1 truncate">{link.label}</span>}
-                {!collapsed && Boolean(link.badge) && (
-                  <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-error px-xs text-caption font-medium leading-none text-text-on-primary">
-                    {link.badge}
-                  </span>
+              <div key={link.path} className="flex flex-col gap-0.5">
+                <Link
+                  to={link.path}
+                  title={collapsed ? link.label : undefined}
+                  className={`flex items-center gap-sm rounded-md px-sm py-sm text-body-sm font-medium transition-colors ${
+                    linkActive
+                      ? 'bg-primary-subtle text-primary'
+                      : 'text-text-secondary hover:bg-primary-subtle hover:text-primary'
+                  }`}
+                >
+                  <LinkIcon className={`h-5 w-5 shrink-0 ${linkActive ? 'text-primary' : 'text-text-secondary'}`} />
+                  {!collapsed && <span className="min-w-0 flex-1 truncate">{link.label}</span>}
+                  {!collapsed && Boolean(link.badge) && (
+                    <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-error px-xs text-caption font-medium leading-none text-text-on-primary">
+                      {link.badge}
+                    </span>
+                  )}
+                  {!collapsed && hasChildren && (
+                    <ChevronRight
+                      aria-hidden
+                      className={`h-4 w-4 shrink-0 transition-transform ${linkActive ? 'rotate-90 text-primary' : 'text-text-secondary'}`}
+                    />
+                  )}
+                </Link>
+                {!collapsed && hasChildren && linkActive && (
+                  <div className="ml-lg flex flex-col gap-0.5 border-l border-border pl-sm">
+                    {link.children!.map((child) => {
+                      const childActive = location.pathname.startsWith(child.path)
+                      return (
+                        <Link
+                          key={child.path}
+                          to={child.path}
+                          aria-current={childActive ? 'page' : undefined}
+                          className={`rounded-md px-sm py-xs text-body-sm transition-colors ${
+                            childActive ? 'font-medium text-primary' : 'text-text-secondary hover:text-primary'
+                          }`}
+                        >
+                          {child.label}
+                        </Link>
+                      )
+                    })}
+                  </div>
                 )}
-              </Link>
+              </div>
             )
           })}
         </nav>

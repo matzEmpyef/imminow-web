@@ -139,9 +139,26 @@ function BillingCard({ consultancy }: { consultancy: Consultancy }) {
     { label: 'Amount', value: formatMoney(billing_currency, subscription_amount) },
   ]
 
+  // The server-derived state (2026-09-10) — the date alone no longer tells the whole story, since
+  // what happens after expiry depends on the 14-day grace period.
+  const status = consultancy.subscription_status
+  const statusBadge =
+    status === 'active' ? (
+      <Badge color="success">Active</Badge>
+    ) : status === 'expiring' ? (
+      <Badge color="warning">Ends soon</Badge>
+    ) : status === 'grace' ? (
+      <Badge color="warning">In grace period</Badge>
+    ) : status === 'lapsed' ? (
+      <Badge color="error">Lapsed</Badge>
+    ) : null
+
   return (
     <Card>
-      <h2 className="text-h3 text-text-primary">Billing</h2>
+      <div className="flex items-center justify-between gap-md">
+        <h2 className="text-h3 text-text-primary">Billing</h2>
+        {statusBadge}
+      </div>
       <dl className="mt-sm grid grid-cols-1 gap-sm text-body-sm sm:grid-cols-2">
         {rows.map((row) => (
           <div key={row.label} className="flex flex-col">
@@ -150,6 +167,13 @@ function BillingCard({ consultancy }: { consultancy: Consultancy }) {
           </div>
         ))}
       </dl>
+      {(status === 'grace' || status === 'lapsed') && (
+        <p className={`mt-sm text-body-sm ${status === 'lapsed' ? 'text-error' : 'text-warning'}`}>
+          {status === 'grace'
+            ? `Grace period until ${consultancy.grace_ends_at ? formatDate(consultancy.grace_ends_at) : '—'}. After that only admins can sign in and new leads and clients stop.`
+            : 'Only admins can sign in, and new leads and new clients are paused. Existing clients are still served.'}
+        </p>
+      )}
       <p className="mt-sm text-caption text-text-secondary">
         Billing terms are set by immiNow — contact Platform Admin for changes or renewal.
       </p>

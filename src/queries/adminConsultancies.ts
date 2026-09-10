@@ -90,6 +90,31 @@ export function useChangeTier(id: string) {
   })
 }
 
+export interface SubscriptionTermInput {
+  subscription_expires_at: string
+  subscription_started_at?: string
+  billing_cycle?: 'monthly' | 'annual'
+  subscription_amount?: number
+  billing_currency?: string
+}
+
+/**
+ * Renew (or correct) a consultancy's subscription term — the super admin's side of expiry
+ * enforcement (2026-09-10). Takes effect at once: a lapsed consultancy's team can sign in again
+ * as soon as the new end date is in the future.
+ */
+export function useRenewSubscription(id: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: SubscriptionTermInput) => {
+      const { data, error } = await api.POST('/consultancies/{id}/subscription', { params: { path: { id } }, body })
+      if (error) throw new ApiError("Could not update this consultancy's subscription.", error)
+      return data
+    },
+    onSuccess: () => invalidateConsultancy(queryClient, id),
+  })
+}
+
 export function useUpdateEntitlements(id: string) {
   const queryClient = useQueryClient()
   return useMutation({

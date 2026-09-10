@@ -4944,6 +4944,63 @@ export interface paths {
         };
         trace?: never;
     };
+    "/consultancies/{id}/subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Renew or correct a consultancy's subscription term (Super Admin)
+         * @description Requires Consultancy Approval AND Finance, the same pair as a tier change (2026-09-10). Sets the term's dates and terms. A date in the past is accepted so a record can be corrected. It takes effect at once, so a lapsed consultancy's team can sign in again as soon as it is renewed. Resets the reminder schedule for the new term, notifies the consultancy's admins, and is audit-logged.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: date */
+                        subscription_expires_at: string;
+                        /** Format: date */
+                        subscription_started_at?: string;
+                        /** @enum {string} */
+                        billing_cycle?: "monthly" | "annual";
+                        subscription_amount?: number;
+                        billing_currency?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description The consultancy with its new term. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Consultancy"];
+                    };
+                };
+                400: components["responses"]["ErrorResponse"];
+                403: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/consultancies/{id}/entitlements": {
         parameters: {
             query?: never;
@@ -16879,14 +16936,24 @@ export interface components {
             seat_limit: number;
             /**
              * Format: date
-             * @description Subscription tab (build reference 1.22), user-requested — start date of the current billing term. System/Super-Admin-set; no dedicated edit endpoint exists yet since nothing edits it post-creation today (same boundary as billing being deferred elsewhere in the build reference).
+             * @description Subscription tab (build reference 1.22), user-requested — start date of the current billing term. Set by the super admin's renewal (POST /consultancies/{id}/subscription).
              */
             subscription_started_at?: string | null;
             /**
              * Format: date
-             * @description Renewal/expiry date of the current billing term, shown on the Subscription tab. Not itself a trigger for anything — auto-suspension on expiry is out of scope.
+             * @description Renewal/expiry date of the current billing term. Enforced since 2026-09-10 (see `subscription_status`); the super admin moves it with POST /consultancies/{id}/subscription.
              */
             subscription_expires_at?: string | null;
+            /**
+             * @description Derived from `subscription_expires_at` (2026-09-10). `none` means no term is recorded and nothing is enforced. `active` means more than 30 days are left. `expiring` means 30 days or fewer are left, still fully active. `grace` means past expiry but inside the 14-day grace period, still fully active. `lapsed` means grace is over, so only the consultancy's admins can sign in (everyone else gets 403 `subscription_lapsed`, at login and mid-session), the consultancy is hidden from students with no existing conversation or case with it, and new leads and new clients are refused with 403 `subscription_lapsed` — while existing clients are still served. Renewal lifts all of it at once.
+             * @enum {string}
+             */
+            readonly subscription_status?: "none" | "active" | "expiring" | "grace" | "lapsed";
+            /**
+             * Format: date
+             * @description The day the 14-day grace period ends (expiry plus 14 days). Null with no term.
+             */
+            readonly grace_ends_at?: string | null;
             /** @enum {string|null} */
             billing_cycle?: "monthly" | "annual" | null;
             subscription_amount?: number | null;

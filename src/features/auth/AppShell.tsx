@@ -30,6 +30,7 @@ import { NotificationsDropdown } from '@/components/NotificationsDropdown'
 import { usePermissionChecker } from '@/lib/permissions'
 import { useFeatures } from '@/lib/features'
 import { useActivityFeed } from '@/queries/activity'
+import { SubscriptionBanner } from './SubscriptionBanner'
 
 // Only sections/links with real, built pages appear here — a link shows only once its wave has
 // landed, and only once its plan includes it (Starter/Business/Ultimate, build reference 1.16
@@ -214,6 +215,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </>
         }
       >
+        <SubscriptionBanner />
         {children}
       </SidebarShell>
       <FloatingChatWindow />

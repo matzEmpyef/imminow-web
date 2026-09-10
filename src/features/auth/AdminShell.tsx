@@ -1,6 +1,8 @@
 import { useMemo, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
+  Activity,
+  TrendingUp,
   BarChart3,
   Bell,
   Briefcase,
@@ -44,6 +46,8 @@ interface AdminTab {
   label: string
   path: string
   permission?: PlatformPermissionKey
+  /** Used when a section's only link is flattened into one sidebar link per page. */
+  icon?: LucideIcon
 }
 
 /**
@@ -85,9 +89,9 @@ const SECTIONS: AdminSection[] = [
         // No permission on any of these (docs/PROGRESS.md §4 Step 4; Platform Pulse 2026-08-31) —
         // strategic overviews behind the bare requirePlatformAccount gate.
         tabs: [
-          { label: 'Overview', path: '/admin/dashboard' },
-          { label: 'Supply & Demand', path: '/admin/supply-demand' },
-          { label: 'Platform Pulse', path: '/admin/platform-pulse' },
+          { label: 'Overview', path: '/admin/dashboard', icon: LayoutDashboard },
+          { label: 'Supply & Demand', path: '/admin/supply-demand', icon: TrendingUp },
+          { label: 'Platform Pulse', path: '/admin/platform-pulse', icon: Activity },
         ],
       },
     ],
@@ -288,8 +292,28 @@ export function AdminShell({ children }: { children: ReactNode }) {
       const sidebarLinks = section.links.flatMap((link) => {
         const tabs = visibleTabs(link, permissions)
         if (tabs.length === 0) return []
+        // A section whose only link is a group (Dashboard) shows its pages as plain sidebar links —
+        // a lone "Dashboard" link hid Supply & Demand and Platform Pulse behind a tab strip nobody
+        // noticed (user, 2026-09-10: "there was Supply & Demand, Platform Pulse. where they went?").
+        if (section.links.length === 1 && tabs.length > 1) {
+          return tabs.map((tab) => ({
+            label: tab.label,
+            icon: tab.icon ?? link.icon,
+            path: tab.path,
+            matches: (p: string) => p.startsWith(tab.path),
+          }))
+        }
         const paths = linkPaths(link, tabs)
-        return [{ label: link.label, icon: link.icon, path: tabs[0].path, matches: (p: string) => startsWithAny(p, paths) }]
+        return [
+          {
+            label: link.label,
+            icon: link.icon,
+            path: tabs[0].path,
+            matches: (p: string) => startsWithAny(p, paths),
+            // Every page in the group, listed under the link while you are in it.
+            children: tabs.length > 1 ? tabs.map((tab) => ({ label: tab.label, path: tab.path })) : undefined,
+          },
+        ]
       })
       if (sidebarLinks.length === 0) return []
       const sectionPaths = section.links.flatMap((link) => linkPaths(link, link.tabs))
@@ -315,7 +339,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
     for (const section of SECTIONS) {
       for (const link of section.links) {
         const tabs = visibleTabs(link, permissions)
-        if (startsWithAny(pathname, linkPaths(link, tabs))) return tabs.length > 1 ? tabs : []
+        if (startsWithAny(pathname, linkPaths(link, tabs))) {
+          // A flattened section already lists every page in the sidebar; no strip needed.
+          return tabs.length > 1 && section.links.length > 1 ? tabs : []
+        }
       }
     }
     return []

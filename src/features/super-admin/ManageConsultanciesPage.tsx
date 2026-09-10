@@ -23,8 +23,12 @@ import {
   useSetConsultancyRating,
   useUpdateEntitlements,
   useTierImpact,
+  useRenewSubscription,
 } from '@/queries/adminConsultancies'
 import { useCursorPagination } from '@/lib/pagination'
+import { formatDate } from '@/lib/time'
+import { formatMoney } from '@/lib/money'
+import { useCurrencyCodes } from '@/lib/currencies'
 import { useConsultancyKyc, useVerifyKyc } from '@/queries/kyc'
 import type { components } from '@/api/schema'
 import { BUSINESS_FEATURES, ULTIMATE_FEATURES, STARTER_CORE_FEATURES, TIER_ORDER, type FeatureDef } from '@/lib/features'
@@ -362,6 +366,152 @@ function InstituteCollegeSection({ consultancy }: { consultancy: Consultancy }) 
   )
 }
 
+// Subscription enforcement (2026-09-10, user: "14 days grace, keep serving existing clients, super
+// admin renews" / "after 14 days let only admin login"). The status is server-derived; this row
+// shows it and is the only place a term is renewed.
+const SUBSCRIPTION_BADGE: Record<string, { color: 'success' | 'warning' | 'error' | 'secondary'; label: string }> = {
+  active: { color: 'success', label: 'Active' },
+  expiring: { color: 'warning', label: 'Ends soon' },
+  grace: { color: 'warning', label: 'Grace period' },
+  lapsed: { color: 'error', label: 'Lapsed' },
+  none: { color: 'secondary', label: 'No term' },
+}
+
+/** One billing cycle on from the later of today and the current end date. */
+function suggestedEnd(from: string | null | undefined, cycle: 'monthly' | 'annual'): string {
+  const base = new Date(Math.max(Date.now(), from ? Date.parse(`${from}T00:00:00Z`) : 0))
+  if (cycle === 'monthly') base.setUTCMonth(base.getUTCMonth() + 1)
+  else base.setUTCFullYear(base.getUTCFullYear() + 1)
+  return base.toISOString().slice(0, 10)
+}
+
+function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consultancy; onClose: () => void }) {
+  const renew = useRenewSubscription(consultancy.id!)
+  const initialCycle = consultancy.billing_cycle ?? 'annual'
+  const [cycle, setCycle] = useState<'monthly' | 'annual'>(initialCycle)
+  const [expires, setExpires] = useState(suggestedEnd(consultancy.subscription_expires_at, initialCycle))
+  const [amount, setAmount] = useState(consultancy.subscription_amount != null ? String(consultancy.subscription_amount) : '')
+  const [currency, setCurrency] = useState(consultancy.billing_currency ?? 'INR')
+  const currencyCodes = useCurrencyCodes(currency)
+  const inPast = Boolean(expires) && Date.parse(`${expires}T00:00:00Z`) <= Date.now()
+  // The new term starts where the old one ended, or today if it had already run out.
+  const today = new Date().toISOString().slice(0, 10)
+  const startsOn =
+    consultancy.subscription_expires_at && consultancy.subscription_expires_at > today ? consultancy.subscription_expires_at : today
+
+  function handleCycle(next: 'monthly' | 'annual') {
+    setCycle(next)
+    setExpires(suggestedEnd(consultancy.subscription_expires_at, next))
+  }
+
+  return (
+    <Modal
+      onClose={onClose}
+      title={`Renew subscription — ${consultancy.name}`}
+      widthRem={28}
+      footer={
+        <>
+          {renew.isError && <p className="mr-auto self-center text-body-sm text-error">{renew.error.message}</p>}
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            loading={renew.isPending}
+            disabled={!expires}
+            onClick={() =>
+              renew.mutate(
+                {
+                  subscription_expires_at: expires,
+                  subscription_started_at: startsOn,
+                  billing_cycle: cycle,
+                  billing_currency: currency,
+                  ...(amount !== '' ? { subscription_amount: Number(amount) } : {}),
+                },
+                { onSuccess: onClose },
+              )
+            }
+          >
+            Renew
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-md">
+        <p className="text-body-sm text-text-secondary">
+          Takes effect immediately. If the subscription has lapsed, its whole team can sign in again straight away.
+        </p>
+        <SelectField
+          label="Billing cycle"
+          id={`renew-cycle-${consultancy.id}`}
+          value={cycle}
+          onChange={(e) => handleCycle(e.target.value as 'monthly' | 'annual')}
+        >
+          <option value="annual">Annual</option>
+          <option value="monthly">Monthly</option>
+        </SelectField>
+        <TextField label="New end date" type="date" value={expires} onChange={(e) => setExpires(e.target.value)} />
+        {inPast && (
+          <p className="text-caption text-warning">
+            This date has already passed — use it only to correct a record. The consultancy will stay expired.
+          </p>
+        )}
+        <div className="grid grid-cols-3 gap-sm">
+          <TextField
+            label="Amount"
+            type="number"
+            min="0"
+            className="col-span-2"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+          <SelectField label="Currency" id={`renew-currency-${consultancy.id}`} value={currency} onChange={(e) => setCurrency(e.target.value)}>
+            {currencyCodes.map((code) => (
+              <option key={code} value={code}>
+                {code}
+              </option>
+            ))}
+          </SelectField>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function SubscriptionSection({ consultancy }: { consultancy: Consultancy }) {
+  const [renewing, setRenewing] = useState(false)
+  const status = consultancy.subscription_status ?? 'none'
+  const badge = SUBSCRIPTION_BADGE[status] ?? SUBSCRIPTION_BADGE.none
+  const details = [
+    consultancy.subscription_expires_at ? `Ends ${formatDate(consultancy.subscription_expires_at)}` : 'No term recorded',
+    status === 'grace' && consultancy.grace_ends_at ? `grace until ${formatDate(consultancy.grace_ends_at)}` : null,
+    consultancy.billing_cycle === 'annual' ? 'Annual' : consultancy.billing_cycle === 'monthly' ? 'Monthly' : null,
+    consultancy.subscription_amount != null ? formatMoney(consultancy.billing_currency, consultancy.subscription_amount) : null,
+  ].filter(Boolean)
+
+  return (
+    <div className="flex flex-col gap-xs">
+      <div className="flex items-center justify-between gap-md">
+        <div className="min-w-0">
+          <p className="flex items-center gap-sm text-body-sm font-medium text-text-primary">
+            Subscription <Badge color={badge.color}>{badge.label}</Badge>
+          </p>
+          <p className="text-caption text-text-secondary">{details.join(' · ')}</p>
+        </div>
+        <Button variant="secondary" onClick={() => setRenewing(true)}>
+          Renew
+        </Button>
+      </div>
+      {status === 'lapsed' && (
+        <p className="text-caption text-error">
+          Lapsed: only its admins can sign in, and it takes no new leads or clients until renewed. Existing clients are
+          still served.
+        </p>
+      )}
+      {renewing && <RenewSubscriptionModal consultancy={consultancy} onClose={() => setRenewing(false)} />}
+    </div>
+  )
+}
+
 function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy; onClose: () => void }) {
   const changeTier = useChangeTier(consultancy.id!)
   const updateEntitlements = useUpdateEntitlements(consultancy.id!)
@@ -492,6 +642,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
             </Button>
           )}
         </div>
+        <SubscriptionSection consultancy={consultancy} />
         <RatingSection consultancy={consultancy} />
         {confirmingSuspend && (
           <SuspendConfirmModal
@@ -739,6 +890,8 @@ export function ManageConsultanciesPage() {
       render: (c) => (
         <div className="flex items-center gap-xs">
           <Badge color={c.active ? 'success' : 'secondary'}>{c.active ? 'Active' : 'Suspended'}</Badge>
+          {c.subscription_status === 'lapsed' && <Badge color="error">Subscription lapsed</Badge>}
+          {c.subscription_status === 'grace' && <Badge color="warning">Grace period</Badge>}
           {!c.kyc_verified && <Badge color="warning">KYC pending</Badge>}
         </div>
       ),
