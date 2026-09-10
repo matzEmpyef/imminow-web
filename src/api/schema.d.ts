@@ -17207,12 +17207,13 @@ export interface components {
             /** @description Pending course suggestions/corrections awaiting review. */
             pending_actions_count: number;
             revenue_snapshot?: components["schemas"]["Money"];
-            /** @description New leads (native + imported, "aspirants") and journeys ("applicants") as two stacked series over a fixed trailing 12-calendar-month window ending at "now" (user-requested, 2026-08-18 — "how many new users are registering each month"; refined 2026-08-19 — "if aspirants and applicants can be shown on top of another but in different color" / "user count (registrations)... of last 12 months"). Always exactly 12 entries, zero-filled, unlike a plain per-month grouping which would only emit months that actually have data. Not deduplicated against a lead that later converted into a journey, same simplification the `total_students` stat card already makes. */
+            /** @description New registrations per month by acquisition channel (A = Sentpo direct, B = consultancy-sourced, C = freelancer referral) over a fixed trailing 12-calendar-month window ending at "now" — always exactly 12 entries, zero-filled. Distinct people, each counted once in the month they arrived (user, 2026-09-10: count only new users onboarded, not users who start in Stage 1 and move to Stage 2). A and C are student accounts by created_at (C = signed up with a freelancer's referral code); B is cases a consultancy created for someone with no Sentpo account, by the case's created_at. A Sentpo lead converting to a client is never counted again. Replaced the aspirants/applicants series (which counted records, not people) on 2026-09-10. */
             registrations_over_time?: {
                 /** @description YYYY-MM */
                 month: string;
-                aspirants: number;
-                applicants: number;
+                channel_a: number;
+                channel_b: number;
+                channel_c: number;
             }[];
             /** @description journeys with status `plan_complete`, by calendar month, fixed trailing 12-month window (user-requested, 2026-08-19 — "Completed case each month graph of last 12 months"). Grouped by `created_at` as a practical stand-in for "when completed" — no seeded journey has `closed_at` populated yet (erd.md documents the column; nothing in this mock's write paths sets it). */
             completed_cases_over_time?: {
@@ -17920,7 +17921,10 @@ export interface components {
             id: components["schemas"]["UUID"];
             student_id: components["schemas"]["UUID"];
             consultancy_id?: components["schemas"]["UUID"];
-            /** @enum {string} */
+            /**
+             * @description How this person came to the platform: A = Sentpo direct, B = consultancy-sourced (Create Applicant, or a consultancy's own imported lead converted), C = freelancer referral. Stamped when the case is created and never changes; a consultancy switch keeps the original channel. Recorded by the server since 2026-09-10 (every case read as A before; older cases are derived the same way).
+             * @enum {string}
+             */
             acquisition_source: "A" | "B" | "C";
             /** @enum {integer} */
             current_stage: 1 | 2;

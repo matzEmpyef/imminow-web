@@ -102,18 +102,41 @@ export function SuperAdminDashboardPage() {
         <div className="grid grid-cols-1 gap-lg md:grid-cols-2">
           <Card>
             <h2 className="text-h3 text-text-primary">New Registrations by Month</h2>
+            {/* Actual new people by acquisition channel (user, 2026-09-10) — each person counted once,
+                in the month they arrived; an aspirant later becoming an applicant is not counted
+                again. Replaced the aspirants/applicants series, which counted records, not people. */}
             <p className="text-caption text-text-secondary">
-              Last 12 months — aspirants and applicants stacked, not combined.
+              People new to the platform in each of the last 12 months, by channel. Each person is counted once, in the month
+              they joined — an aspirant who later becomes an applicant is not counted again.
             </p>
             <div className="mt-sm">
               <MonthlyBarChart
                 data={dashboard.data?.registrations_over_time ?? []}
                 series={[
-                  { key: 'aspirants', label: 'Aspirants', color: 'var(--color-secondary)' },
-                  { key: 'applicants', label: 'Applicants', color: 'var(--color-primary)' },
+                  { key: 'channel_a', label: 'Channel A', color: 'var(--color-secondary)' },
+                  { key: 'channel_b', label: 'Channel B', color: 'var(--color-primary)' },
+                  { key: 'channel_c', label: 'Channel C', color: 'var(--color-warning)' },
                 ]}
               />
             </div>
+            <dl className="mt-sm flex flex-col gap-xs text-caption text-text-secondary">
+              <div>
+                <dt className="inline font-medium text-text-primary">Channel A · Sentpo direct</dt>
+                <dd className="inline"> — signed up in the Sentpo app on their own; starts as an aspirant.</dd>
+              </div>
+              <div>
+                <dt className="inline font-medium text-text-primary">Channel B · Consultancy-sourced</dt>
+                <dd className="inline">
+                  {' '}
+                  — added by a consultancy as a client (Create Applicant, or one of its own imported leads converted); joins
+                  directly as an applicant.
+                </dd>
+              </div>
+              <div>
+                <dt className="inline font-medium text-text-primary">Channel C · Freelancer referral</dt>
+                <dd className="inline"> — signed up with a freelancer's referral code; Sentpo assigns them a consultancy.</dd>
+              </div>
+            </dl>
           </Card>
           <Card>
             <h2 className="text-h3 text-text-primary">Aspirants vs Applicants</h2>
