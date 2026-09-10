@@ -90,11 +90,19 @@ export function useCourseSuggestions() {
 export function useSuggestCorrection() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ courseId, payload }: { courseId: string; payload: Record<string, unknown> }) => {
-      const { data, error } = await api.POST('/courses/{id}/suggest-correction', {
-        params: { path: { id: courseId } },
-        body: { payload },
-      })
+    // One of the two ids: a course's facts, or (2026-09-10) the college's own.
+    mutationFn: async ({
+      courseId,
+      collegeId,
+      payload,
+    }: {
+      courseId?: string
+      collegeId?: string
+      payload: Record<string, unknown>
+    }) => {
+      const { data, error } = collegeId
+        ? await api.POST('/colleges/{id}/suggest-correction', { params: { path: { id: collegeId } }, body: { payload } })
+        : await api.POST('/courses/{id}/suggest-correction', { params: { path: { id: courseId! } }, body: { payload } })
       if (error) throw new ApiError('Could not submit this correction.', error)
       return data
     },

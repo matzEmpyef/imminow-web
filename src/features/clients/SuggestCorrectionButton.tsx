@@ -25,12 +25,15 @@ import { useSuggestCorrection } from '@/queries/courseSuggestions'
  */
 export function SuggestCorrectionButton({
   courseId,
+  collegeId,
   field,
   label,
   current,
   numeric,
 }: {
-  courseId: string
+  // Exactly one of these: the course the fact belongs to, or the college (2026-09-10).
+  courseId?: string
+  collegeId?: string
   field: string
   label: string
   // Null when the course has no value for this field yet. The button then reads "+ Add" rather
@@ -109,6 +112,7 @@ export function SuggestCorrectionButton({
                   suggest.mutate(
                     {
                       courseId,
+                      collegeId,
                       payload: { field, label, current, suggested: suggested.trim(), note: note.trim() || null },
                     },
                     { onSuccess: () => setOpen(false) },
@@ -123,8 +127,8 @@ export function SuggestCorrectionButton({
           <div className="flex flex-col gap-md">
             {isMissing ? (
               <p className="text-body-sm text-text-secondary">
-                This course has no {label.toLowerCase()} yet. A Platform Admin reviews what you suggest before it
-                appears on the course.
+                This {collegeId ? 'college' : 'course'} has no {label.toLowerCase()} yet. A Platform Admin reviews what you suggest before it
+                appears on the {collegeId ? 'college' : 'course'}.
               </p>
             ) : (
               <p className="text-body-sm text-text-secondary">

@@ -8004,6 +8004,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/colleges/{id}/suggest-correction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Consultancy suggests a value for one of a college's own facts (2026-09-10)
+         * @description Same review queue and payload shape as POST /courses/{id}/suggest-correction, for facts that belong to the college rather than a course (website, rankings, acceptance rate, campuses). The suggestion is returned with `course` null and `college` set. Approving one records it as accepted with resolution `manual`; the admin edits the college directly, since no college field is applied automatically.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @description The field-level suggestion - field, label, current (null when the college has no value yet), suggested, note. */
+                        payload: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Submitted */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CourseSuggestion"];
+                    };
+                };
+                /** @description College not found, or not visible to the caller */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/courses/suggest-new": {
         parameters: {
             query?: never;
@@ -17554,6 +17611,11 @@ export interface components {
             consultancy_name?: string;
             /** @description Null for type=new (there's no existing course to reference yet). */
             course?: components["schemas"]["Course"] | null;
+            /** @description Set only for a correction to a college's own facts (2026-09-10), where `course` is null. See POST /colleges/{id}/suggest-correction. */
+            readonly college?: {
+                id?: components["schemas"]["UUID"];
+                name?: string;
+            } | null;
             /** @enum {string} */
             type: "new" | "correction";
             /** @description The proposed fix (type=correction) or the new course's fields (type=new). */

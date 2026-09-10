@@ -64,7 +64,9 @@ function SuggestionDetailModal({ suggestion, onClose }: { suggestion: CourseSugg
   }
 
   const courseName =
-    suggestion.type === 'new' ? (suggestion.payload as { name?: string })?.name : suggestion.course?.name
+    suggestion.type === 'new'
+      ? (suggestion.payload as { name?: string })?.name
+      : (suggestion.course?.name ?? suggestion.college?.name)
 
   return (
     <Modal
@@ -137,6 +139,7 @@ function SuggestionDetailModal({ suggestion, onClose }: { suggestion: CourseSugg
         {suggestion.course && suggestion.type === 'correction' && (
           <p className="text-caption text-text-secondary">{suggestion.course.college_name}</p>
         )}
+        {suggestion.college && <p className="text-caption text-text-secondary">College details</p>}
 
         {structured ? (
           <div className="flex flex-col gap-sm">
@@ -153,8 +156,8 @@ function SuggestionDetailModal({ suggestion, onClose }: { suggestion: CourseSugg
             {payload.note && <p className="text-body-sm text-text-secondary">&ldquo;{payload.note}&rdquo;</p>}
             {suggestion.status === 'pending' && !autoApplicable && (
               <p className="rounded-md bg-warning/10 p-sm text-caption text-text-secondary">
-                This kind of change can&rsquo;t be applied automatically — review the note above and edit the course
-                directly if it&rsquo;s valid.
+                This kind of change can&rsquo;t be applied automatically — review the note above and edit the{' '}
+                {suggestion.college ? 'college' : 'course'} directly if it&rsquo;s valid.
               </p>
             )}
             {suggestion.status === 'pending' && autoApplicable && (
@@ -207,7 +210,9 @@ export function CourseSuggestionsReviewPage() {
       header: 'Type',
       sortable: true,
       render: (s) => (
-        <Badge color={s.type === 'new' ? 'primary' : 'info'}>{s.type === 'new' ? 'New Course' : 'Correction'}</Badge>
+        <Badge color={s.type === 'new' ? 'primary' : s.college ? 'secondary' : 'info'}>
+          {s.type === 'new' ? 'New Course' : s.college ? 'College correction' : 'Correction'}
+        </Badge>
       ),
     },
     {
@@ -215,7 +220,7 @@ export function CourseSuggestionsReviewPage() {
       header: 'Course',
       render: (s) => (
         <span className="font-medium text-text-primary">
-          {s.type === 'new' ? (s.payload as { name?: string })?.name : s.course?.name}
+          {s.type === 'new' ? (s.payload as { name?: string })?.name : (s.course?.name ?? s.college?.name)}
         </span>
       ),
     },
@@ -230,7 +235,7 @@ export function CourseSuggestionsReviewPage() {
           <button
             type="button"
             onClick={() => setReviewingId(s.id!)}
-            aria-label={`Review ${s.type === 'new' ? (s.payload as { name?: string })?.name : s.course?.name}`}
+            aria-label={`Review ${s.type === 'new' ? (s.payload as { name?: string })?.name : (s.course?.name ?? s.college?.name)}`}
             title="Review"
             className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
           >

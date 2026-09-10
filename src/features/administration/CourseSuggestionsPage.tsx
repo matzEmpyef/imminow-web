@@ -197,7 +197,9 @@ export function CourseSuggestionsPage() {
       header: 'Type',
       sortable: true,
       render: (s) => (
-        <Badge color={s.type === 'new' ? 'primary' : 'info'}>{s.type === 'new' ? 'New course' : 'Correction'}</Badge>
+        <Badge color={s.type === 'new' ? 'primary' : s.college ? 'secondary' : 'info'}>
+          {s.type === 'new' ? 'New course' : s.college ? 'College correction' : 'Correction'}
+        </Badge>
       ),
     },
     {
@@ -205,7 +207,7 @@ export function CourseSuggestionsPage() {
       header: 'Course',
       render: (s) => (
         <span className="font-medium text-text-primary">
-          {s.type === 'new' ? (s.payload as { name?: string }).name : (s.course?.name ?? '—')}
+          {s.type === 'new' ? (s.payload as { name?: string }).name : (s.course?.name ?? s.college?.name ?? '—')}
         </span>
       ),
     },
