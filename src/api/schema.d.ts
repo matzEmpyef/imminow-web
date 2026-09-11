@@ -20131,7 +20131,7 @@ export interface components {
                 module: string;
                 views: number;
             }[];
-            /** @description Same as `sentpo_sections`, restricted to rows whose derived `product` is `imminow` (consultancy staff, platform staff, and freelancers on the web console). */
+            /** @description Same as `sentpo_sections`, restricted to rows whose derived `product` is `imminow`, counting consultancy staff and freelancers only — the platform team's own console use is excluded (2026-09-11; it was most of the chart). `top_search_countries` likewise counts only names on the platform's country list, and both search lists exclude the platform team. */
             imminow_sections: {
                 module: string;
                 views: number;

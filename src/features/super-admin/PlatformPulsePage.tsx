@@ -58,6 +58,75 @@ const outcomeColumns: TableColumn<OutcomeRow>[] = [
 
 const WINDOWS: PlatformPulseWindow[] = [7, 30, 90]
 
+// Readable names for the section keys the apps send (the first part of the screen's address —
+// user review, 2026-09-11: the chart showed raw keys like "admin"). Keys that mean the same area
+// merge into one slice; anything unrecognised is grouped as Other.
+const SENTPO_SECTION_LABELS: Record<string, string> = {
+  home: 'Home',
+  'study-abroad': 'Study abroad',
+  'study-in-country': 'Study in my country',
+  events: 'Events',
+  event: 'Events',
+  'quiz-runner': 'Events',
+  jobs: 'Jobs',
+  job: 'Jobs',
+  'saved-jobs': 'Jobs',
+  'job-alerts': 'Jobs',
+  'search-results': 'Course search',
+  course: 'Courses',
+  college: 'Colleges',
+  shortlist: 'Dream courses',
+  discovery: 'Consultancies',
+  leads: 'Consultancy chats',
+  chat: 'Consultancy chats',
+  plan: 'My plan',
+  'plan-complete': 'My plan',
+  'applicant-form': 'My plan',
+  'verified-review': 'Reviews',
+  payments: 'Payments',
+  blog: 'Blog',
+  article: 'Blog',
+  'saved-articles': 'Blog',
+  points: 'Points & coupons',
+  coupons: 'Points & coupons',
+  coupon: 'Points & coupons',
+  profile: 'Profile',
+  notifications: 'Notifications',
+  legal: 'Legal',
+  splash: 'Sign-up & onboarding',
+  login: 'Sign-up & onboarding',
+  signup: 'Sign-up & onboarding',
+  consent: 'Sign-up & onboarding',
+  onboarding: 'Sign-up & onboarding',
+  preferences: 'Sign-up & onboarding',
+}
+const IMMINOW_SECTION_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  sales: 'Leads',
+  clients: 'Clients',
+  activity: 'Activity',
+  administration: 'Consultancy management',
+  notifications: 'Notifications',
+  account: 'My account',
+  freelancer: 'Freelancer',
+  guardian: 'Guardian consent',
+  login: 'Sign-in',
+  'forgot-password': 'Sign-in',
+  'reset-password': 'Sign-in',
+  'set-password': 'Sign-in',
+}
+
+function labelSections(sections: { module: string; views: number }[], labels: Record<string, string>) {
+  const merged = new Map<string, number>()
+  for (const s of sections) {
+    const label = labels[s.module] ?? 'Other'
+    merged.set(label, (merged.get(label) ?? 0) + s.views)
+  }
+  return [...merged.entries()]
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => Number(a.label === 'Other') - Number(b.label === 'Other') || b.value - a.value)
+}
+
 // Never a fabricated zero — every empty list on this page says exactly this instead of an empty
 // table, so a thin sample is never mistaken for "nothing is happening" (task's own instruction).
 function sparseMessage(collectingSince: string) {
@@ -72,11 +141,13 @@ function SectionChartCard({
   title,
   caption,
   sections,
+  labels,
   collectingSince,
 }: {
   title: string
   caption: string
   sections: { module: string; views: number }[]
+  labels: Record<string, string>
   collectingSince: string
 }) {
   return (
@@ -87,7 +158,7 @@ function SectionChartCard({
         {sections.length === 0 ? (
           <p className="text-body-sm text-text-secondary">{sparseMessage(collectingSince)}</p>
         ) : (
-          <DoughnutChart data={sections.map((s) => ({ label: s.module, value: s.views }))} />
+          <DoughnutChart data={labelSections(sections, labels)} />
         )}
       </div>
     </Card>
@@ -311,21 +382,8 @@ export function PlatformPulsePage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-lg md:grid-cols-2">
-          <SectionChartCard
-            title="Sentpo Sections"
-            caption="Most-opened areas of the student mobile app — jobs, blog, events, college search, abroad vs. local."
-            sections={data.sentpo_sections}
-            collectingSince={data.collecting_since}
-          />
-          <SectionChartCard
-            title="immiNow Sections"
-            caption="Most-opened areas of the console — consultancy staff, platform staff, and freelancers."
-            sections={data.imminow_sections}
-            collectingSince={data.collecting_since}
-          />
-        </div>
-
+        {/* Grouped under headings (user review, 2026-09-11) — it was twelve cards in one list. */}
+        <h2 className="text-h3 text-text-primary">Students</h2>
         <div className="grid grid-cols-1 gap-lg lg:grid-cols-2">
           <Card>
             <h2 className="text-h3 text-text-primary">Students by Platform</h2>
@@ -354,13 +412,30 @@ export function PlatformPulsePage() {
           </Card>
         </div>
 
-        <SignInsCard signIns={data.sign_ins} sparse={sparse} />
+        <h2 className="text-h3 text-text-primary">App usage</h2>
+        <div className="grid grid-cols-1 gap-lg md:grid-cols-2">
+          <SectionChartCard
+            title="Sentpo Sections"
+            caption="The most-opened areas of the Sentpo app in this period."
+            sections={data.sentpo_sections}
+            labels={SENTPO_SECTION_LABELS}
+            collectingSince={data.collecting_since}
+          />
+          <SectionChartCard
+            title="immiNow Sections"
+            caption="The most-opened areas of the console by consultancy staff and freelancers. The platform team's own use is not counted."
+            sections={data.imminow_sections}
+            labels={IMMINOW_SECTION_LABELS}
+            collectingSince={data.collecting_since}
+          />
+        </div>
 
+        <h2 className="text-h3 text-text-primary">Catalog interest</h2>
         <div className="grid grid-cols-1 gap-lg lg:grid-cols-2">
           <Card>
             <h2 className="text-h3 text-text-primary">Top Courses</h2>
             <p className="text-caption text-text-secondary">
-              By view count in the window; shortlist counts reset whenever the mock server restarts (in-memory store).
+              The most-viewed courses in this period, and how many times each was saved to a Dream Courses list.
             </p>
             <div className="mt-sm">
               <Table bare columns={courseColumns} rows={data.top_courses} rowKey={(r) => r.course_id} emptyMessage={sparse} />
@@ -396,7 +471,7 @@ export function PlatformPulsePage() {
           <Card>
             <h2 className="text-h3 text-text-primary">Top Search Countries</h2>
             <p className="text-caption text-text-secondary">
-              From chosen filter values on course search — sparse until the enriched capture (2026-08-31) accrues more data.
+              Countries students and consultancy staff filtered course searches by in this period.
             </p>
             <div className="mt-sm">
               <Table
@@ -409,16 +484,18 @@ export function PlatformPulsePage() {
             </div>
           </Card>
           <Card>
-            <h2 className="text-h3 text-text-primary">Top Search Fields</h2>
+            <h2 className="text-h3 text-text-primary">Fields Consultancies Search For</h2>
             <p className="text-caption text-text-secondary">
-              Web console searches only for now — mobile's field-of-study filter mixes free text and is excluded (recorded PII
-              rule).
+              Fields of study consultancy staff filtered Course Finder by. What students want is on Supply &amp; Demand.
             </p>
             <div className="mt-sm">
               <Table bare columns={searchFieldColumns} rows={data.top_search_fields} rowKey={(r) => r.field} emptyMessage={sparse} />
             </div>
           </Card>
         </div>
+
+        <h2 className="text-h3 text-text-primary">Sign-ins</h2>
+        <SignInsCard signIns={data.sign_ins} sparse={sparse} />
       </div>
     </AdminShell>
   )
