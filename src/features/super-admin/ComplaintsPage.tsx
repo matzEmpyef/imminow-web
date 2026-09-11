@@ -1,171 +1,139 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { AdminShell } from '@/features/auth/AdminShell'
-import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
-import { Modal } from '@/components/Modal'
+import { CompactSelect } from '@/components/CompactSelect'
+import { FilterChip } from '@/components/FilterChip'
 import { Table, type TableColumn } from '@/components/Table'
-import { useAdminComplaints, useUpdateComplaint } from '@/queries/complaints'
-import { formatDateTime } from '@/lib/time'
-import type { components } from '@/api/schema'
+import { useCursorPagination } from '@/lib/pagination'
+import { formatDate } from '@/lib/time'
+import { useComplaints, type Complaint } from '@/queries/complaints'
+import { ComplaintDrawer } from './cases/ComplaintDrawer'
+import { ageLabel } from './cases/format'
+import { CATEGORY_LABELS, COMPLAINT_STATUS_META } from './cases/labels'
 
-type Complaint = components['schemas']['Complaint']
-
-const CATEGORY_LABELS: Record<string, string> = {
-  consultancy_dispute: 'Consultancy dispute',
-  payment_issue: 'Payment issue',
-  app_problem: 'App problem',
-  other: 'Other',
-}
-
-const STATUS_META: Record<string, { label: string; color: 'warning' | 'info' | 'success' }> = {
-  open: { label: 'Open', color: 'warning' },
-  in_review: { label: 'In review', color: 'info' },
-  resolved: { label: 'Resolved', color: 'success' },
-}
-
-// Detail + workflow popup: open → in_review is one click; resolving demands a resolution note
-// (mirrors the server's own validation), same mandatory-reason convention as every other
-// state-changing admin action.
-function ComplaintDetailModal({ complaint, onClose }: { complaint: Complaint; onClose: () => void }) {
-  const update = useUpdateComplaint(complaint.id)
-  const [resolutionNote, setResolutionNote] = useState('')
-
-  return (
-    <Modal
-      onClose={onClose}
-      title="Complaint"
-      widthRem={32}
-      footer={
-        <>
-          {update.isError && <p className="mr-auto self-center text-body-sm text-error">{update.error.message}</p>}
-          <div className="flex gap-sm">
-            {complaint.status === 'open' && (
-              <Button
-                variant="secondary"
-                loading={update.isPending}
-                onClick={() => update.mutate({ status: 'in_review' })}
-              >
-                Mark In Review
-              </Button>
-            )}
-            {complaint.status !== 'resolved' && (
-              <Button
-                loading={update.isPending}
-                disabled={!resolutionNote.trim()}
-                onClick={() =>
-                  update.mutate({ status: 'resolved', resolution_note: resolutionNote.trim() }, { onSuccess: onClose })
-                }
-              >
-                Resolve
-              </Button>
-            )}
-            <Button variant="secondary" onClick={onClose}>
-              Close
-            </Button>
-          </div>
-        </>
-      }
-    >
-      <div className="flex flex-col gap-md">
-        <div className="flex flex-wrap items-center gap-sm">
-          <span className="font-medium text-text-primary">{complaint.student_name}</span>
-          <span className="text-body-sm text-text-secondary">{complaint.email}</span>
-          <Badge color={STATUS_META[complaint.status]?.color ?? 'info'}>
-            {STATUS_META[complaint.status]?.label ?? complaint.status}
-          </Badge>
-        </div>
-        <dl className="flex flex-col gap-xs text-body-sm">
-          <div className="flex justify-between">
-            <dt className="text-text-secondary">Category</dt>
-            <dd className="text-text-primary">{CATEGORY_LABELS[complaint.category] ?? complaint.category}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt className="text-text-secondary">Consultancy</dt>
-            <dd className="text-text-primary">{complaint.consultancy_name ?? '— (no active case)'}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt className="text-text-secondary">Submitted</dt>
-            <dd className="text-text-primary">{formatDateTime(complaint.created_at)}</dd>
-          </div>
-        </dl>
-        <div>
-          <h2 className="text-body-sm font-medium text-text-primary">Description</h2>
-          <p className="mt-xs whitespace-pre-wrap rounded-md bg-background p-sm text-body-sm text-text-primary">
-            {complaint.description}
-          </p>
-        </div>
-        {complaint.status === 'resolved' ? (
-          <div>
-            <h2 className="text-body-sm font-medium text-text-primary">Resolution</h2>
-            <p className="mt-xs text-body-sm text-text-secondary">{complaint.resolution_note}</p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-xs">
-            <label className="text-body-sm font-medium text-text-primary" htmlFor="resolution-note">
-              Resolution note (required to resolve)
-            </label>
-            <textarea
-              id="resolution-note"
-              value={resolutionNote}
-              onChange={(e) => setResolutionNote(e.target.value)}
-              rows={3}
-              placeholder="What was done about this complaint?"
-              className="rounded-md border border-border bg-surface px-3 py-sm text-body"
-            />
-          </div>
-        )}
-      </div>
-    </Modal>
-  )
-}
-
-const STATUS_FILTERS = [
-  { value: null, label: 'All' },
-  { value: 'open', label: 'Open' },
-  { value: 'in_review', label: 'In review' },
-  { value: 'resolved', label: 'Resolved' },
+const STATUS_CHIPS = [
+  { key: 'unresolved', label: 'Unresolved', filterValue: 'open,in_review' },
+  { key: 'open', label: 'Open', filterValue: 'open' },
+  { key: 'in_review', label: 'In review', filterValue: 'in_review' },
+  { key: 'resolved', label: 'Resolved', filterValue: 'resolved' },
+  { key: 'all', label: 'All', filterValue: undefined },
 ] as const
 
+type StatusKey = (typeof STATUS_CHIPS)[number]['key']
+
+/**
+ * Support's Complaints queue (rebuilt 2026-09-11 on the paged/notes/escalate contract). Problems
+ * students report from the Sentpo app — the consultancy involved never sees them; resolution
+ * happens through the Sentpo team, off-platform, with the note here as the only record.
+ */
 export function ComplaintsPage() {
-  const [statusFilter, setStatusFilter] = useState<string | null>('open')
-  const complaints = useAdminComplaints(statusFilter)
-  const [viewingId, setViewingId] = useState<string | null>(null)
+  const [statusKey, setStatusKey] = useState<StatusKey>('unresolved')
+  const [category, setCategory] = useState('')
+  const [search, setSearch] = useState('')
+  const paging = useCursorPagination()
+
+  function resetPaging() {
+    paging.reset()
+  }
+
+  const statusValue = STATUS_CHIPS.find((c) => c.key === statusKey)?.filterValue
+
+  const complaints = useComplaints({
+    status: statusValue,
+    category: category || undefined,
+    search: search || undefined,
+    cursor: paging.cursor,
+    limit: 20,
+  })
+
+  const rows = useMemo(() => complaints.data?.items ?? [], [complaints.data])
+  const summary = complaints.data?.summary
+  const [viewing, setViewing] = useState<Complaint | null>(null)
+
+  const chipCount = (key: StatusKey): number | undefined => {
+    if (!summary) return undefined
+    switch (key) {
+      case 'unresolved':
+        return (summary.open ?? 0) + (summary.in_review ?? 0)
+      case 'all':
+        return (summary.open ?? 0) + (summary.in_review ?? 0) + (summary.resolved ?? 0)
+      case 'open':
+        return summary.open
+      case 'in_review':
+        return summary.in_review
+      case 'resolved':
+        return summary.resolved
+    }
+  }
 
   const columns: TableColumn<Complaint>[] = [
     {
       key: 'student',
       header: 'Student',
       render: (c) => (
-        <div>
-          <button
-            type="button"
-            onClick={() => setViewingId(c.id)}
-            className="text-left font-medium text-text-primary hover:text-primary hover:underline"
-          >
-            {c.student_name}
-          </button>
-          <p className="text-caption text-text-secondary">{c.email}</p>
+        <div className="min-w-0">
+          <p className="truncate font-medium text-text-primary">{c.student_name}</p>
+          <p className="truncate text-caption text-text-secondary">{c.email}</p>
         </div>
       ),
     },
-    { key: 'category', header: 'Category', render: (c) => CATEGORY_LABELS[c.category] ?? c.category },
-    { key: 'consultancy', header: 'Consultancy', render: (c) => c.consultancy_name ?? '—' },
     {
-      key: 'description',
-      header: 'Description',
-      render: (c) => <span className="line-clamp-sm max-w-[24rem] text-text-secondary">{c.description}</span>,
+      key: 'category',
+      header: 'Category',
+      render: (c) => (
+        <div className="flex flex-col gap-xs">
+          <span className="text-text-primary">{CATEGORY_LABELS[c.category] ?? c.category}</span>
+          {(c.consultancy_change_requested || c.dispute_id) && (
+            <div className="flex flex-wrap gap-xs">
+              {c.consultancy_change_requested && <Badge color="warning">Wants to move</Badge>}
+              {c.dispute_id && (
+                <Badge color={c.dispute_status === 'resolved' ? 'secondary' : 'info'}>
+                  {c.dispute_status === 'resolved' ? 'Dispute resolved' : 'In dispute'}
+                </Badge>
+              )}
+            </div>
+          )}
+        </div>
+      ),
     },
-    { key: 'created_at', header: 'Submitted', render: (c) => formatDateTime(c.created_at) },
+    {
+      key: 'consultancy',
+      header: 'Consultancy',
+      hideBelow: 'md',
+      render: (c) => (c.consultancy_name ? c.consultancy_name : <span className="text-text-secondary">—</span>),
+    },
+    {
+      key: 'owner',
+      header: 'Owner',
+      hideBelow: 'lg',
+      render: (c) =>
+        c.assigned_to_name ? (
+          <span className="text-text-primary">{c.assigned_to_name}</span>
+        ) : (
+          <span className="text-text-secondary">Unassigned</span>
+        ),
+    },
+    {
+      key: 'age',
+      header: 'Age',
+      align: 'right',
+      hideBelow: 'sm',
+      render: (c) => (
+        <span className="whitespace-nowrap tabular-nums text-text-secondary">
+          {c.status === 'resolved' && c.resolved_at ? `Resolved ${formatDate(c.resolved_at)}` : ageLabel(c.created_at)}
+        </span>
+      ),
+    },
     {
       key: 'status',
       header: 'Status',
       render: (c) => (
-        <Badge color={STATUS_META[c.status]?.color ?? 'info'}>{STATUS_META[c.status]?.label ?? c.status}</Badge>
+        <Badge color={COMPLAINT_STATUS_META[c.status]?.color ?? 'info'}>
+          {COMPLAINT_STATUS_META[c.status]?.label ?? c.status}
+        </Badge>
       ),
     },
   ]
-
-  const viewing = complaints.data?.items.find((c) => c.id === viewingId)
 
   return (
     <AdminShell>
@@ -173,43 +141,79 @@ export function ComplaintsPage() {
         <div>
           <h1 className="text-h1 text-text-primary">Complaints</h1>
           <p className="text-body-sm text-text-secondary">
-            Dispute reports raised by students from the Sentpo app. The consultancy involved never sees these —
-            resolution happens through the Sentpo team.
+            Problems students report from the Sentpo app. The consultancy never sees these — support handles them
+            directly.
           </p>
-        </div>
-
-        <div className="flex gap-xs">
-          {STATUS_FILTERS.map((f) => (
-            <button
-              key={f.label}
-              type="button"
-              onClick={() => setStatusFilter(f.value)}
-              className={`rounded-full px-3 py-1 text-body-sm ${
-                statusFilter === f.value
-                  ? 'bg-primary text-white'
-                  : 'bg-background text-text-secondary hover:text-text-primary'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
         </div>
 
         <Table
           columns={columns}
-          rows={complaints.data?.items ?? []}
+          rows={rows}
           rowKey={(c) => c.id}
           loading={complaints.isLoading}
           error={complaints.isError ? 'Could not load complaints.' : undefined}
-          emptyMessage={
-            statusFilter
-              ? `No ${STATUS_META[statusFilter]?.label.toLowerCase() ?? statusFilter} complaints.`
-              : 'No complaints yet.'
+          emptyMessage="No complaints match these filters."
+          onRowClick={(c) => setViewing(c)}
+          search={{
+            value: search,
+            onChange: (value) => {
+              setSearch(value)
+              resetPaging()
+            },
+            placeholder: 'Search student, email or description…',
+          }}
+          filters={
+            <CompactSelect
+              label="Category"
+              value={category}
+              onChange={(e) => {
+                setCategory(e.target.value)
+                resetPaging()
+              }}
+            >
+              <option value="">Any category</option>
+              {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </CompactSelect>
           }
+          quickFilters={
+            <>
+              {STATUS_CHIPS.map((chip) => {
+                const count = chipCount(chip.key)
+                return (
+                  <FilterChip
+                    key={chip.key}
+                    label={count != null ? `${chip.label} (${count})` : chip.label}
+                    active={statusKey === chip.key}
+                    onChange={() => {
+                      setStatusKey(chip.key)
+                      resetPaging()
+                    }}
+                  />
+                )
+              })}
+            </>
+          }
+          pagination={{
+            hasNext: Boolean(complaints.data?.meta.next_cursor),
+            hasPrevious: paging.hasPrevious,
+            onNext: () => complaints.data?.meta.next_cursor && paging.next(complaints.data.meta.next_cursor),
+            onPrevious: paging.previous,
+            total: complaints.data?.meta.total,
+          }}
         />
-
-        {viewing && <ComplaintDetailModal complaint={viewing} onClose={() => setViewingId(null)} />}
       </div>
+
+      {viewing && (
+        <ComplaintDrawer
+          complaint={viewing}
+          onClose={() => setViewing(null)}
+          onUpdated={(updated) => setViewing(updated)}
+        />
+      )}
     </AdminShell>
   )
 }

@@ -3026,7 +3026,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Platform Admin Complaints queue (permission `support`). Default sort created_at desc. filter[status]=open|in_review|resolved. */
+        /** Platform Admin Complaints queue (permission `support`). Default sort created_at desc. filter[status]=open|in_review|resolved, comma = any of (open,in_review is "unresolved"); filter[category]; search matches student, email, consultancy and description. `summary` counts every complaint by status, whatever the filter, for the filter chips. */
         get: {
             parameters: {
                 query?: {
@@ -3054,6 +3054,11 @@ export interface paths {
                         "application/json": {
                             items: components["schemas"]["Complaint"][];
                             meta: components["schemas"]["PaginatedMeta"];
+                            summary?: {
+                                open?: number;
+                                in_review?: number;
+                                resolved?: number;
+                            };
                         };
                     };
                 };
@@ -3153,7 +3158,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Platform Admin updates a complaint (permission `support`) — status transitions open → in_review → resolved; resolution_note is mandatory when resolving. Audit-logged. */
+        /** Platform Admin updates a complaint (permission `support`). open → in_review picks it up (the caller becomes the owner if nobody is) and tells the student it is being looked at; assign_to_me takes it over; resolved needs resolution_note, records who resolved it and sends the student the outcome. 409 already_resolved once resolved (the outcome stands), 409 dispute_open while its dispute is still open — resolving the dispute closes it. Audit-logged under support. */
         patch: {
             parameters: {
                 query?: never;
@@ -3169,6 +3174,8 @@ export interface paths {
                         /** @enum {string} */
                         status?: "in_review" | "resolved";
                         resolution_note?: string;
+                        /** @description Take the complaint over from whoever holds it. */
+                        assign_to_me?: boolean;
                     };
                 };
             };
@@ -3182,8 +3189,159 @@ export interface paths {
                         "application/json": components["schemas"]["Complaint"];
                     };
                 };
+                /** @description already_resolved or dispute_open */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
+        trace?: never;
+    };
+    "/complaints/{id}/escalate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Turn a student's complaint into a dispute (permission `support`, 2026-09-11): the case freezes exactly as when a consultancy raises an issue, the student is told their case is paused, and the consultancy is told the case is under review — never the complaint itself. If the case already has an open dispute the complaint is attached to it (200) instead. 409 no_case for a student with no consultancy, already_closed, already_resolved, already_escalated. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @description What the dispute is about, for the mediator. Defaults to the complaint text. */
+                        reason?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Attached to the dispute already open on the case */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Complaint"];
+                    };
+                };
+                /** @description Escalated */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Complaint"];
+                    };
+                };
+                /** @description Cannot escalate */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/complaints/{id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Working notes on this complaint, newest first (permission `support`). */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["SupportCaseNote"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Add a working note (permission `support`). 409 once the complaint is resolved — its record is closed. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        note: string;
+                        /** @enum {string|null} */
+                        outcome?: "spoke_to_student" | "spoke_to_consultancy" | "no_answer" | "waiting_on_student" | "waiting_on_consultancy" | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Added */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SupportCaseNote"];
+                    };
+                };
+                /** @description Resolved */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/audit-log": {
@@ -10697,11 +10855,22 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The platform's dispute queue (2026-09-09). Each row carries `case_progress`, because a mediator deciding between a consultancy and a student needs to know how far along the case was — a consultancy 80 per cent of the way through has a very different claim from one that never started, and without it the platform arbitrates blind. */
+        /** The platform's dispute queue (2026-09-09), paged since 2026-09-11. Each row carries `case_progress`, contact details for both sides and how long the case has been frozen. filter[status] (or the older `status` param) = open (default) | resolved | all; search matches student, consultancy and reason; sort created_at or paused_days. `summary` counts across every dispute, whatever the filter. */
         get: {
             parameters: {
                 query?: {
+                    /** @deprecated */
                     status?: "open" | "resolved" | "all";
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description Sort field. Prefix with - for descending, e.g. sort=-created_at (TRD Section 7). */
+                    sort?: components["parameters"]["SortParam"];
+                    /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
+                    search?: components["parameters"]["SearchParam"];
+                    /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
+                    filter?: components["parameters"]["FilterParam"];
                 };
                 header?: never;
                 path?: never;
@@ -10716,7 +10885,13 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            items?: components["schemas"]["CaseDispute"][];
+                            items: components["schemas"]["CaseDispute"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                            summary?: {
+                                open?: number;
+                                open_over_3_days?: number;
+                                resolved_this_month?: number;
+                            };
                         };
                     };
                 };
@@ -10724,6 +10899,132 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/disputes/{id}/pick-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Take ownership of an open dispute (permission `support`). 409 once resolved. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Picked up */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CaseDispute"];
+                    };
+                };
+                /** @description Resolved */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/disputes/{id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Working notes on this dispute, newest first (permission `support`). */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["SupportCaseNote"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Add a working note (permission `support`). 409 once the dispute is resolved — its record is closed. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        note: string;
+                        /** @enum {string|null} */
+                        outcome?: "spoke_to_student" | "spoke_to_consultancy" | "no_answer" | "waiting_on_student" | "waiting_on_consultancy" | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Added */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SupportCaseNote"];
+                    };
+                };
+                /** @description Resolved */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -20296,6 +20597,29 @@ export interface components {
         };
         /** @description A frozen case under platform mediation (2026-09-09). Not a way of closing: a dispute is the state a case sits in WHILE the platform decides, after which it is resumed, closed or reassigned. */
         CaseDispute: {
+            /** @description The student complaint this dispute came from, when support escalated one. */
+            complaint_id?: components["schemas"]["UUID"] | null;
+            readonly student_email?: string | null;
+            readonly student_phone?: string | null;
+            readonly raised_by_name?: string | null;
+            /** @description Who to call at the consultancy (2026-09-11) — the staff member who raised it, else the case's assigned consultant, else a consultancy admin. Mediation happens by phone. */
+            readonly consultancy_contact?: {
+                name?: string;
+                email?: string | null;
+                phone?: string | null;
+            } | null;
+            /** @description Whole days the case has been frozen (to resolution, or to now while open). */
+            readonly paused_days?: number;
+            readonly assigned_to_id?: components["schemas"]["UUID"] | null;
+            readonly assigned_to_name?: string | null;
+            /** Format: date-time */
+            readonly picked_up_at?: string | null;
+            readonly resolved_by_name?: string | null;
+            /** @description Resolved as reassign and still waiting on Applicant Allocation. */
+            readonly reassign_pending?: boolean;
+            readonly note_count?: number;
+            /** Format: date-time */
+            readonly last_note_at?: string | null;
             id: components["schemas"]["UUID"];
             journey_id: components["schemas"]["UUID"];
             consultancy_id?: components["schemas"]["UUID"];
@@ -20544,8 +20868,40 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
+        /** @description A working note on a complaint or a dispute (2026-09-11) — each call, each message left. Mediation takes several conversations; the resolution note records only the end. */
+        SupportCaseNote: {
+            id: components["schemas"]["UUID"];
+            /** @enum {string} */
+            subject_type: "complaint" | "dispute";
+            subject_id: components["schemas"]["UUID"];
+            note: string;
+            /** @enum {string|null} */
+            outcome?: "spoke_to_student" | "spoke_to_consultancy" | "no_answer" | "waiting_on_student" | "waiting_on_consultancy" | null;
+            author_id?: components["schemas"]["UUID"];
+            readonly author_name?: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
         /** @description A dispute/problem report raised by a student from the Sentpo app (user-approved 2026-08-20 — "We also want an option to report complain to Admin Team from Sentpo app, incase there is any dispute from the app. Do not make it so prominent"). Entry point is deliberately low-key (a "Report a problem" row inside Privacy & Data Controls). Lands in the Platform Admin Complaints queue (support permission) and pings the admin in-app feed. The consultancy being complained about never sees it. */
         Complaint: {
+            readonly consultancy_id?: components["schemas"]["UUID"] | null;
+            /** @description The student's current phone, from their profile. Support queue only. */
+            readonly phone?: string | null;
+            /** @description Who on the support team picked this up (2026-09-11). Support queue only — omitted for the student. */
+            readonly assigned_to_id?: components["schemas"]["UUID"] | null;
+            readonly assigned_to_name?: string | null;
+            /** Format: date-time */
+            readonly picked_up_at?: string | null;
+            readonly resolved_by_name?: string | null;
+            /** Format: date-time */
+            readonly resolved_at?: string | null;
+            /** @description Set once the complaint is escalated to a dispute (or attached to one already open on the case). */
+            readonly dispute_id?: components["schemas"]["UUID"] | null;
+            /** @enum {string|null} */
+            readonly dispute_status?: "open" | "resolved" | null;
+            readonly note_count?: number;
+            /** Format: date-time */
+            readonly last_note_at?: string | null;
             id: components["schemas"]["UUID"];
             user_id?: components["schemas"]["UUID"];
             /** @description Resolved server-side for the admin queue. */
@@ -21864,7 +22220,7 @@ export interface components {
             /** @description Human-readable label for the entity at the time of the change (e.g. an applicant's name) — the entity/person search filter matches against this. */
             entity_label?: string | null;
             /** @enum {string} */
-            area: "leads" | "clients" | "plans" | "documents" | "settings" | "staff" | "marketing";
+            area: "leads" | "clients" | "plans" | "documents" | "settings" | "staff" | "marketing" | "support";
             diff?: {
                 [key: string]: unknown;
             } | null;

@@ -6,14 +6,9 @@ import { CompactSelect } from '@/components/CompactSelect'
 import { Card } from '@/components/Card'
 import { Table, type TableColumn } from '@/components/Table'
 import { formatDate } from '@/lib/time'
-import { FreelancerRatesPanel } from './FreelancerRatesPage'
 import { useFreelancers, type Freelancer } from '@/queries/freelancerRates'
 import { InviteFreelancerModal } from './freelancers/InviteFreelancerModal'
 import { FreelancerDrawer } from './freelancers/FreelancerDrawer'
-
-// Two views of one subject (user-requested, 2026-08-27) — the people, and what each of them earns.
-const TABS = ['Freelancers', 'Rates'] as const
-type Tab = (typeof TABS)[number]
 
 const STATUS_BADGE = {
   invited: { color: 'warning', label: 'Invited' },
@@ -59,9 +54,11 @@ function SummaryTiles({ freelancers }: { freelancers: Freelancer[] }) {
  * contract note that search and status filtering stay client-side, same as before the rebuild —
  * everything account-specific (share editing, changing the code, resend, activation, the
  * freelancer's own referrals) moved into {@link FreelancerDrawer} so the row stays scannable.
+ *
+ * The separate Rates tab is gone (user, 2026-09-11): the roster shows each share and the drawer
+ * sets or edits it, which was everything that tab did.
  */
 export function FreelancersPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('Freelancers')
   const freelancers = useFreelancers()
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<'' | 'invited' | 'active' | 'deactivated'>('')
@@ -167,14 +164,12 @@ export function FreelancersPage() {
             <p className="text-body-sm text-text-secondary">
               Each freelancer earns their own share of the commission immiNow actually collects on the students they
               bring — a payout is never more than what immiNow received, and only once immiNow has confirmed that
-              money is in.
+              money is in. Open a freelancer to set or change their share.
             </p>
           </div>
-          {activeTab === 'Freelancers' && (
-            <div className="shrink-0 whitespace-nowrap">
-              <Button onClick={() => setInviting(true)}>Invite freelancer</Button>
-            </div>
-          )}
+          <div className="shrink-0 whitespace-nowrap">
+            <Button onClick={() => setInviting(true)}>Invite freelancer</Button>
+          </div>
         </div>
 
         {invitedEmail && (
@@ -183,52 +178,32 @@ export function FreelancersPage() {
           </p>
         )}
 
-        <div className="flex gap-xs overflow-x-auto border-b border-border">
-          {TABS.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`shrink-0 border-b-2 px-md py-sm text-body-sm ${
-                activeTab === tab ? 'border-primary font-medium text-primary' : 'border-transparent text-text-secondary'
-              }`}
+        <SummaryTiles freelancers={freelancers.data ?? []} />
+
+        <Table
+          columns={columns}
+          rows={rows}
+          rowKey={(f) => f.id}
+          loading={freelancers.isLoading}
+          error={freelancers.isError ? 'Could not load freelancers.' : undefined}
+          emptyMessage="No freelancer accounts yet."
+          onRowClick={(f) => setViewingId(f.id)}
+          search={{ value: search, onChange: setSearch, placeholder: 'Search name, email or code…' }}
+          filters={
+            <CompactSelect
+              value={status}
+              onChange={(e) => setStatus(e.target.value as '' | 'invited' | 'active' | 'deactivated')}
+              label="Status"
             >
-              {tab}
-            </button>
-          ))}
-        </div>
+              <option value="">All statuses</option>
+              <option value="invited">Invited</option>
+              <option value="active">Active</option>
+              <option value="deactivated">Deactivated</option>
+            </CompactSelect>
+          }
+        />
 
-        {activeTab === 'Rates' && <FreelancerRatesPanel />}
-
-        {activeTab === 'Freelancers' && (
-          <>
-            <SummaryTiles freelancers={freelancers.data ?? []} />
-
-            <Table
-              columns={columns}
-              rows={rows}
-              rowKey={(f) => f.id}
-              loading={freelancers.isLoading}
-              error={freelancers.isError ? 'Could not load freelancers.' : undefined}
-              emptyMessage="No freelancer accounts yet."
-              onRowClick={(f) => setViewingId(f.id)}
-              search={{ value: search, onChange: setSearch, placeholder: 'Search name, email or code…' }}
-              filters={
-                <CompactSelect
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as '' | 'invited' | 'active' | 'deactivated')}
-                  label="Status"
-                >
-                  <option value="">All statuses</option>
-                  <option value="invited">Invited</option>
-                  <option value="active">Active</option>
-                  <option value="deactivated">Deactivated</option>
-                </CompactSelect>
-              }
-            />
-
-            <FreelancerDrawer freelancer={viewingFreelancer} onClose={() => setViewingId(null)} />
-          </>
-        )}
+        <FreelancerDrawer freelancer={viewingFreelancer} onClose={() => setViewingId(null)} />
 
         {inviting && (
           <InviteFreelancerModal
