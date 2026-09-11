@@ -3,15 +3,23 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 export interface DoughnutChartDatum {
   label: string
   value: number
+  /** Replaces the default "value (share%)" legend text when the caller needs its own wording. */
+  detail?: string
 }
 
+// Ten chart hues (tokens.css, 2026-09-11) — every doughnut caps at 10 slices, so no two slices
+// share a colour. Was the six semantic colours, which repeated from the 7th slice on.
 const DEFAULT_COLORS = [
-  'var(--color-primary)',
-  'var(--color-secondary)',
-  'var(--color-success)',
-  'var(--color-warning)',
-  'var(--color-info)',
-  'var(--color-error)',
+  'var(--color-chart-1)',
+  'var(--color-chart-2)',
+  'var(--color-chart-3)',
+  'var(--color-chart-4)',
+  'var(--color-chart-5)',
+  'var(--color-chart-6)',
+  'var(--color-chart-7)',
+  'var(--color-chart-8)',
+  'var(--color-chart-9)',
+  'var(--color-chart-10)',
 ]
 
 // Shared doughnut/pie primitive (user-requested, 2026-08-18 — "instead of recent activities, give
@@ -72,7 +80,7 @@ export function DoughnutChart({ data, colors = DEFAULT_COLORS }: { data: Doughnu
             />
             <span className="text-text-primary">{entry.label}</span>
             <span className="text-text-secondary">
-              {entry.value} ({total > 0 ? Math.round((entry.value / total) * 100) : 0}%)
+              {entry.detail ?? `${entry.value} (${total > 0 ? Math.round((entry.value / total) * 100) : 0}%)`}
             </span>
           </div>
         ))}

@@ -19911,12 +19911,34 @@ export interface components {
             };
             /** Format: date-time */
             collecting_since: string;
-            /** @description Where applicants are actually heading (2026-09-10) — each case's `finalized_country` (set when a college is accepted), for current applicants (the Active Applicants rule, so the column adds up to that card) and everyone enrolled. Cases with no accepted college yet are grouped as "Not decided yet", listed last. */
+            /** @description Where applicants are heading (reworked 2026-09-11). Each OPEN student case is in one state: accepted (counted once, in `finalized_country`), applying (counted in every country it has an application under way in — considering / applied / offer_received), or no application yet. `enrolled` is all time. PR cases have no colleges and are reported apart in `pr_cases`. Invariant: sum of `accepted` (rows + others) + `applying_cases` + `no_application_yet` = `current_applicants`, and `current_applicants` + `pr_cases.in_progress` = the Active Applicants card. */
             applicant_destinations: {
-                country: string;
-                applicants: number;
-                enrolled: number;
-            }[];
+                /** @description Open student (non-PR) cases. */
+                current_applicants: number;
+                /** @description Open student cases with no accepted college but at least one application under way. */
+                applying_cases: number;
+                no_application_yet: number;
+                /** @description The 10 countries with the most applying + accepted + enrolled. */
+                rows: {
+                    country: string;
+                    applying: number;
+                    accepted: number;
+                    enrolled: number;
+                    /** @description Share of `current_applicants` heading there (applying or accepted). A case applying in two countries counts in both, so shares can exceed 100% in total. */
+                    pct_of_applicants: number;
+                }[];
+                others: {
+                    countries: number;
+                    applying: number;
+                    accepted: number;
+                    enrolled: number;
+                    pct_of_applicants: number;
+                };
+                pr_cases: {
+                    in_progress: number;
+                    enrolled: number;
+                };
+            };
             /** @description Abroad vs home at a glance (2026-09-02, user: "how many students are looking for study abroad or india"). DISTINCT students, so the six buckets sum to `total_students` — unlike `demand_by_country`, where a student appears once per target country. "Home" is each student's own resident country. Revised 2026-09-10: `no_preference` was replaced by `not_onboarded` (the same rule as Needs attention's stuck_onboarding) and `no_target_country` (onboarded, no destination chosen); a student with targets but no residence is `residence_not_set` (was abroad_only). */
             destination_split: {
                 /** @description Every target country is outside the student's country of residence. */
@@ -19932,7 +19954,7 @@ export interface components {
                 not_onboarded: number;
                 total_students: number;
             };
-            /** @description The 10 most-chosen target countries, most students first (top 10 since 2026-09-10; the rest are `demand_by_country_others`). Students can choose several, so shares can add up to more than 100%. */
+            /** @description The 9 most-chosen target countries, most students first (top 9 + Others since 2026-09-11; the rest are `demand_by_country_others`). Students can choose several, so shares can add up to more than 100%. */
             demand_by_country: {
                 country: string;
                 student_count: number;
@@ -19941,26 +19963,28 @@ export interface components {
                 /** @description How many of them live in this country — they chose home (2026-09-10). */
                 home_count: number;
             }[];
-            /** @description Everything beyond the top 10 as one row: how many options, and how many DISTINCT students chose at least one of them (never a sum of picks), with their share. */
+            /** @description Everything beyond the top 9 as one row (a doughnut of 9 + Others since 2026-09-11): how many options, how many DISTINCT students chose at least one of them with their share, and `choice_count` — the choices themselves, which size the Others slice. */
             demand_by_country_others: {
                 options: number;
                 student_count: number;
                 share_pct: number;
+                choice_count: number;
             };
             /** @description Students who chose at least one target country — the share denominator. */
             students_with_country_choice: number;
-            /** @description The 10 most-chosen fields of interest, most students first (2026-09-10; the rest are `demand_by_field_others`). Students can choose several. */
+            /** @description The 9 most-chosen fields of interest, most students first (2026-09-11; the rest are `demand_by_field_others`). Students can choose several. */
             demand_by_field: {
                 field: string;
                 student_count: number;
                 /** @description Whole-number share of `students_with_field_choice` who chose it. */
                 share_pct: number;
             }[];
-            /** @description Everything beyond the top 10 as one row: how many options, and how many DISTINCT students chose at least one of them (never a sum of picks), with their share. */
+            /** @description Everything beyond the top 9 as one row (a doughnut of 9 + Others since 2026-09-11): how many options, how many DISTINCT students chose at least one of them with their share, and `choice_count` — the choices themselves, which size the Others slice. */
             demand_by_field_others: {
                 options: number;
                 student_count: number;
                 share_pct: number;
+                choice_count: number;
             };
             /** @description Students who chose at least one field of interest — the share denominator. */
             students_with_field_choice: number;

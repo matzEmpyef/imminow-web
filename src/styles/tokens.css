@@ -47,6 +47,20 @@
   /* Unread-notification row background. */
   --color-unread-bg: #f5f7f9;
 
+  /* Chart series (2026-09-11) — ten distinguishable hues for doughnuts, which cap at 9 slices plus
+     one Others slice. The palette used to be the six semantic colours, so a 7th slice repeated the
+     1st. The tenth is a neutral slate, which is what the Others slice (always last) should read as. */
+  --color-chart-1: #2563eb;
+  --color-chart-2: #0d9488;
+  --color-chart-3: #d97706;
+  --color-chart-4: #9333ea;
+  --color-chart-5: #db2777;
+  --color-chart-6: #16a34a;
+  --color-chart-7: #0284c7;
+  --color-chart-8: #ea580c;
+  --color-chart-9: #4f46e5;
+  --color-chart-10: #94a3b8;
+
   /* Spacing — Section 4 */
   --space-xs: 4px;
   --space-sm: 8px;

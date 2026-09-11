@@ -1,6 +1,7 @@
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
 import { Card } from '@/components/Card'
+import { DoughnutChart, type DoughnutChartDatum } from '@/components/DoughnutChart'
 import { Table, type TableColumn } from '@/components/Table'
 import { MonthlyBarChart } from '@/components/MonthlyBarChart'
 import { ErrorState, Skeleton } from '@/components/QueryState'
@@ -9,7 +10,16 @@ import { formatDate } from '@/lib/time'
 
 type SupplyRow = NonNullable<ReturnType<typeof useSupplyDemand>['data']>['supply_by_country'][number]
 type MismatchRow = NonNullable<ReturnType<typeof useSupplyDemand>['data']>['mismatch'][number]
-type DestinationRow = NonNullable<ReturnType<typeof useSupplyDemand>['data']>['applicant_destinations'][number]
+// One row of the Where Applicants Are Heading table — a real country, or the Others roll-up.
+interface DestinationTableRow {
+  key: string
+  country: string
+  applying: number
+  accepted: number
+  enrolled: number
+  pct: number
+  muted?: boolean
+}
 
 // Weekly buckets (what the contract returns — docs/PROGRESS.md §4 Step 4) rolled up to monthly so
 // this reuses MonthlyBarChart exactly as every other dashboard chart does, rather than introducing
@@ -24,66 +34,30 @@ function rollUpToMonthly(weekly: { week: string; count: number }[]) {
   return [...byMonth.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, value]) => ({ month, value }))
 }
 
-// Ranked demand (user review, 2026-09-10) — bars rather than a doughnut: students can choose
-// several, so the shares are of students and can add up to more than 100%. The top 10 come from
-// the server with one Others row for the rest (distinct students, not picks).
-interface DemandRow {
-  key: string
-  label: string
-  count: number
-  pct: number
-  tag?: string | null
-  muted?: boolean
-}
-
-function DemandBars({
-  rows,
-  others,
-  optionNoun,
-}: {
-  rows: DemandRow[]
-  others: { options: number; student_count: number; share_pct: number }
-  optionNoun: string
-}) {
-  if (rows.length === 0) return <p className="mt-sm text-body-sm text-text-secondary">No choices recorded yet.</p>
-  const all: DemandRow[] =
-    others.options > 0
-      ? [
-          ...rows,
-          {
-            key: '__others',
-            label: `Others (${others.options} ${optionNoun})`,
-            count: others.student_count,
-            pct: others.share_pct,
-            muted: true,
-          },
-        ]
-      : rows
-  const widest = Math.max(1, ...all.map((r) => r.count))
-  return (
-    <ol className="mt-md flex flex-col gap-sm">
-      {all.map((r) => (
-        <li key={r.key} className="flex flex-col gap-xs">
-          <div className="flex items-baseline justify-between gap-sm">
-            <span className={`flex items-center gap-xs text-body-sm ${r.muted ? 'text-text-secondary' : 'text-text-primary'}`}>
-              {r.label}
-              {r.tag && <Badge color="secondary">{r.tag}</Badge>}
-            </span>
-            <span className="text-body-sm tabular-nums text-text-primary">
-              <span className="font-medium">{r.count}</span>
-              <span className="ml-xs text-caption text-text-secondary">{r.pct}%</span>
-            </span>
-          </div>
-          <div className="h-2 rounded-full bg-background">
-            <div
-              className={`h-2 rounded-full ${r.muted ? 'bg-text-secondary/40' : 'bg-primary'}`}
-              style={{ width: `${(r.count / widest) * 100}%` }}
-            />
-          </div>
-        </li>
-      ))}
-    </ol>
-  )
+// Doughnut of the top 9 + one Others slice (user, 2026-09-11 — doughnuts back, but honest).
+// Slices are sized by CHOICES: a student can choose several, so the legend's % is a share of all
+// choices, while the count beside it is students. One percentage per card, never two.
+function demandSlices(
+  rows: { label: string; count: number; tag?: string | null }[],
+  others: { options: number; choice_count: number },
+  optionNoun: string,
+): DoughnutChartDatum[] {
+  const all = [
+    ...rows.map((r) => ({ label: r.label, value: r.count, isOthers: false, tag: r.tag ?? null })),
+    ...(others.options > 0
+      ? [{ label: `Others (${others.options} ${optionNoun})`, value: others.choice_count, isOthers: true, tag: null }]
+      : []),
+  ]
+  const total = all.reduce((sum, s) => sum + s.value, 0)
+  return all.map((s) => {
+    const share = total ? Math.round((s.value / total) * 100) : 0
+    const unit = s.isOthers ? 'choices' : s.value === 1 ? 'student' : 'students'
+    return {
+      label: s.label,
+      value: s.value,
+      detail: `${s.value} ${unit} · ${share}% of choices${s.tag ? ` · ${s.tag}` : ''}`,
+    }
+  })
 }
 
 // "62%" of all student accounts — the six buckets share one denominator, so the shares add up.
@@ -136,10 +110,38 @@ export function SupplyDemandPage() {
     { key: 'flag', header: '', render: (r) => <MismatchBadge row={r} /> },
   ]
 
-  const destinationColumns: TableColumn<DestinationRow>[] = [
-    { key: 'country', header: 'Country', render: (r) => r.country },
-    { key: 'applicants', header: 'Applicants now', align: 'right', render: (r) => r.applicants },
-    { key: 'enrolled', header: 'Enrolled', align: 'right', render: (r) => r.enrolled },
+  const destinations = data.applicant_destinations
+  const destinationRows: DestinationTableRow[] = [
+    ...destinations.rows.map((r) => ({
+      key: r.country,
+      country: r.country,
+      applying: r.applying,
+      accepted: r.accepted,
+      enrolled: r.enrolled,
+      pct: r.pct_of_applicants,
+    })),
+    ...(destinations.others.countries > 0
+      ? [
+          {
+            key: '__others',
+            country: `Others (${destinations.others.countries} countries)`,
+            applying: destinations.others.applying,
+            accepted: destinations.others.accepted,
+            enrolled: destinations.others.enrolled,
+            pct: destinations.others.pct_of_applicants,
+            muted: true,
+          },
+        ]
+      : []),
+  ]
+  const muted = (r: DestinationTableRow, text: string | number) =>
+    r.muted ? <span className="text-text-secondary">{text}</span> : text
+  const destinationColumns: TableColumn<DestinationTableRow>[] = [
+    { key: 'country', header: 'Country', render: (r) => muted(r, r.country) },
+    { key: 'applying', header: 'Applying', align: 'right', render: (r) => muted(r, r.applying) },
+    { key: 'accepted', header: 'Accepted', align: 'right', render: (r) => muted(r, r.accepted) },
+    { key: 'enrolled', header: 'Enrolled', align: 'right', render: (r) => muted(r, r.enrolled) },
+    { key: 'pct', header: 'Share of applicants', align: 'right', render: (r) => muted(r, `${r.pct}%`) },
   ]
 
   return (
@@ -224,57 +226,64 @@ export function SupplyDemandPage() {
           <Card>
             <h2 className="text-h3 text-text-primary">Demand by Target Country</h2>
             <p className="text-caption text-text-secondary">
-              {data.students_with_country_choice} students have chosen at least one country. Students can choose several,
-              so the shares add up to more than 100%. &quot;Home&quot; marks students choosing the country they live in.
+              {data.students_with_country_choice} students have chosen at least one country. They can choose several, so
+              each share is of all choices. &quot;home for N&quot; marks students choosing the country they live in.
             </p>
-            <DemandBars
-              rows={data.demand_by_country.map((d) => ({
-                key: d.country,
-                label: d.country,
-                count: d.student_count,
-                pct: d.share_pct,
-                tag: d.home_count > 0 ? `Home for ${d.home_count}` : null,
-              }))}
-              others={data.demand_by_country_others}
-              optionNoun="countries"
-            />
+            <div className="mt-sm">
+              <DoughnutChart
+                data={demandSlices(
+                  data.demand_by_country.map((d) => ({
+                    label: d.country,
+                    count: d.student_count,
+                    tag: d.home_count > 0 ? `home for ${d.home_count}` : null,
+                  })),
+                  data.demand_by_country_others,
+                  'countries',
+                )}
+              />
+            </div>
           </Card>
           <Card>
             <h2 className="text-h3 text-text-primary">Demand by Field of Interest</h2>
             <p className="text-caption text-text-secondary">
-              {data.students_with_field_choice} students have chosen at least one field. Students can choose several, so
-              the shares add up to more than 100%.
+              {data.students_with_field_choice} students have chosen at least one field. They can choose several, so each
+              share is of all choices.
             </p>
-            <DemandBars
-              rows={data.demand_by_field.map((d) => ({
-                key: d.field,
-                label: d.field,
-                count: d.student_count,
-                pct: d.share_pct,
-              }))}
-              others={data.demand_by_field_others}
-              optionNoun="fields"
-            />
+            <div className="mt-sm">
+              <DoughnutChart
+                data={demandSlices(
+                  data.demand_by_field.map((d) => ({ label: d.field, count: d.student_count })),
+                  data.demand_by_field_others,
+                  'fields',
+                )}
+              />
+            </div>
           </Card>
         </div>
 
-        {/* Where applicants are actually heading (user, 2026-09-10) — decided destinations, beside
-            the preferences above. */}
+        {/* Where applicants are heading (user review, 2026-09-11) — from each case's applications,
+            not only the accepted college, beside the preferences above. */}
         <Card>
           <h2 className="text-h3 text-text-primary">Where Applicants Are Heading</h2>
           <p className="text-caption text-text-secondary">
-            The country each case settled on once a college was accepted — current applicants and everyone enrolled.
-            Cases without an accepted college yet show as &quot;Not decided yet&quot;.
+            Each of the {destinations.current_applicants} open student cases counts once: Accepted where a college has
+            accepted them, otherwise Applying in every country they have an application under way — a student applying in
+            two countries appears in both. Enrolled is all time. Share = open cases heading there.
           </p>
           <div className="mt-sm">
             <Table
               bare
               columns={destinationColumns}
-              rows={data.applicant_destinations}
-              rowKey={(r) => r.country}
-              emptyMessage="No applicants yet."
+              rows={destinationRows}
+              rowKey={(r) => r.key}
+              emptyMessage="No applications recorded yet."
             />
           </div>
+          <p className="mt-sm text-caption text-text-secondary">
+            {destinations.no_application_yet} open {destinations.no_application_yet === 1 ? 'case has' : 'cases have'} no
+            application yet · PR cases (no college involved): {destinations.pr_cases.in_progress} in progress,{' '}
+            {destinations.pr_cases.enrolled} enrolled.
+          </p>
         </Card>
 
         <Card>
