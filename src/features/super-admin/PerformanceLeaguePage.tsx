@@ -83,7 +83,7 @@ export function PerformanceLeaguePage() {
       align: 'right',
       render: (r) =>
         r.responded_within_percent == null ? (
-          <span className="text-text-secondary">Nothing to judge yet</span>
+          <span className="whitespace-nowrap text-text-secondary">Nothing to judge yet</span>
         ) : (
           <span className="flex flex-col items-end">
             <span className="flex items-center gap-xs">
@@ -105,7 +105,7 @@ export function PerformanceLeaguePage() {
       align: 'right',
       render: (r) =>
         r.conversion_rate_percent == null ? (
-          <span className="text-text-secondary">None decided</span>
+          <span className="whitespace-nowrap text-text-secondary">None decided</span>
         ) : (
           <span className="flex flex-col items-end">
             <span className="flex items-center gap-xs">
@@ -132,7 +132,7 @@ export function PerformanceLeaguePage() {
       hideBelow: 'lg',
       render: (r) =>
         r.rating == null ? (
-          <span className="text-text-secondary">Not rated</span>
+          <span className="whitespace-nowrap text-text-secondary">Not rated</span>
         ) : (
           <span className="flex items-center justify-end gap-xs">
             <span className="font-medium text-text-primary">{r.rating.toFixed(1)}</span>
@@ -147,7 +147,7 @@ export function PerformanceLeaguePage() {
       align: 'right',
       render: (r) =>
         r.dues_paid_ratio == null ? (
-          <span className="text-text-secondary">No dues yet</span>
+          <span className="whitespace-nowrap text-text-secondary">No dues yet</span>
         ) : (
           <span className="flex flex-col items-end">
             <span className="flex items-center gap-xs">

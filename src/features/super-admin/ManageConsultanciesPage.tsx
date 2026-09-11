@@ -72,10 +72,10 @@ function FeatureToggleRow({
   const isOverridden = flag.key in overrides
   const effective = suppressedReason ? false : isOverridden ? overrides[flag.key] : preset
   return (
-    <div className="flex items-center justify-between gap-sm">
+    <div className="flex items-center justify-between gap-sm px-md py-sm">
       <div className="min-w-0">
         <p className="text-body-sm text-text-primary">{flag.label}</p>
-        <p className="truncate text-caption text-text-secondary" title={suppressedReason ?? flag.description}>
+        <p className="line-clamp-2 text-caption text-text-secondary" title={suppressedReason ?? flag.description}>
           {suppressedReason ?? flag.description}
         </p>
       </div>
@@ -127,19 +127,17 @@ function RatingSection({ consultancy }: { consultancy: Consultancy }) {
   const valid = value.trim() !== '' && !Number.isNaN(parsed) && parsed >= 1 && parsed <= 5
 
   return (
-    <div className="flex flex-col gap-sm">
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col">
-          <p className="text-body-sm font-medium text-text-primary">Rating</p>
-          <p className="text-body-sm text-text-secondary">
-            {consultancy.rating != null ? consultancy.rating.toFixed(1) : 'Not rated yet'}
-            {isOverridden ? (
-              <span className="ml-sm rounded-sm bg-warning/15 px-1.5 py-0.5 text-caption text-text-primary">
-                Set by admin
-              </span>
-            ) : null}
+    <div className="flex flex-col gap-sm p-md">
+      <div className="flex items-center justify-between gap-md">
+        <div className="min-w-0">
+          <p className="flex items-center gap-sm text-body-sm font-medium text-text-primary">
+            Rating
+            {isOverridden && <Badge color="warning">Set by admin</Badge>}
           </p>
-          <p className="text-caption text-text-secondary">Computed: {computedLabel}</p>
+          <p className="text-caption text-text-secondary">
+            {consultancy.rating != null ? `${consultancy.rating.toFixed(1)} shown to students` : 'Not rated yet'} ·
+            Computed: {computedLabel}
+          </p>
         </div>
         {editing ? null : (
           <div className="flex gap-xs">
@@ -242,15 +240,11 @@ function SuspendConfirmModal({
   )
 }
 
-// Restructured (user-requested, 2026-08-18 — "align items more properly.. Suspend in first line
-// ... next line plan change ... Feature & limits text boxes in one line .. we need only one save
-// button in the popup"): Suspend/Reactivate is its own first row (Suspend gated behind the typed
-// confirm above), Plan is its own row with no separate Change Plan button, Seat limit/File number
-// prefix sit side by side, and a single Save Changes button now covers both the plan change and
-// Features & Limits — Change Plan previously fired its own PATCH the moment it was clicked, Save
-// Features & Limits a separate one; now everything in the popup other than Suspend/Reactivate
-// (kept separate deliberately — it's a distinct, irreversible-until-reversed action with its own
-// confirm flow, not a form field) saves together.
+// Popup layout (user, 2026-09-11 — "make ui better"; first laid out 2026-08-18): a summary header,
+// then two tabs. Account holds the things that act the moment you use them — subscription, KYC,
+// rating, partner colleges — as one card of matching rows, with Suspend set apart at the bottom
+// behind its typed confirm. Plan & features is the one form in the popup, and the only place the
+// Save button appears, so it is never unclear what Save covers.
 /**
  * KYC review inside Manage (2026-08-19) — the other half of the consultancy's certificate
  * upload. Verify is enabled only when a document exists (the server 400s otherwise too — a
@@ -263,39 +257,31 @@ function KycSection({ consultancyId, kycVerified }: { consultancyId: string; kyc
   const status = kyc.data?.status ?? (kycVerified ? 'verified' : 'not_submitted')
 
   return (
-    <div className="flex flex-col gap-xs rounded-md border border-border p-md">
-      <div className="flex items-center justify-between">
-        <p className="text-body-sm font-medium text-text-primary">KYC</p>
-        <Badge
-          color={status === 'verified' ? 'success' : status === 'pending' ? 'warning' : 'secondary'}
-          className="capitalize"
-        >
-          {status.replace(/_/g, ' ')}
-        </Badge>
+    <div className="flex items-center justify-between gap-md p-md">
+      <div className="min-w-0">
+        <p className="flex items-center gap-sm text-body-sm font-medium text-text-primary">
+          KYC
+          <Badge
+            color={status === 'verified' ? 'success' : status === 'pending' ? 'warning' : 'secondary'}
+            className="capitalize"
+          >
+            {status.replace(/_/g, ' ')}
+          </Badge>
+        </p>
+        {kyc.data?.document_url ? (
+          <a href={kyc.data.document_url} target="_blank" rel="noreferrer" className="text-caption text-primary underline">
+            View submitted certificate
+          </a>
+        ) : (
+          <p className="text-caption text-text-secondary">No certificate submitted yet.</p>
+        )}
+        {verify.isError && <p className="text-caption text-error">{verify.error.message}</p>}
       </div>
-      {kyc.data?.document_url ? (
-        <a
-          href={kyc.data.document_url}
-          target="_blank"
-          rel="noreferrer"
-          className="w-fit text-body-sm text-primary underline"
-        >
-          View submitted certificate
-        </a>
-      ) : (
-        <p className="text-caption text-text-secondary">No certificate submitted yet.</p>
-      )}
       {status === 'pending' && (
-        <Button
-          className="w-fit"
-          variant="secondary"
-          loading={verify.isPending}
-          onClick={() => verify.mutate(consultancyId)}
-        >
-          Verify certificate
+        <Button variant="secondary" loading={verify.isPending} onClick={() => verify.mutate(consultancyId)}>
+          Verify
         </Button>
       )}
-      {verify.isError && <p className="text-caption text-error">{verify.error.message}</p>}
     </div>
   )
 }
@@ -322,11 +308,8 @@ function InstituteCollegeSection({ consultancy }: { consultancy: Consultancy }) 
   }))
 
   return (
-    <div className="flex flex-col gap-sm rounded-md border border-border p-md">
-      <div className="flex items-center justify-between gap-sm">
-        <p className="text-body-sm font-medium text-text-primary">College</p>
-        <Badge color="info">Institute</Badge>
-      </div>
+    <div className="flex flex-col gap-sm p-md">
+      <p className="text-body-sm font-medium text-text-primary">College</p>
       {consultancy.college_id ? (
         <>
           <p className="text-body-sm text-text-primary">{linkedCollege.data?.name ?? 'Loading…'}</p>
@@ -492,7 +475,7 @@ function SubscriptionSection({ consultancy }: { consultancy: Consultancy }) {
   ].filter(Boolean)
 
   return (
-    <div className="flex flex-col gap-xs">
+    <div className="flex flex-col gap-xs p-md">
       <div className="flex items-center justify-between gap-md">
         <div className="min-w-0">
           <p className="flex items-center gap-sm text-body-sm font-medium text-text-primary">
@@ -515,6 +498,17 @@ function SubscriptionSection({ consultancy }: { consultancy: Consultancy }) {
   )
 }
 
+type DetailTab = 'account' | 'plan'
+const DETAIL_TABS: { value: DetailTab; label: string }[] = [
+  { value: 'account', label: 'Account' },
+  { value: 'plan', label: 'Plan & features' },
+]
+const FEATURE_GROUPS: { title: string; flags: FeatureDef[] }[] = [
+  { title: 'Business plan features', flags: BUSINESS_FEATURES },
+  { title: 'Ultimate plan features', flags: ULTIMATE_FEATURES },
+]
+const SUBSCRIPTION_NEEDS_ATTENTION = ['expiring', 'grace', 'lapsed']
+
 function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy; onClose: () => void }) {
   const changeTier = useChangeTier(consultancy.id!)
   const updateEntitlements = useUpdateEntitlements(consultancy.id!)
@@ -528,6 +522,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
   const [freelancerEnabled, setFreelancerEnabled] = useState(Boolean(consultancy.freelancer_enabled))
   const [confirmingSuspend, setConfirmingSuspend] = useState(false)
   const [showPartnerColleges, setShowPartnerColleges] = useState(false)
+  const [tab, setTab] = useState<DetailTab>('account')
   const isInstitute = consultancy.kind === 'institute'
 
   useEffect(() => {
@@ -601,139 +596,172 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
     }
   }
 
+  function discardChanges() {
+    setTier(consultancy.tier)
+    setSeatLimit(consultancy.seat_limit)
+    setOverrides(consultancy.entitlement_overrides ?? {})
+    setFilePrefix(consultancy.file_number_prefix ?? '')
+    setFreelancerEnabled(Boolean(consultancy.freelancer_enabled))
+  }
+
+  const tierChanged = tier !== consultancy.tier
+  const subscriptionStatus = consultancy.subscription_status ?? 'none'
+  const subscriptionBadge = SUBSCRIPTION_BADGE[subscriptionStatus] ?? SUBSCRIPTION_BADGE.none
+  const summary = [
+    [consultancy.city, consultancy.country].filter(Boolean).join(', '),
+    consultancy.seats_used != null ? `${consultancy.seats_used} / ${consultancy.seat_limit} seats used` : null,
+  ].filter(Boolean)
+
   return (
     <Modal
       onClose={onClose}
       title={`Manage ${consultancy.name}`}
-      widthRem={34}
+      widthRem={48}
+      header={
+        <div className="flex min-w-0 flex-col gap-xs">
+          <h2 className="text-h2 text-text-primary">{consultancy.name}</h2>
+          <div className="flex flex-wrap items-center gap-xs">
+            {isInstitute && <Badge color="info">Institute</Badge>}
+            <Badge color={consultancy.active ? 'success' : 'secondary'}>
+              {consultancy.active ? 'Active' : 'Suspended'}
+            </Badge>
+            <Badge color="primary" className="capitalize">
+              {consultancy.tier}
+            </Badge>
+            {!consultancy.kyc_verified && <Badge color="warning">KYC pending</Badge>}
+            {SUBSCRIPTION_NEEDS_ATTENTION.includes(subscriptionStatus) && (
+              <Badge color={subscriptionBadge.color}>Subscription {subscriptionBadge.label.toLowerCase()}</Badge>
+            )}
+            {summary.length > 0 && <span className="text-caption text-text-secondary">{summary.join(' · ')}</span>}
+          </div>
+        </div>
+      }
       footer={
-        <>
-          {saveError && <p className="mr-auto self-center text-body-sm text-error">{saveError.message}</p>}
-          <Button loading={saving} disabled={!hasChanges} onClick={handleSave}>
-            Save Changes
-          </Button>
-        </>
+        tab === 'plan' || hasChanges ? (
+          <>
+            {saveError ? (
+              <p className="mr-auto self-center text-body-sm text-error">{saveError.message}</p>
+            ) : hasChanges ? (
+              <p className="mr-auto self-center text-caption text-text-secondary">Unsaved changes to plan and features</p>
+            ) : null}
+            {hasChanges && (
+              <Button variant="secondary" onClick={discardChanges}>
+                Discard
+              </Button>
+            )}
+            <Button loading={saving} disabled={!hasChanges} onClick={handleSave}>
+              Save changes
+            </Button>
+          </>
+        ) : undefined
       }
     >
-      <div className="flex flex-col gap-lg">
-        {isInstitute && <InstituteCollegeSection consultancy={consultancy} />}
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-body-sm font-medium text-text-primary">Partner Colleges</p>
-            {isInstitute && (
-              <p className="text-caption text-text-secondary">
-                Itself, and only itself — not editable for an institute (D13).
+      {/* Pinned under the header while the body scrolls. */}
+      <div className="sticky top-0 z-10 -mx-lg -mt-md mb-lg border-b border-border bg-surface px-lg pt-sm">
+        <div role="tablist" aria-label="Manage sections" className="flex gap-lg">
+          {DETAIL_TABS.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.value}
+              onClick={() => setTab(t.value)}
+              className={`-mb-px flex items-center gap-xs border-b-2 py-sm text-body-sm font-medium transition-colors ${
+                tab === t.value
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {t.label}
+              {t.value === 'plan' && hasChanges && (
+                <>
+                  <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-warning" />
+                  <span className="sr-only">(unsaved changes)</span>
+                </>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tab === 'account' && (
+        <div className="flex flex-col gap-lg">
+          <div className="flex flex-col divide-y divide-border rounded-md border border-border">
+            {isInstitute && <InstituteCollegeSection consultancy={consultancy} />}
+            <SubscriptionSection consultancy={consultancy} />
+            <KycSection consultancyId={consultancy.id!} kycVerified={Boolean(consultancy.kyc_verified)} />
+            <RatingSection consultancy={consultancy} />
+            <div className="flex items-center justify-between gap-md p-md">
+              <div className="min-w-0">
+                <p className="text-body-sm font-medium text-text-primary">Partner colleges</p>
+                <p className="text-caption text-text-secondary">
+                  {isInstitute
+                    ? 'Itself, and only itself — not editable for an institute (D13).'
+                    : 'The colleges this account works with, and its commission terms with each.'}
+                </p>
+              </div>
+              {/* Configure-on-behalf (plan §1.7 — "editable by the consultancy admin AND by
+                  platform admin on behalf") — same shared panel the consultancy's own tab uses.
+                  For an institute the panel renders read-only, so this opens a view, not an editor. */}
+              <Button variant="secondary" onClick={() => setShowPartnerColleges(true)}>
+                {isInstitute ? 'View' : 'Configure'}
+              </Button>
+            </div>
+          </div>
+
+          {/* Set apart from the everyday rows: it stops every staff member working. */}
+          <div
+            className={`flex items-center justify-between gap-md rounded-md border p-md ${
+              consultancy.active ? 'border-error/40' : 'border-border'
+            }`}
+          >
+            <div className="min-w-0">
+              <p className="text-body-sm font-medium text-text-primary">
+                {consultancy.active ? 'Suspend account' : 'Account suspended'}
               </p>
+              <p className="text-caption text-text-secondary">
+                {consultancy.active
+                  ? 'Stops every staff member working until it is reactivated. You will be asked to confirm.'
+                  : 'Its staff cannot work until it is reactivated.'}
+              </p>
+            </div>
+            {consultancy.active ? (
+              <Button variant="destructive" onClick={() => setConfirmingSuspend(true)}>
+                Suspend
+              </Button>
+            ) : (
+              <Button variant="secondary" loading={reactivate.isPending} onClick={() => reactivate.mutate()}>
+                Reactivate
+              </Button>
             )}
           </div>
-          {/* Configure-on-behalf (plan §1.7 — "editable by the consultancy admin AND by
-              platform admin on behalf") — same shared panel the consultancy's own tab uses.
-              For an institute the panel renders read-only, so this opens a view, not an editor. */}
-          <Button variant="secondary" onClick={() => setShowPartnerColleges(true)}>
-            {isInstitute ? 'View' : 'Configure'}
-          </Button>
         </div>
-        <div className="flex items-center justify-between">
-          <p className="text-body-sm font-medium text-text-primary">Status</p>
-          {consultancy.active ? (
-            <Button variant="destructive" onClick={() => setConfirmingSuspend(true)}>
-              Suspend
-            </Button>
-          ) : (
-            <Button variant="secondary" loading={reactivate.isPending} onClick={() => reactivate.mutate()}>
-              Reactivate
-            </Button>
-          )}
-        </div>
-        <SubscriptionSection consultancy={consultancy} />
-        <RatingSection consultancy={consultancy} />
-        {confirmingSuspend && (
-          <SuspendConfirmModal
-            consultancyName={consultancy.name ?? ''}
-            loading={suspend.isPending}
-            onClose={() => setConfirmingSuspend(false)}
-            onConfirm={() => suspend.mutate(undefined, { onSuccess: () => setConfirmingSuspend(false) })}
-          />
-        )}
+      )}
 
-        {showPartnerColleges && (
-          <Modal
-            title={`Partner Colleges — ${consultancy.name}`}
-            widthRem={50}
-            onClose={() => setShowPartnerColleges(false)}
-          >
-            {/* `kind`, deliberately NOT a feature flag: a `partner_colleges` entitlement key
-                would hand a Super Admin a switch that turns Partner Colleges off for an ORDINARY
-                consultancy — the screen where their commission terms live. */}
-            <PartnerCollegesPanel consultancyId={consultancy.id!} kind={consultancy.kind} />
-          </Modal>
-        )}
-
-        <KycSection consultancyId={consultancy.id!} kycVerified={Boolean(consultancy.kyc_verified)} />
-
-        <SelectField
-          label="Plan"
-          required
-          id={`tier-${consultancy.id}`}
-          value={tier}
-          onChange={(e) => handleTierChange(e.target.value as Consultancy['tier'])}
-        >
-          <option value="starter">Starter</option>
-          <option value="business">Business</option>
-          <option value="ultimate">Ultimate</option>
-        </SelectField>
-
-        {/* Advisory, never blocking (user, 2026-08-23): "tell super admin that these things are
-            over limit (in case the admin wants to resolve it first), but still let super admin to
-            disable silently." Save stays enabled throughout. */}
-        {isDowngrade &&
-        impact.data &&
-        (impact.data.employees_to_disable?.length || impact.data.branches_to_deactivate?.length) ? (
-          <div className="rounded-md border border-warning bg-warning/10 p-md">
-            <p className="text-body-sm font-medium text-text-primary">Downgrading to {tier} will disable things</p>
-            {impact.data.employees_to_disable?.length ? (
-              <p className="mt-xs text-body-sm text-text-secondary">
-                <span className="font-medium text-text-primary">
-                  {impact.data.employees_to_disable.length} employee
-                  {impact.data.employees_to_disable.length === 1 ? '' : 's'}
-                </span>{' '}
-                past the {impact.data.seat_limit}-seat cap will be disabled (newest first):{' '}
-                {impact.data.employees_to_disable.map((e) => e.name).join(', ')}.
-                {impact.data.work_to_reassign ? (
-                  <>
-                    {' '}
-                    Their {impact.data.work_to_reassign} lead
-                    {impact.data.work_to_reassign === 1 ? '' : 's'}/client
-                    {impact.data.work_to_reassign === 1 ? '' : 's'} will move to{' '}
-                    {impact.data.reassign_to?.name ?? 'the primary consultant'}.
-                  </>
-                ) : null}
-              </p>
-            ) : null}
-            {impact.data.branches_to_deactivate?.length ? (
-              <p className="mt-xs text-body-sm text-text-secondary">
-                {tier === 'ultimate' ? '' : 'This tier allows one branch, so '}
-                {impact.data.branches_to_deactivate.map((b) => b.name).join(', ')} will be deactivated.
-              </p>
-            ) : null}
-            <p className="mt-sm text-caption text-text-secondary">
-              Nothing is deleted — accounts and branches keep their data and can be re-enabled by upgrading again. You
-              can also fix this yourself first and come back.
-            </p>
-          </div>
-        ) : null}
-
-        <div className="flex flex-col gap-md">
-          <p className="text-body-sm font-medium text-text-primary">Features & Limits</p>
-          <div className="flex gap-md">
-            <TextField
-              label="Seat limit"
-              type="number"
-              value={seatLimit}
-              onChange={(e) => setSeatLimit(Number(e.target.value))}
-              className="flex-1"
-            />
-            <div className="flex flex-1 flex-col gap-xs">
+      {tab === 'plan' && (
+        <div className="flex flex-col gap-lg pt-xs">
+          <div className="flex flex-col gap-xs">
+            <div className="grid grid-cols-1 gap-md sm:grid-cols-3">
+              <SelectField
+                label="Plan"
+                required
+                id={`tier-${consultancy.id}`}
+                value={tier}
+                onChange={(e) => handleTierChange(e.target.value as Consultancy['tier'])}
+              >
+                <option value="starter">Starter</option>
+                <option value="business">Business</option>
+                <option value="ultimate">Ultimate</option>
+              </SelectField>
+              {/* Disabled while the plan is changing: saving a plan change resets seats to the new
+                  plan's default (see handleSave), so a number typed here would be silently dropped. */}
+              <TextField
+                label="Seat limit"
+                type="number"
+                value={seatLimit}
+                onChange={(e) => setSeatLimit(Number(e.target.value))}
+                disabled={tierChanged}
+              />
               <TextField
                 label="File number prefix"
                 value={filePrefix}
@@ -747,88 +775,142 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
                 }
                 maxLength={3}
                 disabled={consultancy.file_number_locked}
-                className="w-full uppercase"
+                className="uppercase"
               />
             </div>
-          </div>
-          <p className="text-caption text-text-secondary">
-            {consultancy.file_number_locked
-              ? 'File number prefix locked — this consultancy already has clients using it.'
-              : 'Prefixes every client file number this consultancy generates, e.g. "' +
-                (filePrefix || '···') +
-                '0000001".'}
-          </p>
-          <div className="flex flex-col gap-xs rounded-md border border-border bg-background p-sm">
-            <p className="text-caption font-medium text-text-secondary">Included in every plan</p>
-            <p className="text-caption text-text-secondary">{STARTER_CORE_FEATURES.join(' · ')}</p>
+            {tierChanged && (
+              <p className="text-caption text-text-secondary">
+                Saving moves this account to the <span className="capitalize">{tier}</span> plan and resets its seats and
+                features to that plan&rsquo;s defaults. Adjust them afterwards.
+              </p>
+            )}
+            <p className="text-caption text-text-secondary">
+              {consultancy.file_number_locked
+                ? 'File number prefix locked — this account already has clients using it.'
+                : `Prefixes every client file number this account generates, e.g. "${filePrefix || '···'}0000001".`}
+            </p>
           </div>
 
-          {Object.keys(overrides).length > 0 && (
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setOverrides({})}
-                className="text-caption text-text-secondary underline hover:text-text-primary"
-              >
-                Reset all to plan defaults
-              </button>
+          {/* Advisory, never blocking (user, 2026-08-23): "tell super admin that these things are
+              over limit (in case the admin wants to resolve it first), but still let super admin to
+              disable silently." Save stays enabled throughout. */}
+          {isDowngrade &&
+          impact.data &&
+          (impact.data.employees_to_disable?.length || impact.data.branches_to_deactivate?.length) ? (
+            <div className="rounded-md border border-warning bg-warning/10 p-md">
+              <p className="text-body-sm font-medium text-text-primary">Downgrading to {tier} will disable things</p>
+              {impact.data.employees_to_disable?.length ? (
+                <p className="mt-xs text-body-sm text-text-secondary">
+                  <span className="font-medium text-text-primary">
+                    {impact.data.employees_to_disable.length} employee
+                    {impact.data.employees_to_disable.length === 1 ? '' : 's'}
+                  </span>{' '}
+                  past the {impact.data.seat_limit}-seat cap will be disabled (newest first):{' '}
+                  {impact.data.employees_to_disable.map((e) => e.name).join(', ')}.
+                  {impact.data.work_to_reassign ? (
+                    <>
+                      {' '}
+                      Their {impact.data.work_to_reassign} lead
+                      {impact.data.work_to_reassign === 1 ? '' : 's'}/client
+                      {impact.data.work_to_reassign === 1 ? '' : 's'} will move to{' '}
+                      {impact.data.reassign_to?.name ?? 'the primary consultant'}.
+                    </>
+                  ) : null}
+                </p>
+              ) : null}
+              {impact.data.branches_to_deactivate?.length ? (
+                <p className="mt-xs text-body-sm text-text-secondary">
+                  {tier === 'ultimate' ? '' : 'This tier allows one branch, so '}
+                  {impact.data.branches_to_deactivate.map((b) => b.name).join(', ')} will be deactivated.
+                </p>
+              ) : null}
+              <p className="mt-sm text-caption text-text-secondary">
+                Nothing is deleted — accounts and branches keep their data and can be re-enabled by upgrading again.
+                You can also fix this yourself first and come back.
+              </p>
             </div>
-          )}
+          ) : null}
 
           <div className="flex flex-col gap-sm">
-            <p className="text-caption font-medium text-text-secondary">Business plan features</p>
-            <div className="flex flex-col gap-sm">
-              {BUSINESS_FEATURES.map((flag) => (
-                <FeatureToggleRow
-                  key={flag.key}
-                  flag={flag}
-                  tier={tier}
-                  overrides={overrides}
-                  onToggle={toggleFlag}
-                  onReset={resetFlag}
-                  suppressedReason={isInstitute ? INSTITUTE_SUPPRESSED_FLAGS[flag.key] : undefined}
-                />
+            <div className="flex items-center justify-between gap-md">
+              <p className="text-body-sm font-medium text-text-primary">Features</p>
+              {Object.keys(overrides).length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setOverrides({})}
+                  className="text-caption text-text-secondary underline hover:text-text-primary"
+                >
+                  Reset all to plan defaults
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-1 items-start gap-md md:grid-cols-2">
+              {FEATURE_GROUPS.map((group) => (
+                <div key={group.title} className="overflow-hidden rounded-md border border-border">
+                  <p className="border-b border-border bg-background px-md py-sm text-caption font-medium text-text-secondary">
+                    {group.title}
+                  </p>
+                  <div className="flex flex-col divide-y divide-border">
+                    {group.flags.map((flag) => (
+                      <FeatureToggleRow
+                        key={flag.key}
+                        flag={flag}
+                        tier={tier}
+                        overrides={overrides}
+                        onToggle={toggleFlag}
+                        onReset={resetFlag}
+                        suppressedReason={isInstitute ? INSTITUTE_SUPPRESSED_FLAGS[flag.key] : undefined}
+                      />
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
+            <p className="text-caption text-text-secondary">
+              <span className="font-medium">Included in every plan:</span> {STARTER_CORE_FEATURES.join(' · ')}
+            </p>
           </div>
 
-          <div className="flex flex-col gap-sm">
-            <p className="text-caption font-medium text-text-secondary">Ultimate plan features</p>
-            <div className="flex flex-col gap-sm">
-              {ULTIMATE_FEATURES.map((flag) => (
-                <FeatureToggleRow
-                  key={flag.key}
-                  flag={flag}
-                  tier={tier}
-                  overrides={overrides}
-                  onToggle={toggleFlag}
-                  onReset={resetFlag}
-                  suppressedReason={isInstitute ? INSTITUTE_SUPPRESSED_FLAGS[flag.key] : undefined}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-xs border-t border-border pt-md">
           {/* User-requested (2026-08-19) — "at consultancy level we want to enable or disable
               Freelancer to a consultancy. if enabled on freelancer rates applicable... if enabled
               then only applicant allocation from freelancer possible." A distinct row from the
               generic feature registry above, not folded into FEATURE_REGISTRY/entitlement_overrides,
               since this one has real gating logic behind it (Commission Rates, Applicant
               Allocation), not just a plan-tier flag. */}
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center justify-between gap-md rounded-md border border-border p-md">
+            <div className="min-w-0">
               <p className="text-body-sm font-medium text-text-primary">Freelancer channel</p>
               <p className="text-caption text-text-secondary">
-                Enables this consultancy's freelancer-sourced commission rate and lets Applicant Allocation offer it as
-                a target for freelancer-sourced aspirants.
+                Enables this account&rsquo;s freelancer commission rate and lets Applicant Allocation offer it for
+                freelancer-referred aspirants.
               </p>
             </div>
             <Toggle checked={freelancerEnabled} onChange={setFreelancerEnabled} label="Freelancer channel" />
           </div>
         </div>
-      </div>
+      )}
+
+      {confirmingSuspend && (
+        <SuspendConfirmModal
+          consultancyName={consultancy.name ?? ''}
+          loading={suspend.isPending}
+          onClose={() => setConfirmingSuspend(false)}
+          onConfirm={() => suspend.mutate(undefined, { onSuccess: () => setConfirmingSuspend(false) })}
+        />
+      )}
+
+      {showPartnerColleges && (
+        <Modal
+          title={`Partner Colleges — ${consultancy.name}`}
+          widthRem={50}
+          onClose={() => setShowPartnerColleges(false)}
+        >
+          {/* `kind`, deliberately NOT a feature flag: a `partner_colleges` entitlement key
+              would hand a Super Admin a switch that turns Partner Colleges off for an ORDINARY
+              consultancy — the screen where their commission terms live. */}
+          <PartnerCollegesPanel consultancyId={consultancy.id!} kind={consultancy.kind} />
+        </Modal>
+      )}
     </Modal>
   )
 }
