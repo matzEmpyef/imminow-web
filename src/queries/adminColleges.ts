@@ -8,6 +8,8 @@ type CollegeInput = components['schemas']['CollegeInput']
 type CampusInput = components['schemas']['CampusInput']
 
 interface CollegeListFilters {
+  // "Needs details" / "Complete" (2026-09-11).
+  health?: 'needs_details' | 'complete'
   search?: string
   country?: string[]
   active?: boolean
@@ -28,6 +30,7 @@ export function useAdminColleges(filters: CollegeListFilters = {}) {
       const filter: Record<string, string> = {}
       if (filters.country?.length) filter.country = filters.country.join(',')
       if (filters.active !== undefined) filter.active = String(filters.active)
+      if (filters.health) filter.health = filters.health
 
       const { data, error } = await api.GET('/colleges', {
         params: {
@@ -67,7 +70,7 @@ export function useCreateCollege() {
   return useMutation({
     mutationFn: async (body: CollegeInput) => {
       const { data, error } = await api.POST('/colleges', { body })
-      if (error) throw new ApiError('Could not create this college.', error)
+      if (error) throw new ApiError(error.error?.message ?? 'Could not create this college.')
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-colleges'] }),
@@ -79,7 +82,7 @@ export function useUpdateCollege(id: string) {
   return useMutation({
     mutationFn: async (body: Partial<CollegeInput>) => {
       const { data, error } = await api.PATCH('/colleges/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update this college.', error)
+      if (error) throw new ApiError(error.error?.message ?? 'Could not update this college.')
       return data
     },
     // Also invalidates `courses` (2026-08-18) — a course's `visible` is computed from its own

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { AppShell } from '@/features/auth/AppShell'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useMyConsultancy } from '@/queries/consultancy'
@@ -30,7 +31,11 @@ type Tab = (typeof TABS)[number]
 
 export function ConsultancyProfilePage() {
   const consultancy = useMyConsultancy()
-  const [activeTab, setActiveTab] = useState<Tab>('Profile')
+  // ?tab=partner-colleges — where the "New college" notification lands (2026-09-11).
+  const [searchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState<Tab>(
+    searchParams.get('tab') === 'partner-colleges' ? 'Partner Colleges' : 'Profile',
+  )
   // Incoming Transfers is about accepting cases, not settings — its own permission gate.
   const canAcceptTransfers = usePermission('clients.transfer_applicant')
   const visibleTabs = TABS.filter((tab) => tab !== 'Incoming Transfers' || canAcceptTransfers)

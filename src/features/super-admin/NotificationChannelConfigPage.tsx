@@ -40,6 +40,7 @@ const LABELS: Record<string, string> = {
   countries_served_changed: 'Countries served changed',
   upgrade_requested: 'Consultancy requested a plan upgrade',
   applicant_allocated: 'Applicant allocated to the consultancy by immiNow',
+  college_added: 'New college added to the catalogue (to consultancy admins)',
   consultancy_assigned: 'Student told which consultancy they are now with',
   subscription_expiring: 'Consultancy subscription ends soon (30, 7 and 1 day before)',
   subscription_expired: 'Consultancy subscription expired — grace period started',

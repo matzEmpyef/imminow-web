@@ -7235,7 +7235,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Search catalog — country, campus province/state, level, field, course (FR-057). Paginated for 10K+ scale (build reference 1.23) — list rows return campus_count/ course_count instead of embedding full campus/course objects; fetch GET /colleges/{id} for the full detail (unfiltered — Sentpo Mobile's Study Abroad/Study in [Home Country] never call this list endpoint directly, only GET /courses, whose own filter[visible]=true note above is what actually keeps inactive colleges from ever surfacing as a tappable Search Result in the first place). filter[country] takes one or more comma-separated countries (2026-09-10) and matches a college with a campus in ANY of them; filter[active] is "true"/"false". sort accepts name (default asc). SCOPED FOR INSTITUTES (INSTITUTE_ACCOUNT_PLAN D7, 2026-09-10) — staff of a `kind=institute` account see only their own college, one row, and an institute not yet linked to a college sees none. Applied server-side to the source set before any query filter runs, so no parameter can widen it. */
+        /** Search catalog — country, campus province/state, level, field, course (FR-057). Paginated for 10K+ scale (build reference 1.23) — list rows return campus_count/ course_count instead of embedding full campus/course objects; fetch GET /colleges/{id} for the full detail (unfiltered — Sentpo Mobile's Study Abroad/Study in [Home Country] never call this list endpoint directly, only GET /courses, whose own filter[visible]=true note above is what actually keeps inactive colleges from ever surfacing as a tappable Search Result in the first place). filter[country] takes one or more comma-separated countries (2026-09-10) and matches a college with a campus in ANY of them; filter[active] is "true"/"false"; filter[health] is "needs_details" (has courses, at least one failing a capture check) or "complete". sort accepts name (default asc), campus_count, course_count, catalog_health (share of complete courses — ascending puts the worst-covered first, colleges with no courses last) and partner_consultancy_count. The response's `summary` covers every college the caller can see, not the filtered page. SCOPED FOR INSTITUTES (INSTITUTE_ACCOUNT_PLAN D7, 2026-09-10) — staff of a `kind=institute` account see only their own college, one row, and an institute not yet linked to a college sees none. Applied server-side to the source set before any query filter runs, so no parameter can widen it. */
         get: {
             parameters: {
                 query?: {
@@ -7265,13 +7265,21 @@ export interface paths {
                         "application/json": {
                             items: components["schemas"]["College"][];
                             meta: components["schemas"]["PaginatedMeta"];
+                            summary?: {
+                                college_count: number;
+                                course_count: number;
+                                complete_course_count: number;
+                            };
                         };
                     };
                 };
             };
         };
         put?: never;
-        /** Create college (admin) — supports CSV bulk import via /colleges/import */
+        /**
+         * Create college (admin) — supports CSV bulk import via /colleges/import
+         * @description A name already in the catalogue (ignoring case and spacing) is refused 409 `duplicate_college`. An active new college notifies the admins of every active consultancy (`college_added`, once per college) so they can add it as a partner college.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -7294,6 +7302,7 @@ export interface paths {
                         "application/json": components["schemas"]["College"];
                     };
                 };
+                409: components["responses"]["ErrorResponse"];
             };
         };
         delete?: never;
@@ -7340,7 +7349,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Edit college (admin) — all fields optional, unlike POST's CollegeInput */
+        /**
+         * Edit college (admin) — all fields optional, unlike POST's CollegeInput
+         * @description Renaming to a name another college already has is refused 409 `duplicate_college`. Switching on a college that was created inactive announces it (`college_added`).
+         */
         patch: {
             parameters: {
                 query?: never;
@@ -7371,6 +7383,7 @@ export interface paths {
                         "application/json": components["schemas"]["College"];
                     };
                 };
+                409: components["responses"]["ErrorResponse"];
             };
         };
         trace?: never;
@@ -7473,7 +7486,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** CSV bulk import — validate → preview → commit pipeline (TRD Section 6) */
+        /**
+         * CSV bulk import — validate → preview → commit pipeline (TRD Section 6)
+         * @description Columns name, website, description (2026-09-11). A header row naming them is optional and may order them freely; quoted fields may contain commas. Names already in the catalogue, or repeated within the file, are skipped (`status: duplicate`), never created twice. Each created college is audited, and consultancy admins get one `college_added` for the batch.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -7501,9 +7517,14 @@ export interface paths {
                     content: {
                         "application/json": {
                             created_count: number;
+                            /** @description Rows not created — duplicates and invalid rows. */
+                            skipped_count?: number;
                             rows: {
+                                /** @description The line in the file (the header, if any, is line 1). */
                                 row_number?: number;
                                 valid?: boolean;
+                                /** @enum {string} */
+                                status?: "created" | "duplicate" | "invalid";
                                 college_name?: string;
                                 errors?: string[];
                             }[];
@@ -17643,6 +17664,24 @@ export interface components {
             course_count?: number;
             /** @description Populated on GET /colleges list rows only — the catalog-health rollup (COURSES_MODULE_PLAN.md §5, Tier 4 2026-08-22). How many of this college's courses pass all five capture checks (fee, duration_months, an intake deadline, an entry requirements block, language) — the SAME checks the per-course completeness meter in the admin course form runs, so the list's "N/M complete" and the form's meter can never disagree. */
             readonly complete_course_count?: number;
+            /** @description List rows only (2026-09-11) — each capture check at least one of this college's courses fails, with how many courses fail it. */
+            readonly missing_checks?: {
+                /** @enum {string} */
+                key: "fee" | "duration" | "deadline" | "requirements" | "language";
+                label: string;
+                count: number;
+            }[];
+            /** @description List rows only — the distinct countries of this college's campuses. */
+            readonly countries?: string[];
+            /** @description List rows only — the distinct provinces/states of its campuses. */
+            readonly regions?: string[];
+            /** @description List rows only — active consultancies (institutes excluded) with an active partnership with this college. */
+            readonly partner_consultancy_count?: number;
+            /**
+             * Format: date-time
+             * @description When consultancy admins were told about this college (`college_added`). Set once, the first time the college is active.
+             */
+            readonly announced_at?: string | null;
             qs_rank?: number | null;
             the_rank?: number | null;
             /** @enum {string|null} */
