@@ -1387,10 +1387,14 @@ function RateFormModal({
           placeholder="e.g. CAD"
           disabled={Boolean(rate || presetCurrency)}
         />
+        {/* `step="any"`: most of the currencies missing a rate are worth under ₹1 (ALL ≈ 0.9,
+            VND ≈ 0.0033), and a number input's default step of 1 refused every one of them. */}
         <TextField
           label="₹ per unit of this currency"
           required
           type="number"
+          step="any"
+          min="0"
           value={inrPerUnit}
           onChange={(e) => setInrPerUnit(e.target.value)}
         />
