@@ -22,6 +22,7 @@ import { useCountries } from '@/queries/countries'
 import { useBroadcastHistory, useSendBroadcast } from '@/queries/broadcast'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDateTime } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type Audience = NonNullable<components['schemas']['BroadcastInput']['audience']>
@@ -98,7 +99,12 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
         targeting: isSegment ? targeting : undefined,
         deep_link: deepLink || undefined,
       },
-      { onSuccess: () => onClose() },
+      {
+        onSuccess: () => {
+          onClose()
+          showToast('Broadcast sent')
+        },
+      },
     )
   }
 

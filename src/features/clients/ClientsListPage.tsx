@@ -22,6 +22,7 @@ import { useCountries } from '@/queries/countries'
 import { useEmployees } from '@/queries/staff'
 import { usePermissionChecker } from '@/lib/permissions'
 import { useCursorPagination } from '@/lib/pagination'
+import { showToast } from '@/lib/toast'
 
 type Client = NonNullable<ReturnType<typeof useClients>['data']>['items'][number]
 
@@ -93,7 +94,14 @@ function AssignClientTrigger({
               <Button
                 loading={assign.isPending}
                 disabled={!employeeId}
-                onClick={() => assign.mutate(employeeId, { onSuccess: () => setOpen(false) })}
+                onClick={() =>
+                  assign.mutate(employeeId, {
+                    onSuccess: () => {
+                      showToast(isAssigned ? `${clientName} transferred` : `${clientName} assigned`)
+                      setOpen(false)
+                    },
+                  })
+                }
               >
                 {isAssigned ? 'Transfer' : 'Assign'}
               </Button>

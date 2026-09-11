@@ -6,6 +6,7 @@ import { TextField } from '@/components/TextField'
 import { Toggle } from '@/components/Toggle'
 import { useUpdateDesignation } from '@/queries/staff'
 import { PERMISSION_GROUPS } from '@/lib/permissions'
+import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type Designation = components['schemas']['Designation']
@@ -44,7 +45,15 @@ function PermissionsModalBody({ designation, onClose }: { designation: Designati
   }
 
   function handleSave() {
-    updateDesignation.mutate({ name: designation.name, permissions, reason }, { onSuccess: onClose })
+    updateDesignation.mutate(
+      { name: designation.name, permissions, reason },
+      {
+        onSuccess: () => {
+          showToast(`Permissions updated for ${designation.name}`)
+          onClose()
+        },
+      },
+    )
   }
 
   return (

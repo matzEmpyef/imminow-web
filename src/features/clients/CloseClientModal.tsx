@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { CLOSE_SUB_REASONS, useCloseClient, type CloseSubReason } from '@/queries/clients'
+import { showToast } from '@/lib/toast'
 
 // The sub-reasons that mean the student never actually travelled. An acceptance plus one of these
 // is a FAILURE, not a success — colleges don't pay for a student who doesn't arrive — and the
@@ -67,7 +68,12 @@ export function CloseClientModal({
         reason: reason.trim(),
         ...(subReason !== '' ? { subReason } : {}),
       },
-      { onSuccess: onClose },
+      {
+        onSuccess: () => {
+          showToast(`Case closed for ${clientName}`)
+          onClose()
+        },
+      },
     )
   }
 

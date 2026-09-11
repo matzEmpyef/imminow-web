@@ -6,6 +6,7 @@ import { FieldLabel } from '@/components/FieldLabel'
 import { Modal } from '@/components/Modal'
 import { ImageUploadField } from '@/components/ImageUploadField'
 import { useCreateCollege, useUpdateCollege } from '@/queries/adminColleges'
+import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type College = components['schemas']['College']
@@ -56,11 +57,22 @@ export function CollegeFormModal({
       acceptance_rate: acceptanceRate === '' ? null : Number(acceptanceRate),
     }
     if (college) {
-      updateCollege.mutate(body, { onSuccess: () => onClose() })
+      updateCollege.mutate(body, {
+        onSuccess: () => {
+          showToast(`${name.trim()} updated`)
+          onClose()
+        },
+      })
     } else {
       createCollege.mutate(
         { ...body, active: true },
-        { onSuccess: (created: College) => (onCreated ? onCreated(created) : onClose()) },
+        {
+          onSuccess: (created: College) => {
+            showToast(`${name.trim()} added`)
+            if (onCreated) onCreated(created)
+            else onClose()
+          },
+        },
       )
     }
   }

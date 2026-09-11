@@ -4,6 +4,7 @@ import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
 import { ImageUploadField } from '@/components/ImageUploadField'
 import { useUpdateEvent } from '@/queries/eventsAdmin'
+import { showToast } from '@/lib/toast'
 import { type Event } from './quizShared'
 
 // User-requested (2026-08-18) — "No quiz needs ad options too... do not include in the existing
@@ -51,7 +52,15 @@ export function QuizBrandingModal({ event, onClose }: { event: Event; onClose: (
         results_screen: resultsScreen,
       }).filter(([, value]) => Boolean(value)),
     )
-    updateEvent.mutate({ branding }, { onSuccess: () => onClose() })
+    updateEvent.mutate(
+      { branding },
+      {
+        onSuccess: () => {
+          showToast('Branding saved')
+          onClose()
+        },
+      },
+    )
   }
 
   return (

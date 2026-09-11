@@ -6,6 +6,7 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { formatDateTime } from '@/lib/time'
 import { money } from './money'
 import { useCorrectCommissionPayment, type CommissionPayment } from '@/queries/commission'
+import { showToast } from '@/lib/toast'
 
 const MIN_REASON_LENGTH = 3
 
@@ -49,7 +50,15 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
             loading={correct.isPending}
             disabled={invalid}
             onClick={() =>
-              correct.mutate({ paymentId: payment.id, amount: parsed, reason: trimmedReason }, { onSuccess: onClose })
+              correct.mutate(
+                { paymentId: payment.id, amount: parsed, reason: trimmedReason },
+                {
+                  onSuccess: () => {
+                    showToast(`Amount corrected for ${payment.consultancy_name ?? 'this payment'}`)
+                    onClose()
+                  },
+                },
+              )
             }
           >
             Save correction

@@ -3,6 +3,7 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useChangePassword } from '@/queries/profile'
+import { showToast } from '@/lib/toast'
 
 // User-requested — My Account's Security card had "password change fields" per the build
 // reference, but they were a permanently-disabled inline stub with no backing endpoint. This is
@@ -22,7 +23,15 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
     e.preventDefault()
     setTouched({ newPassword: true, confirm: true })
     if (!canSubmit) return
-    changePassword.mutate({ current_password: currentPassword, new_password: newPassword }, { onSuccess: onClose })
+    changePassword.mutate(
+      { current_password: currentPassword, new_password: newPassword },
+      {
+        onSuccess: () => {
+          showToast('Password changed')
+          onClose()
+        },
+      },
+    )
   }
 
   return (

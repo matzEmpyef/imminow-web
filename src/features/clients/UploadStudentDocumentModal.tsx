@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { useStudentDocuments, useUploadStudentDocument } from '@/queries/studentDocuments'
+import { showToast } from '@/lib/toast'
 
 /**
  * Uploading a document on the student's behalf — the consultant scanned their passport at the
@@ -49,7 +50,12 @@ export function UploadStudentDocumentModal({ clientId, onClose }: { clientId: st
                     ...(label ? { label } : {}),
                     ...(expiresOn ? { expiresOn } : {}),
                   },
-                  { onSuccess: onClose },
+                  {
+                    onSuccess: () => {
+                      showToast('Document uploaded')
+                      onClose()
+                    },
+                  },
                 )
               }
             >

@@ -3,6 +3,7 @@ import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
 import { useCommissionDefaults, useUpdateCommissionDefaults } from '@/queries/commissionRates'
+import { showToast } from '@/lib/toast'
 
 // Narrow inline number field — a full TextField's 48px pill with a floating label reads as its
 // own form row, which is too heavy for a compact "value next to its hint" card row. No visible
@@ -140,7 +141,12 @@ export function CommissionDefaultsCard({ variant = 'page' }: { variant?: 'page' 
   function handleConfirm() {
     const body: Partial<Record<DefaultKey, number>> = {}
     for (const f of changed) body[f.key] = Number(values[f.key])
-    updateDefaults.mutate(body, { onSuccess: () => setConfirming(false) })
+    updateDefaults.mutate(body, {
+      onSuccess: () => {
+        showToast('Commission defaults updated')
+        setConfirming(false)
+      },
+    })
   }
 
   const content = (

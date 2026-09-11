@@ -7,6 +7,7 @@ import { TextField } from '@/components/TextField'
 import { Toggle } from '@/components/Toggle'
 import { useDisableEmployee, useEmployees, useUpdateEmployee } from '@/queries/staff'
 import { PERMISSION_GROUPS } from '@/lib/permissions'
+import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type Employee = components['schemas']['Employee']
@@ -108,7 +109,12 @@ function AccessModalBody({
         permission_overrides: overrides,
         reason: dirty ? reason : undefined,
       },
-      { onSuccess: onClose },
+      {
+        onSuccess: () => {
+          showToast(`Access updated for ${employee.user!.first_name} ${employee.user!.last_name}`)
+          onClose()
+        },
+      },
     )
   }
 

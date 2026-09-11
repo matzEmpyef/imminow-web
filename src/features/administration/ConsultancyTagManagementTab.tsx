@@ -6,6 +6,7 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { Modal } from '@/components/Modal'
 import { useCreateTag, useDeleteTag, useTags } from '@/queries/tags'
+import { showToast } from '@/lib/toast'
 
 // User-requested (2026-08-15) — "wherever there is delete, confirm popup is needed." Was a bare
 // ✕ that removed the tag immediately.
@@ -63,7 +64,13 @@ function AddTagModal({ onClose }: { onClose: () => void }) {
   function handleSubmit(e?: FormEvent) {
     e?.preventDefault()
     if (!name.trim()) return
-    createTag.mutate(name.trim(), { onSuccess: onClose })
+    const trimmed = name.trim()
+    createTag.mutate(trimmed, {
+      onSuccess: () => {
+        showToast(`${trimmed} tag added`)
+        onClose()
+      },
+    })
   }
 
   return (

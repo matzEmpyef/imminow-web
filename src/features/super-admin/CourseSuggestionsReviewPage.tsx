@@ -15,6 +15,7 @@ import { useAdminColleges, useCollegeDetail } from '@/queries/adminColleges'
 import { useStudyLevels } from '@/queries/studyLevels'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 import { CourseFormModal } from './CollegeDetailPage'
 import type { components } from '@/api/schema'
 
@@ -192,7 +193,17 @@ function SuggestionDetailModal({ suggestion, onClose }: { suggestion: CourseSugg
       <CreateFromSuggestion
         suggestion={suggestion}
         onCancel={() => setCreating(false)}
-        onDone={(created) => approve.mutate({ id: suggestion.id!, courseId: created.id! }, { onSuccess: onClose })}
+        onDone={(created) =>
+          approve.mutate(
+            { id: suggestion.id!, courseId: created.id! },
+            {
+              onSuccess: () => {
+                showToast('Course suggestion approved')
+                onClose()
+              },
+            },
+          )
+        }
       />
     )
   }
@@ -219,7 +230,17 @@ function SuggestionDetailModal({ suggestion, onClose }: { suggestion: CourseSugg
                   variant="destructive"
                   loading={reject.isPending}
                   disabled={!reason.trim()}
-                  onClick={() => reject.mutate({ id: suggestion.id!, reason: reason.trim() }, { onSuccess: onClose })}
+                  onClick={() =>
+                    reject.mutate(
+                      { id: suggestion.id!, reason: reason.trim() },
+                      {
+                        onSuccess: () => {
+                          showToast('Course suggestion rejected')
+                          onClose()
+                        },
+                      },
+                    )
+                  }
                 >
                   Confirm Reject
                 </Button>
@@ -241,7 +262,17 @@ function SuggestionDetailModal({ suggestion, onClose }: { suggestion: CourseSugg
                 <Button
                   variant="secondary"
                   loading={approve.isPending && approve.variables?.mode === 'manual'}
-                  onClick={() => approve.mutate({ id: suggestion.id!, mode: 'manual' }, { onSuccess: onClose })}
+                  onClick={() =>
+                    approve.mutate(
+                      { id: suggestion.id!, mode: 'manual' },
+                      {
+                        onSuccess: () => {
+                          showToast('Course suggestion approved')
+                          onClose()
+                        },
+                      },
+                    )
+                  }
                 >
                   I&rsquo;ll add manually
                 </Button>
@@ -251,7 +282,15 @@ function SuggestionDetailModal({ suggestion, onClose }: { suggestion: CourseSugg
                     loading={approve.isPending && approve.variables?.mode === 'modified'}
                     disabled={!modifiedValue}
                     onClick={() =>
-                      approve.mutate({ id: suggestion.id!, mode: 'modified', value: modifiedValue }, { onSuccess: onClose })
+                      approve.mutate(
+                        { id: suggestion.id!, mode: 'modified', value: modifiedValue },
+                        {
+                          onSuccess: () => {
+                            showToast('Course suggestion approved')
+                            onClose()
+                          },
+                        },
+                      )
                     }
                   >
                     Add with modification
@@ -260,7 +299,17 @@ function SuggestionDetailModal({ suggestion, onClose }: { suggestion: CourseSugg
                 {applicable.length > 0 && (
                   <Button
                     loading={approve.isPending && approve.variables?.mode === 'as_suggested'}
-                    onClick={() => approve.mutate({ id: suggestion.id!, mode: 'as_suggested' }, { onSuccess: onClose })}
+                    onClick={() =>
+                      approve.mutate(
+                        { id: suggestion.id!, mode: 'as_suggested' },
+                        {
+                          onSuccess: () => {
+                            showToast('Course suggestion approved')
+                            onClose()
+                          },
+                        },
+                      )
+                    }
                   >
                     Add
                   </Button>

@@ -4,6 +4,7 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useSuggestCorrection } from '@/queries/courseSuggestions'
+import { showToast } from '@/lib/toast'
 
 /**
  * "Suggest this is wrong" — a small pencil next to ONE specific fact about a course, not a
@@ -115,7 +116,12 @@ export function SuggestCorrectionButton({
                       collegeId,
                       payload: { field, label, current, suggested: suggested.trim(), note: note.trim() || null },
                     },
-                    { onSuccess: () => setOpen(false) },
+                    {
+                      onSuccess: () => {
+                        showToast(isMissing ? `${label} suggested` : `Correction suggested for ${label}`)
+                        setOpen(false)
+                      },
+                    },
                   )
                 }
               >

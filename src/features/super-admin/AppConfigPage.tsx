@@ -7,6 +7,7 @@ import { TextField } from '@/components/TextField'
 import { useAppConfig, useUpdateAppConfig } from '@/queries/appConfig'
 import { FeaturedInstitutesCard } from './FeaturedInstitutesCard'
 import type { components } from '@/api/schema'
+import { showToast } from '@/lib/toast'
 
 type AppConfig = components['schemas']['AppConfig']
 
@@ -70,7 +71,7 @@ function VersionAndRatingCard() {
 
   function handleSave() {
     if (!form || !canSave) return
-    update.mutate(form)
+    update.mutate(form, { onSuccess: () => showToast('App settings saved') })
   }
 
   return (
@@ -168,7 +169,6 @@ function VersionAndRatingCard() {
 
       <div className="flex items-center justify-end gap-md border-t border-border pt-lg">
         {update.isError && <p className="mr-auto text-body-sm text-error">{update.error.message}</p>}
-        {update.isSuccess && !update.isPending && <p className="mr-auto text-body-sm text-success">Saved.</p>}
         <Button onClick={handleSave} loading={update.isPending} disabled={!canSave}>
           Save
         </Button>

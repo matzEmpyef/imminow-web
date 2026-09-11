@@ -6,6 +6,7 @@ import { TextField } from '@/components/TextField'
 import { Toggle } from '@/components/Toggle'
 import { Table, type TableColumn } from '@/components/Table'
 import { Modal } from '@/components/Modal'
+import { showToast } from '@/lib/toast'
 import { useEarnRules, useUpdateEarnRule } from '@/queries/earnRules'
 import type { components } from '@/api/schema'
 
@@ -86,7 +87,15 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    updateRule.mutate({ points_value: pointsValue, cap: cap ? Number(cap) : null }, { onSuccess: () => onClose() })
+    updateRule.mutate(
+      { points_value: pointsValue, cap: cap ? Number(cap) : null },
+      {
+        onSuccess: () => {
+          onClose()
+          showToast(`${triggerLabel(rule.trigger_type)} rule saved`)
+        },
+      },
+    )
   }
 
   return (

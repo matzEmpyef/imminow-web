@@ -5,6 +5,7 @@ import { TextField } from '@/components/TextField'
 import { Combobox } from '@/components/Combobox'
 import { useCreatePhonebookContact } from '@/queries/phonebook'
 import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
+import { showToast } from '@/lib/toast'
 
 // `categories` populates the Category combobox's dropdown — existing categories are pickable
 // like a normal select, but typing something new and pressing Enter (or clicking "+ Add") just
@@ -23,7 +24,15 @@ export function AddPhonebookContactModal({ categories, onClose }: { categories: 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
-    createContact.mutate({ name, category, phone, email: email || undefined }, { onSuccess: onClose })
+    createContact.mutate(
+      { name, category, phone, email: email || undefined },
+      {
+        onSuccess: () => {
+          showToast(`${name} added to phonebook`)
+          onClose()
+        },
+      },
+    )
   }
 
   return (

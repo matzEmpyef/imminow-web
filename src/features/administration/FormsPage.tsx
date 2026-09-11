@@ -7,6 +7,7 @@ import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
 import { StopPropagation } from '@/components/StopPropagation'
 import { useDuplicateFormTemplate, useFormTemplates } from '@/queries/formTemplates'
+import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type FormTemplate = components['schemas']['FormTemplate']
@@ -52,7 +53,14 @@ function FormRowActions({ form, duplicateForm }: { form: FormTemplate; duplicate
               <div className="flex gap-sm">
                 <Button
                   loading={duplicateForm.isPending}
-                  onClick={() => duplicateForm.mutate(form.id, { onSuccess: () => setConfirmDuplicate(false) })}
+                  onClick={() =>
+                    duplicateForm.mutate(form.id, {
+                      onSuccess: () => {
+                        showToast(`${form.name} form duplicated`)
+                        setConfirmDuplicate(false)
+                      },
+                    })
+                  }
                 >
                   Duplicate
                 </Button>

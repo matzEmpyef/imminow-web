@@ -1,6 +1,7 @@
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { useReopenClientCase } from '@/queries/clients'
+import { showToast } from '@/lib/toast'
 
 // Mirrors ReopenLeadModal.tsx exactly — no reason field, reopening is reversible and low-stakes,
 // a confirm just prevents an accidental click on the icon. Named "Reopen Case" throughout the UI
@@ -29,7 +30,14 @@ export function ReopenClientModal({
           <div className="flex gap-sm">
             <Button
               loading={reopenClient.isPending}
-              onClick={() => reopenClient.mutate(clientId, { onSuccess: onClose })}
+              onClick={() =>
+                reopenClient.mutate(clientId, {
+                  onSuccess: () => {
+                    showToast(`Case reopened for ${clientName}`)
+                    onClose()
+                  },
+                })
+              }
             >
               Reopen Case
             </Button>

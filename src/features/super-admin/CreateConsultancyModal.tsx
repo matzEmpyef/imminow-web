@@ -11,6 +11,7 @@ import { useCreateConsultancy } from '@/queries/adminConsultancies'
 import { useAdminColleges } from '@/queries/adminColleges'
 import { useUserSearch } from '@/queries/supportTools'
 import { EMAIL_ERROR, isValidEmail } from '@/lib/validation'
+import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type AccountKind = NonNullable<components['schemas']['Consultancy']['kind']>
@@ -122,7 +123,12 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
         idempotencyKey,
       },
       // Already on Manage Consultancies, and the list invalidates itself — closing is enough.
-      { onSuccess: () => onClose() },
+      {
+        onSuccess: () => {
+          onClose()
+          showToast(`${name} created`)
+        },
+      },
     )
   }
 

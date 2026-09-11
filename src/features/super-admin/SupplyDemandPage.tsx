@@ -10,6 +10,7 @@ import { MonthlyBarChart } from '@/components/MonthlyBarChart'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useSupplyDemand } from '@/queries/supplyDemand'
 import { formatDate } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 
 type CoverageRow = NonNullable<ReturnType<typeof useSupplyDemand>['data']>['coverage_by_country']['rows'][number]
 // One row of the Where Applicants Are Heading table — a real country, or the Others roll-up.
@@ -111,6 +112,7 @@ function CapacityAssumption({ casesPerStaff, onSaved }: { casesPerStaff: number;
           { cases_per_staff: parsed },
           {
             onSuccess: () => {
+              showToast('Capacity updated')
               setEditing(false)
               onSaved()
             },

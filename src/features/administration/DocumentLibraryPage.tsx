@@ -20,6 +20,7 @@ import { useClients } from '@/queries/clients'
 import { useCreateTag, useTags } from '@/queries/tags'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 import { FilterMultiSelect } from '@/components/FilterMultiSelect'
 
 type LibraryDocument = NonNullable<ReturnType<typeof useDocumentLibrary>['data']>['items'][number]
@@ -180,7 +181,12 @@ export function DocumentLibraryPage() {
             tags={doc.tags ?? []}
             catalog={tags.data ?? []}
             onCreateTag={(name) => createTag.mutateAsync(name)}
-            onSave={(next) => setDocumentTags.mutate({ id: doc.id, tags: next })}
+            onSave={(next) =>
+              setDocumentTags.mutate(
+                { id: doc.id, tags: next },
+                { onSuccess: () => showToast(`Tags updated for ${doc.filename}`) },
+              )
+            }
             saving={setDocumentTags.isPending}
             label={`Edit tags for ${doc.filename}`}
           />
@@ -194,7 +200,13 @@ export function DocumentLibraryPage() {
         <DocumentRowActions
           doc={doc}
           clients={clientOptions}
-          onShare={(journeyId) => shareDocument.mutate({ id: doc.id, journeyId })}
+          onShare={(journeyId) => {
+            const client = clientOptions.find((c) => c.id === journeyId)
+            shareDocument.mutate(
+              { id: doc.id, journeyId },
+              { onSuccess: () => showToast(`${doc.filename} shared with ${client?.name ?? 'applicant'}`) },
+            )
+          }}
         />
       ),
     },
@@ -218,7 +230,7 @@ export function DocumentLibraryPage() {
               id="library-doc-upload"
               onChange={(e) => {
                 const file = e.target.files?.[0]
-                if (file) uploadDocument.mutate(file)
+                if (file) uploadDocument.mutate(file, { onSuccess: () => showToast(`${file.name} uploaded`) })
                 e.target.value = ''
               }}
             />

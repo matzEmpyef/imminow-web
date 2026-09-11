@@ -13,6 +13,7 @@ import {
 } from '@/queries/freelancerRates'
 import { useFreelancerReferralsAdmin } from '@/queries/freelancerReferrals'
 import { formatDate } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 import { ChangeReferralCodeModal } from './ChangeReferralCodeModal'
 import { DeactivateFreelancerModal } from './DeactivateFreelancerModal'
 
@@ -116,7 +117,6 @@ export function FreelancerDrawer({ freelancer, onClose }: { freelancer: Freelanc
   const [deactivating, setDeactivating] = useState(false)
   const resendInvite = useResendFreelancerInvite()
   const updateFreelancer = useUpdateFreelancer()
-  const [resent, setResent] = useState(false)
 
   const referrals = useFreelancerReferralsAdmin(
     { freelancer_id: freelancer?.id, limit: 20 },
@@ -176,14 +176,11 @@ export function FreelancerDrawer({ freelancer, onClose }: { freelancer: Freelanc
                 loading={resendInvite.isPending}
                 onClick={() =>
                   resendInvite.mutate(freelancer.id, {
-                    onSuccess: () => {
-                      setResent(true)
-                      setTimeout(() => setResent(false), 3000)
-                    },
+                    onSuccess: () => showToast(`Invite resent to ${freelancer.email}`),
                   })
                 }
               >
-                {resent ? 'Invite resent' : 'Resend invite'}
+                Resend invite
               </Button>
             )}
             {freelancer.active !== false ? (

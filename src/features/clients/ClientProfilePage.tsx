@@ -10,6 +10,7 @@ import { useClient, useReopenPlan } from '@/queries/clients'
 import { usePlans } from '@/queries/plans'
 import { useFeature } from '@/lib/features'
 import { usePermission } from '@/lib/permissions'
+import { showToast } from '@/lib/toast'
 import { CloseClientModal } from './CloseClientModal'
 import { RaiseIssueModal } from './RaiseIssueModal'
 import { ReopenClientModal } from './ReopenClientModal'
@@ -232,6 +233,7 @@ export function ClientProfilePage() {
               onClick={() =>
                 reopenPlan.mutate(reopenReason, {
                   onSuccess: () => {
+                    showToast('Plan reopened')
                     setShowReopen(false)
                     setReopenReason('')
                   },

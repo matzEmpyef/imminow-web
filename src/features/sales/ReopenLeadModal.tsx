@@ -1,6 +1,7 @@
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { useReopenLead } from '@/queries/leads'
+import { showToast } from '@/lib/toast'
 
 // User-requested — deliberately no permission gate beyond the Ultimate-tier check that already
 // covers Close (LeadConversationPage.tsx): "let everyone have access to reopen a closed lead."
@@ -28,7 +29,17 @@ export function ReopenLeadModal({
             <p className="mr-auto self-center text-body-sm text-error">{reopenLead.error.message}</p>
           )}
           <div className="flex gap-sm">
-            <Button loading={reopenLead.isPending} onClick={() => reopenLead.mutate(leadId, { onSuccess: onClose })}>
+            <Button
+              loading={reopenLead.isPending}
+              onClick={() =>
+                reopenLead.mutate(leadId, {
+                  onSuccess: () => {
+                    showToast('Lead reopened')
+                    onClose()
+                  },
+                })
+              }
+            >
               Reopen Lead
             </Button>
             <Button variant="secondary" onClick={onClose}>

@@ -5,6 +5,7 @@ import { Button } from '@/components/Button'
 import { SearchSelect } from '@/components/SearchSelect'
 import { useAdminConsultancies } from '@/queries/adminConsultancies'
 import { usePlatformSettings, useUpdatePlatformSettings } from '@/queries/catalogSettings'
+import { showToast } from '@/lib/toast'
 
 // Matches the server's own `MAX_FEATURED_INSTITUTES`, and the three cards Top Consultancies shows
 // beside it. There is no shared-package boundary between the mock server and this client, so the
@@ -152,16 +153,18 @@ export function FeaturedInstitutesCard() {
 
           <div className="flex items-center justify-end gap-md border-t border-border pt-md">
             {update.isError && <p className="mr-auto text-body-sm text-error">{update.error.message}</p>}
-            {update.isSuccess && !update.isPending && !dirty && (
-              <p className="mr-auto text-body-sm text-success">Saved.</p>
-            )}
             <Button variant="secondary" disabled={!dirty || update.isPending} onClick={() => setSelected([...saved])}>
               Discard
             </Button>
             <Button
               disabled={!dirty}
               loading={update.isPending}
-              onClick={() => update.mutate({ featured_institutes: current })}
+              onClick={() =>
+                update.mutate(
+                  { featured_institutes: current },
+                  { onSuccess: () => showToast('Featured institutes saved') },
+                )
+              }
             >
               Save
             </Button>

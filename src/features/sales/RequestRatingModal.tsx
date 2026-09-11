@@ -1,6 +1,7 @@
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { useRequestRating } from '@/queries/leads'
+import { showToast } from '@/lib/toast'
 
 // Confirms what "Request a Rating" actually does before firing it — the 7-day cooldown is a real
 // constraint (RATING_COOLDOWN_DAYS on the mock server), not obvious from the button label alone.
@@ -16,7 +17,12 @@ export function RequestRatingModal({
   const requestRating = useRequestRating()
 
   function handleConfirm() {
-    requestRating.mutate(leadId, { onSuccess: onClose })
+    requestRating.mutate(leadId, {
+      onSuccess: () => {
+        showToast(`Rating requested from ${leadName}`)
+        onClose()
+      },
+    })
   }
 
   return (

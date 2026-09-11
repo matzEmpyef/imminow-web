@@ -5,6 +5,7 @@ import { TextField } from '@/components/TextField'
 import { useRecordFreelancerPayout } from '@/queries/freelancerReferrals'
 import type { FreelancerReferral } from '@/queries/freelancerReferrals'
 import { localDateISO } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 
 function inr(n: number | undefined | null): string {
   return `₹${(n ?? 0).toLocaleString('en-IN')}`
@@ -26,7 +27,12 @@ export function RecordPayoutModal({ referral, onClose }: { referral: FreelancerR
     if (!valid) return
     recordPayout.mutate(
       { referralId: referral.id, amount_inr: amountValue, paid_on: paidOn, reference: reference || undefined },
-      { onSuccess: onClose },
+      {
+        onSuccess: () => {
+          showToast(`Payout recorded for ${referral.applicant_name}`)
+          onClose()
+        },
+      },
     )
   }
 

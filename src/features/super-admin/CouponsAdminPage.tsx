@@ -14,6 +14,7 @@ import { ImageUploadField } from '@/components/ImageUploadField'
 import { PersonListModal } from '@/features/super-admin/PersonListModal'
 import { useAdminCoupons, useCouponRedemptions, useCreateCoupon, useUpdateCoupon } from '@/queries/couponsAdmin'
 import { useRedemptionPartners } from '@/queries/redemptionPartners'
+import { showToast } from '@/lib/toast'
 import { formatDate, formatDateTime } from '@/lib/time'
 import { mediaUrl } from '@/lib/mediaUrl'
 import type { components } from '@/api/schema'
@@ -101,9 +102,22 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
       relevance_scope: relevanceScope,
     }
     if (isEditing) {
-      updateCoupon.mutate(body, { onSuccess: () => onClose() })
+      updateCoupon.mutate(body, {
+        onSuccess: () => {
+          showToast('Coupon saved')
+          onClose()
+        },
+      })
     } else {
-      createCoupon.mutate({ partner_id: partnerId, ...body, active: true }, { onSuccess: () => onClose() })
+      createCoupon.mutate(
+        { partner_id: partnerId, ...body, active: true },
+        {
+          onSuccess: () => {
+            showToast('Coupon created')
+            onClose()
+          },
+        },
+      )
     }
   }
 

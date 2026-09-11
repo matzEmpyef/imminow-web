@@ -5,6 +5,7 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useInviteEmployee } from '@/queries/staff'
 import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
+import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type Designation = components['schemas']['Designation']
@@ -44,7 +45,12 @@ export function InviteEmployeeModal({
         designation: designation || undefined,
         designation_id: hasDesignations ? designationId || undefined : undefined,
       },
-      { onSuccess: onClose },
+      {
+        onSuccess: () => {
+          showToast(`Invite sent to ${email}`)
+          onClose()
+        },
+      },
     )
   }
 

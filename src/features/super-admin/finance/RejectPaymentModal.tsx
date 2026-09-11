@@ -4,6 +4,7 @@ import { Button } from '@/components/Button'
 import { TextAreaField } from '@/components/TextAreaField'
 import { money } from './money'
 import { useRejectCommissionPayment, type CommissionPayment } from '@/queries/commission'
+import { showToast } from '@/lib/toast'
 
 const MIN_REASON_LENGTH = 3
 
@@ -34,7 +35,17 @@ export function RejectPaymentModal({ payment, onClose }: { payment: CommissionPa
             variant="destructive"
             loading={reject.isPending}
             disabled={trimmed.length < MIN_REASON_LENGTH}
-            onClick={() => reject.mutate({ paymentId: payment.id, reason: trimmed }, { onSuccess: onClose })}
+            onClick={() =>
+              reject.mutate(
+                { paymentId: payment.id, reason: trimmed },
+                {
+                  onSuccess: () => {
+                    showToast(payment.applicant_name ? `Payment rejected for ${payment.applicant_name}` : 'Payment rejected')
+                    onClose()
+                  },
+                },
+              )
+            }
           >
             Reject
           </Button>

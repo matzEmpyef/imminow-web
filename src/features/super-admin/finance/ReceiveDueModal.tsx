@@ -7,6 +7,7 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { currencyOptions } from './money'
 import { useReceiveCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { localDateISO } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 
 /**
  * Finance records that money has actually arrived (2026-09-11) — a confirmed payment with no
@@ -67,7 +68,12 @@ export function ReceiveDueModal({
                   reference: reference.trim() || undefined,
                   note: note.trim() || undefined,
                 },
-                { onSuccess: (row) => onReceived(row) },
+                {
+                  onSuccess: (row) => {
+                    showToast(`Payment recorded for ${caseRow.applicant_name}`)
+                    onReceived(row)
+                  },
+                },
               )
             }
           >

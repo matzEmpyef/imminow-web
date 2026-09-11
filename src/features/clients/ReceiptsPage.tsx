@@ -11,6 +11,7 @@ import { useCreateReceipt, useInvoices, useReceipts, useVoidReceipt } from '@/qu
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
 import { formatMoneyAmount } from '@/lib/money'
+import { showToast } from '@/lib/toast'
 
 type Receipt = NonNullable<ReturnType<typeof useReceipts>['data']>['items'][number]
 
@@ -31,7 +32,16 @@ function RecordReceiptForm({ onClose }: { onClose: () => void }) {
     // payment twice — money mutations get the same pending guard as the N7 fix.
     if (createReceipt.isPending) return
     if (!invoiceId || !amount) return
-    createReceipt.mutate({ invoice_id: invoiceId, amount: Number(amount), idempotencyKey }, { onSuccess: onClose })
+    const invoice = invoices.data?.items.find((i) => i.id === invoiceId)
+    createReceipt.mutate(
+      { invoice_id: invoiceId, amount: Number(amount), idempotencyKey },
+      {
+        onSuccess: () => {
+          showToast(invoice ? `Payment recorded for ${invoice.applicant_name}` : 'Payment recorded')
+          onClose()
+        },
+      },
+    )
   }
 
   const unvoidInvoices = invoices.data?.items.filter((i) => i.status !== 'void') ?? []

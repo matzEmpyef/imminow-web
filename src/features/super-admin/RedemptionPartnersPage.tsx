@@ -16,6 +16,7 @@ import {
   useUpdateLocation,
   useUpdatePartner,
 } from '@/queries/redemptionPartners'
+import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type RedemptionPartner = components['schemas']['RedemptionPartner']
@@ -50,7 +51,12 @@ function AddLocationForm({ partnerId, onClose }: { partnerId: string; onClose: (
     if (!city || !country) return
     addLocation.mutate(
       { city, district: district || undefined, state: state || undefined, country },
-      { onSuccess: () => onClose() },
+      {
+        onSuccess: () => {
+          showToast(`${city} added`)
+          onClose()
+        },
+      },
     )
   }
 
@@ -348,7 +354,12 @@ function AddPartnerForm({ onClose }: { onClose: () => void }) {
     if (!name) return
     createPartner.mutate(
       { name, category, contact_person: contactPerson, contact_phone: contactPhone },
-      { onSuccess: () => onClose() },
+      {
+        onSuccess: () => {
+          showToast(`${name} added`)
+          onClose()
+        },
+      },
     )
   }
 
@@ -394,7 +405,12 @@ function EditPartnerModal({ partner, onClose }: { partner: RedemptionPartner; on
     if (!name) return
     updatePartner.mutate(
       { name, category, contact_person: contactPerson, contact_phone: contactPhone },
-      { onSuccess: () => onClose() },
+      {
+        onSuccess: () => {
+          showToast(`${name} updated`)
+          onClose()
+        },
+      },
     )
   }
 

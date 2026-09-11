@@ -6,6 +6,7 @@ import { TextField } from '@/components/TextField'
 import { TextAreaField } from '@/components/TextAreaField'
 import { currencyOptions, money } from './money'
 import { useOverrideCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
+import { showToast } from '@/lib/toast'
 
 const MIN_REASON_LENGTH = 3
 
@@ -47,12 +48,25 @@ export function OverrideDueModal({
 
   function handleSubmit() {
     if (mode === 'clear') {
-      overrideDue.mutate({ entryId: caseRow.id, clear: true, reason: trimmedReason }, { onSuccess: (row) => onChanged(row) })
+      overrideDue.mutate(
+        { entryId: caseRow.id, clear: true, reason: trimmedReason },
+        {
+          onSuccess: (row) => {
+            showToast(`Override removed for ${caseRow.applicant_name}`)
+            onChanged(row)
+          },
+        },
+      )
       return
     }
     overrideDue.mutate(
       { entryId: caseRow.id, amount: parsed, currency, due_on: dueOn || null, reason: trimmedReason },
-      { onSuccess: (row) => onChanged(row) },
+      {
+        onSuccess: (row) => {
+          showToast(`Override saved for ${caseRow.applicant_name}`)
+          onChanged(row)
+        },
+      },
     )
   }
 

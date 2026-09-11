@@ -4,6 +4,7 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useCreateDesignation, useEmployees } from '@/queries/staff'
+import { showToast } from '@/lib/toast'
 
 // User-requested — was an inline Card+form toggled below the page header, same move already
 // made for Create Applicant/Add Lead/Invite Employee/Add Branch.
@@ -16,7 +17,15 @@ export function CreateDesignationModal({ onClose }: { onClose: () => void }) {
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!name) return
-    createDesignation.mutate({ name, duplicate_from_employee_id: duplicateFrom || undefined }, { onSuccess: onClose })
+    createDesignation.mutate(
+      { name, duplicate_from_employee_id: duplicateFrom || undefined },
+      {
+        onSuccess: () => {
+          showToast(`${name} designation created`)
+          onClose()
+        },
+      },
+    )
   }
 
   return (

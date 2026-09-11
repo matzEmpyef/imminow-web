@@ -4,6 +4,7 @@ import { Button } from '@/components/Button'
 import { TextAreaField } from '@/components/TextAreaField'
 import { useVoidFreelancerPayout } from '@/queries/freelancerReferrals'
 import type { FreelancerPayout } from '@/queries/freelancerReferrals'
+import { showToast } from '@/lib/toast'
 
 const MIN_REASON_LENGTH = 3
 
@@ -32,7 +33,17 @@ export function VoidPayoutModal({ payout, onClose }: { payout: FreelancerPayout;
             variant="destructive"
             loading={voidPayout.isPending}
             disabled={trimmed.length < MIN_REASON_LENGTH}
-            onClick={() => voidPayout.mutate({ id: payout.id, reason: trimmed }, { onSuccess: onClose })}
+            onClick={() =>
+              voidPayout.mutate(
+                { id: payout.id, reason: trimmed },
+                {
+                  onSuccess: () => {
+                    showToast(`Payout undone for ${payout.freelancer_name}`)
+                    onClose()
+                  },
+                },
+              )
+            }
           >
             Undo payout
           </Button>

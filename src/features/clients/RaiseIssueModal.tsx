@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { useRaiseIssue } from '@/queries/clients'
+import { showToast } from '@/lib/toast'
 
 /**
  * Raise an issue with a case (2026-09-09). Deliberately a separate action from Close Case, and
@@ -24,7 +25,15 @@ export function RaiseIssueModal({
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!reason.trim()) return
-    raiseIssue.mutate({ id: clientId, reason: reason.trim() }, { onSuccess: onClose })
+    raiseIssue.mutate(
+      { id: clientId, reason: reason.trim() },
+      {
+        onSuccess: () => {
+          showToast(`Issue raised for ${clientName}`)
+          onClose()
+        },
+      },
+    )
   }
 
   return (

@@ -7,6 +7,7 @@ import { FieldLabel } from '@/components/FieldLabel'
 import { Modal } from '@/components/Modal'
 import { useCreateEvent, useUpdateEvent } from '@/queries/eventsAdmin'
 import { EVENT_TIMEZONES } from '@/lib/eventTimezones'
+import { showToast } from '@/lib/toast'
 import { SelectField } from '@/components/SelectField'
 import { TargetingFilter } from '@/features/super-admin/TargetingFilter'
 import { useCountries } from '@/queries/countries'
@@ -78,7 +79,12 @@ export function QuizSettingsModal({
     if (!isValid) return
     const body = toPayload()
     if (isEditing) {
-      updateEvent.mutate(body, { onSuccess: () => onClose() })
+      updateEvent.mutate(body, {
+        onSuccess: () => {
+          onClose()
+          showToast(`${title} updated`)
+        },
+      })
     } else {
       createEvent.mutate(
         { type: 'quiz', ...body, questions: [] },

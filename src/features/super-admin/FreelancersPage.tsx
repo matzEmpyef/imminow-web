@@ -9,6 +9,7 @@ import { formatDate } from '@/lib/time'
 import { useFreelancers, type Freelancer } from '@/queries/freelancerRates'
 import { InviteFreelancerModal } from './freelancers/InviteFreelancerModal'
 import { FreelancerDrawer } from './freelancers/FreelancerDrawer'
+import { showToast } from '@/lib/toast'
 
 const STATUS_BADGE = {
   invited: { color: 'warning', label: 'Invited' },
@@ -64,7 +65,6 @@ export function FreelancersPage() {
   const [status, setStatus] = useState<'' | 'invited' | 'active' | 'deactivated'>('')
   const [viewingId, setViewingId] = useState<string | null>(null)
   const [inviting, setInviting] = useState(false)
-  const [invitedEmail, setInvitedEmail] = useState<string | null>(null)
 
   const rows = useMemo(() => {
     const items = freelancers.data ?? []
@@ -172,12 +172,6 @@ export function FreelancersPage() {
           </div>
         </div>
 
-        {invitedEmail && (
-          <p className="rounded-md bg-success/10 px-md py-sm text-body-sm text-success">
-            Invite sent to {invitedEmail}.
-          </p>
-        )}
-
         <SummaryTiles freelancers={freelancers.data ?? []} />
 
         <Table
@@ -208,10 +202,7 @@ export function FreelancersPage() {
         {inviting && (
           <InviteFreelancerModal
             onClose={() => setInviting(false)}
-            onInvited={(email) => {
-              setInvitedEmail(email)
-              setTimeout(() => setInvitedEmail(null), 5000)
-            }}
+            onInvited={(email) => showToast(`Invite sent to ${email}`)}
           />
         )}
       </div>

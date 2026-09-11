@@ -422,7 +422,6 @@ function StaffDrawerBody({ staff, currentUserId }: { staff: PlatformStaff; curre
   const enableStaff = useEnablePlatformStaff()
   const [confirmingDisable, setConfirmingDisable] = useState(false)
   const [confirmingEnable, setConfirmingEnable] = useState(false)
-  const [resendDone, setResendDone] = useState(false)
 
   const status = staffStatus(staff)
   const isSelf = Boolean(currentUserId) && staff.user_id === currentUserId
@@ -473,7 +472,9 @@ function StaffDrawerBody({ staff, currentUserId }: { staff: PlatformStaff; curre
                 variant="secondary"
                 size="sm"
                 loading={resendInvite.isPending}
-                onClick={() => resendInvite.mutate(staff.id!, { onSuccess: () => setResendDone(true) })}
+                onClick={() =>
+                  resendInvite.mutate(staff.id!, { onSuccess: () => showToast(`Invite resent to ${staff.email}`) })
+                }
               >
                 Resend invite
               </Button>
@@ -490,7 +491,6 @@ function StaffDrawerBody({ staff, currentUserId }: { staff: PlatformStaff; curre
               </Button>
             )}
           </div>
-          {resendDone && <p className="text-caption text-success">Invite resent.</p>}
           {resendInvite.isError && <p className="text-caption text-error">{resendInvite.error.message}</p>}
         </div>
       )}

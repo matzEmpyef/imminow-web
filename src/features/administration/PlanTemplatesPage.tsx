@@ -20,6 +20,7 @@ import {
   useUpdatePlanTemplate,
 } from '@/queries/plans'
 import { formatDate } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard'
 import type { ComponentInput } from '@/lib/planComponents'
 import type { components } from '@/api/schema'
@@ -164,9 +165,25 @@ function TemplateEditor({ template, onDone }: { template: PlanTemplate | null; o
   function handleSave() {
     if (!name || steps.length === 0) return
     if (template) {
-      updateTemplate.mutate({ id: template.id, name, steps }, { onSuccess: onDone })
+      updateTemplate.mutate(
+        { id: template.id, name, steps },
+        {
+          onSuccess: () => {
+            showToast(`${name} template saved`)
+            onDone()
+          },
+        },
+      )
     } else {
-      createTemplate.mutate({ name, steps }, { onSuccess: onDone })
+      createTemplate.mutate(
+        { name, steps },
+        {
+          onSuccess: () => {
+            showToast(`${name} template created`)
+            onDone()
+          },
+        },
+      )
     }
   }
 
@@ -550,7 +567,14 @@ function PlanRowActions({
               <div className="flex gap-sm">
                 <Button
                   loading={duplicateTemplate.isPending}
-                  onClick={() => duplicateTemplate.mutate(template.id, { onSuccess: () => setConfirmDuplicate(false) })}
+                  onClick={() =>
+                    duplicateTemplate.mutate(template.id, {
+                      onSuccess: () => {
+                        showToast(`${template.name} template duplicated`)
+                        setConfirmDuplicate(false)
+                      },
+                    })
+                  }
                 >
                   Duplicate
                 </Button>

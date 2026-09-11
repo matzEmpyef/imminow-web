@@ -3,6 +3,7 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useRevertAcceptance } from '@/queries/clients'
+import { showToast } from '@/lib/toast'
 
 /**
  * The audited mistake-fix (user decision, 2026-08-28): acceptance is otherwise final, so undoing
@@ -26,7 +27,15 @@ export function RevertAcceptanceModal({
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!reason.trim()) return
-    revert.mutate({ applicationId, reason: reason.trim() }, { onSuccess: onClose })
+    revert.mutate(
+      { applicationId, reason: reason.trim() },
+      {
+        onSuccess: () => {
+          showToast(`Acceptance reverted for ${courseName}`)
+          onClose()
+        },
+      },
+    )
   }
 
   return (

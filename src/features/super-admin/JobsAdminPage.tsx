@@ -14,6 +14,7 @@ import { Modal } from '@/components/Modal'
 import { useAdminJobs, useCreateJob, useUpdateJob } from '@/queries/jobsAdmin'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type JobListing = components['schemas']['JobListing']
@@ -90,9 +91,19 @@ function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing; onClos
       active_to: activeTo || null,
     }
     if (isEditing) {
-      updateJob.mutate(body, { onSuccess: () => onClose() })
+      updateJob.mutate(body, {
+        onSuccess: () => {
+          onClose()
+          showToast(`${title} updated`)
+        },
+      })
     } else {
-      createJob.mutate(body, { onSuccess: () => onClose() })
+      createJob.mutate(body, {
+        onSuccess: () => {
+          onClose()
+          showToast(`${title} posted`)
+        },
+      })
     }
   }
 

@@ -3,6 +3,7 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useUpdateBranch } from '@/queries/staff'
+import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type Branch = components['schemas']['Branch']
@@ -17,7 +18,15 @@ export function EditBranchModal({ branch, onClose }: { branch: Branch; onClose: 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!name || !address) return
-    updateBranch.mutate({ name, address }, { onSuccess: onClose })
+    updateBranch.mutate(
+      { name, address },
+      {
+        onSuccess: () => {
+          showToast(`${name} branch updated`)
+          onClose()
+        },
+      },
+    )
   }
 
   return (

@@ -15,6 +15,7 @@ import {
   useResolveAllocationRequest,
 } from '@/queries/applicantAllocation'
 import { formatDate } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type QueueEntry = components['schemas']['ApplicantAllocationEntry']
@@ -104,7 +105,14 @@ function ResolveAction({ entry }: { entry: QueueEntry }) {
               <Button
                 loading={resolve.isPending}
                 disabled={!note.trim()}
-                onClick={() => resolve.mutate(note.trim(), { onSuccess: () => setOpen(false) })}
+                onClick={() =>
+                  resolve.mutate(note.trim(), {
+                    onSuccess: () => {
+                      showToast('Transfer request resolved')
+                      setOpen(false)
+                    },
+                  })
+                }
               >
                 Resolve
               </Button>
@@ -193,7 +201,14 @@ function AllocateAction({ entry }: { entry: QueueEntry }) {
               <Button
                 loading={allocate.isPending}
                 disabled={!consultancyId}
-                onClick={() => allocate.mutate(consultancyId, { onSuccess: () => setOpen(false) })}
+                onClick={() =>
+                  allocate.mutate(consultancyId, {
+                    onSuccess: () => {
+                      showToast(`${entry.applicant_name} allocated`)
+                      setOpen(false)
+                    },
+                  })
+                }
               >
                 Allocate
               </Button>

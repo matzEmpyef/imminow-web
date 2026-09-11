@@ -14,6 +14,7 @@ import { useCreateInvoice, useInvoices, useVoidInvoice } from '@/queries/invoici
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
 import { formatMoneyAmount } from '@/lib/money'
+import { showToast } from '@/lib/toast'
 
 const STATUS_COLOR = { sent: 'info', paid: 'success', overdue: 'error', void: 'secondary' } as const
 
@@ -54,7 +55,16 @@ function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
       .filter((li) => li.description && li.amount)
       .map((li) => ({ description: li.description, amount: Number(li.amount) }))
     if (!journeyId || items.length === 0) return
-    createInvoice.mutate({ journey_id: journeyId, line_items: items, idempotencyKey }, { onSuccess: onClose })
+    const applicant = clients.data?.items.find((c) => c.id === journeyId)
+    createInvoice.mutate(
+      { journey_id: journeyId, line_items: items, idempotencyKey },
+      {
+        onSuccess: () => {
+          showToast(applicant ? `Invoice created for ${applicant.student.first_name} ${applicant.student.last_name}` : 'Invoice created')
+          onClose()
+        },
+      },
+    )
   }
 
   return (

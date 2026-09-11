@@ -3,6 +3,7 @@ import { Eye, EyeOff } from 'lucide-react'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
+import { showToast } from '@/lib/toast'
 import { useUpdateEvent } from '@/queries/eventsAdmin'
 import type { components } from '@/api/schema'
 
@@ -66,7 +67,17 @@ export function EventListingToggle({ event }: { event: Event }) {
               <Button
                 variant="destructive"
                 loading={updateEvent.isPending}
-                onClick={() => updateEvent.mutate({ listed: false }, { onSuccess: () => setConfirming(false) })}
+                onClick={() =>
+                  updateEvent.mutate(
+                    { listed: false },
+                    {
+                      onSuccess: () => {
+                        setConfirming(false)
+                        showToast(`${event.title} removed from listing`)
+                      },
+                    },
+                  )
+                }
               >
                 Remove
               </Button>

@@ -7,6 +7,7 @@ import { Modal } from '@/components/Modal'
 import { useAdminEvents, useVoidEvent } from '@/queries/eventsAdmin'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatEventDateTime } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 import { type Event } from './quizShared'
 import { QuizSettingsModal } from './QuizSettingsModal'
 import { ManageQuestionsModal } from './ManageQuestionsModal'
@@ -55,7 +56,14 @@ function VoidQuizAction({ event }: { event: Event }) {
               <Button
                 variant="destructive"
                 loading={voidEvent.isPending}
-                onClick={() => voidEvent.mutate(event.id!, { onSuccess: () => setConfirming(false) })}
+                onClick={() =>
+                  voidEvent.mutate(event.id!, {
+                    onSuccess: () => {
+                      setConfirming(false)
+                      showToast(`${event.title} voided`)
+                    },
+                  })
+                }
               >
                 Void
               </Button>

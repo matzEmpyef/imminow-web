@@ -11,6 +11,7 @@ import { usePartnerColleges } from '@/queries/partnerColleges'
 import { useMyConsultancy } from '@/queries/consultancy'
 import { useStudyLevels } from '@/queries/studyLevels'
 import { formatDate } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 
 const STATUS_COLOR = { pending: 'warning', approved: 'success', rejected: 'error' } as const
 // The consultant only needs a binary answer — did the change happen or not (user, 2026-08-24:
@@ -88,7 +89,12 @@ function SuggestNewCourseModal({ onClose }: { onClose: () => void }) {
     if (!name || !selectedCollege) return
     suggestNew.mutate(
       { name, college_name: selectedCollege.college_name, level, field_of_study: fieldOfStudy },
-      { onSuccess: onClose },
+      {
+        onSuccess: () => {
+          showToast(`Course suggestion submitted for ${name}`)
+          onClose()
+        },
+      },
     )
   }
 

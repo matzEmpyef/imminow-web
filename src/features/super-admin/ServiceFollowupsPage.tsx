@@ -12,6 +12,7 @@ import { Table, type TableColumn } from '@/components/Table'
 import { TextAreaField } from '@/components/TextAreaField'
 import { TextField } from '@/components/TextField'
 import { relativeTime } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 import {
   useServiceFollowups,
   useServiceNotes,
@@ -112,7 +113,12 @@ function SendNudgeModal({ row, onClose }: { row: ServiceFollowupRow; onClose: ()
             onClick={() =>
               send.mutate(
                 { studentId: row.student_id, title: title.trim() || undefined, body: body.trim() },
-                { onSuccess: onClose },
+                {
+                  onSuccess: () => {
+                    onClose()
+                    showToast(`Push sent to ${row.student_name}`)
+                  },
+                },
               )
             }
           >
@@ -202,7 +208,12 @@ export function ServiceFollowupsPage() {
         outcome: input.outcome as ServiceFollowupOutcome | undefined,
         callBackOn: input.callBackOn,
       },
-      { onSuccess: () => setLogging(null) },
+      {
+        onSuccess: () => {
+          setLogging(null)
+          showToast(`Call logged for ${row.student_name}`)
+        },
+      },
     )
   }
 

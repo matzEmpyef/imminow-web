@@ -3,6 +3,7 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useUpdateFreelancer, type Freelancer } from '@/queries/freelancerRates'
+import { showToast } from '@/lib/toast'
 
 const CODE_PATTERN = /^[A-Z0-9-]{4,20}$/
 
@@ -25,7 +26,15 @@ export function ChangeReferralCodeModal({ freelancer, onClose }: { freelancer: F
     e.preventDefault()
     setTouched(true)
     if (!valid || unchanged) return
-    updateFreelancer.mutate({ id: freelancer.id, referral_code: code }, { onSuccess: onClose })
+    updateFreelancer.mutate(
+      { id: freelancer.id, referral_code: code },
+      {
+        onSuccess: () => {
+          showToast('Referral code changed')
+          onClose()
+        },
+      },
+    )
   }
 
   return (

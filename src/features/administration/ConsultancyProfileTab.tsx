@@ -16,6 +16,7 @@ import { useCountries } from '@/queries/countries'
 import { useMyKyc, useSubmitKyc } from '@/queries/kyc'
 import type { components } from '@/api/schema'
 import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
+import { showToast } from '@/lib/toast'
 
 // User-requested — Description is the short factual blurb shown in the student-facing browse
 // list and near the top of Consultancy Detail, so it needs to stay scannable.
@@ -59,16 +60,19 @@ export function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnTyp
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (publicEmailError || publicPhoneError || descriptionError) return
-    updateProfile.mutate({
-      logo_url: logoUrl || null,
-      description,
-      about_us: aboutUs,
-      countries_served: countries,
-      city,
-      country,
-      public_email: publicEmail || null,
-      public_phone: publicPhone || null,
-    })
+    updateProfile.mutate(
+      {
+        logo_url: logoUrl || null,
+        description,
+        about_us: aboutUs,
+        countries_served: countries,
+        city,
+        country,
+        public_email: publicEmail || null,
+        public_phone: publicPhone || null,
+      },
+      { onSuccess: () => showToast('Profile updated') },
+    )
   }
 
   return (
@@ -143,7 +147,6 @@ export function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnTyp
             error={publicPhoneError}
           />
           <div className="flex items-center justify-end gap-md lg:col-span-2">
-            {updateProfile.isSuccess && <p className="text-body-sm text-success">Profile updated.</p>}
             {updateProfile.isError && <p className="text-body-sm text-error">{updateProfile.error.message}</p>}
             <Button
               type="submit"
@@ -453,12 +456,19 @@ function KycCard() {
           hint="Image of your registration/incorporation certificate. Re-uploading restarts verification."
         />
         {submitKyc.isError && <p className="text-body-sm text-error">{submitKyc.error.message}</p>}
-        {submitKyc.isSuccess && <p className="text-body-sm text-success">Submitted — pending verification.</p>}
         <Button
           className="w-fit"
           loading={submitKyc.isPending}
           disabled={!documentUrl}
-          onClick={() => documentUrl && submitKyc.mutate(documentUrl, { onSuccess: () => setDocumentUrl(null) })}
+          onClick={() =>
+            documentUrl &&
+            submitKyc.mutate(documentUrl, {
+              onSuccess: () => {
+                setDocumentUrl(null)
+                showToast('KYC submitted — pending verification')
+              },
+            })
+          }
         >
           Submit for verification
         </Button>

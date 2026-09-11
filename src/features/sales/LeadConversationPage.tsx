@@ -11,6 +11,7 @@ import { ChatPanel } from '@/components/ChatPanel'
 import { AssignBranchMenu } from '@/components/AssignBranchMenu'
 import { StudentProfileFields } from '@/components/StudentProfileFields'
 import { useChatWindowStore } from '@/stores/chatWindowStore'
+import { showToast } from '@/lib/toast'
 import { SetReminderModal } from './SetReminderModal'
 import { RequestRatingModal } from './RequestRatingModal'
 import { ConvertToClientModal } from './ConvertToClientModal'
@@ -81,7 +82,12 @@ function ConversionApprovalActions({
       <Button
         variant="secondary"
         loading={respond.isPending && respond.variables?.decision === 'declined'}
-        onClick={() => respond.mutate({ proposalId: proposal.id, decision: 'declined' })}
+        onClick={() =>
+          respond.mutate(
+            { proposalId: proposal.id, decision: 'declined' },
+            { onSuccess: () => showToast('Conversion declined') },
+          )
+        }
       >
         Decline
       </Button>

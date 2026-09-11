@@ -5,6 +5,7 @@ import { SearchSelect } from '@/components/SearchSelect'
 import { useTransferApplicant } from '@/queries/clients'
 import { useMyConsultancy } from '@/queries/consultancy'
 import { useAdminConsultancies } from '@/queries/adminConsultancies'
+import { showToast } from '@/lib/toast'
 
 // Cross-consultancy Transfer Applicant (restored 2026-08-20 — user: "Transfer Applicant is
 // needed, both to other consultancy and Transfer Consultant also is needed.. Just that Transfer
@@ -48,7 +49,12 @@ export function TransferApplicantModal({
     if (!ready) return
     transfer.mutate(
       { newConsultancyId, reason: reason.trim(), transferCode: transferCode.trim().toUpperCase() },
-      { onSuccess: onTransferred },
+      {
+        onSuccess: () => {
+          showToast(`${clientName} transferred to another consultancy`)
+          onTransferred()
+        },
+      },
     )
   }
 

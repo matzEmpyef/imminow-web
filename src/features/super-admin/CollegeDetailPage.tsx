@@ -23,6 +23,7 @@ import { useCourses, useCreateCourse, useUpdateCourse } from '@/queries/courseSu
 import { useExams } from '@/queries/catalogSettings'
 import { useStudyLevels } from '@/queries/studyLevels'
 import { useCursorPagination } from '@/lib/pagination'
+import { showToast } from '@/lib/toast'
 import { FORM_TABS, courseCompleteness } from './courseFormShared'
 import {
   CourseBasicsPanel,
@@ -83,10 +84,24 @@ function CampusFormModal({
     e.preventDefault()
     if (!provinceState || !country) return
     const body = { province_state: provinceState, city: city || null, country }
+    const label = [city, provinceState].filter(Boolean).join(', ') || 'Campus'
     if (editingCampus) {
-      updateCampus.mutate({ campusId: editingCampus.id!, body }, { onSuccess: () => onClose() })
+      updateCampus.mutate(
+        { campusId: editingCampus.id!, body },
+        {
+          onSuccess: () => {
+            showToast(`${label} campus updated`)
+            onClose()
+          },
+        },
+      )
     } else {
-      createCampus.mutate(body, { onSuccess: () => onClose() })
+      createCampus.mutate(body, {
+        onSuccess: () => {
+          showToast(`${label} campus added`)
+          onClose()
+        },
+      })
     }
   }
 
@@ -164,12 +179,18 @@ export function CourseFormModal({
     if (!form.isValid) return
     const body = form.toPayload()
     if (isEditing) {
-      updateCourse.mutate(body, { onSuccess: () => onClose() })
+      updateCourse.mutate(body, {
+        onSuccess: () => {
+          showToast(`${form.name || 'Course'} saved`)
+          onClose()
+        },
+      })
     } else {
       createCourse.mutate(
         { ...body, college_id: college.id!, active: true },
         {
           onSuccess: (created) => {
+            showToast(`${form.name || 'Course'} created`)
             onCreated?.(created as Course)
             onClose()
           },

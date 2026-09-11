@@ -4,6 +4,7 @@ import { Button } from '@/components/Button'
 import { SearchSelect } from '@/components/SearchSelect'
 import { useCourses } from '@/queries/courseSuggestions'
 import { useAddApplication } from '@/queries/clients'
+import { showToast } from '@/lib/toast'
 
 type Course = NonNullable<ReturnType<typeof useCourses>['data']>['items'][number]
 
@@ -45,7 +46,15 @@ export function AddApplicationModal({
       setConfirmCourse(course)
       return
     }
-    addCollege.mutate({ course_id: course.id }, { onSuccess: onClose })
+    addCollege.mutate(
+      { course_id: course.id },
+      {
+        onSuccess: () => {
+          showToast(`${course.name} added`)
+          onClose()
+        },
+      },
+    )
   }
 
   function handlePick(id: string) {
@@ -74,7 +83,15 @@ export function AddApplicationModal({
             <Button
               loading={addCollege.isPending}
               onClick={() =>
-                addCollege.mutate({ course_id: confirmCourse.id }, { onSuccess: onClose })
+                addCollege.mutate(
+                  { course_id: confirmCourse.id },
+                  {
+                    onSuccess: () => {
+                      showToast(`${confirmCourse.name} added`)
+                      onClose()
+                    },
+                  },
+                )
               }
             >
               Add Anyway

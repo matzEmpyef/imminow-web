@@ -10,6 +10,7 @@ import { FormFieldsPreview } from './FormFieldsPreview'
 import { useCreateFormTemplate, useFormTemplate, useUpdateFormTemplate } from '@/queries/formTemplates'
 import { isGroup, listGroups, type FormFieldInput } from '@/lib/formFields'
 import { ErrorState, Skeleton } from '@/components/QueryState'
+import { showToast } from '@/lib/toast'
 
 export function FormBuilderPage() {
   const { id } = useParams()
@@ -84,9 +85,25 @@ export function FormBuilderPage() {
   function handleSave() {
     if (!name || fields.length === 0) return
     if (isNew) {
-      createForm.mutate({ name, fields }, { onSuccess: () => navigate('/administration/forms') })
+      createForm.mutate(
+        { name, fields },
+        {
+          onSuccess: () => {
+            showToast(`${name} form created`)
+            navigate('/administration/forms')
+          },
+        },
+      )
     } else {
-      updateForm.mutate({ name, fields }, { onSuccess: () => navigate('/administration/forms') })
+      updateForm.mutate(
+        { name, fields },
+        {
+          onSuccess: () => {
+            showToast(`${name} form saved`)
+            navigate('/administration/forms')
+          },
+        },
+      )
     }
   }
 

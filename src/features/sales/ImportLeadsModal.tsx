@@ -5,6 +5,7 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useCommitLeadImport, useCreateLead, useValidateLeadImport } from '@/queries/leads'
 import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
+import { showToast } from '@/lib/toast'
 
 const SOURCES = [
   { value: 'referral', label: 'Referral' },
@@ -172,6 +173,7 @@ export function AddLeadModal({ onClose }: { onClose: () => void }) {
       { name, phone: phone || null, email: email || null, source, notes: notes || null },
       {
         onSuccess: () => {
+          showToast('Lead added to the pool')
           setName('')
           setPhone('')
           setEmail('')
@@ -188,9 +190,6 @@ export function AddLeadModal({ onClose }: { onClose: () => void }) {
       widthRem={26}
       footer={
         <>
-          {createLead.isSuccess && (
-            <p className="mr-auto self-center text-body-sm text-success">Lead added to the pool.</p>
-          )}
           {createLead.isError && (
             <p className="mr-auto self-center text-body-sm text-error">{createLead.error.message}</p>
           )}

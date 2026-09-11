@@ -42,6 +42,7 @@ import {
   type CountryContent,
 } from '@/queries/countryContent'
 import { formatDate } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type Exam = components['schemas']['Exam']
@@ -341,7 +342,13 @@ function AddCountryModal({ onClose }: { onClose: () => void }) {
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
-    createCountry.mutate(name.trim(), { onSuccess: onClose })
+    const trimmedName = name.trim()
+    createCountry.mutate(trimmedName, {
+      onSuccess: () => {
+        onClose()
+        showToast(`${trimmedName} added`)
+      },
+    })
   }
 
   return (
@@ -535,7 +542,14 @@ function DeleteCountryTrigger({ country }: { country: string }) {
               <Button
                 variant="destructive"
                 loading={deleteCountry.isPending}
-                onClick={() => deleteCountry.mutate(country, { onSuccess: () => setConfirming(false) })}
+                onClick={() =>
+                  deleteCountry.mutate(country, {
+                    onSuccess: () => {
+                      setConfirming(false)
+                      showToast(`${country} removed`)
+                    },
+                  })
+                }
               >
                 Remove
               </Button>
@@ -574,7 +588,15 @@ function GuideEditorModal({
   const [published, setPublished] = useState(entry?.published ?? false)
 
   function handleSave() {
-    save.mutate({ country, summary: summary.trim(), body_html: bodyHtml, published }, { onSuccess: () => onClose() })
+    save.mutate(
+      { country, summary: summary.trim(), body_html: bodyHtml, published },
+      {
+        onSuccess: () => {
+          onClose()
+          showToast(`${country} guide saved`)
+        },
+      },
+    )
   }
 
   return (
@@ -655,6 +677,7 @@ function DeleteGuideTrigger({ country, onDeleted }: { country: string; onDeleted
                     onSuccess: () => {
                       setConfirming(false)
                       onDeleted()
+                      showToast(`${country} guide deleted`)
                     },
                   })
                 }
@@ -814,8 +837,21 @@ function ExamFormModal({ exam, onClose }: { exam?: Exam; onClose: () => void }) 
       has_section_bands: hasSectionBands,
       category,
     }
-    if (isEditing) updateExam.mutate(body, { onSuccess: onClose })
-    else createExam.mutate(body, { onSuccess: onClose })
+    if (isEditing) {
+      updateExam.mutate(body, {
+        onSuccess: () => {
+          onClose()
+          showToast(`${name} updated`)
+        },
+      })
+    } else {
+      createExam.mutate(body, {
+        onSuccess: () => {
+          onClose()
+          showToast(`${name} added`)
+        },
+      })
+    }
   }
 
   return (
@@ -1083,7 +1119,14 @@ function StudyLevelRowActions({ level, onRename }: { level: StudyLevel; onRename
               <Button
                 variant="destructive"
                 loading={remove.isPending}
-                onClick={() => remove.mutate(level.code, { onSuccess: () => setDeleting(false) })}
+                onClick={() =>
+                  remove.mutate(level.code, {
+                    onSuccess: () => {
+                      setDeleting(false)
+                      showToast(`${level.label} deleted`)
+                    },
+                  })
+                }
               >
                 Delete
               </Button>
@@ -1114,7 +1157,15 @@ function StudyLevelRowActions({ level, onRename }: { level: StudyLevel; onRename
                 variant="destructive"
                 loading={update.isPending}
                 onClick={() =>
-                  update.mutate({ code: level.code, active: false }, { onSuccess: () => setConfirming(false) })
+                  update.mutate(
+                    { code: level.code, active: false },
+                    {
+                      onSuccess: () => {
+                        setConfirming(false)
+                        showToast(`${level.label} retired`)
+                      },
+                    },
+                  )
                 }
               >
                 Retire
@@ -1148,8 +1199,28 @@ function StudyLevelFormModal({ level, onClose }: { level?: StudyLevel; onClose: 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!label.trim() || !effectiveCode) return
-    if (isEditing) updateLevel.mutate({ code: level!.code, label: label.trim() }, { onSuccess: onClose })
-    else createLevel.mutate({ label: label.trim(), code: effectiveCode }, { onSuccess: onClose })
+    const trimmedLabel = label.trim()
+    if (isEditing) {
+      updateLevel.mutate(
+        { code: level!.code, label: trimmedLabel },
+        {
+          onSuccess: () => {
+            onClose()
+            showToast(`${trimmedLabel} renamed`)
+          },
+        },
+      )
+    } else {
+      createLevel.mutate(
+        { label: trimmedLabel, code: effectiveCode },
+        {
+          onSuccess: () => {
+            onClose()
+            showToast(`${trimmedLabel} added`)
+          },
+        },
+      )
+    }
   }
 
   return (
@@ -1381,7 +1452,16 @@ function RateFormModal({
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!valid) return
-    upsert.mutate({ currency: currency.trim().toUpperCase(), inr_per_unit: Number(inrPerUnit) }, { onSuccess: onClose })
+    const code = currency.trim().toUpperCase()
+    upsert.mutate(
+      { currency: code, inr_per_unit: Number(inrPerUnit) },
+      {
+        onSuccess: () => {
+          onClose()
+          showToast(rate ? `${code} rate updated` : `${code} rate added`)
+        },
+      },
+    )
   }
 
   return (

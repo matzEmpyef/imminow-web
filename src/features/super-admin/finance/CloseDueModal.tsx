@@ -4,6 +4,7 @@ import { Button } from '@/components/Button'
 import { TextAreaField } from '@/components/TextAreaField'
 import { money } from './money'
 import { useWaiveCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
+import { showToast } from '@/lib/toast'
 
 const MIN_REASON_LENGTH = 3
 
@@ -52,7 +53,12 @@ export function CloseDueModal({
               part.key &&
               waiveDue.mutate(
                 { entryId: caseRow.id, part_key: part.key, reason: trimmedReason },
-                { onSuccess: (row) => onClosed(row) },
+                {
+                  onSuccess: (row) => {
+                    showToast(`Due closed for ${caseRow.applicant_name}`)
+                    onClosed(row)
+                  },
+                },
               )
             }
           >

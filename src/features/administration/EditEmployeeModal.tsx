@@ -5,6 +5,7 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useUpdateEmployee } from '@/queries/staff'
 import { PHONE_ERROR, isValidPhone } from '@/lib/validation'
+import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type Employee = components['schemas']['Employee']
@@ -51,7 +52,12 @@ function EditEmployeeModalBody({ employee, onClose }: { employee: Employee; onCl
         phone: phone || null,
         designation: designation || null,
       },
-      { onSuccess: onClose },
+      {
+        onSuccess: () => {
+          showToast(`${firstName} ${lastName} updated`)
+          onClose()
+        },
+      },
     )
   }
 

@@ -13,6 +13,7 @@ import { Eye, XCircle } from 'lucide-react'
 import { formatDate, relativeTime } from '@/lib/time'
 import { LeadDetailModal } from '@/features/clients/LeadDetailModal'
 import { CloseLeadModal } from './CloseLeadModal'
+import { showToast } from '@/lib/toast'
 
 type Lead = NonNullable<ReturnType<typeof useLeads>['data']>['items'][number]
 
@@ -83,9 +84,20 @@ export function LeadPoolPage() {
     // T8: pending guard + one key per confirmed selection — a double-fire of the same
     // confirmation is one allocation, not two.
     if (bulkAllocate.isPending) return
+    const count = selected.size
+    const consultantName = consultantOptions.find((c) => c.id === employeeId)?.name
     bulkAllocate.mutate(
       { lead_ids: [...selected], employee_id: employeeId, idempotencyKey: crypto.randomUUID() },
-      { onSuccess: () => setSelected(new Set()) },
+      {
+        onSuccess: () => {
+          setSelected(new Set())
+          showToast(
+            consultantName
+              ? `${count} lead${count === 1 ? '' : 's'} allocated to ${consultantName}`
+              : `${count} lead${count === 1 ? '' : 's'} allocated`,
+          )
+        },
+      },
     )
   }
 
@@ -157,7 +169,18 @@ export function LeadPoolPage() {
             render: (lead) => (
               <AssignConsultantMenu
                 employees={consultantOptions}
-                onSelect={(employeeId) => allocate.mutate({ id: lead.id, employeeId })}
+                onSelect={(employeeId) => {
+                  const consultantName = consultantOptions.find((c) => c.id === employeeId)?.name
+                  allocate.mutate(
+                    { id: lead.id, employeeId },
+                    {
+                      onSuccess: () =>
+                        showToast(
+                          consultantName ? `${lead.name} allocated to ${consultantName}` : `${lead.name} allocated`,
+                        ),
+                    },
+                  )
+                }}
                 label={`Allocate ${lead.name}`}
                 variant="icon"
               />

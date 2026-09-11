@@ -4,6 +4,7 @@ import { Button } from '@/components/Button'
 import { TextAreaField } from '@/components/TextAreaField'
 import { money } from './money'
 import { useVoidCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
+import { showToast } from '@/lib/toast'
 
 const MIN_REASON_LENGTH = 3
 
@@ -44,7 +45,12 @@ export function VoidDueModal({
               part.id &&
               voidDue.mutate(
                 { entryId: caseRow.id, changeId: part.id, reason: trimmedReason },
-                { onSuccess: (row) => onVoided(row) },
+                {
+                  onSuccess: (row) => {
+                    showToast(`Added amount removed for ${caseRow.applicant_name}`)
+                    onVoided(row)
+                  },
+                },
               )
             }
           >

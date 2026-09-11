@@ -19,6 +19,7 @@ import {
   type PartnerCollege,
   type PayerMethod,
 } from '@/queries/partnerColleges'
+import { showToast } from '@/lib/toast'
 
 const PAYER_LABEL: Record<PayerMethod, string> = { college: 'College', applicant: 'Applicant', split: 'Split' }
 const ALL_PAYERS: PayerMethod[] = ['college', 'applicant', 'split']
@@ -238,16 +239,22 @@ export function PartnerCollegesPanel({
                     (addCommissionPercent === '' || Number(addCommissionPercent) < 0 || Number(addCommissionPercent) > 100))
                 }
                 loading={addRelation.isPending}
-                onClick={() =>
+                onClick={() => {
+                  const collegeName = collegeOptions.find((c) => c.id === addCollegeId)?.label ?? 'Partner college'
                   addRelation.mutate(
                     {
                       college_id: addCollegeId,
                       payer_method: addPayer as PayerMethod,
                       ...(needsCommission(addPayer) ? { commission_percent: Number(addCommissionPercent) } : {}),
                     },
-                    { onSuccess: closeAdd },
+                    {
+                      onSuccess: () => {
+                        showToast(`${collegeName} added as partner college`)
+                        closeAdd()
+                      },
+                    },
                   )
-                }
+                }}
               >
                 Add college
               </Button>
@@ -319,7 +326,12 @@ export function PartnerCollegesPanel({
           onSave={(excludedIds) =>
             updateRelation.mutate(
               { id: managing.id, excluded_course_ids: excludedIds },
-              { onSuccess: () => setManaging(null) },
+              {
+                onSuccess: () => {
+                  showToast(`Courses updated for ${managing.college_name}`)
+                  setManaging(null)
+                },
+              },
             )
           }
           saving={updateRelation.isPending}
@@ -360,7 +372,12 @@ export function PartnerCollegesPanel({
                 payer_method: pendingPayerChange.payer,
                 commission_percent: percent,
               },
-              { onSuccess: () => setPendingPayerChange(null) },
+              {
+                onSuccess: () => {
+                  showToast(`Commission set for ${pendingPayerChange.relation.college_name}`)
+                  setPendingPayerChange(null)
+                },
+              },
             )
           }
         />
@@ -374,7 +391,12 @@ export function PartnerCollegesPanel({
           onSave={(percent) =>
             updateRelation.mutate(
               { id: editingCommission.id, commission_percent: percent },
-              { onSuccess: () => setEditingCommission(null) },
+              {
+                onSuccess: () => {
+                  showToast(`Commission updated for ${editingCommission.college_name}`)
+                  setEditingCommission(null)
+                },
+              },
             )
           }
         />

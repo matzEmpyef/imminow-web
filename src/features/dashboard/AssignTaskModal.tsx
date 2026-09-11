@@ -7,6 +7,7 @@ import { SearchSelect } from '@/components/SearchSelect'
 import { useAssignActivityTask } from '@/queries/activity'
 import { useEmployees } from '@/queries/staff'
 import { usePersonPicker } from '@/lib/usePersonPicker'
+import { showToast } from '@/lib/toast'
 
 // User-requested (2026-08-15) — "Assign Task needs to be a popup... Also the client selection...
 // It could be a lead too... also we need to search the client/lead name in Related client
@@ -48,6 +49,8 @@ export function AssignTaskModal({ onClose }: { onClose: () => void }) {
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!assignedTo || !note || !dueDate) return
+    const assignee = employees.data?.items.find((emp) => emp.id === assignedTo)
+    const assigneeName = assignee ? `${assignee.user!.first_name} ${assignee.user!.last_name}` : undefined
     assignTask.mutate(
       {
         journey_id: relatedId && !isRelatedLead ? relatedId : undefined,
@@ -57,7 +60,12 @@ export function AssignTaskModal({ onClose }: { onClose: () => void }) {
         due_date: dueDate,
         due_time: dueTime || undefined,
       },
-      { onSuccess: onClose },
+      {
+        onSuccess: () => {
+          showToast(assigneeName ? `Task assigned to ${assigneeName}` : 'Task assigned')
+          onClose()
+        },
+      },
     )
   }
 

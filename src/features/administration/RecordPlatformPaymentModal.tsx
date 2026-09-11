@@ -5,6 +5,7 @@ import { CompactSelect } from '@/components/CompactSelect'
 import { TextField } from '@/components/TextField'
 import { useRecordCommissionPayment } from '@/queries/commission'
 import { formatMoneyAmount } from '@/lib/money'
+import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type CommissionDue = components['schemas']['CommissionDue']
@@ -62,7 +63,12 @@ export function RecordPlatformPaymentModal({ due, onClose }: { due: CommissionDu
         transaction_id: transactionId.trim() || null,
         idempotencyKey,
       },
-      { onSuccess: onClose },
+      {
+        onSuccess: () => {
+          showToast(`Payment recorded for ${due.applicant_name}`)
+          onClose()
+        },
+      },
     )
   }
 

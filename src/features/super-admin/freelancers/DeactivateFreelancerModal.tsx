@@ -1,6 +1,7 @@
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { useUpdateFreelancer, type Freelancer } from '@/queries/freelancerRates'
+import { showToast } from '@/lib/toast'
 
 /** Same confirm copy the pre-rebuild FreelancersPage used — deliberately kept, still accurate. */
 export function DeactivateFreelancerModal({ freelancer, onClose }: { freelancer: Freelancer; onClose: () => void }) {
@@ -22,7 +23,17 @@ export function DeactivateFreelancerModal({ freelancer, onClose }: { freelancer:
           <Button
             variant="destructive"
             loading={updateFreelancer.isPending}
-            onClick={() => updateFreelancer.mutate({ id: freelancer.id, active: false }, { onSuccess: onClose })}
+            onClick={() =>
+              updateFreelancer.mutate(
+                { id: freelancer.id, active: false },
+                {
+                  onSuccess: () => {
+                    showToast(`${freelancer.name} deactivated`)
+                    onClose()
+                  },
+                },
+              )
+            }
           >
             Deactivate
           </Button>

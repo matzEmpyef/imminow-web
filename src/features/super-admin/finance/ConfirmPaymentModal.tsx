@@ -5,6 +5,7 @@ import { TextField } from '@/components/TextField'
 import { TextAreaField } from '@/components/TextAreaField'
 import { money } from './money'
 import { useConfirmCommissionPayment, type CommissionPayment } from '@/queries/commission'
+import { showToast } from '@/lib/toast'
 
 const MIN_REASON_LENGTH = 3
 
@@ -58,7 +59,12 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
                   receivedAmount: parsed,
                   note: differs ? trimmedNote : undefined,
                 },
-                { onSuccess: onClose },
+                {
+                  onSuccess: () => {
+                    showToast('Payment confirmed')
+                    onClose()
+                  },
+                },
               )
             }
           >

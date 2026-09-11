@@ -13,6 +13,7 @@ import { ImageUploadField } from '@/components/ImageUploadField'
 import { SearchSelect, type SearchSelectOption } from '@/components/SearchSelect'
 import { TargetingFilter } from '@/features/super-admin/TargetingFilter'
 import { hasAnyTargeting } from '@/lib/targeting'
+import { showToast } from '@/lib/toast'
 import {
   useAdAudienceCount,
   useAdClicks,
@@ -123,9 +124,19 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
       targeting: hasAnyTargeting(targeting) ? targeting : null,
     }
     if (isEditing) {
-      updateAd.mutate(body, { onSuccess: () => onClose() })
+      updateAd.mutate(body, {
+        onSuccess: () => {
+          showToast(name.trim() ? `${name.trim()} updated` : 'Ad updated')
+          onClose()
+        },
+      })
     } else {
-      createAd.mutate(body, { onSuccess: () => onClose() })
+      createAd.mutate(body, {
+        onSuccess: () => {
+          showToast(name.trim() ? `${name.trim()} created` : 'Ad created')
+          onClose()
+        },
+      })
     }
   }
 

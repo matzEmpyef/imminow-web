@@ -13,6 +13,7 @@ import { EventDetailsModal } from '@/features/super-admin/EventDetailsModal'
 import { useAdminEvents, useCreateEvent, useUpdateEvent } from '@/queries/eventsAdmin'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatEventDateTime } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 import { EVENT_TIMEZONES, browserTimezone, utcIsoToWallClock, wallClockToUtcIso } from '@/lib/eventTimezones'
 import type { components } from '@/api/schema'
 import { SelectField } from '@/components/SelectField'
@@ -93,9 +94,25 @@ function MeetingFormModal({
       points_override: pointsOverride ? Number(pointsOverride) : null,
     }
     if (isEditing) {
-      updateEvent.mutate(body, { onSuccess: () => onClose() })
+      updateEvent.mutate(
+        body,
+        {
+          onSuccess: () => {
+            onClose()
+            showToast(`${title} updated`)
+          },
+        },
+      )
     } else {
-      createEvent.mutate({ type: 'physical_meeting', ...body }, { onSuccess: () => onClose() })
+      createEvent.mutate(
+        { type: 'physical_meeting', ...body },
+        {
+          onSuccess: () => {
+            onClose()
+            showToast(`${title} created`)
+          },
+        },
+      )
     }
   }
 

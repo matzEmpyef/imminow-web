@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { useCloseLead } from '@/queries/leads'
+import { showToast } from '@/lib/toast'
 
 // User-requested — closing a lead that's gone dry. Ultimate tier + `leads.close` gate this
 // button's visibility (LeadConversationPage.tsx); this modal itself just asks for the required
@@ -21,7 +22,15 @@ export function CloseLeadModal({
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!reason.trim()) return
-    closeLead.mutate({ id: leadId, reason: reason.trim() }, { onSuccess: onClose })
+    closeLead.mutate(
+      { id: leadId, reason: reason.trim() },
+      {
+        onSuccess: () => {
+          showToast('Lead closed')
+          onClose()
+        },
+      },
+    )
   }
 
   return (

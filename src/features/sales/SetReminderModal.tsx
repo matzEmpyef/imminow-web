@@ -4,6 +4,7 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useSetLeadReminder } from '@/queries/leads'
 import { localDateISO } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 
 // Ultimate-only, gated the same way as Activity itself — LeadConversationPage decides whether to
 // render the trigger button, this modal assumes it's already allowed to be open. Always
@@ -20,7 +21,15 @@ export function SetReminderModal({ leadId, onClose }: { leadId: string; onClose:
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!note.trim() || !date || !time || date < minDate) return
-    setReminder.mutate({ note, due_date: date, due_time: time }, { onSuccess: onClose })
+    setReminder.mutate(
+      { note, due_date: date, due_time: time },
+      {
+        onSuccess: () => {
+          showToast('Reminder set')
+          onClose()
+        },
+      },
+    )
   }
 
   return (

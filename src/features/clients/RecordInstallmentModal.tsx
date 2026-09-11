@@ -6,6 +6,7 @@ import { SelectField } from '@/components/SelectField'
 import { useRecordInstallment } from '@/queries/commissionEntries'
 import { useCurrencyCodes } from '@/lib/currencies'
 import { formatMoneyAmount } from '@/lib/money'
+import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 import { localDateISO } from '@/lib/time'
 
@@ -66,7 +67,12 @@ export function RecordInstallmentModal({
         ...(note.trim() ? { note: note.trim() } : {}),
         ...(receiptId ? { receipt_id: receiptId } : {}),
       },
-      { onSuccess: onClose },
+      {
+        onSuccess: () => {
+          showToast(`Installment recorded for ${entry.college_name ?? entry.course_name ?? 'this case'}`)
+          onClose()
+        },
+      },
     )
   }
 

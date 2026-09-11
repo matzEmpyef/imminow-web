@@ -3,6 +3,7 @@ import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { Modal } from '@/components/Modal'
 import { DISPUTE_ACTIONS, useResolveDispute, type CaseDispute, type DisputeAction } from '@/queries/disputes'
+import { showToast } from '@/lib/toast'
 
 /** Carried over unchanged from the pre-rebuild DisputesPage (2026-09-09) — this content was already good. */
 export function DisputeResolveModal({
@@ -39,6 +40,7 @@ export function DisputeResolveModal({
                 { id: dispute.id, action: action as DisputeAction, resolutionNote: note.trim() },
                 {
                   onSuccess: (updated) => {
+                    showToast(`Dispute resolved for ${dispute.student_name ?? 'this case'}`)
                     if (updated) onResolved(updated)
                     onClose()
                   },

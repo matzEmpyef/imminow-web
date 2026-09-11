@@ -13,6 +13,7 @@ import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useDownloadUrl, useUploadFile, useUploads } from '@/queries/uploads'
 import { useStudentDocuments, type StudentDocument } from '@/queries/studentDocuments'
 import { formatDate } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 import { ShareFromLibraryModal } from './ShareFromLibraryModal'
 import { UploadStudentDocumentModal } from './UploadStudentDocumentModal'
 
@@ -196,7 +197,7 @@ export function DocumentsTab({ clientId }: { clientId: string }) {
                   aria-label="Choose a document to send"
                   onChange={(e) => {
                     const file = e.target.files?.[0]
-                    if (file) uploadFile.mutate({ file })
+                    if (file) uploadFile.mutate({ file }, { onSuccess: () => showToast('Document sent') })
                     e.target.value = ''
                   }}
                 />

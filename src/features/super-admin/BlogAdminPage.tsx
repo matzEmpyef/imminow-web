@@ -19,6 +19,7 @@ import {
 } from '@/queries/blogArticles'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate as formatDateShared, relativeTime } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type BlogCategoryMapping = components['schemas']['BlogCategoryMapping']
@@ -282,7 +283,10 @@ function ArticleActions({ article, onEditTags }: { article: BlogArticle; onEditT
           loading={refreshArticle.isPending}
           onClick={() => {
             setError(null)
-            refreshArticle.mutate(article.id, { onError: (e) => setError(e.message) })
+            refreshArticle.mutate(article.id, {
+              onSuccess: () => showToast(`${article.title} refreshed`),
+              onError: (e) => setError(e.message),
+            })
           }}
         >
           Refresh
@@ -340,7 +344,17 @@ function TagsEditorModal({
           </Button>
           <Button
             loading={updateArticle.isPending}
-            onClick={() => updateArticle.mutate({ id: article.id, category_ids: selected }, { onSuccess: onClose })}
+            onClick={() =>
+              updateArticle.mutate(
+                { id: article.id, category_ids: selected },
+                {
+                  onSuccess: () => {
+                    onClose()
+                    showToast('Tags saved')
+                  },
+                },
+              )
+            }
           >
             Save Tags
           </Button>
@@ -373,7 +387,17 @@ function TagsEditorModal({
         <Button
           variant="secondary"
           loading={updateArticle.isPending}
-          onClick={() => updateArticle.mutate({ id: article.id, category_ids: null }, { onSuccess: onClose })}
+          onClick={() =>
+            updateArticle.mutate(
+              { id: article.id, category_ids: null },
+              {
+                onSuccess: () => {
+                  onClose()
+                  showToast('Tags reset to website categories')
+                },
+              },
+            )
+          }
         >
           Use Website Categories
         </Button>
@@ -421,7 +445,17 @@ function AddArticleModal({ onClose }: { onClose: () => void }) {
           <Button
             loading={addArticle.isPending}
             disabled={!preview || preview.already_curated}
-            onClick={() => addArticle.mutate({ source_url: url.trim() }, { onSuccess: onClose })}
+            onClick={() =>
+              addArticle.mutate(
+                { source_url: url.trim() },
+                {
+                  onSuccess: () => {
+                    onClose()
+                    showToast(`${preview?.title ?? 'Article'} published`)
+                  },
+                },
+              )
+            }
           >
             Publish to App
           </Button>
@@ -590,7 +624,17 @@ function RenameMappingModal({ mapping, onClose }: { mapping: BlogCategoryMapping
           <Button
             loading={updateMapping.isPending}
             disabled={!label.trim() || label === mapping.label}
-            onClick={() => updateMapping.mutate({ label: label.trim() }, { onSuccess: onClose })}
+            onClick={() =>
+              updateMapping.mutate(
+                { label: label.trim() },
+                {
+                  onSuccess: () => {
+                    onClose()
+                    showToast(`Renamed to "${label.trim()}"`)
+                  },
+                },
+              )
+            }
           >
             Rename
           </Button>
@@ -649,7 +693,17 @@ function MappingToggle({ mapping }: { mapping: BlogCategoryMapping }) {
               <Button
                 variant="destructive"
                 loading={updateMapping.isPending}
-                onClick={() => updateMapping.mutate({ active: false }, { onSuccess: () => setConfirming(false) })}
+                onClick={() =>
+                  updateMapping.mutate(
+                    { active: false },
+                    {
+                      onSuccess: () => {
+                        setConfirming(false)
+                        showToast(`${label} tag turned off`)
+                      },
+                    },
+                  )
+                }
               >
                 Turn Off
               </Button>

@@ -6,6 +6,7 @@ import { TextField } from '@/components/TextField'
 import { TextAreaField } from '@/components/TextAreaField'
 import { currencyOptions } from './money'
 import { useAddCommissionDue, type FinanceCaseRow } from '@/queries/financeDashboard'
+import { showToast } from '@/lib/toast'
 
 const MIN_REASON_LENGTH = 3
 
@@ -54,7 +55,12 @@ export function AddDueModal({
             onClick={() =>
               addDue.mutate(
                 { entryId: caseRow.id, amount: parsed, currency, due_on: dueOn || null, reason: trimmedReason },
-                { onSuccess: (row) => onAdded(row) },
+                {
+                  onSuccess: (row) => {
+                    showToast(`Due added for ${caseRow.applicant_name}`)
+                    onAdded(row)
+                  },
+                },
               )
             }
           >

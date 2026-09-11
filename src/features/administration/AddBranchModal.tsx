@@ -3,6 +3,7 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useCreateBranch } from '@/queries/staff'
+import { showToast } from '@/lib/toast'
 
 // User-requested — was an inline Card+form toggled below the page header, same move already
 // made for Create Applicant/Add Lead/Invite Employee elsewhere this session.
@@ -14,7 +15,15 @@ export function AddBranchModal({ onClose }: { onClose: () => void }) {
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!name || !address) return
-    createBranch.mutate({ name, address }, { onSuccess: onClose })
+    createBranch.mutate(
+      { name, address },
+      {
+        onSuccess: () => {
+          showToast(`${name} branch created`)
+          onClose()
+        },
+      },
+    )
   }
 
   return (

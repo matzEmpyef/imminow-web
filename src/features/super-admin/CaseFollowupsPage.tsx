@@ -8,6 +8,7 @@ import { FilterChip } from '@/components/FilterChip'
 import { StopPropagation } from '@/components/StopPropagation'
 import { Table, type TableColumn } from '@/components/Table'
 import { relativeTime, formatDate } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 import { useCaseFollowups, useCaseNotes, useRecordFollowup, type CaseFollowupOutcome, type CaseFollowupRow } from '@/queries/caseFollowups'
 import { FollowupSummaryStrip } from './followups/FollowupSummaryStrip'
 import { SignalBadges } from './followups/SignalBadges'
@@ -83,7 +84,12 @@ export function CaseFollowupsPage() {
         outcome: input.outcome as CaseFollowupOutcome | undefined,
         callBackOn: input.callBackOn,
       },
-      { onSuccess: () => setLogging(null) },
+      {
+        onSuccess: () => {
+          setLogging(null)
+          showToast(`Call logged for ${row.student_name}`)
+        },
+      },
     )
   }
 

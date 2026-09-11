@@ -7,6 +7,8 @@ import { CountrySelect } from '@/components/CountrySelect'
 import { useCreatePrCommissionEntry } from '@/queries/clients'
 import { useCurrencyCodes } from '@/lib/currencies'
 import { useMyConsultancy } from '@/queries/consultancy'
+import { showToast } from '@/lib/toast'
+import { formatMoney } from '@/lib/money'
 
 /**
  * PR cases have no colleges — the consultant records the applicant's agreed contribution
@@ -43,7 +45,12 @@ export function RecordPrContributionModal({
         destination_country: country.trim(),
         ...(note.trim() ? { note: note.trim() } : {}),
       },
-      { onSuccess: onClose },
+      {
+        onSuccess: () => {
+          showToast(`Contribution of ${formatMoney(currency, Number(amount))} recorded`)
+          onClose()
+        },
+      },
     )
   }
 

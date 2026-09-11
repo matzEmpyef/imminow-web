@@ -10,6 +10,7 @@ import { MONTHS } from '@/features/super-admin/courseFormShared'
 import { useCurrencyCodes } from '@/lib/currencies'
 import { useMyConsultancy } from '@/queries/consultancy'
 import { formatMoney } from '@/lib/money'
+import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type Application = components['schemas']['Application']
@@ -124,7 +125,15 @@ export function AcceptCollegeModal({
     const commission: AcceptCommissionBody = { course_start: { month: startMonth, year: startYear } }
     if (needsCollege) commission.expected_from_college = { amount: Number(collegeAmount), currency: feeCurrency }
     if (needsStudent) commission.expected_from_student = { amount: Number(studentAmount), currency: studentCurrency }
-    updateStatus.mutate({ applicationId: row.id, status: 'accepted', commission }, { onSuccess: onClose })
+    updateStatus.mutate(
+      { applicationId: row.id, status: 'accepted', commission },
+      {
+        onSuccess: () => {
+          showToast(`Offer accepted for ${course.college_name ?? course.name}`)
+          onClose()
+        },
+      },
+    )
   }
 
   const yearOptions = [now.getFullYear(), now.getFullYear() + 1, now.getFullYear() + 2, now.getFullYear() + 3]

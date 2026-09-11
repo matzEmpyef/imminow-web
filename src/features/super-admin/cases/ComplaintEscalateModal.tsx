@@ -3,6 +3,7 @@ import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
 import { TextAreaField } from '@/components/TextAreaField'
 import { useEscalateComplaint, type Complaint } from '@/queries/complaints'
+import { showToast } from '@/lib/toast'
 
 /**
  * Turns a complaint into a dispute (2026-09-11). Explains the consequence up front, since it is
@@ -37,6 +38,7 @@ export function ComplaintEscalateModal({
             onClick={() =>
               escalate.mutate(reason.trim() || undefined, {
                 onSuccess: (updated) => {
+                  showToast(`Complaint escalated to a dispute for ${complaint.student_name ?? 'this student'}`)
                   if (updated) onEscalated(updated)
                   onClose()
                 },

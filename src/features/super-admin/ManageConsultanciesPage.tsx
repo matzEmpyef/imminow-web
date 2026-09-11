@@ -30,6 +30,7 @@ import {
 } from '@/queries/adminConsultancies'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate, localDateISO } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 import { formatMoney } from '@/lib/money'
 import { useCurrencyCodes } from '@/lib/currencies'
 import { useConsultancyKyc, useVerifyKyc } from '@/queries/kyc'
@@ -186,7 +187,17 @@ function RatingSection({ consultancy }: { consultancy: Consultancy }) {
             <Button
               disabled={!valid}
               loading={setRating.isPending}
-              onClick={() => setRating.mutate({ rating: parsed, reason }, { onSuccess: () => setEditing(false) })}
+              onClick={() =>
+                setRating.mutate(
+                  { rating: parsed, reason },
+                  {
+                    onSuccess: () => {
+                      setEditing(false)
+                      showToast(`${consultancy.name} rating updated`)
+                    },
+                  },
+                )
+              }
             >
               Save rating
             </Button>
@@ -416,7 +427,12 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
                   billing_currency: currency,
                   ...(amount !== '' ? { subscription_amount: Number(amount) } : {}),
                 },
-                { onSuccess: onClose },
+                {
+                  onSuccess: () => {
+                    onClose()
+                    showToast(`${consultancy.name} subscription renewed`)
+                  },
+                },
               )
             }
           >
@@ -594,6 +610,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
             ...(consultancy.file_number_locked ? {} : { file_number_prefix: filePrefix }),
           }
       await updateEntitlements.mutateAsync(entitlementsBody)
+      showToast(`${consultancy.name} plan updated`)
     } catch {
       // surfaced via changeTier.error / updateEntitlements.error below
     }
@@ -733,7 +750,15 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
                 Suspend
               </Button>
             ) : (
-              <Button variant="secondary" loading={reactivate.isPending} onClick={() => reactivate.mutate()}>
+              <Button
+                variant="secondary"
+                loading={reactivate.isPending}
+                onClick={() =>
+                  reactivate.mutate(undefined, {
+                    onSuccess: () => showToast(`${consultancy.name} reactivated`),
+                  })
+                }
+              >
                 Reactivate
               </Button>
             )}
@@ -898,7 +923,14 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
           consultancyName={consultancy.name ?? ''}
           loading={suspend.isPending}
           onClose={() => setConfirmingSuspend(false)}
-          onConfirm={() => suspend.mutate(undefined, { onSuccess: () => setConfirmingSuspend(false) })}
+          onConfirm={() =>
+            suspend.mutate(undefined, {
+              onSuccess: () => {
+                setConfirmingSuspend(false)
+                showToast(`${consultancy.name} suspended`)
+              },
+            })
+          }
         />
       )}
 

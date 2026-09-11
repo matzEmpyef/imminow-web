@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/QueryState'
 import { Button } from '@/components/Button'
 import { useEmployees } from '@/queries/staff'
 import { useAllocationRule, useUpdateAllocationRule } from '@/queries/allocationRules'
+import { showToast } from '@/lib/toast'
 
 type Mode = 'manual' | 'round_robin'
 
@@ -177,11 +178,15 @@ export function AllocationTab({ enabled }: { enabled: boolean }) {
         )}
 
         <div className="flex items-center justify-end gap-md border-t border-border pt-md">
-          {updateRule.isSuccess && <p className="text-body-sm text-success">Saved.</p>}
           {updateRule.isError && <p className="text-body-sm text-error">{updateRule.error.message}</p>}
           <Button
             loading={updateRule.isPending}
-            onClick={() => updateRule.mutate({ mode, participating_employee_ids: [...selected] })}
+            onClick={() =>
+              updateRule.mutate(
+                { mode, participating_employee_ids: [...selected] },
+                { onSuccess: () => showToast('Allocation rule saved') },
+              )
+            }
             className="inline-flex items-center gap-xs"
           >
             Save

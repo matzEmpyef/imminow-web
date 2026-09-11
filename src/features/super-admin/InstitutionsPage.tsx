@@ -23,6 +23,7 @@ import {
   type Institution,
   type InstitutionSuggestionGroup,
 } from '@/queries/institutions'
+import { showToast } from '@/lib/toast'
 
 /**
  * Platform staff surface for the institution a student comes FROM.
@@ -101,6 +102,7 @@ function InstitutionFormModal({
     const body = { name: name.trim(), city: city.trim(), state: state.trim() || null, type }
     const done = {
       onSuccess: (saved?: Institution) => {
+        showToast(isEditing ? `${name.trim()} updated` : `${name.trim()} added`)
         if (saved) onSaved?.(saved)
         onClose()
       },
@@ -396,7 +398,15 @@ function QueueView() {
           error={resolve.isError ? resolve.error.message : undefined}
           onClose={() => setAction(null)}
           onPick={(picked) =>
-            resolve.mutate({ userIds: userIds(current), institutionId: picked.id }, { onSuccess: () => setAction(null) })
+            resolve.mutate(
+              { userIds: userIds(current), institutionId: picked.id },
+              {
+                onSuccess: () => {
+                  showToast(`Mapped to ${picked.name}`)
+                  setAction(null)
+                },
+              },
+            )
           }
         />
       )}
@@ -625,7 +635,17 @@ function AllInstitutionsView() {
             </ul>
           )}
           onClose={() => setMerging(null)}
-          onPick={(target) => merge.mutate({ id: merging.id, intoId: target.id }, { onSuccess: () => setMerging(null) })}
+          onPick={(target) =>
+            merge.mutate(
+              { id: merging.id, intoId: target.id },
+              {
+                onSuccess: () => {
+                  showToast(`${merging.name} merged into ${target.name}`)
+                  setMerging(null)
+                },
+              },
+            )
+          }
         />
       )}
     </>

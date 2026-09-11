@@ -5,6 +5,7 @@ import { Card } from '@/components/Card'
 import { TextField } from '@/components/TextField'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useAssignPlan, usePlanTemplates } from '@/queries/plans'
+import { showToast } from '@/lib/toast'
 
 // User-requested (2026-08-15) — "let consultant assign a plan in Overview tab itself. on button
 // click a popup appears to select the plan." Was a standalone page (AssignPlanPage.tsx,
@@ -54,7 +55,15 @@ export function AssignPlanModal({ clientId, onClose }: { clientId: string; onClo
             onClick={() =>
               selected &&
               !assignPlan.isPending &&
-              assignPlan.mutate({ templateId: selected.id, idempotencyKey, name }, { onSuccess: onClose })
+              assignPlan.mutate(
+                { templateId: selected.id, idempotencyKey, name },
+                {
+                  onSuccess: () => {
+                    showToast(`${name} assigned`)
+                    onClose()
+                  },
+                },
+              )
             }
           >
             Add This Plan

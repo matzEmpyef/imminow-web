@@ -6,6 +6,7 @@ import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useLatestFormResponse, usePlans, useSaveFormResponse } from '@/queries/plans'
 import { useFormTemplate } from '@/queries/formTemplates'
 import { formatDateTime } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 
 type FormField = NonNullable<ReturnType<typeof useFormTemplate>['data']>['fields'][number]
 type FormAnswers = Record<string, unknown>
@@ -167,7 +168,15 @@ function FillableField({
   }
 }
 
-function LinkedFormViewer({ formId, formName, clientId }: { formId: string; formName: string; clientId: string }) {
+function LinkedFormViewer({
+  formId,
+  formName,
+  clientId,
+}: {
+  formId: string
+  formName: string
+  clientId: string
+}) {
   const form = useFormTemplate(formId)
   const saved = useLatestFormResponse(formId, clientId)
   const saveForm = useSaveFormResponse(formId, clientId)
@@ -197,7 +206,14 @@ function LinkedFormViewer({ formId, formName, clientId }: { formId: string; form
         <Button
           disabled={draft === null}
           loading={saveForm.isPending}
-          onClick={() => saveForm.mutate(answers as Record<string, unknown>, { onSuccess: () => setDraft(null) })}
+          onClick={() =>
+            saveForm.mutate(answers as Record<string, unknown>, {
+              onSuccess: () => {
+                showToast(`${formName} saved`)
+                setDraft(null)
+              },
+            })
+          }
         >
           Save
         </Button>

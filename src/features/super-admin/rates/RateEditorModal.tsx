@@ -8,6 +8,7 @@ import { useAdminConsultancy } from '@/queries/adminConsultancies'
 import { useCommissionRates, useBulkSetCommissionRates } from '@/queries/commissionRates'
 import { useCountries } from '@/queries/countries'
 import { ConsultancySearchSelect } from '../finance/ConsultancySearchSelect'
+import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type CommissionRate = components['schemas']['CommissionRate']
@@ -173,7 +174,12 @@ export function RateEditorModal({
     }
     bulkSet.mutate(
       { consultancy_id: consultancyId, destination_country: country, rates },
-      { onSuccess: () => onClose() },
+      {
+        onSuccess: () => {
+          showToast(`Rates saved for ${consultancyName || 'this account'} — ${country}`)
+          onClose()
+        },
+      },
     )
   }
 

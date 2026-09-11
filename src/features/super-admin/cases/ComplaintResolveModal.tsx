@@ -3,6 +3,7 @@ import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
 import { TextAreaField } from '@/components/TextAreaField'
 import { useUpdateComplaint, type Complaint } from '@/queries/complaints'
+import { showToast } from '@/lib/toast'
 
 /**
  * Resolves a complaint (2026-09-11) — mirrors the mandatory-reason convention every other
@@ -42,6 +43,7 @@ export function ComplaintResolveModal({
                 { status: 'resolved', resolution_note: note.trim() },
                 {
                   onSuccess: (updated) => {
+                    showToast(`Complaint resolved for ${complaint.student_name ?? 'this student'}`)
                     if (updated) onResolved(updated)
                     onClose()
                   },

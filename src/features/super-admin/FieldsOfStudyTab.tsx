@@ -13,6 +13,7 @@ import {
   useMergeFieldOfStudy,
   useUpdateFieldOfStudy,
 } from '@/queries/fieldsOfStudy'
+import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type FieldOfStudy = components['schemas']['FieldOfStudy']
@@ -42,8 +43,27 @@ function FieldFormModal({ field, onClose }: { field?: FieldOfStudy; onClose: () 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
-    if (field) update.mutate({ id: field.id, name: name.trim(), aliases }, { onSuccess: onClose })
-    else create.mutate({ name: name.trim(), aliases }, { onSuccess: onClose })
+    if (field) {
+      update.mutate(
+        { id: field.id, name: name.trim(), aliases },
+        {
+          onSuccess: () => {
+            showToast(`${name.trim()} updated`)
+            onClose()
+          },
+        },
+      )
+    } else {
+      create.mutate(
+        { name: name.trim(), aliases },
+        {
+          onSuccess: () => {
+            showToast(`${name.trim()} added`)
+            onClose()
+          },
+        },
+      )
+    }
   }
 
   return (
@@ -118,7 +138,17 @@ function MergeFieldModal({ field, fields, onClose }: { field: FieldOfStudy; fiel
             variant="destructive"
             loading={merge.isPending}
             disabled={!intoId}
-            onClick={() => merge.mutate({ id: field.id, intoId }, { onSuccess: onClose })}
+            onClick={() =>
+              merge.mutate(
+                { id: field.id, intoId },
+                {
+                  onSuccess: () => {
+                    showToast(`${field.name} merged into ${target?.name ?? 'the selected field'}`)
+                    onClose()
+                  },
+                },
+              )
+            }
           >
             Merge
           </Button>

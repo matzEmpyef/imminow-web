@@ -18,6 +18,7 @@ import { useApproveStep, useRejectStep } from '@/queries/steps'
 import { usePermission } from '@/lib/permissions'
 import { FieldLabel } from '@/components/FieldLabel'
 import { formatDate, formatDateTime } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 import type { ComponentInput } from '@/lib/planComponents'
 import type { components } from '@/api/schema'
 
@@ -110,6 +111,7 @@ function StepApprovalActions({ step, clientId }: { step: Step; clientId: string 
                   { stepId: step.id, reason },
                   {
                     onSuccess: () => {
+                      showToast(`${step.title} sent back`)
                       setRejecting(false)
                       setReason('')
                     },
@@ -125,7 +127,10 @@ function StepApprovalActions({ step, clientId }: { step: Step; clientId: string 
           </div>
         ) : (
           <div className="flex gap-sm">
-            <Button loading={approve.isPending} onClick={() => approve.mutate(step.id)}>
+            <Button
+              loading={approve.isPending}
+              onClick={() => approve.mutate(step.id, { onSuccess: () => showToast(`${step.title} approved`) })}
+            >
               Confirm Complete
             </Button>
             <Button variant="secondary" onClick={() => setRejecting(true)}>
@@ -474,7 +479,12 @@ export function PlanStepBuilder({
         description: draft.description ?? null,
         expected_duration_days: draft.expected_duration_days,
       },
-      { onSuccess: (newStep) => setSelectedStepId(newStep?.id) },
+      {
+        onSuccess: (newStep) => {
+          showToast(`${draft.title} added`)
+          setSelectedStepId(newStep?.id)
+        },
+      },
     )
   }
 
@@ -685,7 +695,12 @@ export function PlanStepBuilder({
       {editingStep && (
         <EditLiveStepModal
           step={editingStep}
-          onSubmit={(data) => updateStep.mutate({ stepId: editingStep.id, ...data })}
+          onSubmit={(data) =>
+            updateStep.mutate(
+              { stepId: editingStep.id, ...data },
+              { onSuccess: () => showToast(`${editingStep.title} updated`) },
+            )
+          }
           onClose={() => setEditingStep(null)}
         />
       )}

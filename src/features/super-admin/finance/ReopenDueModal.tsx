@@ -4,6 +4,7 @@ import { Button } from '@/components/Button'
 import { TextAreaField } from '@/components/TextAreaField'
 import { money } from './money'
 import { useVoidCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
+import { showToast } from '@/lib/toast'
 
 const MIN_REASON_LENGTH = 3
 
@@ -47,7 +48,12 @@ export function ReopenDueModal({
               part.waive_change_id &&
               voidDue.mutate(
                 { entryId: caseRow.id, changeId: part.waive_change_id, reason: trimmedReason },
-                { onSuccess: (row) => onReopened(row) },
+                {
+                  onSuccess: (row) => {
+                    showToast(`Due reopened for ${caseRow.applicant_name}`)
+                    onReopened(row)
+                  },
+                },
               )
             }
           >

@@ -14,6 +14,7 @@ import { useNotificationSettings, useUpdateNotificationSettings } from '@/querie
 import { useAuthStore } from '@/stores/authStore'
 import type { components } from '@/api/schema'
 import { PHONE_ERROR, isValidPhone } from '@/lib/validation'
+import { showToast } from '@/lib/toast'
 
 type NotificationSettings = components['schemas']['NotificationSettings']
 // Only the four email/push toggle pairs — NOT every schema key: `blog_push` (2026-08-20) is a
@@ -97,7 +98,10 @@ export function MyAccountPage() {
             onSubmit={(e) => {
               e.preventDefault()
               if (phoneError) return
-              updateProfile.mutate({ first_name: firstName, last_name: lastName, phone })
+              updateProfile.mutate(
+                { first_name: firstName, last_name: lastName, phone },
+                { onSuccess: () => showToast('Profile updated') },
+              )
             }}
           >
             <div className="grid grid-cols-2 gap-md">
@@ -107,7 +111,6 @@ export function MyAccountPage() {
             <TextField label="Email" value={user.email ?? ''} disabled readOnly />
             <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} error={phoneError} />
             {isConsultancyStaff && <TextField label="Designation" value={user.designation ?? ''} disabled readOnly />}
-            {updateProfile.isSuccess && <p className="text-body-sm text-success">Profile updated.</p>}
             <Button
               type="submit"
               loading={updateProfile.isPending}
