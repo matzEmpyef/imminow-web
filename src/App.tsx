@@ -278,9 +278,15 @@ function ConsultancyLayout() {
   )
 }
 
-function PlatformLayout({ permission }: { permission?: ComponentProps<typeof PlatformRoute>['permission'] }) {
+function PlatformLayout({
+  permission,
+  anyPermission,
+}: {
+  permission?: ComponentProps<typeof PlatformRoute>['permission']
+  anyPermission?: ComponentProps<typeof PlatformRoute>['anyPermission']
+}) {
   return (
-    <PlatformRoute permission={permission}>
+    <PlatformRoute permission={permission} anyPermission={anyPermission}>
       <Outlet />
     </PlatformRoute>
   )
@@ -501,10 +507,14 @@ function App() {
         {/* Merged into Freelancers as a tab (2026-08-27). The old path is kept as a redirect so
             existing bookmarks and any link still pointing here land somewhere real. */}
         <Route path="/admin/freelancer-rates" element={<Navigate to="/admin/freelancers" replace />} />
-        <Route element={<PlatformLayout permission="support" />}>
-          <Route path="/admin/disputes" element={<DisputesPage />} />
+        {/* Follow-ups is the payments team's chase list, under Finance since 2026-09-11 — open to
+            finance or support staff, like the applicant case view it links to. */}
+        <Route element={<PlatformLayout anyPermission={['finance', 'support']} />}>
           <Route path="/admin/case-followups" element={<CaseFollowupsPage />} />
           <Route path="/admin/applicants/:id" element={<ApplicantCaseViewPage />} />
+        </Route>
+        <Route element={<PlatformLayout permission="support" />}>
+          <Route path="/admin/disputes" element={<DisputesPage />} />
           <Route path="/admin/complaints" element={<ComplaintsPage />} />
           <Route path="/admin/visit-requests" element={<VisitRequestsPage />} />
         </Route>

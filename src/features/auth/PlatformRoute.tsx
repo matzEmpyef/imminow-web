@@ -15,10 +15,13 @@ export type PlatformPermissionKey = keyof components['schemas']['PlatformPermiss
 // boundary.
 export function PlatformRoute({
   permission,
+  anyPermission,
   children,
 }: {
   /** Omit for pages every platform account may see (the console dashboard). */
   permission?: PlatformPermissionKey
+  /** Opens for anyone holding at least one of these (2026-09-11 — Follow-ups: finance or support). */
+  anyPermission?: PlatformPermissionKey[]
   children: ReactNode
 }) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
@@ -32,5 +35,6 @@ export function PlatformRoute({
   // A platform account missing this one flag stays inside the console, on its landing page —
   // /dashboard would bounce them into a shell they can't use either.
   if (permission && !permissions[permission]) return <Navigate to="/admin/dashboard" replace />
+  if (anyPermission && !anyPermission.some((key) => permissions[key])) return <Navigate to="/admin/dashboard" replace />
   return <>{children}</>
 }

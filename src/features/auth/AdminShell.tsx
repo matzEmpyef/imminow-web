@@ -220,6 +220,13 @@ const SECTIONS: AdminSection[] = [
         icon: Percent,
         tabs: [{ label: 'Commission Rates', path: '/admin/commission-rates', permission: 'finance' }],
       },
+      // Moved from Support → Cases (user, 2026-09-11): it is the payments team's chase list —
+      // cases whose commission has not become due, sorted by money pending. Support staff keep it.
+      {
+        label: 'Follow-ups',
+        icon: ListChecks,
+        tabs: [{ label: 'Follow-ups', path: '/admin/case-followups', anyPermission: ['finance', 'support'] }],
+      },
       {
         label: 'Freelancers',
         icon: Users,
@@ -237,15 +244,14 @@ const SECTIONS: AdminSection[] = [
     icon: LifeBuoy,
     links: [
       // One inbox for a case going wrong (2026-09-10). Complaints are the student's side and never
-      // freeze anything, a dispute is the frozen case itself, a follow-up needs someone to pick up
-      // a phone — and the person working one is usually working the others.
+      // freeze anything; a dispute is the frozen case itself. Follow-ups moved to Finance on
+      // 2026-09-11.
       {
         label: 'Cases',
         icon: MessageSquareWarning,
         tabs: [
           { label: 'Complaints', path: '/admin/complaints', permission: 'support' },
           { label: 'Disputes', path: '/admin/disputes', permission: 'support' },
-          { label: 'Follow-ups', path: '/admin/case-followups', permission: 'support' },
         ],
         alsoMatches: ['/admin/applicants/'],
       },
