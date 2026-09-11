@@ -23,7 +23,13 @@ export function ConvertToClientModal({
 
   if (propose.isSuccess) {
     return (
-      <Modal onClose={onClose} title="Proposal sent" widthRem={30} footer={<Button onClick={onClose}>Close</Button>}>
+      <Modal
+        onClose={onClose}
+        title="Proposal sent"
+        widthRem={30}
+        footer={<Button onClick={onClose}>Close</Button>}
+        dismissible
+      >
         <p className="text-body text-text-secondary">
           {leadName} has been asked to confirm. This proposal is pending for up to 14 days — you'll be notified once
           they respond.

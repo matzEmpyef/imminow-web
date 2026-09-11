@@ -95,7 +95,7 @@ export function QuizLeaderboardModal({ event, onClose }: { event: Event; onClose
   ]
 
   return (
-    <Modal onClose={onClose} title={`${event.title} — Leaderboard`} widthRem={54}>
+    <Modal onClose={onClose} title={`${event.title} — Leaderboard`} widthRem={54} dismissible>
       <Table
         bare
         columns={columns}

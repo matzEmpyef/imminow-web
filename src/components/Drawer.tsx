@@ -8,23 +8,33 @@ interface DrawerProps {
   title: string
   stickyContent?: ReactNode
   children: ReactNode
+  /**
+   * Lets a click outside the panel, or Escape, close it. OFF by default, the same rule as Modal
+   * (user, 2026-09-11): a drawer someone can type into must not vanish on a stray click or key.
+   * Turn it on for drawers that only show or navigate. The X always closes.
+   */
+  dismissible?: boolean
 }
 
 // Shared slide-in-from-right panel — used by GlobalChatDrawer and the Contextual Help Drawer
 // (SidebarShell) so both persistent-pattern drawers share one look instead of being built twice.
 // `stickyContent` (e.g. GlobalChatDrawer's search box) renders between the title bar and the
 // scrollable body, outside the scroll container, so it stays put while `children` scrolls.
-export function Drawer({ open, onClose, title, stickyContent, children }: DrawerProps) {
+export function Drawer({ open, onClose, title, stickyContent, children, dismissible = false }: DrawerProps) {
   // Called unconditionally, before the `!open` early return, per the Rules of Hooks. `open` is
   // passed through as `active` — unlike Modal (always conditionally mounted by its caller),
   // Drawer stays mounted across its own open/close toggling, so the hook needs `open` itself to
   // know when to (re)attach rather than only ever running once on first mount.
-  const dialogRef = useDialogA11y<HTMLDivElement>(onClose, open)
+  const dialogRef = useDialogA11y<HTMLDivElement>(onClose, open, { closeOnEscape: dismissible })
   if (!open) return null
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-text-primary/40" />
+      {dismissible ? (
+        <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-text-primary/40" />
+      ) : (
+        <div aria-hidden="true" className="absolute inset-0 bg-text-primary/40" />
+      )}
       {/* eslint-disable-next-line jsx-a11y/prefer-tag-over-role -- same reasoning as Modal.tsx: native <dialog> conflicts with useDialogA11y's deliberate focus-trap design */}
       <div
         ref={dialogRef}
@@ -38,6 +48,7 @@ export function Drawer({ open, onClose, title, stickyContent, children }: Drawer
         <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-lg">
           <h2 className="text-h3 text-text-primary">{title}</h2>
           <button
+            type="button"
             onClick={onClose}
             aria-label="Close"
             className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"

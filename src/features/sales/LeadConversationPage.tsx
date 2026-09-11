@@ -107,7 +107,7 @@ function ShortlistViewModal({ messages, onClose }: { messages: LeadMessage[] | u
   const lastShare = [...(messages ?? [])].reverse().find((m) => m.type === 'shortlist_share')
   const courses = lastShare?.shared_courses ?? []
   return (
-    <Modal onClose={onClose} title="Shortlisted Courses" widthRem={28}>
+    <Modal onClose={onClose} title="Shortlisted Courses" widthRem={28} dismissible>
       <div className="flex flex-col gap-xs">
         {courses.length === 0 && <p className="text-body-sm text-text-secondary">No courses shared yet.</p>}
         {courses.map((course) => (
@@ -228,7 +228,12 @@ function DetailsCard({ lead }: { lead: NonNullable<ReturnType<typeof useLead>['d
       </dl>
 
       {showProfile && (
-        <Modal onClose={() => setShowProfile(false)} title={`${lead.name} — Study preference`} widthRem={30}>
+        <Modal
+          onClose={() => setShowProfile(false)}
+          title={`${lead.name} — Study preference`}
+          widthRem={30}
+          dismissible
+        >
           <StudentProfileFields prefs={lead.preferences} />
         </Modal>
       )}

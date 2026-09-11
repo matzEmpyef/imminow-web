@@ -101,6 +101,9 @@ export function useUnsavedChangesGuard(dirty: boolean, copy: GuardCopy) {
         onClose={() => setPending(null)}
         title={copy.title}
         widthRem={26}
+        // Dismissing this one means "Keep editing" — the safe answer — so a click outside or
+        // Escape may close it.
+        dismissible
         footer={
           <div className="flex justify-end gap-sm">
             <Button variant="secondary" onClick={() => setPending(null)}>

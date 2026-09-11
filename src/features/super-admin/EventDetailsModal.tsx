@@ -24,7 +24,7 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
 // event without leaving this popup.
 export function EventDetailsModal({ event, onClose }: { event: Event; onClose: () => void }) {
   return (
-    <Modal onClose={onClose} title={event.title ?? ''} widthRem={30}>
+    <Modal onClose={onClose} title={event.title ?? ''} widthRem={30} dismissible>
       <div className="flex flex-col gap-md">
         <EventStatusBadge startsAt={event.starts_at} endsAt={event.ends_at} />
         {event.description && <p className="text-body-sm text-text-secondary">{event.description}</p>}

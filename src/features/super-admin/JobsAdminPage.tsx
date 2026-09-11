@@ -273,7 +273,7 @@ function DetailRow({ label, value }: { label: string; value: ReactNode }) {
 // the editable form fields, so a dedicated read-only view earns its keep here.
 function JobDetailsModal({ job, onClose }: { job: JobListing; onClose: () => void }) {
   return (
-    <Modal onClose={onClose} title={job.title ?? ''} widthRem={30}>
+    <Modal onClose={onClose} title={job.title ?? ''} widthRem={30} dismissible>
       <div className="flex flex-col gap-md">
         <div className="flex flex-wrap items-center gap-xs">
           <Badge color={job.active ? 'success' : 'secondary'}>{job.active ? 'Active' : 'Inactive'}</Badge>

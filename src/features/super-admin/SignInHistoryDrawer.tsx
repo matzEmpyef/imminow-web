@@ -21,7 +21,7 @@ export function SignInHistoryDrawer({ person, onClose }: { person: SignInHistory
   const history = useUserSignIns(person?.id ?? null)
 
   return (
-    <Drawer open={person != null} onClose={onClose} title="Sign-in history">
+    <Drawer open={person != null} onClose={onClose} title="Sign-in history" dismissible>
       {person && (
         <div className="flex flex-col gap-md">
           <div>

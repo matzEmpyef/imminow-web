@@ -68,6 +68,8 @@ export function GlobalChatDrawer() {
         open={open}
         onClose={() => setOpen(false)}
         title="Chats"
+        // A list of conversations to open; its search box only filters, so closing loses nothing.
+        dismissible
         stickyContent={
           <TextField label="Search conversations" value={query} onChange={(e) => setQuery(e.target.value)} />
         }

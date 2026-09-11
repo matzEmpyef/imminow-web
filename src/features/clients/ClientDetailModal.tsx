@@ -54,7 +54,7 @@ export function ClientDetailModal({ client, onClose }: { client: Client; onClose
   )
 
   return (
-    <Modal onClose={onClose} title={name} header={header} widthRem={44}>
+    <Modal onClose={onClose} title={name} header={header} widthRem={44} dismissible>
       <StudentProfilePanels
         prefs={client.preferences}
         extraStudyFacts={[

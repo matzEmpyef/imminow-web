@@ -258,7 +258,7 @@ export function CollegeDetailModal({ college, onClose }: { college: College; onC
   )
 
   return (
-    <Modal onClose={onClose} title={college.name ?? 'College'} header={header} widthRem={56}>
+    <Modal onClose={onClose} title={college.name ?? 'College'} header={header} widthRem={56} dismissible>
       <div className="flex flex-col gap-md">
         {gaps.length > 0 && (
           <p className="rounded-md bg-info/10 px-md py-sm text-body-sm text-text-primary">

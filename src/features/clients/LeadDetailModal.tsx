@@ -56,7 +56,7 @@ export function LeadDetailModal({
   )
 
   return (
-    <Modal onClose={onClose} title={lead.name} header={header} widthRem={44}>
+    <Modal onClose={onClose} title={lead.name} header={header} widthRem={44} dismissible>
       {imported ? (
         <div className="flex items-start gap-sm rounded-lg border border-border bg-background p-lg">
           <UserX className="mt-0.5 h-5 w-5 shrink-0 text-text-secondary" aria-hidden />

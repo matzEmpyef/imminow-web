@@ -82,7 +82,7 @@ export function PersonListModal({ title, rows, emptyMessage, onClose, intro }: P
   ]
 
   return (
-    <Modal onClose={onClose} title={title} widthRem={40}>
+    <Modal onClose={onClose} title={title} widthRem={40} dismissible>
       {intro && <div className="mb-md">{intro}</div>}
       <Table
         bare

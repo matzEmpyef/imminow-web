@@ -267,7 +267,7 @@ export function SidebarShell({ sections, roleBadge, search, headerActions, child
       </div>
 
       {helpTopic && (
-        <Drawer open={helpOpen} onClose={() => setHelpOpen(false)} title={helpTopic.title}>
+        <Drawer open={helpOpen} onClose={() => setHelpOpen(false)} title={helpTopic.title} dismissible>
           <div className="flex flex-col gap-md">
             {helpTopic.body.map((paragraph, i) => (
               <p key={i} className="text-body-sm text-text-secondary">
