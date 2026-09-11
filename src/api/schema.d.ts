@@ -15705,6 +15705,144 @@ export interface paths {
         };
         trace?: never;
     };
+    "/commission-rates/defaults": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The default platform cut for cases with no rate row (finance permission, 2026-09-11). */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommissionDefaults"];
+                    };
+                };
+            };
+        };
+        /** Change either default (finance permission). Audited; prices cases accepted from then on. */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        consultancy_percent?: number;
+                        institute_percent?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Saved */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommissionDefaults"];
+                    };
+                };
+                /** @description Not a percentage between 0 and 100 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/commission-rates/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Rate coverage per consultancy or university, paged (finance permission, 2026-09-11). filter[kind]=consultancy|institute, filter[coverage]=complete|partial|missing|none_served (comma = any of), filter[freelancer]=true|false; search matches name and city. Sortable: consultancy_name, missing_count, default_rate_cases, last_changed_at. */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description Sort field. Prefix with - for descending, e.g. sort=-created_at (TRD Section 7). */
+                    sort?: components["parameters"]["SortParam"];
+                    /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
+                    search?: components["parameters"]["SearchParam"];
+                    /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
+                    filter?: components["parameters"]["FilterParam"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["CommissionRateCoverageRow"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                            summary: {
+                                with_gaps: number;
+                                countries_without_rates: number;
+                                countries_partly_set: number;
+                                default_rate_cases: number;
+                            };
+                            defaults: components["schemas"]["CommissionDefaults"];
+                        };
+                    };
+                };
+                /** @description Missing the finance permission */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/commission-rates/bulk": {
         parameters: {
             query?: never;
@@ -16425,7 +16563,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Active commission cases, paged (finance permission). filter[consultancy_id], filter[destination_country], filter[payer_method], filter[payment_status] (unpaid|part_paid|paid, comma = any of), filter[from]/filter[to] on the acceptance date; search matches student, consultancy and college. Totals cover the whole filtered set. */
+        /** Active commission cases, paged (finance permission). filter[consultancy_id], filter[destination_country], filter[payer_method], filter[rate_source] (configured|fallback_default), filter[payment_status] (unpaid|part_paid|paid, comma = any of), filter[from]/filter[to] on the acceptance date; search matches student, consultancy and college. Totals cover the whole filtered set. */
         get: {
             parameters: {
                 query?: {
@@ -21253,6 +21391,38 @@ export interface components {
              * @description When the acceptance (or PR contribution) was recorded.
              */
             recognized_at: string;
+        };
+        /** @description The platform's cut when no Commission Rates row covers a case (2026-09-11). Consultancies default to 2.5% (they charge students about 10% and the platform takes 25-30% of that); universities, which pay the platform directly, default to 10%. A change prices cases accepted from then on; accepted cases keep their rate and carry rate_source fallback_default. */
+        CommissionDefaults: {
+            consultancy_percent: number;
+            institute_percent: number;
+        };
+        CommissionRateCoverageRow: {
+            consultancy_id: components["schemas"]["UUID"];
+            consultancy_name: string;
+            /** @enum {string} */
+            kind: "consultancy" | "institute";
+            tier?: string | null;
+            city?: string | null;
+            freelancer_enabled?: boolean;
+            countries_served: string[];
+            /** @description One entry per served country — how many of the four payer types have a rate. */
+            countries: {
+                country: string;
+                payer_methods_set: number;
+            }[];
+            complete_count: number;
+            partial_count: number;
+            missing_count: number;
+            /** @enum {string} */
+            coverage: "complete" | "partial" | "missing" | "none_served";
+            /** @description Active cases priced at the default because no rate existed. */
+            default_rate_cases: number;
+            /** @description The default that applies to this account's gaps. */
+            default_percent: number;
+            /** Format: date-time */
+            last_changed_at?: string | null;
+            last_changed_by_name?: string | null;
         };
         FinanceSummary: {
             /** @description Every active case's platform due, less what has been confirmed. */

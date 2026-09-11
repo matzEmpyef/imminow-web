@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { X } from 'lucide-react'
 import { Badge } from '@/components/Badge'
 import { CompactSelect } from '@/components/CompactSelect'
 import { Table, type TableColumn } from '@/components/Table'
@@ -23,11 +24,18 @@ const STATUS_LABEL = { unpaid: 'Unpaid', part_paid: 'Part-paid', paid: 'Paid' } 
  */
 export function CasesTab() {
   const countries = useCountries()
+  // ?rate=default (Commission Rates' "Cases priced at the default" tile, 2026-09-11) pre-filters
+  // to cases that had no configured rate at acceptance — same idea as ManageConsultanciesPage's
+  // ?manage=<id>: read once into local state, then this tab owns the filter like any other.
+  const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const [consultancyId, setConsultancyId] = useState('')
   const [country, setCountry] = useState('')
   const [payerMethod, setPayerMethod] = useState<NonNullable<FinanceCasesFilters['payer_method']> | ''>('')
   const [paymentStatus, setPaymentStatus] = useState<NonNullable<FinanceCasesFilters['payment_status']> | ''>('')
+  const [rateSource, setRateSource] = useState<NonNullable<FinanceCasesFilters['rate_source']> | ''>(
+    searchParams.get('rate') === 'default' ? 'fallback_default' : '',
+  )
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
@@ -37,12 +45,23 @@ export function CasesTab() {
     paging.reset()
   }
 
+  function clearRateSource() {
+    setRateSource('')
+    resetPaging()
+    if (searchParams.has('rate')) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('rate')
+      setSearchParams(next, { replace: true })
+    }
+  }
+
   const cases = useFinanceCases({
     search: search || undefined,
     consultancy_id: consultancyId || undefined,
     destination_country: country || undefined,
     payer_method: payerMethod || undefined,
     payment_status: paymentStatus || undefined,
+    rate_source: rateSource || undefined,
     from: from || undefined,
     to: to || undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : 'recognized_at',
@@ -103,10 +122,20 @@ export function CasesTab() {
   ]
 
   const totals = cases.data?.totals
-  const anyFilter = Boolean(search || consultancyId || country || payerMethod || paymentStatus || from || to)
+  const anyFilter = Boolean(search || consultancyId || country || payerMethod || paymentStatus || rateSource || from || to)
 
   return (
     <div className="flex flex-col gap-md">
+      {rateSource === 'fallback_default' && (
+        <button
+          type="button"
+          onClick={clearRateSource}
+          className="flex w-fit items-center gap-xs rounded-full border border-warning bg-warning/10 px-3 py-xs text-caption font-medium text-warning"
+        >
+          Priced at the default rate
+          <X className="h-3.5 w-3.5" aria-hidden />
+        </button>
+      )}
       {totals && (
         <p className="text-body-sm text-text-secondary">
           Due {inr(totals.due_inr)} · Paid {inr(totals.paid_inr)} · Outstanding {inr(totals.outstanding_inr)} for these filters

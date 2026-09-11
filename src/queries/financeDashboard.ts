@@ -91,6 +91,8 @@ export interface FinanceCasesFilters {
   destination_country?: string
   payer_method?: 'college' | 'applicant' | 'split'
   payment_status?: 'unpaid' | 'part_paid' | 'paid'
+  /** configured | fallback_default — Commission Rates' "Cases priced at the default" tile links here with fallback_default (2026-09-11). */
+  rate_source?: 'configured' | 'fallback_default'
   from?: string
   to?: string
   sort?: string
@@ -104,6 +106,7 @@ function financeCasesFilter(filters: FinanceCasesFilters): Record<string, string
   if (filters.destination_country) filter.destination_country = filters.destination_country
   if (filters.payer_method) filter.payer_method = filters.payer_method
   if (filters.payment_status) filter.payment_status = filters.payment_status
+  if (filters.rate_source) filter.rate_source = filters.rate_source
   if (filters.from) filter.from = filters.from
   if (filters.to) filter.to = filters.to
   return filter
