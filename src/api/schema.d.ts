@@ -19932,16 +19932,38 @@ export interface components {
                 not_onboarded: number;
                 total_students: number;
             };
+            /** @description The 10 most-chosen target countries, most students first (top 10 since 2026-09-10; the rest are `demand_by_country_others`). Students can choose several, so shares can add up to more than 100%. */
             demand_by_country: {
                 country: string;
                 student_count: number;
-                /** @description Whole-number share of students WITH a declared preference who target this country (2026-09-02). */
+                /** @description Whole-number share of `students_with_country_choice` who target this country (2026-09-02). */
                 share_pct: number;
+                /** @description How many of them live in this country — they chose home (2026-09-10). */
+                home_count: number;
             }[];
+            /** @description Everything beyond the top 10 as one row: how many options, and how many DISTINCT students chose at least one of them (never a sum of picks), with their share. */
+            demand_by_country_others: {
+                options: number;
+                student_count: number;
+                share_pct: number;
+            };
+            /** @description Students who chose at least one target country — the share denominator. */
+            students_with_country_choice: number;
+            /** @description The 10 most-chosen fields of interest, most students first (2026-09-10; the rest are `demand_by_field_others`). Students can choose several. */
             demand_by_field: {
                 field: string;
                 student_count: number;
+                /** @description Whole-number share of `students_with_field_choice` who chose it. */
+                share_pct: number;
             }[];
+            /** @description Everything beyond the top 10 as one row: how many options, and how many DISTINCT students chose at least one of them (never a sum of picks), with their share. */
+            demand_by_field_others: {
+                options: number;
+                student_count: number;
+                share_pct: number;
+            };
+            /** @description Students who chose at least one field of interest — the share denominator. */
+            students_with_field_choice: number;
             /** @description Weekly buckets (Monday-start date) of users.created_at, students only. */
             signups_over_time: {
                 /** Format: date */

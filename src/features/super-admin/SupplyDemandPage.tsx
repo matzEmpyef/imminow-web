@@ -2,7 +2,6 @@ import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
 import { Card } from '@/components/Card'
 import { Table, type TableColumn } from '@/components/Table'
-import { DoughnutChart } from '@/components/DoughnutChart'
 import { MonthlyBarChart } from '@/components/MonthlyBarChart'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useSupplyDemand } from '@/queries/supplyDemand'
@@ -23,6 +22,68 @@ function rollUpToMonthly(weekly: { week: string; count: number }[]) {
     byMonth.set(month, (byMonth.get(month) ?? 0) + count)
   }
   return [...byMonth.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, value]) => ({ month, value }))
+}
+
+// Ranked demand (user review, 2026-09-10) — bars rather than a doughnut: students can choose
+// several, so the shares are of students and can add up to more than 100%. The top 10 come from
+// the server with one Others row for the rest (distinct students, not picks).
+interface DemandRow {
+  key: string
+  label: string
+  count: number
+  pct: number
+  tag?: string | null
+  muted?: boolean
+}
+
+function DemandBars({
+  rows,
+  others,
+  optionNoun,
+}: {
+  rows: DemandRow[]
+  others: { options: number; student_count: number; share_pct: number }
+  optionNoun: string
+}) {
+  if (rows.length === 0) return <p className="mt-sm text-body-sm text-text-secondary">No choices recorded yet.</p>
+  const all: DemandRow[] =
+    others.options > 0
+      ? [
+          ...rows,
+          {
+            key: '__others',
+            label: `Others (${others.options} ${optionNoun})`,
+            count: others.student_count,
+            pct: others.share_pct,
+            muted: true,
+          },
+        ]
+      : rows
+  const widest = Math.max(1, ...all.map((r) => r.count))
+  return (
+    <ol className="mt-md flex flex-col gap-sm">
+      {all.map((r) => (
+        <li key={r.key} className="flex flex-col gap-xs">
+          <div className="flex items-baseline justify-between gap-sm">
+            <span className={`flex items-center gap-xs text-body-sm ${r.muted ? 'text-text-secondary' : 'text-text-primary'}`}>
+              {r.label}
+              {r.tag && <Badge color="secondary">{r.tag}</Badge>}
+            </span>
+            <span className="text-body-sm tabular-nums text-text-primary">
+              <span className="font-medium">{r.count}</span>
+              <span className="ml-xs text-caption text-text-secondary">{r.pct}%</span>
+            </span>
+          </div>
+          <div className="h-2 rounded-full bg-background">
+            <div
+              className={`h-2 rounded-full ${r.muted ? 'bg-text-secondary/40' : 'bg-primary'}`}
+              style={{ width: `${(r.count / widest) * 100}%` }}
+            />
+          </div>
+        </li>
+      ))}
+    </ol>
+  )
 }
 
 // "62%" of all student accounts — the six buckets share one denominator, so the shares add up.
@@ -163,28 +224,37 @@ export function SupplyDemandPage() {
           <Card>
             <h2 className="text-h3 text-text-primary">Demand by Target Country</h2>
             <p className="text-caption text-text-secondary">
-              Students who have set a study preference — one count per student per target country, with each
-              country&apos;s share of those students.
+              {data.students_with_country_choice} students have chosen at least one country. Students can choose several,
+              so the shares add up to more than 100%. &quot;Home&quot; marks students choosing the country they live in.
             </p>
-            <div className="mt-sm">
-              <DoughnutChart data={data.demand_by_country.map((d) => ({ label: d.country, value: d.student_count }))} />
-            </div>
-            <ul className="mt-sm flex flex-col gap-xs">
-              {data.demand_by_country.map((d) => (
-                <li key={d.country} className="flex items-center justify-between text-body-sm">
-                  <span className="text-text-primary">{d.country}</span>
-                  <span className="text-text-secondary">
-                    {d.student_count} · {d.share_pct}%
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <DemandBars
+              rows={data.demand_by_country.map((d) => ({
+                key: d.country,
+                label: d.country,
+                count: d.student_count,
+                pct: d.share_pct,
+                tag: d.home_count > 0 ? `Home for ${d.home_count}` : null,
+              }))}
+              others={data.demand_by_country_others}
+              optionNoun="countries"
+            />
           </Card>
           <Card>
             <h2 className="text-h3 text-text-primary">Demand by Field of Interest</h2>
-            <div className="mt-sm">
-              <DoughnutChart data={data.demand_by_field.map((d) => ({ label: d.field, value: d.student_count }))} />
-            </div>
+            <p className="text-caption text-text-secondary">
+              {data.students_with_field_choice} students have chosen at least one field. Students can choose several, so
+              the shares add up to more than 100%.
+            </p>
+            <DemandBars
+              rows={data.demand_by_field.map((d) => ({
+                key: d.field,
+                label: d.field,
+                count: d.student_count,
+                pct: d.share_pct,
+              }))}
+              others={data.demand_by_field_others}
+              optionNoun="fields"
+            />
           </Card>
         </div>
 
