@@ -182,7 +182,7 @@ export function CourseFormModal({
     <Modal
       onClose={onClose}
       title={isEditing ? 'Edit Course' : 'Add Course'}
-      widthRem={46}
+      widthRem={48}
       footer={
         <>
           {mutation.isError && <p className="mr-auto self-center text-body-sm text-error">{mutation.error.message}</p>}
@@ -198,20 +198,57 @@ export function CourseFormModal({
       }
     >
       <div className="mb-md flex gap-xs border-b border-border">
-        {FORM_TABS.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => form.setActiveTab(tab)}
-            className={`whitespace-nowrap border-b-2 px-sm py-sm text-body-sm font-medium ${
-              form.activeTab === tab
-                ? 'border-primary text-primary'
-                : 'border-transparent text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+        {FORM_TABS.map((tab) => {
+          // A dot on the tab that holds a missing capture check (2026-09-11) — the same five checks
+          // as the Data column, so the gap is findable without opening every tab.
+          const missing =
+            tab === 'Basics'
+              ? !form.language
+                ? 'language of teaching'
+                : !form.durationMonths
+                  ? 'length in months'
+                  : null
+              : tab === 'Campuses & Intakes'
+                ? form.intakes.some((m) => form.deadlines[m]?.deadline)
+                  ? null
+                  : 'an application deadline'
+                : tab === 'Fees'
+                  ? form.feeAmount
+                    ? null
+                    : 'tuition fee'
+                  : tab === 'Entry Requirements'
+                    ? form.minScore ||
+                      form.maxBacklogs ||
+                      form.workExpMonths ||
+                      form.background ||
+                      form.english.length ||
+                      form.aptitude.length ||
+                      form.moiAccepted
+                      ? null
+                      : 'entry requirements'
+                    : null
+          return (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => form.setActiveTab(tab)}
+              title={missing ? `Missing ${missing}` : undefined}
+              className={`flex items-center gap-xs whitespace-nowrap border-b-2 px-sm py-sm text-body-sm font-medium ${
+                form.activeTab === tab
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {tab}
+              {missing && (
+                <>
+                  <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-warning" />
+                  <span className="sr-only">(missing {missing})</span>
+                </>
+              )}
+            </button>
+          )
+        })}
       </div>
       <form id="course-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         {/* All five panels stay mounted and toggle via the hidden class — conditional mounting
