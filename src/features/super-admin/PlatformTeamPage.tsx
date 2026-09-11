@@ -362,9 +362,9 @@ function PermissionEditor({ staff }: { staff: PlatformStaff }) {
 
   function handleSave() {
     if (!dirty || !reasonValid) return
-    const body: Record<string, boolean> & { reason: string } = { reason: reason.trim() }
-    for (const key of changedKeys) body[key] = edits[key]
-    updatePermissions.mutate(body, { onSuccess: handleDiscard })
+    const flags: Record<string, boolean> = {}
+    for (const key of changedKeys) flags[key] = edits[key]
+    updatePermissions.mutate({ flags, reason: reason.trim() }, { onSuccess: handleDiscard })
   }
 
   return (

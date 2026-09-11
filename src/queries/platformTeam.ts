@@ -47,7 +47,11 @@ export function useResendPlatformStaffInvite() {
 export function useUpdatePlatformStaffPermissions(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (body: Record<string, boolean> & { reason: string }) => {
+    // Flags and reason are passed apart and joined here: typed as one object they made an
+    // impossible type (a string `reason` under a boolean index signature) that `tsc -b` — the
+    // production build — rejected (2026-09-12). The wire body stays flat, as the server expects.
+    mutationFn: async ({ flags, reason }: { flags: Record<string, boolean>; reason: string }) => {
+      const body = { ...flags, reason }
       const { data, error } = await api.PATCH('/platform-staff/{id}/permissions', { params: { path: { id } }, body })
       if (error) throw new ApiError('Could not update permissions.', error)
       return data
