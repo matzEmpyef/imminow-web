@@ -1585,11 +1585,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Search any user by name/email — Support Tools (Super Admin). Scope covers students, staff, freelancers (FR-019). */
+        /** Support Tools search across students, staff and freelancers by name or email (support_tools permission). Paged since 2026-09-11 (it returned every match at once), sorted by name. */
         get: {
             parameters: {
                 query: {
                     q: string;
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
                 };
                 header?: never;
                 path?: never;
@@ -1597,13 +1601,16 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Matches — name, contact, status only, deliberately not commission/documents */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["UserSearchResult"][];
+                        "application/json": {
+                            items: components["schemas"]["UserSearchResult"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
                     };
                 };
             };
@@ -1625,7 +1632,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Generate data export (right to access, FR-018) */
+        /** Generate a data export for a user on their behalf (support_tools permission). A reason is required since 2026-09-11 and kept on the audit record. 404 for an unknown user. */
         post: {
             parameters: {
                 query?: never;
@@ -1635,9 +1642,15 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reason: string;
+                    };
+                };
+            };
             responses: {
-                /** @description Export job queued */
+                /** @description Queued */
                 202: {
                     headers: {
                         [name: string]: unknown;
@@ -1667,7 +1680,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Update a locked-out user's email — Support Tools, identity verified first, mandatory reason, audit-logged (build reference 1.4/2.1) */
+        /** Change a locked-out user's sign-in email (support_tools permission, reworked 2026-09-11). The operator records how they verified it is really the account holder; the address must be valid and unused by any other account (409 email_taken). Both the old and the new address are emailed, and the user is signed out on every device. Audited under support. */
         post: {
             parameters: {
                 query?: never;
@@ -1677,23 +1690,36 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** Format: email */
                         new_email: string;
                         reason: string;
+                        /** @enum {string} */
+                        verification_method: "called_registered_phone" | "video_call" | "id_document" | "other";
+                        /** @description Required when verification_method is other. */
+                        verification_note?: string;
                     };
                 };
             };
             responses: {
-                /** @description Updated */
+                /** @description Changed */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": components["schemas"]["UserSearchResult"];
+                    };
+                };
+                /** @description Email already used by another account */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -7630,6 +7656,11 @@ export interface paths {
                         "application/json": {
                             items: components["schemas"]["VisitRequest"][];
                             meta: components["schemas"]["PaginatedMeta"];
+                            summary?: {
+                                pending?: number;
+                                responded?: number;
+                                pending_over_24h?: number;
+                            };
                         };
                     };
                 };
@@ -9068,7 +9099,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/journeys/{id}/switch-consultancy": {
+    "/visit-requests/{id}/nudge": {
         parameters: {
             query?: never;
             header?: never;
@@ -9077,7 +9108,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Support-mediated consultancy switch — closes current journey (closed_switched), opens new Channel-A journey (FR-011) */
+        /** Remind the consultancy about a visit request nobody has answered (support permission, 2026-09-11). Notifies the assigned consultant, else the consultancy's admins. Once per 24 hours; 409 when the consultancy has already replied in the chat. Audited. */
         post: {
             parameters: {
                 query?: never;
@@ -9087,7 +9118,63 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody?: never;
+            responses: {
+                /** @description Reminder sent */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VisitRequest"];
+                    };
+                };
+                /** @description Already replied */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Reminded in the last 24 hours */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/journeys/{id}/switch-consultancy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Move a student to another consultancy (support_tools permission, reworked 2026-09-11) — through the same allocation path Applicant Allocation uses: the old case closes as switched and loses access to the student's shared documents, a new case opens at the chosen consultancy, the student and both consultancies are told. 409 case_closed / case_in_dispute (use Disputes), 400 same_consultancy / not_allocatable, 409 no_active_staff / subscription_lapsed. Reason required; audited under support. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
                 content: {
                     "application/json": {
                         new_consultancy_id: components["schemas"]["UUID"];
@@ -9096,15 +9183,73 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Switched */
-                202: {
+                /** @description Moved */
+                200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            ok?: boolean;
+                            client_id?: components["schemas"]["UUID"];
+                        };
+                    };
+                };
+                /** @description Case closed, in dispute, or the consultancy cannot take it */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/journeys/{id}/switch-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Consultancies that can take this student (support_tools permission, 2026-09-11): active consultancies only, with the countries each serves out of the student's targets, and a blocked_reason for any that cannot (the current one included). refusal is set when the case itself cannot be moved (closed, or in dispute). */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["AllocationCandidate"][];
+                            refusal?: {
+                                code?: string;
+                                message?: string;
+                            } | null;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -19874,6 +20019,21 @@ export interface components {
         };
         /** @description The queryable side-record of a `visit_request` chat message (2026-08-24) — Support Tools' cross-consultancy list reads this, not the per-conversation message stores, since a platform admin has no reason to scan every lead/client's chat on the platform to find these. One row per request, created alongside its chat message and never mutated afterward (no status field — see `responded` below for why one wasn't needed). */
         VisitRequest: {
+            readonly student_email?: string | null;
+            readonly student_phone?: string | null;
+            /** @description The assigned consultant, else a consultancy admin (2026-09-11). */
+            readonly consultancy_contact?: {
+                name?: string;
+                email?: string | null;
+                phone?: string | null;
+                /** @description True when this is the consultant assigned to the lead or client. */
+                assigned?: boolean;
+            } | null;
+            /** @description Hours since the request while the consultancy has not replied; null once it has. */
+            readonly waiting_hours?: number | null;
+            readonly nudge_count?: number;
+            /** Format: date-time */
+            readonly last_nudged_at?: string | null;
             id: components["schemas"]["UUID"];
             consultancy_id: components["schemas"]["UUID"];
             consultancy_name: string;

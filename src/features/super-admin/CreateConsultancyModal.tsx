@@ -366,15 +366,15 @@ function ExistingUserPicker({
         <p className="text-caption text-text-secondary">Searching…</p>
       ) : results.isError ? (
         <p className="text-caption text-error">Could not run this search.</p>
-      ) : (results.data ?? []).length === 0 ? (
+      ) : (results.data?.items ?? []).length === 0 ? (
         <p className="text-caption text-text-secondary">No matches for &ldquo;{trimmed}&rdquo;.</p>
       ) : (
         <ul className="flex max-h-56 flex-col overflow-y-auto rounded-md border border-border">
-          {(results.data ?? []).map((user) => (
+          {(results.data?.items ?? []).map((user) => (
             <li key={user.id} className="border-b border-border last:border-b-0">
               <button
                 type="button"
-                onClick={() => onSelect({ id: user.id!, name: user.name, email: user.email })}
+                onClick={() => onSelect({ id: user.id, name: user.name, email: user.email })}
                 className="flex w-full flex-col px-sm py-sm text-left hover:bg-background"
               >
                 <span className="text-body-sm text-text-primary">{user.name}</span>
