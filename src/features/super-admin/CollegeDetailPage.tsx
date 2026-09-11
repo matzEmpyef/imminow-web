@@ -197,7 +197,9 @@ export function CourseFormModal({
         </>
       }
     >
-      <div className="mb-md flex gap-xs border-b border-border">
+      {/* Pinned under the header while the fields scroll (user, 2026-09-11) — the tabs used to
+          scroll away with the Basics fields, so switching tab meant scrolling back up first. */}
+      <div className="sticky top-0 z-10 -mx-lg -mt-md mb-md flex gap-xs border-b border-border bg-surface px-lg pt-sm">
         {FORM_TABS.map((tab) => {
           // A dot on the tab that holds a missing capture check (2026-09-11) — the same five checks
           // as the Data column, so the gap is findable without opening every tab.
@@ -342,6 +344,7 @@ function CourseRowActions({ college, course }: { college: College; course: Cours
     <div className="flex items-center justify-end gap-sm">
       {course.active && !course.visible && <Badge color="secondary">Hidden — college inactive</Badge>}
       <Toggle
+        size="sm"
         checked={Boolean(course.active)}
         onChange={(checked) => (checked ? updateCourse.mutate({ active: true }) : setConfirmingOff(true))}
         label={`${course.name} active`}

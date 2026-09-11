@@ -5,9 +5,12 @@ interface ToggleProps {
   label: string
   /** Lets a visible `<label htmlFor>` point at the switch, so its text is clickable too. */
   id?: string
+  /** `sm` for dense rows — a table with a switch on every line (2026-09-11, college courses list). */
+  size?: 'md' | 'sm'
 }
 
-export function Toggle({ checked, onChange, disabled, label, id }: ToggleProps) {
+export function Toggle({ checked, onChange, disabled, label, id, size = 'md' }: ToggleProps) {
+  const small = size === 'sm'
   return (
     <button
       id={id}
@@ -17,9 +20,9 @@ export function Toggle({ checked, onChange, disabled, label, id }: ToggleProps) 
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative h-6 w-11 shrink-0 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-        checked ? 'bg-primary' : 'bg-border'
-      }`}
+      className={`relative shrink-0 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+        small ? 'h-4 w-7' : 'h-6 w-11'
+      } ${checked ? 'bg-primary' : 'bg-border'}`}
     >
       {/* Positioned via left/right rather than a translateX offset — this project's Tailwind v4
           setup silently drops arbitrary bracket values like `translate-x-[22px]`, so the knob
@@ -27,7 +30,7 @@ export function Toggle({ checked, onChange, disabled, label, id }: ToggleProps) 
           only the track color changed. left-0.5/right-0.5 are named-scale utilities that work
           and stay symmetric (2px inset) on either side without needing an exact px offset. */}
       <span
-        className={`absolute top-0.5 h-5 w-5 rounded-full bg-surface transition-all ${
+        className={`absolute top-0.5 rounded-full bg-surface transition-all ${small ? 'h-3 w-3' : 'h-5 w-5'} ${
           checked ? 'right-0.5' : 'left-0.5'
         }`}
       />
