@@ -51,11 +51,12 @@ function demandSlices(
   const total = all.reduce((sum, s) => sum + s.value, 0)
   return all.map((s) => {
     const share = total ? Math.round((s.value / total) * 100) : 0
+    // Short legend (user, 2026-09-11): "6 students (32%)". Others is sized by choices, so it says so.
     const unit = s.isOthers ? 'choices' : s.value === 1 ? 'student' : 'students'
     return {
-      label: s.label,
+      label: s.tag ? `${s.label} (${s.tag})` : s.label,
       value: s.value,
-      detail: `${s.value} ${unit} · ${share}% of choices${s.tag ? ` · ${s.tag}` : ''}`,
+      detail: `${s.value} ${unit} (${share}%)`,
     }
   })
 }
@@ -227,7 +228,7 @@ export function SupplyDemandPage() {
             <h2 className="text-h3 text-text-primary">Demand by Target Country</h2>
             <p className="text-caption text-text-secondary">
               {data.students_with_country_choice} students have chosen at least one country. They can choose several, so
-              each share is of all choices. &quot;home for N&quot; marks students choosing the country they live in.
+              each % is a share of all choices. &quot;(home for N)&quot; = N of them live in that country.
             </p>
             <div className="mt-sm">
               <DoughnutChart
@@ -246,8 +247,8 @@ export function SupplyDemandPage() {
           <Card>
             <h2 className="text-h3 text-text-primary">Demand by Field of Interest</h2>
             <p className="text-caption text-text-secondary">
-              {data.students_with_field_choice} students have chosen at least one field. They can choose several, so each
-              share is of all choices.
+              {data.students_with_field_choice} students have chosen at least one field. They can choose several, so each %
+              is a share of all choices.
             </p>
             <div className="mt-sm">
               <DoughnutChart
