@@ -25,6 +25,7 @@ import {
   useUpdateEntitlements,
   useTierImpact,
   useRenewSubscription,
+  type ConsultancyFilters,
 } from '@/queries/adminConsultancies'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
@@ -831,6 +832,35 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
   )
 }
 
+// Renewal at a glance (user, 2026-09-11): the date while the term is healthy, and a badge once it
+// needs someone — ending within 30 days, inside the 14-day grace, or lapsed.
+function SubscriptionCell({ consultancy: c }: { consultancy: Consultancy }) {
+  const expires = c.subscription_expires_at
+  if (!expires || c.subscription_status === 'none') return <span className="text-text-secondary">No term</span>
+  switch (c.subscription_status) {
+    case 'lapsed':
+      return <Badge color="error">Lapsed</Badge>
+    case 'grace':
+      return (
+        <span className="flex items-center gap-xs">
+          <Badge color="warning">Grace</Badge>
+          {c.grace_ends_at && (
+            <span className="text-caption text-text-secondary">until {formatDate(c.grace_ends_at)}</span>
+          )}
+        </span>
+      )
+    case 'expiring':
+      return (
+        <span className="flex items-center gap-xs">
+          <Badge color="warning">Ending soon</Badge>
+          <span className="text-caption text-text-secondary">{formatDate(expires)}</span>
+        </span>
+      )
+    default:
+      return <span className="whitespace-nowrap text-text-primary">Renews {formatDate(expires)}</span>
+  }
+}
+
 export function ManageConsultanciesPage() {
   // `?kind=consultancy|institute` pre-filters the list — the Overview's Consultancies and
   // Institutes cards link here that way (2026-09-10).
@@ -838,6 +868,7 @@ export function ManageConsultanciesPage() {
   const [search, setSearch] = useState('')
   const [tierFilter, setTierFilter] = useState('')
   const [kindFilter, setKindFilter] = useState(searchParams.get('kind') ?? '')
+  const [statusFilter, setStatusFilter] = useState('')
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [managingId, setManagingId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
@@ -849,6 +880,7 @@ export function ManageConsultanciesPage() {
     // INSTITUTE_ACCOUNT_PLAN D10 — an institute is a row in this same list under D6, so the list
     // grows a tag and a filter rather than a second screen.
     kind: (kindFilter || undefined) as 'consultancy' | 'institute' | undefined,
+    status: (statusFilter || undefined) as ConsultancyFilters['status'],
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
     cursor: paging.cursor,
     limit: 20,
@@ -856,7 +888,14 @@ export function ManageConsultanciesPage() {
 
   const managingConsultancy = managingId ? consultancies.data?.items.find((c) => c.id === managingId) : undefined
   const tierCounts = consultancies.data?.tier_counts
-  const totalCount = tierCounts ? tierCounts.starter + tierCounts.business + tierCounts.ultimate : undefined
+  const kindCounts = consultancies.data?.kind_counts
+  const kpis: [string, number | undefined][] = [
+    ['Consultancies', kindCounts?.consultancy],
+    ['Institutes', kindCounts?.institute],
+    ['Starter', tierCounts?.starter],
+    ['Business', tierCounts?.business],
+    ['Ultimate', tierCounts?.ultimate],
+  ]
 
   function resetPaging() {
     paging.reset()
@@ -878,6 +917,14 @@ export function ManageConsultanciesPage() {
         </span>
       ),
     },
+    // Where the account itself is based, as text (user, 2026-09-11 — "no flag").
+    {
+      key: 'country',
+      header: 'Country',
+      sortable: true,
+      render: (c) => c.country ?? <span className="text-text-secondary">—</span>,
+    },
+    { key: 'city', header: 'City', sortable: true, hideBelow: 'lg', render: (c) => c.city },
     {
       key: 'tier',
       header: 'Plan',
@@ -894,19 +941,23 @@ export function ManageConsultanciesPage() {
       render: (c) => (
         <div className="flex items-center gap-xs">
           <Badge color={c.active ? 'success' : 'secondary'}>{c.active ? 'Active' : 'Suspended'}</Badge>
-          {c.subscription_status === 'lapsed' && <Badge color="error">Subscription lapsed</Badge>}
-          {c.subscription_status === 'grace' && <Badge color="warning">Grace period</Badge>}
           {!c.kyc_verified && <Badge color="warning">KYC pending</Badge>}
         </div>
       ),
     },
-    { key: 'city', header: 'City', sortable: true, render: (c) => c.city },
+    {
+      key: 'subscription',
+      header: 'Subscription',
+      sortable: true,
+      render: (c) => <SubscriptionCell consultancy={c} />,
+    },
     {
       // Sortable, so "which agencies are rated worst" is one click. The count sits next to the
       // number because a lone 4.6 does not say whether one student or a thousand produced it.
       key: 'rating',
       header: 'Rating',
       sortable: true,
+      hideBelow: 'lg',
       render: (c) =>
         c.rating == null ? (
           <span className="text-text-secondary">Not rated</span>
@@ -923,7 +974,31 @@ export function ManageConsultanciesPage() {
           </span>
         ),
     },
-    { key: 'seat_limit', header: 'Seats', sortable: true, align: 'right', render: (c) => c.seat_limit },
+    {
+      // Used out of the limit (2026-09-11) — the limit alone never said whether an account was
+      // about to run out of seats.
+      key: 'seats_used',
+      header: 'Seats',
+      sortable: true,
+      align: 'right',
+      render: (c) => (
+        <span className="flex items-center justify-end gap-xs">
+          {c.seats_used != null && c.seats_used >= c.seat_limit && <Badge color="warning">Full</Badge>}
+          <span className="whitespace-nowrap text-text-primary">
+            {c.seats_used ?? '—'} / {c.seat_limit}
+          </span>
+        </span>
+      ),
+    },
+    {
+      // Open cases right now, the Dashboard's definition of a current applicant.
+      key: 'active_applicants',
+      header: 'Active applicants',
+      sortable: true,
+      align: 'right',
+      hideBelow: 'md',
+      render: (c) => c.active_applicants ?? '—',
+    },
     {
       key: 'actions',
       header: '',
@@ -957,27 +1032,22 @@ export function ManageConsultanciesPage() {
 
         {creating && <CreateConsultancyModal onClose={() => setCreating(false)} />}
 
-        {/* KPI cards (user-requested, 2026-08-18 — "have KPIs.. how much count in each tier")
-            — always the platform-wide tier breakdown from `tier_counts`, independent of this
-            page's own search/plan filter, so the totals don't shift as an admin filters the list
-            below. Moved here from the Dashboard, which now shows only the total. */}
-        <div className="grid grid-cols-2 gap-md md:grid-cols-4">
-          <Card>
-            <p className="text-caption text-text-secondary">Total Consultancies</p>
-            <p className="mt-xs text-h1 text-text-primary">{totalCount ?? '…'}</p>
-          </Card>
-          <Card>
-            <p className="text-caption text-text-secondary">Starter</p>
-            <p className="mt-xs text-h1 text-text-primary">{tierCounts?.starter ?? '…'}</p>
-          </Card>
-          <Card>
-            <p className="text-caption text-text-secondary">Business</p>
-            <p className="mt-xs text-h1 text-text-primary">{tierCounts?.business ?? '…'}</p>
-          </Card>
-          <Card>
-            <p className="text-caption text-text-secondary">Ultimate</p>
-            <p className="mt-xs text-h1 text-text-primary">{tierCounts?.ultimate ?? '…'}</p>
-          </Card>
+        {/* KPI cards (user-requested 2026-08-18 — "have KPIs.. how much count in each tier";
+            reworked 2026-09-11) — ACTIVE accounts only, consultancies and institutes counted apart
+            like the Dashboard's cards, then the same accounts by plan. Platform-wide, so the totals
+            don't shift as an admin filters the list below. */}
+        <div className="flex flex-col gap-xs">
+          <div className="grid grid-cols-2 gap-md sm:grid-cols-3 lg:grid-cols-5">
+            {kpis.map(([label, value]) => (
+              <Card key={label}>
+                <p className="text-caption text-text-secondary">{label}</p>
+                <p className="mt-xs text-h1 text-text-primary">{value ?? '…'}</p>
+              </Card>
+            ))}
+          </div>
+          <p className="text-caption text-text-secondary">
+            Active accounts only. Plans count consultancies and institutes together.
+          </p>
         </div>
 
         <Table
@@ -987,7 +1057,7 @@ export function ManageConsultanciesPage() {
           loading={consultancies.isLoading}
           error={consultancies.isError ? 'Could not load consultancies.' : undefined}
           emptyMessage={
-            search || tierFilter || kindFilter
+            search || tierFilter || kindFilter || statusFilter
               ? 'No accounts match these filters.'
               : 'No consultancies yet. Create the first one with the button above.'
           }
@@ -1002,7 +1072,7 @@ export function ManageConsultanciesPage() {
               setSearch(value)
               resetPaging()
             },
-            placeholder: 'Search by name…',
+            placeholder: 'Search by name, city or country…',
           }}
           filters={
             <>
@@ -1031,6 +1101,22 @@ export function ManageConsultanciesPage() {
                 <option value="starter">Starter</option>
                 <option value="business">Business</option>
                 <option value="ultimate">Ultimate</option>
+              </CompactSelect>
+              <CompactSelect
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value)
+                  resetPaging()
+                }}
+                label="Status"
+              >
+                <option value="">Any status</option>
+                <option value="active">Active</option>
+                <option value="suspended">Suspended</option>
+                <option value="kyc_pending">KYC pending</option>
+                <option value="expiring">Subscription ending soon</option>
+                <option value="grace">In grace period</option>
+                <option value="lapsed">Subscription lapsed</option>
               </CompactSelect>
             </>
           }

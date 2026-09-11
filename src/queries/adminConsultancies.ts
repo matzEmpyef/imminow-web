@@ -13,6 +13,8 @@ export interface ConsultancyFilters {
   // INSTITUTE_ACCOUNT_PLAN D10 — institutes are rows in this same list under D6, so narrowing to
   // one kind is a filter on the existing endpoint rather than a second screen.
   kind?: 'consultancy' | 'institute'
+  // Account state and subscription state in one select (Manage Consultancies, 2026-09-11).
+  status?: 'active' | 'suspended' | 'kyc_pending' | 'expiring' | 'grace' | 'lapsed'
   active?: boolean
   sort?: string
   cursor?: string

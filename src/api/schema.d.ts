@@ -4639,7 +4639,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Discovery list (Stage 1, filter by country, sort by rating/match score, FR-028) — also Manage Consultancies' searchable list (build reference 1.23), via the search/tier/ active params below. Open to any authenticated user, not just Super Admin (Sentpo Mobile Wave 3 — this was the one gap between this doc's own dual-purpose summary and its mock-server implementation, which had been Super-Admin-gated). Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, city, seat_limit, tier, rating, and match (build reference 1.5's rule-based overlap score between the caller's own `StudentPreferences` and each consultancy's countries_served — students only, silently falls back to rating for any other caller; study level deliberately does NOT score, since a consultancy serves every course level in a college — user, 2026-08-20; `fields_served` was removed from the schema entirely, 2026-08-30, since no web or mobile UI ever displayed or edited it). filter[country]= narrows to consultancies serving that country. District filtering from the build reference's own Discovery List description isn't implemented — no schema anywhere (`Consultancy`, `User`, `StudentPreferences`) has a district/location field, the same pre-existing gap flagged for Wave 2's "Study in [Home Country]" tab. Discovery List's own caller passes active=true explicitly (this endpoint doesn't filter out retired consultancies by default — Manage Consultancies needs to see them too). */
+        /** Discovery list (Stage 1, filter by country, sort by rating/match score, FR-028) — also Manage Consultancies' searchable list (build reference 1.23), via the search/tier/ active params below. Open to any authenticated user, not just Super Admin (Sentpo Mobile Wave 3 — this was the one gap between this doc's own dual-purpose summary and its mock-server implementation, which had been Super-Admin-gated). Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, city, country, seat_limit, tier, rating, subscription (soonest expiry first, no term last), seats_used and active_applicants (platform team only), and match (build reference 1.5's rule-based overlap score between the caller's own `StudentPreferences` and each consultancy's countries_served — students only, silently falls back to rating for any other caller; study level deliberately does NOT score, since a consultancy serves every course level in a college — user, 2026-08-20; `fields_served` was removed from the schema entirely, 2026-08-30, since no web or mobile UI ever displayed or edited it). filter[country]= narrows to consultancies serving that country. District filtering from the build reference's own Discovery List description isn't implemented — no schema anywhere (`Consultancy`, `User`, `StudentPreferences`) has a district/location field, the same pre-existing gap flagged for Wave 2's "Study in [Home Country]" tab. Discovery List's own caller passes active=true explicitly (this endpoint doesn't filter out retired consultancies by default — Manage Consultancies needs to see them too). */
         get: {
             parameters: {
                 query?: {
@@ -4651,11 +4651,13 @@ export interface paths {
                     filter?: components["parameters"]["FilterParam"];
                     /** @description Sort field. Prefix with - for descending, e.g. sort=-created_at (TRD Section 7). */
                     sort?: components["parameters"]["SortParam"];
-                    /** @description Match against name (Manage Consultancies). */
+                    /** @description Match against name — and, for the platform team, city and country (Manage Consultancies, 2026-09-11). */
                     search?: string;
                     tier?: "starter" | "business" | "ultimate";
                     /** @description Narrows to one kind of account (INSTITUTE_ACCOUNT_PLAN D10, 2026-09-10). Institutes are already rows in this list under D6, so discovery needs a tag and a filter rather than a new screen. Discovery's institute "view all" is this plus the endpoint's own default `sort=name` ascending — alphabetical, deliberately NOT `-rating` or `match`, because D15 removes the ranking problem by not ranking institutes against consultancies at all. */
                     kind?: "consultancy" | "institute";
+                    /** @description Manage Consultancies' status filter (2026-09-11). `active` and `suspended` are the account switch, `kyc_pending` is KYC not yet verified, and `expiring`, `grace` and `lapsed` match `subscription_status`. An unknown value is a 400. */
+                    status?: "active" | "suspended" | "kyc_pending" | "expiring" | "grace" | "lapsed";
                     active?: boolean;
                     /** @description Discovery List's country filter — matches against countries_served. */
                     "filter[country]"?: string;
@@ -4679,11 +4681,16 @@ export interface paths {
                         "application/json": {
                             items: components["schemas"]["Consultancy"][];
                             meta: components["schemas"]["PaginatedMeta"];
-                            /** @description Count of every consultancy on the platform by tier (Manage Consultancies KPI cards, user-requested 2026-08-18) — always computed over the full unfiltered set, independent of this response's own search/tier/ active filters or pagination, so the KPI totals never shift as an admin filters or pages through the list. */
+                            /** @description Active accounts on the platform by plan, consultancies and institutes together (Manage Consultancies KPI cards, user-requested 2026-08-18; active only since 2026-09-11) — always computed over the full set, independent of this response's own search/tier/status filters or pagination, so the KPI totals never shift as an admin filters or pages through the list. */
                             tier_counts?: {
                                 starter: number;
                                 business: number;
                                 ultimate: number;
+                            };
+                            /** @description Active accounts by kind (2026-09-11), computed the same way as `tier_counts` — the Manage Consultancies Consultancies and Institutes cards. */
+                            kind_counts?: {
+                                consultancy: number;
+                                institute: number;
                             };
                         };
                     };
@@ -17076,6 +17083,10 @@ export interface components {
              * @description The day the 14-day grace period ends (expiry plus 14 days). Null with no term.
              */
             readonly grace_ends_at?: string | null;
+            /** @description Active employees taking a seat, out of `seat_limit` (Manage Consultancies, 2026-09-11). Only on GET /consultancies rows returned to the platform team; absent everywhere else. */
+            readonly seats_used?: number;
+            /** @description Open applicant cases the account is working on now — the same definition as the Dashboard's current applicants (Manage Consultancies, 2026-09-11). Only on GET /consultancies rows returned to the platform team; absent everywhere else. */
+            readonly active_applicants?: number;
             /** @enum {string|null} */
             billing_cycle?: "monthly" | "annual" | null;
             subscription_amount?: number | null;
