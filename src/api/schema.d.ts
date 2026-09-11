@@ -3628,7 +3628,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Create platform staff account — invite-based, same pattern as employee invites (build reference 1.15) */
+        /** Invite a platform staff member (team_management, 2026-09-11): emails a link to set their own password (7 days); status is invited until they accept. 400 invalid email, 409 email_taken. Optional initial permissions. Audited under staff. */
         post: {
             parameters: {
                 query?: never;
@@ -3659,6 +3659,157 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/platform-staff/{id}/resend-invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send the invite again with a fresh link (team_management). 409 once they have joined. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Sent */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Already joined */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/platform-staff/{id}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disable a staff account with a reason (team_management, 2026-09-11). A Super Admin can never be disabled (409 super_admin); nobody can disable themselves (409 self). Their sessions end at once and an unaccepted invite stops working. Audited under staff. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Disabled */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlatformStaff"];
+                    };
+                };
+                /** @description Super Admin, own account, or already disabled */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/platform-staff/{id}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Re-enable a disabled staff account with a reason (team_management, 2026-09-11). Someone disabled before they ever joined goes back to invited and needs a fresh invite. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Enabled */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlatformStaff"];
+                    };
+                };
+                /** @description Not disabled */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/platform-staff/{id}/permissions": {
         parameters: {
             query?: never;
@@ -3672,7 +3823,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Edit permission flags (not applicable to Super Admin — permanently on) */
+        /** Switch permission flags for a staff member (team_management). A reason is required since 2026-09-11 and kept in the audit log (400 without one). Super Admin flags cannot be edited. */
         patch: {
             parameters: {
                 query?: never;
@@ -3722,7 +3873,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Disable Platform Staff account — blocked if the sole active Super Admin (build reference 1.15) */
+        /** Disable a staff account — same rules as POST /platform-staff/{id}/disable (a reason is required; a Super Admin can never be disabled; nobody disables themselves). Kept for existing callers; answers with the updated account. */
         delete: {
             parameters: {
                 query?: never;
@@ -3735,13 +3886,15 @@ export interface paths {
             requestBody?: never;
             responses: {
                 /** @description Disabled */
-                204: {
+                200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["PlatformStaff"];
+                    };
                 };
-                /** @description Sole Super Admin lockout guard triggered */
+                /** @description Super Admin, own account, or already disabled */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -12827,7 +12980,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Platform-wide Push/Email defaults per type (Super Admin, FR-075) */
+        /** The per-type channel switches (notifications permission since 2026-09-11 — it was readable by any signed-in user). */
         get: {
             parameters: {
                 query?: never;
@@ -22900,7 +23053,7 @@ export interface components {
             /** @description Human-readable label for the entity at the time of the change (e.g. an applicant's name) — the entity/person search filter matches against this. */
             entity_label?: string | null;
             /** @enum {string} */
-            area: "leads" | "clients" | "plans" | "documents" | "settings" | "staff" | "marketing" | "support" | "finance";
+            area: "leads" | "clients" | "plans" | "documents" | "settings" | "staff" | "marketing" | "support" | "finance" | "consultancy_management" | "catalog";
             diff?: {
                 [key: string]: unknown;
             } | null;
@@ -22929,6 +23082,21 @@ export interface components {
         };
         /** @description Super Admin or Platform Staff account (build reference 1.15/1.23). Super Admin has every flag permanently on and unremovable; Platform Staff has individually configurable flags. */
         PlatformStaff: {
+            user_id?: components["schemas"]["UUID"];
+            /**
+             * @description invited until they accept the email invite (2026-09-11). A Super Admin is always active.
+             * @enum {string}
+             */
+            status?: "invited" | "active" | "disabled";
+            /** Format: date-time */
+            invited_at?: string | null;
+            /** Format: date-time */
+            joined_at?: string | null;
+            /** Format: date-time */
+            last_sign_in_at?: string | null;
+            /** Format: date-time */
+            disabled_at?: string | null;
+            disabled_reason?: string | null;
             id: components["schemas"]["UUID"];
             name: string;
             /** Format: email */

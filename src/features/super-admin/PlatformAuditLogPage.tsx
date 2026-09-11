@@ -1,23 +1,69 @@
 import { useState } from 'react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
+import { Button } from '@/components/Button'
 import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
 import { useAdminConsultancies } from '@/queries/adminConsultancies'
-import { usePlatformAuditLog, type PlatformAuditLogFilters } from '@/queries/platformAuditLog'
+import {
+  fetchAllPlatformAuditLog,
+  usePlatformAuditLog,
+  type PlatformAuditLogArea,
+  type PlatformAuditLogFilters,
+} from '@/queries/platformAuditLog'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDateTime } from '@/lib/time'
 
 const ACTION_COLORS = { create: 'success', update: 'info', delete: 'error' } as const
 
-// C1: action_type/entity_type/area are raw snake_case wire values ('kyc_verified',
-// 'commission_entry', 'consultancy_management'…) — this reads them the same way the Action/Area
-// filter dropdowns already spell their own options, rather than showing the wire value verbatim.
+// One readable label per wire value, kept in the same order the filter dropdown shows them —
+// covers every value the `area` enum can carry (schema.d.ts), so a newly added area fails to
+// compile here rather than silently falling back to raw snake_case.
+const AREA_LABELS: Record<PlatformAuditLogArea, string> = {
+  settings: 'Settings',
+  staff: 'Staff',
+  leads: 'Leads',
+  clients: 'Clients',
+  plans: 'Plans',
+  documents: 'Documents',
+  marketing: 'Marketing',
+  support: 'Support',
+  finance: 'Finance',
+  consultancy_management: 'Consultancy management',
+  catalog: 'Catalog',
+}
+const AREA_OPTIONS = Object.keys(AREA_LABELS) as PlatformAuditLogArea[]
+
+// C1: action_type/entity_type are raw snake_case wire values ('kyc_verified', 'commission_entry'…)
+// — this reads them the same way the Action filter dropdown already spells its own options,
+// rather than showing the wire value verbatim. `area` uses AREA_LABELS instead, above.
 function labelize(value: string): string {
   return value
     .split('_')
     .map((word) => (word === 'kyc' ? 'KYC' : word.charAt(0).toUpperCase() + word.slice(1)))
     .join(' ')
+}
+
+function csvCell(value: string): string {
+  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+}
+
+function toCsv(rows: Entry[]): string {
+  const header = ['Time', 'Actor', 'Action', 'Area', 'Entity type', 'Entity', 'Reason']
+  const lines = rows.map((e) =>
+    [
+      formatDateTime(e.created_at),
+      e.actor_name ?? 'Unknown',
+      labelize(e.action_type),
+      AREA_LABELS[e.area] ?? labelize(e.area),
+      labelize(e.entity_type),
+      e.entity_label ?? '',
+      e.reason ?? '',
+    ]
+      .map((v) => csvCell(String(v)))
+      .join(','),
+  )
+  return [header.join(','), ...lines].join('\n')
 }
 
 type Entry = NonNullable<ReturnType<typeof usePlatformAuditLog>['data']>['items'][number]
@@ -33,12 +79,14 @@ export function PlatformAuditLogPage() {
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
   const paging = useCursorPagination()
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   function resetPaging() {
     paging.reset()
   }
 
-  const entries = usePlatformAuditLog({
+  const filters = {
     consultancy_id: consultancyId || undefined,
     action_type: actionType || undefined,
     area: area || undefined,
@@ -46,9 +94,34 @@ export function PlatformAuditLogPage() {
     to: to || undefined,
     search: search || undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
-    cursor: paging.cursor,
-    limit: 20,
-  })
+  }
+
+  const entries = usePlatformAuditLog({ ...filters, cursor: paging.cursor, limit: 20 })
+
+  // Loops every page at the server's max page size for the current filters — the table only ever
+  // renders one page, and the export has to cover everything that matches (same shape as Finance's
+  // payment history export).
+  async function handleExport() {
+    setExporting(true)
+    setExportError(null)
+    try {
+      const rows = await fetchAllPlatformAuditLog(filters)
+      const csv = toCsv(rows)
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `platform-audit-log-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch {
+      setExportError('Could not export the audit log.')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const columns: TableColumn<Entry>[] = [
     {
@@ -79,7 +152,7 @@ export function PlatformAuditLogPage() {
       sortable: true,
       render: (e) => (
         <span className="text-text-secondary">
-          {labelize(e.area)}
+          {AREA_LABELS[e.area] ?? labelize(e.area)}
           {e.consultancy_id ? '' : ' · platform-level'}
         </span>
       ),
@@ -90,11 +163,19 @@ export function PlatformAuditLogPage() {
   return (
     <AdminShell>
       <div className="flex flex-col gap-lg">
-        <div>
-          <h1 className="text-h1 text-text-primary">Audit Log</h1>
-          <p className="text-body-sm text-text-secondary">
-            Platform-wide — every change across every consultancy, gated to Platform Staff Administration.
-          </p>
+        <div className="flex items-start justify-between gap-md">
+          <div>
+            <h1 className="text-h1 text-text-primary">Audit Log</h1>
+            <p className="text-body-sm text-text-secondary">
+              Platform-wide — every change across every consultancy. Needs the Audit Log permission.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-xs">
+            <Button variant="secondary" size="sm" disabled={exporting} onClick={handleExport}>
+              {exporting ? 'Preparing…' : 'Export CSV'}
+            </Button>
+            {exportError && <p className="text-caption text-error">{exportError}</p>}
+          </div>
         </div>
 
         <Table
@@ -158,12 +239,11 @@ export function PlatformAuditLogPage() {
                   resetPaging()
                 }}
                 label="Area"
-                className="capitalize"
               >
                 <option value="">Any area</option>
-                {['leads', 'clients', 'plans', 'documents', 'settings', 'staff', 'marketing', 'support', 'finance'].map((a) => (
+                {AREA_OPTIONS.map((a) => (
                   <option key={a} value={a}>
-                    {a}
+                    {AREA_LABELS[a]}
                   </option>
                 ))}
               </CompactSelect>

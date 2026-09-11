@@ -51,15 +51,24 @@ export function SetPasswordPage() {
   // Freelancer invites (2026-09-11) carry no consultancy — they're a referral partner, not
   // consultancy staff — so the field and welcome copy read differently for them.
   const isFreelancer = invite.data.role === 'freelancer'
+  // Platform staff invites (2026-09-11) carry no consultancy either — they're joining the
+  // immiNow team itself, not any one consultancy — so they get the same treatment as freelancers
+  // rather than falling through to a blank "Consultancy" field.
+  const isPlatformStaff = invite.data.role === 'platform_staff'
 
   return (
     <AuthLayout title={`Welcome, ${invite.data.first_name}`}>
       {isFreelancer && (
         <p className="mb-md text-body-sm text-text-secondary">You&rsquo;re joining Sentpo as a referral partner.</p>
       )}
+      {isPlatformStaff && (
+        <p className="mb-md text-body-sm text-text-secondary">You&rsquo;re joining the immiNow team.</p>
+      )}
       <form className="flex flex-col gap-md" onSubmit={handleSubmit} noValidate>
         {isFreelancer ? (
           <TextField label="Account type" value="Freelancer partner" readOnly disabled />
+        ) : isPlatformStaff ? (
+          <TextField label="Account type" value="immiNow team" readOnly disabled />
         ) : (
           <TextField label="Consultancy" value={invite.data.consultancy_name ?? ''} readOnly disabled />
         )}

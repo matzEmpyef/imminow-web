@@ -1,7 +1,9 @@
+import { useMemo, useState } from 'react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
 import { Toggle } from '@/components/Toggle'
 import { Table, type TableColumn } from '@/components/Table'
+import { FilterChip } from '@/components/FilterChip'
 import { useNotificationChannelConfig, useUpdateNotificationChannelConfig } from '@/queries/notificationChannelConfig'
 import type { components } from '@/api/schema'
 
@@ -73,6 +75,12 @@ const LABELS: Record<string, string> = {
   commission_payment_declared: 'Consultancy declared a payment to immiNow (Finance)',
   commission_payment_overdue: 'A payment to immiNow is overdue (Finance)',
   commission_payment_recorded: 'immiNow recorded a payment from the consultancy (to the consultancy)',
+  student_reports_offer: 'Student reported an offer',
+  step_submitted: 'Student submitted a step',
+  document_replaced: 'Student replaced a document',
+  visit_requested: 'Student requested a visit',
+  visit_request_nudge: 'Student nudged a visit request',
+  case_switched_away: 'Case moved to another consultancy',
 }
 
 // Row-level component so useUpdateNotificationChannelConfig() can be called at its own render top
@@ -104,8 +112,36 @@ function ChannelToggles({ entry }: { entry: ConfigEntry }) {
   )
 }
 
+type AudienceFilter = 'all' | 'sentpo' | 'imminow'
+
+const AUDIENCE_CHIPS: { key: AudienceFilter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'sentpo', label: 'Sentpo App' },
+  { key: 'imminow', label: 'immiNow Platform' },
+]
+
 export function NotificationChannelConfigPage() {
   const config = useNotificationChannelConfig()
+  const [search, setSearch] = useState('')
+  const [audience, setAudience] = useState<AudienceFilter>('all')
+
+  const searched = useMemo(() => {
+    const all = config.data ?? []
+    if (!search) return all
+    const q = search.toLowerCase()
+    return all.filter((entry) => {
+      const label = LABELS[entry.notification_type] ?? entry.notification_type
+      return label.toLowerCase().includes(q) || entry.notification_type.toLowerCase().includes(q)
+    })
+  }, [config.data, search])
+
+  const counts = useMemo(() => {
+    const c: Record<AudienceFilter, number> = { all: searched.length, sentpo: 0, imminow: 0 }
+    for (const entry of searched) c[entry.audience]++
+    return c
+  }, [searched])
+
+  const rows = audience === 'all' ? searched : searched.filter((entry) => entry.audience === audience)
 
   const columns: TableColumn<ConfigEntry>[] = [
     {
@@ -163,11 +199,20 @@ export function NotificationChannelConfigPage() {
 
         <Table
           columns={columns}
-          rows={config.data ?? []}
-          rowKey={(entry) => entry.notification_type!}
+          rows={rows}
+          rowKey={(entry) => `${entry.audience}-${entry.notification_type}`}
           loading={config.isLoading}
           error={config.isError ? 'Could not load the channel config.' : undefined}
-          emptyMessage="No notification types configured."
+          emptyMessage={search ? 'No notification types match this search.' : 'No notification types configured.'}
+          search={{ value: search, onChange: setSearch, placeholder: 'Search notification type…' }}
+          quickFilters={AUDIENCE_CHIPS.map((chip) => (
+            <FilterChip
+              key={chip.key}
+              label={`${chip.label} (${counts[chip.key]})`}
+              active={audience === chip.key}
+              onChange={() => setAudience(chip.key)}
+            />
+          ))}
         />
       </div>
     </AdminShell>
