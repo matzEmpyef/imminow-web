@@ -21,6 +21,66 @@ export function useBlogArticles() {
   })
 }
 
+export interface BlogArticleListFilters {
+  search?: string
+  /** Blog staff only — published (default), hidden, or all. */
+  status?: 'published' | 'hidden' | 'all'
+  /** app_tag, comma-separated = any of. */
+  tag?: string
+  sort?: string
+  cursor?: string
+  limit?: number
+}
+
+// The admin list (2026-09-11) — server search, cursor paging and a status filter that reaches
+// hidden articles. The old `useBlogArticles()` above called this endpoint with no params, which
+// for the admin meant "published only, first 20": a hidden article vanished from the admin too
+// and could never be restored, and anything past the first page was unreachable.
+export function useAdminBlogArticles(filters: BlogArticleListFilters = {}) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: [...ARTICLES_KEY, 'admin', filters],
+    queryFn: async () => {
+      const filter: Record<string, string> = {}
+      if (filters.tag) filter.tag = filters.tag
+      const { data, error } = await api.GET('/blog', {
+        params: {
+          query: {
+            search: filters.search || undefined,
+            'filter[status]': filters.status ?? 'all',
+            filter: Object.keys(filter).length > 0 ? filter : undefined,
+            sort: filters.sort || undefined,
+            cursor: filters.cursor,
+            limit: filters.limit,
+          },
+        },
+      })
+      if (error) throw new ApiError('Could not load articles.', error)
+      return data
+    },
+    enabled: isAuthed,
+  })
+}
+
+// Search-as-you-type source for pickers (e.g. Broadcast's "opens a specific article") — a server
+// search rather than filtering whatever page happened to load first, same reasoning as
+// useAdminBlogArticles above. Published only (the default `filter[status]`): a broadcast should
+// never deep-link a student to an article that's hidden.
+export function useBlogArticleSearch(search: string) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: [...ARTICLES_KEY, 'search', search],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/blog', {
+        params: { query: { search: search || undefined, limit: 20 } },
+      })
+      if (error) throw new ApiError('Could not search articles.', error)
+      return data
+    },
+    enabled: isAuthed,
+  })
+}
+
 /**
  * Paste a URL, see what would be added — persists nothing.
  *
@@ -65,8 +125,19 @@ export function useAddArticle() {
 export function useUpdateArticle() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, ...body }: { id: string; published_to_app?: boolean; category_ids?: string[] }) => {
-      const { data, error } = await api.PATCH('/blog/{id}', { params: { path: { id } }, body })
+    mutationFn: async ({
+      id,
+      ...body
+    }: {
+      id: string
+      published_to_app?: boolean
+      // null resets to the website's own categories (2026-09-11).
+      category_ids?: string[] | null
+    }) => {
+      const { data, error } = await api.PATCH('/blog/{id}', {
+        params: { path: { id } },
+        body,
+      })
       if (error) throw new ApiError('Could not update this article.', error)
       return data
     },

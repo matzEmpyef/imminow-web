@@ -1,20 +1,24 @@
 import { useMemo, useState, type FormEvent } from 'react'
+import { ExternalLink } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { Toggle } from '@/components/Toggle'
 import { Badge } from '@/components/Badge'
 import { Table, type TableColumn } from '@/components/Table'
+import { CompactSelect } from '@/components/CompactSelect'
 import { Modal } from '@/components/Modal'
 import { useBlogCategoryMappings, useUpdateMapping } from '@/queries/blogCategoryMappings'
 import {
   useAddArticle,
-  useBlogArticles,
+  useAdminBlogArticles,
   useRefreshArticle,
   useResolveArticle,
   useUpdateArticle,
+  type BlogArticleListFilters,
 } from '@/queries/blogArticles'
-import { formatDate as formatDateShared } from '@/lib/time'
+import { useCursorPagination } from '@/lib/pagination'
+import { formatDate as formatDateShared, relativeTime } from '@/lib/time'
 import type { components } from '@/api/schema'
 
 type BlogCategoryMapping = components['schemas']['BlogCategoryMapping']
@@ -73,52 +77,44 @@ export function BlogAdminPage() {
 // --- Articles ---
 
 function ArticlesTab() {
-  const articles = useBlogArticles()
   const [showAdd, setShowAdd] = useState(false)
   const [search, setSearch] = useState('')
-  // Newest first by default (user, 2026-08-23) — an editorial list is read in publication order,
-  // and the API returns whatever order the store happens to hold.
+  const [statusFilter, setStatusFilter] = useState<NonNullable<BlogArticleListFilters['status']>>('all')
+  const [tagFilter, setTagFilter] = useState('')
+  const [tagsFor, setTagsFor] = useState<BlogArticle | null>(null)
+  // Newest first by default (user, 2026-08-23) — an editorial list is read in publication order.
+  // `published` is the server's sort field name for `published_at` (see mock-server's
+  // `sortableFields` for GET /blog).
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({
-    field: 'published_at',
+    field: 'published',
     direction: 'desc',
   })
-  const [page, setPage] = useState(0)
-  const PAGE_SIZE = 20
+  const paging = useCursorPagination()
+  const mappings = useBlogCategoryMappings()
+  const activeMappings = useMemo(() => (mappings.data ?? []).filter((m) => m.active !== false), [mappings.data])
 
-  const rows = useMemo(() => {
-    const items = [...(articles.data?.items ?? [])]
-    const q = search.trim().toLowerCase()
-    const filtered = q
-      ? items.filter(
-          (a) => a.title?.toLowerCase().includes(q) || a.tags?.some((t) => t.label.toLowerCase().includes(q)),
-        )
-      : items
-    const direction = sort.direction === 'asc' ? 1 : -1
-    return filtered.sort((a, b) => {
-      if (sort.field === 'title') {
-        return (a.title ?? '').localeCompare(b.title ?? '') * direction
-      }
-      // Missing dates sort last in BOTH directions rather than clumping at one end — an article
-      // with no published_at is unplaceable on a date axis, not "oldest".
-      const av = a.published_at ?? ''
-      const bv = b.published_at ?? ''
-      if (!av && !bv) return 0
-      if (!av) return 1
-      if (!bv) return -1
-      return av.localeCompare(bv) * direction
-    })
-  }, [articles.data, search, sort])
+  function resetPaging() {
+    paging.reset()
+  }
 
-  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
-  // A filter or re-sort can strand the viewer past the end of the shorter result set.
-  const safePage = Math.min(page, pageCount - 1)
-  const pagedRows = rows.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE)
+  // Reaches hidden articles and everything past the first page (2026-09-11) — the admin used to
+  // call the student feed (published only, 20 rows), so a hidden article vanished from here too
+  // and could never be brought back, and anything past #20 was unreachable.
+  const articles = useAdminBlogArticles({
+    search: search || undefined,
+    status: statusFilter,
+    tag: tagFilter || undefined,
+    sort: sort.direction === 'desc' ? `-${sort.field}` : sort.field,
+    cursor: paging.cursor,
+    limit: 20,
+  })
+
+  const rows = articles.data?.items ?? []
 
   const columns: TableColumn<BlogArticle>[] = [
     {
       key: 'title',
       header: 'Article',
-      sortable: true,
       render: (a) => (
         <div className="flex items-center gap-sm">
           {a.thumbnail_url ? (
@@ -127,7 +123,24 @@ function ArticlesTab() {
             <div className="h-10 w-14 shrink-0 rounded bg-border" />
           )}
           <div className="min-w-0">
-            <p className="truncate font-medium text-text-primary">{a.title}</p>
+            <div className="flex items-center gap-xs">
+              <p className="truncate font-medium text-text-primary">{a.title}</p>
+              {a.published_to_app === false && <Badge color="secondary">Hidden</Badge>}
+            </div>
+            <div className="flex flex-wrap items-center gap-sm text-caption text-text-secondary">
+              {a.source_url && (
+                <a
+                  href={a.source_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-xs text-primary hover:underline"
+                >
+                  Open on website
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+              {a.cached_at && <span>Last refreshed {relativeTime(a.cached_at)}</span>}
+            </div>
           </div>
         </div>
       ),
@@ -136,8 +149,9 @@ function ArticlesTab() {
       key: 'tags',
       header: 'Tags',
       hideBelow: 'md',
-      // Derived from the article's WordPress categories via Category Mapping — an admin never has
-      // to set these, which is what keeps curation to a single field.
+      // Derived from the article's WordPress categories via Category Mapping unless overridden by
+      // hand — an admin never has to set these for the normal path, which is what keeps curation
+      // to a single field.
       render: (a) =>
         a.tags?.length ? (
           <div className="flex flex-wrap gap-xs">
@@ -152,7 +166,7 @@ function ArticlesTab() {
         ),
     },
     {
-      key: 'published_at',
+      key: 'published',
       header: 'Published',
       // The list's natural order (user, 2026-08-23) — defaults to newest first, see the sort
       // state above.
@@ -160,7 +174,7 @@ function ArticlesTab() {
       render: (a) =>
         a.published_at ? formatDate(a.published_at) : <span className="text-body-sm text-text-secondary">—</span>,
     },
-    { key: 'actions', header: '', align: 'right', render: (a) => <ArticleActions article={a} /> },
+    { key: 'actions', header: '', align: 'right', render: (a) => <ArticleActions article={a} onEditTags={() => setTagsFor(a)} /> },
   ]
 
   return (
@@ -170,26 +184,69 @@ function ArticlesTab() {
       </div>
 
       {showAdd && <AddArticleModal onClose={() => setShowAdd(false)} />}
+      {tagsFor && <TagsEditorModal article={tagsFor} mappings={activeMappings} onClose={() => setTagsFor(null)} />}
 
       <Table
         columns={columns}
-        rows={pagedRows}
+        rows={rows}
         rowKey={(a) => a.id}
         loading={articles.isLoading}
         error={articles.isError ? 'Could not load articles.' : undefined}
-        emptyMessage="No articles yet. Add one with its link from the Sentpo website."
-        search={{ value: search, onChange: setSearch, placeholder: 'Search articles…' }}
+        emptyMessage={
+          search || tagFilter || statusFilter !== 'all'
+            ? 'No articles match these filters.'
+            : 'No articles yet. Add one with its link from the Sentpo website.'
+        }
+        search={{
+          value: search,
+          onChange: (value) => {
+            setSearch(value)
+            resetPaging()
+          },
+          placeholder: 'Search articles…',
+        }}
+        filters={
+          <>
+            <CompactSelect
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as NonNullable<BlogArticleListFilters['status']>)
+                resetPaging()
+              }}
+              label="Status"
+            >
+              <option value="all">All</option>
+              <option value="published">Published</option>
+              <option value="hidden">Hidden</option>
+            </CompactSelect>
+            <CompactSelect
+              value={tagFilter}
+              onChange={(e) => {
+                setTagFilter(e.target.value)
+                resetPaging()
+              }}
+              label="Tag"
+            >
+              <option value="">Any tag</option>
+              {activeMappings.map((m) => (
+                <option key={m.id} value={m.app_tag}>
+                  {m.label ?? m.wp_category}
+                </option>
+              ))}
+            </CompactSelect>
+          </>
+        }
         sort={sort}
         onSortChange={(field, direction) => {
           setSort({ field, direction })
-          setPage(0)
+          resetPaging()
         }}
         pagination={{
-          hasNext: safePage < pageCount - 1,
-          hasPrevious: safePage > 0,
-          onNext: () => setPage(safePage + 1),
-          onPrevious: () => setPage(safePage - 1),
-          total: rows.length,
+          hasNext: Boolean(articles.data?.meta?.next_cursor),
+          hasPrevious: paging.hasPrevious,
+          onNext: () => articles.data?.meta?.next_cursor && paging.next(articles.data.meta.next_cursor),
+          onPrevious: paging.previous,
+          total: articles.data?.meta?.total,
         }}
       />
     </div>
@@ -198,30 +255,119 @@ function ArticlesTab() {
 
 // Row-level component so the mutation hooks can be called at a render top level — Table's
 // `render: (row) => ...` runs as a callback, not a component body.
-function ArticleActions({ article }: { article: BlogArticle }) {
+function ArticleActions({ article, onEditTags }: { article: BlogArticle; onEditTags: () => void }) {
   const updateArticle = useUpdateArticle()
   const refreshArticle = useRefreshArticle()
   const [error, setError] = useState<string | null>(null)
 
   return (
-    <div className="flex items-center justify-end gap-sm">
+    <div className="flex flex-col items-end gap-xs">
       {error && <span className="text-body-sm text-error">{error}</span>}
-      <Button
-        variant="secondary"
-        loading={refreshArticle.isPending}
-        onClick={() => {
-          setError(null)
-          refreshArticle.mutate(article.id, { onError: (e) => setError(e.message) })
-        }}
-      >
-        Refresh
-      </Button>
-      <Toggle
-        checked={article.published_to_app !== false}
-        onChange={(checked) => updateArticle.mutate({ id: article.id, published_to_app: checked })}
-        label={`${article.title} visible in app`}
-      />
+      <div className="flex items-center gap-sm">
+        <Button variant="secondary" onClick={onEditTags}>
+          Tags
+        </Button>
+        <Button
+          variant="secondary"
+          loading={refreshArticle.isPending}
+          onClick={() => {
+            setError(null)
+            refreshArticle.mutate(article.id, { onError: (e) => setError(e.message) })
+          }}
+        >
+          Refresh
+        </Button>
+        <Toggle
+          checked={article.published_to_app !== false}
+          onChange={(checked) => {
+            // Used to fail silently (Marketing review, 2026-09-11) — no onError meant a rejected
+            // toggle just snapped back with nothing to say why.
+            setError(null)
+            updateArticle.mutate({ id: article.id, published_to_app: checked }, { onError: (e) => setError(e.message) })
+          }}
+          label={`${article.title} visible in app`}
+        />
+      </div>
     </div>
+  )
+}
+
+/**
+ * Per-article tags editor (2026-09-11).
+ *
+ * Tags normally follow the WordPress category via Category Mapping — an admin never has to touch
+ * this. This is the override for the exception: pick from the active tags by hand, or press "Use
+ * website categories" to drop the override and go back to following WordPress (`category_ids:
+ * null`, server-side — see useUpdateArticle).
+ */
+function TagsEditorModal({
+  article,
+  mappings,
+  onClose,
+}: {
+  article: BlogArticle
+  mappings: BlogCategoryMapping[]
+  onClose: () => void
+}) {
+  const updateArticle = useUpdateArticle()
+  const [selected, setSelected] = useState<string[]>(article.tags?.map((t) => t.id) ?? [])
+
+  function toggle(id: string) {
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
+
+  return (
+    <Modal
+      onClose={onClose}
+      title="Edit Tags"
+      widthRem={28}
+      footer={
+        <>
+          {updateArticle.isError && <p className="mr-auto self-center text-body-sm text-error">{updateArticle.error.message}</p>}
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            loading={updateArticle.isPending}
+            onClick={() => updateArticle.mutate({ id: article.id, category_ids: selected }, { onSuccess: onClose })}
+          >
+            Save Tags
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-md">
+        <div className="flex items-center justify-between gap-sm">
+          <p className="text-body-sm text-text-secondary">
+            {article.tags_overridden
+              ? "These tags were set by hand — they won't follow the website's own categories anymore."
+              : "Following the website's own categories. Pick tags below to override them."}
+          </p>
+          {article.tags_overridden && <Badge color="info">Set by hand</Badge>}
+        </div>
+        <div className="flex max-h-72 flex-col gap-xs overflow-y-auto rounded-md border border-border p-sm">
+          {mappings.length === 0 && <p className="text-body-sm text-text-secondary">No active tags in Category Mapping.</p>}
+          {mappings.map((m) => (
+            <label key={m.id} className="flex items-center gap-sm text-body-sm text-text-primary">
+              <input
+                type="checkbox"
+                checked={selected.includes(m.id!)}
+                onChange={() => toggle(m.id!)}
+                className="h-4 w-4"
+              />
+              {m.label ?? m.wp_category}
+            </label>
+          ))}
+        </div>
+        <Button
+          variant="secondary"
+          loading={updateArticle.isPending}
+          onClick={() => updateArticle.mutate({ id: article.id, category_ids: null }, { onSuccess: onClose })}
+        >
+          Use Website Categories
+        </Button>
+      </div>
+    </Modal>
   )
 }
 
@@ -452,16 +598,59 @@ function RenameMappingModal({ mapping, onClose }: { mapping: BlogCategoryMapping
   )
 }
 
+// Turning a tag off asks first (2026-09-11) — same "confirm before a change that removes
+// something" rule Rename's article count already hints at, made explicit: every article carrying
+// this tag loses it the moment the mapping is deactivated (GET /blog only resolves tags from
+// `active !== false` mappings). Turning one back on needs no confirmation — nothing is lost.
 function MappingToggle({ mapping }: { mapping: BlogCategoryMapping }) {
   const updateMapping = useUpdateMapping(mapping.id!)
+  const [confirming, setConfirming] = useState(false)
+  const count = mapping.article_count ?? 0
+  const label = mapping.label ?? mapping.wp_category
 
   return (
-    <div>
+    <>
       <Toggle
         checked={Boolean(mapping.active)}
-        onChange={(checked) => updateMapping.mutate({ active: checked })}
+        onChange={(checked) => {
+          if (!checked) {
+            setConfirming(true)
+            return
+          }
+          updateMapping.mutate({ active: true })
+        }}
         label={`${mapping.wp_category} mapping active`}
       />
-    </div>
+      {confirming && (
+        <Modal
+          onClose={() => setConfirming(false)}
+          title="Turn Off This Tag"
+          widthRem={26}
+          footer={
+            <>
+              {updateMapping.isError && (
+                <p className="mr-auto self-center text-body-sm text-error">Could not update this mapping.</p>
+              )}
+              <Button variant="secondary" onClick={() => setConfirming(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                loading={updateMapping.isPending}
+                onClick={() => updateMapping.mutate({ active: false }, { onSuccess: () => setConfirming(false) })}
+              >
+                Turn Off
+              </Button>
+            </>
+          }
+        >
+          <p className="text-body-sm text-text-secondary">
+            {count === 0
+              ? `No articles carry "${label}" yet — turning it off is safe.`
+              : `${count} article${count === 1 ? '' : 's'} will lose the "${label}" tag.`}
+          </p>
+        </Modal>
+      )}
+    </>
   )
 }

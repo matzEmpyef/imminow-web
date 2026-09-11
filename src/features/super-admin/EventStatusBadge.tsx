@@ -1,22 +1,26 @@
 import { Badge } from '@/components/Badge'
+import type { components } from '@/api/schema'
 
-// User-requested (2026-08-15) — "in the listview - we should be able to see status. upcoming,
-// ongoing, completed." Computed live from starts_at/ends_at, never stored, so it can't go stale.
-// Without an ends_at (not every event type requires one), "ongoing" just runs indefinitely once
-// started — there's no "completed" state to compute without a window to close it.
-export function EventStatusBadge({
-  startsAt,
-  endsAt,
-}: {
-  startsAt: string | null | undefined
-  endsAt?: string | null
-}) {
-  if (!startsAt) return null
-  const now = Date.now()
-  const starts = new Date(startsAt).getTime()
-  const ends = endsAt ? new Date(endsAt).getTime() : null
+type Event = components['schemas']['Event']
+type Status = NonNullable<Event['status']>
 
-  if (now < starts) return <Badge color="info">Upcoming</Badge>
-  if (ends !== null && now > ends) return <Badge color="secondary">Completed</Badge>
-  return <Badge color="success">Ongoing</Badge>
+// One status for every event page (Marketing review, 2026-09-11) — replaces the old client-side
+// upcoming/ongoing/completed computed from startsAt/endsAt, which the Quiz page never even used
+// (it showed the raw `active` flag instead, so a quiz read "Active" weeks after it closed). The
+// server now computes ONE `status` for every event type and every client shows it rather than
+// re-deriving it: draft = a quiz whose pool is smaller than questions_per_attempt, voided = a
+// cancelled quiz, upcoming/live/ended = the same window logic every page used to hand-roll.
+const STATUS: Record<Status, { color: 'info' | 'success' | 'secondary' | 'error' | 'warning'; label: string }> = {
+  upcoming: { color: 'info', label: 'Upcoming' },
+  live: { color: 'success', label: 'Live' },
+  ended: { color: 'secondary', label: 'Ended' },
+  voided: { color: 'error', label: 'Voided' },
+  draft: { color: 'warning', label: 'Draft' },
+}
+
+export function EventStatusBadge({ status }: { status?: Status | null }) {
+  if (!status) return null
+  const entry = STATUS[status]
+  if (!entry) return null
+  return <Badge color={entry.color}>{entry.label}</Badge>
 }

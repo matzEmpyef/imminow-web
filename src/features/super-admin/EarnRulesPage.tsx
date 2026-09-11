@@ -11,6 +11,40 @@ import type { components } from '@/api/schema'
 
 type EarnRule = components['schemas']['EarnRule']
 
+// Plain-English label for each developer-instrumented trigger code (user-requested, 2026-09-11 —
+// admins were reading raw codes like `profile_30_percent` with no translation). The code itself
+// still shows, small and muted, under the label — useful when reporting a bug or cross-checking
+// against build reference 1.8. Unknown codes (should never happen — the enum is closed) fall back
+// to showing the code as the label.
+const TRIGGER_LABELS: Partial<Record<string, string>> = {
+  welcome_signup: 'Signs up',
+  profile_30_percent: 'Profile 30% complete',
+  profile_70_percent: 'Profile 70% complete',
+  profile_completed: 'Profile 100% complete',
+  referral_signup: 'A friend they referred signs up',
+  article_read: 'Reads a blog article',
+  consultancy_viewed: 'Views a consultancy profile',
+  daily_login: 'Opens the app (once a day)',
+  physical_meeting_attended: 'Attends an in-person meeting',
+  quiz_completed: 'Completes a quiz',
+  webinar_attended: 'Attends a webinar',
+}
+
+function triggerLabel(code?: string): string {
+  if (!code) return ''
+  return TRIGGER_LABELS[code] ?? code
+}
+
+// Rows are grouped under these headings (user-requested, 2026-09-11) rather than sorted into one
+// flat list — Profile/Engagement/Events reads as three small, scannable sections instead of an
+// 11-row table the admin has to scan for the trigger they want. Every trigger in the closed enum
+// (build reference 1.8) has exactly one home here.
+const GROUPS: { heading: string; triggers: string[] }[] = [
+  { heading: 'Profile', triggers: ['welcome_signup', 'profile_30_percent', 'profile_70_percent', 'profile_completed'] },
+  { heading: 'Engagement', triggers: ['daily_login', 'article_read', 'consultancy_viewed', 'referral_signup'] },
+  { heading: 'Events', triggers: ['webinar_attended', 'physical_meeting_attended', 'quiz_completed'] },
+]
+
 // User-requested (2026-08-18) — "Earn Rules - give muted text just like quiz_completed for
 // others too." Only the 3 triggers tied to an Event (webinar_attended, physical_meeting_attended,
 // quiz_completed) can be overridden per-event via that Event's own points_override field (build
@@ -20,19 +54,15 @@ const OVERRIDE_CAPTIONS: Partial<Record<string, string>> = {
   webinar_attended: 'Overridden by the Sentpo points set on an individual webinar, if any.',
   physical_meeting_attended: 'Overridden by the Sentpo points set on an individual physical meeting, if any.',
   quiz_completed: 'Overridden by the participation points set on an individual quiz, if any.',
-  // User-requested (2026-08-19) — "if possible we want Sentpo points for 30% completion of
-  // profile, 70% and 100%." profile_completed already covers 100%; profile_30_percent/
-  // profile_70_percent are the two new intermediate milestones, added and configurable here, but
-  // deliberately shipped inactive — profile editing is a Sentpo Mobile screen, and Mobile hasn't
-  // been started (PROGRESS.md), so there is no code path anywhere in this environment that could
-  // fire them yet. Wiring them up is a real backend feature (computing a completion percentage
-  // from the student's own profile fields, tracking which milestones a student has already
-  // crossed) to build once Mobile's profile-edit flow exists — not something to fake here.
-  profile_completed: 'The 100% milestone — profile_30_percent/profile_70_percent below are the two earlier ones.',
-  profile_30_percent:
-    'Not yet wired to a live trigger — profile editing happens on Sentpo Mobile, which hasn’t been built yet.',
-  profile_70_percent:
-    'Not yet wired to a live trigger — profile editing happens on Sentpo Mobile, which hasn’t been built yet.',
+  // profile_completed is the 100% milestone; profile_30_percent/profile_70_percent (below) are
+  // the two earlier ones — worded without a positional "below" reference (2026-09-11) since the
+  // three no longer necessarily render adjacent to each other.
+  profile_completed: 'The 100% milestone — profile_30_percent and profile_70_percent are the two earlier ones.',
+  // Corrected 2026-09-11 — these were shipped inactive pending a Sentpo Mobile profile-edit
+  // screen that has since been built; the server now fires both live, the moment a student's
+  // profile crosses the threshold. The old "not yet wired… hasn't been built" copy was stale.
+  profile_30_percent: 'Awarded automatically the moment the student’s profile crosses 30% complete.',
+  profile_70_percent: 'Awarded automatically the moment the student’s profile crosses 70% complete.',
   // Awarded once per new applicant record (user-requested, 2026-08-19 — "if possible we need
   // welcome Sentpo points") — Create Applicant and Applicant Allocation's Northstar-scoped
   // allocate both credit this the moment a new Client/journey is created, since there's no real
@@ -42,24 +72,12 @@ const OVERRIDE_CAPTIONS: Partial<Record<string, string>> = {
     'Credited once, automatically, when a new applicant record is created (Create Applicant / Applicant Allocation).',
 }
 
-// User-requested (2026-08-19) — "first show welcome_signup, then profile completion related,
-// then referral_signup, then rest events." Applied as the default row order (below, only when the
-// admin hasn't clicked a column header to sort explicitly) — triggers not listed here fall back to
-// alphabetical, after everything named.
-const DEFAULT_ORDER = [
-  'welcome_signup',
-  'profile_30_percent',
-  'profile_70_percent',
-  'profile_completed',
-  'referral_signup',
-]
-
 // User-requested (2026-08-18) — "Earn Rules also edit on popup." Same move as Coupons/Jobs this
 // session: the old RuleEditor crammed Points + Cap TextFields and a Save button directly into the
 // table row. Rewritten as an Edit-icon-opened popup; Active stays a quick inline Toggle in the
 // Status column, same convention as Coupons/Jobs, since a single-purpose switch isn't the kind of
-// "inline edit" being moved here. No Add flow — this page is purely an editor of the 5
-// pre-seeded, always-existing rules (Ninety-eighth entry, PROGRESS.md).
+// "inline edit" being moved here. No Add flow — this page is purely an editor of the pre-seeded,
+// always-existing rules (Ninety-eighth entry, PROGRESS.md).
 function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void }) {
   const updateRule = useUpdateEarnRule(rule.id!)
   const [pointsValue, setPointsValue] = useState(rule.points_value ?? 0)
@@ -74,7 +92,9 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
   return (
     <Modal
       onClose={onClose}
-      title={`Edit ${rule.trigger_type}`}
+      // Human label instead of the raw code (2026-09-11) — "Edit profile_30_percent" read like a
+      // debug screen.
+      title={`Edit ${triggerLabel(rule.trigger_type)}`}
       widthRem={26}
       footer={
         <>
@@ -117,7 +137,8 @@ function RuleToggle({ rule }: { rule: EarnRule }) {
       <Toggle
         checked={Boolean(rule.active)}
         onChange={(checked) => updateRule.mutate({ active: checked })}
-        label={`${rule.trigger_type} active`}
+        label={`${triggerLabel(rule.trigger_type)} active`}
+        size="sm"
       />
     </div>
   )
@@ -128,69 +149,36 @@ function RuleToggle({ rule }: { rule: EarnRule }) {
 // developer-instrumented list (build reference 1.8) — a new one only exists once an app release
 // actually fires it somewhere, and that release is the point it'd be seeded with its rule. There
 // is no realistic point in this admin console's lifecycle where a valid, already-instrumented
-// trigger exists with no rule yet to configure, so "Add Rule" (previously a free-text field, then
-// a picker that showed an empty state every single time since all 5 known triggers are always
-// pre-seeded) never had a legitimate use — removed entirely along with its now-dead
-// `useCreateEarnRule` hook, the `POST /points/earn-rules` route, and the `EarnRuleInput` schema.
-// This page is purely an editor of existing, pre-seeded rules now: points value, cap, active
-// toggle — no create flow.
+// trigger exists with no rule yet to configure, so "Add Rule" never had a legitimate use — removed
+// entirely along with its now-dead `useCreateEarnRule` hook, the `POST /points/earn-rules` route,
+// and the `EarnRuleInput` schema. This page is purely an editor of existing, pre-seeded rules now:
+// points value, cap, active toggle — no create flow.
 export function EarnRulesPage() {
   const rules = useEarnRules()
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
 
-  const rows = useMemo(() => {
-    let items = rules.data ?? []
-    if (search) {
-      const q = search.toLowerCase()
-      items = items.filter((r) => r.trigger_type?.toLowerCase().includes(q))
-    }
-    if (sort) {
-      const dir = sort.direction === 'desc' ? -1 : 1
-      items = [...items].sort((a, b) => {
-        const av =
-          sort.field === 'active'
-            ? a.active
-              ? 1
-              : 0
-            : sort.field === 'points_value'
-              ? (a.points_value ?? 0)
-              : (a.trigger_type ?? '').toLowerCase()
-        const bv =
-          sort.field === 'active'
-            ? b.active
-              ? 1
-              : 0
-            : sort.field === 'points_value'
-              ? (b.points_value ?? 0)
-              : (b.trigger_type ?? '').toLowerCase()
-        return av < bv ? -1 * dir : av > bv ? 1 * dir : 0
-      })
-    } else {
-      items = [...items].sort((a, b) => {
-        const ai = DEFAULT_ORDER.indexOf(a.trigger_type ?? '')
-        const bi = DEFAULT_ORDER.indexOf(b.trigger_type ?? '')
-        if (ai !== -1 || bi !== -1)
-          return (ai === -1 ? DEFAULT_ORDER.length : ai) - (bi === -1 ? DEFAULT_ORDER.length : bi)
-        return (a.trigger_type ?? '').localeCompare(b.trigger_type ?? '')
-      })
-    }
-    return items
-  }, [rules.data, search, sort])
+  const filteredRules = useMemo(() => {
+    const all = rules.data ?? []
+    if (!search) return all
+    const q = search.toLowerCase()
+    return all.filter(
+      (r) => triggerLabel(r.trigger_type).toLowerCase().includes(q) || (r.trigger_type ?? '').toLowerCase().includes(q),
+    )
+  }, [rules.data, search])
 
-  const editingRule = editingId ? rows.find((r) => r.id === editingId) : undefined
+  const editingRule = editingId ? filteredRules.find((r) => r.id === editingId) : undefined
 
   const columns: TableColumn<EarnRule>[] = [
     {
       key: 'trigger_type',
       header: 'Trigger',
-      sortable: true,
       render: (r) => {
         const caption = r.trigger_type ? OVERRIDE_CAPTIONS[r.trigger_type] : undefined
         return (
           <div>
-            <span className="font-medium text-text-primary">{r.trigger_type}</span>
+            <span className="font-medium text-text-primary">{triggerLabel(r.trigger_type)}</span>
+            <p className="font-mono text-caption text-text-secondary">{r.trigger_type}</p>
             {caption && <p className="text-caption text-text-secondary">{caption}</p>}
           </div>
         )
@@ -199,7 +187,6 @@ export function EarnRulesPage() {
     {
       key: 'points_value',
       header: 'Points',
-      sortable: true,
       align: 'right',
       render: (r) => `${r.points_value ?? 0} pts`,
     },
@@ -231,7 +218,7 @@ export function EarnRulesPage() {
           <button
             type="button"
             onClick={() => setEditingId(r.id!)}
-            aria-label={`Edit ${r.trigger_type}`}
+            aria-label={`Edit ${triggerLabel(r.trigger_type)}`}
             title="Edit"
             className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
           >
@@ -248,24 +235,42 @@ export function EarnRulesPage() {
         <div>
           <h1 className="text-h1 text-text-primary">Earn Rules</h1>
           <p className="text-body-sm text-text-secondary">
-            Points awarded per developer-instrumented trigger event — each trigger ships pre-seeded with its rule; edit
-            the point value, cap, or active state below.
+            The points a student earns for each action in the Sentpo app. Change how many points an action is worth,
+            cap how many a student can earn from it in total, or switch it off. New actions arrive with an app release.
           </p>
         </div>
 
         {editingRule && <RuleFormModal rule={editingRule} onClose={() => setEditingId(null)} />}
 
-        <Table
-          columns={columns}
-          rows={rows}
-          rowKey={(r) => r.id!}
-          loading={rules.isLoading}
-          error={rules.isError ? 'Could not load earn rules.' : undefined}
-          emptyMessage="No earn rules yet."
-          sort={sort}
-          onSortChange={(field, direction) => setSort({ field, direction })}
-          search={{ value: search, onChange: setSearch, placeholder: 'Search trigger…' }}
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search trigger…"
+          style={{ maxWidth: '20rem' }}
+          className="h-10 w-full rounded-full border border-border bg-background px-md text-body-sm text-text-primary outline-none focus:border-2 focus:border-primary"
         />
+
+        {rules.isLoading && <p className="text-body-sm text-text-secondary">Loading…</p>}
+        {rules.isError && <p className="text-body-sm text-error">Could not load earn rules.</p>}
+
+        {!rules.isLoading &&
+          !rules.isError &&
+          (filteredRules.length === 0 ? (
+            <p className="text-body-sm text-text-secondary">No earn rules match your search.</p>
+          ) : (
+            GROUPS.map((group) => {
+              const rows = group.triggers
+                .map((t) => filteredRules.find((r) => r.trigger_type === t))
+                .filter((r): r is EarnRule => Boolean(r))
+              if (rows.length === 0) return null
+              return (
+                <div key={group.heading} className="flex flex-col gap-sm">
+                  <h2 className="text-h2 text-text-primary">{group.heading}</h2>
+                  <Table columns={columns} rows={rows} rowKey={(r) => r.id!} emptyMessage="No earn rules yet." />
+                </div>
+              )
+            })
+          ))}
       </div>
     </AdminShell>
   )

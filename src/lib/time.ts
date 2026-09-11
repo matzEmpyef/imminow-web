@@ -1,3 +1,5 @@
+import { browserTimezoneAbbreviation } from '@/lib/eventTimezones'
+
 export function relativeTime(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime()
   const minutes = Math.round(diffMs / 60000)
@@ -31,36 +33,42 @@ export function formatTime(input: string | Date): string {
 }
 
 /**
- * An event's start time, on the right clock.
+ * An event's start time, on the right clock, captioned with which clock that is.
  *
  * A Physical Meeting reads on the VENUE's clock and must never be converted to the viewer's zone
  * — an admin in Delhi looking at a London meeting has to see London's 18:30, not 23:00 (Phase E,
  * openapi Event schema: "converting it to their zone would tell them to arrive at the wrong
- * hour"). Mobile got this right from the start; immiNow was still passing `starts_at` through
- * `formatDateTime`, which is a plain JS Date and therefore the browser's zone — reproducing on
- * the console that authors these events the exact bug the server-computed fields exist to
- * prevent (contract audit, 2026-08-23).
+ * hour"). A Webinar/Quiz's `starts_at_local` records the ADMIN'S own authoring clock instead — the
+ * zone they were thinking in when they picked the time — which is what this console (the tool the
+ * event was AUTHORED in) shows consistently across all three event pages (2026-09-11, "show the
+ * timezone label consistently... so nobody has to guess which clock they're looking at"). The
+ * Sentpo app is a separate client and still converts a webinar to each student's own zone; that
+ * conversion has nothing to do with what the person who typed the time in this console needs to
+ * see back.
  *
  * `starts_at_local` is parsed as TEXT, not through Date: the contract says it carries no offset
  * and must be printed verbatim, and routing it through a Date would quietly re-introduce a
  * conversion on any runtime that reads a bare timestamp as UTC.
+ *
+ * Falls back to the plain browser-zone rendering (and the browser's own zone abbreviation, not the
+ * server's) only for an event authored before `timezone` existed, i.e. no `starts_at_local` at all.
  */
 export function formatEventDateTime(event: {
   starts_at?: string | null
   starts_at_local?: string | null
   timezone_label?: string | null
-  time_is_local_to_venue?: boolean | null
 }): string {
-  if (event.time_is_local_to_venue && event.starts_at_local) {
+  if (event.starts_at_local) {
     const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(event.starts_at_local)
     if (parts) {
       const [, year, month, day, hour, minute] = parts
-      const zone = event.timezone_label ? ` (${event.timezone_label})` : ''
-      return `${day}/${month}/${year}, ${hour}:${minute}${zone}`
+      const zone = event.timezone_label || browserTimezoneAbbreviation()
+      return `${day}/${month}/${year}, ${hour}:${minute}${zone ? ` ${zone}` : ''}`
     }
   }
-  // Webinars and quizzes genuinely belong in the viewer's own zone, so the plain path stays.
-  return event.starts_at ? formatDateTime(event.starts_at) : ''
+  if (!event.starts_at) return ''
+  const zone = browserTimezoneAbbreviation()
+  return `${formatDateTime(event.starts_at)}${zone ? ` ${zone}` : ''}`
 }
 
 // M:SS for a duration under an hour (Quiz completion times never exceed the per-attempt time

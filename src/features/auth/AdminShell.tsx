@@ -51,6 +51,8 @@ interface AdminTab {
   label: string
   path: string
   permission?: PlatformPermissionKey
+  /** Shown to anyone holding at least one of these — for a page that summarises several areas. */
+  anyPermission?: PlatformPermissionKey[]
   /** Used when a section's only link is flattened into one sidebar link per page. */
   icon?: LucideIcon
 }
@@ -160,6 +162,18 @@ const SECTIONS: AdminSection[] = [
     label: 'Marketing',
     icon: Megaphone,
     links: [
+      // One page of numbers for the whole section (Marketing review, 2026-09-11).
+      {
+        label: 'Overview',
+        icon: BarChart3,
+        tabs: [
+          {
+            label: 'Overview',
+            path: '/admin/marketing',
+            anyPermission: ['ads', 'points_coupons', 'events', 'jobs', 'blog'],
+          },
+        ],
+      },
       { label: 'Ads', icon: Image, tabs: [{ label: 'Ads', path: '/admin/ads', permission: 'ads' }] },
       {
         label: 'Points & Coupons',
@@ -181,6 +195,13 @@ const SECTIONS: AdminSection[] = [
       },
       { label: 'Jobs', icon: Briefcase, tabs: [{ label: 'Jobs', path: '/admin/jobs', permission: 'jobs' }] },
       { label: 'Blog', icon: Newspaper, tabs: [{ label: 'Blog', path: '/admin/blog', permission: 'blog' }] },
+      // Moved here from Admin → Notifications (2026-09-11): a broadcast reaches students like
+      // everything else in this section. Still gated on the `notifications` permission.
+      {
+        label: 'Broadcast',
+        icon: BellRing,
+        tabs: [{ label: 'Broadcast', path: '/admin/broadcast', permission: 'notifications' }],
+      },
     ],
   },
   {
@@ -261,7 +282,6 @@ const SECTIONS: AdminSection[] = [
         icon: Bell,
         tabs: [
           { label: 'Channel Config', path: '/admin/notification-channel-config', permission: 'notifications' },
-          { label: 'Broadcast', path: '/admin/broadcast', permission: 'notifications' },
         ],
       },
       {
@@ -281,7 +301,11 @@ const SECTIONS: AdminSection[] = [
 type Permissions = Partial<Record<PlatformPermissionKey, boolean>>
 
 function visibleTabs(link: AdminLink, permissions: Permissions): AdminTab[] {
-  return link.tabs.filter((tab) => !tab.permission || permissions[tab.permission])
+  return link.tabs.filter((tab) =>
+    tab.anyPermission
+      ? tab.anyPermission.some((key) => permissions[key])
+      : !tab.permission || permissions[tab.permission],
+  )
 }
 
 function linkPaths(link: AdminLink, tabs: AdminTab[]): string[] {

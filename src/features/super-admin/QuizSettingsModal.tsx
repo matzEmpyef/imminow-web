@@ -34,25 +34,40 @@ import { useQuizForm } from './useQuizForm'
 // same click-title-for-details convention as Webinar/Physical Meeting use, just editable here.
 export function QuizSettingsModal({
   editingEvent,
+  duplicateFrom,
   onClose,
   onCreated,
 }: {
   editingEvent?: Event
+  /**
+   * Prefills the CREATE form from an existing quiz (2026-09-11 — "Duplicate" row action, all three
+   * event pages). Distinct from `editingEvent`: this still submits via POST (a new event, no id,
+   * no RSVPs/attempts), it just starts with the source quiz's settings instead of blank ones. The
+   * question pool is NOT copied — a duplicated quiz goes through the normal two-step flow (Next:
+   * Add Questions) same as any new quiz, matching what "opens the create form" already means for
+   * the other two event pages, which have no pool to carry over either.
+   */
+  duplicateFrom?: Event
   onClose: () => void
   onCreated?: (eventId: string) => void
 }) {
   const isEditing = Boolean(editingEvent)
+  const isDuplicating = !isEditing && Boolean(duplicateFrom)
   const createEvent = useCreateEvent()
   const updateEvent = useUpdateEvent(editingEvent?.id ?? '')
   // Form state lives in useQuizForm (Tier B3, 2026-09-03), the treatment CourseFormModal got
   // with useCourseForm: this modal keeps the query hooks and the mutate() call; the hook owns
-  // every field, the prize list operations, validity and the payload builder.
+  // every field, the prize list operations, validity and the payload builder. Duplicating passes
+  // a synthesized "seed" (the source event's own fields, title suffixed) rather than the source
+  // event itself — same object shape useQuizForm already reads from `editingEvent`, so no change
+  // needed there.
+  const seed = editingEvent ?? (duplicateFrom ? { ...duplicateFrom, title: `${duplicateFrom.title ?? ''} (copy)` } : undefined)
   const {
     title, setTitle, description, setDescription, timezone, setTimezone, startsAt, setStartsAt,
     endsAt, setEndsAt, questionsPerAttempt, setQuestionsPerAttempt, timeLimitMinutes, setTimeLimitMinutes,
     participationPoints, setParticipationPoints, prizes, updatePrize, removePrize, addPrize,
     targeting, setTargeting, isValid, toPayload,
-  } = useQuizForm(editingEvent)
+  } = useQuizForm(seed)
   const countries = useCountries()
 
   const mutation = isEditing ? updateEvent : createEvent
@@ -75,7 +90,13 @@ export function QuizSettingsModal({
   return (
     <Modal
       onClose={onClose}
-      title={editingEvent ? `${editingEvent.title} — Quiz Details` : 'Create Quiz — Step 1 of 2: Settings'}
+      title={
+        editingEvent
+          ? `${editingEvent.title} — Quiz Details`
+          : isDuplicating
+            ? 'Duplicate Quiz — Step 1 of 2: Settings'
+            : 'Create Quiz — Step 1 of 2: Settings'
+      }
       widthRem={50}
       footer={
         <>
@@ -87,6 +108,12 @@ export function QuizSettingsModal({
       }
     >
       <form id="quiz-settings-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
+        {isDuplicating && (
+          <p className="rounded-md border border-border bg-background p-sm text-caption text-text-secondary">
+            Copied from <strong>{duplicateFrom?.title}</strong>, including its start/end window — check and update the
+            dates below before saving.
+          </p>
+        )}
         <TextField label="Title" required value={title} onChange={(e) => setTitle(e.target.value)} />
         <div className="flex flex-col gap-xs">
           <FieldLabel htmlFor="quiz-description">Description</FieldLabel>
@@ -138,14 +165,21 @@ export function QuizSettingsModal({
           <TextField
             label="Questions per attempt"
             type="number"
-            value={questionsPerAttempt}
-            onChange={(e) => setQuestionsPerAttempt(Number(e.target.value))}
+            required
+            min={1}
+            value={questionsPerAttempt ?? ''}
+            // Blank means null, not `Number('') = 0` (2026-09-11 fix) — required, so the Save
+            // button stays disabled (useQuizForm's isValid) while this is empty.
+            onChange={(e) => setQuestionsPerAttempt(e.target.value === '' ? null : Number(e.target.value))}
           />
           <TextField
             label="Time limit (minutes)"
             type="number"
-            value={timeLimitMinutes}
-            onChange={(e) => setTimeLimitMinutes(Number(e.target.value))}
+            min={1}
+            placeholder="No limit"
+            value={timeLimitMinutes ?? ''}
+            // Optional — blank stays blank (null, "no limit"), the same fix as above.
+            onChange={(e) => setTimeLimitMinutes(e.target.value === '' ? null : Number(e.target.value))}
           />
           <TextField
             label="Participation points"
@@ -156,7 +190,18 @@ export function QuizSettingsModal({
         </div>
         <p className="-mt-sm text-caption text-text-secondary">
           Participation points are awarded to everyone who completes the quiz, regardless of leaderboard position.
+          Leave time limit blank for no limit.
         </p>
+        {/* Once anyone has taken the quiz, questions/questions-per-attempt lock server-side (409
+            locked_after_attempts) — this only fires from a genuine attempt to change one of them,
+            since a no-op save is allowed through. */}
+        {isEditing && (editingEvent?.attendance_count ?? 0) > 0 && (
+          <p className="-mt-sm text-caption text-text-secondary">
+            {(editingEvent?.attendance_count ?? 0)} student{(editingEvent?.attendance_count ?? 0) === 1 ? ' has' : 's have'}{' '}
+            already taken this quiz — its questions and questions-per-attempt are locked so every attempt is measured
+            against the same test.
+          </p>
+        )}
 
         <div className="flex flex-col gap-sm">
           <p className="text-body-sm font-medium text-text-primary">Position prizes</p>

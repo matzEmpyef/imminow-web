@@ -7,18 +7,21 @@ import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { FieldLabel } from '@/components/FieldLabel'
 import { Toggle } from '@/components/Toggle'
+import { CompactSelect } from '@/components/CompactSelect'
 import { Table, type TableColumn } from '@/components/Table'
 import { Modal } from '@/components/Modal'
 import { ImageUploadField } from '@/components/ImageUploadField'
 import { PersonListModal } from '@/features/super-admin/PersonListModal'
 import { useAdminCoupons, useCouponRedemptions, useCreateCoupon, useUpdateCoupon } from '@/queries/couponsAdmin'
 import { useRedemptionPartners } from '@/queries/redemptionPartners'
-import { formatDateTime } from '@/lib/time'
+import { formatDate, formatDateTime } from '@/lib/time'
+import { mediaUrl } from '@/lib/mediaUrl'
 import type { components } from '@/api/schema'
 
 type Coupon = components['schemas']['Coupon']
 type RelevanceScope = NonNullable<Coupon['relevance_scope']>
 type CouponType = NonNullable<Coupon['type']>
+type CouponStatus = NonNullable<Coupon['status']>
 
 const relevanceScopeLabels: Record<RelevanceScope, string> = {
   city: 'City',
@@ -38,6 +41,17 @@ const couponTypeLabels: Record<CouponType, string> = {
   voucher: 'Voucher',
   freebie: 'Freebie',
   cashback: 'Cashback',
+}
+
+// Server-computed lifecycle state (2026-09-11) — replaces the old client-side `stock === 0`
+// guess, which could only ever say "Out of stock" and had no idea about expiry, the Active
+// toggle, or a retired partner. The server now derives all five states in one place.
+const statusMeta: Record<CouponStatus, { label: string; color: 'success' | 'warning' | 'secondary' }> = {
+  live: { label: 'Live', color: 'success' },
+  out_of_stock: { label: 'Out of stock', color: 'warning' },
+  expired: { label: 'Expired', color: 'secondary' },
+  off: { label: 'Off', color: 'secondary' },
+  partner_retired: { label: 'Partner retired', color: 'secondary' },
 }
 
 // User-requested (2026-08-18) — "Coupons - give option to edit not inline edit... give all
@@ -100,6 +114,9 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
       widthRem={38}
       footer={
         <>
+          {/* Server validation (2026-09-11) — point_cost/stock must be whole numbers within
+              range, expiry can't be in the past on create, etc. ApiError already surfaces the
+              server's own readable error.message here; no need to duplicate its checks client-side. */}
           {mutation.isError && <p className="mr-auto self-center text-body-sm text-error">{mutation.error.message}</p>}
           <Button type="submit" form="coupon-form" loading={mutation.isPending} disabled={!isEditing && !partnerId}>
             {isEditing ? 'Save Changes' : 'Create Coupon'}
@@ -183,7 +200,7 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
             onChange={(e) => setPointCost(Number(e.target.value))}
           />
           <TextField
-            label="Stock"
+            label="Total stock"
             type="number"
             required
             value={stock}
@@ -196,6 +213,9 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
             onChange={(e) => setExpiryDate(e.target.value)}
           />
         </div>
+        <p className="text-caption text-text-secondary">
+          How many can be claimed in all. Can&rsquo;t go below what&rsquo;s already claimed.
+        </p>
         <SelectField
           label="Relevance scope"
           required
@@ -208,9 +228,14 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
           <option value="state">State/Province</option>
           <option value="country">Country</option>
         </SelectField>
+        {/* Corrected 2026-09-11 — this used to tell admins relevance was purely cosmetic. The
+            student catalog now actually ranks by it (relevant coupons surface first); Country is
+            the one scope that still hides, since a coupon a student could never redeem shouldn't
+            rank at all. */}
         <p className="text-caption text-text-secondary">
-          How broadly this coupon sorts as relevant beyond the partner's own location. Doesn't hide it elsewhere — every
-          coupon stays visible everywhere, this only affects sort order.
+          How closely this coupon must match a student&rsquo;s location. Relevant coupons rank first in their catalog —
+          every scope other than Country still shows the coupon everywhere else, just lower down. Country is the one
+          exception: it hides the coupon entirely from students resident in a different country.
         </p>
       </form>
     </Modal>
@@ -228,6 +253,7 @@ function CouponToggle({ coupon }: { coupon: Coupon }) {
         checked={Boolean(coupon.active)}
         onChange={(checked) => updateCoupon.mutate({ active: checked })}
         label={`${coupon.partner_name} coupon active`}
+        size="sm"
       />
     </div>
   )
@@ -246,7 +272,8 @@ function CouponToggle({ coupon }: { coupon: Coupon }) {
 //
 // `unattributed` is always shown when non-zero. Redemptions only name a branch when the partner
 // issues a code per location, so hiding the remainder would let the branch rows read as the whole
-// picture when they are a subset of it.
+// picture when they are a subset of it. For a shared-code partner every claim now reports as
+// unattributed (2026-09-11 — attributable stays false there, unchanged behaviour).
 function BranchBreakdown({ breakdown }: { breakdown: NonNullable<Coupon['redemptions_by_location']> }) {
   const rows = breakdown.locations ?? []
   return (
@@ -279,6 +306,8 @@ function BranchBreakdown({ breakdown }: { breakdown: NonNullable<Coupon['redempt
   )
 }
 
+// The "N claimed" button and its drill-down (build reference: students DO claim coupons on Sentpo
+// Mobile's Coupons Catalog / redeem flow) — kept as the one place an admin sees who claimed what.
 function CouponClaimsCell({
   coupon,
   isOpen,
@@ -324,12 +353,16 @@ function CouponClaimsCell({
 
 export function CouponsAdminPage() {
   const coupons = useAdminCoupons()
+  const partners = useRedemptionPartners()
   const [showAdd, setShowAdd] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   // Which coupon's claims drill-down is open — page-level, so opening one closes any other.
   const [claimsId, setClaimsId] = useState<string | null>(null)
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<CouponStatus | ''>('')
+  const [partnerFilter, setPartnerFilter] = useState('')
+  const [typeFilter, setTypeFilter] = useState<CouponType | ''>('')
 
   const rows = useMemo(() => {
     let items = coupons.data ?? []
@@ -337,6 +370,9 @@ export function CouponsAdminPage() {
       const q = search.toLowerCase()
       items = items.filter((c) => c.partner_name?.toLowerCase().includes(q) || c.amount?.toLowerCase().includes(q))
     }
+    if (statusFilter) items = items.filter((c) => c.status === statusFilter)
+    if (partnerFilter) items = items.filter((c) => c.partner_id === partnerFilter)
+    if (typeFilter) items = items.filter((c) => c.type === typeFilter)
     if (sort) {
       const dir = sort.direction === 'desc' ? -1 : 1
       items = [...items].sort((a, b) => {
@@ -360,7 +396,7 @@ export function CouponsAdminPage() {
       })
     }
     return items
-  }, [coupons.data, search, sort])
+  }, [coupons.data, search, statusFilter, partnerFilter, typeFilter, sort])
 
   const editingCoupon = editingId ? rows.find((c) => c.id === editingId) : undefined
 
@@ -370,12 +406,17 @@ export function CouponsAdminPage() {
       header: 'Partner',
       sortable: true,
       render: (c) => (
-        <div className="flex flex-col gap-xs">
-          <div className="flex items-center gap-sm">
-            <span className="font-medium text-text-primary">{c.partner_name}</span>
-            {c.stock === 0 && <Badge color="error">Out of stock</Badge>}
+        <div className="flex items-center gap-sm">
+          {c.thumbnail_url && (
+            <img src={mediaUrl(c.thumbnail_url)} alt="" className="h-10 w-10 shrink-0 rounded-md bg-background object-cover" />
+          )}
+          <div className="flex flex-col gap-xs">
+            <div className="flex items-center gap-sm">
+              <span className="font-medium text-text-primary">{c.partner_name}</span>
+              {c.status && <Badge color={statusMeta[c.status].color}>{statusMeta[c.status].label}</Badge>}
+            </div>
+            <p className="text-caption text-text-secondary">{c.amount || 'No offer set'}</p>
           </div>
-          <p className="text-caption text-text-secondary">{c.amount || 'No offer set'}</p>
         </div>
       ),
     },
@@ -383,17 +424,16 @@ export function CouponsAdminPage() {
     { key: 'point_cost', header: 'Points', sortable: true, align: 'right', render: (c) => `${c.point_cost} pts` },
     {
       key: 'stock',
-      header: 'Stock',
+      header: 'Remaining / Total',
       sortable: true,
       align: 'right',
-      // User-requested (2026-08-19) — "if someone claims will stock reduce? if so show 39/40."
-      // Today it doesn't: there's no student-facing claim flow anywhere yet (that's a Sentpo
-      // Mobile screen, not built — same gap class as Earn Rules' profile-completion milestones),
-      // so `POST /coupons/{id}/redeem` stays documented-but-unreachable from this web console.
-      // Shown here as remaining/total anyway, computed from the real (if currently static) seed
-      // redemption count against `stock` — genuinely correct today, and automatically live once
-      // Mobile's claim flow exists and starts appending real redemptions.
-      render: (c) => `${Math.max(0, (c.stock ?? 0) - (c.redemption_count ?? 0))}/${c.stock ?? 0}`,
+      // `remaining_stock` is server-computed (stock - redemption_count) — no client math needed.
+      render: (c) => `${c.remaining_stock ?? Math.max(0, (c.stock ?? 0) - (c.redemption_count ?? 0))} / ${c.stock ?? 0}`,
+    },
+    {
+      key: 'expiry_date',
+      header: 'Expiry',
+      render: (c) => (c.expiry_date ? formatDate(c.expiry_date) : 'No expiry'),
     },
     {
       key: 'redemption_count',
@@ -414,7 +454,7 @@ export function CouponsAdminPage() {
       header: 'Relevance',
       render: (c) => (c.relevance_scope ? relevanceScopeLabels[c.relevance_scope] : '—'),
     },
-    { key: 'active', header: 'Status', render: (c) => <CouponToggle coupon={c} /> },
+    { key: 'active', header: 'Active', render: (c) => <CouponToggle coupon={c} /> },
     {
       key: 'actions',
       header: '',
@@ -460,7 +500,39 @@ export function CouponsAdminPage() {
           emptyMessage="No coupons yet. Add one for students to claim with their points."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
-          search={{ value: search, onChange: setSearch, placeholder: 'Search partner or amount…' }}
+          search={{ value: search, onChange: setSearch, placeholder: 'Search partner or offer…' }}
+          filters={
+            <>
+              <CompactSelect
+                label="Status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as CouponStatus | '')}
+              >
+                <option value="">All statuses</option>
+                {(Object.keys(statusMeta) as CouponStatus[]).map((s) => (
+                  <option key={s} value={s}>
+                    {statusMeta[s].label}
+                  </option>
+                ))}
+              </CompactSelect>
+              <CompactSelect label="Partner" value={partnerFilter} onChange={(e) => setPartnerFilter(e.target.value)}>
+                <option value="">All partners</option>
+                {partners.data?.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </CompactSelect>
+              <CompactSelect label="Type" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as CouponType | '')}>
+                <option value="">All types</option>
+                {(Object.keys(couponTypeLabels) as CouponType[]).map((t) => (
+                  <option key={t} value={t}>
+                    {couponTypeLabels[t]}
+                  </option>
+                ))}
+              </CompactSelect>
+            </>
+          }
         />
       </div>
     </AdminShell>

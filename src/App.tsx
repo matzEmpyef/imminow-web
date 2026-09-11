@@ -150,6 +150,9 @@ const CourseSuggestionsReviewPage = lazy(() =>
 const AdsManagerPage = lazy(() =>
   import('@/features/super-admin/AdsManagerPage').then((m) => ({ default: m.AdsManagerPage })),
 )
+const MarketingOverviewPage = lazy(() =>
+  import('@/features/super-admin/MarketingOverviewPage').then((m) => ({ default: m.MarketingOverviewPage })),
+)
 const EarnRulesPage = lazy(() =>
   import('@/features/super-admin/EarnRulesPage').then((m) => ({ default: m.EarnRulesPage })),
 )
@@ -462,6 +465,11 @@ function App() {
               history, and a 404 for a page that still exists under another name is a worse
               answer than taking them there. */}
           <Route path="/admin/country-guides" element={<Navigate to="/admin/countries" replace />} />
+        </Route>
+        {/* Any Marketing permission opens it — the sidebar shows it on the same rule, and the
+            server refuses anyone without one. */}
+        <Route element={<PlatformLayout />}>
+          <Route path="/admin/marketing" element={<MarketingOverviewPage />} />
         </Route>
         <Route element={<PlatformLayout permission="ads" />}>
           <Route path="/admin/ads" element={<AdsManagerPage />} />

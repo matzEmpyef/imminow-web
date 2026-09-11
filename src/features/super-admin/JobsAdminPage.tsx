@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { Pencil, X } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { SelectField } from '@/components/SelectField'
@@ -9,14 +9,17 @@ import { FieldLabel } from '@/components/FieldLabel'
 import { Toggle } from '@/components/Toggle'
 import { ImageUploadField } from '@/components/ImageUploadField'
 import { Table, type TableColumn } from '@/components/Table'
+import { CompactSelect } from '@/components/CompactSelect'
 import { Modal } from '@/components/Modal'
 import { useAdminJobs, useCreateJob, useUpdateJob } from '@/queries/jobsAdmin'
+import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
 import type { components } from '@/api/schema'
 
 type JobListing = components['schemas']['JobListing']
 type JobType = NonNullable<JobListing['job_type']>
 type WorkMode = NonNullable<JobListing['work_mode']>
+type JobStatus = NonNullable<JobListing['status']>
 
 function postedCaption(postedAt?: string): string | null {
   if (!postedAt) return null
@@ -146,7 +149,10 @@ function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing; onClos
             className="rounded-md border border-border bg-surface p-sm text-body text-text-primary"
           />
         </div>
-        <TextField label="Apply URL" required value={applyUrl} onChange={(e) => setApplyUrl(e.target.value)} />
+        <div className="flex flex-col gap-xs">
+          <TextField label="Apply URL" required value={applyUrl} onChange={(e) => setApplyUrl(e.target.value)} />
+          <p className="text-caption text-text-secondary">Must start with https://</p>
+        </div>
         <div className="grid grid-cols-2 items-end gap-sm">
           <TextField label="Salary range" value={salaryRange ?? ''} onChange={(e) => setSalaryRange(e.target.value)} />
           <SelectField
@@ -222,26 +228,13 @@ function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing; onClos
           />
         </div>
         <p className="-mt-sm text-caption text-text-secondary">
-          The listing hides from students automatically once "Active to" passes. Leave both blank to run indefinitely.
+          Runs until the end of this day (India time). Leave both blank to run indefinitely.
+        </p>
+        <p className="text-caption text-text-secondary">
+          Students with a matching job alert are notified when it goes live.
         </p>
       </form>
     </Modal>
-  )
-}
-
-// Row-level component so useUpdateJob(job.id) can be called at its own render top level — Table's
-// `render: (row) => ...` runs as a callback, not a component body.
-function JobToggle({ job }: { job: JobListing }) {
-  const updateJob = useUpdateJob(job.id!)
-
-  return (
-    <div>
-      <Toggle
-        checked={Boolean(job.active)}
-        onChange={(checked) => updateJob.mutate({ active: checked })}
-        label={`${job.title} active`}
-      />
-    </div>
   )
 }
 
@@ -255,6 +248,42 @@ const workModeLabels: Record<WorkMode, string> = {
   remote: 'Remote',
   hybrid: 'Hybrid',
   on_site: 'On-site',
+}
+
+// Computed server-side from active/active_from/active_to (2026-09-11) — an expired listing used
+// to still read "Active" here because the badge was driven by the admin's own `active` flag
+// rather than whether students could actually see it.
+const statusBadge: Record<JobStatus, { label: string; color: 'success' | 'info' | 'secondary' }> = {
+  live: { label: 'Live', color: 'success' },
+  scheduled: { label: 'Scheduled', color: 'info' },
+  expired: { label: 'Expired', color: 'secondary' },
+  off: { label: 'Off', color: 'secondary' },
+}
+
+// Row-level component so useUpdateJob(job.id) can be called at its own render top level — Table's
+// `render: (row) => ...` runs as a callback, not a component body.
+function JobStatusCell({ job }: { job: JobListing }) {
+  const updateJob = useUpdateJob(job.id!)
+  const [error, setError] = useState<string | null>(null)
+  const status = job.status ? statusBadge[job.status] : null
+
+  return (
+    <div className="flex flex-col gap-xs">
+      <div className="flex items-center gap-sm">
+        {status && <Badge color={status.color}>{status.label}</Badge>}
+        <Toggle
+          size="sm"
+          checked={Boolean(job.active)}
+          onChange={(checked) => {
+            setError(null)
+            updateJob.mutate({ active: checked }, { onError: (e) => setError(e.message) })
+          }}
+          label={`${job.title} active`}
+        />
+      </div>
+      {error && <span className="text-caption text-error">{error}</span>}
+    </div>
+  )
 }
 
 function DetailRow({ label, value }: { label: string; value: ReactNode }) {
@@ -272,11 +301,12 @@ function DetailRow({ label, value }: { label: string; value: ReactNode }) {
 // does — Jobs has real read-only-worthy content (skills, description, click stats) distinct from
 // the editable form fields, so a dedicated read-only view earns its keep here.
 function JobDetailsModal({ job, onClose }: { job: JobListing; onClose: () => void }) {
+  const status = job.status ? statusBadge[job.status] : null
   return (
     <Modal onClose={onClose} title={job.title ?? ''} widthRem={30} dismissible>
       <div className="flex flex-col gap-md">
         <div className="flex flex-wrap items-center gap-xs">
-          <Badge color={job.active ? 'success' : 'secondary'}>{job.active ? 'Active' : 'Inactive'}</Badge>
+          {status && <Badge color={status.color}>{status.label}</Badge>}
           {job.job_type && <Badge color="info">{jobTypeLabels[job.job_type]}</Badge>}
           {job.work_mode && <Badge color="secondary">{workModeLabels[job.work_mode]}</Badge>}
           {job.apply_url_healthy === false && <Badge color="error">Broken link</Badge>}
@@ -333,67 +363,52 @@ function JobDetailsModal({ job, onClose }: { job: JobListing; onClose: () => voi
 }
 
 export function JobsAdminPage() {
-  const jobs = useAdminJobs()
   const [showAdd, setShowAdd] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [viewingId, setViewingId] = useState<string | null>(null)
+  const [editing, setEditing] = useState<JobListing | null>(null)
+  const [viewing, setViewing] = useState<JobListing | null>(null)
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'' | JobStatus>('')
+  const [typeFilter, setTypeFilter] = useState<'' | JobType>('')
+  const [workModeFilter, setWorkModeFilter] = useState<'' | WorkMode>('')
+  const paging = useCursorPagination()
 
-  const rows = useMemo(() => {
-    let items = jobs.data?.items ?? []
-    if (search) {
-      const q = search.toLowerCase()
-      items = items.filter((j) => j.title?.toLowerCase().includes(q) || j.company?.toLowerCase().includes(q))
-    }
-    if (sort) {
-      const dir = sort.direction === 'desc' ? -1 : 1
-      items = [...items].sort((a, b) => {
-        const av =
-          sort.field === 'clicks'
-            ? (a.total_clicks ?? 0)
-            : sort.field === 'company'
-              ? (a.company ?? '').toLowerCase()
-              : (a.title ?? '').toLowerCase()
-        const bv =
-          sort.field === 'clicks'
-            ? (b.total_clicks ?? 0)
-            : sort.field === 'company'
-              ? (b.company ?? '').toLowerCase()
-              : (b.title ?? '').toLowerCase()
-        return av < bv ? -1 * dir : av > bv ? 1 * dir : 0
-      })
-    }
-    return items
-  }, [jobs.data, search, sort])
+  function resetPaging() {
+    paging.reset()
+  }
 
-  const editingJob = editingId ? rows.find((j) => j.id === editingId) : undefined
-  const viewingJob = viewingId ? rows.find((j) => j.id === viewingId) : undefined
+  const jobs = useAdminJobs({
+    search: search || undefined,
+    status: statusFilter || undefined,
+    jobType: typeFilter || undefined,
+    workMode: workModeFilter || undefined,
+    sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
+    cursor: paging.cursor,
+    limit: 20,
+  })
+
+  const rows = jobs.data?.items ?? []
 
   const columns: TableColumn<JobListing>[] = [
     {
       key: 'title',
       header: 'Listing',
-      sortable: true,
       render: (j) => (
         <div>
           <div className="flex items-center gap-sm">
             <button
               type="button"
-              onClick={() => setViewingId(j.id!)}
+              onClick={() => setViewing(j)}
               className="text-left font-medium text-text-primary hover:text-primary hover:underline"
             >
               {j.title}
             </button>
             {j.apply_url_healthy === false && <Badge color="error">Broken link</Badge>}
           </div>
-          {postedCaption(j.posted_at) && (
-            <p className="text-caption text-text-secondary">{postedCaption(j.posted_at)}</p>
-          )}
+          <p className="text-caption text-text-secondary">{j.company}</p>
         </div>
       ),
     },
-    { key: 'company', header: 'Company', sortable: true, render: (j) => j.company },
     {
       key: 'job_type',
       header: 'Type',
@@ -404,9 +419,16 @@ export function JobsAdminPage() {
       header: 'Work Mode',
       render: (j) => (j.work_mode ? <Badge color="secondary">{workModeLabels[j.work_mode]}</Badge> : '—'),
     },
-    { key: 'location', header: 'Location', render: (j) => j.location || 'Location not set' },
-    { key: 'clicks', header: 'Clicks', sortable: true, align: 'right', render: (j) => j.total_clicks ?? 0 },
-    { key: 'active', header: 'Status', render: (j) => <JobToggle job={j} /> },
+    { key: 'location', header: 'Location', hideBelow: 'md', render: (j) => j.location || 'Location not set' },
+    {
+      key: 'posted_at',
+      header: 'Posted',
+      sortable: true,
+      hideBelow: 'sm',
+      render: (j) => postedCaption(j.posted_at) ?? '—',
+    },
+    { key: 'total_clicks', header: 'Clicks', sortable: true, align: 'right', render: (j) => j.total_clicks ?? 0 },
+    { key: 'status', header: 'Status', render: (j) => <JobStatusCell job={j} /> },
     {
       key: 'actions',
       header: '',
@@ -415,7 +437,7 @@ export function JobsAdminPage() {
         <div className="flex justify-end">
           <button
             type="button"
-            onClick={() => setEditingId(j.id!)}
+            onClick={() => setEditing(j)}
             aria-label={`Edit ${j.title}`}
             title="Edit"
             className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
@@ -441,8 +463,8 @@ export function JobsAdminPage() {
         </div>
 
         {showAdd && <JobFormModal onClose={() => setShowAdd(false)} />}
-        {editingJob && <JobFormModal editingJob={editingJob} onClose={() => setEditingId(null)} />}
-        {viewingJob && <JobDetailsModal job={viewingJob} onClose={() => setViewingId(null)} />}
+        {editing && <JobFormModal editingJob={editing} onClose={() => setEditing(null)} />}
+        {viewing && <JobDetailsModal job={viewing} onClose={() => setViewing(null)} />}
 
         <Table
           columns={columns}
@@ -451,13 +473,74 @@ export function JobsAdminPage() {
           loading={jobs.isLoading}
           error={jobs.isError ? 'Could not load job listings.' : undefined}
           emptyMessage={
-            search
-              ? 'No listings match your search.'
+            search || statusFilter || typeFilter || workModeFilter
+              ? 'No listings match these filters.'
               : "No job listings yet. Add one with Add Listing above; students see it in the app's Jobs tab."
           }
           sort={sort}
-          onSortChange={(field, direction) => setSort({ field, direction })}
-          search={{ value: search, onChange: setSearch, placeholder: 'Search title or company…' }}
+          onSortChange={(field, direction) => {
+            setSort({ field, direction })
+            resetPaging()
+          }}
+          search={{
+            value: search,
+            onChange: (value) => {
+              setSearch(value)
+              resetPaging()
+            },
+            placeholder: 'Search title, company, location or skills…',
+          }}
+          filters={
+            <>
+              <CompactSelect
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value as '' | JobStatus)
+                  resetPaging()
+                }}
+                label="Status"
+              >
+                <option value="">Any status</option>
+                <option value="live">Live</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="expired">Expired</option>
+                <option value="off">Off</option>
+              </CompactSelect>
+              <CompactSelect
+                value={typeFilter}
+                onChange={(e) => {
+                  setTypeFilter(e.target.value as '' | JobType)
+                  resetPaging()
+                }}
+                label="Type"
+              >
+                <option value="">Any type</option>
+                <option value="full_time">Full-time</option>
+                <option value="internship">Internship</option>
+                <option value="part_time">Part-time</option>
+              </CompactSelect>
+              <CompactSelect
+                value={workModeFilter}
+                onChange={(e) => {
+                  setWorkModeFilter(e.target.value as '' | WorkMode)
+                  resetPaging()
+                }}
+                label="Work mode"
+              >
+                <option value="">Any work mode</option>
+                <option value="remote">Remote</option>
+                <option value="hybrid">Hybrid</option>
+                <option value="on_site">On-site</option>
+              </CompactSelect>
+            </>
+          }
+          pagination={{
+            hasNext: Boolean(jobs.data?.meta?.next_cursor),
+            hasPrevious: paging.hasPrevious,
+            onNext: () => jobs.data?.meta?.next_cursor && paging.next(jobs.data.meta.next_cursor),
+            onPrevious: paging.previous,
+            total: jobs.data?.meta?.total,
+          }}
         />
       </div>
     </AdminShell>

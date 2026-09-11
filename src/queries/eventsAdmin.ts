@@ -6,17 +6,46 @@ import type { components } from '@/api/schema'
 
 type EventInput = components['schemas']['EventInput']
 type EventType = 'quiz' | 'webinar' | 'physical_meeting'
+type EventWhen = 'upcoming' | 'live' | 'past'
+
+export interface AdminEventsFilters {
+  type?: EventType
+  /** Upcoming / Past tabs (2026-09-11 server change — GET /events became cursor-paginated). */
+  when?: EventWhen
+  search?: string
+  /** `field` or `-field` — the server only sorts /events by `starts_at`/`title`. */
+  sort?: string
+  cursor?: string
+  limit?: number
+}
 
 // `type` made optional (2026-08-18) — Ads Manager's event picker needs every event type in one
 // list to search across; the backend already supports omitting `type` to return all of them
 // (mock-server's GET /events only filters when the query param is present), so this was just a
 // signature change, not a new capability.
-export function useAdminEvents(type?: EventType) {
+//
+// Extended (2026-09-11) to also take the fuller `AdminEventsFilters` the Upcoming/Past tabs need
+// (`when`, `search`, cursor pagination) — the bare `type` shorthand keeps working unchanged for
+// every existing caller (AdsManagerPage, BroadcastPage, and the three event pages' old call sites).
+// Callers that don't ask for a specific page size get `limit: 100` rather than the server's
+// default 20 — GET /events itself became cursor-paginated in the same change, and a caller using
+// the bare-`type` shorthand is almost always a picker (Ads/Broadcast's event search-select) that
+// wants "effectively everything", not a 20-item first page.
+export function useAdminEvents(filters?: EventType | AdminEventsFilters) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  const normalized: AdminEventsFilters = typeof filters === 'string' ? { type: filters } : (filters ?? {})
   return useQuery({
-    queryKey: ['admin-events', type],
+    queryKey: ['admin-events', normalized],
     queryFn: async () => {
-      const { data, error } = await api.GET('/events', { params: { query: { type } } })
+      const query = {
+        type: normalized.type,
+        when: normalized.when,
+        cursor: normalized.cursor,
+        limit: normalized.limit ?? 100,
+        search: normalized.search,
+        sort: normalized.sort,
+      }
+      const { data, error } = await api.GET('/events', { params: { query } })
       if (error) throw new ApiError('Could not load events.', error)
       return data
     },

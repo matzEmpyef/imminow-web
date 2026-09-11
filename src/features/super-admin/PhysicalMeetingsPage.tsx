@@ -1,5 +1,5 @@
-import { useMemo, useState, type FormEvent } from 'react'
-import { Pencil } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
+import { Copy, Pencil } from 'lucide-react'
 import { EventListingToggle } from '@/features/super-admin/EventListingToggle'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Button } from '@/components/Button'
@@ -11,6 +11,7 @@ import { EventStatusBadge } from '@/features/super-admin/EventStatusBadge'
 import { EventAttendanceCell } from '@/features/super-admin/EventAttendanceCell'
 import { EventDetailsModal } from '@/features/super-admin/EventDetailsModal'
 import { useAdminEvents, useCreateEvent, useUpdateEvent } from '@/queries/eventsAdmin'
+import { useCursorPagination } from '@/lib/pagination'
 import { formatEventDateTime } from '@/lib/time'
 import { EVENT_TIMEZONES, browserTimezone, utcIsoToWallClock, wallClockToUtcIso } from '@/lib/eventTimezones'
 import type { components } from '@/api/schema'
@@ -25,27 +26,42 @@ type Event = components['schemas']['Event']
 // Sentpo Points added 2026-08-18 (user-requested — "give option to give custom Sentpo Points"),
 // same points_override field/pattern as WebinarFormModal — overrides physical_meeting_attended's
 // default point value for this specific meeting's attendees.
-function MeetingFormModal({ editingEvent, onClose }: { editingEvent?: Event; onClose: () => void }) {
+// "Ends at" added (Marketing review, 2026-09-11) — the field existed generically on Event/
+// EventInput (Webinar already collects it) but this form never sent it, so a Physical Meeting's
+// `ends_at` was always null. Same venue-zone wall clock as "Starts at", validated after start.
+// `duplicateFrom` (2026-09-11) — the "Duplicate" row action opens this same modal prefilled from
+// an existing meeting instead of blank, in CREATE mode (`isEditing` stays keyed on `editingEvent`
+// alone).
+function MeetingFormModal({
+  editingEvent,
+  duplicateFrom,
+  onClose,
+}: {
+  editingEvent?: Event
+  duplicateFrom?: Event
+  onClose: () => void
+}) {
   const isEditing = Boolean(editingEvent)
+  const isDuplicating = !isEditing && Boolean(duplicateFrom)
+  const source = editingEvent ?? duplicateFrom
   const createEvent = useCreateEvent()
   const updateEvent = useUpdateEvent(editingEvent?.id ?? '')
-  const [title, setTitle] = useState(editingEvent?.title ?? '')
-  const [description, setDescription] = useState(editingEvent?.description ?? '')
+  const [title, setTitle] = useState(isDuplicating ? `${duplicateFrom?.title ?? ''} (copy)` : (source?.title ?? ''))
+  const [description, setDescription] = useState(source?.description ?? '')
   // The venue's zone, not the admin's (Phase E, 2026-08-22). A meeting happens at a place, so
   // the clock typed below is that place's clock — and when EDITING we show it back in the venue's
   // zone rather than the editor's, or an admin abroad would see a time nobody will turn up at.
-  const [timezone, setTimezone] = useState(editingEvent?.timezone ?? browserTimezone())
+  const [timezone, setTimezone] = useState(source?.timezone ?? browserTimezone())
   const [startsAt, setStartsAt] = useState(
-    editingEvent?.starts_at
-      ? utcIsoToWallClock(editingEvent.starts_at, editingEvent.timezone ?? browserTimezone())
-      : '',
+    source?.starts_at ? utcIsoToWallClock(source.starts_at, source.timezone ?? browserTimezone()) : '',
   )
-  const [venueAddress, setVenueAddress] = useState(editingEvent?.venue_address ?? '')
-  const [venueCode, setVenueCode] = useState(editingEvent?.venue_code ?? '')
-  const [capacity, setCapacity] = useState(editingEvent?.capacity != null ? String(editingEvent.capacity) : '')
-  const [pointsOverride, setPointsOverride] = useState(
-    editingEvent?.points_override != null ? String(editingEvent.points_override) : '',
+  const [endsAt, setEndsAt] = useState(
+    source?.ends_at ? utcIsoToWallClock(source.ends_at, source.timezone ?? browserTimezone()) : '',
   )
+  const [venueAddress, setVenueAddress] = useState(source?.venue_address ?? '')
+  const [venueCode, setVenueCode] = useState(source?.venue_code ?? '')
+  const [capacity, setCapacity] = useState(source?.capacity != null ? String(source.capacity) : '')
+  const [pointsOverride, setPointsOverride] = useState(source?.points_override != null ? String(source.points_override) : '')
 
   const mutation = isEditing ? updateEvent : createEvent
 
@@ -58,14 +74,18 @@ function MeetingFormModal({ editingEvent, onClose }: { editingEvent?: Event; onC
     Date.now() >= new Date(editingEvent.starts_at).getTime() - 3 * 60 * 60 * 1000,
   )
 
+  const endBeforeStart = Boolean(startsAt && endsAt && endsAt <= startsAt)
+  const canSubmit = Boolean(title) && Boolean(startsAt) && !endBeforeStart
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!title || !startsAt) return
+    if (!canSubmit) return
     const body = {
       title,
       description: description || null,
       // Interpreted in the VENUE's zone, never the browser's — the bug this replaces.
       starts_at: wallClockToUtcIso(startsAt, timezone),
+      ends_at: endsAt ? wallClockToUtcIso(endsAt, timezone) : null,
       timezone,
       venue_address: venueAddress || null,
       ...(codeLocked ? {} : { venue_code: venueCode.trim() || null }),
@@ -82,18 +102,24 @@ function MeetingFormModal({ editingEvent, onClose }: { editingEvent?: Event; onC
   return (
     <Modal
       onClose={onClose}
-      title={isEditing ? 'Edit Meeting' : 'Add Meeting'}
+      title={isEditing ? 'Edit Meeting' : isDuplicating ? 'Duplicate Meeting' : 'Add Meeting'}
       widthRem={26}
       footer={
         <>
           {mutation.isError && <p className="mr-auto self-center text-body-sm text-error">{mutation.error.message}</p>}
-          <Button type="submit" form="meeting-form" loading={mutation.isPending} disabled={!title || !startsAt}>
-            {isEditing ? 'Save Changes' : 'Create Meeting'}
+          <Button type="submit" form="meeting-form" loading={mutation.isPending} disabled={!canSubmit}>
+            {isEditing ? 'Save Changes' : isDuplicating ? 'Create Copy' : 'Create Meeting'}
           </Button>
         </>
       }
     >
       <form id="meeting-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
+        {isDuplicating && (
+          <p className="rounded-md border border-border bg-background p-sm text-caption text-text-secondary">
+            Copied from <strong>{duplicateFrom?.title}</strong>, including its start/end window and venue — check and
+            update the dates below before saving.
+          </p>
+        )}
         <TextField label="Title" required value={title} onChange={(e) => setTitle(e.target.value)} />
         <div className="flex flex-col gap-xs">
           <FieldLabel htmlFor="meeting-description">Description</FieldLabel>
@@ -105,13 +131,22 @@ function MeetingFormModal({ editingEvent, onClose }: { editingEvent?: Event; onC
             className="rounded-md border border-border bg-surface p-sm text-body text-text-primary"
           />
         </div>
-        <TextField
-          label="Starts at"
-          type="datetime-local"
-          required
-          value={startsAt}
-          onChange={(e) => setStartsAt(e.target.value)}
-        />
+        <div className="grid grid-cols-2 gap-sm">
+          <TextField
+            label="Starts at"
+            type="datetime-local"
+            required
+            value={startsAt}
+            onChange={(e) => setStartsAt(e.target.value)}
+          />
+          <TextField
+            label="Ends at"
+            type="datetime-local"
+            value={endsAt}
+            onChange={(e) => setEndsAt(e.target.value)}
+            error={endBeforeStart ? 'Must be after the start.' : undefined}
+          />
+        </div>
         {/* The VENUE's zone, not the browser's. Attendees are shown this exact wall-clock time
             wherever they are reading from, so getting it wrong sends people to an empty hall. */}
         <SelectField label="Venue time zone" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
@@ -160,44 +195,37 @@ function MeetingFormModal({ editingEvent, onClose }: { editingEvent?: Event; onC
 }
 
 export function PhysicalMeetingsPage() {
-  const events = useAdminEvents('physical_meeting')
   const [showAdd, setShowAdd] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [viewingId, setViewingId] = useState<string | null>(null)
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
+  // Upcoming / Past tabs (2026-09-11) — same `when`/server-search/cursor-pagination contract every
+  // other cursor-paginated admin list already uses (see ImminowUsersPage.tsx).
+  const [when, setWhen] = useState<'upcoming' | 'past'>('upcoming')
+  const paging = useCursorPagination()
 
-  const rows = useMemo(() => {
-    let items = events.data?.items ?? []
-    if (search) {
-      const q = search.toLowerCase()
-      items = items.filter((e) => e.title?.toLowerCase().includes(q) || e.venue_address?.toLowerCase().includes(q))
-    }
-    if (sort) {
-      const dir = sort.direction === 'desc' ? -1 : 1
-      items = [...items].sort((a, b) => {
-        const av =
-          sort.field === 'rsvp_count'
-            ? (a.rsvp_count ?? 0)
-            : sort.field === 'starts_at'
-              ? (a.starts_at ?? '')
-              : (a.title ?? '').toLowerCase()
-        const bv =
-          sort.field === 'rsvp_count'
-            ? (b.rsvp_count ?? 0)
-            : sort.field === 'starts_at'
-              ? (b.starts_at ?? '')
-              : (b.title ?? '').toLowerCase()
-        return av < bv ? -1 * dir : av > bv ? 1 * dir : 0
-      })
-    }
-    return items
-  }, [events.data, search, sort])
+  function resetPaging() {
+    paging.reset()
+  }
+
+  const events = useAdminEvents({
+    type: 'physical_meeting',
+    when,
+    search: search || undefined,
+    sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
+    cursor: paging.cursor,
+    limit: 20,
+  })
+
+  const rows = events.data?.items ?? []
 
   // Venue code moved under the title as a caption (user-requested, 2026-08-16 — "show venue code
   // under meeting col"), replacing the old title-row Badge. Status is its own column, last among
   // the data columns before the icon-only Actions column (user-requested, "status as separate
-  // col... last col").
+  // col... last col"). Only `starts_at`/`title` are sortable (2026-09-11, cursor pagination) —
+  // see WebinarsPage.tsx for why RSVPs isn't.
   const columns: TableColumn<Event>[] = [
     {
       key: 'title',
@@ -217,21 +245,32 @@ export function PhysicalMeetingsPage() {
       ),
     },
     { key: 'starts_at', header: 'Starts', sortable: true, render: (e) => formatEventDateTime(e) },
+    {
+      key: 'ends_at',
+      header: 'Ends',
+      render: (e) => formatEventDateTime({ ...e, starts_at: e.ends_at, starts_at_local: e.ends_at_local }) || '—',
+    },
     { key: 'venue_address', header: 'Venue', render: (e) => e.venue_address },
     {
       key: 'capacity',
       header: 'Capacity',
       align: 'right',
-      render: (e) => (e.capacity ? `${e.rsvp_count ?? 0} / ${e.capacity}` : '—'),
+      render: (e) => (
+        <div className="flex flex-col items-end">
+          <span>{e.capacity ? `${e.rsvp_count ?? 0} / ${e.capacity}` : '—'}</span>
+          {(e.waitlist_count ?? 0) > 0 && (
+            <span className="text-caption text-text-secondary">+{e.waitlist_count} waitlisted</span>
+          )}
+        </div>
+      ),
     },
     {
       key: 'rsvp_count',
       header: 'Attendance',
-      sortable: true,
       align: 'right',
       render: (e) => <EventAttendanceCell event={e} />,
     },
-    { key: 'status', header: 'Status', render: (e) => <EventStatusBadge startsAt={e.starts_at} endsAt={e.ends_at} /> },
+    { key: 'status', header: 'Status', render: (e) => <EventStatusBadge status={e.status} /> },
     {
       key: 'actions',
       header: '',
@@ -246,14 +285,24 @@ export function PhysicalMeetingsPage() {
           >
             <Pencil className="h-4 w-4" />
           </button>
+          <button
+            type="button"
+            onClick={() => setDuplicatingId(e.id!)}
+            aria-label={`Duplicate ${e.title}`}
+            title="Duplicate"
+            className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
+          >
+            <Copy className="h-4 w-4" />
+          </button>
           <EventListingToggle event={e} />
         </div>
       ),
     },
   ]
 
-  const editingEvent = events.data?.items.find((e) => e.id === editingId)
-  const viewingEvent = events.data?.items.find((e) => e.id === viewingId)
+  const editingEvent = editingId ? rows.find((e) => e.id === editingId) : undefined
+  const viewingEvent = viewingId ? rows.find((e) => e.id === viewingId) : undefined
+  const duplicatingEvent = duplicatingId ? rows.find((e) => e.id === duplicatingId) : undefined
 
   return (
     <AdminShell>
@@ -269,8 +318,34 @@ export function PhysicalMeetingsPage() {
           <Button onClick={() => setShowAdd(true)}>Add Meeting</Button>
         </div>
 
+        <div role="tablist" aria-label="In-person Meetings" className="flex gap-lg border-b border-border">
+          {(
+            [
+              { key: 'upcoming', label: 'Upcoming' },
+              { key: 'past', label: 'Past' },
+            ] as const
+          ).map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={when === t.key}
+              onClick={() => {
+                setWhen(t.key)
+                resetPaging()
+              }}
+              className={`-mb-px border-b-2 py-sm text-body-sm font-medium ${
+                when === t.key ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         {showAdd && <MeetingFormModal onClose={() => setShowAdd(false)} />}
         {editingEvent && <MeetingFormModal editingEvent={editingEvent} onClose={() => setEditingId(null)} />}
+        {duplicatingEvent && <MeetingFormModal duplicateFrom={duplicatingEvent} onClose={() => setDuplicatingId(null)} />}
         {viewingEvent && <EventDetailsModal event={viewingEvent} onClose={() => setViewingId(null)} />}
 
         <Table
@@ -279,10 +354,33 @@ export function PhysicalMeetingsPage() {
           rowKey={(e) => e.id!}
           loading={events.isLoading}
           error={events.isError ? 'Could not load in-person meetings.' : undefined}
-          emptyMessage="No in-person meetings yet. Add one with Add Meeting above; students RSVP from the Events tab."
+          emptyMessage={
+            search
+              ? 'No meetings match your search.'
+              : when === 'past'
+                ? 'No past in-person meetings yet.'
+                : 'No in-person meetings yet. Add one with Add Meeting above; students RSVP from the Events tab.'
+          }
           sort={sort}
-          onSortChange={(field, direction) => setSort({ field, direction })}
-          search={{ value: search, onChange: setSearch, placeholder: 'Search title or venue…' }}
+          onSortChange={(field, direction) => {
+            setSort({ field, direction })
+            resetPaging()
+          }}
+          search={{
+            value: search,
+            onChange: (value) => {
+              setSearch(value)
+              resetPaging()
+            },
+            placeholder: 'Search title…',
+          }}
+          pagination={{
+            hasNext: Boolean(events.data?.meta.next_cursor),
+            hasPrevious: paging.hasPrevious,
+            onNext: () => events.data?.meta.next_cursor && paging.next(events.data.meta.next_cursor),
+            onPrevious: paging.previous,
+            total: events.data?.meta.total,
+          }}
         />
       </div>
     </AdminShell>

@@ -16,7 +16,7 @@ import { Modal } from '@/components/Modal'
 import { TargetingFilter } from '@/features/super-admin/TargetingFilter'
 import { hasAnyTargeting } from '@/lib/targeting'
 import { SearchSelect } from '@/components/SearchSelect'
-import { useBlogArticles } from '@/queries/blogArticles'
+import { BlogArticleSearchSelect } from '@/features/super-admin/blog/BlogArticleSearchSelect'
 import { useAdminEvents } from '@/queries/eventsAdmin'
 import { useCountries } from '@/queries/countries'
 import { useBroadcastHistory, useSendBroadcast } from '@/queries/broadcast'
@@ -72,7 +72,6 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
   const [targetId, setTargetId] = useState('')
   const needsArticle = destination === 'article'
   const needsEvent = destination === 'event'
-  const articles = useBlogArticles()
   const events = useAdminEvents()
   const deepLink = needsArticle || needsEvent ? (targetId ? `/${destination}/${targetId}` : '') : destination
   const [targeting, setTargeting] = useState<BroadcastTargeting>({})
@@ -172,17 +171,19 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
           <option value="/jobs">Jobs</option>
           <option value="/plan">Their plan</option>
         </SelectField>
-        {(needsArticle || needsEvent) && (
+        {needsArticle && (
+          // Server search (2026-09-11) — searches every published article, not just whatever
+          // page happened to load first. See BlogArticleSearchSelect for why this can't just be
+          // SearchSelect (below) fed a bigger `options` array.
+          <BlogArticleSearchSelect id="destination-target" value={targetId} onChange={setTargetId} placeholder="Search articles…" />
+        )}
+        {needsEvent && (
           <SearchSelect
             id="destination-target"
-            options={
-              needsArticle
-                ? (articles.data?.items ?? []).map((x) => ({ id: x.id, label: x.title ?? '' }))
-                : (events.data?.items ?? []).map((x) => ({ id: x.id!, label: x.title ?? '' }))
-            }
+            options={(events.data?.items ?? []).map((x) => ({ id: x.id!, label: x.title ?? '' }))}
             value={targetId}
             onChange={setTargetId}
-            placeholder={needsArticle ? 'Search articles…' : 'Search events…'}
+            placeholder="Search events…"
           />
         )}
         <p className="text-caption text-text-secondary">

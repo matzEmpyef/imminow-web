@@ -161,7 +161,7 @@ export function PlatformAuditLogPage() {
                 className="capitalize"
               >
                 <option value="">Any area</option>
-                {['leads', 'clients', 'plans', 'documents', 'settings', 'staff'].map((a) => (
+                {['leads', 'clients', 'plans', 'documents', 'settings', 'staff', 'marketing'].map((a) => (
                   <option key={a} value={a}>
                     {a}
                   </option>

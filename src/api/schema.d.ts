@@ -12326,6 +12326,10 @@ export interface paths {
                     limit?: components["parameters"]["LimitParam"];
                     /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
                     filter?: components["parameters"]["FilterParam"];
+                    /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
+                    search?: components["parameters"]["SearchParam"];
+                    /** @description Sort field. Prefix with - for descending, e.g. sort=-created_at (TRD Section 7). */
+                    sort?: components["parameters"]["SortParam"];
                     /** @description One type, or several comma-separated with OR semantics (the app's type filter is a multi-select in the standardized filter drawer, 2026-08-20). */
                     type?: string;
                     /** @description Time window, for the app's Upcoming / Past tabs (2026-09-02). `upcoming` = not yet ended (includes anything running right now, soonest first); `past` = already ended (most recent first); `live` = started and not yet ended — the shell's Events-tab ring polls this with a tiny limit. An event with no `ends_at` is treated as one hour long. Omitted = every event, the pre-tabs behaviour. */
@@ -12974,6 +12978,8 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
+                    /** @description Admin list — live, scheduled, expired, off; comma-separated = any of. */
+                    "filter[status]"?: string;
                     /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
                     cursor?: components["parameters"]["CursorParam"];
                     /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
@@ -13365,6 +13371,8 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
+                    /** @description Blog staff only — published (default), hidden, or all. Anyone else always gets published articles. */
+                    "filter[status]"?: "published" | "hidden" | "all";
                     /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
                     cursor?: components["parameters"]["CursorParam"];
                     /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
@@ -13717,8 +13725,8 @@ export interface paths {
                 content: {
                     "application/json": {
                         published_to_app?: boolean;
-                        /** @description Explicit tag override. Omit to keep whatever the WordPress category mapping resolved to — the admin never has to set this. */
-                        category_ids?: components["schemas"]["UUID"][];
+                        /** @description Tags set by hand (tags from Category Mapping); they are kept through refreshes. Omit to leave tags as they are; send null to go back to the website's own categories (2026-09-11). */
+                        category_ids?: components["schemas"]["UUID"][] | null;
                     };
                 };
             };
@@ -13926,6 +13934,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/marketing/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Numbers for the whole Marketing section (any Marketing permission)
+         * @description Points, coupons, ads, events, jobs and blog on one page (2026-09-11). Counts cover the last `window_days` where records carry a date; ad clicks and impressions are lifetime counters of the ads live now.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MarketingOverview"];
+                    };
+                };
+                /** @description No Marketing permission */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ads": {
         parameters: {
             query?: never;
@@ -13999,7 +14055,48 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete an ad for good (platform ads permission)
+         * @description Switching an ad off (PATCH active=false) is reversible and keeps its numbers; this removes it. Either way it stops being served on the next load (2026-09-11).
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["schemas"]["UUID"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Missing the ads permission */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such ad */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         /** Edit ad (admin) — all fields optional, unlike POST's AdBannerInput */
@@ -14185,6 +14282,13 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
+                    state?: string[];
+                    district?: string[];
+                    city?: string[];
+                    institution_id?: string[];
+                    gender?: string;
+                    min_age?: number;
+                    max_age?: number;
                     study_level?: string[];
                     target_country?: string[];
                     /** @description Resolved from `student_preferences.resident_country` by user id, NOT from the lead's or journey's embedded preferences snapshot — the same source the serve path reads, so the estimate cannot disagree with the ad's actual reach. */
@@ -19579,6 +19683,13 @@ export interface components {
         };
         /** @description One table, type-specific fields nullable per type (erd.md Engagement section) — Webinars, Quiz, and Physical Meetings each get their own admin page (build reference 1.13) but share this one underlying shape. */
         Event: {
+            /**
+             * @description One status for every event type (2026-09-11). draft = a quiz whose question pool is smaller than questions_per_attempt; voided = a cancelled quiz. Computed by the server; clients show it and never re-derive it.
+             * @enum {string}
+             */
+            readonly status?: "upcoming" | "live" | "ended" | "voided" | "draft";
+            /** @description Waitlisted RSVPs. `rsvp_count` counts confirmed seats only since 2026-09-11, so it can be compared with `capacity`. */
+            readonly waitlist_count?: number;
             id: components["schemas"]["UUID"];
             /** @enum {string} */
             type: "quiz" | "webinar" | "physical_meeting";
@@ -19814,6 +19925,11 @@ export interface components {
             submitted_at: string;
         };
         JobListing: {
+            /**
+             * @description Same rule as AdBanner.status (2026-09-11). A date-only active_to runs to the end of that day, India time. Computed by the server; clients show it and never re-derive it.
+             * @enum {string}
+             */
+            readonly status?: "live" | "scheduled" | "expired" | "off";
             id: components["schemas"]["UUID"];
             title: string;
             company: string;
@@ -19891,6 +20007,13 @@ export interface components {
         };
         /** @description erd.md's `blog_cache` — not the source of truth (WordPress is), this is the read-through cache layer (TRD Section 16). `bookmarked`/`downloaded` are per-caller computed state joined from `blog_bookmarks`/`blog_downloads`, not stored columns on the cache row itself. */
         BlogArticle: {
+            /**
+             * Format: date-time
+             * @description When the app's copy was last fetched from the website. Blog staff only.
+             */
+            readonly cached_at?: string | null;
+            /** @description Tags were set by hand in the Blog admin, so refreshes keep them. Otherwise tags follow the website's categories on every refresh. Blog staff only. */
+            readonly tags_overridden?: boolean;
             id: components["schemas"]["UUID"];
             title: string;
             thumbnail_url?: string;
@@ -20056,7 +20179,67 @@ export interface components {
             /** @description Account lifecycle (2026-09-03). Matches students whose `users.last_active_at` is older than N days (last_login_at before 2026-09-10), or who have never been active — the directory's "Inactive 2+ weeks / 1+ month / 3+ months" presets and the same control on Broadcast targeting (a re-engagement push to people who drifted away). Any positive whole number of days. */
             dormant_days?: number | null;
         };
+        MarketingOverview: {
+            window_days: number;
+            points: {
+                issued: number;
+                redeemed: number;
+                reversed: number;
+                coupons_claimed: number;
+            };
+            ads: {
+                live: number;
+                clicks: number;
+                impressions: number;
+                top: {
+                    id: components["schemas"]["UUID"];
+                    name?: string | null;
+                    destination_type: string;
+                    image_url: string;
+                    clicks: number;
+                    impressions: number;
+                    ctr_percent?: number | null;
+                }[];
+            };
+            events: {
+                upcoming: number;
+                upcoming_rsvps: number;
+                attended: number;
+                quiz_attempts: number;
+                next: {
+                    id: components["schemas"]["UUID"];
+                    title: string;
+                    type: string;
+                    /** Format: date-time */
+                    starts_at: string;
+                    rsvp_count: number;
+                    capacity?: number | null;
+                }[];
+            };
+            jobs: {
+                live: number;
+                clicks: number;
+                top: {
+                    id: components["schemas"]["UUID"];
+                    title: string;
+                    company: string;
+                    clicks: number;
+                }[];
+            };
+            blog: {
+                published: number;
+                /** @description First-time article reads (the ones that earn points) in the window. */
+                reads: number;
+            };
+        };
         AdBanner: {
+            /** @description Admin-only label to tell ads apart (2026-09-11). Never shown to students. */
+            name?: string | null;
+            /**
+             * @description off = switched off; scheduled = before active_from; expired = past active_to (a date-only bound runs to the end of that day, India time); live otherwise. Computed by the server; clients show it and never re-derive it.
+             * @enum {string}
+             */
+            readonly status?: "live" | "scheduled" | "expired" | "off";
             id: components["schemas"]["UUID"];
             image_url: string;
             /** @enum {string} */
@@ -20081,6 +20264,7 @@ export interface components {
             readonly impressions_count?: number;
         };
         AdBannerInput: {
+            name?: string | null;
             image_url: string;
             /** @enum {string} */
             destination_type: "internal" | "event" | "external_url";
@@ -20124,6 +20308,11 @@ export interface components {
             active?: boolean;
         };
         Coupon: {
+            /**
+             * @description For the admin list (2026-09-11). Coupon responses never carry the claim list — claims (with who claimed) come only from GET /coupons/{id}/redemptions, and `redemptions_by_location` is null for anyone without points_coupons. Computed by the server; clients show it and never re-derive it.
+             * @enum {string}
+             */
+            readonly status?: "live" | "out_of_stock" | "expired" | "off" | "partner_retired";
             id: components["schemas"]["UUID"];
             partner_id: components["schemas"]["UUID"];
             readonly partner_name?: string;
@@ -20536,7 +20725,7 @@ export interface components {
             /** @description Human-readable label for the entity at the time of the change (e.g. an applicant's name) — the entity/person search filter matches against this. */
             entity_label?: string | null;
             /** @enum {string} */
-            area: "leads" | "clients" | "plans" | "documents" | "settings" | "staff";
+            area: "leads" | "clients" | "plans" | "documents" | "settings" | "staff" | "marketing";
             diff?: {
                 [key: string]: unknown;
             } | null;

@@ -36,6 +36,19 @@ export function browserTimezone(): string {
   }
 }
 
+/// The browser's own zone as a short label ("GMT+5:30"), mirroring the server's `zoneAbbreviation`
+/// (mock-server's withEventTimes). Every event now carries a server-resolved `timezone_label`
+/// (2026-09-11) — this is only the fallback for the rare event authored before `timezone` existed,
+/// so there is nothing for the server to have resolved a label from.
+export function browserTimezoneAbbreviation(): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' }).formatToParts(new Date())
+    return parts.find((p) => p.type === 'timeZoneName')?.value ?? ''
+  } catch {
+    return ''
+  }
+}
+
 /// Converts a `datetime-local` wall-clock string ("2026-08-22T10:30") plus an IANA zone into the
 /// UTC instant to store.
 ///

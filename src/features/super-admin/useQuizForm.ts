@@ -18,10 +18,14 @@ export interface QuizFormValue {
   setStartsAt: (v: string) => void
   endsAt: string
   setEndsAt: (v: string) => void
-  questionsPerAttempt: number
-  setQuestionsPerAttempt: (v: number) => void
-  timeLimitMinutes: number
-  setTimeLimitMinutes: (v: number) => void
+  // Both null while their field is empty — never `Number('') = 0` (2026-09-11 fix). Questions per
+  // attempt is required (the form blocks Save while it's null); time limit is genuinely optional,
+  // and null means "no limit," matching the server's own nullable field — clearing it must stay
+  // blank, not silently become a 0-minute quiz that auto-submits instantly.
+  questionsPerAttempt: number | null
+  setQuestionsPerAttempt: (v: number | null) => void
+  timeLimitMinutes: number | null
+  setTimeLimitMinutes: (v: number | null) => void
   participationPoints: number
   setParticipationPoints: (v: number) => void
   prizes: PositionPrize[]
@@ -42,7 +46,7 @@ export interface QuizPayload {
   ends_at: string | undefined
   timezone: string
   questions_per_attempt: number
-  time_limit_minutes: number
+  time_limit_minutes: number | null
   points_override: number
   position_prizes: PositionPrize[]
   targeting: Targeting | null
@@ -65,8 +69,10 @@ export function useQuizForm(editingEvent?: Event): QuizFormValue {
   const [endsAt, setEndsAt] = useState(
     editingEvent?.ends_at ? utcIsoToWallClock(editingEvent.ends_at, editingEvent.timezone ?? browserTimezone()) : '',
   )
-  const [questionsPerAttempt, setQuestionsPerAttempt] = useState(editingEvent?.questions_per_attempt ?? 5)
-  const [timeLimitMinutes, setTimeLimitMinutes] = useState(editingEvent?.time_limit_minutes ?? 15)
+  const [questionsPerAttempt, setQuestionsPerAttempt] = useState<number | null>(
+    editingEvent?.questions_per_attempt ?? 5,
+  )
+  const [timeLimitMinutes, setTimeLimitMinutes] = useState<number | null>(editingEvent?.time_limit_minutes ?? 15)
   const [participationPoints, setParticipationPoints] = useState(editingEvent?.points_override ?? 10)
   const [prizes, setPrizes] = useState<PositionPrize[]>(editingEvent?.position_prizes ?? [])
   // Quizzes have supported targeting in the data model all along, but the console never exposed
@@ -85,7 +91,14 @@ export function useQuizForm(editingEvent?: Event): QuizFormValue {
     setPrizes((prev) => [...prev, emptyPrize(prev.length + 1)])
   }
 
-  const isValid = Boolean(title) && Boolean(startsAt)
+  // Questions per attempt is required, min 1 (server: "whole ≥1"); time limit stays optional —
+  // null (blank) or a whole number ≥1, never 0.
+  const isValid =
+    Boolean(title) &&
+    Boolean(startsAt) &&
+    questionsPerAttempt != null &&
+    questionsPerAttempt >= 1 &&
+    (timeLimitMinutes == null || timeLimitMinutes >= 1)
 
   function toPayload(): QuizPayload {
     return {
@@ -94,7 +107,9 @@ export function useQuizForm(editingEvent?: Event): QuizFormValue {
       starts_at: wallClockToUtcIso(startsAt, timezone),
       ends_at: endsAt ? wallClockToUtcIso(endsAt, timezone) : undefined,
       timezone,
-      questions_per_attempt: questionsPerAttempt,
+      // Non-null asserted: `toPayload` is only ever called once `isValid` has already gated the
+      // submit button, which guarantees this.
+      questions_per_attempt: questionsPerAttempt as number,
       time_limit_minutes: timeLimitMinutes,
       points_override: participationPoints,
       position_prizes: prizes,

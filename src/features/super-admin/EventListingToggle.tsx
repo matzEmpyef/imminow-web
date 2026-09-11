@@ -18,6 +18,12 @@ export function EventListingToggle({ event }: { event: Event }) {
   const updateEvent = useUpdateEvent(event.id!)
   const [confirming, setConfirming] = useState(false)
   const unlisted = event.listed === false
+  // 2026-09-11 (Marketing review): unlisting an upcoming webinar/meeting that already has
+  // registrants now notifies them it's cancelled (server-side) — the confirm copy previously said
+  // nothing about that, so an admin removing a nearly-full webinar had no warning students would
+  // hear from it. Quiz isn't included: it has no RSVPs, and voiding (not unlisting) is its
+  // cancel-and-notify path — see VoidQuizAction's own confirm copy.
+  const notifiesRegistrants = event.type !== 'quiz' && event.status === 'upcoming' && (event.rsvp_count ?? 0) > 0
 
   if (unlisted) {
     return (
@@ -69,7 +75,9 @@ export function EventListingToggle({ event }: { event: Event }) {
         >
           <p className="text-body-sm text-text-secondary">
             Remove <span className="font-medium text-text-primary">{event.title}</span> from the Sentpo app? Students
-            will no longer see it. RSVPs and attendance are kept, and you can restore it here at any time.
+            will no longer see it.{' '}
+            {notifiesRegistrants && "Registered students will be told it's cancelled. "}
+            RSVPs and attendance are kept, and you can restore it here at any time.
           </p>
         </Modal>
       )}

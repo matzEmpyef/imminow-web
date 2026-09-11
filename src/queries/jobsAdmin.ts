@@ -6,12 +6,42 @@ import type { components } from '@/api/schema'
 
 type JobListingInput = components['schemas']['JobListingInput']
 
-export function useAdminJobs() {
+export interface JobListFilters {
+  search?: string
+  /** live | scheduled | expired | off, comma-separated = any of. */
+  status?: string
+  jobType?: string
+  workMode?: string
+  category?: string
+  sort?: string
+  cursor?: string
+  limit?: number
+}
+
+// Server-side search/filter/paging (2026-09-11) — this used to call GET /jobs with no params at
+// all, so the admin only ever saw the first 20 of however many listings existed and could not
+// find or edit the rest. Cursor-paged the same way every other admin list is.
+export function useAdminJobs(filters: JobListFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
-    queryKey: ['admin-jobs'],
+    queryKey: ['admin-jobs', filters],
     queryFn: async () => {
-      const { data, error } = await api.GET('/jobs')
+      const filter: Record<string, string> = {}
+      if (filters.jobType) filter.job_type = filters.jobType
+      if (filters.workMode) filter.work_mode = filters.workMode
+      if (filters.category) filter.category = filters.category
+      const { data, error } = await api.GET('/jobs', {
+        params: {
+          query: {
+            search: filters.search || undefined,
+            'filter[status]': filters.status || undefined,
+            filter: Object.keys(filter).length > 0 ? filter : undefined,
+            sort: filters.sort || undefined,
+            cursor: filters.cursor,
+            limit: filters.limit,
+          },
+        },
+      })
       if (error) throw new ApiError('Could not load job listings.', error)
       return data
     },
