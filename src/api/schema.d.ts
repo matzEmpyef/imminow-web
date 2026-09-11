@@ -17675,6 +17675,8 @@ export interface components {
         PlatformSettings: {
             /** @description Whether students see course view counts and the most-viewed tag. Views are always counted regardless; this governs visibility only. Platform staff always see the numbers, since they are what the decision is being made about. */
             show_course_view_counts?: boolean;
+            /** @description Open cases one active staff member can handle (2026-09-11, default 20) — the capacity assumption behind Supply & Demand's Coverage by Country. Editable by Super Admin / `catalog_settings`; every change is audited. */
+            cases_per_staff?: number;
             /** @description The ordered, hand-picked institutes on Sentpo Home's Top Institutes rail (INSTITUTE_ACCOUNT_PLAN D15, 2026-09-10) — a merchandising decision about the student app rather than a property of any one account, which is why it lives here beside the other platform-wide levers. Order is the ranking; up to three, matching the sibling Top Consultancies section. Validated on write, not filtered on read: an id that is not a `kind: institute` account, a duplicate, or a fourth entry is refused 400, so a Super Admin is never left looking at a saved selection the app quietly declines to show. Empty by default — read it with `GET /consultancies?filter[featured]=true`, and hide the section when that is empty. */
             featured_institutes?: components["schemas"]["UUID"][];
         };
@@ -20004,8 +20006,10 @@ export interface components {
                     };
                 }[];
             };
-            /** @description Supply beside demand per country (2026-09-11 — merged `supply_by_country` and `mismatch`). Supply counts only organisations that can take a NEW student now (active, subscription not lapsed), consultancies and institutes apart; the old per-country seat usage was dropped (it added each consultancy's whole team to every country it listed). Least-covered first: `none`, then `limited`, then `ok`; within that, most students wanting first. Top 10, the rest summarised in `others`. */
+            /** @description Supply beside demand per country (2026-09-11 — merged `supply_by_country` and `mismatch`). Supply counts only organisations that can take a NEW student now (active, subscription not lapsed), consultancies and institutes apart; the old per-country seat usage was dropped (it added each consultancy's whole team to every country it listed). Least-covered first: `none`, then `limited`, then `ok`; within that, most students wanting first. Top 10, the rest summarised in `others`. Capacity (2026-09-11): each organisation holds active staff × `cases_per_staff`; its spare capacity (that minus its open cases) is split evenly across the countries it serves. */
             coverage_by_country: {
+                /** @description The platform setting the capacity figures were computed with. */
+                cases_per_staff: number;
                 rows: {
                     country: string;
                     /** @description Distinct students with this as a target country. */
@@ -20014,8 +20018,10 @@ export interface components {
                     institutes_serving: number;
                     /** @description Open student cases applying to or accepted in this country. */
                     open_applicants: number;
+                    /** @description Spare capacity for this country — each serving organisation's (active staff × cases_per_staff − open cases) divided by the number of countries it serves, summed, rounded down. */
+                    capacity: number;
                     /**
-                     * @description `none` = students want it or are heading there and nobody serving it can take them; `limited` = fewer organisations serving than students wanting; `ok` otherwise.
+                     * @description `none` = students want it or are heading there and nobody serving it can take them; `limited` = `capacity` is below `students_wanting`; `ok` otherwise.
                      * @enum {string}
                      */
                     coverage: "none" | "limited" | "ok";

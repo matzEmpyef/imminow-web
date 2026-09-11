@@ -1,4 +1,7 @@
+import { useState } from 'react'
 import { AdminShell } from '@/features/auth/AdminShell'
+import { useAuthStore } from '@/stores/authStore'
+import { useUpdatePlatformSettings } from '@/queries/catalogSettings'
 import { Badge } from '@/components/Badge'
 import { Card } from '@/components/Card'
 import { DoughnutChart, type DoughnutChartDatum } from '@/components/DoughnutChart'
@@ -64,6 +67,85 @@ function sharePct(value: number, total: number) {
   return total > 0 ? `${Math.round((value / total) * 100)}%` : ''
 }
 
+// The capacity assumption behind the table (user, 2026-09-11: "20 default and editable"). Shown to
+// everyone; editable by Super Admin or `catalog_settings`, the permission the setting's endpoint
+// checks — everyone else sees the number without the Edit link.
+function CapacityAssumption({ casesPerStaff, onSaved }: { casesPerStaff: number; onSaved: () => void }) {
+  const canEdit = useAuthStore(
+    (s) =>
+      s.user?.role === 'super_admin' ||
+      Boolean((s.user?.platform_permissions as Record<string, boolean> | undefined)?.catalog_settings),
+  )
+  const update = useUpdatePlatformSettings()
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(String(casesPerStaff))
+  const parsed = Number(value)
+  const valid = Number.isInteger(parsed) && parsed >= 1 && parsed <= 500
+
+  if (!editing) {
+    return (
+      <p className="mt-sm text-caption text-text-secondary">
+        Capacity assumes {casesPerStaff} open cases per active staff member.{' '}
+        {canEdit && (
+          <button
+            type="button"
+            className="text-primary hover:underline"
+            onClick={() => {
+              setValue(String(casesPerStaff))
+              setEditing(true)
+            }}
+          >
+            Edit
+          </button>
+        )}
+      </p>
+    )
+  }
+  return (
+    <form
+      className="mt-sm flex flex-wrap items-center gap-sm text-body-sm"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (!valid) return
+        update.mutate(
+          { cases_per_staff: parsed },
+          {
+            onSuccess: () => {
+              setEditing(false)
+              onSaved()
+            },
+          },
+        )
+      }}
+    >
+      <label htmlFor="cases-per-staff" className="text-text-secondary">
+        Open cases per staff member
+      </label>
+      <input
+        id="cases-per-staff"
+        type="number"
+        min={1}
+        max={500}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        className="h-10 w-24 rounded-md border border-border bg-background px-3 text-body-sm"
+      />
+      <button
+        type="submit"
+        disabled={!valid || update.isPending}
+        className="rounded-md bg-primary px-md py-xs text-text-on-primary disabled:opacity-50"
+      >
+        Save
+      </button>
+      <button type="button" className="text-text-secondary hover:underline" onClick={() => setEditing(false)}>
+        Cancel
+      </button>
+      {!valid && <span className="text-caption text-error">A whole number from 1 to 500.</span>}
+      {update.isError && <span className="text-caption text-error">Could not save — try again.</span>}
+    </form>
+  )
+}
+
 // Same two flags the old Mismatch table used, now from the server's `coverage` field.
 function CoverageBadge({ row }: { row: CoverageRow }) {
   if (row.coverage === 'none') return <Badge color="error">No coverage</Badge>
@@ -98,6 +180,7 @@ export function SupplyDemandPage() {
     { key: 'consultancies_serving', header: 'Consultancies', align: 'right', render: (r) => r.consultancies_serving },
     { key: 'institutes_serving', header: 'Institutes', align: 'right', render: (r) => r.institutes_serving },
     { key: 'open_applicants', header: 'Open applicants', align: 'right', render: (r) => r.open_applicants },
+    { key: 'capacity', header: 'Capacity', align: 'right', render: (r) => r.capacity },
     { key: 'coverage', header: 'Coverage', render: (r) => <CoverageBadge row={r} /> },
   ]
   const coverageOthers = data.coverage_by_country.others
@@ -306,7 +389,9 @@ export function SupplyDemandPage() {
           <h2 className="text-h3 text-text-primary">Coverage by Country</h2>
           <p className="text-caption text-text-secondary">
             Demand beside supply, least-covered first. Only consultancies and institutes that can take new students count
-            (active, subscription not lapsed). Limited = fewer organisations serving than students wanting it.
+            (active, subscription not lapsed). Capacity = spare room for new students: each organisation&apos;s active staff ×
+            open cases per staff member, minus the cases it already has, split across the countries it serves. Limited =
+            more students want it than that capacity.
           </p>
           <div className="mt-sm">
             <Table
@@ -317,6 +402,10 @@ export function SupplyDemandPage() {
               emptyMessage="No demand or coverage recorded yet."
             />
           </div>
+          <CapacityAssumption
+            casesPerStaff={data.coverage_by_country.cases_per_staff}
+            onSaved={() => void supplyDemand.refetch()}
+          />
           {coverageOthers.countries > 0 && (
             <p className="mt-sm text-caption text-text-secondary">
               {coverageOthers.countries} more {coverageOthers.countries === 1 ? 'country' : 'countries'} ·{' '}
