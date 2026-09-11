@@ -220,12 +220,12 @@ const SECTIONS: AdminSection[] = [
         icon: Percent,
         tabs: [{ label: 'Commission Rates', path: '/admin/commission-rates', permission: 'finance' }],
       },
-      // Moved from Support → Cases (user, 2026-09-11): it is the payments team's chase list —
-      // cases whose commission has not become due, sorted by money pending. Support staff keep it.
+      // The payments team's chase list (user, 2026-09-11): cases whose commission has not become
+      // due, sorted by money pending. Finance only — Support has its own Student follow-ups.
       {
-        label: 'Follow-ups',
+        label: 'Payment follow-ups',
         icon: ListChecks,
-        tabs: [{ label: 'Follow-ups', path: '/admin/case-followups', anyPermission: ['finance', 'support'] }],
+        tabs: [{ label: 'Payment follow-ups', path: '/admin/case-followups', permission: 'finance' }],
       },
       {
         label: 'Freelancers',
@@ -244,14 +244,15 @@ const SECTIONS: AdminSection[] = [
     icon: LifeBuoy,
     links: [
       // One inbox for a case going wrong (2026-09-10). Complaints are the student's side and never
-      // freeze anything; a dispute is the frozen case itself. Follow-ups moved to Finance on
-      // 2026-09-11.
+      // freeze anything; a dispute is the frozen case itself; Student follow-ups (2026-09-11) are
+      // students who are stuck, before or during their case. Payment follow-ups live in Finance.
       {
         label: 'Cases',
         icon: MessageSquareWarning,
         tabs: [
           { label: 'Complaints', path: '/admin/complaints', permission: 'support' },
           { label: 'Disputes', path: '/admin/disputes', permission: 'support' },
+          { label: 'Student follow-ups', path: '/admin/student-followups', permission: 'support' },
         ],
         alsoMatches: ['/admin/applicants/'],
       },

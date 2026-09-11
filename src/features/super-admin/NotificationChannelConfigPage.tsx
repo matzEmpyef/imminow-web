@@ -48,6 +48,7 @@ const LABELS: Record<string, string> = {
   event_cancelled: 'Event cancelled',
   points_reversed: 'Points taken back (voided quiz)',
   job_alert: 'New job matching a job alert',
+  support_nudge: 'Message from the support team (Student follow-ups)',
   subscription_expiring: 'Consultancy subscription ends soon (30, 7 and 1 day before)',
   subscription_expired: 'Consultancy subscription expired — grace period started',
   subscription_lapsed: 'Consultancy subscription lapsed — only admins can sign in',

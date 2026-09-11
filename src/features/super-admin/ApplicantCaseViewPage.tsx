@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useLocation } from 'react-router-dom'
 import { Card } from '@/components/Card'
 import { Badge } from '@/components/Badge'
 import { CountryLabel } from '@/components/CountryLabel'
@@ -39,6 +39,9 @@ function useApplicantCase(journeyId: string | undefined) {
  */
 export function ApplicantCaseViewPage() {
   const { id } = useParams<{ id: string }>()
+  // Opened from Payment follow-ups this page lives under /admin/case-followups/, so the sidebar
+  // keeps Finance highlighted; links onward stay under whichever section you came in from.
+  const base = useLocation().pathname.startsWith('/admin/case-followups/') ? '/admin/case-followups' : '/admin/applicants'
   const applicant = useApplicantCase(id)
 
   if (applicant.isLoading) {
@@ -75,7 +78,7 @@ export function ApplicantCaseViewPage() {
             {data.previous_journey_id && (
               <>
                 {' '}&middot;{' '}
-                <Link to={`/admin/applicants/${data.previous_journey_id}`} className="text-primary hover:underline">
+                <Link to={`${base}/${data.previous_journey_id}`} className="text-primary hover:underline">
                   returning
                 </Link>
               </>

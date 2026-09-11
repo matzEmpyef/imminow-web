@@ -10344,10 +10344,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Cases the payments team should chase (2026-09-09), sorted by what is most likely to be stuck rather than by date — a case with money on it and no movement outranks a merely old one. Read-only and side-effect free: working the queue is a phone call, not a button. */
+        /** Cases the payments team should chase (2026-09-09), sorted by what is most likely to be stuck rather than by date — a case with money on it and no movement outranks a merely old one. Read-only and side-effect free: working the queue is a phone call, not a button. Finance permission only since 2026-09-11 (the service signals moved to GET /service-followups); the case notes and GET /admin/applicants/{id} stay open to finance or support. */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Include rows whose last call set a call-back date still ahead. */
+                    include_snoozed?: boolean;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -10362,6 +10365,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             items?: components["schemas"]["CaseFollowupRow"][];
+                            summary?: components["schemas"]["FollowupSummary"];
                         };
                     };
                 };
@@ -10399,7 +10403,11 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["FollowupNote"][];
+                        };
+                    };
                 };
             };
         };
@@ -10418,6 +10426,13 @@ export interface paths {
                 content: {
                     "application/json": {
                         note: string;
+                        /** @enum {string} */
+                        outcome?: "promised_to_close" | "disputed" | "no_answer" | "resolved";
+                        /**
+                         * Format: date
+                         * @description Hide the case from the queue until this day, then show it as due.
+                         */
+                        call_back_on?: string;
                     };
                 };
             };
@@ -10428,6 +10443,200 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/service-followups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Students Support should reach out to (2026-09-11), most urgent signal first. Support permission. Rows whose last call set a future call-back date are hidden unless include_snoozed. */
+        get: {
+            parameters: {
+                query?: {
+                    include_snoozed?: boolean;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["ServiceFollowupRow"][];
+                            summary: components["schemas"]["FollowupSummary"];
+                        };
+                    };
+                };
+                /** @description Missing the support permission */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/students/{id}/service-notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Calls and nudges on this student from the support team, newest first (support permission). */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["FollowupNote"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Log a call to a student (support permission). */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        note: string;
+                        /** @enum {string} */
+                        outcome?: "helped" | "no_answer" | "not_interested" | "resolved";
+                        /** Format: date */
+                        call_back_on?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Logged */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FollowupNote"];
+                    };
+                };
+                /** @description Invalid note */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/students/{id}/nudge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send one student a push notification from the support team (2026-09-11; support permission). One per student per 24 hours — a second is refused with 429 nudge_limit. Recorded as a FollowupNote of kind nudge. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        title?: string;
+                        body: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Sent */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FollowupNote"];
+                    };
+                };
+                /** @description Invalid message */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Already messaged in the last 24 hours */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -19258,12 +19467,93 @@ export interface components {
             }[];
             amount_at_stake_inr?: number;
         };
+        /** @description A call logged on a follow-up, or a push nudge sent to a student (2026-09-11). Finance notes hang off a case (journey_id); student follow-up notes hang off the student (student_id). */
+        FollowupNote: {
+            id: components["schemas"]["UUID"];
+            /** Format: uuid */
+            journey_id?: string | null;
+            /** Format: uuid */
+            student_id?: string | null;
+            /** @enum {string} */
+            queue: "finance" | "service";
+            /** @enum {string} */
+            kind: "call" | "nudge";
+            note: string;
+            /** @description Finance: promised_to_close | disputed | no_answer | resolved. Service: helped | no_answer | not_interested | resolved. */
+            outcome?: string | null;
+            /** Format: date */
+            call_back_on?: string | null;
+            /** Format: uuid */
+            author_id?: string | null;
+            author_name?: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        FollowupSummary: {
+            total: number;
+            not_called: number;
+            due_for_call: number;
+            snoozed: number;
+            by_signal: {
+                [key: string]: number;
+            };
+            /** @description Payment follow-ups only — commission pending across the queue. */
+            pending_inr?: number;
+        };
+        /** @description A student Support should reach out to (2026-09-11) — stuck before or during their case. Unlike CaseFollowupRow this is per STUDENT: several signals fire before any consultancy exists, so there may be no case at all. */
+        ServiceFollowupRow: {
+            student_id: components["schemas"]["UUID"];
+            student_name: string;
+            email?: string;
+            phone?: string | null;
+            profile_completion_percent?: number;
+            /** @enum {string|null} */
+            intended_intake?: "first_half" | "second_half" | null;
+            intended_year?: number | null;
+            /**
+             * Format: uuid
+             * @description The student's open case, when they have one.
+             */
+            journey_id?: string | null;
+            consultancy_name?: string | null;
+            signals: {
+                /** @enum {string} */
+                code: "no_consultancy_yet" | "waiting_for_allocation" | "lead_no_reply" | "waiting_for_plan" | "stalled_application" | "plan_steps_overdue" | "long_running";
+                label: string;
+                detail: string;
+            }[];
+            /** @description How long the longest-standing signal has been true, in days. */
+            days_waiting: number;
+            /** Format: date-time */
+            last_nudge_at?: string | null;
+            last_followup?: components["schemas"]["FollowupNote"] | null;
+            /** @description Calls logged (nudges are not counted). */
+            followup_count: number;
+            /**
+             * Format: date
+             * @description The last call's call-back date while it is still ahead; the row is hidden until then.
+             */
+            snoozed_until?: string | null;
+            /** @description The last call's call-back date has arrived. */
+            due_for_call: boolean;
+        };
         /**
          * @description One case the platform's payments team should chase (2026-09-09).
          *     WHY IT EXISTS: closing a case is a consultancy action, and closing is what makes the commission due — so a consultancy controls when it owes the platform money. The contract enforces the obligation; this is how the platform notices when it has not happened.
          *     NOTHING HERE CLOSES ANYTHING. Every signal is a queue row for a person to work. There is no auto-close, no inactivity rule and no timer, because an auto-close would move money on a case nobody looked at and end a student's case with no one able to say why. A signal that fired and was never worked is a staffing problem, not a reason to let the system decide.
          */
         CaseFollowupRow: {
+            student_id?: components["schemas"]["UUID"];
+            last_followup?: components["schemas"]["FollowupNote"] | null;
+            /** @description Calls logged (nudges are not counted). */
+            followup_count?: number;
+            /**
+             * Format: date
+             * @description The last call's call-back date while it is still ahead; the row is hidden until then.
+             */
+            snoozed_until?: string | null;
+            /** @description The last call's call-back date has arrived. */
+            due_for_call?: boolean;
             journey_id?: components["schemas"]["UUID"];
             student_name?: string;
             consultancy_name?: string | null;
@@ -19271,7 +19561,7 @@ export interface components {
             outcome?: string | null;
             signals?: {
                 /** @enum {string} */
-                code?: "closed_without_acceptance" | "accepted_not_closed" | "failed_despite_acceptance" | "stalled_application" | "long_running";
+                code?: "closed_without_acceptance" | "accepted_not_closed" | "failed_despite_acceptance";
                 label?: string;
                 detail?: string;
                 /** @description Whether this signal escalates straight to the student rather than through the consultancy first. True only for the two that mean a case ended owing nothing, where the student is the other witness. */
@@ -19282,14 +19572,6 @@ export interface components {
             case_progress?: components["schemas"]["CaseSummary"];
             /** @description The platform's cut on an entry that exists but is not yet recognised — earned on paper, not yet due. The queue sorts on it, because a case with money on it and no movement outranks a merely old one. */
             amount_at_stake_inr?: number;
-            /** @description The last time someone actually called. No status, no assignment, no workflow — it exists so the next person knows. */
-            last_followup?: {
-                id?: components["schemas"]["UUID"];
-                note?: string;
-                /** Format: date-time */
-                created_at?: string;
-            } | null;
-            followup_count?: number;
         };
         /** @description What one progress fraction can no longer say, now that a case runs several plans at once (2026-09-09). `Client.progress` carries the same summed fraction as `plan_progress` below; everything else here is what that number cannot say. */
         CaseSummary: {
@@ -20874,6 +21156,8 @@ export interface components {
         };
         /** @description One row of GET /admin/users/sentpo (docs/PROGRESS.md §4 Step 3) — students only. Never blended with ImminowUserDirectoryRow; product is derived server-side the same way analytics events are (build reference "never blend the two populations"). */
         SentpoUserDirectoryRow: {
+            /** @description How much of their profile the student has filled in (2026-09-11) — the number the app shows them. Sort on it; filter[profile]=under_50|50_to_99|complete. */
+            profile_completion_percent?: number;
             id: components["schemas"]["UUID"];
             name: string;
             /** Format: email */

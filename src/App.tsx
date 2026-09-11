@@ -195,6 +195,9 @@ const DisputesPage = lazy(() =>
 const CaseFollowupsPage = lazy(() =>
   import('@/features/super-admin/CaseFollowupsPage').then((m) => ({ default: m.CaseFollowupsPage })),
 )
+const ServiceFollowupsPage = lazy(() =>
+  import('@/features/super-admin/ServiceFollowupsPage').then((m) => ({ default: m.ServiceFollowupsPage })),
+)
 const ApplicantCaseViewPage = lazy(() =>
   import('@/features/super-admin/ApplicantCaseViewPage').then((m) => ({ default: m.ApplicantCaseViewPage })),
 )
@@ -507,14 +510,21 @@ function App() {
         {/* Merged into Freelancers as a tab (2026-08-27). The old path is kept as a redirect so
             existing bookmarks and any link still pointing here land somewhere real. */}
         <Route path="/admin/freelancer-rates" element={<Navigate to="/admin/freelancers" replace />} />
-        {/* Follow-ups is the payments team's chase list, under Finance since 2026-09-11 — open to
-            finance or support staff, like the applicant case view it links to. */}
-        <Route element={<PlatformLayout anyPermission={['finance', 'support']} />}>
+        {/* Payment follow-ups: Finance's queue (2026-09-11). Support has Student follow-ups. */}
+        <Route element={<PlatformLayout permission="finance" />}>
           <Route path="/admin/case-followups" element={<CaseFollowupsPage />} />
+          {/* The same case view, opened from Payment follow-ups, so Finance stays highlighted in
+              the sidebar rather than jumping to Support (user, 2026-09-11). */}
+          <Route path="/admin/case-followups/:id" element={<ApplicantCaseViewPage />} />
+        </Route>
+        {/* The applicant case view is opened from both queues, so either permission opens it. */}
+        <Route element={<PlatformLayout anyPermission={['finance', 'support']} />}>
           <Route path="/admin/applicants/:id" element={<ApplicantCaseViewPage />} />
         </Route>
         <Route element={<PlatformLayout permission="support" />}>
           <Route path="/admin/disputes" element={<DisputesPage />} />
+          {/* Students who are stuck — Support's follow-up queue (2026-09-11). */}
+          <Route path="/admin/student-followups" element={<ServiceFollowupsPage />} />
           <Route path="/admin/complaints" element={<ComplaintsPage />} />
           <Route path="/admin/visit-requests" element={<VisitRequestsPage />} />
         </Route>

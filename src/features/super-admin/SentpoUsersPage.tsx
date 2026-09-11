@@ -92,15 +92,37 @@ function OnboardingCell({ state }: { state: OnboardingState }) {
 // This is the SENTPO (student) directory — one row per student, never blended with the immiNow
 // console directory (ImminowUsersPage.tsx / GET /admin/users/imminow). See docs/PROGRESS.md §4
 // Step 3: "two screens, never one; the two populations must not blend."
+const PROFILE_OPTIONS = [
+  { value: '', label: 'Any profile' },
+  { value: 'under_50', label: 'Profile under 50%' },
+  { value: '50_to_99', label: 'Profile 50–99%' },
+  { value: 'complete', label: 'Profile complete' },
+]
+
+// The percentage with a thin bar under it — reads at a glance down a long column.
+function ProfileCompletionCell({ percent }: { percent: number }) {
+  const tone = percent === 100 ? 'bg-success' : percent >= 50 ? 'bg-primary' : 'bg-warning'
+  return (
+    <div className="flex flex-col gap-xs" style={{ width: '4.5rem' }}>
+      <span className="tabular-nums text-text-primary">{percent}%</span>
+      <span className="h-1 w-full overflow-hidden rounded-full bg-border">
+        <span className={`block h-full rounded-full ${tone}`} style={{ width: `${percent}%` }} />
+      </span>
+    </div>
+  )
+}
+
 export function SentpoUsersPage() {
   // `?onboarding=pending` is how Needs attention's "Students stuck at onboarding" lands here already
   // filtered to the students who need a hand.
   const [searchParams] = useSearchParams()
-  const [search, setSearch] = useState('')
+  // `?search=` is how Student follow-ups' "Open in Sentpo Users" lands on one student (2026-09-11).
+  const [search, setSearch] = useState(searchParams.get('search') ?? '')
   const [stage, setStage] = useState<'' | '1' | '2'>('')
   const [onboarding, setOnboarding] = useState(searchParams.get('onboarding') ?? '')
   const [dormantDays, setDormantDays] = useState('')
   const [platform, setPlatform] = useState('')
+  const [profile, setProfile] = useState('')
   const [joined, setJoined] = useState('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -118,6 +140,7 @@ export function SentpoUsersPage() {
     onboarding: onboarding || undefined,
     dormant_days: dormantDays ? Number(dormantDays) : undefined,
     platform: platform || undefined,
+    profile: profile || undefined,
     // A preset becomes a signed-up-from date; only "Custom" sends what the date inputs hold.
     from: joined && joined !== 'custom' ? daysAgoIsoDate(Number(joined)) : joined === 'custom' && from ? from : undefined,
     to: joined === 'custom' && to ? to : undefined,
@@ -146,6 +169,14 @@ export function SentpoUsersPage() {
       render: (r) => <LastActiveCell row={r} dormantAfterDays={dormantDays ? Number(dormantDays) : 30} />,
     },
     { key: 'onboarding', header: 'Onboarding', render: (r) => <OnboardingCell state={r.onboarding} /> },
+    {
+      // How much of the profile the student has filled in (user, 2026-09-11) — the number the app
+      // shows them and the profile milestones pay on.
+      key: 'profile_completion_percent',
+      header: 'Profile',
+      sortable: true,
+      render: (r) => <ProfileCompletionCell percent={r.profile_completion_percent ?? 0} />,
+    },
     {
       // The app the student last opened (2026-09-03, user: "if it is Android or iOS") — reported
       // silently by the app at session start, so it is empty until they open a build that sends it.
@@ -197,7 +228,7 @@ export function SentpoUsersPage() {
           loading={directory.isLoading}
           error={directory.isError ? 'Could not load the Sentpo user directory.' : undefined}
           emptyMessage={
-            search || stage || onboarding || dormantDays || platform || joined
+            search || stage || onboarding || dormantDays || platform || profile || joined
               ? 'No students match these filters.'
               : 'No students have signed up yet. Every Sentpo app account appears here.'
           }
@@ -237,6 +268,20 @@ export function SentpoUsersPage() {
                 label="Onboarding"
               >
                 {ONBOARDING_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </CompactSelect>
+              <CompactSelect
+                value={profile}
+                onChange={(e) => {
+                  setProfile(e.target.value)
+                  resetPaging()
+                }}
+                label="Profile"
+              >
+                {PROFILE_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>

@@ -15,6 +15,8 @@ export interface SentpoUserDirectoryFilters {
   dormant_days?: number
   /** android | ios | web | unknown — the app the student last opened (2026-09-03). */
   platform?: string
+  /** under_50 | 50_to_99 | complete — profile completion (2026-09-11). */
+  profile?: string
   from?: string
   to?: string
   sort?: string
@@ -32,6 +34,7 @@ export function useSentpoUserDirectory(filters: SentpoUserDirectoryFilters = {})
       if (filters.onboarding) filter.onboarding = filters.onboarding
       if (filters.dormant_days) filter.dormant_days = String(filters.dormant_days)
       if (filters.platform) filter.platform = filters.platform
+      if (filters.profile) filter.profile = filters.profile
       if (filters.from) filter.from = filters.from
       if (filters.to) filter.to = filters.to
 
