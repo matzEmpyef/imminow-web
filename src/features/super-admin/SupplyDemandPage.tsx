@@ -21,17 +21,16 @@ interface DestinationTableRow {
   muted?: boolean
 }
 
-// Weekly buckets (what the contract returns — docs/PROGRESS.md §4 Step 4) rolled up to monthly so
-// this reuses MonthlyBarChart exactly as every other dashboard chart does, rather than introducing
-// a second chart shape for one page. The underlying data stays weekly; only the chart's display
-// grain changes.
-function rollUpToMonthly(weekly: { week: string; count: number }[]) {
-  const byMonth = new Map<string, number>()
-  for (const { week, count } of weekly) {
-    const month = week.slice(0, 7)
-    byMonth.set(month, (byMonth.get(month) ?? 0) + count)
-  }
-  return [...byMonth.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, value]) => ({ month, value }))
+// Series colours for New Students by Destination: the chart hues for up to five countries, slate for
+// Other and a quiet grey for No country yet, so the named destinations carry the colour.
+const NEW_BY_DESTINATION_COLORS: Record<string, string> = {
+  c0: 'var(--color-chart-1)',
+  c1: 'var(--color-chart-2)',
+  c2: 'var(--color-chart-3)',
+  c3: 'var(--color-chart-4)',
+  c4: 'var(--color-chart-5)',
+  other: 'var(--color-chart-10)',
+  no_country: 'var(--color-border)',
 }
 
 // Doughnut of the top 9 + one Others slice (user, 2026-09-11 — doughnuts back, but honest).
@@ -287,14 +286,22 @@ export function SupplyDemandPage() {
           </p>
         </Card>
 
+        {/* Replaced Signups Over Time (user, 2026-09-11) — new people per month is the Overview's
+            New Registrations by Month; this is where those new students want to go. */}
         <Card>
-          <h2 className="text-h3 text-text-primary">Signups Over Time</h2>
-          <p className="text-caption text-text-secondary">Weekly buckets, rolled up to months for this chart.</p>
+          <h2 className="text-h3 text-text-primary">New Students by Destination</h2>
+          <p className="text-caption text-text-secondary">
+            Students who signed up each month, by their first-choice country. Placed by sign-up month — when a student
+            chose their countries is not recorded.
+          </p>
           <div className="mt-sm">
             <MonthlyBarChart
-              data={rollUpToMonthly(data.signups_over_time)}
-              valueLabel="Student signups"
-              color="var(--color-primary)"
+              data={data.new_students_by_destination.months.map((m) => ({ month: m.month, ...m.values }))}
+              series={data.new_students_by_destination.series.map((s) => ({
+                key: s.key,
+                label: s.label,
+                color: NEW_BY_DESTINATION_COLORS[s.key] ?? 'var(--color-chart-10)',
+              }))}
             />
           </div>
         </Card>

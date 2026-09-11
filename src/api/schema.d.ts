@@ -19988,12 +19988,22 @@ export interface components {
             };
             /** @description Students who chose at least one field of interest — the share denominator. */
             students_with_field_choice: number;
-            /** @description Weekly buckets (Monday-start date) of users.created_at, students only. */
-            signups_over_time: {
-                /** Format: date */
-                week: string;
-                count: number;
-            }[];
+            /** @description Students who signed up in each of the last 12 calendar months (zero-filled), each counted ONCE under their first-choice target country — the top 5 of those, then `other`, then `no_country` — so a month's total equals that month's app sign-ups (the Overview's registrations channel_a + channel_c). Placed by sign-up month: when destinations were chosen is not recorded. Replaced `signups_over_time` (2026-09-11). */
+            new_students_by_destination: {
+                /** @description Stack order — up to 5 country series (`c0`..`c4`), then `other`, then `no_country`. */
+                series: {
+                    key: string;
+                    label: string;
+                }[];
+                months: {
+                    /** @description YYYY-MM */
+                    month: string;
+                    /** @description Students per series key for that month. */
+                    values: {
+                        [key: string]: number;
+                    };
+                }[];
+            };
             supply_by_country: {
                 country: string;
                 consultancy_count: number;
