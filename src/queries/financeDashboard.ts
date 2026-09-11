@@ -292,7 +292,9 @@ export function useOverrideCommissionDue() {
 
 // Removes an amount added by mistake (finance permission) — only ever an `added` part; the
 // original amount is corrected via useCorrectOriginalDue instead. Stays in due_changes, marked
-// removed, not deleted.
+// removed, not deleted. Reopening a waived (closed-without-payment) part reuses this same
+// mutation with changeId = part.waive_change_id — a waive is just another change that can be
+// voided (ReopenDueModal).
 export function useVoidCommissionDue() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -302,6 +304,60 @@ export function useVoidCommissionDue() {
         body: { reason },
       })
       if (error) throw new ApiError('Could not remove this due amount.', error)
+      return data
+    },
+    onSuccess: () => invalidateFinanceCaseViews(queryClient),
+  })
+}
+
+// Finance marks money as received directly on a case — a confirmed payment recorded with no
+// declaration from the consultancy needed; they're only notified after the fact (finance
+// permission, 2026-09-11). With `part_key` it settles that part first (409 if that part is
+// already closed without payment); without one it's money not tied to any single part.
+export function useReceiveCommissionDue() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      entryId,
+      amount,
+      currency,
+      part_key,
+      received_on,
+      reference,
+      note,
+    }: {
+      entryId: string
+      amount: number
+      currency?: string
+      part_key?: string
+      received_on?: string
+      reference?: string
+      note?: string
+    }) => {
+      const { data, error } = await api.POST('/commission-entries/{id}/receive', {
+        params: { path: { id: entryId } },
+        body: { amount, currency, part_key, received_on, reference, note },
+      })
+      if (error) throw new ApiError('Could not record this payment.', error)
+      return data
+    },
+    onSuccess: () => invalidateFinanceCaseViews(queryClient),
+  })
+}
+
+// Closes a due part without payment, with a reason the consultancy is shown (finance permission,
+// 2026-09-11). It stops counting as outstanding or overdue; 409 when the part isn't due yet,
+// already paid, or already closed. Reopen it with useVoidCommissionDue against the returned
+// waive_change_id.
+export function useWaiveCommissionDue() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ entryId, part_key, reason }: { entryId: string; part_key: string; reason: string }) => {
+      const { data, error } = await api.POST('/commission-entries/{id}/waive', {
+        params: { path: { id: entryId } },
+        body: { part_key, reason },
+      })
+      if (error) throw new ApiError('Could not close this part.', error)
       return data
     },
     onSuccess: () => invalidateFinanceCaseViews(queryClient),

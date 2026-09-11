@@ -3,10 +3,11 @@ import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { CompactSelect } from '@/components/CompactSelect'
+import { Drawer } from '@/components/Drawer'
 import { Table, type TableColumn } from '@/components/Table'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate, relativeTime } from '@/lib/time'
-import { useCommissionRatesCoverage, type CommissionRateCoverageRow } from '@/queries/commissionRates'
+import { useCommissionDefaults, useCommissionRatesCoverage, type CommissionRateCoverageRow } from '@/queries/commissionRates'
 import { CommissionDefaultsCard } from './rates/CommissionDefaultsCard'
 import { CommissionSummaryTiles } from './rates/CommissionSummaryTiles'
 import { CommissionAccountDrawer } from './rates/CommissionAccountDrawer'
@@ -30,9 +31,11 @@ const COVERAGE_BADGE = {
  *
  * This version is server-paged against `/commission-rates/coverage`, which does the complete/
  * partial/missing counting once per account rather than per browser tab, surfaces the fallback
- * default as an editable, explained number (see {@link CommissionDefaultsCard}), and keeps exactly
- * one edit path — {@link RateEditorModal} — reachable either from "Set rates" here or from a
- * specific account + country in {@link CommissionAccountDrawer}.
+ * default as an editable, explained number (see {@link CommissionDefaultsCard}, opened from the
+ * header's "Defaults" summary button rather than sitting on the page — 2026-09-11, kept the header
+ * from getting crowded), and keeps exactly one edit path — {@link RateEditorModal} — reachable
+ * either from "Set rates" here or from a specific account + country in
+ * {@link CommissionAccountDrawer}.
  */
 export function CommissionRatesPage() {
   const [search, setSearch] = useState('')
@@ -42,7 +45,12 @@ export function CommissionRatesPage() {
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [viewingId, setViewingId] = useState<string | null>(null)
   const [settingRates, setSettingRates] = useState(false)
+  const [defaultsOpen, setDefaultsOpen] = useState(false)
   const paging = useCursorPagination()
+  const defaults = useCommissionDefaults()
+  const defaultsSummary = defaults.data
+    ? `Defaults · ${defaults.data.consultancy_percent}% · ${defaults.data.freelancer_percent}% freelancer · ${defaults.data.institute_percent}% university · ${defaults.data.payment_terms_days} days`
+    : 'Defaults'
 
   function resetPaging() {
     paging.reset()
@@ -145,18 +153,23 @@ export function CommissionRatesPage() {
   return (
     <AdminShell>
       <div className="flex flex-col gap-lg">
-        <div className="flex items-center justify-between gap-md">
-          <div>
+        <div className="flex items-start justify-between gap-md">
+          <div className="min-w-0 flex-1">
             <h1 className="text-h1 text-text-primary">Commission Rates</h1>
             <p className="text-body-sm text-text-secondary">
               What immiNow takes from each case, by consultancy, country and who pays — a % of what the consultancy
               earns on the case. A change applies to cases accepted from then on.
             </p>
           </div>
-          <Button onClick={() => setSettingRates(true)}>Set rates</Button>
+          <div className="flex shrink-0 items-center gap-sm">
+            <Button variant="secondary" size="sm" onClick={() => setDefaultsOpen(true)} className="whitespace-nowrap">
+              <span className="whitespace-nowrap">{defaultsSummary}</span>
+            </Button>
+            <Button onClick={() => setSettingRates(true)} className="whitespace-nowrap">
+              <span className="whitespace-nowrap">Set rates</span>
+            </Button>
+          </div>
         </div>
-
-        <CommissionDefaultsCard />
 
         <CommissionSummaryTiles summary={rows.data?.summary} gapsActive={gapsActive} onToggleGaps={toggleGaps} />
 
@@ -234,6 +247,9 @@ export function CommissionRatesPage() {
 
         <CommissionAccountDrawer row={viewingRow ?? null} onClose={() => setViewingId(null)} />
         {settingRates && <RateEditorModal onClose={() => setSettingRates(false)} />}
+        <Drawer open={defaultsOpen} onClose={() => setDefaultsOpen(false)} title="When no rate is set">
+          <CommissionDefaultsCard variant="drawer" />
+        </Drawer>
       </div>
     </AdminShell>
   )

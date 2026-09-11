@@ -11,8 +11,20 @@ const money = formatMoneyAmount
 
 type BadgeColor = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
 
-const STATUS_COLOR: Record<string, BadgeColor> = { expected: 'secondary', due: 'info', overdue: 'warning', paid: 'success' }
-const STATUS_LABEL: Record<string, string> = { expected: 'Expected', due: 'Due', overdue: 'Overdue', paid: 'Paid' }
+const STATUS_COLOR: Record<string, BadgeColor> = {
+  expected: 'secondary',
+  due: 'info',
+  overdue: 'warning',
+  paid: 'success',
+  waived: 'secondary',
+}
+const STATUS_LABEL: Record<string, string> = {
+  expected: 'Expected',
+  due: 'Due',
+  overdue: 'Overdue',
+  paid: 'Paid',
+  waived: 'Closed by immiNow',
+}
 
 function partLabel(
   part: CommissionDuePart,
@@ -24,6 +36,12 @@ function partLabel(
   switch (part.source) {
     case 'student':
       return `Student's fee — ${ratePercent ?? 0}% share`
+    case 'student_instalment':
+      return `Student payment of ${money(part.instalment_amount)} received ${
+        part.instalment_received_on ? formatDate(part.instalment_received_on) : '—'
+      }`
+    case 'student_expected':
+      return 'Student money not received yet'
     case 'college_instalment':
       return `College instalment of ${money(part.instalment_amount)} received ${
         part.instalment_received_on ? formatDate(part.instalment_received_on) : '—'
@@ -42,6 +60,7 @@ function partLabel(
 function partDueDateText(part: CommissionDuePart): string {
   if (part.due_on) return formatDate(part.due_on)
   if (part.source === 'college_expected' || part.source === 'college_instalment') return 'When the college pays'
+  if (part.source === 'student_expected' || part.source === 'student_instalment') return 'When the student pays'
   return 'When the case closes'
 }
 
@@ -66,6 +85,9 @@ export function DueScheduleDrawer({ due, onClose }: { due: CommissionDue | null;
               {money({ amount: part.amount, currency: part.currency })} · {partDueDateText(part)} · Paid{' '}
               {money({ amount: part.paid, currency: part.currency })}
             </p>
+            {part.status === 'waived' && part.waived_reason && (
+              <p className="text-caption text-text-secondary">Closed without payment: {part.waived_reason}</p>
+            )}
           </div>
         ))}
       </div>

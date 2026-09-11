@@ -9,6 +9,9 @@ import type { CommissionDueChange, CommissionDuePart, FinanceCaseRow } from '@/q
 import { AddDueModal } from './AddDueModal'
 import { OverrideDueModal } from './OverrideDueModal'
 import { VoidDueModal } from './VoidDueModal'
+import { ReceiveDueModal } from './ReceiveDueModal'
+import { CloseDueModal } from './CloseDueModal'
+import { ReopenDueModal } from './ReopenDueModal'
 
 function inr(n: number | undefined): string {
   return `₹${(n ?? 0).toLocaleString('en-IN')}`
@@ -16,8 +19,20 @@ function inr(n: number | undefined): string {
 
 type BadgeColor = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
 
-const PART_STATUS_COLOR: Record<string, BadgeColor> = { expected: 'secondary', due: 'info', overdue: 'warning', paid: 'success' }
-const PART_STATUS_LABEL: Record<string, string> = { expected: 'Expected', due: 'Due', overdue: 'Overdue', paid: 'Paid' }
+const PART_STATUS_COLOR: Record<string, BadgeColor> = {
+  expected: 'secondary',
+  due: 'info',
+  overdue: 'warning',
+  paid: 'success',
+  waived: 'secondary',
+}
+const PART_STATUS_LABEL: Record<string, string> = {
+  expected: 'Expected',
+  due: 'Due',
+  overdue: 'Overdue',
+  paid: 'Paid',
+  waived: 'Closed',
+}
 
 function SummaryStat({ label, value, warning }: { label: string; value: string; warning?: boolean }) {
   return (
@@ -38,6 +53,12 @@ function partLabel(part: CommissionDuePart, ratePercent: number | null | undefin
   switch (part.source) {
     case 'student':
       return `Student's fee — ${ratePercent ?? 0}% share`
+    case 'student_instalment':
+      return `Student payment of ${money(part.instalment_amount ?? { amount: 0, currency: part.currency ?? 'INR' })} received ${
+        part.instalment_received_on ? formatDate(part.instalment_received_on) : '—'
+      }`
+    case 'student_expected':
+      return 'Student money not received yet'
     case 'college_instalment':
       return `College instalment of ${money(part.instalment_amount ?? { amount: 0, currency: part.currency ?? 'INR' })} received ${
         part.instalment_received_on ? formatDate(part.instalment_received_on) : '—'
@@ -54,6 +75,7 @@ function partLabel(part: CommissionDuePart, ratePercent: number | null | undefin
 function partDueDateText(part: CommissionDuePart): string {
   if (part.due_on) return formatDate(part.due_on)
   if (part.source === 'college_expected' || part.source === 'college_instalment') return 'When the college pays'
+  if (part.source === 'student_expected' || part.source === 'student_instalment') return 'When the student pays'
   return 'When the case closes'
 }
 
@@ -62,6 +84,9 @@ function changeText(c: CommissionDueChange): string {
   if (c.kind === 'added') {
     const dueOnText = c.due_on ? `, due ${formatDate(c.due_on)}` : ''
     return `Added ${amount}${dueOnText}`
+  }
+  if (c.kind === 'waived') {
+    return `Closed ${amount} without payment`
   }
   const previous =
     c.previous_amount != null
@@ -81,6 +106,10 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
   const [addingDue, setAddingDue] = useState(false)
   const [overriding, setOverriding] = useState<'override' | 'clear' | null>(null)
   const [voidingPart, setVoidingPart] = useState<CommissionDuePart | null>(null)
+  const [receivingPart, setReceivingPart] = useState<CommissionDuePart | null>(null)
+  const [recordingPayment, setRecordingPayment] = useState(false)
+  const [closingPart, setClosingPart] = useState<CommissionDuePart | null>(null)
+  const [reopeningPart, setReopeningPart] = useState<CommissionDuePart | null>(null)
 
   useEffect(() => {
     setRow(caseRow)
@@ -143,6 +172,7 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
                       <th className="px-sm py-xs text-right font-medium">Paid</th>
                       <th className="px-sm py-xs text-right font-medium">Outstanding</th>
                       <th className="px-sm py-xs text-right font-medium">Overdue</th>
+                      <th className="px-sm py-xs text-right font-medium">Closed</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -158,6 +188,9 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
                         <td className={`px-sm py-xs text-right tabular-nums ${(c.overdue ?? 0) > 0 ? 'text-warning' : ''}`}>
                           {money({ amount: c.overdue ?? 0, currency: c.currency ?? 'INR' })}
                         </td>
+                        <td className="px-sm py-xs text-right tabular-nums text-text-secondary">
+                          {money({ amount: c.waived ?? 0, currency: c.currency ?? 'INR' })}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -169,6 +202,9 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
           <div className="flex flex-wrap gap-sm">
             <Button size="sm" onClick={() => setAddingDue(true)}>
               Add amount due
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setRecordingPayment(true)}>
+              Record a payment
             </Button>
             <Button size="sm" variant="secondary" onClick={() => setOverriding('override')}>
               Override share
@@ -184,24 +220,52 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
             <h3 className="text-body-sm font-medium text-text-primary">What&rsquo;s due</h3>
             <div className="mt-xs flex flex-col gap-xs">
               {dueSchedule.length === 0 && <p className="text-caption text-text-secondary">Nothing due.</p>}
-              {dueSchedule.map((part, i) => (
-                <div key={part.id ?? `calculated-${i}`} className="rounded-md border border-border px-sm py-xs">
-                  <div className="flex items-start justify-between gap-sm">
-                    <span className="text-body-sm text-text-primary">{partLabel(part, row.rate_percent, row.tuition_fee)}</span>
-                    <Badge color={PART_STATUS_COLOR[part.status ?? 'due']}>{PART_STATUS_LABEL[part.status ?? 'due']}</Badge>
-                  </div>
-                  <p className="text-caption text-text-secondary">
-                    {partAmount(part)} · {partDueDateText(part)} · Paid {money({ amount: part.paid ?? 0, currency: part.currency ?? 'INR' })}
-                  </p>
-                  {part.kind === 'added' && (
-                    <div className="mt-xs">
-                      <Button size="sm" variant="secondary" onClick={() => setVoidingPart(part)}>
-                        Remove
-                      </Button>
+              {dueSchedule.map((part, i) => {
+                const label = partLabel(part, row.rate_percent, row.tuition_fee)
+                const canSettle = part.status === 'due' || part.status === 'overdue'
+                return (
+                  <div key={part.key ?? part.id ?? `calculated-${i}`} className="rounded-md border border-border px-sm py-xs">
+                    <div className="flex items-start justify-between gap-sm">
+                      <span className="text-body-sm text-text-primary">{label}</span>
+                      <Badge color={PART_STATUS_COLOR[part.status ?? 'due']}>{PART_STATUS_LABEL[part.status ?? 'due']}</Badge>
                     </div>
-                  )}
-                </div>
-              ))}
+                    <p className="text-caption text-text-secondary">
+                      {partAmount(part)} · {partDueDateText(part)} · Paid {money({ amount: part.paid ?? 0, currency: part.currency ?? 'INR' })}
+                    </p>
+                    {part.status === 'waived' && (
+                      <p className="text-caption text-text-secondary">
+                        Closed without payment by {part.waived_by_name ?? 'Unknown'}
+                        {part.waived_at ? ` on ${formatDate(part.waived_at)}` : ''}
+                        {part.waived_reason ? `: ${part.waived_reason}` : ''}
+                      </p>
+                    )}
+                    {(canSettle || part.status === 'waived' || part.kind === 'added') && (
+                      <div className="mt-xs flex flex-wrap gap-xs">
+                        {canSettle && (
+                          <>
+                            <Button size="sm" variant="secondary" onClick={() => setReceivingPart(part)}>
+                              Mark as received
+                            </Button>
+                            <Button size="sm" variant="secondary" onClick={() => setClosingPart(part)}>
+                              Close without payment
+                            </Button>
+                          </>
+                        )}
+                        {part.kind === 'added' && part.status !== 'waived' && (
+                          <Button size="sm" variant="secondary" onClick={() => setVoidingPart(part)}>
+                            Remove
+                          </Button>
+                        )}
+                        {part.status === 'waived' && (
+                          <Button size="sm" variant="secondary" onClick={() => setReopeningPart(part)}>
+                            Reopen
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
 
@@ -217,7 +281,7 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
                     </p>
                     {c.voided_at && (
                       <p className="text-caption text-error">
-                        Removed by {c.voided_by_name ?? 'Unknown'}
+                        {c.kind === 'waived' ? 'Reopened' : 'Removed'} by {c.voided_by_name ?? 'Unknown'}
                         {c.void_reason ? `: ${c.void_reason}` : ''} · {formatDateTime(c.voided_at)}
                       </p>
                     )}
@@ -258,6 +322,52 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
           onVoided={(next) => {
             setRow(next)
             setVoidingPart(null)
+          }}
+        />
+      )}
+      {row && receivingPart && (
+        <ReceiveDueModal
+          caseRow={row}
+          part={receivingPart}
+          label={partLabel(receivingPart, row.rate_percent, row.tuition_fee)}
+          onClose={() => setReceivingPart(null)}
+          onReceived={(next) => {
+            setRow(next)
+            setReceivingPart(null)
+          }}
+        />
+      )}
+      {row && recordingPayment && (
+        <ReceiveDueModal
+          caseRow={row}
+          part={null}
+          onClose={() => setRecordingPayment(false)}
+          onReceived={(next) => {
+            setRow(next)
+            setRecordingPayment(false)
+          }}
+        />
+      )}
+      {row && closingPart && (
+        <CloseDueModal
+          caseRow={row}
+          part={closingPart}
+          label={partLabel(closingPart, row.rate_percent, row.tuition_fee)}
+          onClose={() => setClosingPart(null)}
+          onClosed={(next) => {
+            setRow(next)
+            setClosingPart(null)
+          }}
+        />
+      )}
+      {row && reopeningPart && (
+        <ReopenDueModal
+          caseRow={row}
+          part={reopeningPart}
+          onClose={() => setReopeningPart(null)}
+          onReopened={(next) => {
+            setRow(next)
+            setReopeningPart(null)
           }}
         />
       )}

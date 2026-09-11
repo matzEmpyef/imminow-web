@@ -114,11 +114,16 @@ export function HistoryTab() {
           <span className="flex items-center gap-xs whitespace-nowrap font-medium tabular-nums text-text-primary">
             {money(p.amount)}
             {(p.corrections?.length ?? 0) > 0 && <Badge color="info">Corrected</Badge>}
+            {/* Recorded directly by Finance, no declaration from the consultancy (2026-09-11). */}
+            {p.recorded_by_finance && <Badge color="secondary">Recorded by Finance</Badge>}
           </span>
           {/* declared_amount is only ever set when it differs from what arrived (2026-09-11) — see
               CommissionPayment's doc comment. */}
           {p.declared_amount && (
             <span className="whitespace-nowrap text-caption text-text-secondary">Declared {money(p.declared_amount)}</span>
+          )}
+          {p.recorded_by_finance && p.received_on && (
+            <span className="whitespace-nowrap text-caption text-text-secondary">Received {formatDate(p.received_on)}</span>
           )}
           {approxInr(p.amount_inr, p.amount.currency) && (
             <span className="whitespace-nowrap text-caption text-text-secondary">{approxInr(p.amount_inr, p.amount.currency)}</span>

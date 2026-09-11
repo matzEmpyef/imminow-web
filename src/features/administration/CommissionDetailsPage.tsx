@@ -66,6 +66,8 @@ function PaymentHistoryTab({ payments }: { payments: CommissionPayment[] }) {
                   <Badge color="info">Corrected</Badge>
                 </span>
               )}
+              {/* Recorded directly by immiNow Finance, no declaration made here (2026-09-11). */}
+              {p.recorded_by_finance && <Badge color="secondary">Recorded by immiNow</Badge>}
             </span>
             {/* declared_amount is only ever set when it differs from what arrived (2026-09-11). */}
             {p.declared_amount && (

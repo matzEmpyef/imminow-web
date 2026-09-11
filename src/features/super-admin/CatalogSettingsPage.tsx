@@ -259,6 +259,26 @@ function CountriesTab() {
           Add Country
         </Button>
       </div>
+      <div className="flex flex-col gap-xs rounded-md border border-border bg-background p-md text-body-sm text-text-secondary">
+        <p className="font-medium text-text-primary">What the two waits do</p>
+        <p>
+          <span className="font-medium text-text-primary">Offer reply</span> (default 30 days) — counted from when
+          the consultancy marks a college as applied. When it runs out with no decision recorded, the student is
+          asked in the Sentpo app whether the college has replied (at most twice), and the case appears in
+          Support → Student follow-ups as &ldquo;Applied, no movement&rdquo;.
+        </p>
+        <p>
+          <span className="font-medium text-text-primary">Case closes</span> (default 120 days) — counted from when
+          a college offer is accepted to the case closing (visa, decision, departure). immiNow&rsquo;s commission
+          only falls due when a case closes as a success, so when this runs out with the case still open, it
+          appears in Finance → Payment follow-ups as &ldquo;Accepted, still open&rdquo; — worth checking whether the
+          student has already travelled and the consultancy should close it.
+        </p>
+        <p>
+          Neither number changes any amount — they only decide when someone is asked or flagged. Both are starting
+          guesses; set real figures for the countries in use.
+        </p>
+      </div>
       <Table
         columns={columns}
         rows={visible}

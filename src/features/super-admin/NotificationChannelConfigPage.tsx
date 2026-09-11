@@ -69,6 +69,10 @@ const LABELS: Record<string, string> = {
   institution_suggested: 'School or college not in the list',
   application_status_changed: 'College application status changed',
   shortlisted_course_changed: 'Shortlisted course changed (fee, deadline, deactivated)',
+  commission_share_due: 'immiNow share fell due on a case (Finance)',
+  commission_payment_declared: 'Consultancy declared a payment to immiNow (Finance)',
+  commission_payment_overdue: 'A payment to immiNow is overdue (Finance)',
+  commission_payment_recorded: 'immiNow recorded a payment from the consultancy (to the consultancy)',
 }
 
 // Row-level component so useUpdateNotificationChannelConfig() can be called at its own render top

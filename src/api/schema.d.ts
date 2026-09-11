@@ -15925,6 +15925,120 @@ export interface paths {
         };
         trace?: never;
     };
+    "/commission-entries/{id}/receive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Finance marks money as received on a case (finance permission, 2026-09-11) — a confirmed payment recorded directly, no declaration needed. With part_key it settles that part first. The consultancy is notified. 409 for a part closed without payment. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        amount: number;
+                        /** @description Defaults to the part's currency, else the case's own. */
+                        currency?: string;
+                        part_key?: string;
+                        /** Format: date */
+                        received_on?: string;
+                        reference?: string;
+                        note?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Recorded */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FinanceCaseRow"];
+                    };
+                };
+                /** @description Part closed without payment */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/commission-entries/{id}/waive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Finance closes a due part without payment, with a reason (finance permission, 2026-09-11). It stops counting as outstanding or overdue; reopen it with /dues/{changeId}/void. The consultancy is notified. 409 when the part is not due yet, already paid or already closed. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        part_key: string;
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Closed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FinanceCaseRow"];
+                    };
+                };
+                /** @description Not due, paid, or already closed */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/commission-entries/{id}/dues/{changeId}/void": {
         parameters: {
             query?: never;
@@ -22414,6 +22528,8 @@ export interface components {
             oldest_unpaid_days?: number | null;
         };
         FinanceCaseRow: {
+            /** @description Parts Finance closed without payment, in INR. */
+            readonly waived_inr?: number;
             /**
              * Format: date-time
              * @description When the college was accepted (the commission entry was created).
@@ -22465,6 +22581,8 @@ export interface components {
         };
         /** @description immiNow's share on one case in one currency (2026-09-11). Money is owed in the currency it arrives in. */
         CommissionCurrencyTotals: {
+            /** @description Closed by Finance without payment. */
+            waived?: number;
             currency?: string;
             /** @description Parts that have fallen due (the case closed as a success; college money as it arrived). */
             due?: number;
@@ -22477,12 +22595,22 @@ export interface components {
         };
         /** @description One part of immiNow's share on a case (2026-09-11), in the currency the money arrives in. Nothing falls due until the case closes as a success; the student's part and a university's tuition part fall due at close; the college's part falls due per instalment the consultancy records (on arrival or at close, whichever is later), the rest of it showing as expected. A part is payable within the payment terms of falling due. Confirmed payments settle parts earliest-due first; a payment in another currency is converted through INR. */
         CommissionDuePart: {
+            /** @description Stable id of the part (2026-09-11) — what receive and waive refer to. */
+            key?: string;
+            waived_amount?: number | null;
+            /** @description Set when Finance closed the part without payment. */
+            waived_reason?: string | null;
+            waived_by_name?: string | null;
+            /** Format: date-time */
+            waived_at?: string | null;
+            /** @description Pass to /commission-entries/{id}/dues/{changeId}/void to reopen the part. */
+            waive_change_id?: components["schemas"]["UUID"] | null;
             /** @description The instalment, override or added amount this part comes from; null for a calculated part. */
             id?: components["schemas"]["UUID"] | null;
             /** @enum {string} */
             kind?: "calculated" | "override" | "added";
             /** @enum {string|null} */
-            source?: "student" | "college_instalment" | "college_expected" | "tuition" | null;
+            source?: "student" | "student_instalment" | "student_expected" | "college_instalment" | "college_expected" | "tuition" | null;
             currency?: string;
             amount?: number;
             /**
@@ -22507,16 +22635,18 @@ export interface components {
             paid?: number;
             outstanding?: number;
             /** @enum {string} */
-            status?: "expected" | "due" | "overdue" | "paid";
+            status?: "expected" | "due" | "overdue" | "paid" | "waived";
         };
         /** @description A change Finance made to a case's share, with who and why (2026-09-11): an amount added, or an override of the calculated share. Removed ones stay listed. */
         CommissionDueChange: {
+            /** @description The part a waived change closed. */
+            part_key?: string | null;
             id?: components["schemas"]["UUID"];
             /**
              * @description original_changed is an override of the calculated share.
              * @enum {string}
              */
-            kind?: "added" | "original_changed";
+            kind?: "added" | "original_changed" | "waived";
             amount?: number;
             currency?: string;
             /** Format: date */
@@ -22535,6 +22665,12 @@ export interface components {
         };
         /** @description A platform payment declared against ONE commission entry's due (reworked 2026-08-28 — "consultant click on the due transaction and enter the amount"). Legacy pooled payments recorded before this change carry a null commission_entry_id and show as "General" rather than against any one case. No proof upload is required or accepted; the optional transaction_id is the consultant's own bank/UPI reference, for their own bookkeeping — confirmation by immiNow finance is what actually settles the due. */
         CommissionPayment: {
+            /** @description Recorded directly by immiNow Finance (money that arrived without a declaration). */
+            readonly recorded_by_finance?: boolean;
+            /** Format: date */
+            readonly received_on?: string | null;
+            /** @description The part key this payment was recorded against; it settles that part first. */
+            readonly applies_to?: string | null;
             /** @description The payment's INR value, fixed when it was declared and again when confirmed or corrected. Revenue counts this. */
             readonly amount_inr?: number;
             /** @description What the consultancy declared, when Finance recorded a different amount received (2026-09-11). `amount` is always what actually arrived; every total counts that. */

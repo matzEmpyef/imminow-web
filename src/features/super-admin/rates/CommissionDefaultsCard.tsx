@@ -93,8 +93,15 @@ const FIELDS: { key: DefaultKey; label: string; hint: string; unit: '%' | 'days'
  * that a rate change only prices cases accepted from now on — the same "applies going forward" rule
  * the rate editor's caption states for a single rate. Payment terms apply to parts falling due from
  * now on.
+ *
+ * Moved off the page into a Drawer (2026-09-11, user-requested — the page-level "Set rates" flow
+ * was getting crowded): `variant="drawer"` drops the Card wrapper and the repeated "When no rate is
+ * set" heading (the Drawer's own title bar already carries it) and forces the fields to one column,
+ * since Tailwind's `sm:` breakpoint reads the viewport, not the Drawer's fixed 24rem panel — left as
+ * `sm:grid-cols-2` in drawer mode it would still go two columns on a normal-width screen and squeeze
+ * every field.
  */
-export function CommissionDefaultsCard() {
+export function CommissionDefaultsCard({ variant = 'page' }: { variant?: 'page' | 'drawer' } = {}) {
   const defaults = useCommissionDefaults()
   const updateDefaults = useUpdateCommissionDefaults()
   const [values, setValues] = useState<Record<DefaultKey, string>>({
@@ -136,16 +143,23 @@ export function CommissionDefaultsCard() {
     updateDefaults.mutate(body, { onSuccess: () => setConfirming(false) })
   }
 
-  return (
-    <Card>
+  const content = (
+    <>
       <div className="flex flex-wrap items-start justify-between gap-md">
-        <div>
-          <h2 className="text-body-sm font-medium text-text-primary">When no rate is set</h2>
-          <p className="mt-2xs text-caption text-text-secondary">
+        {variant === 'page' ? (
+          <div>
+            <h2 className="text-body-sm font-medium text-text-primary">When no rate is set</h2>
+            <p className="mt-2xs text-caption text-text-secondary">
+              Applied to a case with no Commission Rates row. A change here prices cases accepted from then on —
+              cases already accepted keep their rate.
+            </p>
+          </div>
+        ) : (
+          <p className="text-caption text-text-secondary">
             Applied to a case with no Commission Rates row. A change here prices cases accepted from then on —
             cases already accepted keep their rate.
           </p>
-        </div>
+        )}
         <div className="flex items-center gap-sm">
           {dirty && (
             <button
@@ -162,7 +176,7 @@ export function CommissionDefaultsCard() {
         </div>
       </div>
 
-      <div className="mt-md grid grid-cols-1 gap-sm sm:grid-cols-2">
+      <div className={`mt-md grid grid-cols-1 gap-sm ${variant === 'page' ? 'sm:grid-cols-2' : ''}`}>
         {FIELDS.map((f) => (
           <DefaultRow key={f.key} label={f.label} hint={f.hint}>
             <span className="flex items-center gap-xs">
@@ -212,6 +226,8 @@ export function CommissionDefaultsCard() {
           </div>
         </Modal>
       )}
-    </Card>
+    </>
   )
+
+  return variant === 'page' ? <Card>{content}</Card> : content
 }
