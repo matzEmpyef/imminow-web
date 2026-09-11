@@ -54,7 +54,9 @@ export function Modal({ onClose, title, children, widthRem = 32, footer, header,
         aria-label={title}
         tabIndex={-1}
         style={{ maxWidth: `${widthRem}rem`, maxHeight: '90vh' }}
-        className="relative flex w-full flex-col overflow-hidden rounded-lg bg-surface shadow-card outline-none"
+        // `text-left`: a popup opened from a right-aligned table cell (row actions) would otherwise
+        // inherit that cell's text-align.
+        className="relative flex w-full flex-col overflow-hidden rounded-lg bg-surface text-left shadow-card outline-none"
       >
         <div
           className={`flex shrink-0 justify-between gap-md border-b border-border px-lg ${

@@ -39,6 +39,8 @@ const LABELS: Record<string, string> = {
   kyc_submitted: 'KYC certificate submitted',
   countries_served_changed: 'Countries served changed',
   upgrade_requested: 'Consultancy requested a plan upgrade',
+  applicant_allocated: 'Applicant allocated to the consultancy by immiNow',
+  consultancy_assigned: 'Student told which consultancy they are now with',
   subscription_expiring: 'Consultancy subscription ends soon (30, 7 and 1 day before)',
   subscription_expired: 'Consultancy subscription expired — grace period started',
   subscription_lapsed: 'Consultancy subscription lapsed — only admins can sign in',

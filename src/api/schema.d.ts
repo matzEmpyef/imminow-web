@@ -15878,7 +15878,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The allocation queue — freelancer-sourced applicants awaiting a consultancy, plus students who asked to change theirs (build reference 1.19, 1.23) */
+        /**
+         * The allocation queue — freelancer-sourced applicants awaiting a consultancy, plus students who asked to change theirs (build reference 1.19, 1.23)
+         * @description Oldest first. Rows come from three places (`source`): freelancer referral sign-ups, consultancy-change requests raised with a complaint, and disputes resolved as "reassign".
+         */
         get: {
             parameters: {
                 query?: never;
@@ -15918,7 +15921,7 @@ export interface paths {
         put?: never;
         /**
          * Decline a consultancy-change request without transferring
-         * @description Removes the row from the transfer list and leaves the journey untouched — same consultancy, same plan, same consultant. Records the reason against the complaint. Does NOT close the complaint: refusing a transfer is not the same as resolving the grievance, which is handled off-platform. Only valid on a consultancy_change row.
+         * @description Removes the row from the transfer list and leaves the journey untouched — same consultancy, same plan, same consultant. Records the reason against the complaint. Does NOT close the complaint: refusing a transfer is not the same as resolving the grievance, which is handled off-platform. Only valid on a row whose `source` is `complaint` — a dispute reassignment was already decided and is refused.
          */
         post: {
             parameters: {
@@ -15962,6 +15965,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/applicant-allocation-queue/{id}/candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Where one queue row can go — every active consultancy, with why any cannot take it */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["schemas"]["UUID"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["AllocationCandidate"][];
+                        };
+                    };
+                };
+                404: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/applicant-allocation-queue/{id}/allocate": {
         parameters: {
             query?: never;
@@ -15971,7 +16015,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Allocate to a consultancy — the queue entry is removed and, for the one consultancy this environment has real operational (branch/employee/client) data for, a new unassigned Client record is created for that consultancy's own staff to pick up (user-requested, 2026-08-18). For every other consultancy, this environment has no branches/employees/clients of its own to receive it — the queue entry is still removed and audited, but no client record is created, matching the honest scope of a single-operational-tenant mock rather than fabricating data for tenants that don't exist here. Real multi-tenant partitioning is Phase 6 (real backend) work. */
+        /**
+         * Allocate to a consultancy
+         * @description Opens a new, unassigned case for the chosen consultancy's staff on the student's own account, removes the row, and notifies the consultancy's admins (`applicant_allocated`) and the student (`consultancy_assigned`). A consultancy change archives the old case as `closed_switched`. Every check runs before the row is removed (2026-09-11): the target must be one of the row's candidates with `blocked_reason: null`, so an applicant can no longer be dropped on an account with nobody to work the case.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -15994,7 +16041,31 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            ok: boolean;
+                            /** @description The new case. */
+                            client_id?: components["schemas"]["UUID"];
+                        };
+                    };
+                };
+                /** @description Unknown consultancy, an institute or suspended account (`not_allocatable`), the consultancy they are already with (`same_consultancy`), or freelancer allocation disabled (`freelancer_disabled`). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No active staff (`no_active_staff`) or a lapsed subscription (`subscription_lapsed`). The row stays on the queue. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -17170,6 +17241,23 @@ export interface components {
             active?: boolean;
             freelancer_enabled?: boolean;
         };
+        /** @description One active consultancy, as a destination for one queue row (2026-09-11). Institutes are never listed. Rows that can take the applicant come first, then those serving the applicant's target countries, then lighter workload. POST .../allocate accepts exactly the rows with `blocked_reason: null`. */
+        AllocationCandidate: {
+            consultancy_id: components["schemas"]["UUID"];
+            name: string;
+            city?: string | null;
+            country?: string | null;
+            /** @description The applicant's target countries this consultancy serves. */
+            serves_countries: string[];
+            active_applicants: number;
+            seats_used: number;
+            seat_limit: number;
+            /**
+             * @description Why this consultancy cannot take the applicant; null when it can.
+             * @enum {string|null}
+             */
+            blocked_reason: "current_consultancy" | "no_active_staff" | "subscription_lapsed" | "freelancer_disabled" | null;
+        };
         /** @description Applicant Allocation queue (build reference 1.19, 1.23) — a read model over erd.md's `applicant_allocation_queue`, joined with the applicant's name for display, plus the referenced journey's own contact/case fields (email, phone, case_type) — needed so `POST .../allocate` (below) has enough to create the real client record once a consultancy is chosen, without a second round-trip back to the journey. */
         ApplicantAllocationEntry: {
             id: components["schemas"]["UUID"];
@@ -17194,6 +17282,20 @@ export interface components {
             readonly complaint_category?: string | null;
             /** @description The grievance itself, surfaced on the queue so the admin decides having read it. */
             readonly complaint_description?: string | null;
+            /**
+             * @description Where the row came from (2026-09-11): a student who signed up with a freelancer's referral code; a student who asked to change consultancy when raising a complaint; or a dispute Support resolved as "reassign" (a consultancy_change row with `dispute_id` set, which cannot be declined — the move was already decided).
+             * @enum {string}
+             */
+            readonly source?: "freelancer_signup" | "complaint" | "dispute";
+            readonly dispute_id?: components["schemas"]["UUID"] | null;
+            /** @description The student's own account. Allocation opens the new case on it. */
+            readonly student_user_id?: components["schemas"]["UUID"] | null;
+            /** @description From the student's own preferences; empty when they have set none. */
+            readonly target_countries?: string[];
+            readonly fields_of_interest?: string[];
+            readonly study_level?: string | null;
+            /** @description The consultancy a change request is leaving — the case's own. */
+            readonly current_consultancy_id?: components["schemas"]["UUID"] | null;
             /** @description Who the student is with today, i.e. who they are asking to leave. */
             readonly current_consultancy_name?: string | null;
         };

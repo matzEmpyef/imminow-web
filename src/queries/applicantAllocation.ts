@@ -16,6 +16,21 @@ export function useApplicantAllocationQueue() {
   })
 }
 
+// Where one row can go, with the reason any consultancy can't take it (2026-09-11). Fetched when
+// the Allocate popup opens.
+export function useAllocationCandidates(id: string, enabled: boolean) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['applicant-allocation-queue', 'candidates', id],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/applicant-allocation-queue/{id}/candidates', { params: { path: { id } } })
+      if (error) throw new ApiError('Could not load consultancies for this applicant.', error)
+      return data.items
+    },
+    enabled: isAuthed && enabled,
+  })
+}
+
 export function useAllocateApplicant(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -24,7 +39,7 @@ export function useAllocateApplicant(id: string) {
         params: { path: { id } },
         body: { consultancy_id: consultancyId },
       })
-      if (error) throw new ApiError('Could not allocate this applicant.', error)
+      if (error) throw new ApiError(error.error?.message ?? 'Could not allocate this applicant.')
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['applicant-allocation-queue'] }),
   })
