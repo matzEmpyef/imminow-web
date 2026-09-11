@@ -10,6 +10,7 @@ import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
 import { useCountries } from '@/queries/countries'
 import { useFinanceCases, type FinanceCaseRow, type FinanceCasesFilters } from '@/queries/financeDashboard'
+import { money } from './money'
 import { ConsultancySearchSelect } from './ConsultancySearchSelect'
 import { FinanceCaseDrawer } from './FinanceCaseDrawer'
 
@@ -17,8 +18,8 @@ function inr(n: number | undefined): string {
   return `₹${(n ?? 0).toLocaleString('en-IN')}`
 }
 
-const STATUS_COLOR = { unpaid: 'warning', part_paid: 'info', paid: 'success' } as const
-const STATUS_LABEL = { unpaid: 'Unpaid', part_paid: 'Part-paid', paid: 'Paid' } as const
+const STATUS_COLOR = { unpaid: 'warning', part_paid: 'info', paid: 'success', not_due: 'secondary' } as const
+const STATUS_LABEL = { unpaid: 'Unpaid', part_paid: 'Part-paid', paid: 'Paid', not_due: 'Not due yet' } as const
 
 /**
  * Every active commission case, server-paged (2026-09-11 rebuild) — the platform expects hundreds
@@ -72,7 +73,7 @@ export function CasesTab() {
     overdue: overdueOnly || undefined,
     from: from || undefined,
     to: to || undefined,
-    sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : 'recognized_at',
+    sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : 'accepted_at',
     cursor: paging.cursor,
     limit: 20,
   })
@@ -108,7 +109,31 @@ export function CasesTab() {
         </span>
       ),
     },
-    { key: 'due_inr', header: 'Due', align: 'right', render: (r) => <span className="tabular-nums">{inr(r.due_inr)}</span> },
+    {
+      key: 'due_inr',
+      header: 'Due',
+      align: 'right',
+      render: (r) => {
+        const others = (r.by_currency ?? []).filter((c) => c.currency && c.currency !== 'INR' && (c.outstanding ?? 0) > 0)
+        return (
+          <div className="flex flex-col items-end">
+            <span className="tabular-nums">{inr(r.due_inr)}</span>
+            {others.length > 0 && (
+              <span className="text-caption text-text-secondary">
+                {others.map((c) => money({ amount: c.outstanding ?? 0, currency: c.currency ?? '' })).join(' · ')}
+              </span>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      key: 'expected_share_inr',
+      header: 'Not yet due',
+      align: 'right',
+      hideBelow: 'md',
+      render: (r) => <span className="tabular-nums text-text-secondary">{inr(r.expected_share_inr)}</span>,
+    },
     { key: 'paid_inr', header: 'Paid', align: 'right', render: (r) => <span className="tabular-nums">{inr(r.paid_inr)}</span> },
     {
       key: 'outstanding_inr',
@@ -116,11 +141,6 @@ export function CasesTab() {
       sortable: true,
       align: 'right',
       render: (r) => <span className="tabular-nums font-medium text-text-primary">{inr(r.outstanding_inr)}</span>,
-    },
-    {
-      key: 'payment_status',
-      header: 'Status',
-      render: (r) => <Badge color={STATUS_COLOR[r.payment_status]}>{STATUS_LABEL[r.payment_status]}</Badge>,
     },
     {
       key: 'overdue_inr',
@@ -146,11 +166,23 @@ export function CasesTab() {
       render: (r) => <span className="text-text-secondary">{r.next_due_on ? formatDate(r.next_due_on) : '—'}</span>,
     },
     {
-      key: 'recognized_at',
+      key: 'payment_status',
+      header: 'Status',
+      render: (r) => <Badge color={STATUS_COLOR[r.payment_status]}>{STATUS_LABEL[r.payment_status]}</Badge>,
+    },
+    {
+      key: 'accepted_at',
       header: 'Accepted',
       sortable: true,
       align: 'right',
-      render: (r) => formatDate(r.recognized_at),
+      render: (r) => (r.accepted_at ? formatDate(r.accepted_at) : '—'),
+    },
+    {
+      key: 'closed',
+      header: 'Closed',
+      align: 'right',
+      hideBelow: 'lg',
+      render: (r) => (r.case_closed ? formatDate(r.recognized_at) : <span className="text-text-secondary">Open</span>),
     },
   ]
 
@@ -173,8 +205,8 @@ export function CasesTab() {
       )}
       {totals && (
         <p className="text-body-sm text-text-secondary">
-          Due {inr(totals.due_inr)} · Paid {inr(totals.paid_inr)} · Outstanding {inr(totals.outstanding_inr)} · Overdue{' '}
-          {inr(totals.overdue_inr)} for these filters
+          Due {inr(totals.due_inr)} · Not yet due {inr(totals.expected_share_inr)} · Paid {inr(totals.paid_inr)} ·
+          Outstanding {inr(totals.outstanding_inr)} · Overdue {inr(totals.overdue_inr)} for these filters
         </p>
       )}
       <Table

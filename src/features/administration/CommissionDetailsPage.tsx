@@ -236,19 +236,35 @@ export function CommissionDetailsPage() {
       key: 'platform_due',
       header: 'Due to immiNow',
       align: 'right',
-      render: (due) => (
-        <div className="flex items-center justify-end gap-sm">
-          <span className="font-medium">
-            <InrAmount money={due.platform_due} />
-          </span>
-          <span className="text-caption text-text-secondary">{due.rate_percent}%</span>
-          {due.rate_source === 'fallback_default' && (
-            // The 10% default applied because no Commission Rates row existed for this
-            // country + payer method — immiNow needs to configure one, not discover this later.
-            <Badge color="warning">default rate</Badge>
-          )}
-        </div>
-      ),
+      render: (due) => {
+        const others = (due.by_currency ?? []).filter((c) => c.currency && c.currency !== 'INR' && (c.outstanding ?? 0) > 0)
+        return (
+          <div className="flex flex-col items-end gap-2xs">
+            <div className="flex items-center gap-sm">
+              <span className="font-medium">
+                <InrAmount money={due.platform_outstanding ?? due.platform_due} />
+              </span>
+              <span className="text-caption text-text-secondary">{due.rate_percent}%</span>
+              {due.rate_source === 'fallback_default' && (
+                // The 10% default applied because no Commission Rates row existed for this
+                // country + payer method — immiNow needs to configure one, not discover this later.
+                <Badge color="warning">default rate</Badge>
+              )}
+            </div>
+            {others.length > 0 && (
+              <span className="text-caption text-text-secondary">
+                {others.map((c) => `${c.currency} ${(c.outstanding ?? 0).toLocaleString('en-US')}`).join(' · ')}
+              </span>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      key: 'platform_expected',
+      header: 'Not yet due',
+      align: 'right',
+      render: (due) => <InrAmount money={due.platform_expected ?? { amount: 0, currency: 'INR' }} />,
     },
     {
       key: 'platform_payment',
@@ -290,10 +306,17 @@ export function CommissionDetailsPage() {
       },
     },
     {
-      key: 'recognized',
+      key: 'accepted',
       header: 'Accepted',
       align: 'right',
-      render: (due) => formatDate(due.recognized_at),
+      render: (due) => (
+        <div className="flex flex-col items-end">
+          <span>{due.accepted_at ? formatDate(due.accepted_at) : '—'}</span>
+          <span className="text-caption text-text-secondary">
+            {due.case_closed ? `Closed ${formatDate(due.recognized_at)}` : 'Open'}
+          </span>
+        </div>
+      ),
     },
   ]
 

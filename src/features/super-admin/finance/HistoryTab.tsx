@@ -15,6 +15,11 @@ import { CorrectPaymentModal } from './CorrectPaymentModal'
 
 type StatusFilter = '' | 'confirmed' | 'rejected'
 
+function approxInr(amountInr: number | undefined, currency: string | undefined): string | null {
+  if (!currency || currency === 'INR' || amountInr == null) return null
+  return `≈ ₹${amountInr.toLocaleString('en-IN')}`
+}
+
 function csvCell(value: string): string {
   // Quote any field that could otherwise break a column boundary or start a new row.
   return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
@@ -114,6 +119,9 @@ export function HistoryTab() {
               CommissionPayment's doc comment. */}
           {p.declared_amount && (
             <span className="whitespace-nowrap text-caption text-text-secondary">Declared {money(p.declared_amount)}</span>
+          )}
+          {approxInr(p.amount_inr, p.amount.currency) && (
+            <span className="whitespace-nowrap text-caption text-text-secondary">{approxInr(p.amount_inr, p.amount.currency)}</span>
           )}
         </div>
       ),

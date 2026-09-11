@@ -7,11 +7,17 @@ import { useRejectCommissionPayment, type CommissionPayment } from '@/queries/co
 
 const MIN_REASON_LENGTH = 3
 
+function approxInr(amountInr: number | undefined, currency: string | undefined): string | null {
+  if (!currency || currency === 'INR' || amountInr == null) return null
+  return `≈ ₹${amountInr.toLocaleString('en-IN')}`
+}
+
 /** Turns a declared payment down with a reason the consultancy is shown (2026-09-11 rebuild). */
 export function RejectPaymentModal({ payment, onClose }: { payment: CommissionPayment; onClose: () => void }) {
   const reject = useRejectCommissionPayment()
   const [reason, setReason] = useState('')
   const trimmed = reason.trim()
+  const approx = approxInr(payment.amount_inr, payment.amount.currency)
 
   return (
     <Modal
@@ -38,6 +44,7 @@ export function RejectPaymentModal({ payment, onClose }: { payment: CommissionPa
       <div className="flex flex-col gap-md">
         <p className="text-body-sm text-text-secondary">
           {payment.consultancy_name ?? 'This consultancy'} declared {money(payment.amount)}
+          {approx ? ` (${approx})` : ''}
           {payment.applicant_name ? ` for ${payment.applicant_name}` : ''}.
         </p>
         <TextAreaField

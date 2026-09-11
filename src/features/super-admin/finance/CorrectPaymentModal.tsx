@@ -9,8 +9,9 @@ import { useCorrectCommissionPayment, type CommissionPayment } from '@/queries/c
 
 const MIN_REASON_LENGTH = 3
 
-function inr(n: number | null | undefined): string {
-  return n == null ? '—' : `₹${n.toLocaleString('en-IN')}`
+function approxInr(amountInr: number | undefined, currency: string | undefined): string | null {
+  if (!currency || currency === 'INR' || amountInr == null) return null
+  return `≈ ₹${amountInr.toLocaleString('en-IN')}`
 }
 
 /**
@@ -23,6 +24,7 @@ function inr(n: number | null | undefined): string {
 export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionPayment; onClose: () => void }) {
   const correct = useCorrectCommissionPayment()
   const currentAmount = payment.amount.amount ?? 0
+  const currency = payment.amount.currency ?? 'INR'
   const [amount, setAmount] = useState(String(currentAmount))
   const [reason, setReason] = useState('')
 
@@ -59,7 +61,12 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
         <div className="rounded-md border border-border bg-background p-md">
           <div className="flex items-center justify-between">
             <span className="text-caption text-text-secondary">Currently received</span>
-            <span className="text-body font-medium text-text-primary">{money(payment.amount)}</span>
+            <span className="flex flex-col items-end">
+              <span className="text-body font-medium text-text-primary">{money(payment.amount)}</span>
+              {approxInr(payment.amount_inr, currency) && (
+                <span className="text-caption text-text-secondary">{approxInr(payment.amount_inr, currency)}</span>
+              )}
+            </span>
           </div>
           {payment.declared_amount && (
             <div className="flex items-center justify-between">
@@ -74,7 +81,7 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
         </div>
 
         <TextField
-          label="New amount received (₹)"
+          label={`New amount received (${currency})`}
           type="number"
           min={0}
           required
@@ -98,7 +105,7 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
               {corrections.map((c) => (
                 <div key={c.id} className="rounded-md border border-border px-sm py-xs">
                   <p className="text-body-sm text-text-primary">
-                    {inr(c.from_amount)} &rarr; {inr(c.to_amount)}
+                    {money({ amount: c.from_amount, currency })} &rarr; {money({ amount: c.to_amount, currency })}
                   </p>
                   <p className="text-caption text-text-secondary">{c.reason}</p>
                   <p className="text-caption text-text-secondary">

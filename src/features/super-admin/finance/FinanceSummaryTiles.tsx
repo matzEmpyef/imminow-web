@@ -24,7 +24,7 @@ export function FinanceSummaryTiles({
   if (loading || !summary) {
     return (
       <div className="flex flex-wrap gap-sm">
-        {Array.from({ length: 5 }).map((_, i) => (
+        {Array.from({ length: 6 }).map((_, i) => (
           <Skeleton key={i} className="h-20 flex-1 basis-56 rounded-md" />
         ))}
       </div>
@@ -42,6 +42,12 @@ export function FinanceSummaryTiles({
         <span className="text-caption text-text-secondary">Outstanding</span>
         <span className="text-h3 tabular-nums text-text-primary">{inr(summary.outstanding_inr)}</span>
         <span className="text-caption text-text-secondary">across {summary.cases} cases</span>
+      </div>
+
+      <div className="flex flex-1 basis-56 flex-col gap-xs rounded-md border border-border bg-surface px-md py-sm">
+        <span className="text-caption text-text-secondary">Not yet due</span>
+        <span className="text-h3 tabular-nums text-text-primary">{inr(summary.expected_share_inr)}</span>
+        <span className="text-caption text-text-secondary">Open cases, and college money not received yet</span>
       </div>
 
       <button

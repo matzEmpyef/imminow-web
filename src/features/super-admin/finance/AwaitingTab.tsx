@@ -17,6 +17,11 @@ function inr(n: number | null | undefined): string {
   return n == null ? '—' : `₹${n.toLocaleString('en-IN')}`
 }
 
+function approxInr(amountInr: number | undefined, currency: string | undefined): string | null {
+  if (!currency || currency === 'INR' || amountInr == null) return null
+  return `≈ ₹${amountInr.toLocaleString('en-IN')}`
+}
+
 function daysWaiting(iso: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000))
 }
@@ -43,7 +48,14 @@ export function AwaitingTab() {
     {
       key: 'amount',
       header: 'Amount',
-      render: (p) => <span className="whitespace-nowrap font-medium tabular-nums text-text-primary">{money(p.amount)}</span>,
+      render: (p) => (
+        <div className="flex flex-col">
+          <span className="whitespace-nowrap font-medium tabular-nums text-text-primary">{money(p.amount)}</span>
+          {approxInr(p.amount_inr, p.amount.currency) && (
+            <span className="whitespace-nowrap text-caption text-text-secondary">{approxInr(p.amount_inr, p.amount.currency)}</span>
+          )}
+        </div>
+      ),
     },
     { key: 'consultancy', header: 'Consultancy', render: (p) => p.consultancy_name ?? 'Unknown' },
     { key: 'case', header: 'Case', render: (p) => p.applicant_name ?? 'General' },

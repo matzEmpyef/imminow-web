@@ -226,25 +226,28 @@ function invalidateFinanceCaseViews(queryClient: QueryClient) {
 }
 
 // Adds an amount a case owes immiNow — a second instalment, an agreed extra (finance permission,
-// 2026-09-11). Returns the updated FinanceCaseRow so FinanceCaseDrawer can refresh itself directly
+// 2026-09-11). In the amount's own currency (defaults to the case's own on the server when
+// omitted). Returns the updated FinanceCaseRow so FinanceCaseDrawer can refresh itself directly
 // rather than waiting on a refetch.
 export function useAddCommissionDue() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({
       entryId,
-      amount_inr,
+      amount,
+      currency,
       due_on,
       reason,
     }: {
       entryId: string
-      amount_inr: number
+      amount: number
+      currency?: string
       due_on?: string | null
       reason: string
     }) => {
       const { data, error } = await api.POST('/commission-entries/{id}/dues', {
         params: { path: { id: entryId } },
-        body: { amount_inr, due_on, reason },
+        body: { amount, currency, due_on, reason },
       })
       if (error) throw new ApiError('Could not add this due amount.', error)
       return data
@@ -253,27 +256,34 @@ export function useAddCommissionDue() {
   })
 }
 
-// Corrects the original (rate-calculated) amount and/or gives it a due date (finance permission,
-// 2026-09-11). The calculated figure stays on record as calculated_due_inr regardless.
-export function useCorrectOriginalDue() {
+// Overrides immiNow's calculated share on a case with an amount in a currency, optionally with
+// its own due date (finance permission, 2026-09-11) — replaces useCorrectOriginalDue now that the
+// calculated share can be in more than one currency. `clear: true` removes the override and goes
+// back to the calculation (409 when there is none). The calculated figure stays on record as
+// calculated_due_inr regardless of an override.
+export function useOverrideCommissionDue() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({
       entryId,
-      amount_inr,
+      amount,
+      currency,
       due_on,
+      clear,
       reason,
     }: {
       entryId: string
-      amount_inr?: number
+      amount?: number
+      currency?: string
       due_on?: string | null
+      clear?: boolean
       reason: string
     }) => {
       const { data, error } = await api.PATCH('/commission-entries/{id}/original-due', {
         params: { path: { id: entryId } },
-        body: { amount_inr, due_on, reason },
+        body: { amount, currency, due_on, clear, reason },
       })
-      if (error) throw new ApiError('Could not correct the original amount.', error)
+      if (error) throw new ApiError('Could not change the calculated share.', error)
       return data
     },
     onSuccess: () => invalidateFinanceCaseViews(queryClient),

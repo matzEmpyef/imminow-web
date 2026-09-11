@@ -2,13 +2,10 @@ import { useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextAreaField } from '@/components/TextAreaField'
+import { money } from './money'
 import { useVoidCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
 
 const MIN_REASON_LENGTH = 3
-
-function inr(n: number | undefined): string {
-  return `₹${(n ?? 0).toLocaleString('en-IN')}`
-}
 
 /** Removes an amount added by mistake (2026-09-11) — it stays visible in the change history, struck through. */
 export function VoidDueModal({
@@ -26,11 +23,12 @@ export function VoidDueModal({
   const [reason, setReason] = useState('')
   const trimmedReason = reason.trim()
   const invalid = trimmedReason.length < MIN_REASON_LENGTH
+  const partAmount = money({ amount: part.amount ?? 0, currency: part.currency ?? 'INR' })
 
   return (
     <Modal
       onClose={onClose}
-      title={`Remove ${inr(part.amount_inr)} added amount`}
+      title={`Remove ${partAmount} added amount`}
       widthRem={26}
       footer={
         <>

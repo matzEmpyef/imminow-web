@@ -19,9 +19,15 @@ function inr(n: number | null | undefined): string {
  * figure right here instead of confirming the wrong amount and correcting it after the fact. A
  * difference needs a reason — the consultancy is shown it, same as a rejection reason.
  */
+function approxInr(amountInr: number | undefined, currency: string | undefined): string | null {
+  if (!currency || currency === 'INR' || amountInr == null) return null
+  return `≈ ₹${amountInr.toLocaleString('en-IN')}`
+}
+
 export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionPayment; onClose: () => void }) {
   const confirm = useConfirmCommissionPayment()
   const declaredAmount = payment.amount.amount ?? 0
+  const currency = payment.amount.currency ?? 'INR'
   const [receivedAmount, setReceivedAmount] = useState(String(declaredAmount))
   const [note, setNote] = useState('')
 
@@ -65,7 +71,12 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
         <div className="rounded-md border border-border bg-background p-md">
           <div className="flex items-center justify-between">
             <span className="text-caption text-text-secondary">Declared amount</span>
-            <span className="text-body font-medium text-text-primary">{money(payment.amount)}</span>
+            <span className="flex flex-col items-end">
+              <span className="text-body font-medium text-text-primary">{money(payment.amount)}</span>
+              {approxInr(payment.amount_inr, currency) && (
+                <span className="text-caption text-text-secondary">{approxInr(payment.amount_inr, currency)}</span>
+              )}
+            </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-caption text-text-secondary">Case still owes</span>
@@ -82,7 +93,7 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
         </div>
 
         <TextField
-          label="Amount received (₹)"
+          label={`Amount received (${currency})`}
           type="number"
           min={0}
           required
@@ -101,8 +112,9 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
               hint="The consultancy is shown this."
             />
             <p className="text-body-sm text-text-secondary">
-              Declared {inr(declaredAmount)} · Received {isValidNumber ? inr(parsed) : '—'} · Difference{' '}
-              {isValidNumber ? inr(Math.abs(parsed - declaredAmount)) : '—'}
+              Declared {money({ amount: declaredAmount, currency })} · Received{' '}
+              {isValidNumber ? money({ amount: parsed, currency }) : '—'} · Difference{' '}
+              {isValidNumber ? money({ amount: Math.abs(parsed - declaredAmount), currency }) : '—'}
             </p>
           </>
         )}

@@ -149,8 +149,8 @@ export function CommissionRatesPage() {
           <div>
             <h1 className="text-h1 text-text-primary">Commission Rates</h1>
             <p className="text-body-sm text-text-secondary">
-              What immiNow takes from each case, by consultancy, country and who pays. A change applies to cases
-              accepted from then on.
+              What immiNow takes from each case, by consultancy, country and who pays — a % of what the consultancy
+              earns on the case. A change applies to cases accepted from then on.
             </p>
           </div>
           <Button onClick={() => setSettingRates(true)}>Set rates</Button>

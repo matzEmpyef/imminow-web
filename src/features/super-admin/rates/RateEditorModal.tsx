@@ -195,6 +195,10 @@ export function RateEditorModal({
         <p className="text-caption text-text-secondary">
           Applies to cases accepted from now on. Cases already accepted keep the rate they were priced at.
         </p>
+        <p className="text-caption text-text-secondary">
+          Direct % is immiNow&rsquo;s share of what the consultancy earns on a case (from the college, the student, or
+          both); Freelancer % is that same share of the consultancy&rsquo;s commission on a freelancer-brought case.
+        </p>
 
         {lockConsultancy ? (
           <div className="flex flex-col gap-xs">

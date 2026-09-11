@@ -69,6 +69,11 @@ export function CommissionAccountDrawer({
             </span>
           </div>
 
+          <p className="text-caption text-text-secondary">
+            Direct % and Freelancer % below are immiNow&rsquo;s share of what this consultancy earns on a case (from
+            the college, the student, or both) — Freelancer % applies when a freelancer brought the student.
+          </p>
+
           <div className="flex items-center justify-between gap-md rounded-md bg-background px-md py-sm">
             <div>
               <p className="text-body-sm font-medium text-text-primary">Freelancer channel</p>

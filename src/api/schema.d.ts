@@ -15678,6 +15678,8 @@ export interface paths {
                         commission_entry_id: string;
                         /** Format: double */
                         amount: number;
+                        /** @description ISO code of the currency paid (2026-09-11) — a share is paid in the currency it is owed in. Defaults to INR. 422 when the currency has no exchange rate. */
+                        currency?: string;
                         transaction_id?: string | null;
                     };
                 };
@@ -15823,7 +15825,10 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        amount_inr: number;
+                        /** @description How much, in the currency given. */
+                        amount: number;
+                        /** @description Defaults to the case's own currency (the college fee's, else the student's). */
+                        currency?: string;
                         /** Format: date */
                         due_on?: string | null;
                         reason: string;
@@ -15870,7 +15875,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Correct the original (rate-calculated) amount and/or give it a due date (finance permission, 2026-09-11). The calculated figure stays on record as calculated_due_inr. Reason required; audited; the consultancy is notified. 400 when nothing changes. */
+        /** Override immiNow's calculated share on a case (finance permission, 2026-09-11): an amount in a currency, optionally with its own due date; `clear: true` goes back to the calculation. Reason required; audited; the consultancy is notified. 409 when clearing with no override. */
         patch: {
             parameters: {
                 query?: never;
@@ -15883,9 +15888,16 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        amount_inr?: number;
-                        /** Format: date */
+                        /** @description The share Finance sets in place of the calculation. */
+                        amount?: number;
+                        currency?: string;
+                        /**
+                         * Format: date
+                         * @description A date makes it due on that date; without one it waits for the close.
+                         */
                         due_on?: string | null;
+                        /** @description Remove the override and go back to the calculated share. */
+                        clear?: boolean;
                         reason: string;
                     };
                 };
@@ -16278,6 +16290,9 @@ export interface paths {
                     "application/json": {
                         consultancy_percent?: number;
                         institute_percent?: number;
+                        freelancer_percent?: number;
+                        /** @description Days to pay a part of the share after it falls due. */
+                        payment_terms_days?: number;
                     };
                 };
             };
@@ -17399,6 +17414,8 @@ export interface paths {
                                 due_inr?: number;
                                 paid_inr?: number;
                                 outstanding_inr?: number;
+                                /** @description immiNow's share not due yet on these cases. */
+                                expected_share_inr?: number;
                                 overdue_inr?: number;
                             };
                         };
@@ -22273,6 +22290,16 @@ export interface components {
         };
         /** @description Commission Details' itemized rows (reworked 2026-08-28) — one per ACTIVE commission entry of the caller's consultancy. This is the tier where the platform's cut IS visible (`billing.view_commission_details`); the per-applicant Commissions tab deliberately omits it. Totals that mix currencies (college fee currency + student currency) are normalized to INR via the platform exchange rates, same pivot the course catalog uses. */
         CommissionDue: {
+            /** @description University accounts only — the tuition fee their share is taken on. */
+            readonly tuition_fee?: components["schemas"]["Money"] | null;
+            /** @description immiNow's share not due yet, in INR (with approx). */
+            readonly platform_expected?: components["schemas"]["Money"];
+            /** @description What has fallen due and is not yet paid, in INR (with approx). */
+            readonly platform_outstanding?: components["schemas"]["Money"];
+            readonly by_currency?: components["schemas"]["CommissionCurrencyTotals"][];
+            /** Format: date-time */
+            readonly accepted_at?: string;
+            readonly case_closed?: boolean;
             readonly overdue_inr?: number;
             /** Format: date */
             readonly next_due_on?: string | null;
@@ -22294,7 +22321,7 @@ export interface components {
             received_total: components["schemas"]["Money"];
             /** @description expected_total − received_total (INR). */
             balance: components["schemas"]["Money"];
-            /** @description rate_percent × expected_total, snapshotted at acceptance (INR). */
+            /** @description What has fallen due to immiNow on this case, in INR at today's rates (2026-09-11). */
             platform_due: components["schemas"]["Money"];
             /** @description Sum of CONFIRMED payments linked to this entry via commission_entry_id (INR). */
             platform_paid: components["schemas"]["Money"];
@@ -22309,13 +22336,19 @@ export interface components {
             rate_source: "configured" | "fallback_default";
             /**
              * Format: date-time
-             * @description When the acceptance (or PR contribution) was recorded.
+             * @description When the case closed as a success — what makes the share due. Null while open (2026-09-11; it carried the acceptance date before, now accepted_at).
              */
             recognized_at: string;
         };
         /** @description The platform's cut when no Commission Rates row covers a case (2026-09-11). Consultancies default to 2.5% (they charge students about 10% and the platform takes 25-30% of that); universities, which pay the platform directly, default to 10%. A change prices cases accepted from then on; accepted cases keep their rate and carry rate_source fallback_default. */
         CommissionDefaults: {
+            /** @description Default rate when a freelancer brought the student and no rate is set (2026-09-11, 40). */
+            freelancer_percent?: number;
+            /** @description Days a consultancy has to pay a part of immiNow's share after it falls due (default 30). */
+            payment_terms_days?: number;
+            /** @description Default rate for a consultancy with no rate set: a % of what the consultancy earns on the case (from the college, the student, or both). 25 since 2026-09-11. */
             consultancy_percent: number;
+            /** @description Default rate for a university account: a % of the tuition fee (the course's listed fee — one year's when listed per year). 10. */
             institute_percent: number;
         };
         CommissionRateCoverageRow: {
@@ -22346,6 +22379,8 @@ export interface components {
             last_changed_by_name?: string | null;
         };
         FinanceSummary: {
+            /** @description immiNow's share not due yet across every case (open cases, college money not arrived). */
+            expected_share_inr?: number;
             /** @description Unpaid money past its due date, across every case. */
             overdue_inr?: number;
             /** @description Every active case's platform due, less what has been confirmed. */
@@ -22379,10 +22414,22 @@ export interface components {
             oldest_unpaid_days?: number | null;
         };
         FinanceCaseRow: {
-            /** @description The amount the rate produced when the case was recognised — never changes. */
+            /**
+             * Format: date-time
+             * @description When the college was accepted (the commission entry was created).
+             */
+            readonly accepted_at?: string;
+            /** @description The case closed as a success — what makes anything due. */
+            readonly case_closed?: boolean;
+            /** @description University accounts only — the fee their share is taken on. */
+            readonly tuition_fee?: components["schemas"]["Money"] | null;
+            /** @description immiNow's share not due yet (case still open, or college money not arrived), in INR. */
+            readonly expected_share_inr?: number;
+            /** Format: date */
+            readonly oldest_unpaid_since?: string | null;
+            readonly by_currency?: components["schemas"]["CommissionCurrencyTotals"][];
+            /** @description immiNow's whole share as calculated at acceptance, in INR at that day's rates. Reference only. */
             readonly calculated_due_inr?: number;
-            /** @description The original amount as it stands after any Finance correction. */
-            readonly original_due_inr?: number;
             /** @description Unpaid money on parts whose due date has passed. Undated parts are never overdue. */
             readonly overdue_inr?: number;
             /** Format: date */
@@ -22401,48 +22448,82 @@ export interface components {
             college_name?: string | null;
             rate_percent?: number | null;
             rate_source?: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When the case closed as a success, which is what makes the share due (2026-09-11). Null while open. It carried the acceptance date before; that is accepted_at now.
+             */
             recognized_at: string;
             expected_total_inr?: number;
             received_total_inr?: number;
+            /** @description What has fallen due, in INR at today's rates (the parts are owed in their own currencies). */
             due_inr: number;
             paid_inr: number;
             awaiting_inr: number;
             outstanding_inr: number;
             /** @enum {string} */
-            payment_status: "unpaid" | "part_paid" | "paid";
+            payment_status: "unpaid" | "part_paid" | "paid" | "not_due";
         };
-        /** @description One part of what a case owes immiNow (2026-09-11): the original, rate-calculated amount or an amount Finance added. Confirmed payments settle parts oldest first. An undated part is never overdue; a dated one is overdue once its date passes unpaid. */
+        /** @description immiNow's share on one case in one currency (2026-09-11). Money is owed in the currency it arrives in. */
+        CommissionCurrencyTotals: {
+            currency?: string;
+            /** @description Parts that have fallen due (the case closed as a success; college money as it arrived). */
+            due?: number;
+            /** @description Parts not due yet — the case is still open, or the college has not paid that money yet. */
+            expected?: number;
+            /** @description Confirmed payments in this currency. */
+            paid?: number;
+            outstanding?: number;
+            overdue?: number;
+        };
+        /** @description One part of immiNow's share on a case (2026-09-11), in the currency the money arrives in. Nothing falls due until the case closes as a success; the student's part and a university's tuition part fall due at close; the college's part falls due per instalment the consultancy records (on arrival or at close, whichever is later), the rest of it showing as expected. A part is payable within the payment terms of falling due. Confirmed payments settle parts earliest-due first; a payment in another currency is converted through INR. */
         CommissionDuePart: {
-            /** @description Null for the original part. */
+            /** @description The instalment, override or added amount this part comes from; null for a calculated part. */
             id?: components["schemas"]["UUID"] | null;
             /** @enum {string} */
-            kind?: "original" | "added";
-            amount_inr?: number;
-            /** Format: date */
+            kind?: "calculated" | "override" | "added";
+            /** @enum {string|null} */
+            source?: "student" | "college_instalment" | "college_expected" | "tuition" | null;
+            currency?: string;
+            amount?: number;
+            /**
+             * Format: date
+             * @description When the part fell due. Null while it is only expected.
+             */
+            triggered_on?: string | null;
+            /**
+             * Format: date
+             * @description The date it must be paid by — triggered_on plus the payment terms, or a date Finance set.
+             */
             due_on?: string | null;
             reason?: string | null;
             /** @description Finance view only. */
             added_by_name?: string | null;
             /** Format: date-time */
             added_at?: string;
-            paid_inr?: number;
-            outstanding_inr?: number;
+            /** Format: date */
+            instalment_received_on?: string | null;
+            /** @description The college instalment this part is a share of, as the consultancy recorded it. */
+            instalment_amount?: components["schemas"]["Money"] | null;
+            paid?: number;
+            outstanding?: number;
             /** @enum {string} */
-            status?: "paid" | "overdue" | "due" | "upcoming";
+            status?: "expected" | "due" | "overdue" | "paid";
         };
-        /** @description A change Finance made to a case's due, with who and why. Removed additions stay listed. */
+        /** @description A change Finance made to a case's share, with who and why (2026-09-11): an amount added, or an override of the calculated share. Removed ones stay listed. */
         CommissionDueChange: {
             id?: components["schemas"]["UUID"];
-            /** @enum {string} */
+            /**
+             * @description original_changed is an override of the calculated share.
+             * @enum {string}
+             */
             kind?: "added" | "original_changed";
-            /** @description The amount added, or the original amount's new value. */
-            amount_inr?: number;
+            amount?: number;
+            currency?: string;
             /** Format: date */
             due_on?: string | null;
-            previous_amount_inr?: number | null;
-            /** Format: date */
-            previous_due_on?: string | null;
+            /** @description The override this one replaced; null when it replaced the calculation. */
+            previous_amount?: number | null;
+            previous_currency?: string | null;
             reason?: string;
             changed_by_name?: string | null;
             /** Format: date-time */
@@ -22454,6 +22535,8 @@ export interface components {
         };
         /** @description A platform payment declared against ONE commission entry's due (reworked 2026-08-28 — "consultant click on the due transaction and enter the amount"). Legacy pooled payments recorded before this change carry a null commission_entry_id and show as "General" rather than against any one case. No proof upload is required or accepted; the optional transaction_id is the consultant's own bank/UPI reference, for their own bookkeeping — confirmation by immiNow finance is what actually settles the due. */
         CommissionPayment: {
+            /** @description The payment's INR value, fixed when it was declared and again when confirmed or corrected. Revenue counts this. */
+            readonly amount_inr?: number;
             /** @description What the consultancy declared, when Finance recorded a different amount received (2026-09-11). `amount` is always what actually arrived; every total counts that. */
             readonly declared_amount?: components["schemas"]["Money"] | null;
             /** @description Why the amount received differs from the declaration. */

@@ -31,6 +31,8 @@ export function useRecordCommissionPayment() {
     }: {
       commission_entry_id: string
       amount: number
+      /** ISO code of the currency paid (2026-09-11) — a share is paid in the currency it is owed in. Defaults to INR server-side. */
+      currency?: string
       transaction_id?: string | null
       idempotencyKey: string
     }) => {
