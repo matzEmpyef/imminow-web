@@ -3767,6 +3767,14 @@ export interface paths {
                     q?: string;
                     type?: "school" | "college";
                     limit?: number;
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description name (default) or student_count; prefix with - for descending. */
+                    sort?: string;
+                    city?: string;
+                    state?: string;
+                    /** @description Platform team only (2026-09-11) — active (default), retired or all. Everyone else always gets active rows. */
+                    status?: "active" | "retired" | "all";
                 };
                 header?: never;
                 path?: never;
@@ -3782,6 +3790,12 @@ export interface paths {
                     content: {
                         "application/json": {
                             items?: components["schemas"]["Institution"][];
+                            meta?: components["schemas"]["PaginatedMeta"];
+                            /** @description Platform team only — every city and state on the list, for filters. */
+                            facets?: {
+                                cities?: string[];
+                                states?: string[];
+                            };
                         };
                     };
                 };
@@ -3805,6 +3819,108 @@ export interface paths {
             responses: {
                 /** @description Created */
                 201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Institution"];
+                    };
+                };
+                default: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/institutions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit or retire an institution (platform staff)
+         * @description `name` is the name without the city — the server appends " - City" as when creating. A (name, city) pair another row already has is a 409; merge into it instead. `active: false` retires it: no longer offered to students, who keep it if they already have it.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        city?: string;
+                        state?: string | null;
+                        /** @enum {string} */
+                        type?: "school" | "college";
+                        active?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Institution"];
+                    };
+                };
+                default: components["responses"]["ErrorResponse"];
+            };
+        };
+        trace?: never;
+    };
+    "/institutions/{id}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge a duplicate into the institution to keep (platform staff)
+         * @description Moves every student on it to `into_id`, rewrites saved audiences (ads, quizzes/events, broadcasts) that named it, and removes it.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        into_id: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description The institution kept */
+                200: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -3854,6 +3970,54 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/institutions/suggestions/{user_id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clear a waiting entry that is not a real institution (platform staff)
+         * @description The student is left with no institution and can enter one again. Recorded in the audit log, with the optional note.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    user_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        note?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StudentPreferences"];
+                    };
+                };
+                default: components["responses"]["ErrorResponse"];
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -19588,6 +19752,10 @@ export interface components {
             type: "school" | "college";
             /** @description Only verified institutions are offered in the student-facing type-ahead. One student's unverified suggestion must never be shown to the next as though it were established fact. */
             verified?: boolean;
+            /** @description False when retired (2026-09-11) — no longer offered to students; those already on it keep it. Retired rows are listed only for the platform team (`status`). */
+            readonly active?: boolean;
+            /** @description Students whose institution this is. */
+            readonly student_count?: number;
             /**
              * Format: uuid
              * @description Platform staff member who created it, or null for seeded rows.
@@ -19610,6 +19778,11 @@ export interface components {
             user_name: string;
             institution_raw: string;
             institution_raw_city?: string | null;
+            /**
+             * Format: date-time
+             * @description When the student typed it. Null on entries from before this was recorded.
+             */
+            typed_at?: string | null;
             /** @description Existing institutions resembling what the student typed, best first. Surfaced so the queue makes MATCHING the easy path: students will type "The Choice School", "Choice School Kochi" and "choice school" for one place, and a queue where "create" is easier than "match" produces three rows for it within a week. */
             near_matches?: components["schemas"]["Institution"][];
         };
