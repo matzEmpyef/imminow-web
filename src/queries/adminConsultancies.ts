@@ -34,6 +34,22 @@ export function useAdminConsultancies(filters: ConsultancyFilters = {}) {
   })
 }
 
+// One account by id, for when it is not on the list page being shown — Performance League's account
+// names open Manage Consultancies at ?manage=<id> (2026-09-11). Under the list's key prefix, so
+// every mutation that refreshes the list refreshes this too.
+export function useAdminConsultancy(id: string | null) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['admin-consultancies', 'detail', id],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/consultancies/{id}', { params: { path: { id: id! } } })
+      if (error) throw new ApiError('Could not load this account.', error)
+      return data
+    },
+    enabled: isAuthed && Boolean(id),
+  })
+}
+
 export function useCreateConsultancy() {
   const queryClient = useQueryClient()
   return useMutation({

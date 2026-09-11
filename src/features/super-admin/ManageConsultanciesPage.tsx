@@ -25,6 +25,7 @@ import {
   useUpdateEntitlements,
   useTierImpact,
   useRenewSubscription,
+  useAdminConsultancy,
   type ConsultancyFilters,
 } from '@/queries/adminConsultancies'
 import { useCursorPagination } from '@/lib/pagination'
@@ -864,13 +865,14 @@ function SubscriptionCell({ consultancy: c }: { consultancy: Consultancy }) {
 export function ManageConsultanciesPage() {
   // `?kind=consultancy|institute` pre-filters the list — the Overview's Consultancies and
   // Institutes cards link here that way (2026-09-10).
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const [tierFilter, setTierFilter] = useState('')
   const [kindFilter, setKindFilter] = useState(searchParams.get('kind') ?? '')
   const [statusFilter, setStatusFilter] = useState('')
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
-  const [managingId, setManagingId] = useState<string | null>(null)
+  // Performance League links here with ?manage=<id> to open one account straight away.
+  const [managingId, setManagingId] = useState<string | null>(searchParams.get('manage'))
   const [creating, setCreating] = useState(false)
   const paging = useCursorPagination()
 
@@ -886,7 +888,19 @@ export function ManageConsultanciesPage() {
     limit: 20,
   })
 
-  const managingConsultancy = managingId ? consultancies.data?.items.find((c) => c.id === managingId) : undefined
+  const managedFromList = managingId ? consultancies.data?.items.find((c) => c.id === managingId) : undefined
+  // Only fetched when the account is not on the page of the list being shown.
+  const managedDirect = useAdminConsultancy(managingId && consultancies.data && !managedFromList ? managingId : null)
+  const managingConsultancy = managedFromList ?? managedDirect.data
+
+  function closeManage() {
+    setManagingId(null)
+    if (searchParams.has('manage')) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('manage')
+      setSearchParams(next, { replace: true })
+    }
+  }
   const tierCounts = consultancies.data?.tier_counts
   const kindCounts = consultancies.data?.kind_counts
   const kpis: [string, number | undefined][] = [
@@ -1130,7 +1144,7 @@ export function ManageConsultanciesPage() {
         />
 
         {managingConsultancy && (
-          <ConsultancyDetail consultancy={managingConsultancy} onClose={() => setManagingId(null)} />
+          <ConsultancyDetail consultancy={managingConsultancy} onClose={closeManage} />
         )}
       </div>
     </AdminShell>

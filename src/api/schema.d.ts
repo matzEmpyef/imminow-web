@@ -16336,7 +16336,12 @@ export interface paths {
         /** Super Admin per-consultancy performance league (docs/PROGRESS.md §4 Step 4). Gated to consultancy_approval — the same flag that already gates Manage Consultancies and Applicant Allocation, since this is consultancy oversight data, not a landing-page overview. Deliberately no composite score (recorded judgement) — sortable columns plus red-flag threshold badges instead. */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Days of leads, replies, conversions and enrolments to cover. Active applicants and dues are always as of today. Default 90; anything else is a 400. */
+                    window_days?: 30 | 90 | 365;
+                    /** @description One kind of account. Consultancies and institutes are never ranked together; omitted returns both. */
+                    kind?: "consultancy" | "institute";
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -16352,6 +16357,7 @@ export interface paths {
                         "application/json": components["schemas"]["PerformanceLeagueResponse"];
                     };
                 };
+                400: components["responses"]["ErrorResponse"];
                 403: components["responses"]["ErrorResponse"];
             };
         };
@@ -20189,29 +20195,47 @@ export interface components {
         PerformanceLeagueRow: {
             consultancy_id: components["schemas"]["UUID"];
             consultancy_name: string;
+            /** @enum {string} */
+            kind: "consultancy" | "institute";
+            /** @description Leads Sentpo sent this account inside the window. Leads the account added or imported itself are not counted (2026-09-11). */
             leads_received: number;
+            /** @description Of the window's Sentpo leads that can be judged, the percent whose first staff reply came within `thresholds.slow_response_hours`. An active lead with no reply after that long is a miss; a lead with no reply that was converted or closed anyway is left out, as is one still inside its first 48 hours. Null when nothing can be judged yet. */
+            responded_within_percent?: number | null;
+            /** @description Median hours to the first staff reply, over the window's Sentpo leads that got one. */
             response_time_median_hours?: number | null;
-            /** @description Percent of this consultancy's leads with a lead->converted transition. */
+            /** @description The window's Sentpo leads that are converted or closed. */
+            leads_decided: number;
+            /** @description Converted over decided leads (`leads_decided`), so leads still being worked do not drag it down. Null when none are decided. */
             conversion_rate_percent?: number | null;
-            /** @description Journeys with this consultancy_id whose status is not closed_switched/ closed_completed. */
-            active_clients: number;
-            commission_entries_count: number;
-            /** @description Confirmed commission_payments over total platform_due_inr across this consultancy's active commission_entries. Null when there are no entries yet. */
+            /** @description Open applicant cases as of today — the same definition as Manage Consultancies and the Dashboard. */
+            active_applicants: number;
+            /** @description Cases closed as a success inside the window. */
+            enrolled: number;
+            /** @description The rating students see (an admin override included). */
+            rating?: number | null;
+            rating_count: number;
+            /** @description Confirmed commission_payments over total platform_due_inr across this account's active commission_entries, as of today. Null when there are no entries yet. */
             dues_paid_ratio?: number | null;
+            /** @description What the account still owes immiNow today, in INR. Never negative. */
+            dues_outstanding_inr: number;
             /** @description Red-flag booleans against `PerformanceLeagueResponse.thresholds` (recorded judgement, docs/PROGRESS.md §4 — no single composite score). */
             flags: {
+                /** @description responded_within_percent is below thresholds.response_target_percent. */
                 slow_response: boolean;
+                /** @description conversion_rate_percent is below thresholds.low_conversion_percent AND at least thresholds.min_decided_leads leads are decided. */
                 low_conversion: boolean;
                 unpaid_dues: boolean;
             };
         };
-        /** @description Per-consultancy operational league table (docs/PROGRESS.md §4 Step 4) — deliberately NO composite score (recorded judgement): a single number hides which thing is wrong and starts an argument about weighting. `thresholds` are named constants the UI reads rather than hardcodes, so a flag and its displayed cutoff can never drift apart. */
+        /** @description Per-account operational league table (docs/PROGRESS.md §4 Step 4; reworked 2026-09-11) — deliberately NO composite score (recorded judgement): a single number hides which thing is wrong and starts an argument about weighting. `thresholds` are named constants the UI reads rather than hardcodes, so a flag and its displayed cutoff can never drift apart. Active accounts of one kind only, sorted by leads received, most first. */
         PerformanceLeagueResponse: {
-            /** Format: date-time */
-            collecting_since: string;
+            /** @enum {integer} */
+            window_days: 30 | 90 | 365;
             thresholds: {
                 slow_response_hours: number;
+                response_target_percent: number;
                 low_conversion_percent: number;
+                min_decided_leads: number;
                 unpaid_dues_ratio: number;
             };
             items: components["schemas"]["PerformanceLeagueRow"][];
