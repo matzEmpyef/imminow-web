@@ -42,8 +42,8 @@ export function useCreateStudyLevel() {
   })
 }
 
-// `code` is immutable and there is no delete — a rung is renamed or retired, never re-pointed,
-// because courses and student preferences both store the code and neither would be told.
+// `code` is immutable — a rung is renamed or retired, never re-pointed, because courses and
+// student preferences both store the code and neither would be told.
 export function useUpdateStudyLevel() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -62,6 +62,19 @@ export function useUpdateStudyLevel() {
       })
       if (error) throw new ApiError('Could not update this study level.', error)
       return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['study-levels'] }),
+  })
+}
+
+// For a rung added by mistake (2026-09-11). The server refuses while any course, student or ad
+// still carries the code, and its message says which — so the error is shown as sent.
+export function useDeleteStudyLevel() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (code: string) => {
+      const { error } = await api.DELETE('/study-levels/{code}', { params: { path: { code } } })
+      if (error) throw new ApiError(error.error?.message ?? 'Could not delete this study level.')
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['study-levels'] }),
   })

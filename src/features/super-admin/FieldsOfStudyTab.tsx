@@ -1,3 +1,4 @@
+import { SettingsUsedIn } from './SettingsUsedIn'
 import { useMemo, useState, type FormEvent } from 'react'
 import { Archive, ArchiveRestore, GitMerge, Pencil } from 'lucide-react'
 import { Badge } from '@/components/Badge'
@@ -301,11 +302,15 @@ export function FieldsOfStudyTab() {
   return (
     <div className="flex flex-col gap-md">
       <div className="flex items-start justify-between gap-md">
-        <p className="max-w-2xl text-body-sm text-text-secondary">
-          One list behind a course&rsquo;s field and a student&rsquo;s fields of interest. Alternate names let students
-          find a field however they type it — &ldquo;CS&rdquo; or &ldquo;Computing&rdquo; finds Computer Science in the
-          Sentpo app and the Course Finder. Merge duplicates rather than keeping two names for one field.
-        </p>
+        <div className="flex max-w-2xl flex-col gap-xs">
+          <p className="text-body-sm text-text-secondary">
+            One list behind a course&rsquo;s field and a student&rsquo;s fields of interest. Alternate names let
+            students find a field however they type it — &ldquo;CS&rdquo; or &ldquo;Computing&rdquo; finds Computer
+            Science in the Sentpo app and the Course Finder. Merge duplicates rather than keeping two names for one
+            field.
+          </p>
+          <SettingsUsedIn places={['Course field', 'Sentpo fields of interest', 'Sentpo search', 'Course Finder']} />
+        </div>
         <Button size="sm" onClick={() => setAdding(true)}>
           Add Field
         </Button>

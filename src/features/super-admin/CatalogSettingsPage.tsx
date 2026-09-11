@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { Archive, ArchiveRestore, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
+import { Archive, ArchiveRestore, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react'
 import { CompactSelect } from '@/components/CompactSelect'
+import { FilterChip } from '@/components/FilterChip'
 import { CountryFlag } from '@/components/CountryFlag'
 import { StopPropagation } from '@/components/StopPropagation'
 import { RichTextEditor } from '@/components/RichTextEditor'
@@ -17,13 +18,15 @@ import {
   useCreateExam,
   useExams,
   useExchangeRates,
+  useMissingExchangeRates,
   useUpdateExam,
   useUpsertExchangeRate,
   usePlatformSettings,
   useUpdatePlatformSettings,
 } from '@/queries/catalogSettings'
-import { useCreateStudyLevel, useStudyLevels, useUpdateStudyLevel } from '@/queries/studyLevels'
+import { useCreateStudyLevel, useDeleteStudyLevel, useStudyLevels, useUpdateStudyLevel } from '@/queries/studyLevels'
 import { FieldsOfStudyTab } from './FieldsOfStudyTab'
+import { SettingsUsedIn } from './SettingsUsedIn'
 import {
   useCountrySettings,
   useUpdateCountryWindow,
@@ -123,23 +126,46 @@ export function CatalogSettingsPage() {
 function CountriesTab() {
   const countries = useCountrySettings()
   const content = useCountryContent()
+  const rates = useExchangeRates()
   const [search, setSearch] = useState('')
+  const [offeredFilter, setOfferedFilter] = useState<'' | 'offered' | 'not_offered'>('')
+  const [guideFilter, setGuideFilter] = useState<'' | 'published' | 'draft' | 'none'>('')
+  const [noRateOnly, setNoRateOnly] = useState(false)
+  const [unreviewedOnly, setUnreviewedOnly] = useState(false)
   const [adding, setAdding] = useState(false)
   const [editingGuide, setEditingGuide] = useState<string | null>(null)
 
   // Every country gets a row whether or not anyone has written about it — listing only the
-  // written ones would hide the gap the guide half of this tab exists to close.
+  // written ones would hide the gap the guide half of this tab exists to close. `hasRate` is
+  // assumed true until the rates load, so 91 "No rate" chips do not flash in and out.
   const rows = useMemo(() => {
     const byCountry = new Map((content.data ?? []).map((c) => [c.country, c]))
-    return (countries.data ?? []).map((country) => ({ ...country, guide: byCountry.get(country.name) }))
-  }, [countries.data, content.data])
+    const rated = rates.data ? new Set(rates.data.map((r) => r.currency)) : null
+    return (countries.data ?? []).map((country) => ({
+      ...country,
+      guide: byCountry.get(country.name),
+      hasRate: rated ? rated.has(country.default_currency) : true,
+      waitsReviewed: country.offer_turnaround_days_reviewed !== false && country.expected_close_days_reviewed !== false,
+    }))
+  }, [countries.data, content.data, rates.data])
 
   const needle = search.trim().toLowerCase()
-  const visible = rows.filter(
-    (c) => !needle || c.name.toLowerCase().includes(needle) || (c.iso2 ?? '').toLowerCase().includes(needle),
-  )
+  const visible = rows.filter((c) => {
+    if (needle && !c.name.toLowerCase().includes(needle) && !(c.iso2 ?? '').toLowerCase().includes(needle)) return false
+    if (offeredFilter === 'offered' && c.active === false) return false
+    if (offeredFilter === 'not_offered' && c.active !== false) return false
+    if (guideFilter === 'published' && !c.guide?.published) return false
+    if (guideFilter === 'draft' && (!c.guide || c.guide.published)) return false
+    if (guideFilter === 'none' && c.guide) return false
+    if (noRateOnly && c.hasRate) return false
+    if (unreviewedOnly && c.waitsReviewed) return false
+    return true
+  })
   const offered = rows.filter((r) => r.active !== false).length
   const published = rows.filter((r) => r.guide?.published).length
+  const noRate = rows.filter((r) => !r.hasRate).length
+  const unreviewed = rows.filter((r) => !r.waitsReviewed).length
+  const filtering = Boolean(needle || offeredFilter || guideFilter || noRateOnly || unreviewedOnly)
 
   const columns: TableColumn<(typeof rows)[number]>[] = [
     {
@@ -160,10 +186,14 @@ function CountriesTab() {
       hideBelow: 'sm',
       render: (row) => <span className="text-text-secondary">{row.iso2 ?? '—'}</span>,
     },
-    { key: 'currency', header: 'Default fee currency', render: (row) => <DefaultCurrencyCell row={row} /> },
+    {
+      key: 'currency',
+      header: 'Fee currency',
+      render: (row) => <DefaultCurrencyCell row={row} hasRate={row.hasRate} />,
+    },
     {
       key: 'windows',
-      header: 'Decision windows',
+      header: 'Waits (days)',
       hideBelow: 'md',
       render: (row) => <CountryWindowCells row={row} />,
     },
@@ -208,13 +238,23 @@ function CountriesTab() {
   return (
     <div className="flex flex-col gap-md">
       <div className="flex items-start justify-between gap-md">
-        <p className="max-w-2xl text-body-sm text-text-secondary">
-          The shared list every consultancy picks from for Countries Served, and every catalog country field
-          (campuses, commission rates, redemption partners) draws from. A country&apos;s default fee currency is what
-          a student living there sees course fees in until they pick another in the app, and its guide is what they
-          read before adding it to their target countries. {offered} of {rows.length} offered, {published} guides
-          published.
-        </p>
+        <div className="flex max-w-2xl flex-col gap-xs">
+          <p className="text-body-sm text-text-secondary">
+            The shared list of countries. A country&apos;s fee currency is what a student living there sees course
+            fees in until they pick another in the app; its guide is what they read before adding it to their target
+            countries. {offered} of {rows.length} offered · {published} guides published.
+          </p>
+          <SettingsUsedIn
+            places={[
+              'Countries Served',
+              'Campus country',
+              'Commission rates',
+              'Redemption partners',
+              'Sentpo target countries',
+              'Student fee currency',
+            ]}
+          />
+        </div>
         <Button size="sm" onClick={() => setAdding(true)}>
           Add Country
         </Button>
@@ -225,8 +265,41 @@ function CountriesTab() {
         rowKey={(row) => row.name}
         loading={countries.isLoading || content.isLoading}
         error={countries.isError || content.isError ? 'Could not load countries.' : undefined}
-        emptyMessage={needle ? 'No countries match.' : 'No countries yet.'}
+        emptyMessage={filtering ? 'No countries match.' : 'No countries yet.'}
         search={{ value: search, onChange: setSearch, placeholder: 'Search countries…' }}
+        filters={
+          <>
+            <CompactSelect
+              label="Offered"
+              value={offeredFilter}
+              onChange={(e) => setOfferedFilter(e.target.value as typeof offeredFilter)}
+            >
+              <option value="">Offered or not</option>
+              <option value="offered">Offered</option>
+              <option value="not_offered">Not offered</option>
+            </CompactSelect>
+            <CompactSelect
+              label="Guide"
+              value={guideFilter}
+              onChange={(e) => setGuideFilter(e.target.value as typeof guideFilter)}
+            >
+              <option value="">Any guide</option>
+              <option value="published">Guide published</option>
+              <option value="draft">Guide in draft</option>
+              <option value="none">No guide</option>
+            </CompactSelect>
+          </>
+        }
+        quickFilters={
+          <>
+            <FilterChip label={`No exchange rate (${noRate})`} active={noRateOnly} onChange={setNoRateOnly} />
+            <FilterChip
+              label={`Waits not reviewed (${unreviewed})`}
+              active={unreviewedOnly}
+              onChange={setUnreviewedOnly}
+            />
+          </>
+        }
         onRowClick={(row) => setEditingGuide(row.name)}
       />
       {adding && <AddCountryModal onClose={() => setAdding(false)} />}
@@ -290,6 +363,7 @@ function CountryActiveToggle({ row }: { row: CountrySetting }) {
   return (
     <StopPropagation className="flex items-center gap-xs">
       <Toggle
+        size="sm"
         checked={row.active !== false}
         onChange={(checked) => setActive.mutate({ name: row.name, active: checked })}
         label={`Offer ${row.name}`}
@@ -301,7 +375,11 @@ function CountryActiveToggle({ row }: { row: CountrySetting }) {
 
 // One row's currency control. Saves on change — a per-row "Save" button for a single select is
 // more chrome than the decision deserves.
-function DefaultCurrencyCell({ row }: { row: CountrySetting }) {
+//
+// "No rate" (2026-09-11): 91 of 119 countries were seeded with a currency the rate table does not
+// hold, so a student living in one gets no "≈" amount anywhere. Exchange Rates lists them too,
+// ranked by who they affect; this chip is the same fact at the row it applies to.
+function DefaultCurrencyCell({ row, hasRate }: { row: CountrySetting; hasRate: boolean }) {
   const update = useUpdateCountryCurrency()
   // Only currencies the Exchange Rates tab holds (2026-09-10, was a fixed list of 33 codes, most
   // without a rate): a default with no rate would give that country's users no "≈" anywhere. A
@@ -324,36 +402,39 @@ function DefaultCurrencyCell({ row }: { row: CountrySetting }) {
           </option>
         ))}
       </CompactSelect>
+      {!hasRate && (
+        <span title={`No ${row.default_currency} exchange rate — students living here see no ≈ amounts`}>
+          <Badge color="warning">No rate</Badge>
+        </span>
+      )}
       {update.isError && <span className="text-caption text-error">Not saved</span>}
     </StopPropagation>
   )
 }
 
-// The two per-country waits, and whether anyone has actually chosen them.
+// The two per-country waits, named for what they measure (2026-09-11 — "Offer / Close" read as
+// cryptic, and the user asked for no "default" wording on this tab). Whether anyone has actually
+// chosen a number is still known (`_reviewed`); it is a filter chip above the table rather than a
+// label on 119 rows.
 //
-// Both fields resolve server-side, so every unreviewed country reported 30 / 120 and looked exactly
-// like one somebody had set deliberately. `_reviewed` is what separates them, and it is shown as
-// plain italic "default" text rather than a badge — 119 badges would read as 119 problems, when the
-// honest message is "nobody has looked at this yet".
-//
-// `expected_close_days` is the one that matters: its 120-day default is an admitted guess and every
-// accepted-but-not-closed signal on the platform is derived from it.
+// `expected_close_days` is the one that matters: its 120-day starting value is an admitted guess
+// and every accepted-but-not-closed signal on the platform is derived from it.
 function CountryWindowCells({ row }: { row: CountrySetting }) {
   return (
     <StopPropagation className="flex flex-col gap-xs">
       <CountryWindowField
         row={row}
         field="offer_turnaround_days"
-        label="Offer"
+        label="Offer reply"
+        hint="Days after applying before the student is asked whether the college has replied"
         value={row.offer_turnaround_days}
-        reviewed={row.offer_turnaround_days_reviewed !== false}
       />
       <CountryWindowField
         row={row}
         field="expected_close_days"
-        label="Close"
+        label="Case closes"
+        hint="Days from accepting an offer to the case closing — visa, decision, departure"
         value={row.expected_close_days}
-        reviewed={row.expected_close_days_reviewed !== false}
       />
     </StopPropagation>
   )
@@ -363,14 +444,14 @@ function CountryWindowField({
   row,
   field,
   label,
+  hint,
   value,
-  reviewed,
 }: {
   row: CountrySetting
   field: 'offer_turnaround_days' | 'expected_close_days'
   label: string
+  hint: string
   value: number | undefined
-  reviewed: boolean
 }) {
   const update = useUpdateCountryWindow()
   const [draft, setDraft] = useState(String(value ?? ''))
@@ -386,21 +467,21 @@ function CountryWindowField({
     update.mutate({ name: row.name, field, days })
   }
   return (
-    <span className="flex items-center gap-xs whitespace-nowrap text-caption">
-      <span className="w-10 text-text-secondary">{label}</span>
+    <span className="flex items-center gap-xs whitespace-nowrap text-caption" title={hint}>
+      <span className="w-20 text-text-secondary">{label}</span>
       <input
         type="number"
         min={1}
         max={1000}
         value={draft}
-        aria-label={`${label === 'Offer' ? 'Offer turnaround' : 'Expected close'} days for ${row.name}`}
+        aria-label={`${label} — days, ${row.name}`}
         disabled={update.isPending}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
         className="w-16 rounded-md border border-border bg-surface px-xs py-[2px] text-caption tabular-nums text-text-primary"
       />
-      {!reviewed && <span className="italic text-text-secondary">default</span>}
+      <span className="text-text-secondary">days</span>
       {update.isError && <span className="text-error">Not saved</span>}
     </span>
   )
@@ -573,6 +654,15 @@ function DeleteGuideTrigger({ country, onDeleted }: { country: string; onDeleted
   )
 }
 
+// A rank (NEET) has a best value and no worst, so an open end is real, not missing — it read as
+// "1 to –" (2026-09-11).
+function examRange(e: Exam) {
+  if (e.min_value != null && e.max_value != null) return `${e.min_value} to ${e.max_value}`
+  if (e.min_value != null) return `From ${e.min_value}`
+  if (e.max_value != null) return `Up to ${e.max_value}`
+  return '—'
+}
+
 function ExamsTab() {
   const exams = useExams()
   const [adding, setAdding] = useState(false)
@@ -605,11 +695,7 @@ function ExamsTab() {
       key: 'range',
       header: 'Range',
       hideBelow: 'sm',
-      render: (e) => (
-        <span className="text-text-secondary">
-          {e.min_value != null || e.max_value != null ? `${e.min_value ?? '–'} to ${e.max_value ?? '–'}` : '—'}
-        </span>
-      ),
+      render: (e) => <span className="tabular-nums text-text-secondary">{examRange(e)}</span>,
     },
     {
       key: 'validity',
@@ -631,11 +717,14 @@ function ExamsTab() {
 
   return (
     <div className="flex flex-col gap-md">
-      <div className="flex items-center justify-between">
-        <p className="max-w-2xl text-body-sm text-text-secondary">
-          One shared list: students pick from it when adding scores to their profile, and course Entry Requirements
-          reference it. Deactivating an exam hides it from new use — stored student scores are untouched.
-        </p>
+      <div className="flex items-start justify-between gap-md">
+        <div className="flex max-w-2xl flex-col gap-xs">
+          <p className="text-body-sm text-text-secondary">
+            One shared list: students pick from it when adding scores to their profile, and course Entry Requirements
+            reference it. Deactivating an exam hides it from new use — stored student scores are untouched.
+          </p>
+          <SettingsUsedIn places={['Sentpo profile test scores', 'Course entry requirements', 'Course match']} />
+        </div>
         <Button size="sm" onClick={() => setAdding(true)}>
           Add Exam
         </Button>
@@ -848,12 +937,17 @@ function StudyLevelsTab() {
 
   return (
     <div className="flex flex-col gap-md">
-      <div className="flex items-center justify-between">
-        <p className="max-w-2xl text-body-sm text-text-secondary">
-          One ladder, read in two places: the level a course teaches at, and the level a student says they are aiming
-          for. Search matches one against the other, so they have to be the same list — a rung added here appears in
-          the course form and in the Sentpo app&apos;s Target study level picker with no app release.
-        </p>
+      <div className="flex items-start justify-between gap-md">
+        <div className="flex max-w-2xl flex-col gap-xs">
+          <p className="text-body-sm text-text-secondary">
+            One ladder, read in two places: the level a course teaches at, and the level a student says they are
+            aiming for. Search matches one against the other, so they have to be the same list — a rung added here
+            appears in the course form and in the Sentpo app&apos;s Target study level picker with no app release.
+          </p>
+          <SettingsUsedIn
+            places={['Course level', 'Sentpo target study level', 'Search level filter', 'Ad targeting']}
+          />
+        </div>
         <Button size="sm" onClick={() => setAdding(true)}>
           Add Study Level
         </Button>
@@ -912,10 +1006,15 @@ function ReorderLevelCell({ level, rows }: { level: StudyLevel; rows: StudyLevel
   )
 }
 
+// Delete shows only on a rung no visible course uses (2026-09-11) — it exists for a rung added by
+// mistake. The server also checks hidden courses, students and ads, and its refusal names them.
 function StudyLevelRowActions({ level, onRename }: { level: StudyLevel; onRename: () => void }) {
   const update = useUpdateStudyLevel()
+  const remove = useDeleteStudyLevel()
   const [confirming, setConfirming] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const retired = level.active === false
+  const deletable = (level.course_count ?? 0) === 0
 
   return (
     <div className="flex items-center justify-end gap-sm">
@@ -939,6 +1038,45 @@ function StudyLevelRowActions({ level, onRename }: { level: StudyLevel; onRename
       >
         {retired ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
       </button>
+      {deletable && (
+        <button
+          type="button"
+          onClick={() => setDeleting(true)}
+          aria-label={`Delete ${level.label}`}
+          title="Delete"
+          className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-error"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      )}
+      {deleting && (
+        <Modal
+          onClose={() => setDeleting(false)}
+          title="Delete study level"
+          widthRem={26}
+          footer={
+            <>
+              {remove.isError && <p className="mr-auto self-center text-body-sm text-error">{remove.error.message}</p>}
+              <Button variant="secondary" onClick={() => setDeleting(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                loading={remove.isPending}
+                onClick={() => remove.mutate(level.code, { onSuccess: () => setDeleting(false) })}
+              >
+                Delete
+              </Button>
+            </>
+          }
+        >
+          <p className="text-body-sm text-text-secondary">
+            Remove <span className="font-medium text-text-primary">{level.label}</span> from the ladder for good. This
+            is for a rung added by mistake — it is refused if any course, student or ad still uses it, and then
+            retiring is the way to stop offering it.
+          </p>
+        </Modal>
+      )}
       {confirming && (
         <Modal
           onClose={() => setConfirming(false)}
@@ -1037,10 +1175,41 @@ function StudyLevelFormModal({ level, onClose }: { level?: StudyLevel; onClose: 
   )
 }
 
+// Rates are set by hand with no feed, so an old one quietly skews every "≈" amount and every
+// cross-currency fee filter. Past this age a rate is flagged for a check (2026-09-11).
+const STALE_RATE_DAYS = 30
+
+function daysSince(iso: string | null | undefined) {
+  if (!iso) return null
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000))
+}
+
+function agoLabel(days: number) {
+  return days === 0 ? 'today' : days === 1 ? '1 day ago' : `${days} days ago`
+}
+
+type MissingRate = components['schemas']['MissingExchangeRate']
+
+// "2 students · 1 consultancy · Japan" — who is going without an "≈" today, most affected first.
+function missingRateReach(m: MissingRate) {
+  const parts: string[] = []
+  if (m.student_count) parts.push(`${m.student_count} student${m.student_count === 1 ? '' : 's'}`)
+  if (m.consultancy_count) parts.push(`${m.consultancy_count} consultanc${m.consultancy_count === 1 ? 'y' : 'ies'}`)
+  const names = m.countries.slice(0, 3).join(', ')
+  if (names) parts.push(m.countries.length > 3 ? `${names} +${m.countries.length - 3} more` : names)
+  return parts.join(' · ')
+}
+
 function ExchangeRatesTab() {
   const rates = useExchangeRates()
+  const missing = useMissingExchangeRates()
   const [editing, setEditing] = useState<ExchangeRate | null>(null)
-  const [adding, setAdding] = useState(false)
+  // null = closed; '' = a blank Add Currency; a code = "Add rate" from the missing list.
+  const [adding, setAdding] = useState<string | null>(null)
+  const [showAllMissing, setShowAllMissing] = useState(false)
+  const missingRows = missing.data ?? []
+  const shownMissing = showAllMissing ? missingRows : missingRows.slice(0, 5)
+  const staleCount = (rates.data ?? []).filter((r) => (daysSince(r.updated_at) ?? 0) > STALE_RATE_DAYS).length
 
   const columns: TableColumn<ExchangeRate>[] = [
     {
@@ -1051,13 +1220,25 @@ function ExchangeRatesTab() {
     {
       key: 'rate',
       header: '₹ per unit',
-      render: (r) => <span className="text-text-secondary">₹{r.inr_per_unit}</span>,
+      render: (r) => <span className="tabular-nums text-text-secondary">₹{r.inr_per_unit}</span>,
     },
     {
       key: 'updated',
       header: 'Last updated',
       hideBelow: 'sm',
-      render: (r) => <span className="text-text-secondary">{r.updated_at ? formatDate(r.updated_at) : '—'}</span>,
+      render: (r) => {
+        const days = daysSince(r.updated_at)
+        if (days == null) return <span className="text-text-secondary">—</span>
+        const stale = days > STALE_RATE_DAYS
+        return (
+          <span className="flex items-center gap-sm">
+            <span className={stale ? 'text-warning' : 'text-text-secondary'}>
+              {formatDate(r.updated_at!)} · {agoLabel(days)}
+            </span>
+            {stale && <Badge color="warning">Check rate</Badge>}
+          </span>
+        )
+      },
     },
     {
       key: 'actions',
@@ -1079,15 +1260,68 @@ function ExchangeRatesTab() {
 
   return (
     <div className="flex flex-col gap-md">
-      <div className="flex items-center justify-between">
-        <p className="max-w-2xl text-body-sm text-text-secondary">
-          Course fees stay in their native currency everywhere they're shown; these rates only power the app's
-          cross-currency fee filter and sort. Changing a rate takes effect on the next search.
-        </p>
-        <Button size="sm" onClick={() => setAdding(true)}>
+      <div className="flex items-start justify-between gap-md">
+        <div className="flex max-w-2xl flex-col gap-xs">
+          <p className="text-body-sm text-text-secondary">
+            Set by hand — there is no live feed. Fees always show in their own currency; these rates turn them into the
+            &ldquo;≈&rdquo; amount a student or staff member sees in theirs, and let the fee filter compare courses
+            priced in different currencies. A change applies straight away. Rates older than {STALE_RATE_DAYS} days are
+            flagged
+            {staleCount > 0 && (
+              <span className="font-medium text-warning">
+                {' '}
+                — {staleCount} {staleCount === 1 ? 'needs' : 'need'} a check
+              </span>
+            )}
+            .
+          </p>
+          <SettingsUsedIn
+            places={['≈ amounts for students & staff', 'Fee filter & sort', 'Commission totals', 'Currency pickers']}
+          />
+        </div>
+        <Button size="sm" onClick={() => setAdding('')}>
           Add Currency
         </Button>
       </div>
+      {missingRows.length > 0 && (
+        <Card>
+          <div className="flex flex-col gap-sm">
+            <div className="flex items-baseline justify-between gap-md">
+              <p className="text-body font-medium text-text-primary">
+                {missingRows.length} {missingRows.length === 1 ? 'currency' : 'currencies'} in use with no rate
+              </p>
+              {missingRows.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllMissing((v) => !v)}
+                  className="text-body-sm font-medium text-primary hover:underline"
+                >
+                  {showAllMissing ? 'Show fewer' : `Show all ${missingRows.length}`}
+                </button>
+              )}
+            </div>
+            <p className="text-body-sm text-text-secondary">
+              Students living in these countries, and consultancies based there, see no &ldquo;≈&rdquo; amounts until a
+              rate is added. Most affected first.
+            </p>
+            <ul className="flex flex-col divide-y divide-border">
+              {shownMissing.map((m) => (
+                <li key={m.currency} className="flex items-center justify-between gap-md py-sm">
+                  <div className="flex min-w-0 flex-col">
+                    <span className="font-medium text-text-primary">{m.currency}</span>
+                    <span className="truncate text-caption text-text-secondary" title={m.countries.join(', ')}>
+                      {missingRateReach(m)}
+                    </span>
+                  </div>
+                  <Button size="sm" variant="secondary" onClick={() => setAdding(m.currency)}>
+                    Add rate
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Card>
+      )}
       <Table
         columns={columns}
         rows={rates.data ?? []}
@@ -1096,12 +1330,13 @@ function ExchangeRatesTab() {
         error={rates.isError ? 'Could not load exchange rates.' : undefined}
         emptyMessage="No rates yet."
       />
-      {(editing || adding) && (
+      {(editing || adding !== null) && (
         <RateFormModal
           rate={editing ?? undefined}
+          presetCurrency={adding || undefined}
           onClose={() => {
             setEditing(null)
-            setAdding(false)
+            setAdding(null)
           }}
         />
       )}
@@ -1109,9 +1344,17 @@ function ExchangeRatesTab() {
   )
 }
 
-function RateFormModal({ rate, onClose }: { rate?: ExchangeRate; onClose: () => void }) {
+function RateFormModal({
+  rate,
+  presetCurrency,
+  onClose,
+}: {
+  rate?: ExchangeRate
+  presetCurrency?: string
+  onClose: () => void
+}) {
   const upsert = useUpsertExchangeRate()
-  const [currency, setCurrency] = useState(rate?.currency ?? '')
+  const [currency, setCurrency] = useState(rate?.currency ?? presetCurrency ?? '')
   const [inrPerUnit, setInrPerUnit] = useState(rate ? String(rate.inr_per_unit) : '')
   const valid = currency.trim().length === 3 && Number(inrPerUnit) > 0
 
@@ -1124,7 +1367,7 @@ function RateFormModal({ rate, onClose }: { rate?: ExchangeRate; onClose: () => 
   return (
     <Modal
       onClose={onClose}
-      title={rate ? `Edit ${rate.currency} Rate` : 'Add Currency'}
+      title={rate ? `Edit ${rate.currency} Rate` : presetCurrency ? `Add ${presetCurrency} Rate` : 'Add Currency'}
       widthRem={24}
       footer={
         <>
@@ -1142,7 +1385,7 @@ function RateFormModal({ rate, onClose }: { rate?: ExchangeRate; onClose: () => 
           value={currency}
           onChange={(e) => setCurrency(e.target.value.toUpperCase())}
           placeholder="e.g. CAD"
-          disabled={Boolean(rate)}
+          disabled={Boolean(rate || presetCurrency)}
         />
         <TextField
           label="₹ per unit of this currency"
@@ -1184,6 +1427,7 @@ function CoursePopularityTab() {
             Turning this off hides the numbers from students only. Views keep being counted, so the figures stay correct
             and you can turn it back on without a gap. You will still see them here and in Colleges &amp; Courses.
           </p>
+          <SettingsUsedIn places={['Sentpo course cards', 'Search “Most viewed” tag']} />
         </div>
         <Toggle
           label="Show course view counts to Sentpo users"

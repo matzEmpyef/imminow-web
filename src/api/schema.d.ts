@@ -4421,7 +4421,57 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete a rung nothing uses (platform catalog_settings permission)
+         * @description For a rung added by mistake (2026-09-11). Refused with 409 `still_referenced` while any course (visible or not), student preference or ad targeting still carries the code — retire it instead. Otherwise the row is removed outright.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    code: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Missing the catalog_settings permission */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such code */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Still referenced by courses, student preferences or ads */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         /**
@@ -4781,6 +4831,54 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["ExchangeRate"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exchange-rates/missing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Currencies in use with no exchange rate (platform catalog_settings permission)
+         * @description Every currency that is the default of an offered country, a student's display currency, or the currency of a consultancy's home country, and has no rate in the table. Sorted by students affected, then consultancies, then countries. Empty when every currency in use has a rate.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MissingExchangeRate"][];
+                    };
+                };
+                /** @description Missing the catalog_settings permission */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -18315,6 +18413,17 @@ export interface components {
             inr_per_unit: number;
             /** Format: date-time */
             readonly updated_at?: string;
+        };
+        /** @description A currency people are shown money in that has NO row in the rate table (2026-09-11). Its users get no "≈" conversion anywhere — a student living in a country that uses it sees fees only in the course's own currency. Ranked by who it affects today. */
+        MissingExchangeRate: {
+            /** @example JPY */
+            currency: string;
+            /** @description Offered countries whose fee currency this is. */
+            countries: string[];
+            /** @description Students whose display currency this is. */
+            student_count: number;
+            /** @description Consultancies based in a country that uses this currency. */
+            consultancy_count: number;
         };
         EducationEntry: {
             id?: components["schemas"]["UUID"];

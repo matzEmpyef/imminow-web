@@ -66,6 +66,20 @@ export function useExchangeRates() {
   })
 }
 
+// Currencies in use with no rate (2026-09-11) — ranked by students, then consultancies affected.
+export function useMissingExchangeRates() {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['exchange-rates', 'missing'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/exchange-rates/missing')
+      if (error) throw new ApiError('Could not load currencies without a rate.', error)
+      return data
+    },
+    enabled: isAuthed,
+  })
+}
+
 export function useUpsertExchangeRate() {
   const queryClient = useQueryClient()
   return useMutation({
