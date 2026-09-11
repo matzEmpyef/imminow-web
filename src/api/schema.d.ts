@@ -15840,7 +15840,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Combined queue — new suggestions + corrections, every consultancy (FR-057). Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, type, consultancy_name. filter[status]= pending|approved|rejected, default pending when omitted. search matches consultancy_name. */
+        /** Combined queue — new suggestions + corrections, every consultancy (FR-057). Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, type, consultancy_name, college_name and reviewed_at. filter[status]= pending|approved|rejected, default pending when omitted; filter[kind]= new|course_correction|college_correction. search matches the course, college, consultancy and submitter names. `counts` is per status over the whole queue. */
         get: {
             parameters: {
                 query?: {
@@ -15870,6 +15870,11 @@ export interface paths {
                         "application/json": {
                             items: components["schemas"]["CourseSuggestion"][];
                             meta: components["schemas"]["PaginatedMeta"];
+                            counts?: {
+                                pending: number;
+                                approved: number;
+                                rejected: number;
+                            };
                         };
                     };
                 };
@@ -15892,7 +15897,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Approve — for type=new, creates the course from `payload`; for type=correction, applies `payload` to the referenced course (build reference 1.23's "Approve/Correct"). `mode` (2026-08-24) only matters for type=correction — `as_suggested` (default) applies the consultant's own value, `modified` applies `value` instead, `manual` records the suggestion as accepted without touching the course. Auto-apply only ever happens for a structured payload's `field` of `fee.amount` or `intakes` — anything else (a Grade Match requirement, or a pre-2026-08-23 legacy correction with no `field` key) is applied via the legacy `Object.assign(course, payload)` path when there is no `field`, or left untouched when there is one the UI does not offer auto-apply for. */
+        /**
+         * Approve a suggestion
+         * @description type=new (2026-09-11): the course is first created with the ordinary POST /courses — the admin's Add Course form, pre-filled from `payload` — and approval links it by `course_id`; without one this is a 400 `course_required`. type=correction: `mode` `as_suggested` (default) writes the consultant's value, `modified` writes `value` instead, `manual` records it as accepted without touching the course. Only the fields in the suggestion's `applicable_fields` are ever written — a structured `fee.amount` or `intakes`, or an older correction's real course keys; its `note` is never copied. A college correction is always recorded as manual. Records the reviewer and notifies who suggested it (`course_suggestion_reviewed`). A suggestion already reviewed is a 409.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -15909,6 +15917,8 @@ export interface paths {
                         mode?: "as_suggested" | "modified" | "manual";
                         /** @description The value to apply when mode is `modified`. Ignored otherwise. */
                         value?: string;
+                        /** @description type=new only — the course created from this suggestion. */
+                        course_id?: components["schemas"]["UUID"];
                     };
                 };
             };
@@ -15922,6 +15932,8 @@ export interface paths {
                         "application/json": components["schemas"]["CourseSuggestion"];
                     };
                 };
+                400: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
             };
         };
         delete?: never;
@@ -15939,7 +15951,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reject with reason */
+        /**
+         * Reject with reason
+         * @description Records the reviewer and tells who suggested it, with the reason (`course_suggestion_reviewed`). A suggestion already reviewed is a 409.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -15966,6 +15981,8 @@ export interface paths {
                         "application/json": components["schemas"]["CourseSuggestion"];
                     };
                 };
+                400: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
             };
         };
         delete?: never;
@@ -18189,6 +18206,17 @@ export interface components {
             id: components["schemas"]["UUID"];
             /** @description Read-model convenience field — Course Suggestions Review (build reference 1.23) spans every consultancy, so it needs to show the submitter. */
             consultancy_name?: string;
+            /** @enum {string} */
+            readonly kind?: "new" | "course_correction" | "college_correction";
+            /** @description The college concerned — the course's college, the corrected college, or the one a new-course suggestion names. */
+            readonly college_name?: string | null;
+            /** @description The staff member who raised it. Null on rows from before this was recorded. */
+            readonly submitted_by_name?: string | null;
+            /** Format: date-time */
+            readonly reviewed_at?: string | null;
+            readonly reviewed_by_name?: string | null;
+            /** @description The course fields Approve with mode `as_suggested` would write — empty when the change can only be made by hand. */
+            readonly applicable_fields?: string[];
             /** @description Null for type=new (there's no existing course to reference yet). */
             course?: components["schemas"]["Course"] | null;
             /** @description Set only for a correction to a college's own facts (2026-09-10), where `course` is null. See POST /colleges/{id}/suggest-correction. */
@@ -18209,7 +18237,7 @@ export interface components {
              * @description HOW a correction was accepted (2026-08-24) — set on approve, null while pending or for a `type: new` suggestion (which has no modes; it either creates the course or it does not). `as_suggested`: the course was patched with the consultant's own value. `modified`: patched with a value the admin edited before applying. `manual`: recorded as accepted but the course was NOT touched — the admin will edit it another way. This is admin-facing detail; the CONSULTANT's own history collapses all three to a single "Accepted" — they asked for a change and it was accepted, the mechanics of how are not their concern.
              * @enum {string|null}
              */
-            resolution?: "as_suggested" | "modified" | "manual" | null;
+            resolution?: "as_suggested" | "modified" | "manual" | "created" | null;
             /** Format: date-time */
             created_at: string;
         };

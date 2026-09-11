@@ -133,22 +133,28 @@ function CampusFormModal({
 // `course_campuses` join table note) — checking it just selects every one of the college's
 // current campus IDs; it isn't remembered as "all," so a campus added later isn't automatically
 // included until this box is re-checked.
-function CourseFormModal({
+// `prefill` starts a NEW course from known values — Suggestions Review opens this form filled from
+// a consultancy's suggested course (2026-09-11); `onCreated` hands back the saved course.
+export function CourseFormModal({
   college,
   editingCourse,
+  prefill,
   defaultCampusId,
   onClose,
+  onCreated,
 }: {
   college: College
   editingCourse?: Course
+  prefill?: Partial<Course>
   defaultCampusId?: string
   onClose: () => void
+  onCreated?: (course: Course) => void
 }) {
   const isEditing = Boolean(editingCourse)
   const createCourse = useCreateCourse()
   const updateCourse = useUpdateCourse(editingCourse?.id ?? '')
   const examsCatalog = useExams()
-  const form = useCourseForm(college, editingCourse, defaultCampusId)
+  const form = useCourseForm(college, editingCourse ?? (prefill as Course | undefined), defaultCampusId)
 
   const mutation = isEditing ? updateCourse : createCourse
   const activeExams = (examsCatalog.data ?? []).filter((e) => e.active !== false)
@@ -160,7 +166,15 @@ function CourseFormModal({
     if (isEditing) {
       updateCourse.mutate(body, { onSuccess: () => onClose() })
     } else {
-      createCourse.mutate({ ...body, college_id: college.id!, active: true }, { onSuccess: () => onClose() })
+      createCourse.mutate(
+        { ...body, college_id: college.id!, active: true },
+        {
+          onSuccess: (created) => {
+            onCreated?.(created as Course)
+            onClose()
+          },
+        },
+      )
     }
   }
 

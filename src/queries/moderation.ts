@@ -5,6 +5,7 @@ import { ApiError } from './auth'
 
 interface ModerationQueueFilters {
   search?: string
+  kind?: 'new' | 'course_correction' | 'college_correction'
   sort?: string
   cursor?: string
   limit?: number
@@ -21,7 +22,7 @@ export function useModerationQueue(
       const { data, error } = await api.GET('/moderation/course-suggestions', {
         params: {
           query: {
-            filter: { status },
+            filter: { status, ...(filters.kind ? { kind: filters.kind } : {}) },
             search: filters.search,
             sort: filters.sort,
             cursor: filters.cursor,
@@ -47,16 +48,19 @@ export function useApproveCourseSuggestion() {
       id,
       mode,
       value,
+      courseId,
     }: {
       id: string
       mode?: 'as_suggested' | 'modified' | 'manual'
       value?: string
+      // type=new: the course just created from the suggestion (2026-09-11).
+      courseId?: string
     }) => {
       const { data, error } = await api.POST('/moderation/course-suggestions/{id}/approve', {
         params: { path: { id } },
-        body: mode ? { mode, value } : undefined,
+        body: courseId ? { course_id: courseId } : mode ? { mode, value } : undefined,
       })
-      if (error) throw new ApiError('Could not approve this suggestion.', error)
+      if (error) throw new ApiError(error.error?.message ?? 'Could not approve this suggestion.')
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['moderation-course-suggestions'] }),
@@ -71,7 +75,7 @@ export function useRejectCourseSuggestion() {
         params: { path: { id } },
         body: { reason },
       })
-      if (error) throw new ApiError('Could not reject this suggestion.', error)
+      if (error) throw new ApiError(error.error?.message ?? 'Could not reject this suggestion.')
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['moderation-course-suggestions'] }),
