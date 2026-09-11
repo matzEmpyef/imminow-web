@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { Archive, ArchiveRestore, GitMerge, Pencil } from 'lucide-react'
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { Archive, ArchiveRestore, GitMerge, Pencil, Plus, Search, X } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
@@ -8,36 +8,37 @@ import { SelectField } from '@/components/SelectField'
 import { CompactSelect } from '@/components/CompactSelect'
 import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
-import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
 import {
   useAdminInstitutions,
+  useBulkDismissInstitutionSuggestions,
+  useBulkResolveInstitutionSuggestions,
   useCreateInstitution,
-  useDismissInstitutionSuggestion,
   useInstitutions,
   useInstitutionSuggestions,
   useMergeInstitution,
-  useResolveInstitutionSuggestion,
   useUpdateInstitution,
   institutionLabel,
   type Institution,
-  type InstitutionSuggestion,
+  type InstitutionSuggestionGroup,
 } from '@/queries/institutions'
 
 /**
  * Platform staff surface for the institution a student comes FROM.
  *
- * The QUEUE is the point of this page, so it sits above the list. Filters over unresolved data
- * under-report silently — a student who typed their school has no `institution_id`, so they are
- * absent from every institution filter with nothing anywhere saying so. Letting the queue grow is
- * therefore not a backlog, it is a slow corruption of every audience count that uses this field.
+ * The QUEUE is the point of this page. Filters over unresolved data under-report silently — a
+ * student who typed their school has no `institution_id`, so they are absent from every institution
+ * filter with nothing anywhere saying so. Letting the queue grow is therefore not a backlog, it is a
+ * slow corruption of every audience count that uses this field.
  *
- * Review pass (2026-09-11): rows can now be edited, retired and merged; the queue can pick any
- * school from the list or clear an entry that is not a school; the list is paged and filtered.
+ * Built for a long queue (user, 2026-09-11 — "assume there are many"): the queue and the list are
+ * tabs; the queue is a compact table of GROUPS — everyone who typed the same name in the same city
+ * is one row and one decision — searchable, sortable and paged, oldest wait first.
  */
 
-// What a typed name most likely is, so "Create new institution" starts on the right type.
+const QUEUE_PAGE_SIZE = 20
+
 function guessType(name: string): 'school' | 'college' {
   return /\b(college|university|institute|polytechnic|iit|nit)\b/i.test(name) ? 'college' : 'school'
 }
@@ -46,10 +47,29 @@ function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? '' : 's'}`
 }
 
-// The name without the " - City" the server appends, for editing.
 function baseName(i: Institution): string {
   const suffix = ` - ${i.city}`
   return i.name.endsWith(suffix) ? i.name.slice(0, -suffix.length) : i.name
+}
+
+function waitedFor(iso?: string | null): string {
+  if (!iso) return '—'
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
+  return days <= 0 ? 'Today' : `${days} day${days === 1 ? '' : 's'}`
+}
+
+function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
+    >
+      {children}
+    </button>
+  )
 }
 
 function InstitutionFormModal({
@@ -112,12 +132,7 @@ function InstitutionFormModal({
           <TextField label="City" required value={city} onChange={(e) => setCity(e.target.value)} />
           <TextField label="State/Province" value={state} onChange={(e) => setState(e.target.value)} />
         </div>
-        <SelectField
-          label="Type"
-          id="institution-type"
-          value={type}
-          onChange={(e) => setType(e.target.value as 'school' | 'college')}
-        >
+        <SelectField label="Type" id="institution-type" value={type} onChange={(e) => setType(e.target.value as 'school' | 'college')}>
           <option value="school">School</option>
           <option value="college">College</option>
         </SelectField>
@@ -130,7 +145,7 @@ function InstitutionFormModal({
   )
 }
 
-// Search the whole list and choose one row — for matching a waiting student when the guesses miss,
+// Search the whole list and choose one row — for matching waiting students when the guesses miss,
 // and for choosing the row to keep in a merge.
 function PickInstitutionModal({
   title,
@@ -149,7 +164,7 @@ function PickInstitutionModal({
   actionLabel: string
   pending: boolean
   error?: string
-  detail?: (picked: Institution) => React.ReactNode
+  detail?: (picked: Institution) => ReactNode
   onPick: (picked: Institution) => void
   onClose: () => void
 }) {
@@ -180,9 +195,7 @@ function PickInstitutionModal({
         <TextField label="Search by name or city" value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. choice thiruvalla" />
         <div className="flex max-h-72 flex-col divide-y divide-border overflow-y-auto rounded-md border border-border">
           {results.isLoading && <p className="p-sm text-caption text-text-secondary">Searching…</p>}
-          {!results.isLoading && rows.length === 0 && (
-            <p className="p-sm text-caption text-text-secondary">No institution matches.</p>
-          )}
+          {!results.isLoading && rows.length === 0 && <p className="p-sm text-caption text-text-secondary">No institution matches.</p>}
           {rows.map((i) => (
             <button
               key={i.id}
@@ -206,111 +219,211 @@ function PickInstitutionModal({
   )
 }
 
-function SuggestionRow({ suggestion }: { suggestion: InstitutionSuggestion }) {
-  const resolve = useResolveInstitutionSuggestion()
-  const dismiss = useDismissInstitutionSuggestion()
-  const [creating, setCreating] = useState(false)
-  const [picking, setPicking] = useState(false)
-  const [dismissing, setDismissing] = useState(false)
+type QueueAction = { kind: 'pick' | 'create' | 'dismiss'; group: InstitutionSuggestionGroup }
+
+function studentsLabel(g: InstitutionSuggestionGroup): string {
+  const names = g.students.map((s) => s.user_name)
+  return names.length <= 1 ? (names[0] ?? '—') : `${names[0]} +${names.length - 1}`
+}
+
+function QueueView() {
+  const suggestions = useInstitutionSuggestions()
+  const resolve = useBulkResolveInstitutionSuggestions()
+  const dismiss = useBulkDismissInstitutionSuggestions()
+  const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState<'oldest' | 'students'>('oldest')
+  const [page, setPage] = useState(0)
+  const [action, setAction] = useState<QueueAction | null>(null)
   const [note, setNote] = useState('')
-  const near = suggestion.near_matches ?? []
+
+  const groups = useMemo(() => suggestions.data?.groups ?? [], [suggestions.data])
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const rows = q
+      ? groups.filter(
+          (g) =>
+            g.institution_raw.toLowerCase().includes(q) ||
+            (g.institution_raw_city ?? '').toLowerCase().includes(q) ||
+            g.students.some((s) => s.user_name.toLowerCase().includes(q)),
+        )
+      : groups
+    // The server sends oldest first; "most students" puts the biggest single decisions on top.
+    return sortBy === 'students' ? [...rows].sort((a, b) => b.student_count - a.student_count) : rows
+  }, [groups, search, sortBy])
+  const pageCount = Math.max(1, Math.ceil(filtered.length / QUEUE_PAGE_SIZE))
+  const safePage = Math.min(page, pageCount - 1)
+  const rows = filtered.slice(safePage * QUEUE_PAGE_SIZE, (safePage + 1) * QUEUE_PAGE_SIZE)
+  const userIds = (g: InstitutionSuggestionGroup) => g.students.map((s) => s.user_id)
+
+  const columns: TableColumn<InstitutionSuggestionGroup>[] = [
+    {
+      key: 'typed',
+      header: 'Typed as',
+      render: (g) => (
+        <div className="flex flex-col">
+          <span className="font-medium text-text-primary">&ldquo;{g.institution_raw}&rdquo;</span>
+          <span className="text-caption text-text-secondary">{g.institution_raw_city ?? 'No city given'}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'students',
+      header: 'Students',
+      render: (g) => (
+        <span className="text-body-sm text-text-primary" title={g.students.map((s) => s.user_name).join(', ')}>
+          {studentsLabel(g)}
+        </span>
+      ),
+    },
+    {
+      key: 'waiting',
+      header: 'Waiting',
+      hideBelow: 'md',
+      render: (g) => (
+        <span className="text-body-sm text-text-secondary" title={g.first_typed_at ? `Since ${formatDate(g.first_typed_at)}` : undefined}>
+          {waitedFor(g.first_typed_at)}
+        </span>
+      ),
+    },
+    {
+      // Matching is the easy path, deliberately — one click on the best guess. Students type "The
+      // Choice School", "Choice School Kochi" and "choice school" for one place, and a queue where
+      // "create" is easier than "match" grows three rows for it within a week.
+      key: 'match',
+      header: 'Best match',
+      render: (g) => {
+        const best = g.near_matches?.[0]
+        if (!best) return <span className="text-caption text-text-secondary">No close match</span>
+        return (
+          <div className="flex flex-col items-start gap-xs">
+            <Button
+              size="sm"
+              variant="secondary"
+              loading={resolve.isPending && resolve.variables?.institutionId === best.id}
+              onClick={() => resolve.mutate({ userIds: userIds(g), institutionId: best.id })}
+            >
+              Match to {best.name}
+            </Button>
+            {(g.near_matches?.length ?? 0) > 1 && (
+              <span className="text-caption text-text-secondary">
+                {plural((g.near_matches?.length ?? 1) - 1, 'other guess')} in Pick
+              </span>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      key: 'actions',
+      header: '',
+      align: 'right',
+      render: (g) => (
+        <div className="flex justify-end">
+          <IconButton label="Pick from the list" onClick={() => setAction({ kind: 'pick', group: g })}>
+            <Search className="h-4 w-4" />
+          </IconButton>
+          <IconButton label="Create a new institution" onClick={() => setAction({ kind: 'create', group: g })}>
+            <Plus className="h-4 w-4" />
+          </IconButton>
+          <IconButton
+            label="Not an institution — clear it"
+            onClick={() => {
+              setNote('')
+              setAction({ kind: 'dismiss', group: g })
+            }}
+          >
+            <X className="h-4 w-4" />
+          </IconButton>
+        </div>
+      ),
+    },
+  ]
+
+  const current = action?.group
+  const who = current ? (current.student_count === 1 ? current.students[0]?.user_name : plural(current.student_count, 'student')) : ''
 
   return (
-    <div className="flex flex-col gap-sm rounded-md border border-border bg-surface p-md">
-      <div className="flex flex-wrap items-baseline justify-between gap-sm">
-        <div className="flex flex-wrap items-baseline gap-xs">
-          <span className="text-body font-medium text-text-primary">{suggestion.user_name}</span>
-          <span className="text-body-sm text-text-secondary">typed</span>
-          <span className="text-body text-text-primary">&ldquo;{suggestion.institution_raw}&rdquo;</span>
-          {suggestion.institution_raw_city && (
-            <span className="text-body-sm text-text-secondary">in {suggestion.institution_raw_city}</span>
-          )}
-        </div>
-        {suggestion.typed_at && (
-          <span className="text-caption text-text-secondary">on {formatDate(suggestion.typed_at)}</span>
-        )}
-      </div>
-
-      {/* Matching comes FIRST, deliberately. Students type "The Choice School", "Choice School
-          Kochi" and "choice school" for one place; a queue where "create" is the easy path grows
-          three rows for it inside a week. */}
-      {near.length > 0 ? (
-        <div className="flex flex-col gap-xs">
-          <p className="text-caption text-text-secondary">Looks like one of these:</p>
-          <div className="flex flex-wrap gap-xs">
-            {near.map((m) => (
-              <Button
-                key={m.id}
-                variant="secondary"
-                loading={resolve.isPending}
-                onClick={() => resolve.mutate({ userId: suggestion.user_id, institutionId: m.id })}
-              >
-                {institutionLabel(m)}
-              </Button>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <p className="text-caption text-text-secondary">No close match in the list.</p>
-      )}
-
-      <div className="flex flex-wrap gap-sm">
-        <Button variant="secondary" onClick={() => setPicking(true)}>
-          Pick from the list…
-        </Button>
-        <Button variant="secondary" onClick={() => setCreating(true)}>
-          Create new institution
-        </Button>
-        <Button variant="secondary" onClick={() => setDismissing(true)}>
-          Not an institution
-        </Button>
-      </div>
-
+    <div className="flex flex-col gap-md">
+      <p className="max-w-3xl text-body-sm text-text-secondary">
+        Until a student here is mapped, they are invisible to every institution filter — absent from segments,
+        broadcasts and audience counts alike, with no error anywhere to say so. Everyone who typed the same name and
+        city is one row, so one decision maps them all.
+      </p>
       {resolve.isError && <p className="text-body-sm text-error">{resolve.error.message}</p>}
+      <Table
+        columns={columns}
+        rows={rows}
+        rowKey={(g) => g.key}
+        loading={suggestions.isLoading}
+        error={suggestions.isError ? 'Could not load the queue.' : undefined}
+        emptyMessage={search ? 'Nothing in the queue matches.' : 'Nothing waiting — every student’s school is resolved.'}
+        search={{
+          value: search,
+          onChange: (value) => {
+            setSearch(value)
+            setPage(0)
+          },
+          placeholder: 'Search what was typed, city or student…',
+        }}
+        filters={
+          <CompactSelect
+            value={sortBy}
+            onChange={(e) => {
+              setSortBy(e.target.value as 'oldest' | 'students')
+              setPage(0)
+            }}
+            label="Sort"
+          >
+            <option value="oldest">Waiting longest</option>
+            <option value="students">Most students</option>
+          </CompactSelect>
+        }
+        pagination={{
+          hasNext: safePage < pageCount - 1,
+          hasPrevious: safePage > 0,
+          onNext: () => setPage(safePage + 1),
+          onPrevious: () => setPage(Math.max(0, safePage - 1)),
+          total: filtered.length,
+        }}
+      />
 
-      {creating && (
-        <InstitutionFormModal
-          initialName={suggestion.institution_raw}
-          initialCity={suggestion.institution_raw_city ?? ''}
-          onClose={() => setCreating(false)}
-          onSaved={(created) => resolve.mutate({ userId: suggestion.user_id, institutionId: created.id })}
-        />
-      )}
-      {picking && (
+      {action?.kind === 'pick' && current && (
         <PickInstitutionModal
-          title={`Map ${suggestion.user_name}`}
-          intro={`Choose the school or college "${suggestion.institution_raw}" refers to.`}
-          actionLabel="Map student"
+          title={`Map “${current.institution_raw}”`}
+          intro={`Choose the school or college this refers to. ${who} will be mapped to it.`}
+          actionLabel={current.student_count === 1 ? 'Map student' : `Map ${current.student_count} students`}
           pending={resolve.isPending}
           error={resolve.isError ? resolve.error.message : undefined}
-          onClose={() => setPicking(false)}
+          onClose={() => setAction(null)}
           onPick={(picked) =>
-            resolve.mutate(
-              { userId: suggestion.user_id, institutionId: picked.id },
-              { onSuccess: () => setPicking(false) },
-            )
+            resolve.mutate({ userIds: userIds(current), institutionId: picked.id }, { onSuccess: () => setAction(null) })
           }
         />
       )}
-      {dismissing && (
+      {action?.kind === 'create' && current && (
+        <InstitutionFormModal
+          initialName={current.institution_raw}
+          initialCity={current.institution_raw_city ?? ''}
+          onClose={() => setAction(null)}
+          onSaved={(created) => resolve.mutate({ userIds: userIds(current), institutionId: created.id })}
+        />
+      )}
+      {action?.kind === 'dismiss' && current && (
         <Modal
-          onClose={() => setDismissing(false)}
+          onClose={() => setAction(null)}
           title="Not an institution"
           widthRem={28}
           footer={
             <>
               {dismiss.isError && <p className="mr-auto self-center text-body-sm text-error">{dismiss.error.message}</p>}
-              <Button variant="secondary" onClick={() => setDismissing(false)}>
+              <Button variant="secondary" onClick={() => setAction(null)}>
                 Cancel
               </Button>
               <Button
                 variant="destructive"
                 loading={dismiss.isPending}
                 onClick={() =>
-                  dismiss.mutate(
-                    { userId: suggestion.user_id, note: note.trim() || undefined },
-                    { onSuccess: () => setDismissing(false) },
-                  )
+                  dismiss.mutate({ userIds: userIds(current), note: note.trim() || undefined }, { onSuccess: () => setAction(null) })
                 }
               >
                 Clear it
@@ -320,8 +433,8 @@ function SuggestionRow({ suggestion }: { suggestion: InstitutionSuggestion }) {
         >
           <div className="flex flex-col gap-md">
             <p className="text-body-sm text-text-secondary">
-              &ldquo;{suggestion.institution_raw}&rdquo; is cleared from {suggestion.user_name}&rsquo;s profile and leaves
-              the queue — no institution is created or matched. They can enter their school again.
+              &ldquo;{current.institution_raw}&rdquo; is cleared from {who}&rsquo;s profile and leaves the queue — no
+              institution is created or matched. They can enter their school again.
             </p>
             <TextField label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Recorded in the audit log." />
           </div>
@@ -344,24 +457,12 @@ function InstitutionRowActions({
   const retired = institution.active === false
   return (
     <div className="flex items-center justify-end gap-xs">
-      <button
-        type="button"
-        onClick={onEdit}
-        aria-label={`Edit ${institution.name}`}
-        title="Edit"
-        className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
-      >
+      <IconButton label={`Edit ${institution.name}`} onClick={onEdit}>
         <Pencil className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        onClick={onMerge}
-        aria-label={`Merge ${institution.name} into another institution`}
-        title="Merge into another institution"
-        className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
-      >
+      </IconButton>
+      <IconButton label={`Merge ${institution.name} into another institution`} onClick={onMerge}>
         <GitMerge className="h-4 w-4" />
-      </button>
+      </IconButton>
       <button
         type="button"
         onClick={() => update.mutate({ id: institution.id, active: retired })}
@@ -376,13 +477,10 @@ function InstitutionRowActions({
   )
 }
 
-export function InstitutionsPage() {
-  const suggestions = useInstitutionSuggestions()
-  const [adding, setAdding] = useState(false)
+function AllInstitutionsView() {
   const [editing, setEditing] = useState<Institution | null>(null)
   const [merging, setMerging] = useState<Institution | null>(null)
   const merge = useMergeInstitution()
-
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<'' | 'school' | 'college'>('')
   const [cityFilter, setCityFilter] = useState('')
@@ -401,7 +499,6 @@ export function InstitutionsPage() {
     limit: 25,
   })
   const facets = list.data?.facets
-  const waiting = suggestions.data?.items ?? []
 
   function resetPaging() {
     paging.reset()
@@ -414,9 +511,7 @@ export function InstitutionsPage() {
       sortable: true,
       render: (i) => (
         <span className="flex items-center gap-xs">
-          <span className={i.active === false ? 'text-text-secondary line-through' : 'font-medium text-text-primary'}>
-            {i.name}
-          </span>
+          <span className={i.active === false ? 'text-text-secondary line-through' : 'font-medium text-text-primary'}>{i.name}</span>
           {i.active === false && <Badge color="secondary">Retired</Badge>}
         </span>
       ),
@@ -426,12 +521,9 @@ export function InstitutionsPage() {
     {
       key: 'type',
       header: 'Type',
-      render: (i) => (
-        <Badge color={i.type === 'school' ? 'primary' : 'secondary'}>{i.type === 'school' ? 'School' : 'College'}</Badge>
-      ),
+      render: (i) => <Badge color={i.type === 'school' ? 'primary' : 'secondary'}>{i.type === 'school' ? 'School' : 'College'}</Badge>,
     },
     {
-      // Which schools matter, and which duplicate to keep in a merge (2026-09-11).
       key: 'student_count',
       header: 'Students',
       sortable: true,
@@ -447,136 +539,73 @@ export function InstitutionsPage() {
   ]
 
   return (
-    <AdminShell>
-      <div className="flex flex-col gap-lg">
-        <div className="flex items-start justify-between gap-md">
-          <div>
-            <h1 className="text-h1 text-text-primary">Institutions</h1>
-            <p className="text-body-sm text-text-secondary">
-              The schools and colleges students come FROM — separate from Colleges &amp; Courses, which are
-              destinations abroad. Students pick from this list; anything they type instead lands in the queue below.
-            </p>
-          </div>
-          <div className="shrink-0">
-            <Button onClick={() => setAdding(true)}>Add Institution</Button>
-          </div>
-        </div>
-
-        <section className="flex flex-col gap-sm">
-          <div className="flex items-baseline gap-sm">
-            <h2 className="text-h2 text-text-primary">Waiting to be mapped</h2>
-            {waiting.length > 0 && <Badge color="warning">{waiting.length}</Badge>}
-          </div>
-          <p className="text-body-sm text-text-secondary">
-            Until a student here is mapped, they are invisible to every institution filter — absent from segments,
-            broadcasts and audience counts alike, with no error anywhere to say so.
-          </p>
-          {suggestions.isLoading && <Skeleton className="h-24 rounded-lg" />}
-          {suggestions.isError && <ErrorState message="Could not load the queue." onRetry={() => suggestions.refetch()} />}
-          {suggestions.data && waiting.length === 0 && (
-            <p className="text-body-sm text-text-secondary">Nothing waiting — every student&rsquo;s school is resolved.</p>
-          )}
-          {waiting.map((s) => (
-            <SuggestionRow key={s.user_id} suggestion={s} />
-          ))}
-        </section>
-
-        <section className="flex flex-col gap-sm">
-          <h2 className="text-h2 text-text-primary">All institutions</h2>
-          <Table
-            columns={columns}
-            rows={list.data?.items ?? []}
-            rowKey={(i) => i.id}
-            loading={list.isLoading}
-            error={list.isError ? 'Could not load institutions.' : undefined}
-            emptyMessage={
-              search || typeFilter || cityFilter || stateFilter || statusFilter !== 'active'
-                ? 'No institutions match these filters.'
-                : "No institutions yet. Add one with Add Institution above, or map a waiting student's school."
-            }
-            sort={sort}
-            onSortChange={(field, direction) => {
-              setSort({ field, direction })
-              resetPaging()
-            }}
-            search={{
-              value: search,
-              onChange: (value) => {
-                setSearch(value)
-                resetPaging()
-              },
-              placeholder: 'Search name, city or state…',
-            }}
-            filters={
-              <>
-                <CompactSelect
-                  value={typeFilter}
-                  onChange={(e) => {
-                    setTypeFilter(e.target.value as '' | 'school' | 'college')
-                    resetPaging()
-                  }}
-                  label="Type"
-                >
-                  <option value="">Any type</option>
-                  <option value="school">Schools</option>
-                  <option value="college">Colleges</option>
-                </CompactSelect>
-                <CompactSelect
-                  value={cityFilter}
-                  onChange={(e) => {
-                    setCityFilter(e.target.value)
-                    resetPaging()
-                  }}
-                  label="City"
-                >
-                  <option value="">Any city</option>
-                  {(facets?.cities ?? []).map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </CompactSelect>
-                <CompactSelect
-                  value={stateFilter}
-                  onChange={(e) => {
-                    setStateFilter(e.target.value)
-                    resetPaging()
-                  }}
-                  label="State"
-                >
-                  <option value="">Any state</option>
-                  {(facets?.states ?? []).map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </CompactSelect>
-                <CompactSelect
-                  value={statusFilter}
-                  onChange={(e) => {
-                    setStatusFilter(e.target.value as 'active' | 'retired' | 'all')
-                    resetPaging()
-                  }}
-                  label="Status"
-                >
-                  <option value="active">Offered to students</option>
-                  <option value="retired">Retired</option>
-                  <option value="all">All</option>
-                </CompactSelect>
-              </>
-            }
-            pagination={{
-              hasNext: Boolean(list.data?.meta?.next_cursor),
-              hasPrevious: paging.hasPrevious,
-              onNext: () => list.data?.meta?.next_cursor && paging.next(list.data.meta.next_cursor),
-              onPrevious: paging.previous,
-              total: list.data?.meta?.total,
-            }}
-          />
-        </section>
-      </div>
-
-      {adding && <InstitutionFormModal onClose={() => setAdding(false)} />}
+    <>
+      <Table
+        columns={columns}
+        rows={list.data?.items ?? []}
+        rowKey={(i) => i.id}
+        loading={list.isLoading}
+        error={list.isError ? 'Could not load institutions.' : undefined}
+        emptyMessage={
+          search || typeFilter || cityFilter || stateFilter || statusFilter !== 'active'
+            ? 'No institutions match these filters.'
+            : "No institutions yet. Add one with Add Institution above, or map a waiting student's school."
+        }
+        sort={sort}
+        onSortChange={(field, direction) => {
+          setSort({ field, direction })
+          resetPaging()
+        }}
+        search={{
+          value: search,
+          onChange: (value) => {
+            setSearch(value)
+            resetPaging()
+          },
+          placeholder: 'Search name, city or state…',
+        }}
+        filters={
+          <>
+            <CompactSelect value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value as '' | 'school' | 'college'); resetPaging() }} label="Type">
+              <option value="">Any type</option>
+              <option value="school">Schools</option>
+              <option value="college">Colleges</option>
+            </CompactSelect>
+            <CompactSelect value={cityFilter} onChange={(e) => { setCityFilter(e.target.value); resetPaging() }} label="City">
+              <option value="">Any city</option>
+              {(facets?.cities ?? []).map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </CompactSelect>
+            <CompactSelect value={stateFilter} onChange={(e) => { setStateFilter(e.target.value); resetPaging() }} label="State">
+              <option value="">Any state</option>
+              {(facets?.states ?? []).map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </CompactSelect>
+            <CompactSelect
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value as 'active' | 'retired' | 'all'); resetPaging() }}
+              label="Status"
+            >
+              <option value="active">Offered to students</option>
+              <option value="retired">Retired</option>
+              <option value="all">All</option>
+            </CompactSelect>
+          </>
+        }
+        pagination={{
+          hasNext: Boolean(list.data?.meta?.next_cursor),
+          hasPrevious: paging.hasPrevious,
+          onNext: () => list.data?.meta?.next_cursor && paging.next(list.data.meta.next_cursor),
+          onPrevious: paging.previous,
+          total: list.data?.meta?.total,
+        }}
+      />
       {editing && <InstitutionFormModal institution={editing} onClose={() => setEditing(null)} />}
       {merging && (
         <PickInstitutionModal
@@ -589,8 +618,7 @@ export function InstitutionsPage() {
           detail={(target) => (
             <ul className="flex list-disc flex-col gap-xs pl-lg text-body-sm text-text-secondary">
               <li>
-                {plural(merging.student_count ?? 0, 'student')} move to{' '}
-                <span className="font-medium text-text-primary">{target.name}</span>.
+                {plural(merging.student_count ?? 0, 'student')} move to <span className="font-medium text-text-primary">{target.name}</span>.
               </li>
               <li>Saved audiences (ads, quizzes, broadcasts) that named it now name {target.name}.</li>
               <li>{merging.name} is removed. This can&rsquo;t be undone.</li>
@@ -600,6 +628,66 @@ export function InstitutionsPage() {
           onPick={(target) => merge.mutate({ id: merging.id, intoId: target.id }, { onSuccess: () => setMerging(null) })}
         />
       )}
+    </>
+  )
+}
+
+export function InstitutionsPage() {
+  const suggestions = useInstitutionSuggestions()
+  const [adding, setAdding] = useState(false)
+  const [tab, setTab] = useState<'queue' | 'all' | null>(null)
+  const waitingStudents = suggestions.data?.student_count ?? 0
+  const waitingGroups = suggestions.data?.groups?.length ?? 0
+  // Opens on the queue while anyone is waiting — it is the work — and on the list when it is clear.
+  const activeTab = tab ?? (waitingGroups > 0 ? 'queue' : 'all')
+
+  return (
+    <AdminShell>
+      <div className="flex flex-col gap-lg">
+        <div className="flex items-start justify-between gap-md">
+          <div>
+            <h1 className="text-h1 text-text-primary">Institutions</h1>
+            <p className="text-body-sm text-text-secondary">
+              The schools and colleges students come FROM — separate from Colleges &amp; Courses, which are
+              destinations abroad. Students pick from this list; anything they type instead waits to be mapped.
+            </p>
+          </div>
+          <div className="shrink-0">
+            <Button onClick={() => setAdding(true)}>Add Institution</Button>
+          </div>
+        </div>
+
+        <div role="tablist" aria-label="Institutions" className="flex gap-lg border-b border-border">
+          {(
+            [
+              { key: 'queue', label: 'Waiting to be mapped' },
+              { key: 'all', label: 'All institutions' },
+            ] as const
+          ).map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === t.key}
+              onClick={() => setTab(t.key)}
+              className={`-mb-px flex items-center gap-xs border-b-2 py-sm text-body-sm font-medium ${
+                activeTab === t.key ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {t.label}
+              {t.key === 'queue' && waitingGroups > 0 && (
+                <Badge color="warning">
+                  {waitingGroups === waitingStudents ? waitingGroups : `${waitingGroups} · ${plural(waitingStudents, 'student')}`}
+                </Badge>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'queue' ? <QueueView /> : <AllInstitutionsView />}
+      </div>
+
+      {adding && <InstitutionFormModal onClose={() => setAdding(false)} />}
     </AdminShell>
   )
 }

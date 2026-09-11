@@ -6,6 +6,7 @@ import type { components } from '@/api/schema'
 
 export type Institution = components['schemas']['Institution']
 export type InstitutionSuggestion = components['schemas']['InstitutionSuggestion']
+export type InstitutionSuggestionGroup = components['schemas']['InstitutionSuggestionGroup']
 
 /**
  * The student's own school or college — NOT `colleges`, which are destinations abroad.
@@ -147,6 +148,35 @@ export function useDismissInstitutionSuggestion() {
         body: note ? { note } : {},
       })
       if (error) throw new ApiError(error.error?.message ?? 'Could not clear this entry.')
+      return data
+    },
+    onSuccess: () => invalidateInstitutions(queryClient),
+  })
+}
+
+// One decision for a whole group of students who typed the same school (2026-09-11).
+export function useBulkResolveInstitutionSuggestions() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ userIds, institutionId }: { userIds: string[]; institutionId: string }) => {
+      const { data, error } = await api.POST('/institutions/suggestions/bulk-resolve', {
+        body: { user_ids: userIds, institution_id: institutionId },
+      })
+      if (error) throw new ApiError(error.error?.message ?? 'Could not map these students.')
+      return data
+    },
+    onSuccess: () => invalidateInstitutions(queryClient),
+  })
+}
+
+export function useBulkDismissInstitutionSuggestions() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ userIds, note }: { userIds: string[]; note?: string }) => {
+      const { data, error } = await api.POST('/institutions/suggestions/bulk-dismiss', {
+        body: { user_ids: userIds, ...(note ? { note } : {}) },
+      })
+      if (error) throw new ApiError(error.error?.message ?? 'Could not clear these entries.')
       return data
     },
     onSuccess: () => invalidateInstitutions(queryClient),

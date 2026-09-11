@@ -3944,7 +3944,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The platform-staff mapping queue — students who typed a school that was not in the list. Each entry carries `near_matches` so matching an existing row is the easy path. */
+        /** The platform-staff mapping queue — students who typed a school that was not in the list. Each entry carries `near_matches` so matching an existing row is the easy path. `groups` (2026-09-11) collects everyone who typed the same name and city, oldest wait first. */
         get: {
             parameters: {
                 query?: never;
@@ -3962,6 +3962,8 @@ export interface paths {
                     content: {
                         "application/json": {
                             items?: components["schemas"]["InstitutionSuggestion"][];
+                            groups?: components["schemas"]["InstitutionSuggestionGroup"][];
+                            student_count?: number;
                         };
                     };
                 };
@@ -3970,6 +3972,99 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/institutions/suggestions/bulk-resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Map several waiting students onto one institution (platform staff) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        user_ids: string[];
+                        /** Format: uuid */
+                        institution_id: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            mapped?: number;
+                        };
+                    };
+                };
+                default: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/institutions/suggestions/bulk-dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clear several waiting entries that are not a real institution (platform staff) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        user_ids: string[];
+                        note?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            cleared?: number;
+                        };
+                    };
+                };
+                default: components["responses"]["ErrorResponse"];
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -19770,6 +19865,23 @@ export interface components {
             state?: string | null;
             /** @enum {string} */
             type: "school" | "college";
+        };
+        /** @description Everyone who typed the same name in the same city (2026-09-11) — one decision for all of them. The queue lists groups oldest-wait first. */
+        InstitutionSuggestionGroup: {
+            key: string;
+            institution_raw: string;
+            institution_raw_city?: string | null;
+            student_count: number;
+            /** Format: date-time */
+            first_typed_at?: string | null;
+            students: {
+                /** Format: uuid */
+                user_id: string;
+                user_name: string;
+                /** Format: date-time */
+                typed_at?: string | null;
+            }[];
+            near_matches?: components["schemas"]["Institution"][];
         };
         /** @description One student waiting to be mapped — the platform-staff work queue this feature creates. Every student at an unlisted school generates one, permanently. */
         InstitutionSuggestion: {
