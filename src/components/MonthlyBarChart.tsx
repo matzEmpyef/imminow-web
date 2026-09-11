@@ -60,7 +60,13 @@ export function MonthlyBarChart({
         />
         {series ? (
           <>
-            <Legend wrapperStyle={{ fontSize: 12 }} />
+            {/* Label text in the neutral text colour (2026-09-11): recharts paints it in the series
+                colour, which left light series (e.g. "No country yet") unreadable. The swatch keeps
+                the colour. */}
+            <Legend
+              wrapperStyle={{ fontSize: 12 }}
+              formatter={(value) => <span style={{ color: 'var(--color-text-secondary)' }}>{value}</span>}
+            />
             {series.map((s, i) => (
               <Bar
                 key={s.key}
