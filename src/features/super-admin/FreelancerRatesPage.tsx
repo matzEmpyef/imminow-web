@@ -1,7 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { SelectField } from '@/components/SelectField'
 import { Button } from '@/components/Button'
-import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { Table, type TableColumn } from '@/components/Table'
 import { Modal } from '@/components/Modal'
@@ -11,7 +10,6 @@ import {
   useCreateFreelancerRate,
   useUpdateFreelancerRate,
 } from '@/queries/freelancerRates'
-import { useCommissionRates } from '@/queries/commissionRates'
 import type { components } from '@/api/schema'
 
 type FreelancerRate = components['schemas']['FreelancerRate']
@@ -36,7 +34,7 @@ function AddRateForm({ onClose }: { onClose: () => void }) {
   return (
     <Modal
       onClose={onClose}
-      title="Set Rate"
+      title="Set Share"
       widthRem={26}
       footer={
         <>
@@ -44,7 +42,7 @@ function AddRateForm({ onClose }: { onClose: () => void }) {
             <p className="mr-auto self-center text-body-sm text-error">{createRate.error.message}</p>
           )}
           <Button type="submit" form="set-rate-form" loading={createRate.isPending} disabled={!freelancerId}>
-            Set Rate
+            Set Share
           </Button>
         </>
       }
@@ -63,14 +61,19 @@ function AddRateForm({ onClose }: { onClose: () => void }) {
             </option>
           ))}
         </SelectField>
-        <TextField
-          label="Rate %"
-          type="number"
-          min={0}
-          max={100}
-          value={rate}
-          onChange={(e) => setRate(Number(e.target.value))}
-        />
+        <div className="flex flex-col gap-xs">
+          <TextField
+            label="Share %"
+            type="number"
+            min={0}
+            max={100}
+            value={rate}
+            onChange={(e) => setRate(Number(e.target.value))}
+          />
+          <p className="pl-lg text-caption text-text-secondary">
+            Their share of the commission immiNow collects on the students they bring.
+          </p>
+        </div>
       </form>
     </Modal>
   )
@@ -85,7 +88,7 @@ function RateEditor({ rate }: { rate: FreelancerRate }) {
   return (
     <div className="flex items-center justify-end gap-sm">
       <TextField
-        label="Rate %"
+        label="Share %"
         type="number"
         min={0}
         max={100}
@@ -115,7 +118,6 @@ function RateEditor({ rate }: { rate: FreelancerRate }) {
  */
 export function FreelancerRatesPanel() {
   const rates = useFreelancerRates()
-  const commissionRates = useCommissionRates()
   const [showAdd, setShowAdd] = useState(false)
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
@@ -137,20 +139,6 @@ export function FreelancerRatesPanel() {
     return items
   }, [rates.data, search, sort])
 
-  // The page states "immiNow spread = consultancy rate − this rate", so a freelancer rate above the
-  // consultancy rate means immiNow pays out more than it earns. The freelancer rate is flat while
-  // commission rates are per consultancy+country, so the honest comparison is against the LOWEST
-  // freelancer-sourced rate on the board: above that, at least one arrangement is loss-making.
-  //
-  // Allowed rather than blocked (user decision, 2026-08-27) — a deliberate loss-leader is a real
-  // commercial choice — but never silent.
-  const lowestConsultancyRate = useMemo(() => {
-    const values = (commissionRates.data ?? [])
-      .map((r) => r.freelancer_sourced_rate)
-      .filter((v): v is number => typeof v === 'number')
-    return values.length > 0 ? Math.min(...values) : null
-  }, [commissionRates.data])
-
   const columns: TableColumn<FreelancerRate>[] = [
     {
       key: 'freelancer_name',
@@ -159,31 +147,26 @@ export function FreelancerRatesPanel() {
       render: (r) => <span className="font-medium text-text-primary">{r.freelancer_name}</span>,
     },
     {
-      key: 'spread',
-      header: '',
-      render: (r) => {
-        const negative =
-          lowestConsultancyRate != null && typeof r.rate === 'number' && r.rate > lowestConsultancyRate
-        return negative ? (
-          <Badge color="warning">
-            Above the lowest consultancy rate ({lowestConsultancyRate}%) — immiNow pays out more than it earns
-          </Badge>
-        ) : (
-          <Badge color="info">immiNow spread = consultancy rate − this rate</Badge>
-        )
-      },
+      key: 'rate',
+      header: 'Share of collected commission',
+      sortable: true,
+      align: 'right',
+      render: (r) => <RateEditor rate={r} />,
     },
-    { key: 'rate', header: 'Rate', sortable: true, align: 'right', render: (r) => <RateEditor rate={r} /> },
   ]
 
   return (
     <div className="flex flex-col gap-lg">
+      {/* Business rule (user, 2026-09-11), no longer the old "immiNow pays out more than it
+          earns" warning: that read the freelancer's share against the consultancy's rate, but the
+          share is of what immiNow actually COLLECTS on the case, so it can never exceed what came
+          in — there is nothing left to warn about. */}
       <div className="flex items-start justify-between gap-md">
         <p className="text-body-sm text-text-secondary">
-          The flat percentage each freelancer personally earns. immiNow keeps the spread between this and the
-          consultancy&rsquo;s own commission rate.
+          Each freelancer&rsquo;s own share of the commission immiNow actually collects on the cases they bring — a
+          payout can never be more than what immiNow received.
         </p>
-        <Button onClick={() => setShowAdd(true)}>Set Rate</Button>
+        <Button onClick={() => setShowAdd(true)}>Set Share</Button>
       </div>
 
       {showAdd && <AddRateForm onClose={() => setShowAdd(false)} />}

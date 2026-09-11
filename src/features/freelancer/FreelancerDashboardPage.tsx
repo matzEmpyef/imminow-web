@@ -53,11 +53,21 @@ function ReferralLinkCard() {
   )
 }
 
+const PAYOUT_STATUS_BADGE = {
+  not_due: { color: 'secondary', label: 'Not due yet' },
+  owed: { color: 'warning', label: 'Owed' },
+  paid: { color: 'success', label: 'Paid' },
+} as const
+
+function inr(n: number | undefined): string {
+  return `₹${(n ?? 0).toLocaleString('en-IN')}`
+}
+
 export function FreelancerDashboardPage() {
   const referrals = useFreelancerReferrals()
   const items = referrals.data ?? []
-  const owedCount = items.filter((r) => r.payment_status === 'owed').length
-  const paidCount = items.filter((r) => r.payment_status === 'paid').length
+  const owedCount = items.filter((r) => (r.payout_status ?? r.payment_status) === 'owed').length
+  const paidCount = items.filter((r) => (r.payout_status ?? r.payment_status) === 'paid').length
 
   return (
     <FreelancerShell>
@@ -67,6 +77,11 @@ export function FreelancerDashboardPage() {
           <p className="text-body-sm text-text-secondary">
             Aspirants you've referred, with their current status and payment status. Tracking only — you don't manage
             their case or chat with them here.
+          </p>
+          {/* Business rule, one line near the top (user, 2026-09-11). */}
+          <p className="mt-xs text-body-sm text-text-secondary">
+            You earn your share of the commission Sentpo collects on each student you bring. It becomes payable once
+            Sentpo has been paid for that student.
           </p>
         </div>
 
@@ -112,24 +127,37 @@ export function FreelancerDashboardPage() {
                   </p>
                 </div>
                 {/* The freelancer's cut, present once the case has an accepted commission entry
-                    (2026-08-28). Deliberately the ONLY money figure on this page — the case's
-                    full commission and the consultancy's rates are not theirs to see. */}
+                    (2026-08-28). Deliberately the ONLY money figures on this page — the case's
+                    full commission and the consultancy's rates are not theirs to see. Split into
+                    "your share when fully collected" (your_cut) and what that share has actually
+                    become so far (earned/paid/owed_inr) — 2026-09-11: a payout is only ever a
+                    freelancer's % of what Sentpo has COLLECTED, not the case's eventual total, so
+                    the two numbers can genuinely differ while a case is still part-paid. */}
                 {referral.commission &&
-                  (referral.commission.your_cut ? (
-                    <div className="text-right">
-                      <p className="text-body font-medium text-text-primary">
-                        {formatMoneyAmount(referral.commission.your_cut)}
-                      </p>
-                      <p className="text-caption text-text-secondary">your cut</p>
-                    </div>
+                  (referral.commission.rate_missing ? (
+                    <Badge color="warning">Rate not set yet</Badge>
                   ) : (
-                    <Badge color="warning">rate not set yet</Badge>
+                    <div className="text-right">
+                      {referral.commission.your_cut && (
+                        <p className="text-body font-medium text-text-primary">
+                          Your share:{' '}
+                          {referral.commission.your_cut.currency === 'INR'
+                            ? inr(referral.commission.your_cut.amount ?? undefined)
+                            : formatMoneyAmount(referral.commission.your_cut)}{' '}
+                          <span className="font-normal text-text-secondary">(when fully collected)</span>
+                        </p>
+                      )}
+                      <p className="text-caption text-text-secondary">
+                        Earned so far {inr(referral.earned_inr)} · Paid {inr(referral.paid_inr)} · Owed{' '}
+                        {inr(referral.owed_inr)}
+                      </p>
+                    </div>
                   ))}
                 <Badge color="info" className="capitalize">
                   {referral.status.replace(/_/g, ' ')}
                 </Badge>
-                <Badge color={referral.payment_status === 'paid' ? 'success' : 'warning'} className="capitalize">
-                  {referral.payment_status}
+                <Badge color={PAYOUT_STATUS_BADGE[referral.payout_status ?? 'not_due'].color}>
+                  {PAYOUT_STATUS_BADGE[referral.payout_status ?? 'not_due'].label}
                 </Badge>
               </div>
             </Card>

@@ -300,7 +300,7 @@ export function Table<T>({
       {pagination && (pagination.total != null || hasMultiplePages) && (
         <div className="flex items-center justify-between border-t border-border px-md py-xs">
           <span className="text-caption text-text-secondary">
-            {pagination.total != null ? `${pagination.total} results` : ''}
+            {pagination.total != null ? `${pagination.total} ${pagination.total === 1 ? 'result' : 'results'}` : ''}
           </span>
           {hasMultiplePages && (
             <div className="flex gap-xs">

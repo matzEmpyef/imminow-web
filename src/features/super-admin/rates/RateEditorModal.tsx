@@ -275,6 +275,9 @@ export function RateEditorModal({
                     value={matrix[key].freelancer}
                     onChange={(e) => setCell(key, 'freelancer', e.target.value)}
                     className="flex-1"
+                    // Hint added 2026-09-11 (user): this is what immiNow charges the CONSULTANCY on a
+                    // freelancer-brought case, not the freelancer's own cut — that's set separately.
+                    title="What immiNow charges the consultancy when a freelancer brought the student. The freelancer's own share is set on the Freelancers page."
                   />
                 )}
               </div>

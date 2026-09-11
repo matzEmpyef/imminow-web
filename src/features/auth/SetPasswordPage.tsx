@@ -48,10 +48,21 @@ export function SetPasswordPage() {
     )
   }
 
+  // Freelancer invites (2026-09-11) carry no consultancy — they're a referral partner, not
+  // consultancy staff — so the field and welcome copy read differently for them.
+  const isFreelancer = invite.data.role === 'freelancer'
+
   return (
     <AuthLayout title={`Welcome, ${invite.data.first_name}`}>
+      {isFreelancer && (
+        <p className="mb-md text-body-sm text-text-secondary">You&rsquo;re joining Sentpo as a referral partner.</p>
+      )}
       <form className="flex flex-col gap-md" onSubmit={handleSubmit} noValidate>
-        <TextField label="Consultancy" value={invite.data.consultancy_name} readOnly disabled />
+        {isFreelancer ? (
+          <TextField label="Account type" value="Freelancer partner" readOnly disabled />
+        ) : (
+          <TextField label="Consultancy" value={invite.data.consultancy_name ?? ''} readOnly disabled />
+        )}
         <TextField
           label="New password"
           type="password"

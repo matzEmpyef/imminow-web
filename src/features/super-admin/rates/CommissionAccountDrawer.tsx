@@ -100,7 +100,14 @@ export function CommissionAccountDrawer({
                   >
                     <span />
                     <span className="text-caption font-medium text-text-secondary">Direct %</span>
-                    {freelancerEnabled && <span className="text-caption font-medium text-text-secondary">Freelancer %</span>}
+                    {freelancerEnabled && (
+                      <span
+                        className="text-caption font-medium text-text-secondary"
+                        title="What immiNow charges the consultancy when a freelancer brought the student. The freelancer's own share is set on the Freelancers page."
+                      >
+                        Freelancer %
+                      </span>
+                    )}
                     {RATE_GROUPS.map(({ key, label }) => {
                       const rate = countryRates.find((r) => r.payer_method === key)
                       return (

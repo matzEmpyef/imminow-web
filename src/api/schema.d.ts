@@ -272,7 +272,10 @@ export interface paths {
                     content: {
                         "application/json": {
                             first_name: string;
-                            consultancy_name: string;
+                            /** @description Null for a freelancer invite — a freelancer belongs to no consultancy. */
+                            consultancy_name: string | null;
+                            /** @description freelancer for a freelancer invite (2026-09-11); null for an employee invite. */
+                            role?: string | null;
                         };
                     };
                 };
@@ -15931,7 +15934,94 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
+        /** Invite a freelancer (freelancers permission, 2026-09-11). Creates the freelancer with a referral code and emails an invite to set a password; status is invited until they accept. Optional rate sets their share. 409 if the email is already an account or a freelancer. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description Typed by the admin (2026-09-11); stored in capitals; unique across freelancers and students. 409 code_taken if in use. */
+                        referral_code: string;
+                        first_name: string;
+                        last_name: string;
+                        /** Format: email */
+                        email: string;
+                        phone?: string;
+                        rate?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Invited */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Freelancer"];
+                    };
+                };
+                /** @description Email already in use */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/freelancers/{id}/resend-invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send the invite email again with a fresh link (freelancers permission). 409 once they have joined. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Sent */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Already joined */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -15952,8 +16042,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Activate or deactivate a freelancer account
-         * @description Deactivating revokes their sign-in immediately and stops their referral code attributing new students. Reversible, and it never removes the row — payouts already earned on students they referred remain owed and visible.
+         * Activate or deactivate a freelancer, or change their referral code
+         * @description Deactivating revokes their sign-in immediately and stops their referral code attributing new students. Reversible, and it never removes the row — payouts already earned on students they referred remain owed and visible. Changing referral_code (2026-09-11) retires the old code at once; students already referred stay attributed. 409 code_taken if in use.
          */
         patch: {
             parameters: {
@@ -15967,7 +16057,8 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        active: boolean;
+                        active?: boolean;
+                        referral_code?: string;
                     };
                 };
             };
@@ -16336,10 +16427,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Every freelancer referral across the platform (Super Admin) — the payout ledger. Same row shape as /freelancer/referrals plus freelancer_name (2026-08-19, closes the loop where payment_status could be set to owed but never flipped to paid). */
+        /** Freelancer referrals with what each has earned, been paid and is owed, paged (freelancers permission, 2026-09-11). filter[payout_status]=not_due|owed|paid (comma = any of), filter[freelancer_id]; search matches freelancer and student. Totals cover the filtered set. */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description Sort field. Prefix with - for descending, e.g. sort=-created_at (TRD Section 7). */
+                    sort?: components["parameters"]["SortParam"];
+                    /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
+                    search?: components["parameters"]["SearchParam"];
+                    /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
+                    filter?: components["parameters"]["FilterParam"];
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -16352,13 +16454,184 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["FreelancerReferral"][];
+                        "application/json": {
+                            items: components["schemas"]["FreelancerReferral"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                            totals?: {
+                                earned_inr?: number;
+                                paid_inr?: number;
+                                owed_inr?: number;
+                            };
+                        };
                     };
                 };
             };
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/freelancer-referrals/{id}/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record a payout to the freelancer for this referral (freelancers permission, 2026-09-11). amount_inr must be positive and no more than what is owed; the freelancer is notified. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        amount_inr: number;
+                        /** Format: date */
+                        paid_on: string;
+                        reference?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Recorded */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FreelancerPayout"];
+                    };
+                };
+                /** @description More than is owed, or nothing is owed */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/freelancer-payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Payouts recorded to freelancers, paged (freelancers permission). filter[freelancer_id], filter[from]/filter[to] on paid_on, filter[voided]=true|false; search matches reference, freelancer and student. */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description Sort field. Prefix with - for descending, e.g. sort=-created_at (TRD Section 7). */
+                    sort?: components["parameters"]["SortParam"];
+                    /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
+                    search?: components["parameters"]["SearchParam"];
+                    /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
+                    filter?: components["parameters"]["FilterParam"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["FreelancerPayout"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                            totals?: {
+                                count?: number;
+                                amount_inr?: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/freelancer-payouts/{id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Undo a recorded payout with a reason (freelancers permission). The amount becomes owed again. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Undone */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FreelancerPayout"];
+                    };
+                };
+                /** @description Already undone */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -21269,6 +21542,24 @@ export interface components {
             freelancer_sourced_rate: number;
         };
         Freelancer: {
+            /**
+             * @description invited until they accept the email invite and set a password (2026-09-11).
+             * @enum {string}
+             */
+            readonly status?: "invited" | "active" | "deactivated";
+            /** @description Their share, in %, of the commission immiNow collects on cases they bring. Null until set. */
+            readonly rate?: number | null;
+            readonly referrals?: number;
+            /** @description Their share of the commission immiNow has confirmed collecting on their cases. */
+            readonly earned_inr?: number;
+            readonly paid_inr?: number;
+            readonly owed_inr?: number;
+            /** Format: date-time */
+            readonly last_referral_at?: string | null;
+            /** Format: date-time */
+            readonly invited_at?: string | null;
+            /** Format: date-time */
+            readonly joined_at?: string | null;
             id: components["schemas"]["UUID"];
             readonly name: string;
             /** Format: email */
@@ -21277,7 +21568,7 @@ export interface components {
             readonly referral_code?: string;
             active: boolean;
         };
-        /** @description Freelancer Commission Table (build reference 1.17) — the flat percentage that specific freelancer personally earns. immiNow's own take on a freelancer-sourced case is the spread between the consultancy's freelancer-sourced rate (`CommissionRate`) and this rate, computed at recognition time, never stored. */
+        /** @description The freelancer's share, in %, of the commission immiNow actually COLLECTS on a case they brought (user, 2026-09-11). Not a % of the case fee: the Freelancer % on Commission Rates is what immiNow charges the consultancy for a freelancer-brought case, and this is what immiNow passes on from what it receives — so a payout can never exceed what came in. */
         FreelancerRate: {
             id: components["schemas"]["UUID"];
             freelancer_id: components["schemas"]["UUID"];
@@ -21301,8 +21592,44 @@ export interface components {
             /** Format: date-time */
             verified_at?: string | null;
         };
+        /** @description A payout recorded to a freelancer for one referral (2026-09-11). The money moves outside the platform; this records that it did. */
+        FreelancerPayout: {
+            id: components["schemas"]["UUID"];
+            referral_id: components["schemas"]["UUID"];
+            freelancer_id: components["schemas"]["UUID"];
+            readonly freelancer_name?: string;
+            readonly applicant_name?: string | null;
+            amount_inr: number;
+            /** Format: date */
+            paid_on: string;
+            reference?: string | null;
+            readonly recorded_by_name?: string | null;
+            /** Format: date-time */
+            recorded_at: string;
+            /** Format: date-time */
+            voided_at?: string | null;
+            void_reason?: string | null;
+            voided_by_name?: string | null;
+        };
         /** @description Freelancer Dashboard's own row shape (build reference 1.19) — tracking only, no case management, no chat. `status` mirrors the referred journey's own status; the freelancer never edits it here. */
         FreelancerReferral: {
+            freelancer_id?: components["schemas"]["UUID"];
+            readonly rate_percent?: number | null;
+            /** @description Commission immiNow has confirmed receiving on this case. */
+            readonly collected_inr?: number;
+            /** @description rate_percent of collected_inr. */
+            readonly earned_inr?: number;
+            readonly paid_inr?: number;
+            readonly owed_inr?: number;
+            /** @description rate_percent of what immiNow is due on the case, once all of it is collected. */
+            readonly expected_share_inr?: number | null;
+            /**
+             * @description not_due until immiNow has confirmed receiving commission on the case (user, 2026-09-11); owed while earned exceeds paid; paid once every earned rupee has been paid out.
+             * @enum {string}
+             */
+            readonly payout_status?: "not_due" | "owed" | "paid";
+            /** Format: date-time */
+            readonly owed_since?: string | null;
             id: components["schemas"]["UUID"];
             journey_id: components["schemas"]["UUID"];
             readonly applicant_name: string;
@@ -21310,7 +21637,11 @@ export interface components {
             readonly freelancer_name?: string;
             /** @description The referred journey's own status (e.g. pending_plan_assignment, in_plan, plan_complete). */
             readonly status: string;
-            /** @enum {string} */
+            /**
+             * @deprecated
+             * @description Superseded by payout_status (2026-09-11). owed unless everything earned is paid.
+             * @enum {string}
+             */
             payment_status: "owed" | "paid";
             /** @description Present only once the referred journey has an ACTIVE commission entry. The freelancer's entire money view — their own cut (their FreelancerRate % of the case's expected total, INR-normalized). The case's total commission, the consultancy's rate, and the platform's take are deliberately never exposed here. */
             readonly commission?: {
