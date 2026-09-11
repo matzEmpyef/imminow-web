@@ -2,6 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { FINANCE_QUERY_KEY } from './financeDashboard'
+import type { components } from '@/api/schema'
+
+export type CommissionPayment = components['schemas']['CommissionPayment']
 
 export function useCommission() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
@@ -57,6 +61,31 @@ export function useConfirmCommissionPayment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['commission'] })
       queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] })
+      queryClient.invalidateQueries({ queryKey: [FINANCE_QUERY_KEY] })
+      queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] })
+    },
+  })
+}
+
+// Turns down a declared payment with a reason (finance permission, 2026-09-11) — the consultancy
+// is notified with the reason and can declare again. Same wide invalidation as confirm: a rejected
+// payment leaves the awaiting queue and lands in Payment History, which both need to reflect it at
+// once.
+export function useRejectCommissionPayment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ paymentId, reason }: { paymentId: string; reason: string }) => {
+      const { data, error } = await api.POST('/commission/payments/{id}/reject', {
+        params: { path: { id: paymentId } },
+        body: { reason },
+      })
+      if (error) throw new ApiError('Could not reject this payment.', error)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commission'] })
+      queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] })
+      queryClient.invalidateQueries({ queryKey: [FINANCE_QUERY_KEY] })
       queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] })
     },
   })

@@ -16314,6 +16314,299 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/commission/finance/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Finance Dashboard tiles and the 12-month chart (finance permission, 2026-09-11). */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FinanceSummary"];
+                    };
+                };
+                /** @description Missing the finance permission */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/commission/finance/balances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What each consultancy owes the platform, one row per consultancy with an active case (finance permission). Default sort outstanding_inr desc. filter[owing]=true keeps only those still owing; search matches the consultancy name. */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description Sort field. Prefix with - for descending, e.g. sort=-created_at (TRD Section 7). */
+                    sort?: components["parameters"]["SortParam"];
+                    /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
+                    search?: components["parameters"]["SearchParam"];
+                    /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
+                    filter?: components["parameters"]["FilterParam"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["ConsultancyBalanceRow"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
+                    };
+                };
+                /** @description Missing the finance permission */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/commission/finance/cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Active commission cases, paged (finance permission). filter[consultancy_id], filter[destination_country], filter[payer_method], filter[payment_status] (unpaid|part_paid|paid, comma = any of), filter[from]/filter[to] on the acceptance date; search matches student, consultancy and college. Totals cover the whole filtered set. */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description Sort field. Prefix with - for descending, e.g. sort=-created_at (TRD Section 7). */
+                    sort?: components["parameters"]["SortParam"];
+                    /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
+                    search?: components["parameters"]["SearchParam"];
+                    /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
+                    filter?: components["parameters"]["FilterParam"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["FinanceCaseRow"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                            totals?: {
+                                due_inr?: number;
+                                paid_inr?: number;
+                                outstanding_inr?: number;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the finance permission */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/commission/finance/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Platform payments, paged (finance permission). filter[status]=declared|confirmed|rejected (comma = any of), filter[consultancy_id], filter[from]/filter[to] on the date that matters for the row (confirmed or rejected date, else declared date); search matches transaction id, consultancy and student. Totals cover the whole filtered set. */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description Sort field. Prefix with - for descending, e.g. sort=-created_at (TRD Section 7). */
+                    sort?: components["parameters"]["SortParam"];
+                    /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
+                    search?: components["parameters"]["SearchParam"];
+                    /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
+                    filter?: components["parameters"]["FilterParam"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["CommissionPayment"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                            totals?: {
+                                count?: number;
+                                amount_inr?: number;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the finance permission */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/commission/payments/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Turn down a declared payment with a reason (finance permission, 2026-09-11). The consultancy is notified with the reason and declares again; a rejected payment never counts as paid or awaiting. 409 unless the payment is declared. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Rejected */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommissionPayment"];
+                    };
+                };
+                /** @description No reason given */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not a declared payment */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/commission/finance-dashboard": {
         parameters: {
             query?: never;
@@ -20961,8 +21254,71 @@ export interface components {
              */
             recognized_at: string;
         };
+        FinanceSummary: {
+            /** @description Every active case's platform due, less what has been confirmed. */
+            outstanding_inr: number;
+            awaiting: {
+                count: number;
+                amount_inr: number;
+            };
+            received_this_month_inr: number;
+            /** @description What consultancies have collected from students and colleges on active cases. */
+            collected_inr: number;
+            expected_inr: number;
+            cases: number;
+            consultancies_owing: number;
+            payment_followups: number;
+            /** @description Confirmed payments per calendar month, the last 12 months, oldest first. */
+            revenue_by_month: {
+                /** @example 2026-09 */
+                month: string;
+                amount_inr: number;
+            }[];
+        };
+        ConsultancyBalanceRow: {
+            consultancy_id: components["schemas"]["UUID"];
+            consultancy_name: string;
+            cases: number;
+            due_inr: number;
+            paid_inr: number;
+            awaiting_inr: number;
+            outstanding_inr: number;
+            oldest_unpaid_days?: number | null;
+        };
+        FinanceCaseRow: {
+            id: components["schemas"]["UUID"];
+            journey_id: components["schemas"]["UUID"];
+            consultancy_id: components["schemas"]["UUID"];
+            consultancy_name: string;
+            applicant_name: string;
+            destination_country?: string | null;
+            payer_method?: string | null;
+            case_type?: string | null;
+            college_name?: string | null;
+            rate_percent?: number | null;
+            rate_source?: string | null;
+            /** Format: date-time */
+            recognized_at: string;
+            expected_total_inr?: number;
+            received_total_inr?: number;
+            due_inr: number;
+            paid_inr: number;
+            awaiting_inr: number;
+            outstanding_inr: number;
+            /** @enum {string} */
+            payment_status: "unpaid" | "part_paid" | "paid";
+        };
         /** @description A platform payment declared against ONE commission entry's due (reworked 2026-08-28 — "consultant click on the due transaction and enter the amount"). Legacy pooled payments recorded before this change carry a null commission_entry_id and show as "General" rather than against any one case. No proof upload is required or accepted; the optional transaction_id is the consultant's own bank/UPI reference, for their own bookkeeping — confirmation by immiNow finance is what actually settles the due. */
         CommissionPayment: {
+            /** @description Who confirmed it (2026-09-11). */
+            readonly confirmed_by_name?: string | null;
+            /** Format: date-time */
+            readonly rejected_at?: string | null;
+            readonly rejected_by_name?: string | null;
+            /** @description Why Finance turned the declaration down; the consultancy is shown it. */
+            readonly reject_reason?: string | null;
+            /** @description What the linked case still owes the platform after confirmed payments. Null for legacy pooled payments. */
+            readonly entry_outstanding_inr?: number | null;
             id: components["schemas"]["UUID"];
             /**
              * Format: uuid
@@ -20986,7 +21342,7 @@ export interface components {
             /** @description Optional consultant-supplied bank/UPI reference. Not verified — no proof upload is required. */
             transaction_id?: string | null;
             /** @enum {string} */
-            status: "declared" | "confirmed";
+            status: "declared" | "confirmed" | "rejected";
             /** Format: date-time */
             recorded_at: string;
             /** Format: date-time */

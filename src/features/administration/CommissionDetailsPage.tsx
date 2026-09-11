@@ -78,8 +78,12 @@ function PaymentHistoryTab({ payments }: { payments: CommissionPayment[] }) {
       header: 'Status',
       align: 'right',
       render: (p) => (
-        <Badge color={p.status === 'confirmed' ? 'success' : 'secondary'}>
-          {p.status === 'confirmed' ? 'Confirmed' : 'Declared'}
+        <Badge
+          color={p.status === 'confirmed' ? 'success' : p.status === 'rejected' ? 'error' : 'secondary'}
+          // immiNow can turn a declaration down (2026-09-11); the reason is what they were told.
+          title={p.status === 'rejected' && p.reject_reason ? `Not confirmed: ${p.reject_reason}` : undefined}
+        >
+          {p.status === 'confirmed' ? 'Confirmed' : p.status === 'rejected' ? 'Not confirmed' : 'Declared'}
         </Badge>
       ),
     },
