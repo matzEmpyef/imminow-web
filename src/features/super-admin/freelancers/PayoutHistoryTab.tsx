@@ -5,7 +5,7 @@ import { StopPropagation } from '@/components/StopPropagation'
 import { Table, type TableColumn } from '@/components/Table'
 import { Toggle } from '@/components/Toggle'
 import { useCursorPagination } from '@/lib/pagination'
-import { formatDate } from '@/lib/time'
+import { formatDate, localDateISO } from '@/lib/time'
 import { fetchAllFreelancerPayouts, useFreelancerPayouts, type FreelancerPayout } from '@/queries/freelancerReferrals'
 import { FreelancerFilterSelect } from './FreelancerFilterSelect'
 import { VoidPayoutModal } from './VoidPayoutModal'
@@ -78,7 +78,7 @@ export function PayoutHistoryTab() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `freelancer-payouts-${new Date().toISOString().slice(0, 10)}.csv`
+      a.download = `freelancer-payouts-${localDateISO()}.csv`
       document.body.appendChild(a)
       a.click()
       a.remove()

@@ -5,7 +5,7 @@ import { CompactSelect } from '@/components/CompactSelect'
 import { StopPropagation } from '@/components/StopPropagation'
 import { Table, type TableColumn } from '@/components/Table'
 import { useCursorPagination } from '@/lib/pagination'
-import { formatDate } from '@/lib/time'
+import { formatDate, localDateISO } from '@/lib/time'
 import { money } from './money'
 import { fetchAllFinancePayments, useFinancePayments } from '@/queries/financeDashboard'
 import type { CommissionPayment } from '@/queries/commission'
@@ -93,7 +93,7 @@ export function HistoryTab() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `payment-history-${new Date().toISOString().slice(0, 10)}.csv`
+      a.download = `payment-history-${localDateISO()}.csv`
       document.body.appendChild(a)
       a.click()
       a.remove()

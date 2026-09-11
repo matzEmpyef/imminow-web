@@ -7,15 +7,11 @@ import { Badge } from '@/components/Badge'
 import { StopPropagation } from '@/components/StopPropagation'
 import { useActivityFeed, useCompleteActivityTask } from '@/queries/activity'
 import { Skeleton, ErrorState } from '@/components/QueryState'
-import { formatDate, formatDateTime, formatDayLabel } from '@/lib/time'
+import { formatDate, formatDateTime, formatDayLabel, localDateISO } from '@/lib/time'
 import { AssignTaskModal } from './AssignTaskModal'
 import type { components } from '@/api/schema'
 
 type ActivityTask = components['schemas']['ActivityTask']
-
-function todayIso() {
-  return new Date().toISOString().slice(0, 10)
-}
 
 function daysUntil(iso: string): number {
   return Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000)
@@ -71,7 +67,7 @@ export function ActivityPage() {
   }
 
   const data = feed.data
-  const today = todayIso()
+  const today = localDateISO()
 
   // "My tasks due/overdue" — open, due today or earlier (same window needs_action_today_count
   // itself counts server-side). Future open tasks show instead under Coming Up.

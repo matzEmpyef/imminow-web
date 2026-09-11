@@ -22,6 +22,14 @@ export function formatDate(input: string | Date): string {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`
 }
 
+// A calendar date as YYYY-MM-DD on the browser's own clock — what "today" means to the person
+// using the console. `toISOString().slice(0, 10)` is the UTC date instead, which in India reads
+// as yesterday from midnight until 05:30 (2026-09-12). Use this for date-input defaults and
+// minimums, "due today" comparisons and file names.
+export function localDateISO(date: Date = new Date()): string {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
 export function formatDateTime(input: string | Date): string {
   const d = typeof input === 'string' ? new Date(input) : input
   return `${formatDate(d)}, ${pad(d.getHours())}:${pad(d.getMinutes())}`

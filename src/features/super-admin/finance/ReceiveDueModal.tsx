@@ -6,10 +6,7 @@ import { TextField } from '@/components/TextField'
 import { TextAreaField } from '@/components/TextAreaField'
 import { currencyOptions } from './money'
 import { useReceiveCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10)
-}
+import { localDateISO } from '@/lib/time'
 
 /**
  * Finance records that money has actually arrived (2026-09-11) — a confirmed payment with no
@@ -37,7 +34,7 @@ export function ReceiveDueModal({
   const currencies = currencyOptions((caseRow.by_currency ?? []).map((c) => c.currency))
   const [amount, setAmount] = useState(part ? String(part.outstanding ?? part.amount ?? '') : '')
   const [currency, setCurrency] = useState(part?.currency ?? currencies[0] ?? 'INR')
-  const [receivedOn, setReceivedOn] = useState(today())
+  const [receivedOn, setReceivedOn] = useState(localDateISO())
   const [reference, setReference] = useState('')
   const [note, setNote] = useState('')
 

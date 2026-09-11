@@ -6,7 +6,7 @@ import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
 import { useSentpoUserDirectory } from '@/queries/adminUserDirectories'
 import { useCursorPagination } from '@/lib/pagination'
-import { formatDate, formatDateTime } from '@/lib/time'
+import { formatDate, formatDateTime, localDateISO } from '@/lib/time'
 import { SignInHistoryDrawer, type SignInHistoryPerson } from './SignInHistoryDrawer'
 
 type Row = NonNullable<ReturnType<typeof useSentpoUserDirectory>['data']>['items'][number]
@@ -31,7 +31,7 @@ const JOINED_OPTIONS = [
 ]
 
 function daysAgoIsoDate(days: number): string {
-  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  return localDateISO(new Date(Date.now() - days * 24 * 60 * 60 * 1000))
 }
 
 // Subtle warning, not red alarm (task spec) — the same soft-tinted Badge every other status pill

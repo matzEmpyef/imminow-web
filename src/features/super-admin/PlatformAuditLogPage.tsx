@@ -12,7 +12,7 @@ import {
   type PlatformAuditLogFilters,
 } from '@/queries/platformAuditLog'
 import { useCursorPagination } from '@/lib/pagination'
-import { formatDateTime } from '@/lib/time'
+import { formatDateTime, localDateISO } from '@/lib/time'
 
 const ACTION_COLORS = { create: 'success', update: 'info', delete: 'error' } as const
 
@@ -111,7 +111,7 @@ export function PlatformAuditLogPage() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `platform-audit-log-${new Date().toISOString().slice(0, 10)}.csv`
+      a.download = `platform-audit-log-${localDateISO()}.csv`
       document.body.appendChild(a)
       a.click()
       a.remove()

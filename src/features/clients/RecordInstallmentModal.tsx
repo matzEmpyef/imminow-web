@@ -7,6 +7,7 @@ import { useRecordInstallment } from '@/queries/commissionEntries'
 import { useCurrencyCodes } from '@/lib/currencies'
 import { formatMoneyAmount } from '@/lib/money'
 import type { components } from '@/api/schema'
+import { localDateISO } from '@/lib/time'
 
 type Receipt = components['schemas']['Receipt']
 type Entry = components['schemas']['CommissionEntryDetail']
@@ -41,7 +42,7 @@ export function RecordInstallmentModal({
   const [currency, setCurrency] = useState(defaultCurrency)
   // Every currency the rate table holds, not a fixed six (2026-09-10).
   const currencyCodes = useCurrencyCodes(currency)
-  const [receivedOn, setReceivedOn] = useState(new Date().toISOString().slice(0, 10))
+  const [receivedOn, setReceivedOn] = useState(localDateISO())
   const [note, setNote] = useState('')
   const [receiptId, setReceiptId] = useState('')
 

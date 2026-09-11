@@ -5,10 +5,7 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { TextField } from '@/components/TextField'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import type { FollowupOutcomeOption } from './labels'
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10)
-}
+import { localDateISO } from '@/lib/time'
 
 export interface LogCallInput {
   note: string
@@ -80,7 +77,7 @@ export function LogCallModal({ title, outcomeOptions, pending, errorMessage, onC
           <TextField
             label="Call back on"
             type="date"
-            min={today()}
+            min={localDateISO()}
             value={callBackOn}
             onChange={(e) => setCallBackOn(e.target.value)}
           />

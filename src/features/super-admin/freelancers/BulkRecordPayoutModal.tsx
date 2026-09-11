@@ -4,13 +4,10 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useRecordFreelancerPayout } from '@/queries/freelancerReferrals'
 import type { FreelancerReferral } from '@/queries/freelancerReferrals'
+import { localDateISO } from '@/lib/time'
 
 function inr(n: number | undefined | null): string {
   return `₹${(n ?? 0).toLocaleString('en-IN')}`
-}
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10)
 }
 
 interface Result {
@@ -34,7 +31,7 @@ export function BulkRecordPayoutModal({
   onDone: () => void
 }) {
   const recordPayout = useRecordFreelancerPayout()
-  const [paidOn, setPaidOn] = useState(today())
+  const [paidOn, setPaidOn] = useState(localDateISO())
   const [reference, setReference] = useState('')
   const [running, setRunning] = useState(false)
   const [result, setResult] = useState<Result | null>(null)

@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { AdminShell } from '@/features/auth/AdminShell'
-import { CheckCircle2, X } from 'lucide-react'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
@@ -22,6 +21,7 @@ import type { components } from '@/api/schema'
 import type { PlatformPermissionKey } from '@/features/auth/PlatformRoute'
 import { EMAIL_ERROR, isValidEmail } from '@/lib/validation'
 import { formatDateTime, relativeTime } from '@/lib/time'
+import { showToast } from '@/lib/toast'
 
 type PlatformStaff = components['schemas']['PlatformStaff']
 type StaffStatus = 'invited' | 'active' | 'disabled'
@@ -143,34 +143,6 @@ function lastSignInLabel(staff: PlatformStaff): string {
     return staff.invited_at ? `Invited ${formatDateTime(staff.invited_at)}` : 'Invited'
   }
   return staff.last_sign_in_at ? relativeTime(staff.last_sign_in_at) : 'Never'
-}
-
-// A minimal, self-contained success banner — this console has no shared toast primitive yet, and
-// one page's invite confirmation doesn't justify building platform-wide infrastructure for it.
-function SuccessToast({ message, onClose }: { message: string; onClose: () => void }) {
-  useEffect(() => {
-    const timer = setTimeout(onClose, 5000)
-    return () => clearTimeout(timer)
-  }, [onClose])
-
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="fixed bottom-lg right-lg z-50 flex items-center gap-sm rounded-lg border border-border bg-surface px-md py-sm shadow-card"
-    >
-      <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
-      <span className="text-body-sm text-text-primary">{message}</span>
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Dismiss"
-        className="flex h-6 w-6 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
-      >
-        <X className="h-3.5 w-3.5" />
-      </button>
-    </div>
-  )
 }
 
 // Grouped checkboxes shared by the invite modal (choosing a starting set) and the drawer (editing
@@ -562,7 +534,6 @@ export function PlatformTeamPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StaffStatus | 'all'>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
 
   const searched = useMemo(() => {
     let items = staff.data ?? []
@@ -648,7 +619,7 @@ export function PlatformTeamPage() {
         {showAdd && (
           <InviteStaffModal
             onClose={() => setShowAdd(false)}
-            onInvited={(email) => setToast(`Invite sent to ${email}`)}
+            onInvited={(email) => showToast(`Invite sent to ${email}`)}
           />
         )}
 
@@ -681,7 +652,6 @@ export function PlatformTeamPage() {
           {selected && <StaffDrawerBody key={selected.id} staff={selected} currentUserId={currentUserId} />}
         </Drawer>
 
-        {toast && <SuccessToast message={toast} onClose={() => setToast(null)} />}
       </div>
     </AdminShell>
   )

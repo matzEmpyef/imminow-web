@@ -29,7 +29,7 @@ import {
   type ConsultancyFilters,
 } from '@/queries/adminConsultancies'
 import { useCursorPagination } from '@/lib/pagination'
-import { formatDate } from '@/lib/time'
+import { formatDate, localDateISO } from '@/lib/time'
 import { formatMoney } from '@/lib/money'
 import { useCurrencyCodes } from '@/lib/currencies'
 import { useConsultancyKyc, useVerifyKyc } from '@/queries/kyc'
@@ -365,7 +365,10 @@ const SUBSCRIPTION_BADGE: Record<string, { color: 'success' | 'warning' | 'error
 
 /** One billing cycle on from the later of today and the current end date. */
 function suggestedEnd(from: string | null | undefined, cycle: 'monthly' | 'annual'): string {
-  const base = new Date(Math.max(Date.now(), from ? Date.parse(`${from}T00:00:00Z`) : 0))
+  // Counted from the admin's own calendar date. The arithmetic runs on that date's UTC midnight,
+  // so toISOString() below hands back the same calendar date — the one deliberate UTC use here.
+  const today = localDateISO()
+  const base = new Date(`${from && from > today ? from : today}T00:00:00Z`)
   if (cycle === 'monthly') base.setUTCMonth(base.getUTCMonth() + 1)
   else base.setUTCFullYear(base.getUTCFullYear() + 1)
   return base.toISOString().slice(0, 10)
@@ -381,7 +384,7 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
   const currencyCodes = useCurrencyCodes(currency)
   const inPast = Boolean(expires) && Date.parse(`${expires}T00:00:00Z`) <= Date.now()
   // The new term starts where the old one ended, or today if it had already run out.
-  const today = new Date().toISOString().slice(0, 10)
+  const today = localDateISO()
   const startsOn =
     consultancy.subscription_expires_at && consultancy.subscription_expires_at > today ? consultancy.subscription_expires_at : today
 

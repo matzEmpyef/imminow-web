@@ -3,14 +3,7 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useSetLeadReminder } from '@/queries/leads'
-
-// Today in the browser's local calendar date, YYYY-MM-DD — same "today" shape the mock server's
-// own /activity-feed handler already uses, needed here as the date input's `min` so a reminder
-// can't be backdated.
-function todayIso() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+import { localDateISO } from '@/lib/time'
 
 // Ultimate-only, gated the same way as Activity itself — LeadConversationPage decides whether to
 // render the trigger button, this modal assumes it's already allowed to be open. Always
@@ -21,7 +14,8 @@ export function SetReminderModal({ leadId, onClose }: { leadId: string; onClose:
   const [note, setNote] = useState('')
   const [date, setDate] = useState('')
   const [time, setTime] = useState('09:00')
-  const minDate = todayIso()
+  // The date input's minimum, so a reminder can't be backdated.
+  const minDate = localDateISO()
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
