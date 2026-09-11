@@ -494,7 +494,7 @@ export function PlatformPulsePage() {
           </Card>
         </div>
 
-        <h2 className="text-h3 text-text-primary">Sign-ins</h2>
+        {/* No group heading here: the card is already titled Sign-ins. */}
         <SignInsCard signIns={data.sign_ins} sparse={sparse} />
       </div>
     </AdminShell>
