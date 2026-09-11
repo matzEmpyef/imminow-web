@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
@@ -37,6 +37,8 @@ export const FINANCE_QUERY_KEY = 'finance'
 export type FinanceSummary = components['schemas']['FinanceSummary']
 export type ConsultancyBalanceRow = components['schemas']['ConsultancyBalanceRow']
 export type FinanceCaseRow = components['schemas']['FinanceCaseRow']
+export type CommissionDuePart = components['schemas']['CommissionDuePart']
+export type CommissionDueChange = components['schemas']['CommissionDueChange']
 
 export function useFinanceSummary() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
@@ -93,6 +95,8 @@ export interface FinanceCasesFilters {
   payment_status?: 'unpaid' | 'part_paid' | 'paid'
   /** configured | fallback_default — Commission Rates' "Cases priced at the default" tile links here with fallback_default (2026-09-11). */
   rate_source?: 'configured' | 'fallback_default'
+  /** A dated due part is past its date and unpaid (2026-09-11) — Cases' "Overdue" quick filter and the Overview tile both land here. */
+  overdue?: boolean
   from?: string
   to?: string
   sort?: string
@@ -107,6 +111,7 @@ function financeCasesFilter(filters: FinanceCasesFilters): Record<string, string
   if (filters.payer_method) filter.payer_method = filters.payer_method
   if (filters.payment_status) filter.payment_status = filters.payment_status
   if (filters.rate_source) filter.rate_source = filters.rate_source
+  if (filters.overdue) filter.overdue = 'true'
   if (filters.from) filter.from = filters.from
   if (filters.to) filter.to = filters.to
   return filter
@@ -208,4 +213,87 @@ export async function fetchAllFinancePayments(
     cursor = data.meta.next_cursor
   }
   return items
+}
+
+// Every case-due mutation (add/correct/void, 2026-09-11) invalidates the same three prefixes: the
+// finance views (cases/summary/balances all read from FinanceCaseRow figures), the consultancy's
+// own `/commission` read (due_schedule/overdue_inr are mirrored there), and the case follow-ups
+// queue (a payment_overdue signal can appear or clear as a result).
+function invalidateFinanceCaseViews(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: [FINANCE_QUERY_KEY] })
+  queryClient.invalidateQueries({ queryKey: ['commission'] })
+  queryClient.invalidateQueries({ queryKey: ['case-followups'] })
+}
+
+// Adds an amount a case owes immiNow — a second instalment, an agreed extra (finance permission,
+// 2026-09-11). Returns the updated FinanceCaseRow so FinanceCaseDrawer can refresh itself directly
+// rather than waiting on a refetch.
+export function useAddCommissionDue() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      entryId,
+      amount_inr,
+      due_on,
+      reason,
+    }: {
+      entryId: string
+      amount_inr: number
+      due_on?: string | null
+      reason: string
+    }) => {
+      const { data, error } = await api.POST('/commission-entries/{id}/dues', {
+        params: { path: { id: entryId } },
+        body: { amount_inr, due_on, reason },
+      })
+      if (error) throw new ApiError('Could not add this due amount.', error)
+      return data
+    },
+    onSuccess: () => invalidateFinanceCaseViews(queryClient),
+  })
+}
+
+// Corrects the original (rate-calculated) amount and/or gives it a due date (finance permission,
+// 2026-09-11). The calculated figure stays on record as calculated_due_inr regardless.
+export function useCorrectOriginalDue() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      entryId,
+      amount_inr,
+      due_on,
+      reason,
+    }: {
+      entryId: string
+      amount_inr?: number
+      due_on?: string | null
+      reason: string
+    }) => {
+      const { data, error } = await api.PATCH('/commission-entries/{id}/original-due', {
+        params: { path: { id: entryId } },
+        body: { amount_inr, due_on, reason },
+      })
+      if (error) throw new ApiError('Could not correct the original amount.', error)
+      return data
+    },
+    onSuccess: () => invalidateFinanceCaseViews(queryClient),
+  })
+}
+
+// Removes an amount added by mistake (finance permission) — only ever an `added` part; the
+// original amount is corrected via useCorrectOriginalDue instead. Stays in due_changes, marked
+// removed, not deleted.
+export function useVoidCommissionDue() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ entryId, changeId, reason }: { entryId: string; changeId: string; reason: string }) => {
+      const { data, error } = await api.POST('/commission-entries/{id}/dues/{changeId}/void', {
+        params: { path: { id: entryId, changeId } },
+        body: { reason },
+      })
+      if (error) throw new ApiError('Could not remove this due amount.', error)
+      return data
+    },
+    onSuccess: () => invalidateFinanceCaseViews(queryClient),
+  })
 }

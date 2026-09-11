@@ -14,20 +14,24 @@ export function FinanceSummaryTiles({
   summary,
   loading,
   onAwaitingClick,
+  onOverdueClick,
 }: {
   summary?: FinanceSummary
   loading?: boolean
   onAwaitingClick: () => void
+  onOverdueClick: () => void
 }) {
   if (loading || !summary) {
     return (
       <div className="flex flex-wrap gap-sm">
-        {Array.from({ length: 4 }).map((_, i) => (
+        {Array.from({ length: 5 }).map((_, i) => (
           <Skeleton key={i} className="h-20 flex-1 basis-56 rounded-md" />
         ))}
       </div>
     )
   }
+
+  const overdue = summary.overdue_inr ?? 0
 
   const collectedPercent =
     summary.expected_inr > 0 ? Math.min(100, Math.round((summary.collected_inr / summary.expected_inr) * 100)) : 0
@@ -48,6 +52,18 @@ export function FinanceSummaryTiles({
         <span className="text-caption text-text-secondary">Awaiting confirmation</span>
         <span className="text-h3 tabular-nums text-text-primary">{summary.awaiting.count}</span>
         <span className="text-caption text-text-secondary">{inr(summary.awaiting.amount_inr)}</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={onOverdueClick}
+        className={`flex flex-1 basis-56 flex-col gap-xs rounded-md border px-md py-sm text-left transition-colors ${
+          overdue > 0 ? 'border-warning bg-warning/10 hover:opacity-90' : 'border-border bg-surface hover:border-text-secondary'
+        }`}
+      >
+        <span className="text-caption text-text-secondary">Overdue</span>
+        <span className={`text-h3 tabular-nums ${overdue > 0 ? 'text-warning' : 'text-text-primary'}`}>{inr(overdue)}</span>
+        <span className="text-caption text-text-secondary">unpaid, past its due date</span>
       </button>
 
       <div className="flex flex-1 basis-56 flex-col gap-xs rounded-md border border-border bg-surface px-md py-sm">

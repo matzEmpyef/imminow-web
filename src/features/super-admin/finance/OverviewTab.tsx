@@ -19,7 +19,13 @@ function inr(n: number | undefined): string {
  * not hold up at hundreds of cases). Row click opens a drawer with that consultancy's own cases and
  * recent payments rather than a second page navigation.
  */
-export function OverviewTab({ onGoToAwaiting }: { onGoToAwaiting: () => void }) {
+export function OverviewTab({
+  onGoToAwaiting,
+  onGoToOverdueCases,
+}: {
+  onGoToAwaiting: () => void
+  onGoToOverdueCases: () => void
+}) {
   const summary = useFinanceSummary()
   const [search, setSearch] = useState('')
   const [owingOnly, setOwingOnly] = useState(false)
@@ -71,7 +77,12 @@ export function OverviewTab({ onGoToAwaiting }: { onGoToAwaiting: () => void }) 
 
   return (
     <div className="flex flex-col gap-lg">
-      <FinanceSummaryTiles summary={summary.data} loading={summary.isLoading} onAwaitingClick={onGoToAwaiting} />
+      <FinanceSummaryTiles
+        summary={summary.data}
+        loading={summary.isLoading}
+        onAwaitingClick={onGoToAwaiting}
+        onOverdueClick={onGoToOverdueCases}
+      />
 
       <FinanceRevenueChart months={summary.data?.revenue_by_month} loading={summary.isLoading} />
 

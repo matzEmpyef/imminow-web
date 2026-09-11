@@ -5,14 +5,13 @@ import { StopPropagation } from '@/components/StopPropagation'
 import { Table, type TableColumn } from '@/components/Table'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate, relativeTime } from '@/lib/time'
-import { formatMoneyAmount } from '@/lib/money'
+import { money } from './money'
 import { useFinancePayments } from '@/queries/financeDashboard'
 import type { CommissionPayment } from '@/queries/commission'
 import { ConfirmPaymentModal } from './ConfirmPaymentModal'
 import { RejectPaymentModal } from './RejectPaymentModal'
 import { BulkConfirmModal } from './BulkConfirmModal'
 
-const money = formatMoneyAmount
 
 function inr(n: number | null | undefined): string {
   return n == null ? '—' : `₹${n.toLocaleString('en-IN')}`

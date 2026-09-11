@@ -11,6 +11,7 @@ import { ErrorState, Skeleton } from '@/components/QueryState'
 import { formatDate } from '@/lib/time'
 import { formatApprox, formatMoney, formatMoneyAmount } from '@/lib/money'
 import { RecordPlatformPaymentModal } from './RecordPlatformPaymentModal'
+import { DueScheduleDrawer } from './commission/DueScheduleDrawer'
 import type { components } from '@/api/schema'
 
 type CommissionDue = components['schemas']['CommissionDue']
@@ -18,6 +19,12 @@ type CommissionPayment = components['schemas']['CommissionPayment']
 type Money = components['schemas']['Money']
 
 const inr = formatMoneyAmount
+
+// overdue_inr/next_due_on are plain INR numbers on CommissionDue, not Money — formatMoneyAmount
+// doesn't apply to them (2026-09-11).
+function inrNum(n: number | null | undefined): string {
+  return n == null ? '—' : `₹${n.toLocaleString('en-IN')}`
+}
 
 // Held in INR — mixed-currency agreements are summed through it, and immiNow collects its cut in
 // it — with the consultancy's own currency beneath when that differs (2026-09-10, user: "show the
@@ -45,9 +52,29 @@ function PaymentHistoryTab({ payments }: { payments: CommissionPayment[] }) {
     {
       key: 'amount',
       header: 'Amount',
-      render: (p) => (
-        <span className="font-medium text-text-primary">{formatMoneyAmount(p.amount)}</span>
-      ),
+      render: (p) => {
+        const corrections = p.corrections ?? []
+        const correctionsTitle = corrections
+          .map((c) => `${inrNum(c.from_amount)} → ${inrNum(c.to_amount)}: ${c.reason ?? ''}`)
+          .join('\n')
+        return (
+          <div className="flex flex-col">
+            <span className="flex items-center gap-xs font-medium text-text-primary">
+              {formatMoneyAmount(p.amount)}
+              {corrections.length > 0 && (
+                <span title={correctionsTitle}>
+                  <Badge color="info">Corrected</Badge>
+                </span>
+              )}
+            </span>
+            {/* declared_amount is only ever set when it differs from what arrived (2026-09-11). */}
+            {p.declared_amount && (
+              <span className="text-caption text-text-secondary">Declared {formatMoneyAmount(p.declared_amount)}</span>
+            )}
+            {p.received_note && <span className="text-caption text-text-secondary">{p.received_note}</span>}
+          </div>
+        )
+      },
     },
     {
       key: 'case',
@@ -106,6 +133,7 @@ export function CommissionDetailsPage() {
   const commission = useCommission()
   const [activeTab, setActiveTab] = useState<Tab>('Active Cases')
   const [payingDue, setPayingDue] = useState<CommissionDue | null>(null)
+  const [viewingSchedule, setViewingSchedule] = useState<CommissionDue | null>(null)
 
   if (permsLoading) {
     return (
@@ -239,6 +267,29 @@ export function CommissionDetailsPage() {
       },
     },
     {
+      key: 'schedule',
+      header: 'Due schedule',
+      align: 'right',
+      render: (due) => {
+        const overdue = due.overdue_inr ?? 0
+        return (
+          <StopPropagation>
+            <div className="flex flex-col items-end gap-2xs">
+              {overdue > 0 && <Badge color="warning">Overdue {inrNum(overdue)}</Badge>}
+              {due.next_due_on && <span className="text-caption text-text-secondary">Next due {formatDate(due.next_due_on)}</span>}
+              <button
+                type="button"
+                onClick={() => setViewingSchedule(due)}
+                className="text-caption text-primary hover:underline"
+              >
+                View schedule
+              </button>
+            </div>
+          </StopPropagation>
+        )
+      },
+    },
+    {
       key: 'recognized',
       header: 'Accepted',
       align: 'right',
@@ -260,6 +311,7 @@ export function CommissionDetailsPage() {
         </div>
 
         {payingDue && <RecordPlatformPaymentModal due={payingDue} onClose={() => setPayingDue(null)} />}
+        <DueScheduleDrawer due={viewingSchedule} onClose={() => setViewingSchedule(null)} />
 
         <div className="flex gap-xs overflow-x-auto border-b border-border">
           {TABS.map((tab) => (

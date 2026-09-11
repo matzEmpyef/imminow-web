@@ -2,10 +2,9 @@ import { useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextAreaField } from '@/components/TextAreaField'
-import { formatMoneyAmount } from '@/lib/money'
+import { money } from './money'
 import { useRejectCommissionPayment, type CommissionPayment } from '@/queries/commission'
 
-const money = formatMoneyAmount
 const MIN_REASON_LENGTH = 3
 
 /** Turns a declared payment down with a reason the consultancy is shown (2026-09-11 rebuild). */

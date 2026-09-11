@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
-import { formatMoneyAmount } from '@/lib/money'
+import { money } from './money'
 import { useConfirmCommissionPayment, type CommissionPayment } from '@/queries/commission'
 
-const money = formatMoneyAmount
 
 interface Result {
   succeeded: number
@@ -37,7 +36,7 @@ export function BulkConfirmModal({
     let failed = 0
     for (const payment of payments) {
       try {
-        await confirm.mutateAsync(payment.id)
+        await confirm.mutateAsync({ paymentId: payment.id })
         succeeded++
       } catch {
         failed++

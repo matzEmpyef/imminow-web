@@ -35,6 +35,7 @@ export const CASE_SIGNAL_LABELS: Record<string, string> = {
   closed_without_acceptance: 'Closed with no accepted college',
   accepted_not_closed: 'Accepted, still open',
   failed_despite_acceptance: 'Closed as a failure despite an acceptance',
+  payment_overdue: 'Payment overdue',
 }
 
 export const SERVICE_SIGNAL_LABELS: Record<string, string> = {

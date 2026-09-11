@@ -3,12 +3,15 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { Badge } from '@/components/Badge'
 import { CompactSelect } from '@/components/CompactSelect'
+import { FilterChip } from '@/components/FilterChip'
+import { StopPropagation } from '@/components/StopPropagation'
 import { Table, type TableColumn } from '@/components/Table'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
 import { useCountries } from '@/queries/countries'
 import { useFinanceCases, type FinanceCaseRow, type FinanceCasesFilters } from '@/queries/financeDashboard'
 import { ConsultancySearchSelect } from './ConsultancySearchSelect'
+import { FinanceCaseDrawer } from './FinanceCaseDrawer'
 
 function inr(n: number | undefined): string {
   return `₹${(n ?? 0).toLocaleString('en-IN')}`
@@ -38,8 +41,12 @@ export function CasesTab() {
   )
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
+  // ?overdue=true (Overview's Overdue tile, 2026-09-11) pre-filters the same way ?rate=default
+  // does — read once into local state, then this tab owns the filter like any other.
+  const [overdueOnly, setOverdueOnly] = useState(searchParams.get('overdue') === 'true')
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const paging = useCursorPagination()
+  const [viewingRow, setViewingRow] = useState<FinanceCaseRow | null>(null)
 
   function resetPaging() {
     paging.reset()
@@ -62,6 +69,7 @@ export function CasesTab() {
     payer_method: payerMethod || undefined,
     payment_status: paymentStatus || undefined,
     rate_source: rateSource || undefined,
+    overdue: overdueOnly || undefined,
     from: from || undefined,
     to: to || undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : 'recognized_at',
@@ -76,9 +84,11 @@ export function CasesTab() {
       sortable: true,
       render: (r) =>
         r.journey_id ? (
-          <Link to={`/admin/case-followups/${r.journey_id}`} className="font-medium text-primary hover:underline">
-            {r.applicant_name}
-          </Link>
+          <StopPropagation className="inline-block">
+            <Link to={`/admin/case-followups/${r.journey_id}`} className="font-medium text-primary hover:underline">
+              {r.applicant_name}
+            </Link>
+          </StopPropagation>
         ) : (
           <span className="font-medium text-text-primary">{r.applicant_name}</span>
         ),
@@ -113,6 +123,29 @@ export function CasesTab() {
       render: (r) => <Badge color={STATUS_COLOR[r.payment_status]}>{STATUS_LABEL[r.payment_status]}</Badge>,
     },
     {
+      key: 'overdue_inr',
+      header: 'Overdue',
+      sortable: true,
+      align: 'right',
+      hideBelow: 'sm',
+      render: (r) => {
+        const overdue = r.overdue_inr ?? 0
+        return (
+          <span className={`tabular-nums ${overdue > 0 ? 'font-medium text-warning' : 'text-text-secondary'}`}>
+            {overdue > 0 ? inr(overdue) : '—'}
+          </span>
+        )
+      },
+    },
+    {
+      key: 'next_due_on',
+      header: 'Next due',
+      sortable: true,
+      align: 'right',
+      hideBelow: 'md',
+      render: (r) => <span className="text-text-secondary">{r.next_due_on ? formatDate(r.next_due_on) : '—'}</span>,
+    },
+    {
       key: 'recognized_at',
       header: 'Accepted',
       sortable: true,
@@ -122,7 +155,9 @@ export function CasesTab() {
   ]
 
   const totals = cases.data?.totals
-  const anyFilter = Boolean(search || consultancyId || country || payerMethod || paymentStatus || rateSource || from || to)
+  const anyFilter = Boolean(
+    search || consultancyId || country || payerMethod || paymentStatus || rateSource || overdueOnly || from || to,
+  )
 
   return (
     <div className="flex flex-col gap-md">
@@ -138,7 +173,8 @@ export function CasesTab() {
       )}
       {totals && (
         <p className="text-body-sm text-text-secondary">
-          Due {inr(totals.due_inr)} · Paid {inr(totals.paid_inr)} · Outstanding {inr(totals.outstanding_inr)} for these filters
+          Due {inr(totals.due_inr)} · Paid {inr(totals.paid_inr)} · Outstanding {inr(totals.outstanding_inr)} · Overdue{' '}
+          {inr(totals.overdue_inr)} for these filters
         </p>
       )}
       <Table
@@ -148,6 +184,7 @@ export function CasesTab() {
         loading={cases.isLoading}
         error={cases.isError ? 'Could not load commission cases.' : undefined}
         emptyMessage={anyFilter ? 'No cases match these filters.' : 'No active commission cases yet.'}
+        onRowClick={(r) => setViewingRow(r)}
         sort={sort}
         onSortChange={(field, direction) => {
           setSort({ field, direction })
@@ -233,6 +270,16 @@ export function CasesTab() {
             />
           </>
         }
+        quickFilters={
+          <FilterChip
+            label="Overdue"
+            active={overdueOnly}
+            onChange={(v) => {
+              setOverdueOnly(v)
+              resetPaging()
+            }}
+          />
+        }
         pagination={{
           hasNext: Boolean(cases.data?.meta.next_cursor),
           hasPrevious: paging.hasPrevious,
@@ -241,6 +288,8 @@ export function CasesTab() {
           total: cases.data?.meta.total,
         }}
       />
+
+      <FinanceCaseDrawer caseRow={viewingRow} onClose={() => setViewingRow(null)} />
     </div>
   )
 }

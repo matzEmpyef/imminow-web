@@ -1,0 +1,115 @@
+import { useState } from 'react'
+import { Modal } from '@/components/Modal'
+import { Button } from '@/components/Button'
+import { TextField } from '@/components/TextField'
+import { TextAreaField } from '@/components/TextAreaField'
+import { formatDateTime } from '@/lib/time'
+import { money } from './money'
+import { useCorrectCommissionPayment, type CommissionPayment } from '@/queries/commission'
+
+const MIN_REASON_LENGTH = 3
+
+function inr(n: number | null | undefined): string {
+  return n == null ? '—' : `₹${n.toLocaleString('en-IN')}`
+}
+
+/**
+ * Corrects the amount received on an already-confirmed payment (2026-09-11) — money that bounced,
+ * a bank reversal, a figure caught wrong after the fact. The old figure moves onto the payment's
+ * `corrections` with who and why; the consultancy is shown the reason. Entering ₹0 records that
+ * nothing actually arrived — Confirm itself now requires a positive amount, so this is the only
+ * way a confirmed payment ends up recording zero.
+ */
+export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionPayment; onClose: () => void }) {
+  const correct = useCorrectCommissionPayment()
+  const currentAmount = payment.amount.amount ?? 0
+  const [amount, setAmount] = useState(String(currentAmount))
+  const [reason, setReason] = useState('')
+
+  const parsed = Number(amount)
+  const isValidNumber = amount.trim() !== '' && Number.isFinite(parsed)
+  const trimmedReason = reason.trim()
+  const invalid = !isValidNumber || parsed < 0 || parsed === currentAmount || trimmedReason.length < MIN_REASON_LENGTH
+  const corrections = payment.corrections ?? []
+
+  return (
+    <Modal
+      onClose={onClose}
+      title="Correct amount received"
+      widthRem={30}
+      footer={
+        <>
+          {correct.isError && <p className="mr-auto self-center text-body-sm text-error">{correct.error.message}</p>}
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            loading={correct.isPending}
+            disabled={invalid}
+            onClick={() =>
+              correct.mutate({ paymentId: payment.id, amount: parsed, reason: trimmedReason }, { onSuccess: onClose })
+            }
+          >
+            Save correction
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-md">
+        <div className="rounded-md border border-border bg-background p-md">
+          <div className="flex items-center justify-between">
+            <span className="text-caption text-text-secondary">Currently received</span>
+            <span className="text-body font-medium text-text-primary">{money(payment.amount)}</span>
+          </div>
+          {payment.declared_amount && (
+            <div className="flex items-center justify-between">
+              <span className="text-caption text-text-secondary">Declared amount</span>
+              <span className="text-body-sm text-text-primary">{money(payment.declared_amount)}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <span className="text-caption text-text-secondary">Consultancy</span>
+            <span className="text-body-sm text-text-primary">{payment.consultancy_name ?? 'Unknown'}</span>
+          </div>
+        </div>
+
+        <TextField
+          label="New amount received (₹)"
+          type="number"
+          min={0}
+          required
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+        <TextAreaField
+          label="Reason"
+          required
+          rows={3}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          hint="The consultancy is shown this reason."
+        />
+        <p className="text-caption text-text-secondary">Entering ₹0 records that the money bounced.</p>
+
+        {corrections.length > 0 && (
+          <div>
+            <h3 className="text-body-sm font-medium text-text-primary">Previous corrections</h3>
+            <div className="mt-xs flex flex-col gap-xs">
+              {corrections.map((c) => (
+                <div key={c.id} className="rounded-md border border-border px-sm py-xs">
+                  <p className="text-body-sm text-text-primary">
+                    {inr(c.from_amount)} &rarr; {inr(c.to_amount)}
+                  </p>
+                  <p className="text-caption text-text-secondary">{c.reason}</p>
+                  <p className="text-caption text-text-secondary">
+                    {c.corrected_by_name ?? 'Unknown'} · {c.corrected_at ? formatDateTime(c.corrected_at) : ''}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
+  )
+}

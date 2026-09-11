@@ -57,6 +57,8 @@ const LABELS: Record<string, string> = {
   job_alert: 'New job matching a job alert',
   support_nudge: 'Message from the support team (Student follow-ups)',
   payment_rejected: 'Payment to immiNow not confirmed (to the consultancy, with the reason)',
+  payment_amount_changed: 'Payment to immiNow received or corrected at a different amount (to the consultancy)',
+  commission_due_changed: 'What a case owes immiNow changed — amount added, removed or corrected (to the consultancy)',
   freelancer_payout_recorded: 'Payout recorded (to the freelancer)',
   subscription_expiring: 'Consultancy subscription ends soon (30, 7 and 1 day before)',
   subscription_expired: 'Consultancy subscription expired — grace period started',

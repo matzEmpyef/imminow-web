@@ -41,6 +41,15 @@ export function FinanceDashboardPage() {
     setSearchParams(next)
   }
 
+  // Overview's Overdue tile (2026-09-11) — lands on Cases pre-filtered to Overdue, the same
+  // one-way "read the URL once on mount" trick CasesTab already uses for ?rate=default.
+  function goToOverdueCases() {
+    const next = new URLSearchParams(searchParams)
+    next.set('tab', 'cases')
+    next.set('overdue', 'true')
+    setSearchParams(next)
+  }
+
   return (
     <AdminShell>
       <div className="flex flex-col gap-lg">
@@ -69,7 +78,9 @@ export function FinanceDashboardPage() {
           ))}
         </div>
 
-        {activeTab === 'overview' && <OverviewTab onGoToAwaiting={() => setTab('awaiting')} />}
+        {activeTab === 'overview' && (
+          <OverviewTab onGoToAwaiting={() => setTab('awaiting')} onGoToOverdueCases={goToOverdueCases} />
+        )}
         {activeTab === 'cases' && <CasesTab />}
         {activeTab === 'awaiting' && <AwaitingTab />}
         {activeTab === 'history' && <HistoryTab />}

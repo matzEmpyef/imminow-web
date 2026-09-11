@@ -2,15 +2,16 @@ import { useState } from 'react'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { CompactSelect } from '@/components/CompactSelect'
+import { StopPropagation } from '@/components/StopPropagation'
 import { Table, type TableColumn } from '@/components/Table'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
-import { formatMoneyAmount } from '@/lib/money'
+import { money } from './money'
 import { fetchAllFinancePayments, useFinancePayments } from '@/queries/financeDashboard'
 import type { CommissionPayment } from '@/queries/commission'
 import { ConsultancySearchSelect } from './ConsultancySearchSelect'
+import { CorrectPaymentModal } from './CorrectPaymentModal'
 
-const money = formatMoneyAmount
 
 type StatusFilter = '' | 'confirmed' | 'rejected'
 
@@ -61,6 +62,7 @@ export function HistoryTab() {
   const paging = useCursorPagination()
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
+  const [correcting, setCorrecting] = useState<CommissionPayment | null>(null)
 
   function resetPaging() {
     paging.reset()
@@ -102,8 +104,19 @@ export function HistoryTab() {
     {
       key: 'amount',
       header: 'Amount',
-      // One line (2026-09-11) — "INR 2,500" was breaking across two in a narrow column.
-      render: (p) => <span className="whitespace-nowrap font-medium tabular-nums text-text-primary">{money(p.amount)}</span>,
+      render: (p) => (
+        <div className="flex flex-col">
+          <span className="flex items-center gap-xs whitespace-nowrap font-medium tabular-nums text-text-primary">
+            {money(p.amount)}
+            {(p.corrections?.length ?? 0) > 0 && <Badge color="info">Corrected</Badge>}
+          </span>
+          {/* declared_amount is only ever set when it differs from what arrived (2026-09-11) — see
+              CommissionPayment's doc comment. */}
+          {p.declared_amount && (
+            <span className="whitespace-nowrap text-caption text-text-secondary">Declared {money(p.declared_amount)}</span>
+          )}
+        </div>
+      ),
     },
     { key: 'consultancy', header: 'Consultancy', render: (p) => p.consultancy_name ?? 'Unknown' },
     { key: 'case', header: 'Case', render: (p) => p.applicant_name ?? 'General' },
@@ -134,6 +147,19 @@ export function HistoryTab() {
       header: 'By',
       hideBelow: 'lg',
       render: (p) => (p.status === 'confirmed' ? p.confirmed_by_name : p.rejected_by_name) ?? '—',
+    },
+    {
+      key: 'actions',
+      header: '',
+      align: 'right',
+      render: (p) =>
+        p.status === 'confirmed' ? (
+          <StopPropagation>
+            <Button size="sm" variant="secondary" onClick={() => setCorrecting(p)}>
+              Correct amount
+            </Button>
+          </StopPropagation>
+        ) : null,
     },
   ]
 
@@ -223,6 +249,8 @@ export function HistoryTab() {
           total: payments.data?.meta.total,
         }}
       />
+
+      {correcting && <CorrectPaymentModal payment={correcting} onClose={() => setCorrecting(null)} />}
     </div>
   )
 }

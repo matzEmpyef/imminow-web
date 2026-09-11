@@ -48,14 +48,53 @@ export function useRecordCommissionPayment() {
 // Super Admin marks a declared payment as actually received (finance permission) — the
 // declared → confirmed transition. Confirmed payments feed the consultancy's running total and
 // the admin dashboard's revenue chart, hence the wide invalidation.
+//
+// `receivedAmount`/`note` (2026-09-11): what actually arrived can now differ from what the
+// consultancy declared — omit both to confirm the declared amount as-is (BulkConfirmModal's
+// path), or pass a different receivedAmount with a note when Finance received something else.
 export function useConfirmCommissionPayment() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (paymentId: string) => {
+    mutationFn: async ({
+      paymentId,
+      receivedAmount,
+      note,
+    }: {
+      paymentId: string
+      receivedAmount?: number
+      note?: string
+    }) => {
+      const hasBody = receivedAmount != null || Boolean(note)
       const { data, error } = await api.PATCH('/commission/payments/{id}/confirm', {
         params: { path: { id: paymentId } },
+        ...(hasBody ? { body: { received_amount: receivedAmount, note } } : {}),
       })
       if (error) throw new ApiError('Could not confirm this payment.', error)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commission'] })
+      queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] })
+      queryClient.invalidateQueries({ queryKey: [FINANCE_QUERY_KEY] })
+      queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] })
+    },
+  })
+}
+
+// Corrects the amount received on an already-confirmed payment (finance permission, 2026-09-11) —
+// money that bounced, a bank reversal, a figure caught wrong after the fact. The old figure moves
+// onto the payment's `corrections`; zero records that nothing actually arrived. The consultancy is
+// notified. Same wide invalidation as confirm/reject — a corrected amount changes every total that
+// counts confirmed payments.
+export function useCorrectCommissionPayment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ paymentId, amount, reason }: { paymentId: string; amount: number; reason: string }) => {
+      const { data, error } = await api.POST('/commission/payments/{id}/correct', {
+        params: { path: { id: paymentId } },
+        body: { amount, reason },
+      })
+      if (error) throw new ApiError('Could not correct this payment.', error)
       return data
     },
     onSuccess: () => {

@@ -15723,7 +15723,15 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @description What actually arrived (2026-09-11). Defaults to the declared amount. A different figure needs `note`; the consultancy is told. If nothing arrived, reject instead. */
+                        received_amount?: number;
+                        note?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Confirmed */
                 200: {
@@ -15737,6 +15745,226 @@ export interface paths {
                 409: components["responses"]["ErrorResponse"];
             };
         };
+        trace?: never;
+    };
+    "/commission/payments/{id}/correct": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Correct the amount received on a confirmed payment (finance permission, 2026-09-11). The old figure stays on the payment's corrections with who and why; zero records money that bounced. The consultancy is notified. 409 unless confirmed. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        amount: number;
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Corrected */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommissionPayment"];
+                    };
+                };
+                /** @description Not a confirmed payment */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/commission-entries/{id}/dues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add an amount a case owes immiNow (finance permission, 2026-09-11) — a second instalment, an agreed extra — with an optional due date and a required reason. Audited; the consultancy is notified. Returns the case row. 409 once the entry is voided or reversed. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        amount_inr: number;
+                        /** Format: date */
+                        due_on?: string | null;
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Added */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FinanceCaseRow"];
+                    };
+                };
+                /** @description Entry not active */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/commission-entries/{id}/original-due": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Correct the original (rate-calculated) amount and/or give it a due date (finance permission, 2026-09-11). The calculated figure stays on record as calculated_due_inr. Reason required; audited; the consultancy is notified. 400 when nothing changes. */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        amount_inr?: number;
+                        /** Format: date */
+                        due_on?: string | null;
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Changed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FinanceCaseRow"];
+                    };
+                };
+                /** @description Entry not active */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/commission-entries/{id}/dues/{changeId}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Remove an amount added by mistake (finance permission). It stays in due_changes, marked removed. Reason required; the consultancy is notified. 409 for the original amount or an already-removed one. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    changeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Removed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FinanceCaseRow"];
+                    };
+                };
+                /** @description Cannot remove */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/commission-entries/{id}/installments": {
@@ -17137,7 +17365,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Active commission cases, paged (finance permission). filter[consultancy_id], filter[destination_country], filter[payer_method], filter[rate_source] (configured|fallback_default), filter[payment_status] (unpaid|part_paid|paid, comma = any of), filter[from]/filter[to] on the acceptance date; search matches student, consultancy and college. Totals cover the whole filtered set. */
+        /** Active commission cases, paged (finance permission). filter[consultancy_id], filter[destination_country], filter[payer_method], filter[rate_source] (configured|fallback_default), filter[overdue]=true (a dated part is past due and unpaid), filter[payment_status] (unpaid|part_paid|paid, comma = any of), filter[from]/filter[to] on the acceptance date; search matches student, consultancy and college. Totals cover the whole filtered set. */
         get: {
             parameters: {
                 query?: {
@@ -17171,6 +17399,7 @@ export interface paths {
                                 due_inr?: number;
                                 paid_inr?: number;
                                 outstanding_inr?: number;
+                                overdue_inr?: number;
                             };
                         };
                     };
@@ -20566,7 +20795,7 @@ export interface components {
             outcome?: string | null;
             signals?: {
                 /** @enum {string} */
-                code?: "closed_without_acceptance" | "accepted_not_closed" | "failed_despite_acceptance";
+                code?: "closed_without_acceptance" | "accepted_not_closed" | "failed_despite_acceptance" | "payment_overdue";
                 label?: string;
                 detail?: string;
                 /** @description Whether this signal escalates straight to the student rather than through the consultancy first. True only for the two that mean a case ended owing nothing, where the student is the other witness. */
@@ -22044,6 +22273,11 @@ export interface components {
         };
         /** @description Commission Details' itemized rows (reworked 2026-08-28) — one per ACTIVE commission entry of the caller's consultancy. This is the tier where the platform's cut IS visible (`billing.view_commission_details`); the per-applicant Commissions tab deliberately omits it. Totals that mix currencies (college fee currency + student currency) are normalized to INR via the platform exchange rates, same pivot the course catalog uses. */
         CommissionDue: {
+            readonly overdue_inr?: number;
+            /** Format: date */
+            readonly next_due_on?: string | null;
+            /** @description What is due when and why (2026-09-11) — the original amount and any added by immiNow. */
+            readonly due_schedule?: components["schemas"]["CommissionDuePart"][];
             id: components["schemas"]["UUID"];
             journey_id: components["schemas"]["UUID"];
             applicant_name: string;
@@ -22112,6 +22346,8 @@ export interface components {
             last_changed_by_name?: string | null;
         };
         FinanceSummary: {
+            /** @description Unpaid money past its due date, across every case. */
+            overdue_inr?: number;
             /** @description Every active case's platform due, less what has been confirmed. */
             outstanding_inr: number;
             awaiting: {
@@ -22143,6 +22379,17 @@ export interface components {
             oldest_unpaid_days?: number | null;
         };
         FinanceCaseRow: {
+            /** @description The amount the rate produced when the case was recognised — never changes. */
+            readonly calculated_due_inr?: number;
+            /** @description The original amount as it stands after any Finance correction. */
+            readonly original_due_inr?: number;
+            /** @description Unpaid money on parts whose due date has passed. Undated parts are never overdue. */
+            readonly overdue_inr?: number;
+            /** Format: date */
+            readonly next_due_on?: string | null;
+            readonly due_schedule?: components["schemas"]["CommissionDuePart"][];
+            /** @description Every change Finance made to this case's due, newest first, removed ones included. */
+            readonly due_changes?: components["schemas"]["CommissionDueChange"][];
             id: components["schemas"]["UUID"];
             journey_id: components["schemas"]["UUID"];
             consultancy_id: components["schemas"]["UUID"];
@@ -22165,8 +22412,62 @@ export interface components {
             /** @enum {string} */
             payment_status: "unpaid" | "part_paid" | "paid";
         };
+        /** @description One part of what a case owes immiNow (2026-09-11): the original, rate-calculated amount or an amount Finance added. Confirmed payments settle parts oldest first. An undated part is never overdue; a dated one is overdue once its date passes unpaid. */
+        CommissionDuePart: {
+            /** @description Null for the original part. */
+            id?: components["schemas"]["UUID"] | null;
+            /** @enum {string} */
+            kind?: "original" | "added";
+            amount_inr?: number;
+            /** Format: date */
+            due_on?: string | null;
+            reason?: string | null;
+            /** @description Finance view only. */
+            added_by_name?: string | null;
+            /** Format: date-time */
+            added_at?: string;
+            paid_inr?: number;
+            outstanding_inr?: number;
+            /** @enum {string} */
+            status?: "paid" | "overdue" | "due" | "upcoming";
+        };
+        /** @description A change Finance made to a case's due, with who and why. Removed additions stay listed. */
+        CommissionDueChange: {
+            id?: components["schemas"]["UUID"];
+            /** @enum {string} */
+            kind?: "added" | "original_changed";
+            /** @description The amount added, or the original amount's new value. */
+            amount_inr?: number;
+            /** Format: date */
+            due_on?: string | null;
+            previous_amount_inr?: number | null;
+            /** Format: date */
+            previous_due_on?: string | null;
+            reason?: string;
+            changed_by_name?: string | null;
+            /** Format: date-time */
+            changed_at?: string;
+            /** Format: date-time */
+            voided_at?: string | null;
+            void_reason?: string | null;
+            voided_by_name?: string | null;
+        };
         /** @description A platform payment declared against ONE commission entry's due (reworked 2026-08-28 — "consultant click on the due transaction and enter the amount"). Legacy pooled payments recorded before this change carry a null commission_entry_id and show as "General" rather than against any one case. No proof upload is required or accepted; the optional transaction_id is the consultant's own bank/UPI reference, for their own bookkeeping — confirmation by immiNow finance is what actually settles the due. */
         CommissionPayment: {
+            /** @description What the consultancy declared, when Finance recorded a different amount received (2026-09-11). `amount` is always what actually arrived; every total counts that. */
+            readonly declared_amount?: components["schemas"]["Money"] | null;
+            /** @description Why the amount received differs from the declaration. */
+            readonly received_note?: string | null;
+            /** @description Changes to the received amount after confirmation, oldest first. */
+            readonly corrections?: {
+                id?: components["schemas"]["UUID"];
+                from_amount?: number;
+                to_amount?: number;
+                reason?: string;
+                corrected_by_name?: string | null;
+                /** Format: date-time */
+                corrected_at?: string;
+            }[];
             /** @description Who confirmed it (2026-09-11). */
             readonly confirmed_by_name?: string | null;
             /** Format: date-time */
@@ -22220,7 +22521,7 @@ export interface components {
             /** @description Human-readable label for the entity at the time of the change (e.g. an applicant's name) — the entity/person search filter matches against this. */
             entity_label?: string | null;
             /** @enum {string} */
-            area: "leads" | "clients" | "plans" | "documents" | "settings" | "staff" | "marketing" | "support";
+            area: "leads" | "clients" | "plans" | "documents" | "settings" | "staff" | "marketing" | "support" | "finance";
             diff?: {
                 [key: string]: unknown;
             } | null;

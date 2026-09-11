@@ -1,10 +1,9 @@
 import { Drawer } from '@/components/Drawer'
 import { Badge } from '@/components/Badge'
 import { formatDate } from '@/lib/time'
-import { formatMoneyAmount } from '@/lib/money'
+import { money } from './money'
 import { useFinanceCases, useFinancePayments } from '@/queries/financeDashboard'
 
-const money = formatMoneyAmount
 
 function inr(n: number | undefined): string {
   return `₹${(n ?? 0).toLocaleString('en-IN')}`
