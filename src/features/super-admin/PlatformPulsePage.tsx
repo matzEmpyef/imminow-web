@@ -127,10 +127,13 @@ function labelSections(sections: { module: string; views: number }[], labels: Re
     .sort((a, b) => Number(a.label === 'Other') - Number(b.label === 'Other') || b.value - a.value)
 }
 
-// Never a fabricated zero — every empty list on this page says exactly this instead of an empty
-// table, so a thin sample is never mistaken for "nothing is happening" (task's own instruction).
-function sparseMessage(collectingSince: string) {
-  return `Collecting since ${formatDate(collectingSince)} — check back as usage accrues.`
+// Never a fabricated zero — every empty card says what is and is not known (user, 2026-09-11: the
+// old "Collecting since … check back as usage accrues" read vague). Follows the period at the top.
+function sparseMessage(collectingSince: string, windowDays: number) {
+  const since = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(
+    new Date(collectingSince),
+  )
+  return `Nothing recorded in the last ${windowDays} days. Recording since ${since}.`
 }
 
 function shortDay(isoDate: string) {
@@ -142,13 +145,13 @@ function SectionChartCard({
   caption,
   sections,
   labels,
-  collectingSince,
+  emptyMessage,
 }: {
   title: string
   caption: string
   sections: { module: string; views: number }[]
   labels: Record<string, string>
-  collectingSince: string
+  emptyMessage: string
 }) {
   return (
     <Card>
@@ -156,7 +159,7 @@ function SectionChartCard({
       <p className="text-caption text-text-secondary">{caption}</p>
       <div className="mt-sm">
         {sections.length === 0 ? (
-          <p className="text-body-sm text-text-secondary">{sparseMessage(collectingSince)}</p>
+          <p className="text-body-sm text-text-secondary">{emptyMessage}</p>
         ) : (
           <DoughnutChart data={labelSections(sections, labels)} />
         )}
@@ -290,7 +293,7 @@ export function PlatformPulsePage() {
   }
 
   const data = pulse.data
-  const sparse = sparseMessage(data.collecting_since)
+  const sparse = sparseMessage(data.collecting_since, data.window_days)
 
   const courseColumns: TableColumn<CourseRow>[] = [
     {
@@ -419,14 +422,14 @@ export function PlatformPulsePage() {
             caption="The most-opened areas of the Sentpo app in this period."
             sections={data.sentpo_sections}
             labels={SENTPO_SECTION_LABELS}
-            collectingSince={data.collecting_since}
+            emptyMessage={sparse}
           />
           <SectionChartCard
             title="immiNow Sections"
             caption="The most-opened areas of the console by consultancy staff and freelancers. The platform team's own use is not counted."
             sections={data.imminow_sections}
             labels={IMMINOW_SECTION_LABELS}
-            collectingSince={data.collecting_since}
+            emptyMessage={sparse}
           />
         </div>
 
