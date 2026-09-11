@@ -6,19 +6,104 @@ import type { components } from '@/api/schema'
 
 export type FreelancerReferral = components['schemas']['FreelancerReferral']
 export type FreelancerPayout = components['schemas']['FreelancerPayout']
+export type FreelancerReferralSummary = components['schemas']['FreelancerReferralSummary']
+export type FreelancerOwnPayout = components['schemas']['FreelancerOwnPayout']
 
-/** The logged-in freelancer's own referrals — tracking only, no case management, no chat. */
-export function useFreelancerReferrals() {
+export interface FreelancerOwnReferralsFilters {
+  search?: string
+  /** not_due | owed | paid, comma-joined for "any of". */
+  payout_status?: string
+  /** waiting | with_consultancy | plan_complete | succeeded | moved | closed, comma-joined for "any of". */
+  stage?: string
+  /** Referred date range, YYYY-MM-DD. */
+  from?: string
+  to?: string
+  sort?: string
+  cursor?: string
+  limit?: number
+}
+
+function freelancerOwnReferralsFilter(filters: FreelancerOwnReferralsFilters): Record<string, string> {
+  const filter: Record<string, string> = {}
+  if (filters.payout_status) filter.payout_status = filters.payout_status
+  if (filters.stage) filter.stage = filters.stage
+  return filter
+}
+
+/**
+ * The logged-in freelancer's own referrals — tracking only, no case management, no chat. Server-
+ * paged since 2026-09-12 (a freelancer can have hundreds); `summary` in the response covers ALL
+ * their referrals regardless of the filters passed here, so a page can render the money tiles and
+ * the filter chips' counts straight from whichever page it last fetched.
+ */
+export function useFreelancerReferrals(filters: FreelancerOwnReferralsFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
-    queryKey: ['freelancer-referrals'],
+    queryKey: ['freelancer-referrals', filters],
     queryFn: async () => {
-      const { data, error } = await api.GET('/freelancer/referrals')
+      const filter = freelancerOwnReferralsFilter(filters)
+      const { data, error } = await api.GET('/freelancer/referrals', {
+        params: {
+          query: {
+            filter: Object.keys(filter).length > 0 ? filter : undefined,
+            search: filters.search,
+            sort: filters.sort,
+            cursor: filters.cursor,
+            limit: filters.limit,
+            from: filters.from,
+            to: filters.to,
+          },
+        },
+      })
       if (error) throw new ApiError('Could not load your referrals.', error)
       return data
     },
     enabled: isAuthed,
   })
+}
+
+/** One of the freelancer's own referrals plus the payouts recorded to them for it — backs the row drawer. */
+export function useFreelancerReferral(id: string) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['freelancer-referral', id],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/freelancer/referrals/{id}', { params: { path: { id } } })
+      if (error) throw new ApiError('Could not load this referral.', error)
+      return data
+    },
+    enabled: isAuthed && Boolean(id),
+  })
+}
+
+// "Download CSV" needs every page for the current filters, not just the one on screen — same
+// pattern as fetchAllFreelancerPayouts/fetchAllPlatformAuditLog below.
+export async function fetchAllFreelancerReferrals(
+  filters: Omit<FreelancerOwnReferralsFilters, 'cursor' | 'limit'>,
+): Promise<FreelancerReferral[]> {
+  const items: FreelancerReferral[] = []
+  let cursor: string | undefined
+  const filter = freelancerOwnReferralsFilter(filters)
+  for (;;) {
+    const { data, error } = await api.GET('/freelancer/referrals', {
+      params: {
+        query: {
+          filter: Object.keys(filter).length > 0 ? filter : undefined,
+          search: filters.search,
+          sort: filters.sort,
+          cursor,
+          limit: 100,
+          from: filters.from,
+          to: filters.to,
+        },
+      },
+    })
+    if (error) throw new ApiError('Could not export your referrals.', error)
+    items.push(...(data?.items ?? []))
+    if (!data?.meta.next_cursor) break
+    cursor = data.meta.next_cursor
+  }
+  return items
 }
 
 /** The logged-in freelancer's own referral identity — code + ready-to-share URL. */

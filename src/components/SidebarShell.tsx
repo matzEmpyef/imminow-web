@@ -1,10 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { ChevronRight, ChevronsLeft, ChevronsRight, CircleHelp, LogOut, type LucideIcon } from 'lucide-react'
 import { BRAND_LOGO } from '@/lib/brand'
-import { api } from '@/api/client'
-import { endSession } from '@/lib/session'
 import { useAuthStore } from '@/stores/authStore'
+import { useLogout } from '@/lib/useLogout'
 import { Drawer } from './Drawer'
 import { getHelpTopic } from '@/lib/helpContent'
 
@@ -51,7 +50,6 @@ interface SidebarShellProps {
 // right of the sidebar) carries the search box, then the main section nav (Dashboard, Sales,
 // Clients, Administration, ...), then any role-specific header actions.
 export function SidebarShell({ sections, roleBadge, search, headerActions, children }: SidebarShellProps) {
-  const navigate = useNavigate()
   const location = useLocation()
   const user = useAuthStore((s) => s.user)
   // Defaults collapsed on narrow viewports (< 1100px) so the 256px rail doesn't eat a squeezed
@@ -60,6 +58,7 @@ export function SidebarShell({ sections, roleBadge, search, headerActions, child
   // own toggle still wins until the next crossing.
   const [collapsed, setCollapsed] = useState(() => window.matchMedia('(max-width: 1100px)').matches)
   const [helpOpen, setHelpOpen] = useState(false)
+  const handleLogout = useLogout()
 
   useEffect(() => {
     const query = window.matchMedia('(max-width: 1100px)')
@@ -67,21 +66,6 @@ export function SidebarShell({ sections, roleBadge, search, headerActions, child
     query.addEventListener('change', onChange)
     return () => query.removeEventListener('change', onChange)
   }, [])
-
-  function handleLogout() {
-    // Revoke server-side. The header is passed explicitly because clear() runs on the next
-    // line — the middleware's own store read happens inside the request's async chain, i.e.
-    // possibly after the store is already empty. Fire-and-forget: a failed revocation must
-    // never trap the user in a session they asked to leave.
-    const token = useAuthStore.getState().accessToken
-    if (token) {
-      void api.POST('/auth/logout', { headers: { Authorization: `Bearer ${token}` } }).catch(() => {})
-    }
-    // Store + query cache together, via the same helper the 401 interceptor uses (N1) — two
-    // session-end paths, one teardown.
-    endSession()
-    navigate('/login')
-  }
 
   const activeSection = sections.find((s) => s.matches(location.pathname)) ?? sections[0]
   const activeLinks = (activeSection?.sidebarLinks ?? []).filter((l) => !l.hidden)

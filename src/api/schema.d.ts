@@ -17162,10 +17162,23 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Aspirants the logged-in freelancer referred, with status + payment status — tracking only, no case management, no chat (build reference 1.19) */
+        /** Aspirants the logged-in freelancer referred — tracking only, no case management, no chat (build reference 1.19). Paged since 2026-09-12. search matches the student's name; filter[payout_status]=not_due|owed|paid and filter[stage]=waiting|with_consultancy| plan_complete|succeeded|moved|closed (comma = any of); from/to bound the referred date. Sort: created_at (default, newest first), applicant_name, owed_inr, earned_inr, your_share_inr. `summary` covers all their referrals. */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description Sort field. Prefix with - for descending, e.g. sort=-created_at (TRD Section 7). */
+                    sort?: components["parameters"]["SortParam"];
+                    /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
+                    search?: components["parameters"]["SearchParam"];
+                    /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
+                    filter?: components["parameters"]["FilterParam"];
+                    from?: string;
+                    to?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -17178,7 +17191,70 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["FreelancerReferral"][];
+                        "application/json": {
+                            items: components["schemas"]["FreelancerReferral"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                            summary: components["schemas"]["FreelancerReferralSummary"];
+                        };
+                    };
+                };
+                /** @description from/to is not a date */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/freelancer/referrals/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One of the freelancer's own referrals with the payouts recorded to them for it (2026-09-12). 404 for anyone else's referral. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            referral: components["schemas"]["FreelancerReferral"];
+                            payouts: components["schemas"]["FreelancerOwnPayout"][];
+                        };
+                    };
+                };
+                /** @description Not one of their referrals */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -22640,8 +22716,45 @@ export interface components {
             void_reason?: string | null;
             voided_by_name?: string | null;
         };
+        /** @description The freelancer's own totals across ALL their referrals (2026-09-12) — not narrowed by the list's filters, so tiles and chip counts stay put while filtering. */
+        FreelancerReferralSummary: {
+            referred: number;
+            earned_inr: number;
+            paid_inr: number;
+            owed_inr: number;
+            /** @description Their share once every case is fully collected. */
+            expected_inr: number;
+            by_payout_status: {
+                not_due: number;
+                owed: number;
+                paid: number;
+            };
+            by_stage: {
+                waiting: number;
+                with_consultancy: number;
+                plan_complete: number;
+                succeeded: number;
+                moved: number;
+                closed: number;
+            };
+        };
+        /** @description A payout recorded to the freelancer, as they see it (2026-09-12). */
+        FreelancerOwnPayout: {
+            id: components["schemas"]["UUID"];
+            amount_inr: number;
+            /** Format: date */
+            paid_on: string;
+            reference?: string | null;
+            /** @description Finance undid this payout; it no longer counts toward what they've been paid. */
+            undone: boolean;
+        };
         /** @description Freelancer Dashboard's own row shape (build reference 1.19) — tracking only, no case management, no chat. `status` mirrors the referred journey's own status; the freelancer never edits it here. */
         FreelancerReferral: {
+            /**
+             * @description Where the referral stands in plain words (2026-09-12), derived from the journey status: waiting (not with a consultancy yet), with_consultancy, plan_complete, succeeded (closed_completed), moved (closed_switched), closed.
+             * @enum {string}
+             */
+            readonly stage?: "waiting" | "with_consultancy" | "plan_complete" | "succeeded" | "moved" | "closed";
             freelancer_id?: components["schemas"]["UUID"];
             readonly rate_percent?: number | null;
             /** @description Commission immiNow has confirmed receiving on this case. */
