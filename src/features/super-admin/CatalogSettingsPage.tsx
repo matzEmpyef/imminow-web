@@ -23,6 +23,7 @@ import {
   useUpdatePlatformSettings,
 } from '@/queries/catalogSettings'
 import { useCreateStudyLevel, useStudyLevels, useUpdateStudyLevel } from '@/queries/studyLevels'
+import { FieldsOfStudyTab } from './FieldsOfStudyTab'
 import {
   useCountrySettings,
   useUpdateCountryWindow,
@@ -45,7 +46,7 @@ type ExchangeRate = components['schemas']['ExchangeRate']
 type StudyLevel = components['schemas']['StudyLevel']
 type CountrySetting = components['schemas']['CountrySetting']
 
-const TABS = ['Countries', 'Exams', 'Study Levels', 'Exchange Rates', 'Course Popularity'] as const
+const TABS = ['Countries', 'Exams', 'Study Levels', 'Fields of Study', 'Exchange Rates', 'Course Popularity'] as const
 
 const SCORE_TYPES = [
   { value: 'band', label: 'Band (e.g. IELTS 0–9)' },
@@ -93,6 +94,8 @@ export function CatalogSettingsPage() {
           <ExamsTab />
         ) : activeTab === 'Study Levels' ? (
           <StudyLevelsTab />
+        ) : activeTab === 'Fields of Study' ? (
+          <FieldsOfStudyTab />
         ) : activeTab === 'Exchange Rates' ? (
           <ExchangeRatesTab />
         ) : (

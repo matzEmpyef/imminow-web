@@ -3906,6 +3906,175 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/fields-of-study": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The managed Fields of Study list, with alternate names (2026-09-11)
+         * @description Sorted by name. Any authenticated caller may read it; managing it needs the `catalog_settings` permission. Retired fields are omitted unless `include_inactive=true`. GET /courses/fields stays the student-facing chip list — the fields that have courses.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    include_inactive?: boolean;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FieldOfStudy"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Add a field of study (platform catalog_settings permission) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        aliases?: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FieldOfStudy"];
+                    };
+                };
+                409: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/fields-of-study/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Rename, change alternate names, or retire a field (platform catalog_settings permission)
+         * @description A rename is applied to every course, student preference and lead snapshot that holds the old name. A name or alternate name already used by another field is a 409 `already_exists`. Retiring (`active: false`) is refused 409 `still_referenced` while courses or students use the field — merge it instead.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        aliases?: string[];
+                        active?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FieldOfStudy"];
+                    };
+                };
+                404: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
+            };
+        };
+        trace?: never;
+    };
+    "/fields-of-study/{id}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge this field into another (platform catalog_settings permission)
+         * @description Moves its courses and students to `into_id`, adds its name and alternate names to the target's alternate names (so searches for the old name keep working), and removes it.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        into_id: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description The target field after the merge */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FieldOfStudy"];
+                    };
+                };
+                400: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/study-levels": {
         parameters: {
             query?: never;
@@ -7795,7 +7964,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Search courses directly (Course Suggestions' catalog browser, build reference 2.2; Colleges & Courses admin's per-college Courses table, build reference 1.23; and Sentpo Mobile Wave 5's Study Abroad / Study in [Home Country] Search Results, which are this endpoint's primary student-facing caller) — /colleges nests campuses but not courses, so both a flat course browser and a college detail view need this endpoint. Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, college_name, level, fee and duration. filter[active] is the course's own switch ("true"/"false"); filter[health] is "needs_details" or "complete" against the five capture checks (2026-09-11). search matches name, college_name, and field_of_study. filter[college_id] narrows to one college's courses (Colleges & Courses admin) — note that for a `kind=institute` caller the college is FORCE-APPLIED server-side from the account's own `college_id` before this or any other filter runs (INSTITUTE_ACCOUNT_PLAN D7, 2026-09-10), so filter[college_id] can only narrow further and never widens the scope; an institute not yet linked to a college sees no courses at all. The same scope applies to GET /courses/{id} (404 outside it), /courses/fields, /courses/fee-range, /courses/{id}/consultancies, POST /courses/{id}/suggest-correction, POST /leads/{id}/suggest-course and POST /clients/{id}/applications. filter[country] matches any of the course's linked campuses; filter[level] matches the course's own level directly; filter[province_state] matches any of the course's linked campuses' province_state — build reference 1.11's full "country, campus province/state, study level, field of study, course" search filter set.
+         * Search courses directly (Course Suggestions' catalog browser, build reference 2.2; Colleges & Courses admin's per-college Courses table, build reference 1.23; and Sentpo Mobile Wave 5's Study Abroad / Study in [Home Country] Search Results, which are this endpoint's primary student-facing caller) — /colleges nests campuses but not courses, so both a flat course browser and a college detail view need this endpoint. Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, college_name, level, fee and duration. search and filter[field_of_study] also match a field's alternate names from GET /fields-of-study ("CS" finds Computer Science, 2026-09-11); POST/PATCH /courses store the field's name and refuse a field not on that list (422). filter[active] is the course's own switch ("true"/"false"); filter[health] is "needs_details" or "complete" against the five capture checks (2026-09-11). search matches name, college_name, and field_of_study. filter[college_id] narrows to one college's courses (Colleges & Courses admin) — note that for a `kind=institute` caller the college is FORCE-APPLIED server-side from the account's own `college_id` before this or any other filter runs (INSTITUTE_ACCOUNT_PLAN D7, 2026-09-10), so filter[college_id] can only narrow further and never widens the scope; an institute not yet linked to a college sees no courses at all. The same scope applies to GET /courses/{id} (404 outside it), /courses/fields, /courses/fee-range, /courses/{id}/consultancies, POST /courses/{id}/suggest-correction, POST /leads/{id}/suggest-course and POST /clients/{id}/applications. filter[country] matches any of the course's linked campuses; filter[level] matches the course's own level directly; filter[province_state] matches any of the course's linked campuses' province_state — build reference 1.11's full "country, campus province/state, study level, field of study, course" search filter set.
          *     filter[field_of_study] (multi-value since user decision 2026-08-30, same comma-separated idiom as filter[country]) matches a course whose field_of_study is ANY of the listed values — the union, since a course only ever carries one field_of_study. A single value is simply a one-element list, so existing single-value callers are unaffected. Backs the Field of Study choosers on both immiNow's Course Finder (a multi-select) and Sentpo Mobile's Search Root (the student's stated fields_of_interest as toggleable chips, all selected by default) — both fed by GET /courses/fields' full catalog list rather than a hardcoded subset. filter[intake] is "first_half"|"second_half" (added 2026-08-19, user request 17) — the half expands to its six month names and matches any of the course's intake months; Sentpo Mobile defaults it from the student's own intended_intake preference. filter[visible] is "true"/"false", same computed active-AND-parent-college-active meaning as Course.visible — Sentpo Mobile's own search screens always pass filter[visible]=true explicitly (this endpoint doesn't filter out inactive/hidden courses by default, same reasoning as Wave 3's GET /consultancies fix — Colleges & Courses admin needs to see hidden courses too).
          *     Courses-module filters (COURSES_MODULE_PLAN.md §3.1, 2026-08-21) — filter[country] accepts a comma-separated list (multi-country was single before); filter[fee_max] / filter[fee_min] compare against fee_normalized_inr (INR); filter[study_mode], filter[delivery], filter[language] exact-match; filter[coop], filter[psw], filter[scholarship], filter[app_fee_waived] are "true" flags; filter[open_now]="true" keeps courses with at least one intake whose deadline is today or later and status open; filter[duration_max_months] / filter[duration_min_months] numeric (the min counterpart added 2026-08-31, same pairing convention as fee_min/fee_max, to back Sentpo Mobile's and immiNow Course Finder's duration-range filter chips); filter[city] matches linked campuses' city. sort= additionally accepts fee (normalized INR asc), duration (duration_months asc), and intake (earliest upcoming open intake first). Missing data NEVER excludes — a course without fee_normalized_inr passes fee filters, one without duration_months passes duration filters — filters narrow on known facts, they don't punish catalog gaps (plan §0.2).
          *     filter[fee_currency] (2026-08-22) names the currency filter[fee_max] / filter[fee_min] are expressed in, defaulting to INR for older callers. The server converts each course's fee into that currency before comparing, so the app never multiplies by a rate itself — that would be business logic on the client, and would drift the moment a rate changed. It is not a filter in its own right and narrows nothing on its own.
@@ -16803,6 +16972,17 @@ export interface components {
             title: string;
             company?: string | null;
             years?: number | null;
+        };
+        /** @description One field of study on the managed list (2026-09-11). `Course.field_of_study` and `StudentPreferences.fields_of_interest` hold the field's `name`; search and filter[field_of_study] on GET /courses also match its `aliases`, so a student typing "CS" or "Computing" finds Computer Science courses. */
+        FieldOfStudy: {
+            id: string;
+            name: string;
+            /** @description Alternate names. Unique across the whole list — no two fields share one. */
+            aliases: string[];
+            /** @description Retired fields are no longer offered in the course form. Retiring is refused while courses or students still use the field; merge it instead. */
+            active: boolean;
+            readonly course_count?: number;
+            readonly student_count?: number;
         };
         /** @description One rung of the education ladder, managed by Super Admins rather than compiled into the clients (2026-09-07). Both `StudentPreferences.study_level` (what a student is aiming at) and `Course.level` (what a course teaches at) reference `code`, because search and matching compare the two directly. */
         StudyLevel: {

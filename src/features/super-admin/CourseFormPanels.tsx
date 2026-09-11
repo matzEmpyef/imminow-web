@@ -11,6 +11,7 @@ import { MONTHS, type AptitudeReq, type EnglishReq } from './courseFormShared'
 import { useCurrencyCodes } from '@/lib/currencies'
 import type { CourseFormValue } from './useCourseForm'
 import { useStudyLevels } from '@/queries/studyLevels'
+import { useFieldsOfStudy } from '@/queries/fieldsOfStudy'
 
 type College = components['schemas']['College']
 type Exam = components['schemas']['Exam']
@@ -94,6 +95,7 @@ function RemoveRowButton({ label, onClick }: { label: string; onClick: () => voi
 
 export function CourseBasicsPanel({ hidden, form }: { hidden: boolean; form: CourseFormValue }) {
   const { data: studyLevels } = useStudyLevels()
+  const { data: fields } = useFieldsOfStudy()
   return (
     <div className={panelClass(hidden)}>
       <FormSection title="Course">
@@ -122,11 +124,23 @@ export function CourseBasicsPanel({ hidden, form }: { hidden: boolean; form: Cou
               <option value={form.level}>{form.level} (not in the list)</option>
             )}
           </SelectField>
-          <TextField
+          {/* From the managed Fields of Study list (2026-09-11), like Level — free text made
+              "Computing" and "Computer Science" two different fields in every search. */}
+          <SelectField
             label="Field of study"
             value={form.fieldOfStudy}
             onChange={(e) => form.setFieldOfStudy(e.target.value)}
-          />
+          >
+            <option value="">Not set</option>
+            {(fields ?? []).map((f) => (
+              <option key={f.id} value={f.name}>
+                {f.name}
+              </option>
+            ))}
+            {form.fieldOfStudy && !(fields ?? []).some((f) => f.name === form.fieldOfStudy) && (
+              <option value={form.fieldOfStudy}>{form.fieldOfStudy} (not in the list)</option>
+            )}
+          </SelectField>
           <TextField
             label="Credentials"
             value={form.credentials}
