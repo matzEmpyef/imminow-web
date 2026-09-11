@@ -19900,7 +19900,7 @@ export interface components {
         };
         /** @description Platform-wide market intelligence (docs/PROGRESS.md §4 Step 4). Demand is read from student_preferences (target_countries/fields_of_interest); supply is read from consultancies.countries_served plus seat usage. `mismatch` is the actionable table: countries with real student demand and little or no consultancy coverage. */
         SupplyDemandResponse: {
-            /** @description Supply at a glance (2026-09-10): how many countries students want that no organisation serves (the `mismatch` rows at supply 0), and seat usage across ACTIVE consultancies and institutes (active employees vs summed seat limits; `pct` null when no seats). */
+            /** @description Supply at a glance (2026-09-10): how many countries have `coverage: none` in `coverage_by_country` (students want it or are heading there, and no organisation that can take new students serves it), and seat usage across ACTIVE consultancies and institutes (active employees vs summed seat limits; `pct` null when no seats). */
             supply_summary: {
                 countries_without_coverage: number;
                 seat_usage: {
@@ -20004,20 +20004,28 @@ export interface components {
                     };
                 }[];
             };
-            supply_by_country: {
-                country: string;
-                consultancy_count: number;
-                seat_usage: {
-                    used: number;
-                    limit: number;
+            /** @description Supply beside demand per country (2026-09-11 — merged `supply_by_country` and `mismatch`). Supply counts only organisations that can take a NEW student now (active, subscription not lapsed), consultancies and institutes apart; the old per-country seat usage was dropped (it added each consultancy's whole team to every country it listed). Least-covered first: `none`, then `limited`, then `ok`; within that, most students wanting first. Top 10, the rest summarised in `others`. */
+            coverage_by_country: {
+                rows: {
+                    country: string;
+                    /** @description Distinct students with this as a target country. */
+                    students_wanting: number;
+                    consultancies_serving: number;
+                    institutes_serving: number;
+                    /** @description Open student cases applying to or accepted in this country. */
+                    open_applicants: number;
+                    /**
+                     * @description `none` = students want it or are heading there and nobody serving it can take them; `limited` = fewer organisations serving than students wanting; `ok` otherwise.
+                     * @enum {string}
+                     */
+                    coverage: "none" | "limited" | "ok";
+                }[];
+                others: {
+                    countries: number;
+                    no_coverage: number;
+                    limited: number;
                 };
-            }[];
-            /** @description Every country with demand > 0, sorted by ascending supply then descending demand — the top of this list is the actionable gap. */
-            mismatch: {
-                country: string;
-                demand: number;
-                supply: number;
-            }[];
+            };
         };
         /** @description One kind of organisation ranked by current applicants (2026-09-10): the top 9 with at least one (a doughnut of 9 + one Others slice), the rest rolled into `others`, and organisations at zero only counted — sized to stay readable however many organisations are onboarded. */
         OrgApplicantRanking: {

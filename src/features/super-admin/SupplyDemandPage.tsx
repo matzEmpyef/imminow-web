@@ -8,8 +8,7 @@ import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useSupplyDemand } from '@/queries/supplyDemand'
 import { formatDate } from '@/lib/time'
 
-type SupplyRow = NonNullable<ReturnType<typeof useSupplyDemand>['data']>['supply_by_country'][number]
-type MismatchRow = NonNullable<ReturnType<typeof useSupplyDemand>['data']>['mismatch'][number]
+type CoverageRow = NonNullable<ReturnType<typeof useSupplyDemand>['data']>['coverage_by_country']['rows'][number]
 // One row of the Where Applicants Are Heading table — a real country, or the Others roll-up.
 interface DestinationTableRow {
   key: string
@@ -65,10 +64,11 @@ function sharePct(value: number, total: number) {
   return total > 0 ? `${Math.round((value / total) * 100)}%` : ''
 }
 
-function MismatchBadge({ row }: { row: MismatchRow }) {
-  if (row.supply === 0) return <Badge color="error">No coverage</Badge>
-  if (row.supply < row.demand) return <Badge color="warning">Limited coverage</Badge>
-  return null
+// Same two flags the old Mismatch table used, now from the server's `coverage` field.
+function CoverageBadge({ row }: { row: CoverageRow }) {
+  if (row.coverage === 'none') return <Badge color="error">No coverage</Badge>
+  if (row.coverage === 'limited') return <Badge color="warning">Limited</Badge>
+  return <Badge color="success">Covered</Badge>
 }
 
 export function SupplyDemandPage() {
@@ -92,23 +92,15 @@ export function SupplyDemandPage() {
 
   const data = supplyDemand.data
 
-  const supplyColumns: TableColumn<SupplyRow>[] = [
+  const coverageColumns: TableColumn<CoverageRow>[] = [
     { key: 'country', header: 'Country', render: (r) => r.country },
-    { key: 'consultancy_count', header: 'Consultancies serving', align: 'right', render: (r) => r.consultancy_count },
-    {
-      key: 'seat_usage',
-      header: 'Seat usage',
-      align: 'right',
-      render: (r) => `${r.seat_usage.used} / ${r.seat_usage.limit}`,
-    },
+    { key: 'students_wanting', header: 'Students wanting it', align: 'right', render: (r) => r.students_wanting },
+    { key: 'consultancies_serving', header: 'Consultancies', align: 'right', render: (r) => r.consultancies_serving },
+    { key: 'institutes_serving', header: 'Institutes', align: 'right', render: (r) => r.institutes_serving },
+    { key: 'open_applicants', header: 'Open applicants', align: 'right', render: (r) => r.open_applicants },
+    { key: 'coverage', header: 'Coverage', render: (r) => <CoverageBadge row={r} /> },
   ]
-
-  const mismatchColumns: TableColumn<MismatchRow>[] = [
-    { key: 'country', header: 'Country', render: (r) => r.country },
-    { key: 'demand', header: 'Students wanting it', align: 'right', render: (r) => r.demand },
-    { key: 'supply', header: 'Consultancies serving it', align: 'right', render: (r) => r.supply },
-    { key: 'flag', header: '', render: (r) => <MismatchBadge row={r} /> },
-  ]
+  const coverageOthers = data.coverage_by_country.others
 
   const destinations = data.applicant_destinations
   const destinationRows: DestinationTableRow[] = [
@@ -206,7 +198,8 @@ export function SupplyDemandPage() {
                 {data.supply_summary.countries_without_coverage}
               </p>
               <p className="mt-xs text-caption text-text-secondary">
-                Students want to study there, but no consultancy or institute serves it. See the mismatch list below.
+                Students want to study there, but no consultancy or institute that can take new students serves it. See
+                Coverage by Country below.
               </p>
             </Card>
             <Card>
@@ -306,36 +299,30 @@ export function SupplyDemandPage() {
           </div>
         </Card>
 
+        {/* Coverage by Country (user review, 2026-09-11) — merged Supply by Country and the
+            Demand/Supply Mismatch table. Seat usage per country was dropped: it added each
+            consultancy's whole team to every country it listed. */}
         <Card>
-          <h2 className="text-h3 text-text-primary">Supply by Country</h2>
+          <h2 className="text-h3 text-text-primary">Coverage by Country</h2>
           <p className="text-caption text-text-secondary">
-            Every country at least one consultancy serves, with combined seat usage.
+            Demand beside supply, least-covered first. Only consultancies and institutes that can take new students count
+            (active, subscription not lapsed). Limited = fewer organisations serving than students wanting it.
           </p>
           <div className="mt-sm">
             <Table
               bare
-              columns={supplyColumns}
-              rows={data.supply_by_country}
+              columns={coverageColumns}
+              rows={data.coverage_by_country.rows}
               rowKey={(r) => r.country}
-              emptyMessage="No consultancy has listed a country it serves yet."
+              emptyMessage="No demand or coverage recorded yet."
             />
           </div>
-        </Card>
-
-        <Card>
-          <h2 className="text-h3 text-text-primary">Demand/Supply Mismatch</h2>
-          <p className="text-caption text-text-secondary">
-            Every country with real student demand, sorted by the least-served first — the actionable list.
-          </p>
-          <div className="mt-sm">
-            <Table
-              bare
-              columns={mismatchColumns}
-              rows={data.mismatch}
-              rowKey={(r) => r.country}
-              emptyMessage="No student demand recorded yet."
-            />
-          </div>
+          {coverageOthers.countries > 0 && (
+            <p className="mt-sm text-caption text-text-secondary">
+              {coverageOthers.countries} more {coverageOthers.countries === 1 ? 'country' : 'countries'} ·{' '}
+              {coverageOthers.no_coverage} with no coverage · {coverageOthers.limited} limited.
+            </p>
+          )}
         </Card>
       </div>
     </AdminShell>
