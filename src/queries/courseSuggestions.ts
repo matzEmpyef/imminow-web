@@ -10,6 +10,11 @@ interface CourseListFilters {
   search?: string
   collegeId?: string
   country?: string
+  // College detail's course filters (2026-09-11).
+  level?: string
+  fieldOfStudy?: string
+  active?: boolean
+  health?: 'needs_details' | 'complete'
   sort?: string
   cursor?: string
   limit?: number
@@ -27,6 +32,10 @@ export function useCourses(filters: CourseListFilters = {}) {
       const filter: Record<string, string> = {}
       if (filters.collegeId) filter.college_id = filters.collegeId
       if (filters.country) filter.country = filters.country
+      if (filters.level) filter.level = filters.level
+      if (filters.fieldOfStudy) filter.field_of_study = filters.fieldOfStudy
+      if (filters.active !== undefined) filter.active = String(filters.active)
+      if (filters.health) filter.health = filters.health
 
       const { data, error } = await api.GET('/courses', {
         params: {

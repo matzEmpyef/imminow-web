@@ -2,21 +2,26 @@ import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Pencil } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
-import { SelectField } from '@/components/SelectField'
 import { Card } from '@/components/Card'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { CountrySelect } from '@/components/CountrySelect'
-import { FieldLabel } from '@/components/FieldLabel'
+import { CompactSelect } from '@/components/CompactSelect'
 import { Toggle } from '@/components/Toggle'
 import { Modal } from '@/components/Modal'
-import { ImageUploadField } from '@/components/ImageUploadField'
 import { Table, type TableColumn } from '@/components/Table'
-import { useCollegeDetail, useCreateCampus, useUpdateCampus, useUpdateCollege } from '@/queries/adminColleges'
+import {
+  useCollegeDetail,
+  useCreateCampus,
+  useDeactivationImpact,
+  useUpdateCampus,
+  useUpdateCollege,
+} from '@/queries/adminColleges'
 import { useCourses, useCreateCourse, useUpdateCourse } from '@/queries/courseSuggestions'
 import { useExams } from '@/queries/catalogSettings'
+import { useStudyLevels } from '@/queries/studyLevels'
 import { useCursorPagination } from '@/lib/pagination'
 import { FORM_TABS, courseCompleteness } from './courseFormShared'
 import {
@@ -27,6 +32,7 @@ import {
   CourseRequirementsPanel,
 } from './CourseFormPanels'
 import { useCourseForm } from './useCourseForm'
+import { CollegeFormModal } from './CollegeFormModal'
 import type { components } from '@/api/schema'
 import { formatCourseFee } from '@/lib/money'
 
@@ -34,86 +40,25 @@ type College = components['schemas']['College']
 type Campus = components['schemas']['Campus']
 type Course = components['schemas']['Course']
 
-function CollegeFormModal({ college, onClose }: { college: College; onClose: () => void }) {
-  const updateCollege = useUpdateCollege(college.id!)
-  const [name, setName] = useState(college.name ?? '')
-  const [logoUrl, setLogoUrl] = useState(college.logo_url ?? '')
-  const [website, setWebsite] = useState(college.website ?? '')
-  const [description, setDescription] = useState(college.description ?? '')
-  const [qsRank, setQsRank] = useState(college.qs_rank != null ? String(college.qs_rank) : '')
-  const [theRank, setTheRank] = useState(college.the_rank != null ? String(college.the_rank) : '')
-  const [institutionType, setInstitutionType] = useState(college.institution_type ?? '')
+// The five capture checks, as people read them (courseCompleteness returns keys).
+const CHECK_LABELS: Record<string, string> = {
+  fee: 'Fee',
+  duration: 'Duration',
+  deadlines: 'Application deadline',
+  requirements: 'Entry requirements',
+  language: 'Language',
+}
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    if (!name) return
-    updateCollege.mutate(
-      {
-        name,
-        logo_url: logoUrl || null,
-        website: website || null,
-        description,
-        qs_rank: qsRank === '' ? null : Number(qsRank),
-        the_rank: theRank === '' ? null : Number(theRank),
-        institution_type: (institutionType || null) as College['institution_type'],
-      },
-      { onSuccess: () => onClose() },
-    )
-  }
+function titleCase(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
 
-  return (
-    <Modal
-      onClose={onClose}
-      title="Edit College"
-      widthRem={28}
-      footer={
-        <>
-          {updateCollege.isError && (
-            <p className="mr-auto self-center text-body-sm text-error">{updateCollege.error.message}</p>
-          )}
-          <Button type="submit" form="edit-college-form" loading={updateCollege.isPending} disabled={!name}>
-            Save Changes
-          </Button>
-        </>
-      }
-    >
-      <form id="edit-college-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="College name" required value={name} onChange={(e) => setName(e.target.value)} />
-        <ImageUploadField
-          label="Logo"
-          value={logoUrl ?? ''}
-          onChange={setLogoUrl}
-          hint="Square — shown as a 56×56 circle in the app. Ideal size 200×200px."
-        />
-        <TextField label="Website" value={website ?? ''} onChange={(e) => setWebsite(e.target.value)} />
-        <div className="grid grid-cols-3 gap-sm">
-          <TextField label="QS rank" type="number" value={qsRank} onChange={(e) => setQsRank(e.target.value)} />
-          <TextField label="THE rank" type="number" value={theRank} onChange={(e) => setTheRank(e.target.value)} />
-          <SelectField
-            label="Type"
-            id="college-type"
-            value={institutionType ?? ''}
-            onChange={(e) => setInstitutionType(e.target.value)}
-          >
-            <option value="">Not specified</option>
-            <option value="university">University</option>
-            <option value="college">College</option>
-            <option value="institute">Institute</option>
-          </SelectField>
-        </div>
-        <div className="flex flex-col gap-xs">
-          <FieldLabel htmlFor="college-description">Description</FieldLabel>
-          <textarea
-            id="college-description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            className="rounded-md border border-border bg-surface p-sm text-body text-text-primary"
-          />
-        </div>
-      </form>
-    </Modal>
-  )
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? '' : 's'}`
+}
+
+function campusLabel(campus: Campus): string {
+  return [campus.city, campus.province_state, campus.country].filter(Boolean).join(', ')
 }
 
 function CampusFormModal({
@@ -271,16 +216,83 @@ function CourseFormModal({
   )
 }
 
+// Switching a college or course off hides it from students at once (2026-09-11) — one stray click
+// used to do that silently. The confirm says what it touches before anything changes.
+function DeactivateConfirmModal({
+  kind,
+  id,
+  name,
+  loading,
+  onConfirm,
+  onClose,
+}: {
+  kind: 'college' | 'course'
+  id: string
+  name: string
+  loading: boolean
+  onConfirm: () => void
+  onClose: () => void
+}) {
+  const impact = useDeactivationImpact(kind, id)
+  const d = impact.data
+  return (
+    <Modal
+      onClose={onClose}
+      title={`Switch off ${name}?`}
+      widthRem={30}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="destructive" loading={loading} disabled={impact.isLoading} onClick={onConfirm}>
+            Switch off
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-sm text-body-sm text-text-secondary">
+        {impact.isLoading && <p>Checking what this affects…</p>}
+        {impact.isError && <p className="text-error">{impact.error.message}</p>}
+        {d && (
+          <ul className="flex list-disc flex-col gap-xs pl-lg">
+            <li>
+              {kind === 'college' ? (
+                <>
+                  <span className="font-medium text-text-primary">{plural(d.courses_hidden, 'active course')}</span>{' '}
+                  will be hidden from students&rsquo; search.
+                </>
+              ) : (
+                'It will be hidden from students’ search.'
+              )}
+            </li>
+            <li>
+              <span className="font-medium text-text-primary">{plural(d.shortlisted_students, 'student')}</span>{' '}
+              {d.shortlisted_students === 1 ? 'has' : 'have'} {kind === 'college' ? 'its courses' : 'it'} shortlisted.
+            </li>
+            <li>
+              <span className="font-medium text-text-primary">{plural(d.live_applications, 'application')}</span>{' '}
+              in progress — these carry on and are not cancelled.
+            </li>
+          </ul>
+        )}
+        <p className="text-caption">You can switch it back on at any time.</p>
+      </div>
+    </Modal>
+  )
+}
+
 function CourseRowActions({ college, course }: { college: College; course: Course }) {
   const updateCourse = useUpdateCourse(course.id!)
   const [editing, setEditing] = useState(false)
+  const [confirmingOff, setConfirmingOff] = useState(false)
 
   return (
     <div className="flex items-center justify-end gap-sm">
       {course.active && !course.visible && <Badge color="secondary">Hidden — college inactive</Badge>}
       <Toggle
         checked={Boolean(course.active)}
-        onChange={(checked) => updateCourse.mutate({ active: checked })}
+        onChange={(checked) => (checked ? updateCourse.mutate({ active: true }) : setConfirmingOff(true))}
         label={`${course.name} active`}
       />
       <button
@@ -293,6 +305,16 @@ function CourseRowActions({ college, course }: { college: College; course: Cours
         <Pencil className="h-4 w-4" />
       </button>
       {editing && <CourseFormModal college={college} editingCourse={course} onClose={() => setEditing(false)} />}
+      {confirmingOff && (
+        <DeactivateConfirmModal
+          kind="course"
+          id={course.id!}
+          name={course.name ?? 'this course'}
+          loading={updateCourse.isPending}
+          onClose={() => setConfirmingOff(false)}
+          onConfirm={() => updateCourse.mutate({ active: false }, { onSuccess: () => setConfirmingOff(false) })}
+        />
+      )}
     </div>
   )
 }
@@ -300,28 +322,66 @@ function CourseRowActions({ college, course }: { college: College; course: Cours
 function CampusRow({ collegeId, campus }: { collegeId: string; campus: Campus }) {
   const updateCampus = useUpdateCampus(collegeId)
   const [editing, setEditing] = useState(false)
+  const [confirmingOff, setConfirmingOff] = useState(false)
+  const courseCount = campus.course_count ?? 0
 
   return (
     <div className="flex items-center gap-sm border-b border-border py-sm last:border-0">
-      <p className="flex-1 text-body-sm text-text-primary">
-        {campus.province_state}, {campus.country}
-      </p>
+      <div className="min-w-0 flex-1">
+        <p className="text-body-sm text-text-primary">{campusLabel(campus)}</p>
+        <p className="text-caption text-text-secondary">{plural(courseCount, 'course')} taught here</p>
+      </div>
       {campus.active && !campus.visible && <Badge color="secondary">Hidden — college inactive</Badge>}
       <Toggle
         checked={Boolean(campus.active)}
-        onChange={(checked) => updateCampus.mutate({ campusId: campus.id!, body: { active: checked } })}
-        label={`${campus.province_state} campus active`}
+        onChange={(checked) =>
+          checked
+            ? updateCampus.mutate({ campusId: campus.id!, body: { active: true } })
+            : setConfirmingOff(true)
+        }
+        label={`${campusLabel(campus)} campus active`}
       />
       <button
         type="button"
         onClick={() => setEditing(true)}
-        aria-label={`Edit ${campus.province_state} campus`}
+        aria-label={`Edit ${campusLabel(campus)} campus`}
         title="Edit"
         className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
       >
         <Pencil className="h-4 w-4" />
       </button>
       {editing && <CampusFormModal collegeId={collegeId} editingCampus={campus} onClose={() => setEditing(false)} />}
+      {confirmingOff && (
+        <Modal
+          onClose={() => setConfirmingOff(false)}
+          title="Switch off this campus?"
+          widthRem={28}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setConfirmingOff(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                loading={updateCampus.isPending}
+                onClick={() =>
+                  updateCampus.mutate(
+                    { campusId: campus.id!, body: { active: false } },
+                    { onSuccess: () => setConfirmingOff(false) },
+                  )
+                }
+              >
+                Switch off
+              </Button>
+            </>
+          }
+        >
+          <p className="text-body-sm text-text-secondary">
+            {campusLabel(campus)} will stop appearing as a location for the {plural(courseCount, 'course')} taught
+            here. The courses themselves stay listed. You can switch it back on at any time.
+          </p>
+        </Modal>
+      )}
     </div>
   )
 }
@@ -330,17 +390,27 @@ export function CollegeDetailPage() {
   const { id = '' } = useParams()
   const college = useCollegeDetail(id)
   const updateCollege = useUpdateCollege(id)
+  const studyLevels = useStudyLevels()
   const [editingCollege, setEditingCollege] = useState(false)
+  const [confirmingCollegeOff, setConfirmingCollegeOff] = useState(false)
   const [showAddCampus, setShowAddCampus] = useState(false)
   const [showAddCourse, setShowAddCourse] = useState(false)
 
   const [courseSearch, setCourseSearch] = useState('')
   const [courseSort, setCourseSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
+  const [levelFilter, setLevelFilter] = useState('')
+  const [fieldFilter, setFieldFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('')
+  const [healthFilter, setHealthFilter] = useState<'' | 'needs_details' | 'complete'>('')
   const coursePaging = useCursorPagination()
 
   const courses = useCourses({
     collegeId: id,
     search: courseSearch || undefined,
+    level: levelFilter || undefined,
+    fieldOfStudy: fieldFilter || undefined,
+    active: statusFilter ? statusFilter === 'active' : undefined,
+    health: healthFilter || undefined,
     sort: courseSort ? (courseSort.direction === 'desc' ? `-${courseSort.field}` : courseSort.field) : undefined,
     cursor: coursePaging.cursor,
     limit: 20,
@@ -363,6 +433,21 @@ export function CollegeDetailPage() {
   }
 
   const record = college.data
+  const levelLabel = (code?: string | null) =>
+    code ? (studyLevels.data?.find((l) => l.code === code)?.label ?? titleCase(code)) : null
+  const facts = [
+    record.institution_type ? titleCase(record.institution_type) : null,
+    record.qs_rank != null ? `QS #${record.qs_rank}` : null,
+    record.the_rank != null ? `THE #${record.the_rank}` : null,
+    record.acceptance_rate != null ? `${record.acceptance_rate}% acceptance` : null,
+  ].filter(Boolean)
+  const partners = record.partner_consultancies ?? []
+  const campusCount = (record.campuses ?? []).length
+  const filtered = Boolean(courseSearch || levelFilter || fieldFilter || statusFilter || healthFilter)
+
+  function resetCoursePaging() {
+    coursePaging.reset()
+  }
 
   const courseColumns: TableColumn<Course>[] = [
     {
@@ -370,27 +455,55 @@ export function CollegeDetailPage() {
       header: 'Course',
       sortable: true,
       render: (course) => {
-        const feeLabel = course.fee?.amount != null ? formatCourseFee(course.fee, course.fee_period) : null
-        const detailLine = [course.level, course.field_of_study, course.duration, feeLabel].filter(Boolean).join(' · ')
+        const detailLine = [levelLabel(course.level), course.field_of_study].filter(Boolean).join(' · ')
         return (
           <div>
-            <p className="font-medium text-text-primary">{course.name}</p>
-            <p className="text-caption text-text-secondary">{detailLine || 'No details yet'}</p>
+            <p className="flex items-center gap-xs font-medium text-text-primary">
+              {course.name}
+              {course.active === false && <Badge color="secondary">Off</Badge>}
+            </p>
+            <p className="text-caption text-text-secondary">{detailLine || 'No level or field yet'}</p>
           </div>
         )
       },
     },
     {
+      key: 'fee',
+      header: 'Fee',
+      sortable: true,
+      align: 'right',
+      hideBelow: 'md',
+      render: (course) =>
+        course.fee?.amount != null ? (
+          <span className="whitespace-nowrap">{formatCourseFee(course.fee, course.fee_period)}</span>
+        ) : (
+          <span className="text-text-secondary">—</span>
+        ),
+    },
+    {
+      key: 'duration',
+      header: 'Duration',
+      sortable: true,
+      align: 'right',
+      hideBelow: 'lg',
+      render: (course) =>
+        course.duration || (course.duration_months != null ? `${course.duration_months} months` : null) || (
+          <span className="text-text-secondary">—</span>
+        ),
+    },
+    {
+      // What's missing, in words (2026-09-11) — it used to be "4/5" with the detail only on hover.
       key: 'completeness',
       header: 'Data',
       hideBelow: 'sm',
       render: (course) => {
         const { done, total, missing } = courseCompleteness(course)
-        return done === total ? (
-          <Badge color="success">Complete</Badge>
-        ) : (
-          <span title={`Missing: ${missing.join(', ')}`}>
+        if (done === total) return <Badge color="success">Complete</Badge>
+        const labels = missing.map((m) => CHECK_LABELS[m] ?? m)
+        return (
+          <span className="flex flex-col items-start" title={`Missing: ${labels.join(', ')}`}>
             <Badge color="warning">{`${done}/${total}`}</Badge>
+            <span className="text-caption text-text-secondary">Missing {labels.join(', ')}</span>
           </span>
         )
       },
@@ -425,8 +538,8 @@ export function CollegeDetailPage() {
             ) : (
               <div className="h-16 w-16 shrink-0 rounded-md bg-background" />
             )}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-sm">
+            <div className="flex min-w-0 flex-1 flex-col gap-xs">
+              <div className="flex flex-wrap items-center gap-sm">
                 <Badge color={record.active ? 'success' : 'secondary'}>{record.active ? 'Active' : 'Inactive'}</Badge>
                 {record.website && (
                   <a
@@ -439,9 +552,24 @@ export function CollegeDetailPage() {
                   </a>
                 )}
               </div>
-              {record.description && <p className="mt-xs text-body-sm text-text-secondary">{record.description}</p>}
+              {/* The facts the edit form already collects (2026-09-11) — they were never shown. */}
+              {facts.length > 0 && <p className="text-body-sm text-text-primary">{facts.join(' · ')}</p>}
+              {record.description && <p className="text-body-sm text-text-secondary">{record.description}</p>}
+              <p className="text-caption text-text-secondary">
+                {campusCount === 1 ? '1 campus' : `${campusCount} campuses`} · {plural(record.course_count ?? 0, 'course')},{' '}
+                {record.complete_course_count ?? 0} with complete details
+              </p>
+              <p className="text-caption text-text-secondary">
+                <span className="font-medium text-text-primary">Partner consultancies ({partners.length}):</span>{' '}
+                {partners.length === 0
+                  ? 'none yet'
+                  : partners
+                      .slice(0, 5)
+                      .map((p) => p.name)
+                      .join(', ') + (partners.length > 5 ? ` and ${partners.length - 5} more` : '')}
+              </p>
               {!record.active && (
-                <p className="mt-xs text-caption text-text-secondary">
+                <p className="text-caption text-text-secondary">
                   Every campus and course below is hidden from search while this college is inactive — their own active
                   toggles are untouched and will apply again as soon as this college is reactivated.
                 </p>
@@ -449,7 +577,7 @@ export function CollegeDetailPage() {
             </div>
             <Toggle
               checked={Boolean(record.active)}
-              onChange={(checked) => updateCollege.mutate({ active: checked })}
+              onChange={(checked) => (checked ? updateCollege.mutate({ active: true }) : setConfirmingCollegeOff(true))}
               label={`${record.name} active`}
             />
             <button
@@ -472,9 +600,7 @@ export function CollegeDetailPage() {
             </Button>
           </div>
           <div className="mt-sm">
-            {(record.campuses ?? []).length === 0 && (
-              <p className="text-caption text-text-secondary">No campuses yet.</p>
-            )}
+            {campusCount === 0 && <p className="text-caption text-text-secondary">No campuses yet.</p>}
             {(record.campuses ?? []).map((campus) => (
               <CampusRow key={campus.id} collegeId={id} campus={campus} />
             ))}
@@ -494,23 +620,79 @@ export function CollegeDetailPage() {
           loading={courses.isLoading}
           error={courses.isError ? 'Could not load courses.' : undefined}
           emptyMessage={
-            courseSearch
-              ? 'No courses match your search.'
-              : 'No courses yet for this college. Add one with Add Course above.'
+            filtered ? 'No courses match these filters.' : 'No courses yet for this college. Add one with Add Course above.'
           }
           sort={courseSort}
           onSortChange={(field, direction) => {
             setCourseSort({ field, direction })
-            coursePaging.reset()
+            resetCoursePaging()
           }}
           search={{
             value: courseSearch,
             onChange: (value) => {
               setCourseSearch(value)
-              coursePaging.reset()
+              resetCoursePaging()
             },
             placeholder: 'Search course name…',
           }}
+          filters={
+            <>
+              <CompactSelect
+                value={levelFilter}
+                onChange={(e) => {
+                  setLevelFilter(e.target.value)
+                  resetCoursePaging()
+                }}
+                label="Level"
+              >
+                <option value="">Any level</option>
+                {(studyLevels.data ?? []).map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.label}
+                  </option>
+                ))}
+              </CompactSelect>
+              <CompactSelect
+                value={fieldFilter}
+                onChange={(e) => {
+                  setFieldFilter(e.target.value)
+                  resetCoursePaging()
+                }}
+                label="Field"
+              >
+                <option value="">Any field</option>
+                {(record.fields_of_study ?? []).map((f) => (
+                  <option key={f} value={f}>
+                    {f}
+                  </option>
+                ))}
+              </CompactSelect>
+              <CompactSelect
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value as '' | 'active' | 'inactive')
+                  resetCoursePaging()
+                }}
+                label="Status"
+              >
+                <option value="">Any status</option>
+                <option value="active">On</option>
+                <option value="inactive">Off</option>
+              </CompactSelect>
+              <CompactSelect
+                value={healthFilter}
+                onChange={(e) => {
+                  setHealthFilter(e.target.value as '' | 'needs_details' | 'complete')
+                  resetCoursePaging()
+                }}
+                label="Details"
+              >
+                <option value="">Any details</option>
+                <option value="needs_details">Needs details</option>
+                <option value="complete">Complete</option>
+              </CompactSelect>
+            </>
+          }
           pagination={{
             hasNext: Boolean(courses.data?.meta.next_cursor),
             hasPrevious: coursePaging.hasPrevious,
@@ -521,6 +703,16 @@ export function CollegeDetailPage() {
         />
 
         {editingCollege && <CollegeFormModal college={record} onClose={() => setEditingCollege(false)} />}
+        {confirmingCollegeOff && (
+          <DeactivateConfirmModal
+            kind="college"
+            id={id}
+            name={record.name ?? 'this college'}
+            loading={updateCollege.isPending}
+            onClose={() => setConfirmingCollegeOff(false)}
+            onConfirm={() => updateCollege.mutate({ active: false }, { onSuccess: () => setConfirmingCollegeOff(false) })}
+          />
+        )}
         {showAddCampus && <CampusFormModal collegeId={id} onClose={() => setShowAddCampus(false)} />}
         {showAddCourse && <CourseFormModal college={record} onClose={() => setShowAddCourse(false)} />}
       </div>

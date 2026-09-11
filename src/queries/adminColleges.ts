@@ -130,6 +130,24 @@ export function useUpdateCampus(collegeId: string) {
   })
 }
 
+// What switching a college or course off would touch — read when the confirm opens (2026-09-11).
+export function useDeactivationImpact(kind: 'college' | 'course', id: string) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['deactivation-impact', kind, id],
+    queryFn: async () => {
+      const { data, error } =
+        kind === 'college'
+          ? await api.GET('/colleges/{id}/deactivation-impact', { params: { path: { id } } })
+          : await api.GET('/courses/{id}/deactivation-impact', { params: { path: { id } } })
+      if (error) throw new ApiError('Could not check what this affects.', error)
+      return data
+    },
+    enabled: isAuthed && Boolean(id),
+    staleTime: 0,
+  })
+}
+
 export function useImportColleges() {
   const queryClient = useQueryClient()
   return useMutation({

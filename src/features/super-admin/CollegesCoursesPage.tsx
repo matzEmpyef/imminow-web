@@ -1,16 +1,13 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Pencil } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
-import { TextField } from '@/components/TextField'
-import { FieldLabel } from '@/components/FieldLabel'
 import { Table, type TableColumn } from '@/components/Table'
 import { StopPropagation } from '@/components/StopPropagation'
-import { Modal } from '@/components/Modal'
-import { ImageUploadField } from '@/components/ImageUploadField'
-import { useAdminColleges, useCreateCollege, useImportColleges, useUpdateCollege } from '@/queries/adminColleges'
+import { useAdminColleges, useImportColleges } from '@/queries/adminColleges'
+import { CollegeFormModal } from './CollegeFormModal'
 import { useCountries } from '@/queries/countries'
 import { useCursorPagination } from '@/lib/pagination'
 import type { components } from '@/api/schema'
@@ -31,118 +28,6 @@ type College = components['schemas']['College']
 // (build reference 1.11); a college's campuses and courses now live entirely on its own detail
 // page (CollegeDetailPage.tsx) rather than nested inline here. GET /colleges list rows return
 // campus_count/course_count instead of embedding full campus objects — see mock-server/server.js.
-function CollegeFormModal({ editingCollege, onClose }: { editingCollege?: College; onClose: () => void }) {
-  const isEditing = Boolean(editingCollege)
-  const updateCollege = useUpdateCollege(editingCollege?.id ?? '')
-  const [name, setName] = useState(editingCollege?.name ?? '')
-  const [logoUrl, setLogoUrl] = useState(editingCollege?.logo_url ?? '')
-  const [website, setWebsite] = useState(editingCollege?.website ?? '')
-  const [description, setDescription] = useState(editingCollege?.description ?? '')
-
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    if (!name) return
-    const body = { name, logo_url: logoUrl || null, website: website || null, description }
-    updateCollege.mutate(body, { onSuccess: () => onClose() })
-  }
-
-  return (
-    <Modal
-      onClose={onClose}
-      title={isEditing ? 'Edit College' : 'Add College'}
-      widthRem={28}
-      footer={
-        <>
-          {updateCollege.isError && (
-            <p className="mr-auto self-center text-body-sm text-error">{updateCollege.error.message}</p>
-          )}
-          <Button type="submit" form="college-form" loading={updateCollege.isPending} disabled={!name}>
-            Save Changes
-          </Button>
-        </>
-      }
-    >
-      <form id="college-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="College name" required value={name} onChange={(e) => setName(e.target.value)} />
-        <ImageUploadField
-          label="Logo"
-          value={logoUrl ?? ''}
-          onChange={setLogoUrl}
-          hint="Square — shown as a 56×56 circle in the app. Ideal size 200×200px."
-        />
-        <TextField label="Website" value={website ?? ''} onChange={(e) => setWebsite(e.target.value)} />
-        <div className="flex flex-col gap-xs">
-          <FieldLabel htmlFor="college-description">Description</FieldLabel>
-          <textarea
-            id="college-description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            className="rounded-md border border-border bg-surface p-sm text-body text-text-primary"
-          />
-        </div>
-      </form>
-    </Modal>
-  )
-}
-
-function AddCollegeModal({ onClose }: { onClose: () => void }) {
-  const navigate = useNavigate()
-  const [name, setName] = useState('')
-  const [logoUrl, setLogoUrl] = useState('')
-  const [website, setWebsite] = useState('')
-  const [description, setDescription] = useState('')
-  const createCollege = useCreateCollege()
-
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    if (!name) return
-    createCollege.mutate(
-      { name, logo_url: logoUrl || null, website: website || null, description, active: true },
-      { onSuccess: (college: College) => navigate(`/admin/colleges/${college.id}`) },
-    )
-  }
-
-  return (
-    <Modal
-      onClose={onClose}
-      title="Add College"
-      widthRem={28}
-      footer={
-        <>
-          {createCollege.isError && (
-            <p className="mr-auto self-center text-body-sm text-error">{createCollege.error.message}</p>
-          )}
-          <Button type="submit" form="add-college-form" loading={createCollege.isPending} disabled={!name}>
-            Create
-          </Button>
-        </>
-      }
-    >
-      <form id="add-college-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="College name" required value={name} onChange={(e) => setName(e.target.value)} />
-        <ImageUploadField
-          label="Logo"
-          value={logoUrl}
-          onChange={setLogoUrl}
-          hint="Square — shown as a 56×56 circle in the app. Ideal size 200×200px."
-        />
-        <TextField label="Website" value={website} onChange={(e) => setWebsite(e.target.value)} />
-        <div className="flex flex-col gap-xs">
-          <FieldLabel htmlFor="new-college-description">Description</FieldLabel>
-          <textarea
-            id="new-college-description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            className="rounded-md border border-border bg-surface p-sm text-body text-text-primary"
-          />
-        </div>
-      </form>
-    </Modal>
-  )
-}
-
 type ImportResult = NonNullable<ReturnType<typeof useImportColleges>['data']>
 
 // What an import did, row by row (2026-09-11). It used to say only how many colleges it created,
@@ -383,8 +268,13 @@ export function CollegesCoursesPage() {
         )}
         {importColleges.isError && <p className="text-body-sm text-error">{importColleges.error.message}</p>}
 
-        {showAddCollege && <AddCollegeModal onClose={() => setShowAddCollege(false)} />}
-        {editingCollege && <CollegeFormModal editingCollege={editingCollege} onClose={() => setEditingCollege(null)} />}
+        {showAddCollege && (
+          <CollegeFormModal
+            onClose={() => setShowAddCollege(false)}
+            onCreated={(created) => navigate(`/admin/colleges/${created.id}`)}
+          />
+        )}
+        {editingCollege && <CollegeFormModal college={editingCollege} onClose={() => setEditingCollege(null)} />}
 
         <Table
           columns={columns}
