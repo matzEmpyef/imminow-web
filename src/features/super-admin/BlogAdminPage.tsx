@@ -122,9 +122,18 @@ function ArticlesTab() {
           ) : (
             <div className="h-10 w-14 shrink-0 rounded bg-border" />
           )}
-          <div className="min-w-0">
+          {/* Capped and clamped to two lines (2026-09-11): `truncate` never engaged inside an
+              auto-width table cell, so a long title stretched the table past its card and pushed
+              Tags / Refresh / the switch off-screen at 1280px. */}
+          <div className="min-w-0" style={{ maxWidth: '26rem' }}>
             <div className="flex items-center gap-xs">
-              <p className="truncate font-medium text-text-primary">{a.title}</p>
+              <p
+                className="font-medium text-text-primary"
+                title={a.title}
+                style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+              >
+                {a.title}
+              </p>
               {a.published_to_app === false && <Badge color="secondary">Hidden</Badge>}
             </div>
             <div className="flex flex-wrap items-center gap-sm text-caption text-text-secondary">
@@ -264,10 +273,11 @@ function ArticleActions({ article, onEditTags }: { article: BlogArticle; onEditT
     <div className="flex flex-col items-end gap-xs">
       {error && <span className="text-body-sm text-error">{error}</span>}
       <div className="flex items-center gap-sm">
-        <Button variant="secondary" onClick={onEditTags}>
+        <Button size="sm" variant="secondary" onClick={onEditTags}>
           Tags
         </Button>
         <Button
+          size="sm"
           variant="secondary"
           loading={refreshArticle.isPending}
           onClick={() => {
@@ -278,6 +288,7 @@ function ArticleActions({ article, onEditTags }: { article: BlogArticle; onEditT
           Refresh
         </Button>
         <Toggle
+          size="sm"
           checked={article.published_to_app !== false}
           onChange={(checked) => {
             // Used to fail silently (Marketing review, 2026-09-11) — no onError meant a rejected
@@ -611,6 +622,7 @@ function MappingToggle({ mapping }: { mapping: BlogCategoryMapping }) {
   return (
     <>
       <Toggle
+        size="sm"
         checked={Boolean(mapping.active)}
         onChange={(checked) => {
           if (!checked) {

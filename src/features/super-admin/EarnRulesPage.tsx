@@ -186,12 +186,14 @@ export function EarnRulesPage() {
     },
     {
       key: 'points_value',
+      width: '7rem',
       header: 'Points',
       align: 'right',
       render: (r) => `${r.points_value ?? 0} pts`,
     },
     {
       key: 'cap',
+      width: '10rem',
       header: 'Cap',
       align: 'right',
       render: (r) => (
@@ -208,9 +210,10 @@ export function EarnRulesPage() {
         </div>
       ),
     },
-    { key: 'active', header: 'Status', render: (r) => <RuleToggle rule={r} /> },
+    { key: 'active', header: 'Status', width: '6rem', render: (r) => <RuleToggle rule={r} /> },
     {
       key: 'actions',
+      width: '4rem',
       header: '',
       align: 'right',
       render: (r) => (
@@ -242,35 +245,43 @@ export function EarnRulesPage() {
 
         {editingRule && <RuleFormModal rule={editingRule} onClose={() => setEditingId(null)} />}
 
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search trigger…"
-          style={{ maxWidth: '20rem' }}
-          className="h-10 w-full rounded-full border border-border bg-background px-md text-body-sm text-text-primary outline-none focus:border-2 focus:border-primary"
-        />
+        {/* One white card for search and all three groups (user, 2026-09-11) — the group
+            headings used to sit on the grey page between three separate table cards. */}
+        <div className="flex flex-col rounded-lg bg-surface shadow-card">
+          <div className="border-b border-border p-md">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search trigger…"
+              style={{ maxWidth: '20rem' }}
+              className="h-10 w-full rounded-full border border-border bg-background px-md text-body-sm text-text-primary outline-none focus:border-2 focus:border-primary"
+            />
+          </div>
 
-        {rules.isLoading && <p className="text-body-sm text-text-secondary">Loading…</p>}
-        {rules.isError && <p className="text-body-sm text-error">Could not load earn rules.</p>}
+          {rules.isLoading && <p className="p-md text-body-sm text-text-secondary">Loading…</p>}
+          {rules.isError && <p className="p-md text-body-sm text-error">Could not load earn rules.</p>}
 
-        {!rules.isLoading &&
-          !rules.isError &&
-          (filteredRules.length === 0 ? (
-            <p className="text-body-sm text-text-secondary">No earn rules match your search.</p>
-          ) : (
-            GROUPS.map((group) => {
-              const rows = group.triggers
-                .map((t) => filteredRules.find((r) => r.trigger_type === t))
-                .filter((r): r is EarnRule => Boolean(r))
-              if (rows.length === 0) return null
-              return (
-                <div key={group.heading} className="flex flex-col gap-sm">
-                  <h2 className="text-h2 text-text-primary">{group.heading}</h2>
-                  <Table columns={columns} rows={rows} rowKey={(r) => r.id!} emptyMessage="No earn rules yet." />
-                </div>
-              )
-            })
-          ))}
+          {!rules.isLoading &&
+            !rules.isError &&
+            (filteredRules.length === 0 ? (
+              <p className="p-md text-body-sm text-text-secondary">No earn rules match your search.</p>
+            ) : (
+              GROUPS.map((group) => {
+                const rows = group.triggers
+                  .map((t) => filteredRules.find((r) => r.trigger_type === t))
+                  .filter((r): r is EarnRule => Boolean(r))
+                if (rows.length === 0) return null
+                return (
+                  <section key={group.heading} className="flex flex-col border-b border-border last:border-b-0">
+                    <h2 className="px-md pt-md text-caption font-medium uppercase tracking-wide text-text-secondary">
+                      {group.heading}
+                    </h2>
+                    <Table bare columns={columns} rows={rows} rowKey={(r) => r.id!} emptyMessage="No earn rules yet." />
+                  </section>
+                )
+              })
+            ))}
+        </div>
       </div>
     </AdminShell>
   )

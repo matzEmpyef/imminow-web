@@ -9,6 +9,12 @@ export interface TableColumn<T> {
   sortable?: boolean
   align?: 'left' | 'right' | 'center'
   hideBelow?: 'sm' | 'md' | 'lg'
+  /**
+   * A fixed column width (any CSS length). For stacked tables that share columns — Earn Rules
+   * shows three groups in one card, and without fixed widths each table sized its own columns, so
+   * Points, Cap and Status sat at different positions from group to group (2026-09-11).
+   */
+  width?: string
 }
 
 interface TableSort {
@@ -170,6 +176,7 @@ export function Table<T>({
               {columns.map((column) => (
                 <th
                   key={column.key}
+                  style={column.width ? { width: column.width } : undefined}
                   className={`px-md py-sm font-medium ${ALIGN_CLASS[column.align ?? 'left']} ${
                     column.hideBelow ? HIDE_BELOW_CLASS[column.hideBelow] : ''
                   }`}
