@@ -95,6 +95,25 @@ function SendNudgeModal({ row, onClose }: { row: ServiceFollowupRow; onClose: ()
   const send = useSendNudge()
   const [title, setTitle] = useState('A message from Sentpo')
   const [body, setBody] = useState(() => defaultNudgeMessage(row))
+  const [attempted, setAttempted] = useState(false)
+  const titleError = attempted && !title.trim() ? 'Add a title.' : undefined
+  const bodyError = attempted && !body.trim() ? 'Add a message.' : undefined
+
+  function handleSend() {
+    if (!title.trim() || !body.trim()) {
+      setAttempted(true)
+      return
+    }
+    send.mutate(
+      { studentId: row.student_id, title: title.trim(), body: body.trim() },
+      {
+        onSuccess: () => {
+          onClose()
+          showToast(`Push sent to ${row.student_name}`)
+        },
+      },
+    )
+  }
 
   return (
     <Modal
@@ -107,28 +126,24 @@ function SendNudgeModal({ row, onClose }: { row: ServiceFollowupRow; onClose: ()
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            loading={send.isPending}
-            disabled={!body.trim()}
-            onClick={() =>
-              send.mutate(
-                { studentId: row.student_id, title: title.trim() || undefined, body: body.trim() },
-                {
-                  onSuccess: () => {
-                    onClose()
-                    showToast(`Push sent to ${row.student_name}`)
-                  },
-                },
-              )
-            }
-          >
+          <Button loading={send.isPending} onClick={handleSend}>
             Send
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-md">
-        <TextField label="Title" maxLength={60} value={title} onChange={(e) => setTitle(e.target.value)} />
+        <div className="flex flex-col gap-xs">
+          <TextField
+            label="Title"
+            required
+            maxLength={60}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            error={titleError}
+          />
+          <p className="pl-lg text-caption text-text-secondary">{title.length}/60</p>
+        </div>
         <div className="flex flex-col gap-xs">
           <TextAreaField
             label="Message"
@@ -137,6 +152,7 @@ function SendNudgeModal({ row, onClose }: { row: ServiceFollowupRow; onClose: ()
             maxLength={240}
             value={body}
             onChange={(e) => setBody(e.target.value)}
+            error={bodyError}
           />
           <p className="pl-lg text-caption text-text-secondary">{body.length}/240</p>
         </div>

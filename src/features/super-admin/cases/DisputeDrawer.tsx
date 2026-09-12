@@ -69,9 +69,23 @@ export function DisputeDrawer({
           </div>
           <div className="flex flex-col gap-xs rounded-md border border-border p-sm">
             <p className="text-caption font-medium text-text-secondary">Consultancy</p>
-            <p className="text-body-sm text-text-primary">{dispute.consultancy_name}</p>
+            {dispute.consultancy_name ? (
+              <Link
+                to={`/admin/consultancies?search=${encodeURIComponent(dispute.consultancy_name)}`}
+                className="text-body-sm text-primary hover:underline"
+              >
+                {dispute.consultancy_name}
+              </Link>
+            ) : (
+              <p className="text-body-sm text-text-primary">—</p>
+            )}
             {dispute.consultancy_contact?.name && (
-              <p className="text-caption text-text-secondary">{dispute.consultancy_contact.name}</p>
+              <Link
+                to={`/admin/users/imminow?search=${encodeURIComponent(dispute.consultancy_contact.name)}`}
+                className="text-caption text-primary hover:underline"
+              >
+                {dispute.consultancy_contact.name}
+              </Link>
             )}
             {dispute.consultancy_contact?.email && (
               <a

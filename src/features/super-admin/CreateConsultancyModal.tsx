@@ -96,6 +96,19 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
       ? Boolean(adminFirstName && adminLastName && adminEmail && !adminEmailError)
       : Boolean(adminUser)
   const canSubmit = Boolean(name && city && branchAddress && adminReady)
+  // A click on an incomplete form says what is missing (review H1, 2026-09-12) instead of a
+  // disabled button that explains nothing.
+  const [attempted, setAttempted] = useState(false)
+  const missing = [
+    !name && 'name',
+    !city && 'city',
+    !branchAddress && 'address',
+    adminMode === 'invite'
+      ? (!adminFirstName || !adminLastName) && "the first admin's name"
+      : !adminUser && 'the person to attach',
+    adminMode === 'invite' && !adminEmail && "the first admin's email",
+    adminMode === 'invite' && adminEmailError && 'a valid admin email',
+  ].filter(Boolean) as string[]
 
   const kindNoun = isInstitute ? 'Institute' : 'Consultancy'
 
@@ -103,7 +116,10 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
     e.preventDefault()
     // T8: Enter-Enter before the button disabled created two consultancies.
     if (createConsultancy.isPending) return
-    if (!canSubmit) return
+    if (!canSubmit) {
+      setAttempted(true)
+      return
+    }
     createConsultancy.mutate(
       {
         name,
@@ -139,9 +155,11 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
       widthRem={34}
       footer={
         <>
-          {createConsultancy.isError && (
+          {createConsultancy.isError ? (
             <p className="mr-auto self-center text-body-sm text-error">{createConsultancy.error.message}</p>
-          )}
+          ) : attempted && missing.length > 0 ? (
+            <p className="mr-auto self-center text-body-sm text-error">Still needed: {missing.join(', ')}.</p>
+          ) : null}
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
@@ -149,7 +167,6 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
             type="submit"
             form="create-consultancy-form"
             loading={createConsultancy.isPending}
-            disabled={!canSubmit}
           >
             Create {kindNoun}
           </Button>

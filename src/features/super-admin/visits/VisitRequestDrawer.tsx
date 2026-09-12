@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Drawer } from '@/components/Drawer'
@@ -82,12 +83,26 @@ export function VisitRequestDrawer({
         {/* Consultancy */}
         <div className="flex flex-col gap-xs">
           <p className="text-caption font-medium text-text-secondary">Consultancy</p>
-          <p className="text-body-sm text-text-primary">{request.consultancy_name}</p>
+          {request.consultancy_name ? (
+            <Link
+              to={`/admin/consultancies?search=${encodeURIComponent(request.consultancy_name)}`}
+              className="text-body-sm text-primary hover:underline"
+            >
+              {request.consultancy_name}
+            </Link>
+          ) : (
+            <p className="text-body-sm text-text-primary">—</p>
+          )}
           {request.consultancy_contact && (
             <div className="flex flex-col gap-xs rounded-md bg-background p-sm">
               <div className="flex flex-wrap items-center gap-sm">
                 {request.consultancy_contact.name && (
-                  <span className="text-body-sm font-medium text-text-primary">{request.consultancy_contact.name}</span>
+                  <Link
+                    to={`/admin/users/imminow?search=${encodeURIComponent(request.consultancy_contact.name)}`}
+                    className="text-body-sm font-medium text-primary hover:underline"
+                  >
+                    {request.consultancy_contact.name}
+                  </Link>
                 )}
                 <Badge color="info">
                   {request.consultancy_contact.assigned ? 'Assigned consultant' : 'Consultancy admin'}

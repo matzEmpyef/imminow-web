@@ -22,7 +22,26 @@ export function ComplaintResolveModal({
 }) {
   const update = useUpdateComplaint(complaint.id)
   const [note, setNote] = useState('')
+  const [attempted, setAttempted] = useState(false)
   const blocked = complaint.dispute_status === 'open'
+  const noteError = attempted && !note.trim() ? 'Add a resolution note.' : undefined
+
+  function handleResolve() {
+    if (!note.trim()) {
+      setAttempted(true)
+      return
+    }
+    update.mutate(
+      { status: 'resolved', resolution_note: note.trim() },
+      {
+        onSuccess: (updated) => {
+          showToast(`Complaint resolved for ${complaint.student_name ?? 'this student'}`)
+          if (updated) onResolved(updated)
+          onClose()
+        },
+      },
+    )
+  }
 
   return (
     <Modal
@@ -35,22 +54,7 @@ export function ComplaintResolveModal({
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            loading={update.isPending}
-            disabled={blocked || !note.trim()}
-            onClick={() =>
-              update.mutate(
-                { status: 'resolved', resolution_note: note.trim() },
-                {
-                  onSuccess: (updated) => {
-                    showToast(`Complaint resolved for ${complaint.student_name ?? 'this student'}`)
-                    if (updated) onResolved(updated)
-                    onClose()
-                  },
-                },
-              )
-            }
-          >
+          <Button loading={update.isPending} disabled={blocked} onClick={handleResolve}>
             Resolve
           </Button>
         </>
@@ -70,6 +74,7 @@ export function ComplaintResolveModal({
           onChange={(e) => setNote(e.target.value)}
           disabled={blocked}
           placeholder="What was done about this complaint?"
+          error={noteError}
         />
         <p className="text-caption text-text-secondary">The student sees this note in the app.</p>
       </div>

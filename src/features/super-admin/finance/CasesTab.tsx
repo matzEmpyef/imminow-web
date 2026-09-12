@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { Badge } from '@/components/Badge'
 import { CompactSelect } from '@/components/CompactSelect'
 import { FilterChip } from '@/components/FilterChip'
-import { StopPropagation } from '@/components/StopPropagation'
 import { Table, type TableColumn } from '@/components/Table'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
@@ -18,8 +17,21 @@ function inr(n: number | undefined): string {
   return `₹${(n ?? 0).toLocaleString('en-IN')}`
 }
 
-const STATUS_COLOR = { unpaid: 'warning', part_paid: 'info', paid: 'success', not_due: 'secondary' } as const
-const STATUS_LABEL = { unpaid: 'Unpaid', part_paid: 'Part-paid', paid: 'Paid', not_due: 'Not due yet' } as const
+const STATUS_COLOR = {
+  unpaid: 'warning',
+  part_paid: 'info',
+  paid: 'success',
+  not_due: 'secondary',
+  closed: 'secondary',
+} as const
+const STATUS_LABEL = {
+  unpaid: 'Unpaid',
+  part_paid: 'Part-paid',
+  paid: 'Paid',
+  not_due: 'Not due yet',
+  // The remaining due was closed off without ever being collected (2026-09-12, product review H2).
+  closed: 'Closed — not collected',
+} as const
 
 /**
  * Every active commission case, server-paged (2026-09-11 rebuild) — the platform expects hundreds
@@ -83,16 +95,10 @@ export function CasesTab() {
       key: 'applicant_name',
       header: 'Student',
       sortable: true,
-      render: (r) =>
-        r.journey_id ? (
-          <StopPropagation className="inline-block">
-            <Link to={`/admin/case-followups/${r.journey_id}`} className="font-medium text-primary hover:underline">
-              {r.applicant_name}
-            </Link>
-          </StopPropagation>
-        ) : (
-          <span className="font-medium text-text-primary">{r.applicant_name}</span>
-        ),
+      // The name used to link to the read-only follow-ups detail page — a second, different
+      // destination from clicking anywhere else on the row (2026-09-12, product review H6: "one
+      // destination per case"). It now just opens the same actions drawer the row click does.
+      render: (r) => <span className="font-medium text-text-primary">{r.applicant_name}</span>,
     },
     { key: 'consultancy_name', header: 'Consultancy', render: (r) => r.consultancy_name },
     { key: 'destination_country', header: 'Country', hideBelow: 'md', render: (r) => r.destination_country ?? '—' },
@@ -279,6 +285,7 @@ export function CasesTab() {
               <option value="unpaid">Unpaid</option>
               <option value="part_paid">Part-paid</option>
               <option value="paid">Paid</option>
+              <option value="closed">Closed — not collected</option>
             </CompactSelect>
             <input
               type="date"

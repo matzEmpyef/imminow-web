@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
+import { Button } from '@/components/Button'
+import { Modal } from '@/components/Modal'
 import { Toggle } from '@/components/Toggle'
 import { Table, type TableColumn } from '@/components/Table'
 import { FilterChip } from '@/components/FilterChip'
@@ -85,14 +87,24 @@ const LABELS: Record<string, string> = {
 
 // Row-level component so useUpdateNotificationChannelConfig() can be called at its own render top
 // level — Table's `render: (row) => ...` runs as a callback, not a component body.
+//
+// Switching a channel OFF confirms first (2026-09-12, product review H9) — it silently stops that
+// notification for EVERYONE on the platform, not just the person clicking, so a stray click
+// shouldn't be able to do it. Turning one back ON is always safe to do immediately: it can only
+// ever add delivery back, never take it away.
 function ChannelToggles({ entry }: { entry: ConfigEntry }) {
   const updateConfig = useUpdateNotificationChannelConfig()
+  const [confirmingChannel, setConfirmingChannel] = useState<{ key: 'in_app_enabled' | 'push_enabled' | 'email_enabled'; label: string } | null>(
+    null,
+  )
 
   const channels = [
     { key: 'in_app_enabled', label: 'In-app', checked: Boolean(entry.in_app_enabled) },
     { key: 'push_enabled', label: 'Push', checked: Boolean(entry.push_enabled) },
     { key: 'email_enabled', label: 'Email', checked: Boolean(entry.email_enabled) },
   ] as const
+
+  const notificationLabel = LABELS[entry.notification_type] ?? entry.notification_type
 
   return (
     <div className="flex items-center justify-end gap-lg">
@@ -101,13 +113,46 @@ function ChannelToggles({ entry }: { entry: ConfigEntry }) {
           <span className="text-caption text-text-secondary">{channel.label}</span>
           <Toggle
             checked={channel.checked}
-            onChange={(checked) =>
-              updateConfig.mutate({ notification_type: entry.notification_type!, [channel.key]: checked })
-            }
-            label={`${LABELS[entry.notification_type] ?? entry.notification_type} ${channel.label}`}
+            onChange={(checked) => {
+              if (checked) {
+                updateConfig.mutate({ notification_type: entry.notification_type!, [channel.key]: true })
+              } else {
+                setConfirmingChannel({ key: channel.key, label: channel.label })
+              }
+            }}
+            label={`${notificationLabel} ${channel.label}`}
           />
         </div>
       ))}
+
+      {confirmingChannel && (
+        <Modal onClose={() => setConfirmingChannel(null)} title={`Turn off ${confirmingChannel.label}`} widthRem={26}>
+          <div className="flex flex-col gap-md">
+            <p className="text-body-sm text-text-primary">
+              Turn off {confirmingChannel.label} for {notificationLabel}? Nobody on the platform will get it this way
+              until it&rsquo;s turned back on.
+            </p>
+            {updateConfig.isError && <p className="text-body-sm text-error">{updateConfig.error.message}</p>}
+            <div className="flex justify-end gap-sm">
+              <Button variant="secondary" onClick={() => setConfirmingChannel(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                loading={updateConfig.isPending}
+                onClick={() =>
+                  updateConfig.mutate(
+                    { notification_type: entry.notification_type!, [confirmingChannel.key]: false },
+                    { onSuccess: () => setConfirmingChannel(null) },
+                  )
+                }
+              >
+                Turn off
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
@@ -176,7 +221,21 @@ export function NotificationChannelConfigPage() {
         )
       },
     },
-    { key: 'channels', header: 'Channels', align: 'right', render: (entry) => <ChannelToggles entry={entry} /> },
+    {
+      key: 'channels',
+      header: (
+        <span className="inline-flex items-center gap-md">
+          <span>In-app</span>
+          <span className="inline-flex items-center gap-xs">
+            Push
+            <Badge color="secondary">Not live yet</Badge>
+          </span>
+          <span>Email</span>
+        </span>
+      ),
+      align: 'right',
+      render: (entry) => <ChannelToggles entry={entry} />,
+    },
   ]
 
   return (

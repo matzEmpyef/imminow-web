@@ -31,6 +31,7 @@ export function EraseForm({ result, onCancel }: { result: UserSearchResult; onCa
 
   return (
     <div className="flex flex-col gap-sm">
+      <p className="text-body-sm font-semibold text-error">{result.name}</p>
       <p className="text-caption text-text-secondary">
         Queues deletion of this user's personal data. It completes after a 30-day window and cannot be undone once
         that window passes.

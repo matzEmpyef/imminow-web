@@ -437,12 +437,23 @@ export function CouponsAdminPage() {
     { key: 'type', header: 'Type', render: (c) => (c.type ? couponTypeLabels[c.type] : '—') },
     { key: 'point_cost', header: 'Points', sortable: true, align: 'right', render: (c) => `${c.point_cost} pts` },
     {
-      key: 'stock',
-      header: 'Remaining / Total',
+      // Split from one ambiguous "Remaining / Total" fraction into three plainly labelled numbers
+      // (2026-09-12, product review H11) — alongside the existing Claimed column below, this and
+      // "Total stock" give Claimed / Remaining / Total (stock) each their own clear column instead
+      // of a slash nobody can read at a glance.
+      key: 'remaining_stock',
+      header: 'Remaining',
       sortable: true,
       align: 'right',
       // `remaining_stock` is server-computed (stock - redemption_count) — no client math needed.
-      render: (c) => `${c.remaining_stock ?? Math.max(0, (c.stock ?? 0) - (c.redemption_count ?? 0))} / ${c.stock ?? 0}`,
+      render: (c) => c.remaining_stock ?? Math.max(0, (c.stock ?? 0) - (c.redemption_count ?? 0)),
+    },
+    {
+      key: 'stock',
+      header: 'Total (stock)',
+      sortable: true,
+      align: 'right',
+      render: (c) => c.stock ?? 0,
     },
     {
       key: 'expiry_date',
@@ -465,7 +476,14 @@ export function CouponsAdminPage() {
     },
     {
       key: 'relevance_scope',
-      header: 'Relevance',
+      header: (
+        <span
+          className="cursor-help underline decoration-dotted"
+          title="How closely a coupon must match a student's location. Relevant coupons rank first in their catalog — every scope other than Country still shows elsewhere, just lower down. Country is the one exception: it hides the coupon entirely from students resident in a different country."
+        >
+          Relevance
+        </span>
+      ),
       render: (c) => (c.relevance_scope ? relevanceScopeLabels[c.relevance_scope] : '—'),
     },
     { key: 'active', header: 'Active', render: (c) => <CouponToggle coupon={c} /> },

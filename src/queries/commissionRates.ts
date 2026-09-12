@@ -94,6 +94,54 @@ export function useBulkSetCommissionRates() {
   })
 }
 
+// Saves only the payer groups the admin actually filled in (product review H3, 2026-09-12) — the
+// bulk endpoint above intentionally requires all four groups ("this endpoint exists specifically
+// so none can be left unset"), which is right for onboarding a brand-new country but wrong for
+// touching up one or two rows: forcing the other, still-blank rows to 0% would silently price
+// those payer methods at nothing. Uses the single-row endpoints instead, one call per filled row —
+// PATCH for a row that already has an id (an existing rate), POST for one that doesn't.
+export function useSaveCommissionRateRows() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      consultancy_id,
+      destination_country,
+      rows,
+    }: {
+      consultancy_id: string
+      destination_country: string
+      rows: {
+        id?: string
+        payer_method: 'college' | 'applicant' | 'split' | 'pr'
+        direct_rate: number
+        freelancer_sourced_rate: number
+      }[]
+    }) => {
+      for (const row of rows) {
+        if (row.id) {
+          const { error } = await api.PATCH('/commission-rates/{id}', {
+            params: { path: { id: row.id } },
+            body: { direct_rate: row.direct_rate, freelancer_sourced_rate: row.freelancer_sourced_rate },
+          })
+          if (error) throw new ApiError('Could not save this rate.', error)
+        } else {
+          const { error } = await api.POST('/commission-rates', {
+            body: {
+              consultancy_id,
+              destination_country,
+              payer_method: row.payer_method,
+              direct_rate: row.direct_rate,
+              freelancer_sourced_rate: row.freelancer_sourced_rate,
+            },
+          })
+          if (error) throw new ApiError('Could not save this rate.', error)
+        }
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['commission-rates'] }),
+  })
+}
+
 // The default platform cut applied when no CommissionRate row covers a case (2026-09-11 rebuild —
 // the old page never showed this fallback existed at all, so a gap in coverage silently priced
 // cases at a number nobody could see).

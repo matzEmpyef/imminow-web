@@ -454,6 +454,45 @@ function QueueView() {
   )
 }
 
+// Same pattern as CollegeDetailPage's college/course switch-off (2026-09-12, product review H14)
+// — Retire used to fire straight from the icon with no confirmation at all, on an action that
+// looks a lot like a delete. Restore stays a single click: it only ever adds the institution back
+// as a choice, nothing about it is destructive.
+function RetireConfirmModal({
+  institution,
+  loading,
+  onConfirm,
+  onClose,
+}: {
+  institution: Institution
+  loading: boolean
+  onConfirm: () => void
+  onClose: () => void
+}) {
+  return (
+    <Modal
+      onClose={onClose}
+      title={`Retire ${institution.name}?`}
+      widthRem={28}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="destructive" loading={loading} onClick={onConfirm}>
+            Retire
+          </Button>
+        </>
+      }
+    >
+      <p className="text-body-sm text-text-secondary">
+        {plural(institution.student_count ?? 0, 'student')} list it as their school. They keep it; it just stops
+        being offered as a choice. You can restore it later.
+      </p>
+    </Modal>
+  )
+}
+
 function InstitutionRowActions({
   institution,
   onEdit,
@@ -465,6 +504,7 @@ function InstitutionRowActions({
 }) {
   const update = useUpdateInstitution()
   const retired = institution.active === false
+  const [confirmingRetire, setConfirmingRetire] = useState(false)
   return (
     <div className="flex items-center justify-end gap-xs">
       <IconButton label={`Edit ${institution.name}`} onClick={onEdit}>
@@ -475,7 +515,7 @@ function InstitutionRowActions({
       </IconButton>
       <button
         type="button"
-        onClick={() => update.mutate({ id: institution.id, active: retired })}
+        onClick={() => (retired ? update.mutate({ id: institution.id, active: true }) : setConfirmingRetire(true))}
         disabled={update.isPending}
         aria-label={retired ? `Restore ${institution.name}` : `Retire ${institution.name}`}
         title={retired ? 'Restore — offer it to students again' : 'Retire — stop offering it to students'}
@@ -483,6 +523,16 @@ function InstitutionRowActions({
       >
         {retired ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
       </button>
+      {confirmingRetire && (
+        <RetireConfirmModal
+          institution={institution}
+          loading={update.isPending}
+          onClose={() => setConfirmingRetire(false)}
+          onConfirm={() =>
+            update.mutate({ id: institution.id, active: false }, { onSuccess: () => setConfirmingRetire(false) })
+          }
+        />
+      )}
     </div>
   )
 }

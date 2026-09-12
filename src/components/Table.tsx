@@ -4,7 +4,9 @@ import { useDebouncedValue } from '@/lib/useDebounce'
 
 export interface TableColumn<T> {
   key: string
-  header: string
+  // ReactNode, not just string (2026-09-12, product review H9) — Notification Channel Config
+  // needs a persistent "Not live yet" badge inline in the Channels header, next to Push.
+  header: ReactNode
   render: (row: T) => ReactNode
   sortable?: boolean
   align?: 'left' | 'right' | 'center'

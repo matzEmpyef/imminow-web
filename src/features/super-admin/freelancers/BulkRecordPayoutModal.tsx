@@ -13,6 +13,7 @@ function inr(n: number | undefined | null): string {
 interface Result {
   succeeded: number
   failed: number
+  firstError?: string
 }
 
 /**
@@ -35,12 +36,19 @@ export function BulkRecordPayoutModal({
   const [reference, setReference] = useState('')
   const [running, setRunning] = useState(false)
   const [result, setResult] = useState<Result | null>(null)
+  const [attempted, setAttempted] = useState(false)
   const total = referrals.reduce((sum, r) => sum + (r.owed_inr ?? 0), 0)
+  const paidOnError = attempted && !paidOn ? 'Pick the date these were paid.' : undefined
 
   async function handleConfirm() {
+    if (!paidOn) {
+      setAttempted(true)
+      return
+    }
     setRunning(true)
     let succeeded = 0
     let failed = 0
+    let firstError: string | undefined
     for (const referral of referrals) {
       try {
         await recordPayout.mutateAsync({
@@ -50,12 +58,13 @@ export function BulkRecordPayoutModal({
           reference: reference || undefined,
         })
         succeeded++
-      } catch {
+      } catch (err) {
         failed++
+        if (!firstError) firstError = err instanceof Error ? err.message : 'Something went wrong.'
       }
     }
     setRunning(false)
-    setResult({ succeeded, failed })
+    setResult({ succeeded, failed, firstError })
     onDone()
   }
 
@@ -72,7 +81,7 @@ export function BulkRecordPayoutModal({
             <Button variant="secondary" onClick={onClose} disabled={running}>
               Cancel
             </Button>
-            <Button loading={running} disabled={!paidOn} onClick={handleConfirm}>
+            <Button loading={running} onClick={handleConfirm}>
               Record {referrals.length} payout{referrals.length === 1 ? '' : 's'} (₹{total.toLocaleString('en-IN')})
             </Button>
           </>
@@ -81,10 +90,13 @@ export function BulkRecordPayoutModal({
     >
       <div className="flex flex-col gap-md">
         {result ? (
-          <p className="text-body-sm text-text-primary">
-            {result.succeeded} recorded
-            {result.failed > 0 ? `, ${result.failed} failed — try those again individually.` : '.'}
-          </p>
+          <div className="flex flex-col gap-xs">
+            <p className="text-body-sm text-text-primary">
+              {result.succeeded} recorded
+              {result.failed > 0 ? `, ${result.failed} failed — try those again individually.` : '.'}
+            </p>
+            {result.firstError && <p className="text-body-sm text-error">{result.firstError}</p>}
+          </div>
         ) : (
           <>
             <p className="text-body-sm text-text-secondary">
@@ -107,6 +119,7 @@ export function BulkRecordPayoutModal({
               required
               value={paidOn}
               onChange={(e) => setPaidOn(e.target.value)}
+              error={paidOnError}
             />
             <TextField
               label="Reference"

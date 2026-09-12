@@ -104,14 +104,36 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
     label: c.name ?? '',
   }))
 
-  const step1Valid =
-    Boolean(imageUrl) &&
-    (destinationType !== 'external_url' || Boolean(destinationUrl)) &&
-    (destinationType === 'external_url' || Boolean(destinationId))
+  const [attemptedStep1, setAttemptedStep1] = useState(false)
+  const missingStep1Fields = useMemo(() => {
+    const missing: string[] = []
+    if (!imageUrl) missing.push('Image')
+    if (destinationType === 'external_url' && !destinationUrl) missing.push('Destination URL')
+    if (destinationType === 'event' && !destinationId) missing.push('Event')
+    if (destinationType === 'internal' && !destinationId) missing.push('Consultancy')
+    return missing
+  }, [imageUrl, destinationType, destinationUrl, destinationId])
+  const step1Valid = missingStep1Fields.length === 0
+  const step1Error =
+    attemptedStep1 && !step1Valid
+      ? `Missing: ${missingStep1Fields.join(', ')}.`
+      : undefined
+
+  function handleNext() {
+    if (!step1Valid) {
+      setAttemptedStep1(true)
+      return
+    }
+    setStep(2)
+  }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!step1Valid) return
+    if (!step1Valid) {
+      setAttemptedStep1(true)
+      setStep(1)
+      return
+    }
     const body = {
       name: name.trim() || null,
       image_url: imageUrl,
@@ -147,9 +169,10 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
       widthRem={36}
       footer={
         step === 1 ? (
-          <Button onClick={() => setStep(2)} disabled={!step1Valid}>
-            Next: Targeting →
-          </Button>
+          <>
+            {step1Error && <p className="mr-auto self-center text-body-sm text-error">{step1Error}</p>}
+            <Button onClick={handleNext}>Next: Targeting →</Button>
+          </>
         ) : (
           <>
             {mutation.isError && (
@@ -158,7 +181,7 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
             <Button variant="secondary" onClick={() => setStep(1)}>
               ← Back
             </Button>
-            <Button type="submit" form="ad-form" loading={mutation.isPending} disabled={!step1Valid}>
+            <Button type="submit" form="ad-form" loading={mutation.isPending}>
               {isEditing ? 'Save Changes' : 'Create Ad'}
             </Button>
           </>

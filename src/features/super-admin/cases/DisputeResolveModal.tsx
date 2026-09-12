@@ -18,7 +18,27 @@ export function DisputeResolveModal({
   const resolve = useResolveDispute()
   const [action, setAction] = useState<DisputeAction | ''>('')
   const [note, setNote] = useState('')
+  const [attempted, setAttempted] = useState(false)
   const canSubmit = action !== '' && Boolean(note.trim())
+  const actionError = attempted && action === '' ? 'Choose what was decided.' : undefined
+  const noteError = attempted && !note.trim() ? 'Required. Explain what was decided, and why.' : undefined
+
+  function handleResolve() {
+    if (!canSubmit) {
+      setAttempted(true)
+      return
+    }
+    resolve.mutate(
+      { id: dispute.id, action: action as DisputeAction, resolutionNote: note.trim() },
+      {
+        onSuccess: (updated) => {
+          showToast(`Dispute resolved for ${dispute.student_name ?? 'this case'}`)
+          if (updated) onResolved(updated)
+          onClose()
+        },
+      },
+    )
+  }
 
   return (
     <Modal
@@ -31,23 +51,7 @@ export function DisputeResolveModal({
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            loading={resolve.isPending}
-            disabled={!canSubmit}
-            onClick={() =>
-              canSubmit &&
-              resolve.mutate(
-                { id: dispute.id, action: action as DisputeAction, resolutionNote: note.trim() },
-                {
-                  onSuccess: (updated) => {
-                    showToast(`Dispute resolved for ${dispute.student_name ?? 'this case'}`)
-                    if (updated) onResolved(updated)
-                    onClose()
-                  },
-                },
-              )
-            }
-          >
+          <Button loading={resolve.isPending} onClick={handleResolve}>
             Resolve
           </Button>
         </>
@@ -65,6 +69,7 @@ export function DisputeResolveModal({
               <p className="text-caption text-text-secondary">{a.detail}</p>
             </Card>
           ))}
+          {actionError && <p className="text-caption text-error">{actionError}</p>}
         </div>
 
         <div className="flex flex-col gap-xs">
@@ -77,13 +82,14 @@ export function DisputeResolveModal({
             onChange={(e) => setNote(e.target.value)}
             rows={4}
             placeholder="Who you spoke to, what they said, what you decided."
-            className="rounded-md border border-border bg-surface px-3 py-sm text-body"
+            aria-invalid={Boolean(noteError)}
+            className={`rounded-md border bg-surface px-3 py-sm text-body ${noteError ? 'border-error' : 'border-border'}`}
           />
           {/* Required by the server, not merely encouraged. Mediation happens off the platform,
               so this note is the only part of the decision the record ever gets — and this is the
               one decision here with real legal exposure. */}
-          <p className="text-caption text-text-secondary">
-            Required. The conversation happened off Sentpo; this is the only record of it.
+          <p className={`text-caption ${noteError ? 'text-error' : 'text-text-secondary'}`}>
+            {noteError ?? 'Required. The conversation happened off Sentpo; this is the only record of it.'}
           </p>
         </div>
       </div>

@@ -52,6 +52,7 @@ export function ChangeEmailForm({ result, onCancel }: { result: UserSearchResult
   if (confirming) {
     return (
       <div className="flex flex-col gap-sm">
+        <p className="text-body-sm font-semibold text-text-primary">{result.name}</p>
         <p className="rounded-md bg-background p-sm text-body-sm text-text-primary">
           Their old address ({result.email}) and the new one ({newEmail}) are both emailed, and they are signed out on
           every device.

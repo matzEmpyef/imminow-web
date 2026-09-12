@@ -297,7 +297,17 @@ function ReasonModal({
   onClose: () => void
 }) {
   const [reason, setReason] = useState('')
+  const [attempted, setAttempted] = useState(false)
   const reasonValid = reason.trim().length >= 3
+  const reasonError = attempted && !reasonValid ? 'Add a reason (at least 3 characters).' : undefined
+
+  function handleConfirm() {
+    if (!reasonValid) {
+      setAttempted(true)
+      return
+    }
+    onConfirm(reason.trim())
+  }
 
   return (
     <Modal
@@ -309,7 +319,7 @@ function ReasonModal({
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant={variant} loading={pending} disabled={!reasonValid} onClick={() => onConfirm(reason.trim())}>
+          <Button variant={variant} loading={pending} onClick={handleConfirm}>
             {confirmLabel}
           </Button>
         </>
@@ -317,7 +327,7 @@ function ReasonModal({
     >
       <div className="flex flex-col gap-md">
         <p className="text-body-sm text-text-secondary">{description}</p>
-        <TextField label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
+        <TextField label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} error={reasonError} />
         {error && <p className="text-body-sm text-error">{error}</p>}
       </div>
     </Modal>
@@ -331,11 +341,13 @@ function PermissionEditor({ staff }: { staff: PlatformStaff }) {
   const updatePermissions = useUpdatePlatformStaffPermissions(staff.id!)
   const [edits, setEdits] = useState<Record<string, boolean>>({})
   const [reason, setReason] = useState('')
+  const [attempted, setAttempted] = useState(false)
 
   const isOn = (key: PlatformPermissionKey) => (key in edits ? edits[key] : has(staff, key))
   const changedKeys = Object.keys(edits).filter((k) => edits[k] !== has(staff, k as PlatformPermissionKey))
   const dirty = changedKeys.length > 0
   const reasonValid = reason.trim().length >= 3
+  const reasonError = attempted && !reasonValid ? 'Add a reason (at least 3 characters).' : undefined
 
   function setEdit(key: PlatformPermissionKey, value: boolean) {
     setEdits((prev) => {
@@ -358,10 +370,15 @@ function PermissionEditor({ staff }: { staff: PlatformStaff }) {
   function handleDiscard() {
     setEdits({})
     setReason('')
+    setAttempted(false)
   }
 
   function handleSave() {
-    if (!dirty || !reasonValid) return
+    if (!dirty) return
+    if (!reasonValid) {
+      setAttempted(true)
+      return
+    }
     const flags: Record<string, boolean> = {}
     for (const key of changedKeys) flags[key] = edits[key]
     updatePermissions.mutate({ flags, reason: reason.trim() }, { onSuccess: handleDiscard })
@@ -390,12 +407,13 @@ function PermissionEditor({ staff }: { staff: PlatformStaff }) {
                 required
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
+                error={reasonError}
               />
               <div className="flex justify-end gap-sm">
                 <Button variant="secondary" size="sm" onClick={handleDiscard} disabled={updatePermissions.isPending}>
                   Discard
                 </Button>
-                <Button size="sm" loading={updatePermissions.isPending} disabled={!reasonValid} onClick={handleSave}>
+                <Button size="sm" loading={updatePermissions.isPending} onClick={handleSave}>
                   Save
                 </Button>
               </div>

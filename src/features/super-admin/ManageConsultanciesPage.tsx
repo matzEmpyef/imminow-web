@@ -116,6 +116,7 @@ function RatingSection({ consultancy }: { consultancy: Consultancy }) {
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState('')
   const [reason, setReason] = useState('')
+  const [attempted, setAttempted] = useState(false)
 
   const count = consultancy.rating_count ?? 0
   const isOverridden = consultancy.rating_source === 'override'
@@ -125,7 +126,11 @@ function RatingSection({ consultancy }: { consultancy: Consultancy }) {
       : 'No ratings submitted yet'
 
   const parsed = Number(value)
-  const valid = value.trim() !== '' && !Number.isNaN(parsed) && parsed >= 1 && parsed <= 5
+  const ratingValid = value.trim() !== '' && !Number.isNaN(parsed) && parsed >= 1 && parsed <= 5
+  const reasonValid = reason.trim().length > 0
+  const valid = ratingValid && reasonValid
+  const ratingError = attempted && !ratingValid ? 'Enter a rating between 1 and 5.' : undefined
+  const reasonError = attempted && !reasonValid ? 'A reason is required.' : undefined
 
   return (
     <div className="flex flex-col gap-sm p-md">
@@ -156,6 +161,7 @@ function RatingSection({ consultancy }: { consultancy: Consultancy }) {
               onClick={() => {
                 setValue(consultancy.rating != null ? String(consultancy.rating) : '')
                 setReason('')
+                setAttempted(false)
                 setEditing(true)
               }}
             >
@@ -172,24 +178,36 @@ function RatingSection({ consultancy }: { consultancy: Consultancy }) {
               type="number"
               value={value}
               onChange={(e) => setValue(e.target.value)}
+              error={ratingError}
               className="w-32"
             />
-            <TextField label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} className="flex-1" />
+            <TextField
+              label="Reason"
+              required
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              error={reasonError}
+              className="flex-1"
+            />
           </div>
           <p className="text-caption text-text-secondary">
             1 to 5, one decimal. The reason is recorded in the audit log. Students see this number instead of the
             computed one until the override is removed.
           </p>
+          {setRating.isError && <p className="text-caption text-error">{setRating.error.message}</p>}
           <div className="flex justify-end gap-xs">
             <Button variant="secondary" onClick={() => setEditing(false)}>
               Cancel
             </Button>
             <Button
-              disabled={!valid}
               loading={setRating.isPending}
-              onClick={() =>
+              onClick={() => {
+                if (!valid) {
+                  setAttempted(true)
+                  return
+                }
                 setRating.mutate(
-                  { rating: parsed, reason },
+                  { rating: parsed, reason: reason.trim() },
                   {
                     onSuccess: () => {
                       setEditing(false)
@@ -197,7 +215,7 @@ function RatingSection({ consultancy }: { consultancy: Consultancy }) {
                     },
                   },
                 )
-              }
+              }}
             >
               Save rating
             </Button>
@@ -398,10 +416,38 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
   const today = localDateISO()
   const startsOn =
     consultancy.subscription_expires_at && consultancy.subscription_expires_at > today ? consultancy.subscription_expires_at : today
+  const [attempted, setAttempted] = useState(false)
+  const parsedAmount = Number(amount)
+  const amountValid = amount.trim() !== '' && Number.isFinite(parsedAmount) && parsedAmount > 0
+  const expiresValid = Boolean(expires)
+  const expiresError = attempted && !expiresValid ? 'Pick the new end date.' : undefined
+  const amountError = attempted && !amountValid ? 'Enter an amount greater than 0.' : undefined
 
   function handleCycle(next: 'monthly' | 'annual') {
     setCycle(next)
     setExpires(suggestedEnd(consultancy.subscription_expires_at, next))
+  }
+
+  function handleRenew() {
+    if (!expiresValid || !amountValid) {
+      setAttempted(true)
+      return
+    }
+    renew.mutate(
+      {
+        subscription_expires_at: expires,
+        subscription_started_at: startsOn,
+        billing_cycle: cycle,
+        billing_currency: currency,
+        subscription_amount: parsedAmount,
+      },
+      {
+        onSuccess: () => {
+          onClose()
+          showToast(`${consultancy.name} subscription renewed`)
+        },
+      },
+    )
   }
 
   return (
@@ -415,27 +461,7 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            loading={renew.isPending}
-            disabled={!expires}
-            onClick={() =>
-              renew.mutate(
-                {
-                  subscription_expires_at: expires,
-                  subscription_started_at: startsOn,
-                  billing_cycle: cycle,
-                  billing_currency: currency,
-                  ...(amount !== '' ? { subscription_amount: Number(amount) } : {}),
-                },
-                {
-                  onSuccess: () => {
-                    onClose()
-                    showToast(`${consultancy.name} subscription renewed`)
-                  },
-                },
-              )
-            }
-          >
+          <Button loading={renew.isPending} onClick={handleRenew}>
             Renew
           </Button>
         </>
@@ -454,7 +480,14 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
           <option value="annual">Annual</option>
           <option value="monthly">Monthly</option>
         </SelectField>
-        <TextField label="New end date" type="date" value={expires} onChange={(e) => setExpires(e.target.value)} />
+        <TextField
+          label="New end date"
+          type="date"
+          required
+          value={expires}
+          onChange={(e) => setExpires(e.target.value)}
+          error={expiresError}
+        />
         {inPast && (
           <p className="text-caption text-warning">
             This date has already passed — use it only to correct a record. The consultancy will stay expired.
@@ -464,10 +497,12 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
           <TextField
             label="Amount"
             type="number"
+            required
             min="0"
             className="col-span-2"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
+            error={amountError}
           />
           <SelectField label="Currency" id={`renew-currency-${consultancy.id}`} value={currency} onChange={(e) => setCurrency(e.target.value)}>
             {currencyCodes.map((code) => (
@@ -983,7 +1018,9 @@ export function ManageConsultanciesPage() {
   // `?kind=consultancy|institute` pre-filters the list — the Overview's Consultancies and
   // Institutes cards link here that way (2026-09-10).
   const [searchParams, setSearchParams] = useSearchParams()
-  const [search, setSearch] = useState('')
+  // `?search=<name>` (2026-09-12, product review H7) — Support surfaces (complaint/dispute/visit
+  // drawers, the applicant case page) link a consultancy name straight here with a name to search.
+  const [search, setSearch] = useState(searchParams.get('search') ?? '')
   const [tierFilter, setTierFilter] = useState('')
   const [kindFilter, setKindFilter] = useState(searchParams.get('kind') ?? '')
   const [statusFilter, setStatusFilter] = useState('')

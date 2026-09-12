@@ -55,6 +55,21 @@ export function useCourses(filters: CourseListFilters = {}) {
   })
 }
 
+/** One course by id — Suggestions Review's "Open course" lands on the college page with `?edit=`
+ * and needs the course whether or not it is on the current page of the list (review H13, 2026-09-12). */
+export function useCourse(id: string | null) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['course', id],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/courses/{id}', { params: { path: { id: id! } } })
+      if (error) throw new ApiError('Could not load that course.', error)
+      return data
+    },
+    enabled: isAuthed && Boolean(id),
+  })
+}
+
 export function useCreateCourse() {
   const queryClient = useQueryClient()
   return useMutation({

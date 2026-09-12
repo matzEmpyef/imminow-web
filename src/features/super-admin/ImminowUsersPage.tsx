@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
 import { Table, type TableColumn } from '@/components/Table'
@@ -16,7 +17,10 @@ type Row = NonNullable<ReturnType<typeof useImminowUserDirectory>['data']>['item
 // distinguished by `kind`, never blended with the Sentpo student directory (SentpoUsersPage.tsx /
 // GET /admin/users/sentpo). See docs/PROGRESS.md §4 Step 3.
 export function ImminowUsersPage() {
-  const [search, setSearch] = useState('')
+  // `?search=<name>` (2026-09-12, product review H7) — Support surfaces link a consultant's name
+  // straight here with a name to search, the same way ManageConsultanciesPage does for a company.
+  const [searchParams] = useSearchParams()
+  const [search, setSearch] = useState(searchParams.get('search') ?? '')
   const [consultancyId, setConsultancyId] = useState('')
   const [active, setActive] = useState<'' | 'true' | 'false'>('')
   const [neverActive, setNeverActive] = useState(false)

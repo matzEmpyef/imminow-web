@@ -180,8 +180,14 @@ function SuggestionDetailModal({ suggestion, onClose }: { suggestion: CourseSugg
   const [modifiedValue, setModifiedValue] = useState(payload.suggested ?? '')
   const pending = suggestion.status === 'pending'
   const course = suggestion.course as (Course & Record<string, unknown>) | null | undefined
+  // `?edit=<courseId>` (2026-09-12, product review H13) — opens straight to THIS course's edit
+  // form with its CURRENT values, not the suggested change, so the admin edits what they actually
+  // want rather than reviewing a pre-filled diff. CollegeDetailPage.tsx does not read this param
+  // yet (it only opens a course's edit form from a per-row "editing" state local to
+  // CourseRowActions) — the link is wired here so it's a small, contained follow-up to make it
+  // read `edit` on mount and open that course's CourseFormModal automatically.
   const openLink = course?.college_id
-    ? { to: `/admin/colleges/${course.college_id}`, label: 'Open course' }
+    ? { to: `/admin/colleges/${course.college_id}?edit=${course.id}`, label: 'Open course' }
     : suggestion.college?.id
       ? { to: `/admin/colleges/${suggestion.college.id}`, label: 'Open college' }
       : null

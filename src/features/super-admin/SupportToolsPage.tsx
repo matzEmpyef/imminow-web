@@ -104,6 +104,9 @@ export function SupportToolsPage() {
             onChange: (value) => {
               setSearch(value)
               paging.reset()
+              // A stale Actions panel left open across a new search (2026-09-12, product review
+              // H8) risks acting on whoever was open rather than whoever is now on screen.
+              setActionsFor(null)
             },
             placeholder: 'Search by name or email…',
           }}

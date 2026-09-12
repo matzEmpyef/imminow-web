@@ -18,13 +18,24 @@ export function RecordPayoutModal({ referral, onClose }: { referral: FreelancerR
   const [amount, setAmount] = useState(String(owed))
   const [paidOn, setPaidOn] = useState(localDateISO())
   const [reference, setReference] = useState('')
+  const [attempted, setAttempted] = useState(false)
 
   const amountValue = Number(amount)
   const valid = amountValue >= 1 && amountValue <= owed && Boolean(paidOn)
+  const amountError = !attempted
+    ? undefined
+    : amount.trim() === '' || !Number.isFinite(amountValue) || amountValue < 1
+      ? 'Enter an amount of at least ₹1.'
+      : amountValue > owed
+        ? `Only ${inr(owed)} is owed.`
+        : undefined
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!valid) return
+    if (!valid) {
+      setAttempted(true)
+      return
+    }
     recordPayout.mutate(
       { referralId: referral.id, amount_inr: amountValue, paid_on: paidOn, reference: reference || undefined },
       {
@@ -46,7 +57,7 @@ export function RecordPayoutModal({ referral, onClose }: { referral: FreelancerR
           {recordPayout.isError && (
             <p className="mr-auto self-center text-body-sm text-error">{recordPayout.error.message}</p>
           )}
-          <Button type="submit" form="record-payout-form" loading={recordPayout.isPending} disabled={!valid}>
+          <Button type="submit" form="record-payout-form" loading={recordPayout.isPending}>
             Record payout
           </Button>
         </>
@@ -65,6 +76,7 @@ export function RecordPayoutModal({ referral, onClose }: { referral: FreelancerR
           required
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
+          error={amountError}
         />
         <TextField label="Paid on" type="date" required value={paidOn} onChange={(e) => setPaidOn(e.target.value)} />
         <TextField

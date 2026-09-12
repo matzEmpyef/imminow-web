@@ -30,7 +30,11 @@ export function InviteFreelancerModal({
   const [touched, setTouched] = useState(false)
 
   const codeError = touched && code.length > 0 && !CODE_PATTERN.test(code) ? 'Use 4–20 letters, digits or dashes.' : undefined
-  const canSubmit = Boolean(firstName && lastName && email && CODE_PATTERN.test(code))
+  const canSubmit = Boolean(firstName.trim() && lastName.trim() && email.trim() && CODE_PATTERN.test(code))
+  const firstNameError = touched && !firstName.trim() ? 'First name is required.' : undefined
+  const lastNameError = touched && !lastName.trim() ? 'Last name is required.' : undefined
+  const emailError = touched && !email.trim() ? 'Email is required.' : undefined
+  const requiredCodeError = touched && !code.trim() ? 'Referral code is required.' : codeError
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -64,7 +68,7 @@ export function InviteFreelancerModal({
           {inviteFreelancer.isError && (
             <p className="mr-auto self-center text-body-sm text-error">{inviteFreelancer.error.message}</p>
           )}
-          <Button type="submit" form="invite-freelancer-form" loading={inviteFreelancer.isPending} disabled={!canSubmit}>
+          <Button type="submit" form="invite-freelancer-form" loading={inviteFreelancer.isPending}>
             Send invite
           </Button>
         </>
@@ -77,6 +81,7 @@ export function InviteFreelancerModal({
             required
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
+            error={firstNameError}
             className="flex-1"
           />
           <TextField
@@ -84,10 +89,18 @@ export function InviteFreelancerModal({
             required
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
+            error={lastNameError}
             className="flex-1"
           />
         </div>
-        <TextField label="Email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        <TextField
+          label="Email"
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          error={emailError}
+        />
         <TextField label="Phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
         <div className="flex flex-col gap-xs">
           <TextField
@@ -96,7 +109,7 @@ export function InviteFreelancerModal({
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
             onBlur={() => setTouched(true)}
-            error={codeError}
+            error={requiredCodeError}
             className="font-mono"
           />
           <p className="pl-lg text-caption text-text-secondary">

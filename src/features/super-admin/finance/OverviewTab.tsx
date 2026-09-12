@@ -86,6 +86,9 @@ export function OverviewTab({
 
       <FinanceRevenueChart months={summary.data?.revenue_by_month} loading={summary.isLoading} />
 
+      {/* Kept alongside the new "Flagged cases" glance tile above (product review H5) rather than
+          removed — H5 only asked to ADD that tile, and retiring this card is a feature-removal
+          call left for a deliberate decision rather than a side effect of adding the new one. */}
       {(summary.data?.payment_followups ?? 0) > 0 && (
         <Link to="/admin/case-followups">
           <Card className="flex items-center justify-between gap-md hover:bg-background">

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Pencil } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Card } from '@/components/Card'
@@ -19,7 +19,7 @@ import {
   useUpdateCampus,
   useUpdateCollege,
 } from '@/queries/adminColleges'
-import { useCourses, useCreateCourse, useUpdateCourse } from '@/queries/courseSuggestions'
+import { useCourse, useCourses, useCreateCourse, useUpdateCourse } from '@/queries/courseSuggestions'
 import { useExams } from '@/queries/catalogSettings'
 import { useStudyLevels } from '@/queries/studyLevels'
 import { useCursorPagination } from '@/lib/pagination'
@@ -475,6 +475,13 @@ export function CollegeDetailPage() {
   const updateCollege = useUpdateCollege(id)
   const studyLevels = useStudyLevels()
   const [editingCollege, setEditingCollege] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const editCourse = useCourse(searchParams.get('edit'))
+  function clearEditParam() {
+    const next = new URLSearchParams(searchParams)
+    next.delete('edit')
+    setSearchParams(next, { replace: true })
+  }
   const [confirmingCollegeOff, setConfirmingCollegeOff] = useState(false)
   const [showAddCampus, setShowAddCampus] = useState(false)
   const [showAddCourse, setShowAddCourse] = useState(false)
@@ -799,6 +806,11 @@ export function CollegeDetailPage() {
         )}
         {showAddCampus && <CampusFormModal collegeId={id} onClose={() => setShowAddCampus(false)} />}
         {showAddCourse && <CourseFormModal college={record} onClose={() => setShowAddCourse(false)} />}
+        {/* Suggestions Review's "Open course" (review H13, 2026-09-12): /admin/colleges/:id?edit=<courseId>
+            opens that course's edit form with its current values — nothing pre-filled. */}
+        {editCourse.data && editCourse.data.college_id === id && (
+          <CourseFormModal college={record} editingCourse={editCourse.data} onClose={clearEditParam} />
+        )}
       </div>
     </AdminShell>
   )

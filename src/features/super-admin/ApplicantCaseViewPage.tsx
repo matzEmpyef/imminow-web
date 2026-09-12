@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { useParams, Link, useLocation } from 'react-router-dom'
 import { Card } from '@/components/Card'
 import { Badge } from '@/components/Badge'
+import { Button } from '@/components/Button'
 import { CountryLabel } from '@/components/CountryLabel'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { ErrorState, Skeleton } from '@/components/QueryState'
@@ -8,7 +10,11 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { ApiError } from '@/queries/auth'
 import { useAuthStore } from '@/stores/authStore'
-import { formatDate } from '@/lib/time'
+import { formatDate, relativeTime } from '@/lib/time'
+import { useCaseNotes, useRecordFollowup, type CaseFollowupOutcome } from '@/queries/caseFollowups'
+import { LogCallModal, type LogCallInput } from './followups/LogCallModal'
+import { CASE_OUTCOME_OPTIONS, OUTCOME_LABELS } from './followups/labels'
+import { showToast } from '@/lib/toast'
 
 function useApplicantCase(journeyId: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
@@ -43,6 +49,12 @@ export function ApplicantCaseViewPage() {
   // keeps Finance highlighted; links onward stay under whichever section you came in from.
   const base = useLocation().pathname.startsWith('/admin/case-followups/') ? '/admin/case-followups' : '/admin/applicants'
   const applicant = useApplicantCase(id)
+  // Log a call + call history (2026-09-12, product review H6) — this page had neither, so working
+  // a case from here meant going back to the queue just to record a call. Same modal, same
+  // endpoint (POST /clients/{id}/followups) as the Payment follow-ups list.
+  const notes = useCaseNotes(id ?? null)
+  const record = useRecordFollowup()
+  const [logging, setLogging] = useState(false)
 
   if (applicant.isLoading) {
     return (
@@ -72,8 +84,28 @@ export function ApplicantCaseViewPage() {
             )}
           </h1>
           <p className="text-body-sm text-text-secondary">
-            {data.consultancy_name} &middot; {data.consultant_name ?? 'unassigned'} &middot;{' '}
-            {data.status?.replace(/_/g, ' ')}
+            {data.consultancy_name ? (
+              <Link
+                to={`/admin/consultancies?search=${encodeURIComponent(data.consultancy_name)}`}
+                className="text-primary hover:underline"
+              >
+                {data.consultancy_name}
+              </Link>
+            ) : (
+              '—'
+            )}{' '}
+            &middot;{' '}
+            {data.consultant_name ? (
+              <Link
+                to={`/admin/users/imminow?search=${encodeURIComponent(data.consultant_name)}`}
+                className="text-primary hover:underline"
+              >
+                {data.consultant_name}
+              </Link>
+            ) : (
+              'unassigned'
+            )}{' '}
+            &middot; {data.status?.replace(/_/g, ' ')}
             {data.outcome && <span> &middot; {data.outcome}</span>}
             {data.previous_journey_id && (
               <>
@@ -171,11 +203,72 @@ export function ApplicantCaseViewPage() {
           ))}
         </Card>
 
+        <Card className="flex flex-col gap-sm">
+          <div className="flex items-center justify-between gap-md">
+            <h2 className="text-h3 text-text-primary">Call history</h2>
+            <Button size="sm" onClick={() => setLogging(true)}>
+              Log a call
+            </Button>
+          </div>
+          {notes.isLoading && <Skeleton className="h-16 rounded-md" />}
+          {notes.isError && <ErrorState message="Could not load the call history." onRetry={() => notes.refetch()} />}
+          {!notes.isLoading && !notes.isError && (notes.data?.length ?? 0) === 0 && (
+            <p className="text-body-sm text-text-secondary">Nobody has reached out yet.</p>
+          )}
+          {!notes.isLoading && !notes.isError && notes.data && notes.data.length > 0 && (
+            <ol className="flex flex-col">
+              {notes.data.map((n) => (
+                <li key={n.id} className="flex flex-col gap-xs border-b border-border py-sm last:border-b-0">
+                  <div className="flex items-center justify-between gap-sm">
+                    <span className="text-body-sm font-medium text-text-primary">{n.author_name ?? 'Someone'}</span>
+                    <span className="text-caption tabular-nums text-text-secondary">{relativeTime(n.created_at)}</span>
+                  </div>
+                  <p className="text-body-sm text-text-primary">{n.note}</p>
+                  {(n.outcome || n.call_back_on) && (
+                    <div className="flex flex-wrap items-center gap-xs">
+                      {n.outcome && <Badge color="info">{OUTCOME_LABELS[n.outcome] ?? n.outcome}</Badge>}
+                      {n.call_back_on && (
+                        <span className="text-caption text-text-secondary">Call back {formatDate(n.call_back_on)}</span>
+                      )}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+        </Card>
+
         <p className="text-caption text-text-secondary">
           Documents and chat are not shown here. The student&rsquo;s documents are shared with their consultancy by
           their own grant, and their conversation is the consultancy&rsquo;s record with them.
         </p>
       </div>
+
+      {logging && id && (
+        <LogCallModal
+          title={`Log a call — ${data.student?.name ?? 'this student'}`}
+          outcomeOptions={CASE_OUTCOME_OPTIONS}
+          pending={record.isPending}
+          errorMessage={record.isError ? record.error.message : undefined}
+          onClose={() => setLogging(false)}
+          onSave={(input: LogCallInput) =>
+            record.mutate(
+              {
+                journeyId: id,
+                note: input.note,
+                outcome: input.outcome as CaseFollowupOutcome | undefined,
+                callBackOn: input.callBackOn,
+              },
+              {
+                onSuccess: () => {
+                  setLogging(false)
+                  showToast(`Call logged for ${data.student?.name ?? 'this student'}`)
+                },
+              },
+            )
+          }
+        />
+      )}
     </AdminShell>
   )
 }

@@ -32,11 +32,21 @@ export function AddDueModal({
   const [currency, setCurrency] = useState(currencies[0] ?? 'INR')
   const [dueOn, setDueOn] = useState('')
   const [reason, setReason] = useState('')
+  const [attempted, setAttempted] = useState(false)
 
   const parsed = Number(amount)
   const isValidAmount = amount.trim() !== '' && Number.isFinite(parsed) && parsed > 0
   const trimmedReason = reason.trim()
   const invalid = !isValidAmount || trimmedReason.length < MIN_REASON_LENGTH
+
+  const amountError = !attempted
+    ? undefined
+    : amount.trim() === ''
+      ? 'Enter an amount.'
+      : !isValidAmount
+        ? 'Amount must be greater than 0.'
+        : undefined
+  const reasonError = attempted && trimmedReason.length < MIN_REASON_LENGTH ? 'Add a reason (at least 3 characters).' : undefined
 
   return (
     <Modal
@@ -51,8 +61,11 @@ export function AddDueModal({
           </Button>
           <Button
             loading={addDue.isPending}
-            disabled={invalid}
-            onClick={() =>
+            onClick={() => {
+              if (invalid) {
+                setAttempted(true)
+                return
+              }
               addDue.mutate(
                 { entryId: caseRow.id, amount: parsed, currency, due_on: dueOn || null, reason: trimmedReason },
                 {
@@ -62,7 +75,7 @@ export function AddDueModal({
                   },
                 },
               )
-            }
+            }}
           >
             Add
           </Button>
@@ -82,6 +95,7 @@ export function AddDueModal({
             required
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
+            error={amountError}
             className="flex-1"
           />
           <CompactSelect label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)}>
@@ -111,6 +125,7 @@ export function AddDueModal({
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           hint="e.g. the second instalment of the college's commission. The consultancy is shown this."
+          error={reasonError}
         />
       </div>
     </Modal>

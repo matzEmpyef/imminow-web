@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { Skeleton } from '@/components/QueryState'
 import type { FinanceSummary } from '@/queries/financeDashboard'
 
@@ -78,14 +79,38 @@ export function FinanceSummaryTiles({
       </div>
 
       <div className="flex flex-1 basis-56 flex-col gap-xs rounded-md border border-border bg-surface px-md py-sm">
-        <span className="text-caption text-text-secondary">Collected by consultancies</span>
+        {/* Relabelled (2026-09-12, product review H4) — the old "Collected by consultancies" read
+            as immiNow's own money. This is what consultancies have LOGGED as received from
+            students and colleges; immiNow's own receipts are the separate "Received this month"
+            tile above. */}
+        <span className="text-caption text-text-secondary">Recorded by consultancies</span>
         <span className="text-body-sm tabular-nums text-text-primary">
           {inr(summary.collected_inr)} of {inr(summary.expected_inr)}
         </span>
         <div className="h-1 w-full overflow-hidden rounded-full bg-border">
           <div className="h-1 rounded-full bg-primary" style={{ width: `${collectedPercent}%` }} />
         </div>
+        <span className="text-caption text-text-secondary">
+          Instalments consultancies have logged as received from students and colleges. immiNow&rsquo;s own receipts
+          are in Received this month.
+        </span>
       </div>
+
+      {/* Flagged cases (2026-09-12, product review H5) — cases sitting in the payment
+          follow-ups queue with real money pending. Hidden at zero, like the old
+          "Payment follow-ups" card this replaces, so a clean books month shows nothing here. */}
+      {(summary.payment_followups_pending_inr ?? 0) > 0 && (
+        <Link
+          to="/admin/case-followups"
+          className="flex flex-1 basis-56 flex-col gap-xs rounded-md border border-warning bg-warning/10 px-md py-sm text-left transition-colors hover:opacity-90"
+        >
+          <span className="text-caption text-text-secondary">Flagged cases</span>
+          <span className="text-h3 tabular-nums text-warning">{inr(summary.payment_followups_pending_inr)}</span>
+          <span className="text-caption text-text-secondary">
+            pending across {summary.payment_followups} case{summary.payment_followups === 1 ? '' : 's'}
+          </span>
+        </Link>
+      )}
     </div>
   )
 }

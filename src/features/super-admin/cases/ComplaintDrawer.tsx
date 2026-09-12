@@ -81,7 +81,16 @@ export function ComplaintDrawer({
         <div className="flex flex-col gap-sm">
           <p className="text-caption font-medium text-text-secondary">Case</p>
           <div className="flex flex-wrap items-center justify-between gap-sm">
-            <span className="text-body-sm text-text-primary">{complaint.consultancy_name ?? '— (no active case)'}</span>
+            {complaint.consultancy_name ? (
+              <Link
+                to={`/admin/consultancies?search=${encodeURIComponent(complaint.consultancy_name)}`}
+                className="text-body-sm text-primary hover:underline"
+              >
+                {complaint.consultancy_name}
+              </Link>
+            ) : (
+              <span className="text-body-sm text-text-primary">— (no active case)</span>
+            )}
             {complaint.journey_id && (
               <Link to={`/admin/applicants/${complaint.journey_id}`} className={LINK_BUTTON}>
                 Open case

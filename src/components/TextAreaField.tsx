@@ -3,6 +3,7 @@ import { useId, useState, type FocusEvent, type TextareaHTMLAttributes } from 'r
 interface TextAreaFieldProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label: string
   hint?: string
+  error?: string
 }
 
 // The multi-line sibling of TextField (2026-09-11, course form UI pass) — same outline, focus ring
@@ -10,10 +11,24 @@ interface TextAreaFieldProps extends TextareaHTMLAttributes<HTMLTextAreaElement>
 // pills with a differently-labelled box between them. The label always sits in the notch: resting
 // in the middle it would cover the first line of text. `className` lands on the wrapper, as in
 // TextField, so layout classes size the field rather than restyle the box.
-export function TextAreaField({ label, hint, id, className, rows = 3, onFocus, onBlur, ...props }: TextAreaFieldProps) {
+// `error` (added 2026-09-12, product-review H1 — "make every blocked submit show WHY") mirrors
+// TextField's error treatment: red border, caption below in the error color, replacing the hint
+// while it's present rather than stacking both.
+export function TextAreaField({
+  label,
+  hint,
+  error,
+  id,
+  className,
+  rows = 3,
+  onFocus,
+  onBlur,
+  ...props
+}: TextAreaFieldProps) {
   const generatedId = useId()
   const fieldId = id ?? generatedId
   const [focused, setFocused] = useState(false)
+  const message = error ?? hint
 
   function handleFocus(e: FocusEvent<HTMLTextAreaElement>) {
     setFocused(true)
@@ -33,8 +48,11 @@ export function TextAreaField({ label, hint, id, className, rows = 3, onFocus, o
           rows={rows}
           onFocus={handleFocus}
           onBlur={handleBlur}
-          aria-describedby={hint ? `${fieldId}-hint` : undefined}
-          className="w-full resize-y rounded-2xl border border-border bg-surface px-5 pb-3 pt-md text-body text-text-primary outline-none transition-colors focus:border-2 focus:border-primary"
+          aria-invalid={Boolean(error)}
+          aria-describedby={message ? `${fieldId}-hint` : undefined}
+          className={`w-full resize-y rounded-2xl border bg-surface px-5 pb-3 pt-md text-body text-text-primary outline-none transition-colors focus:border-2 focus:border-primary ${
+            error ? 'border-error' : 'border-border'
+          }`}
           {...props}
         />
         <label
@@ -47,9 +65,9 @@ export function TextAreaField({ label, hint, id, className, rows = 3, onFocus, o
           {props.required && <span className="text-required"> *</span>}
         </label>
       </div>
-      {hint && (
-        <span id={`${fieldId}-hint`} className="pl-lg text-caption text-text-secondary">
-          {hint}
+      {message && (
+        <span id={`${fieldId}-hint`} className={`pl-lg text-caption ${error ? 'text-error' : 'text-text-secondary'}`}>
+          {message}
         </span>
       )}
     </div>

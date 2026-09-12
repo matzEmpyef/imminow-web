@@ -33,9 +33,14 @@ export function LogCallModal({ title, outcomeOptions, pending, errorMessage, onC
   const [note, setNote] = useState('')
   const [outcome, setOutcome] = useState('')
   const [callBackOn, setCallBackOn] = useState('')
+  const [attempted, setAttempted] = useState(false)
+  const noteError = attempted && !note.trim() ? 'Add a note about the call.' : undefined
 
   function handleSave() {
-    if (!note.trim()) return
+    if (!note.trim()) {
+      setAttempted(true)
+      return
+    }
     onSave({ note: note.trim(), outcome: outcome || undefined, callBackOn: callBackOn || undefined })
   }
 
@@ -50,7 +55,7 @@ export function LogCallModal({ title, outcomeOptions, pending, errorMessage, onC
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button loading={pending} disabled={!note.trim()} onClick={handleSave}>
+          <Button loading={pending} onClick={handleSave}>
             Save
           </Button>
         </>
@@ -64,6 +69,7 @@ export function LogCallModal({ title, outcomeOptions, pending, errorMessage, onC
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder="Who you spoke to and what they said."
+          error={noteError}
         />
         <SegmentedControl
           label="Outcome"

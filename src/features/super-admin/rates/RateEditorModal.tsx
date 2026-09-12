@@ -5,7 +5,7 @@ import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { SelectField } from '@/components/SelectField'
 import { useAdminConsultancy } from '@/queries/adminConsultancies'
-import { useCommissionRates, useBulkSetCommissionRates } from '@/queries/commissionRates'
+import { useCommissionRates, useSaveCommissionRateRows } from '@/queries/commissionRates'
 import { useCountries } from '@/queries/countries'
 import { ConsultancySearchSelect } from '../finance/ConsultancySearchSelect'
 import { showToast } from '@/lib/toast'
@@ -28,6 +28,7 @@ interface MatrixRow {
   freelancer: string
 }
 type MatrixState = Record<PayerMethod, MatrixRow>
+type RateIdState = Partial<Record<PayerMethod, string>>
 
 function blankMatrix(): MatrixState {
   return {
@@ -40,9 +41,11 @@ function blankMatrix(): MatrixState {
 
 // Builds the matrix's starting values from whatever rows already exist for this country — one
 // payer group may be set and the other three blank, which is exactly the case this modal exists
-// to make easy to finish.
-function matrixFromExistingRates(rates: CommissionRate[], country: string): MatrixState {
+// to make easy to finish. Also hands back each row's id, keyed by payer method — needed so Save
+// knows which filled rows are an update (PATCH) versus a brand-new one (POST).
+function fromExistingRates(rates: CommissionRate[], country: string): { matrix: MatrixState; ids: RateIdState } {
   const matrix = blankMatrix()
+  const ids: RateIdState = {}
   for (const rate of rates) {
     if (rate.destination_country !== country) continue
     const method = rate.payer_method as PayerMethod
@@ -51,8 +54,9 @@ function matrixFromExistingRates(rates: CommissionRate[], country: string): Matr
       direct: String(rate.direct_rate ?? ''),
       freelancer: String(rate.freelancer_sourced_rate ?? ''),
     }
+    if (rate.id) ids[method] = rate.id
   }
-  return matrix
+  return { matrix, ids }
 }
 
 /**
@@ -92,6 +96,7 @@ export function RateEditorModal({
   const [country, setCountry] = useState(defaultCountry ?? '')
   const [showAllCountries, setShowAllCountries] = useState(false)
   const [matrix, setMatrix] = useState<MatrixState>(blankMatrix())
+  const [existingIds, setExistingIds] = useState<RateIdState>({})
   const [touched, setTouched] = useState(false)
   // Validation is checked ON SAVE, not while typing (user, 2026-08-28: "do not have display
   // 'Direct % must be between 0 and 100' ... just make sure when saving") — errors render only
@@ -101,7 +106,7 @@ export function RateEditorModal({
   const consultancy = useAdminConsultancy(consultancyId || null)
   const ownRates = useCommissionRates(consultancyId || undefined, { enabled: Boolean(consultancyId) })
   const allCountries = useCountries()
-  const bulkSet = useBulkSetCommissionRates()
+  const saveRows = useSaveCommissionRateRows()
 
   const consultancyName = consultancy.data?.name ?? defaultConsultancyName
   const freelancerEnabled = consultancy.data?.freelancer_enabled ?? false
@@ -115,7 +120,9 @@ export function RateEditorModal({
   useEffect(() => {
     if (touched) return
     if (consultancyId && country) {
-      setMatrix(matrixFromExistingRates(ownRates.data ?? [], country))
+      const { matrix: seeded, ids } = fromExistingRates(ownRates.data ?? [], country)
+      setMatrix(seeded)
+      setExistingIds(ids)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ownRates and touched are read, not triggers: re-seeding on every rates refetch would wipe an open, untouched form back to server values
   }, [consultancyId, country])
@@ -125,11 +132,18 @@ export function RateEditorModal({
     setMatrix((prev) => ({ ...prev, [method]: { ...prev[method], [field]: value } }))
   }
 
-  // Mirrors the server's own rule (mock-server/server.js resolveAndValidateFreelancerRate) so a
-  // bad value never round-trips to the server just to be told no.
+  // A blank row means "no rate yet" — not a validation error (2026-09-12, product review H3).
+  // Only a row with something typed into it gets checked, and mirrors the server's own rule
+  // (mock-server/server.js resolveAndValidateFreelancerRate) so a bad value never round-trips to
+  // the server just to be told no.
+  const filledKeys = useMemo(
+    () => RATE_GROUPS.map((g) => g.key).filter((key) => matrix[key].direct !== '' || matrix[key].freelancer !== ''),
+    [matrix],
+  )
+
   const errors = useMemo(() => {
     const rowErrors: Partial<Record<PayerMethod, string>> = {}
-    for (const { key } of RATE_GROUPS) {
+    for (const key of filledKeys) {
       const direct = Number(matrix[key].direct)
       const freelancer = Number(matrix[key].freelancer)
       if (matrix[key].direct === '' || Number.isNaN(direct) || direct < 0 || direct > 100) {
@@ -146,34 +160,28 @@ export function RateEditorModal({
       }
     }
     return rowErrors
-  }, [matrix, freelancerDisabled])
+  }, [matrix, freelancerDisabled, filledKeys])
 
   const canSubmit = Boolean(consultancyId) && Boolean(country)
+  const noRowsFilledError = attempted && filledKeys.length === 0 ? 'Fill in at least one payer group before saving.' : undefined
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
-    if (Object.keys(errors).length > 0) {
+    if (filledKeys.length === 0 || Object.keys(errors).length > 0) {
       setAttempted(true)
       return
     }
-    const rates = Object.fromEntries(
-      RATE_GROUPS.map(({ key }) => {
-        const direct = Number(matrix[key].direct)
-        // Still sent even when hidden: freelancer_sourced_rate is required by the contract, and
-        // the server auto-fills it equal to direct_rate for a channel-disabled consultancy
-        // regardless of what's sent — hiding the input is a display decision, not a data one.
-        const freelancer = freelancerDisabled ? direct : Number(matrix[key].freelancer)
-        return [key, { direct_rate: direct, freelancer_sourced_rate: freelancer }]
-      }),
-    ) as {
-      applicant: components['schemas']['CommissionRateBulkGroup']
-      college: components['schemas']['CommissionRateBulkGroup']
-      split: components['schemas']['CommissionRateBulkGroup']
-      pr: components['schemas']['CommissionRateBulkGroup']
-    }
-    bulkSet.mutate(
-      { consultancy_id: consultancyId, destination_country: country, rates },
+    const rows = filledKeys.map((key) => {
+      const direct = Number(matrix[key].direct)
+      // Still sent even when hidden: freelancer_sourced_rate is required by the contract, and the
+      // server auto-fills it equal to direct_rate for a channel-disabled consultancy regardless of
+      // what's sent — hiding the input is a display decision, not a data one.
+      const freelancer = freelancerDisabled ? direct : Number(matrix[key].freelancer)
+      return { id: existingIds[key], payer_method: key, direct_rate: direct, freelancer_sourced_rate: freelancer }
+    })
+    saveRows.mutate(
+      { consultancy_id: consultancyId, destination_country: country, rows },
       {
         onSuccess: () => {
           showToast(`Rates saved for ${consultancyName || 'this account'} — ${country}`)
@@ -190,8 +198,12 @@ export function RateEditorModal({
       widthRem={38}
       footer={
         <>
-          {bulkSet.isError && <p className="mr-auto self-center text-body-sm text-error">{bulkSet.error.message}</p>}
-          <Button type="submit" form="rate-editor-form" loading={bulkSet.isPending} disabled={!canSubmit}>
+          {(noRowsFilledError || saveRows.isError) && (
+            <p className="mr-auto self-center text-body-sm text-error">
+              {noRowsFilledError ?? saveRows.error?.message}
+            </p>
+          )}
+          <Button type="submit" form="rate-editor-form" loading={saveRows.isPending} disabled={!canSubmit}>
             Save
           </Button>
         </>

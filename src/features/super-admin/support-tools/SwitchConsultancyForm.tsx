@@ -81,6 +81,7 @@ export function SwitchConsultancyForm({ result, onCancel }: { result: UserSearch
   if (confirming && selected) {
     return (
       <div className="flex flex-col gap-sm">
+        <p className="text-body-sm font-semibold text-text-primary">{result.name}</p>
         <p className="rounded-md bg-background p-sm text-body-sm text-text-primary">
           {result.name}'s case at {current?.name ?? 'their current consultancy'} closes, and a new case opens at{' '}
           {selected.name}. {current?.name ?? 'The current consultancy'} loses access to their shared documents. The

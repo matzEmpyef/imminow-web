@@ -57,8 +57,19 @@ function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing; onClos
   const [skillDraft, setSkillDraft] = useState('')
   const [activeFrom, setActiveFrom] = useState(editingJob?.active_from ?? '')
   const [activeTo, setActiveTo] = useState(editingJob?.active_to ?? '')
+  const [attempted, setAttempted] = useState(false)
 
   const mutation = isEditing ? updateJob : createJob
+  const applyUrlError = !attempted
+    ? undefined
+    : !applyUrl.trim()
+      ? 'Apply URL is required.'
+      : !applyUrl.startsWith('https://')
+        ? 'Must start with https://'
+        : undefined
+  const canSubmit = Boolean(title.trim() && company.trim() && applyUrl.trim() && applyUrl.startsWith('https://'))
+  const titleError = attempted && !title.trim() ? 'Title is required.' : undefined
+  const companyError = attempted && !company.trim() ? 'Company is required.' : undefined
 
   function addSkill() {
     const trimmed = skillDraft.trim()
@@ -73,7 +84,10 @@ function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing; onClos
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!title || !company || !applyUrl) return
+    if (!canSubmit) {
+      setAttempted(true)
+      return
+    }
     const body = {
       title,
       company,
@@ -115,16 +129,22 @@ function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing; onClos
       footer={
         <>
           {mutation.isError && <p className="mr-auto self-center text-body-sm text-error">{mutation.error.message}</p>}
-          <Button type="submit" form="job-form" loading={mutation.isPending} disabled={!title || !company || !applyUrl}>
+          <Button type="submit" form="job-form" loading={mutation.isPending}>
             {isEditing ? 'Save Changes' : 'Create Listing'}
           </Button>
         </>
       }
     >
       <form id="job-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="Title" required value={title} onChange={(e) => setTitle(e.target.value)} />
+        <TextField label="Title" required value={title} onChange={(e) => setTitle(e.target.value)} error={titleError} />
         <div className="grid grid-cols-2 gap-sm">
-          <TextField label="Company" required value={company} onChange={(e) => setCompany(e.target.value)} />
+          <TextField
+            label="Company"
+            required
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            error={companyError}
+          />
           <TextField label="Location" value={location} onChange={(e) => setLocation(e.target.value)} />
         </div>
         {/* Employer logo (added 2026-08-18). Sentpo Mobile shows this beside the listing; without
@@ -161,7 +181,13 @@ function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing; onClos
           />
         </div>
         <div className="flex flex-col gap-xs">
-          <TextField label="Apply URL" required value={applyUrl} onChange={(e) => setApplyUrl(e.target.value)} />
+          <TextField
+            label="Apply URL"
+            required
+            value={applyUrl}
+            onChange={(e) => setApplyUrl(e.target.value)}
+            error={applyUrlError}
+          />
           <p className="text-caption text-text-secondary">Must start with https://</p>
         </div>
         <div className="grid grid-cols-2 items-end gap-sm">
