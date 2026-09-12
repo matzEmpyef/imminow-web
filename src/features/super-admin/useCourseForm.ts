@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { components } from '@/api/schema'
+import { useCountrySettings } from '@/queries/countries'
 import { type AptitudeReq, type EnglishReq, type FormTab } from './courseFormShared'
 
 type College = components['schemas']['College']
@@ -157,7 +158,15 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
 
   // Fees
   const [feeAmount, setFeeAmount] = useState(editingCourse?.fee?.amount != null ? String(editingCourse.fee.amount) : '')
-  const [feeCurrency, setFeeCurrency] = useState(editingCourse?.fee?.currency ?? 'INR')
+  const [feeCurrency, setFeeCurrencyRaw] = useState(editingCourse?.fee?.currency ?? 'INR')
+  // Only a NEW course's currency is auto-set; editing an existing one never overrides what was
+  // actually saved. "Touched" also covers picking it manually, so a deliberate choice always wins
+  // over the campus-country guess below.
+  const [feeCurrencyTouched, setFeeCurrencyTouched] = useState(Boolean(editingCourse))
+  function setFeeCurrency(v: string) {
+    setFeeCurrencyRaw(v)
+    setFeeCurrencyTouched(true)
+  }
   // Was hardcoded to INR with no field at all (audit, 2026-08-23) — a college in Toronto charged
   // its application fee in rupees. Defaults to the course's own currency rather than to INR,
   // because the two almost always match, and tracks it until explicitly overridden so a Canadian
@@ -214,6 +223,19 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
   const [delivery, setDelivery] = useState(editingCourse?.delivery ?? '')
   const [coop, setCoop] = useState(editingCourse?.coop_available ?? false)
   const [psw, setPsw] = useState(editingCourse?.post_study_work_eligible ?? false)
+
+  // Default the fee currency from the campus's country when adding a course (product review,
+  // 2026-09-12) — INR-by-default meant a Toronto course started life priced in rupees until
+  // someone remembered to change it. Only runs until the admin touches the currency themselves or
+  // saves it, and only while adding — never overrides an existing course's saved currency.
+  const countrySettings = useCountrySettings()
+  useEffect(() => {
+    if (feeCurrencyTouched || campusIds.length === 0) return
+    const campus = (college.campuses ?? []).find((c) => c.id === campusIds[0])
+    const setting = campus && countrySettings.data?.find((s) => s.name === campus.country)
+    if (setting?.default_currency) setFeeCurrencyRaw(setting.default_currency)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- college.campuses is stable for the life of this form
+  }, [campusIds, countrySettings.data, feeCurrencyTouched])
 
   const allCampusIds = (college.campuses ?? []).map((c) => c.id!)
   const allSelected = allCampusIds.length > 0 && allCampusIds.every((id) => campusIds.includes(id))

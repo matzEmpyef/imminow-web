@@ -6,6 +6,7 @@ import { AdminShell } from '@/features/auth/AdminShell'
 import { Button } from '@/components/Button'
 import { CreateConsultancyModal } from './CreateConsultancyModal'
 import { Badge } from '@/components/Badge'
+import { CountrySelect } from '@/components/CountrySelect'
 import { Card } from '@/components/Card'
 import { TextField } from '@/components/TextField'
 import { Toggle } from '@/components/Toggle'
@@ -16,17 +17,18 @@ import { SearchSelect } from '@/components/SearchSelect'
 import { PartnerCollegesPanel } from '@/features/administration/PartnerCollegesPanel'
 import { useAdminColleges, useCollegeDetail } from '@/queries/adminColleges'
 import {
+  type ConsultancyFilters,
   useAdminConsultancies,
+  useAdminConsultancy,
   useChangeTier,
   useLinkCollege,
   useReactivateConsultancy,
-  useSuspendConsultancy,
-  useSetConsultancyRating,
-  useUpdateEntitlements,
-  useTierImpact,
   useRenewSubscription,
-  useAdminConsultancy,
-  type ConsultancyFilters,
+  useSetConsultancyRating,
+  useSuspendConsultancy,
+  useTierImpact,
+  useUpdateConsultancyCountry,
+  useUpdateEntitlements,
 } from '@/queries/adminConsultancies'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate, localDateISO } from '@/lib/time'
@@ -111,6 +113,55 @@ function FeatureToggleRow({
 //
 // The computed value and the count stay visible WHILE an override is in force, deliberately: an
 // admin overriding 2.1 to 4.5 should have to look at the 2.1 while doing it.
+// Where the account is based (review M6, 2026-09-12). It was shown in the list and searched, but
+// nothing ever set it — every admin-created account read "—".
+function CountrySection({ consultancy }: { consultancy: Consultancy }) {
+  const update = useUpdateConsultancyCountry(consultancy.id!)
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(consultancy.country ?? '')
+  return (
+    <div className="flex flex-col gap-sm p-md">
+      <div className="flex items-center justify-between gap-md">
+        <div className="min-w-0">
+          <p className="text-body-sm font-medium text-text-primary">Country</p>
+          <p className="text-caption text-text-secondary">{consultancy.country || 'Not set — the list shows a dash.'}</p>
+        </div>
+        {!editing && (
+          <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
+            {consultancy.country ? 'Change' : 'Set country'}
+          </Button>
+        )}
+      </div>
+      {editing && (
+        <div className="flex flex-col gap-sm">
+          <CountrySelect label="Country" value={value} onChange={setValue} />
+          {update.isError && <p className="text-body-sm text-error">{update.error.message}</p>}
+          <div className="flex justify-end gap-sm">
+            <Button variant="secondary" size="sm" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              loading={update.isPending}
+              disabled={!value || value === (consultancy.country ?? '')}
+              onClick={() =>
+                update.mutate(value, {
+                  onSuccess: () => {
+                    setEditing(false)
+                    showToast(`${consultancy.name} is now in ${value}`)
+                  },
+                })
+              }
+            >
+              Save
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function RatingSection({ consultancy }: { consultancy: Consultancy }) {
   const setRating = useSetConsultancyRating(consultancy.id!)
   const [editing, setEditing] = useState(false)
@@ -256,15 +307,59 @@ function SuspendConfirmModal({
       <div className="flex flex-col gap-md">
         <p className="text-body-sm text-text-secondary">
           This marks <span className="font-medium text-text-primary">{consultancyName}</span> as suspended until
-          reactivated. Type <span className="font-mono font-medium text-text-primary">SUSPEND</span> to confirm.
+          reactivated. Type <span className="font-mono font-medium text-text-primary">SUSPEND</span> (capital letters)
+          to confirm.
         </p>
         <TextField
           label="Confirmation"
           value={confirmText}
-          onChange={(e) => setConfirmText(e.target.value.toUpperCase())}
+          // Case-sensitive on purpose (review M7, 2026-09-12) — typing was silently uppercased
+          // before, so "suspend" passed just as well as "SUSPEND" and the typed bar meant nothing.
+          onChange={(e) => setConfirmText(e.target.value)}
           placeholder="SUSPEND"
         />
       </div>
+    </Modal>
+  )
+}
+
+// Light confirm (review M7, 2026-09-12) — Reactivate used to fire straight from the button click.
+// It hands every one of the consultancy's staff their access back at once, which is worth one
+// click of friction even though it carries none of Suspend's typed-confirmation weight.
+function ReactivateConfirmModal({
+  consultancyName,
+  onConfirm,
+  onClose,
+  loading,
+  error,
+}: {
+  consultancyName: string
+  onConfirm: () => void
+  onClose: () => void
+  loading: boolean
+  error?: string
+}) {
+  return (
+    <Modal
+      onClose={onClose}
+      title="Reactivate Consultancy"
+      widthRem={26}
+      footer={
+        <>
+          {error && <p className="mr-auto self-center text-body-sm text-error">{error}</p>}
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button loading={loading} onClick={onConfirm}>
+            Reactivate
+          </Button>
+        </>
+      }
+    >
+      <p className="text-body-sm text-text-secondary">
+        Reactivate <span className="font-medium text-text-primary">{consultancyName}</span>? Every staff member gets
+        access back at once.
+      </p>
     </Modal>
   )
 }
@@ -417,11 +512,15 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
   const startsOn =
     consultancy.subscription_expires_at && consultancy.subscription_expires_at > today ? consultancy.subscription_expires_at : today
   const [attempted, setAttempted] = useState(false)
+  // No charge for this term (review M5, 2026-09-12) — there is no price list, an amount is
+  // whatever was agreed for THIS account, so a genuinely free term needs an explicit opt-in rather
+  // than just leaving Amount at 0, which would otherwise read as "the admin forgot to fill it in".
+  const [noCharge, setNoCharge] = useState(false)
   const parsedAmount = Number(amount)
-  const amountValid = amount.trim() !== '' && Number.isFinite(parsedAmount) && parsedAmount > 0
+  const amountValid = noCharge || (amount.trim() !== '' && Number.isFinite(parsedAmount) && parsedAmount > 0)
   const expiresValid = Boolean(expires)
   const expiresError = attempted && !expiresValid ? 'Pick the new end date.' : undefined
-  const amountError = attempted && !amountValid ? 'Enter an amount greater than 0.' : undefined
+  const amountError = attempted && !amountValid ? 'Enter an amount greater than 0, or check "No charge for this term".' : undefined
 
   function handleCycle(next: 'monthly' | 'annual') {
     setCycle(next)
@@ -439,7 +538,8 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
         subscription_started_at: startsOn,
         billing_cycle: cycle,
         billing_currency: currency,
-        subscription_amount: parsedAmount,
+        subscription_amount: noCharge ? 0 : parsedAmount,
+        ...(noCharge ? { no_charge: true } : {}),
       },
       {
         onSuccess: () => {
@@ -497,10 +597,11 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
           <TextField
             label="Amount"
             type="number"
-            required
+            required={!noCharge}
             min="0"
+            disabled={noCharge}
             className="col-span-2"
-            value={amount}
+            value={noCharge ? '0' : amount}
             onChange={(e) => setAmount(e.target.value)}
             error={amountError}
           />
@@ -511,6 +612,16 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
               </option>
             ))}
           </SelectField>
+        </div>
+        <div className="flex items-center justify-between gap-md rounded-md border border-border p-sm">
+          <div className="min-w-0">
+            <p className="text-body-sm text-text-primary">No charge for this term</p>
+            <p className="text-caption text-text-secondary">
+              For a genuinely free term — a trial, a goodwill renewal. There is no price list; Amount is otherwise
+              whatever was agreed for this account, and is required.
+            </p>
+          </div>
+          <Toggle checked={noCharge} onChange={setNoCharge} label="No charge for this term" />
         </div>
       </div>
     </Modal>
@@ -575,6 +686,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
   const [filePrefix, setFilePrefix] = useState(consultancy.file_number_prefix ?? '')
   const [freelancerEnabled, setFreelancerEnabled] = useState(Boolean(consultancy.freelancer_enabled))
   const [confirmingSuspend, setConfirmingSuspend] = useState(false)
+  const [confirmingReactivate, setConfirmingReactivate] = useState(false)
   const [showPartnerColleges, setShowPartnerColleges] = useState(false)
   const [tab, setTab] = useState<DetailTab>('account')
   const isInstitute = consultancy.kind === 'institute'
@@ -746,6 +858,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
             <SubscriptionSection consultancy={consultancy} />
             <KycSection consultancyId={consultancy.id!} kycVerified={Boolean(consultancy.kyc_verified)} />
             <RatingSection consultancy={consultancy} />
+            <CountrySection consultancy={consultancy} />
             <div className="flex items-center justify-between gap-md p-md">
               <div className="min-w-0">
                 <p className="text-body-sm font-medium text-text-primary">Partner colleges</p>
@@ -785,15 +898,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
                 Suspend
               </Button>
             ) : (
-              <Button
-                variant="secondary"
-                loading={reactivate.isPending}
-                onClick={() =>
-                  reactivate.mutate(undefined, {
-                    onSuccess: () => showToast(`${consultancy.name} reactivated`),
-                  })
-                }
-              >
+              <Button variant="secondary" onClick={() => setConfirmingReactivate(true)}>
                 Reactivate
               </Button>
             )}
@@ -969,6 +1074,23 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
         />
       )}
 
+      {confirmingReactivate && (
+        <ReactivateConfirmModal
+          consultancyName={consultancy.name ?? ''}
+          loading={reactivate.isPending}
+          error={reactivate.isError ? reactivate.error.message : undefined}
+          onClose={() => setConfirmingReactivate(false)}
+          onConfirm={() =>
+            reactivate.mutate(undefined, {
+              onSuccess: () => {
+                setConfirmingReactivate(false)
+                showToast(`${consultancy.name} reactivated`)
+              },
+            })
+          }
+        />
+      )}
+
       {showPartnerColleges && (
         <Modal
           title={`Partner Colleges — ${consultancy.name}`}
@@ -987,9 +1109,22 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
 
 // Renewal at a glance (user, 2026-09-11): the date while the term is healthy, and a badge once it
 // needs someone — ending within 30 days, inside the 14-day grace, or lapsed.
+//
+// "Never billed" (review M5, 2026-09-12) — an ACTIVE account with no term ever set, the same
+// definition the server's own `never_billed` status filter and Needs attention queue use
+// (`active !== false && !subscription_expires_at`). A suspended account with no term isn't this —
+// it just hasn't been billed FOR A REASON THAT ALREADY SHOWS (the Suspended badge in the Status
+// column), so flagging it here too would say the same thing twice.
 function SubscriptionCell({ consultancy: c }: { consultancy: Consultancy }) {
   const expires = c.subscription_expires_at
-  if (!expires || c.subscription_status === 'none') return <span className="text-text-secondary">No term</span>
+  if (!expires || c.subscription_status === 'none') {
+    return (
+      <span className="flex items-center gap-xs">
+        <span className="text-text-secondary">No term</span>
+        {c.active !== false && <Badge color="warning">Never billed</Badge>}
+      </span>
+    )
+  }
   switch (c.subscription_status) {
     case 'lapsed':
       return <Badge color="error">Lapsed</Badge>
@@ -1023,7 +1158,10 @@ export function ManageConsultanciesPage() {
   const [search, setSearch] = useState(searchParams.get('search') ?? '')
   const [tierFilter, setTierFilter] = useState('')
   const [kindFilter, setKindFilter] = useState(searchParams.get('kind') ?? '')
-  const [statusFilter, setStatusFilter] = useState('')
+  // `?status=` (review M5, 2026-09-12) — Needs attention's "Accounts never billed" card links
+  // straight here with `?status=never_billed`, the same convention `?kind=`/`?search=` already
+  // follow above.
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') ?? '')
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   // Performance League links here with ?manage=<id> to open one account straight away.
   const [managingId, setManagingId] = useState<string | null>(searchParams.get('manage'))
@@ -1285,6 +1423,7 @@ export function ManageConsultanciesPage() {
                 <option value="expiring">Subscription ending soon</option>
                 <option value="grace">In grace period</option>
                 <option value="lapsed">Subscription lapsed</option>
+                <option value="never_billed">Never billed</option>
               </CompactSelect>
             </>
           }

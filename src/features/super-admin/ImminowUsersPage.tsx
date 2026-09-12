@@ -2,16 +2,32 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
+import { Button } from '@/components/Button'
 import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
 import { useAdminConsultancies } from '@/queries/adminConsultancies'
-import { useImminowUserDirectory } from '@/queries/adminUserDirectories'
+import { fetchAllImminowUserDirectory, useImminowUserDirectory } from '@/queries/adminUserDirectories'
 import { useCursorPagination } from '@/lib/pagination'
-import { formatDate } from '@/lib/time'
+import { toCsv, downloadCsv, type CsvColumn } from '@/lib/csv'
+import { formatDate, localDateISO } from '@/lib/time'
 import { FilterChip } from '@/components/FilterChip'
-import { SignInHistoryDrawer, type SignInHistoryPerson } from './SignInHistoryDrawer'
+import { PersonSignInDrawer, type SignInHistoryPerson } from './PersonSignInDrawer'
 
 type Row = NonNullable<ReturnType<typeof useImminowUserDirectory>['data']>['items'][number]
+
+// Columns match the visible table, in order (review M9 export) — Name/Email split from their
+// combined cell, everything else one column per rendered fact.
+const IMMINOW_USERS_CSV_COLUMNS: CsvColumn<Row>[] = [
+  { header: 'Name', value: (r) => r.name },
+  { header: 'Email', value: (r) => r.email },
+  { header: 'Kind', value: (r) => (r.kind === 'platform_staff' ? 'Platform Staff' : 'Consultancy Staff') },
+  { header: 'Consultancy', value: (r) => r.consultancy_name ?? '' },
+  { header: 'Designation', value: (r) => r.designation ?? '' },
+  { header: 'Status', value: (r) => (r.active ? 'Active' : 'Disabled') },
+  { header: 'Invited', value: (r) => r.invited_at ?? '' },
+  { header: 'Accepted', value: (r) => r.accepted_at ?? '' },
+  { header: 'Last login', value: (r) => r.last_login_at ?? '' },
+]
 
 // This is the immiNow (console) directory — every consultancy's employees plus platform staff,
 // distinguished by `kind`, never blended with the Sentpo student directory (SentpoUsersPage.tsx /
@@ -27,21 +43,39 @@ export function ImminowUsersPage() {
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const paging = useCursorPagination()
   const [historyFor, setHistoryFor] = useState<SignInHistoryPerson | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
   const consultancies = useAdminConsultancies()
 
   function resetPaging() {
     paging.reset()
   }
 
-  const directory = useImminowUserDirectory({
+  const filters = {
     search: search || undefined,
     consultancy_id: consultancyId || undefined,
     active: active === '' ? undefined : active === 'true',
     never_active: neverActive || undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
-    cursor: paging.cursor,
-    limit: 20,
-  })
+  }
+
+  const directory = useImminowUserDirectory({ ...filters, cursor: paging.cursor, limit: 20 })
+
+  // Loops every page at the server's max page size for the current filters (same shape as
+  // PlatformAuditLogPage's export) — the table only ever renders one page.
+  async function handleExport() {
+    setExporting(true)
+    setExportError(null)
+    try {
+      const rows = await fetchAllImminowUserDirectory(filters)
+      const csv = toCsv(rows, IMMINOW_USERS_CSV_COLUMNS)
+      downloadCsv(`imminow-users-${localDateISO()}.csv`, csv)
+    } catch {
+      setExportError('Could not export the directory.')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const columns: TableColumn<Row>[] = [
     {
@@ -103,18 +137,34 @@ export function ImminowUsersPage() {
   return (
     <AdminShell>
       <div className="flex flex-col gap-lg">
-        <div>
-          <h1 className="text-h1 text-text-primary">immiNow Users</h1>
-          <p className="text-body-sm text-text-secondary">
-            Every consultancy's employees plus Sentpo's own platform staff. Select a person to see their sign-in history.
-          </p>
+        <div className="flex items-start justify-between gap-md">
+          <div>
+            <h1 className="text-h1 text-text-primary">immiNow Users</h1>
+            <p className="text-body-sm text-text-secondary">
+              Every consultancy's employees plus Sentpo's own platform staff. Select a person to see their sign-in history.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-xs">
+            <Button variant="secondary" size="sm" disabled={exporting} onClick={handleExport}>
+              {exporting ? 'Preparing…' : 'Download CSV'}
+            </Button>
+            {exportError && <p className="text-caption text-error">{exportError}</p>}
+          </div>
         </div>
 
         <Table
           columns={columns}
           rows={directory.data?.items ?? []}
           rowKey={(r) => r.id}
-          onRowClick={(r) => setHistoryFor({ id: r.id, name: r.name, email: r.email })}
+          onRowClick={(r) =>
+            setHistoryFor({
+              id: r.id,
+              name: r.name,
+              email: r.email,
+              kind: r.kind,
+              consultancyName: r.consultancy_name,
+            })
+          }
           loading={directory.isLoading}
           error={directory.isError ? 'Could not load the immiNow user directory.' : undefined}
           emptyMessage={
@@ -186,7 +236,7 @@ export function ImminowUsersPage() {
             total: directory.data?.meta.total,
           }}
         />
-        <SignInHistoryDrawer person={historyFor} onClose={() => setHistoryFor(null)} />
+        <PersonSignInDrawer person={historyFor} onClose={() => setHistoryFor(null)} />
       </div>
     </AdminShell>
   )

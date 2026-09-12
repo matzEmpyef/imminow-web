@@ -299,6 +299,15 @@ export function ServiceFollowupsPage() {
             <Button size="sm" variant="secondary" onClick={() => setNudging(row)}>
               Send a push
             </Button>
+            {/* Same link Complaints uses to jump into the applicant's case (2026-09-12). */}
+            {row.journey_id && (
+              <Link
+                to={`/admin/applicants/${row.journey_id}`}
+                className="flex h-8 items-center justify-center rounded-full border border-border bg-surface px-3 text-caption font-medium text-text-primary hover:bg-background"
+              >
+                Open case
+              </Link>
+            )}
           </div>
         </StopPropagation>
       ),

@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Archive, ArchiveRestore, GitMerge, Pencil, Plus, Search, X } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Button } from '@/components/Button'
@@ -705,7 +706,10 @@ function AllInstitutionsView() {
 export function InstitutionsPage() {
   const suggestions = useInstitutionSuggestions()
   const [adding, setAdding] = useState(false)
-  const [tab, setTab] = useState<'queue' | 'all' | null>(null)
+  // ?tab=queue (Needs attention's "Schools to map" card) forces the queue tab open even on the
+  // rare visit where it would otherwise default to All — e.g. it just emptied in another tab.
+  const [searchParams] = useSearchParams()
+  const [tab, setTab] = useState<'queue' | 'all' | null>(() => (searchParams.get('tab') === 'queue' ? 'queue' : null))
   const waitingStudents = suggestions.data?.student_count ?? 0
   const waitingGroups = suggestions.data?.groups?.length ?? 0
   // Opens on the queue while anyone is waiting — it is the work — and on the list when it is clear.

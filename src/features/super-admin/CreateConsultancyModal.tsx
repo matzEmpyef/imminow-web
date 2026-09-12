@@ -5,6 +5,7 @@ import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
 import { TextField } from '@/components/TextField'
 import { SearchSelect } from '@/components/SearchSelect'
+import { CountrySelect } from '@/components/CountrySelect'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { useAuthStore } from '@/stores/authStore'
 import { useCreateConsultancy } from '@/queries/adminConsultancies'
@@ -59,6 +60,10 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
   const [adminMode, setAdminMode] = useState<AdminMode>('invite')
   const [name, setName] = useState('')
   const [city, setCity] = useState('')
+  // Where the account itself is based (review M6, 2026-09-12) — it was shown and searched
+  // elsewhere on the platform but never actually captured at creation. Optional, matching the
+  // server's ConsultancyCreateInput.country.
+  const [country, setCountry] = useState('')
   const [tier, setTier] = useState<'starter' | 'business' | 'ultimate'>('starter')
   const [branchAddress, setBranchAddress] = useState('')
   const [collegeId, setCollegeId] = useState('')
@@ -124,6 +129,7 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
       {
         name,
         city,
+        country: country || undefined,
         tier,
         kind,
         // Never sent for a consultancy — one carrying a college_id is refused 400. Omitted for an
@@ -217,6 +223,7 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
             onChange={(e) => setName(e.target.value)}
           />
           <TextField label="City" value={city} onChange={(e) => setCity(e.target.value)} />
+          <CountrySelect label="Country" value={country} onChange={setCountry} />
           <div className="flex flex-col gap-xs">
             <TextField
               label="File number prefix"

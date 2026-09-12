@@ -12,6 +12,7 @@ import { useCurrencyCodes } from '@/lib/currencies'
 import type { CourseFormValue } from './useCourseForm'
 import { useStudyLevels } from '@/queries/studyLevels'
 import { useFieldsOfStudy } from '@/queries/fieldsOfStudy'
+import { useCourses } from '@/queries/courseSuggestions'
 
 type College = components['schemas']['College']
 type Exam = components['schemas']['Exam']
@@ -274,10 +275,32 @@ export function CourseCampusIntakesPanel({
   )
 }
 
-export function CourseFeesPanel({ hidden, form }: { hidden: boolean; form: CourseFormValue }) {
+export function CourseFeesPanel({
+  hidden,
+  form,
+  collegeId,
+  excludeCourseId,
+}: {
+  hidden: boolean
+  form: CourseFormValue
+  collegeId: string
+  excludeCourseId?: string
+}) {
   // A fee can be entered in any currency the rate table holds (2026-09-10) — a fixed six meant a
   // Thai college's fee could not be entered in baht even after THB was added.
   const currencyCodes = useCurrencyCodes(form.feeCurrency, form.effectiveAppFeeCurrency)
+
+  // Soft warning when this course's currency doesn't match the college's other courses (product
+  // review, 2026-09-12) — colleges very rarely price different courses in different currencies, so
+  // a mismatch is usually a typo, not a decision. Never blocks saving.
+  const siblingCourses = useCourses({ collegeId, active: true, limit: 100 })
+  const siblingCurrencies = new Set(
+    (siblingCourses.data?.items ?? [])
+      .filter((c) => c.id !== excludeCourseId && c.fee?.currency)
+      .map((c) => c.fee!.currency),
+  )
+  const currencyMismatch = form.feeAmount !== '' && siblingCurrencies.size > 0 && !siblingCurrencies.has(form.feeCurrency)
+
   return (
     <div className={panelClass(hidden)}>
       <FormSection title="Tuition">
@@ -311,6 +334,11 @@ export function CourseFeesPanel({ hidden, form }: { hidden: boolean; form: Cours
             <option value="total">Total programme</option>
           </SelectField>
         </div>
+        {currencyMismatch && (
+          <p className="text-caption text-warning">
+            This college&rsquo;s other courses are priced in {[...siblingCurrencies].join(', ')} — double-check {form.feeCurrency} is right.
+          </p>
+        )}
       </FormSection>
 
       <FormSection title="Application fee">

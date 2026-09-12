@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { AdminShell } from '@/features/auth/AdminShell'
+import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { FilterChip } from '@/components/FilterChip'
 import { StopPropagation } from '@/components/StopPropagation'
@@ -18,6 +20,10 @@ const STATUS_CHIPS = [
 
 type StatusKey = (typeof STATUS_CHIPS)[number]['key']
 
+function isStatusKey(value: string | null): value is StatusKey {
+  return STATUS_CHIPS.some((c) => c.key === value)
+}
+
 /**
  * The platform's dispute queue (rebuilt 2026-09-11 on the paged/notes/owner contract). A dispute
  * is not a way of closing a case — it is the state a case sits in WHILE the platform decides, so
@@ -25,20 +31,45 @@ type StatusKey = (typeof STATUS_CHIPS)[number]['key']
  * issue, and (via the Complaints escalate flow) a student raising one.
  */
 export function DisputesPage() {
-  const [statusKey, setStatusKey] = useState<StatusKey>('open')
+  // Read once on mount (same convention as Finance Dashboard's ?rate=default) so a deep link —
+  // Needs attention's "Open disputes" card, or Complaints' "Open in Disputes" for one escalated
+  // from a student complaint — lands pre-filtered, or on the exact dispute via ?id=.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [statusKey, setStatusKey] = useState<StatusKey>(() => {
+    const fromUrl = searchParams.get('status')
+    return isStatusKey(fromUrl) ? fromUrl : 'open'
+  })
   const [search, setSearch] = useState('')
   const paging = useCursorPagination()
+  const openViaId = searchParams.get('id')
 
   function resetPaging() {
     paging.reset()
   }
 
-  const disputes = useDisputes({ status: statusKey, search: search || undefined, cursor: paging.cursor, limit: 20 })
+  // A dispute reached via ?id= might be resolved, so widen to "all" rather than miss it under
+  // whatever status the "open" default would otherwise apply.
+  const effectiveStatus = openViaId ? 'all' : statusKey
+  const disputes = useDisputes({ status: effectiveStatus, search: search || undefined, cursor: paging.cursor, limit: 20 })
   const rows = useMemo(() => disputes.data?.items ?? [], [disputes.data])
   const summary = disputes.data?.summary
 
   const [viewing, setViewing] = useState<CaseDispute | null>(null)
   const [resolving, setResolving] = useState<CaseDispute | null>(null)
+
+  // Opens the drawer once the matching row has loaded, then drops ?id= so navigating away and back
+  // (or Escape) doesn't keep reopening it.
+  useEffect(() => {
+    if (!openViaId || rows.length === 0) return
+    const match = rows.find((d) => d.id === openViaId)
+    if (match) {
+      setViewing(match)
+      const next = new URLSearchParams(searchParams)
+      next.delete('id')
+      setSearchParams(next, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when the target id or the loaded rows change
+  }, [openViaId, rows])
 
   const columns: TableColumn<CaseDispute>[] = [
     {
@@ -99,6 +130,11 @@ export function DisputesPage() {
         ) : (
           <span className="text-text-secondary">Unassigned</span>
         ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (d) => <Badge color={d.status === 'open' ? 'warning' : 'success'}>{d.status === 'open' ? 'Open' : 'Resolved'}</Badge>,
     },
     {
       key: 'actions',

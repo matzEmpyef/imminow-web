@@ -1,9 +1,11 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Card } from '@/components/Card'
-import { useMarketingOverview, type MarketingOverview } from '@/queries/marketingOverview'
+import { useMarketingOverview, type MarketingOverview, type MarketingOverviewWindow } from '@/queries/marketingOverview'
 import { formatDateTime } from '@/lib/time'
+
+const WINDOWS: MarketingOverviewWindow[] = [7, 30, 90]
 
 const EVENT_PAGES: Record<string, string> = {
   webinar: '/admin/webinars',
@@ -37,18 +39,37 @@ function clickThrough(clicks: number, impressions: number) {
  * the ads live now, since an ad stores no daily history.
  */
 export function MarketingOverviewPage() {
-  const overview = useMarketingOverview()
+  // 7 / 30 / 90 days (review M19, 2026-09-12) — it was fixed at 30 with no way to compare, same
+  // three presets and pill-button style Platform Pulse already uses for the same idea.
+  const [windowDays, setWindowDays] = useState<MarketingOverviewWindow>(30)
+  const overview = useMarketingOverview(windowDays)
   const data = overview.data
 
   return (
     <AdminShell>
       <div className="flex flex-col gap-lg">
-        <div className="flex flex-col gap-xs">
-          <h1 className="text-h1 text-text-primary">Marketing overview</h1>
-          <p className="text-body-sm text-text-secondary">
-            How the Sentpo app&apos;s marketing is doing — the last {data?.window_days ?? 30} days unless a number says
-            otherwise.
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-md">
+          <div className="flex flex-col gap-xs">
+            <h1 className="text-h1 text-text-primary">Marketing overview</h1>
+            <p className="text-body-sm text-text-secondary">
+              How the Sentpo app&apos;s marketing is doing — the last {data?.window_days ?? windowDays} days unless a
+              number says otherwise.
+            </p>
+          </div>
+          <div className="flex gap-xs rounded-full border border-border bg-surface p-xs">
+            {WINDOWS.map((w) => (
+              <button
+                key={w}
+                type="button"
+                onClick={() => setWindowDays(w)}
+                className={`rounded-full px-md py-xs text-body-sm transition-colors ${
+                  windowDays === w ? 'bg-primary text-text-on-primary' : 'text-text-secondary'
+                }`}
+              >
+                {w} days
+              </button>
+            ))}
+          </div>
         </div>
         {overview.isLoading ? (
           <p className="text-body-sm text-text-secondary">Loading…</p>
@@ -69,7 +90,14 @@ function OverviewBody({ data }: { data: MarketingOverview }) {
         <Stat
           label="Points earned"
           value={number(data.points.issued)}
-          hint={data.points.reversed > 0 ? `${number(data.points.reversed)} taken back (voided quizzes)` : 'By students, all rules'}
+          // A live counter of an in-progress rolling window (review M19, 2026-09-12) — re-computed
+          // from the ledger on every load, so today's slice is always partial. Said outright rather
+          // than reading like a settled total.
+          hint={
+            data.points.reversed > 0
+              ? `${number(data.points.reversed)} taken back (voided quizzes) — so far, this window`
+              : 'By students, all rules — so far, this window'
+          }
           to="/admin/earn-rules"
         />
         <Stat
@@ -86,7 +114,15 @@ function OverviewBody({ data }: { data: MarketingOverview }) {
           hint={`${number(data.events.upcoming_rsvps)} registered`}
           to="/admin/webinars"
         />
-        <Stat label="Event check-ins" value={number(data.events.attended)} hint="Webinars and in-person" to="/admin/physical-meetings" />
+        {/* No combined events page exists to link both types at once (review M19, 2026-09-12) —
+            says so in the caption rather than silently linking to just one of the two pages that
+            actually cover this number. */}
+        <Stat
+          label="Event check-ins"
+          value={number(data.events.attended)}
+          hint="Webinars and in-person — opens Webinars; see In-person Meetings too"
+          to="/admin/webinars"
+        />
         <Stat label="Quiz attempts" value={number(data.events.quiz_attempts)} to="/admin/quiz" />
         <Stat
           label="First-time article reads"

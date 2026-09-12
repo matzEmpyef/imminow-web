@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Pencil } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Button } from '@/components/Button'
@@ -68,10 +68,16 @@ function ImportResultPanel({ result, onDismiss }: { result: ImportResult; onDism
 
 export function CollegesCoursesPage() {
   const navigate = useNavigate()
+  // Read once on mount so a deep link — Needs attention's "Courses missing entry requirements"
+  // card — lands pre-filtered to Needs details, same one-way convention Finance Dashboard uses.
+  const [searchParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const [countryFilter, setCountryFilter] = useState<string[]>([])
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('')
-  const [healthFilter, setHealthFilter] = useState<'' | 'needs_details' | 'complete'>('')
+  const [healthFilter, setHealthFilter] = useState<'' | 'needs_details' | 'complete'>(() => {
+    const fromUrl = searchParams.get('health')
+    return fromUrl === 'needs_details' || fromUrl === 'complete' ? fromUrl : ''
+  })
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const paging = useCursorPagination()
   // Disabled countries included (review C6, 2026-09-12) — a college can have campuses in a

@@ -261,6 +261,37 @@ function CountriesTab() {
           Add Country
         </Button>
       </div>
+      {/* A visible checklist, not just the quick-filter chips below (product review, 2026-09-12) —
+          both gaps used to be findable only by an admin who already knew the chip existed. */}
+      {(noRate > 0 || unreviewed > 0) && (
+        <Card>
+          <div className="flex flex-col gap-sm">
+            <p className="text-body font-medium text-text-primary">Data gaps</p>
+            <ul className="flex flex-col divide-y divide-border">
+              {noRate > 0 && (
+                <li className="flex items-center justify-between gap-md py-sm">
+                  <span className="text-body-sm text-text-primary">
+                    {noRate} {noRate === 1 ? 'currency' : 'currencies'} still need{noRate === 1 ? 's' : ''} a rate
+                  </span>
+                  <Button size="sm" variant="secondary" onClick={() => setNoRateOnly(true)}>
+                    Show only these
+                  </Button>
+                </li>
+              )}
+              {unreviewed > 0 && (
+                <li className="flex items-center justify-between gap-md py-sm">
+                  <span className="text-body-sm text-text-primary">
+                    {unreviewed} {unreviewed === 1 ? 'country' : 'countries'} on default waits
+                  </span>
+                  <Button size="sm" variant="secondary" onClick={() => setUnreviewedOnly(true)}>
+                    Show only these
+                  </Button>
+                </li>
+              )}
+            </ul>
+          </div>
+        </Card>
+      )}
       <div className="flex flex-col gap-xs rounded-md border border-border bg-background p-md text-body-sm text-text-secondary">
         <p className="font-medium text-text-primary">What the two waits do</p>
         <p>

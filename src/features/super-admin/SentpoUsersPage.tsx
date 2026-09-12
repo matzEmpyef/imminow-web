@@ -2,14 +2,40 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
+import { Button } from '@/components/Button'
 import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
-import { useSentpoUserDirectory } from '@/queries/adminUserDirectories'
+import { FilterChip } from '@/components/FilterChip'
+import { fetchAllSentpoUserDirectory, isErasedRow, useSentpoUserDirectory } from '@/queries/adminUserDirectories'
 import { useCursorPagination } from '@/lib/pagination'
+import { toCsv, downloadCsv, type CsvColumn } from '@/lib/csv'
 import { formatDate, formatDateTime, localDateISO } from '@/lib/time'
-import { SignInHistoryDrawer, type SignInHistoryPerson } from './SignInHistoryDrawer'
+import { PersonSignInDrawer, type SignInHistoryPerson } from './PersonSignInDrawer'
 
 type Row = NonNullable<ReturnType<typeof useSentpoUserDirectory>['data']>['items'][number]
+
+const ONBOARDING_CSV_LABELS: Record<string, string> = {
+  onboarded: 'Onboarded',
+  stuck: 'Stuck at onboarding',
+  never_logged_in: 'Never came back',
+}
+
+// Columns match the visible table, in order (review M9 export) — Name/Email split from their
+// combined cell, everything else one column per rendered fact.
+const SENTPO_USERS_CSV_COLUMNS: CsvColumn<Row>[] = [
+  { header: 'Name', value: (r) => r.name },
+  { header: 'Email', value: (r) => r.email },
+  { header: 'Signed up', value: (r) => formatDate(r.created_at) },
+  { header: 'Last active', value: (r) => (r.last_active_at ? formatDateTime(r.last_active_at) : 'Never') },
+  { header: 'Onboarding', value: (r) => ONBOARDING_CSV_LABELS[r.onboarding] ?? r.onboarding },
+  { header: 'Profile %', value: (r) => r.profile_completion_percent ?? 0 },
+  { header: 'Platform', value: (r) => (r.platform ? (PLATFORM_LABELS[r.platform] ?? r.platform) : '') },
+  { header: 'App version', value: (r) => r.app_version ?? '' },
+  { header: 'Journey stage', value: (r) => STAGE_LABELS[r.journey_stage] ?? r.journey_stage },
+  { header: 'Journey status', value: (r) => r.journey_status },
+  { header: 'Consultancy', value: (r) => r.consultancy_name ?? '' },
+  { header: 'Points', value: (r) => r.points_balance },
+]
 
 // 2 weeks / 1 month / 3 months (user, 2026-09-03) — was 7/30/90 days. The same three presets the
 // Broadcast targeting form offers, so a list here and an audience there mean the same people.
@@ -127,14 +153,19 @@ export function SentpoUsersPage() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
+  // Erased accounts are hidden by default (review M9, 2026-09-12) — they sat between live students
+  // with nothing marking them.
+  const [showErased, setShowErased] = useState(false)
   const paging = useCursorPagination()
   const [historyFor, setHistoryFor] = useState<SignInHistoryPerson | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   function resetPaging() {
     paging.reset()
   }
 
-  const directory = useSentpoUserDirectory({
+  const filters = {
     search: search || undefined,
     stage: stage ? (Number(stage) as 1 | 2) : undefined,
     onboarding: onboarding || undefined,
@@ -144,10 +175,27 @@ export function SentpoUsersPage() {
     // A preset becomes a signed-up-from date; only "Custom" sends what the date inputs hold.
     from: joined && joined !== 'custom' ? daysAgoIsoDate(Number(joined)) : joined === 'custom' && from ? from : undefined,
     to: joined === 'custom' && to ? to : undefined,
+    include_erased: showErased || undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
-    cursor: paging.cursor,
-    limit: 20,
-  })
+  }
+
+  const directory = useSentpoUserDirectory({ ...filters, cursor: paging.cursor, limit: 20 })
+
+  // Loops every page at the server's max page size for the current filters (same shape as
+  // PlatformAuditLogPage's export) — the table only ever renders one page.
+  async function handleExport() {
+    setExporting(true)
+    setExportError(null)
+    try {
+      const rows = await fetchAllSentpoUserDirectory(filters)
+      const csv = toCsv(rows, SENTPO_USERS_CSV_COLUMNS)
+      downloadCsv(`sentpo-users-${localDateISO()}.csv`, csv)
+    } catch {
+      setExportError('Could not export the directory.')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const columns: TableColumn<Row>[] = [
     {
@@ -156,7 +204,10 @@ export function SentpoUsersPage() {
       sortable: true,
       render: (r) => (
         <div>
-          <p className="font-medium text-text-primary">{r.name}</p>
+          <p className="flex items-center gap-xs font-medium text-text-primary">
+            {r.name}
+            {isErasedRow(r) && <Badge color="secondary">Erased</Badge>}
+          </p>
           <p className="text-caption text-text-secondary">{r.email}</p>
         </div>
       ),
@@ -213,18 +264,36 @@ export function SentpoUsersPage() {
   return (
     <AdminShell>
       <div className="flex flex-col gap-lg">
-        <div>
-          <h1 className="text-h1 text-text-primary">Sentpo Users</h1>
-          <p className="text-body-sm text-text-secondary">
-            Every student account — signup, activity and journey stage. Select a student to see their sign-in history.
-          </p>
+        <div className="flex items-start justify-between gap-md">
+          <div>
+            <h1 className="text-h1 text-text-primary">Sentpo Users</h1>
+            <p className="text-body-sm text-text-secondary">
+              Every student account — signup, activity and journey stage. Select a student to see their sign-in history.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-xs">
+            <Button variant="secondary" size="sm" disabled={exporting} onClick={handleExport}>
+              {exporting ? 'Preparing…' : 'Download CSV'}
+            </Button>
+            {exportError && <p className="text-caption text-error">{exportError}</p>}
+          </div>
         </div>
 
         <Table
           columns={columns}
           rows={directory.data?.items ?? []}
           rowKey={(r) => r.id}
-          onRowClick={(r) => setHistoryFor({ id: r.id, name: r.name, email: r.email })}
+          onRowClick={(r) =>
+            setHistoryFor({
+              id: r.id,
+              name: r.name,
+              email: r.email,
+              kind: 'student',
+              // Stage 2 = committed to a consultancy, i.e. has an active case (SentpoUserDirectoryRow
+              // carries no journey_id to link straight to, only this and consultancy_name).
+              hasCase: r.journey_stage === 2,
+            })
+          }
           loading={directory.isLoading}
           error={directory.isError ? 'Could not load the Sentpo user directory.' : undefined}
           emptyMessage={
@@ -245,6 +314,16 @@ export function SentpoUsersPage() {
             },
             placeholder: 'Search by name or email…',
           }}
+          quickFilters={
+            <FilterChip
+              label="Show erased"
+              active={showErased}
+              onChange={(v) => {
+                setShowErased(v)
+                resetPaging()
+              }}
+            />
+          }
           filters={
             <>
               <CompactSelect
@@ -363,7 +442,7 @@ export function SentpoUsersPage() {
             total: directory.data?.meta.total,
           }}
         />
-        <SignInHistoryDrawer person={historyFor} onClose={() => setHistoryFor(null)} />
+        <PersonSignInDrawer person={historyFor} onClose={() => setHistoryFor(null)} />
       </div>
     </AdminShell>
   )

@@ -1,12 +1,26 @@
 // Split out of QuizAdminPage.tsx (Phase 3 plan, Tier B3, 2026-09-03) — pure movement unless noted.
 import { useMemo, useState } from 'react'
-import { Trophy } from 'lucide-react'
+import { Download, Trophy } from 'lucide-react'
 import { Badge } from '@/components/Badge'
+import { Button } from '@/components/Button'
 import { Table, type TableColumn } from '@/components/Table'
 import { Modal } from '@/components/Modal'
 import { useQuizLeaderboard } from '@/queries/eventsAdmin'
-import { formatDuration } from '@/lib/time'
+import { formatDateTime, formatDuration } from '@/lib/time'
+import { toCsv, downloadCsv, type CsvColumn } from '@/lib/csv'
 import { type Event, type QuizLeaderboardEntry } from './quizShared'
+
+// Same column style as the Webinar/Physical Meeting registrants export (EventAttendanceCell.tsx)
+// and the Audit Log — one shared toCsv/downloadCsv (lib/csv.ts, 2026-09-12 "New exports" pass).
+const LEADERBOARD_CSV_COLUMNS: CsvColumn<QuizLeaderboardEntry>[] = [
+  { header: 'Rank', value: (r) => r.rank },
+  { header: 'Name', value: (r) => r.student_name },
+  { header: 'Email', value: (r) => r.email ?? '' },
+  { header: 'Phone', value: (r) => r.phone ?? '' },
+  { header: 'Score', value: (r) => r.score },
+  { header: 'Time', value: (r) => formatDuration(r.completion_time_ms) },
+  { header: 'Submitted', value: (r) => formatDateTime(r.submitted_at) },
+]
 
 const typeBadgeColor: Record<'applicant' | 'aspirant', 'success' | 'info'> = {
   applicant: 'success',
@@ -94,8 +108,36 @@ export function QuizLeaderboardModal({ event, onClose }: { event: Event; onClose
     },
   ]
 
+  const allEntries = leaderboard.data?.entries ?? []
+
   return (
-    <Modal onClose={onClose} title={`${event.title} — Leaderboard`} widthRem={54} dismissible>
+    <Modal
+      onClose={onClose}
+      title={`${event.title} — Leaderboard`}
+      header={
+        <div className="flex w-full items-center justify-between gap-md">
+          <span className="font-medium text-text-primary">{event.title} — Leaderboard</span>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={allEntries.length === 0}
+            onClick={() =>
+              downloadCsv(
+                `${event.title.replace(/[^\w\- ]+/g, '')}-leaderboard.csv`,
+                toCsv(allEntries, LEADERBOARD_CSV_COLUMNS),
+              )
+            }
+          >
+            <span className="flex items-center gap-xs">
+              <Download className="h-4 w-4" />
+              Download CSV
+            </span>
+          </Button>
+        </div>
+      }
+      widthRem={54}
+      dismissible
+    >
       <Table
         bare
         columns={columns}

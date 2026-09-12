@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
 import { FilterChip } from '@/components/FilterChip'
@@ -7,7 +8,7 @@ import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
 import { useVisitRequests, type VisitRequest } from '@/queries/visitRequests'
 import { VisitRequestDrawer } from './visits/VisitRequestDrawer'
-import { waitingLabel } from './visits/format'
+import { replyWaitingLabel, visitDateLabel } from './visits/format'
 
 const STATUS_CHIPS = [
   { key: 'pending', label: 'Pending', responded: false },
@@ -23,8 +24,16 @@ type StatusKey = (typeof STATUS_CHIPS)[number]['key']
  * arranges the visit by replying in that same conversation, which is what "Replied" means here —
  * there is no status for this page to set, only a reminder it can send when nobody has answered.
  */
+function isStatusKey(value: string | null): value is StatusKey {
+  return STATUS_CHIPS.some((c) => c.key === value)
+}
+
 export function VisitRequestsPage() {
-  const [statusKey, setStatusKey] = useState<StatusKey>('pending')
+  const [searchParams] = useSearchParams()
+  const [statusKey, setStatusKey] = useState<StatusKey>(() => {
+    const fromUrl = searchParams.get('status')
+    return isStatusKey(fromUrl) ? fromUrl : 'pending'
+  })
   const [search, setSearch] = useState('')
   const paging = useCursorPagination()
 
@@ -81,17 +90,24 @@ export function VisitRequestsPage() {
       ),
     },
     {
-      key: 'waiting',
-      header: 'Waiting',
-      align: 'right',
+      // Two clocks, not one ambiguous "Waiting" (product review, 2026-09-12): a reply overdue by
+      // days for a visit next week reads very differently from one replied to yesterday for a
+      // visit tomorrow — the old single column could not tell them apart.
+      key: 'reply_wait',
+      header: 'Reply',
       hideBelow: 'sm',
       render: (v) => {
-        const w = waitingLabel(v.waiting_hours)
-        return (
-          <span className={`whitespace-nowrap tabular-nums ${w.warn ? 'font-medium text-warning' : 'text-text-secondary'}`}>
-            {w.text}
-          </span>
-        )
+        const r = replyWaitingLabel(v.waiting_hours)
+        return <span className={`whitespace-nowrap ${r.warn ? 'font-medium text-warning' : 'text-text-secondary'}`}>{r.text}</span>
+      },
+    },
+    {
+      key: 'visit_date',
+      header: 'Visit',
+      hideBelow: 'md',
+      render: (v) => {
+        const d = visitDateLabel(v.proposed_date)
+        return <span className={`whitespace-nowrap ${d.warn ? 'font-medium text-warning' : 'text-text-secondary'}`}>{d.text}</span>
       },
     },
     {

@@ -4,7 +4,7 @@ import { Button } from '@/components/Button'
 import { Drawer } from '@/components/Drawer'
 import { formatDate, formatDateTime, relativeTime } from '@/lib/time'
 import { useNudgeVisitRequest, type VisitRequest } from '@/queries/visitRequests'
-import { waitingLabel } from './format'
+import { replyWaitingLabel, visitDateLabel } from './format'
 
 const NUDGE_COOLDOWN_MS = 24 * 60 * 60 * 1000
 
@@ -25,7 +25,8 @@ export function VisitRequestDrawer({
   onUpdated: (updated: VisitRequest) => void
 }) {
   const nudge = useNudgeVisitRequest()
-  const waiting = waitingLabel(request.waiting_hours)
+  const reply = replyWaitingLabel(request.waiting_hours)
+  const visitDate = visitDateLabel(request.proposed_date)
 
   const cooldownUntil = request.last_nudged_at ? new Date(request.last_nudged_at).getTime() + NUDGE_COOLDOWN_MS : null
   const inCooldown = cooldownUntil != null && Date.now() < cooldownUntil
@@ -127,15 +128,20 @@ export function VisitRequestDrawer({
           )}
         </div>
 
-        {/* Waiting + reminders */}
+        {/* Two clocks, not one ambiguous "Waiting" (product review, 2026-09-12): how long the
+            consultancy has sat on the reply, separate from how close the actual visit is. */}
         <div className="grid grid-cols-2 gap-sm">
           <div className="flex flex-col gap-xs rounded-md border border-border p-sm">
-            <p className="text-caption font-medium text-text-secondary">Waiting</p>
-            <p className={`text-body-sm ${waiting.warn ? 'font-medium text-warning' : 'text-text-primary'}`}>
-              {waiting.text}
-            </p>
+            <p className="text-caption font-medium text-text-secondary">Reply</p>
+            <p className={`text-body-sm ${reply.warn ? 'font-medium text-warning' : 'text-text-primary'}`}>{reply.text}</p>
           </div>
           <div className="flex flex-col gap-xs rounded-md border border-border p-sm">
+            <p className="text-caption font-medium text-text-secondary">Visit date</p>
+            <p className={`text-body-sm ${visitDate.warn ? 'font-medium text-warning' : 'text-text-primary'}`}>
+              {visitDate.text}
+            </p>
+          </div>
+          <div className="col-span-2 flex flex-col gap-xs rounded-md border border-border p-sm">
             <p className="text-caption font-medium text-text-secondary">Reminders</p>
             <p className="text-body-sm text-text-primary">
               {request.nudge_count

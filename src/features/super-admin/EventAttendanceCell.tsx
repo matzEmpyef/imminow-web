@@ -4,46 +4,30 @@ import { PersonListModal } from './PersonListModal'
 import { Button } from '@/components/Button'
 import { useEventAttendance } from '@/queries/eventsAdmin'
 import { formatDateTime } from '@/lib/time'
+import { toCsv, downloadCsv, type CsvColumn } from '@/lib/csv'
 import type { components } from '@/api/schema'
 
 type Event = components['schemas']['Event']
 type EventAttendanceResponse = NonNullable<ReturnType<typeof useEventAttendance>['data']>
-
-function csvField(value: string): string {
-  return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
-}
+type Rsvp = NonNullable<EventAttendanceResponse['rsvps']>[number]
 
 // One combined registrants export (2026-09-11 — "Download CSV" button, build reference: name,
 // email, student type, status, registered at, attended yes/no) rather than two partial ones per
 // popup — a waitlisted RSVP and whether that person actually showed up are both things an admin
 // downloading "who registered" wants in the same row, not split across the RSVP'd and Attended
-// lists separately.
+// lists separately. Built on the shared toCsv/downloadCsv (lib/csv.ts) so this export, the Audit
+// Log's and the Quiz leaderboard's all quote and download the same way.
 function registrantsCsv(data: EventAttendanceResponse): string {
   const attendedEmails = new Set((data.attendance ?? []).map((a) => (a.email ?? '').toLowerCase()))
-  const header = ['Name', 'Email', 'Student Type', 'Status', 'Registered At', 'Attended']
-  const rows = (data.rsvps ?? []).map((r) => [
-    r.student_name ?? '',
-    r.email ?? '',
-    r.student_type ?? '',
-    r.status ?? '',
-    r.created_at ?? '',
-    attendedEmails.has((r.email ?? '').toLowerCase()) ? 'Yes' : 'No',
-  ])
-  return [header, ...rows].map((row) => row.map(csvField).join(',')).join('\r\n')
-}
-
-// Blob + object URL download (no server round trip needed — the data is already loaded for the
-// popup it's downloaded from). Revoked right after the click so the URL doesn't linger.
-function downloadCsv(filename: string, content: string) {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  const columns: CsvColumn<Rsvp>[] = [
+    { header: 'Name', value: (r) => r.student_name ?? '' },
+    { header: 'Email', value: (r) => r.email ?? '' },
+    { header: 'Student Type', value: (r) => r.student_type ?? '' },
+    { header: 'Status', value: (r) => r.status ?? '' },
+    { header: 'Registered At', value: (r) => r.created_at ?? '' },
+    { header: 'Attended', value: (r) => (attendedEmails.has((r.email ?? '').toLowerCase()) ? 'Yes' : 'No') },
+  ]
+  return toCsv(data.rsvps ?? [], columns)
 }
 
 function DownloadRegistrantsButton({ event, data }: { event: Event; data?: EventAttendanceResponse }) {

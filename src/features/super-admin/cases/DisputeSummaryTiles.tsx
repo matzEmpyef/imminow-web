@@ -37,7 +37,11 @@ export function DisputeSummaryTiles({ summary, loading }: { summary?: DisputeSum
         </span>
       </div>
       <div className="flex flex-1 basis-56 flex-col gap-xs rounded-md border border-border bg-surface px-md py-sm">
-        <span className="text-caption text-text-secondary">Resolved this month</span>
+        {/* "This month" alone doesn't say which one (L9, product review 2026-09-12) — spelled out
+            so the tile still reads right on a screenshot taken weeks later. */}
+        <span className="text-caption text-text-secondary">
+          Resolved this month ({new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })})
+        </span>
         <span className="text-h3 tabular-nums text-text-primary">{summary.resolved_this_month ?? 0}</span>
       </div>
     </div>

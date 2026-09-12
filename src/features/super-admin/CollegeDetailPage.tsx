@@ -286,7 +286,12 @@ export function CourseFormModal({
             would throw away in-progress state in the other tabs. See CourseFormPanels.tsx. */}
         <CourseBasicsPanel hidden={form.activeTab !== 'Basics'} form={form} />
         <CourseCampusIntakesPanel hidden={form.activeTab !== 'Campuses & Intakes'} college={college} form={form} />
-        <CourseFeesPanel hidden={form.activeTab !== 'Fees'} form={form} />
+        <CourseFeesPanel
+          hidden={form.activeTab !== 'Fees'}
+          form={form}
+          collegeId={college.id!}
+          excludeCourseId={editingCourse?.id}
+        />
         <CourseRequirementsPanel
           hidden={form.activeTab !== 'Entry Requirements'}
           activeExams={activeExams}
@@ -580,6 +585,16 @@ export function CollegeDetailPage() {
         course.duration || (course.duration_months != null ? `${course.duration_months} months` : null) || (
           <span className="text-text-secondary">—</span>
         ),
+    },
+    {
+      // Course Popularity's own copy promises "You will still see them here" for platform staff
+      // regardless of the student-facing toggle (Settings → Course Popularity, 2026-09-12) — this
+      // is that promise kept. view_count is always sent to platform staff (server contract).
+      key: 'view_count',
+      header: 'Views',
+      align: 'right',
+      hideBelow: 'lg',
+      render: (course) => <span className="tabular-nums text-text-secondary">{course.view_count ?? 0}</span>,
     },
     {
       // What's missing, in words (2026-09-11) — it used to be "4/5" with the detail only on hover.

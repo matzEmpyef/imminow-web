@@ -72,6 +72,19 @@ export function ApplicantCaseViewPage() {
   }
 
   const data = applicant.data
+  // "Due since" once the balance has settled to ₹0 read as still-outstanding money on a balance
+  // that no longer exists (L8, product review 2026-09-12) — null renders nothing at all rather
+  // than a misleading date.
+  const commission = data.commission
+  const statusLine = commission
+    ? commission.reversed_at
+      ? `Reversed ${formatDate(commission.reversed_at)}`
+      : commission.recognized_at && (commission.platform_due_inr ?? 0) > 0
+        ? `Due since ${formatDate(commission.recognized_at)}`
+        : commission.recognized_at
+          ? null
+          : 'Earned on paper — not due until the case closes'
+    : null
 
   return (
     <AdminShell>
@@ -148,14 +161,10 @@ export function ApplicantCaseViewPage() {
                   Platform due ₹{(data.commission.platform_due_inr ?? 0).toLocaleString('en-IN')}
                 </p>
                 {/* The line between earned and due. An entry with no recognised date is money on
-                    paper that nobody owes yet. */}
-                <p className="text-body-sm text-text-secondary">
-                  {data.commission.reversed_at
-                    ? `Reversed ${formatDate(data.commission.reversed_at)}`
-                    : data.commission.recognized_at
-                      ? `Due since ${formatDate(data.commission.recognized_at)}`
-                      : 'Earned on paper — not due until the case closes'}
-                </p>
+                    paper that nobody owes yet. "Due since" is meaningless once the due amount has
+                    settled to ₹0 (product review, 2026-09-12) — it read as still-outstanding money
+                    on a balance that no longer exists, so that case shows nothing here at all. */}
+                {statusLine && <p className="text-body-sm text-text-secondary">{statusLine}</p>}
               </>
             ) : (
               <p className="text-body-sm text-text-secondary">No commission entry — no college accepted yet.</p>

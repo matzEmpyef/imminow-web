@@ -12,6 +12,7 @@ import {
   type PlatformAuditLogFilters,
 } from '@/queries/platformAuditLog'
 import { useCursorPagination } from '@/lib/pagination'
+import { toCsv, downloadCsv, type CsvColumn } from '@/lib/csv'
 import { formatDateTime, localDateISO } from '@/lib/time'
 
 const ACTION_COLORS = { create: 'success', update: 'info', delete: 'error' } as const
@@ -44,29 +45,17 @@ function labelize(value: string): string {
     .join(' ')
 }
 
-function csvCell(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
-}
-
-function toCsv(rows: Entry[]): string {
-  const header = ['Time', 'Actor', 'Action', 'Area', 'Entity type', 'Entity', 'Reason']
-  const lines = rows.map((e) =>
-    [
-      formatDateTime(e.created_at),
-      e.actor_name ?? 'Unknown',
-      labelize(e.action_type),
-      AREA_LABELS[e.area] ?? labelize(e.area),
-      labelize(e.entity_type),
-      e.entity_label ?? '',
-      e.reason ?? '',
-    ]
-      .map((v) => csvCell(String(v)))
-      .join(','),
-  )
-  return [header.join(','), ...lines].join('\n')
-}
-
 type Entry = NonNullable<ReturnType<typeof usePlatformAuditLog>['data']>['items'][number]
+
+const AUDIT_LOG_CSV_COLUMNS: CsvColumn<Entry>[] = [
+  { header: 'Time', value: (e) => formatDateTime(e.created_at) },
+  { header: 'Actor', value: (e) => e.actor_name ?? 'Unknown' },
+  { header: 'Action', value: (e) => labelize(e.action_type) },
+  { header: 'Area', value: (e) => AREA_LABELS[e.area] ?? labelize(e.area) },
+  { header: 'Entity type', value: (e) => labelize(e.entity_type) },
+  { header: 'Entity', value: (e) => e.entity_label ?? '' },
+  { header: 'Reason', value: (e) => e.reason ?? '' },
+]
 
 export function PlatformAuditLogPage() {
   const consultancies = useAdminConsultancies()
@@ -106,16 +95,8 @@ export function PlatformAuditLogPage() {
     setExportError(null)
     try {
       const rows = await fetchAllPlatformAuditLog(filters)
-      const csv = toCsv(rows)
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `platform-audit-log-${localDateISO()}.csv`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
+      const csv = toCsv(rows, AUDIT_LOG_CSV_COLUMNS)
+      downloadCsv(`platform-audit-log-${localDateISO()}.csv`, csv)
     } catch {
       setExportError('Could not export the audit log.')
     } finally {

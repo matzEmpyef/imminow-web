@@ -16,6 +16,7 @@ import { ComplaintEscalateModal } from './ComplaintEscalateModal'
 import { ComplaintResolveModal } from './ComplaintResolveModal'
 import { NotesLog } from './NotesLog'
 import { OwnerSection } from './OwnerSection'
+import { TakeOverConfirmModal } from './TakeOverConfirmModal'
 import { CATEGORY_LABELS, COMPLAINT_STATUS_META } from './labels'
 
 const LINK_BUTTON =
@@ -38,6 +39,7 @@ export function ComplaintDrawer({
 }) {
   const [escalating, setEscalating] = useState(false)
   const [resolving, setResolving] = useState(false)
+  const [confirmingTakeOver, setConfirmingTakeOver] = useState(false)
 
   const update = useUpdateComplaint(complaint.id)
   const notes = useComplaintNotes(complaint.id)
@@ -108,7 +110,7 @@ export function ComplaintDrawer({
           {complaint.dispute_id && (
             <div className="flex flex-wrap items-center justify-between gap-sm rounded-md bg-info/10 px-md py-sm text-body-sm text-info">
               <span>{complaint.dispute_status === 'resolved' ? 'Dispute resolved.' : 'In dispute — case is paused.'}</span>
-              <Link to="/admin/disputes" className="font-medium underline">
+              <Link to={`/admin/disputes?id=${complaint.dispute_id}`} className="font-medium underline">
                 Open in Disputes
               </Link>
             </div>
@@ -135,9 +137,7 @@ export function ComplaintDrawer({
           onPickUp={() =>
             update.mutate({ status: 'in_review' }, { onSuccess: (updated) => updated && onUpdated(updated) })
           }
-          onTakeOver={() =>
-            update.mutate({ assign_to_me: true }, { onSuccess: (updated) => updated && onUpdated(updated) })
-          }
+          onTakeOver={() => setConfirmingTakeOver(true)}
         />
 
         {/* 5. Notes */}
@@ -201,6 +201,25 @@ export function ComplaintDrawer({
       )}
       {resolving && (
         <ComplaintResolveModal complaint={complaint} onClose={() => setResolving(false)} onResolved={onUpdated} />
+      )}
+      {confirmingTakeOver && (
+        <TakeOverConfirmModal
+          ownerName={complaint.assigned_to_name ?? 'them'}
+          loading={update.isPending}
+          error={update.isError ? update.error.message : undefined}
+          onClose={() => setConfirmingTakeOver(false)}
+          onConfirm={() =>
+            update.mutate(
+              { assign_to_me: true },
+              {
+                onSuccess: (updated) => {
+                  setConfirmingTakeOver(false)
+                  if (updated) onUpdated(updated)
+                },
+              },
+            )
+          }
+        />
       )}
     </Drawer>
   )

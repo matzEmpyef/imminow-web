@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
 import { CompactSelect } from '@/components/CompactSelect'
@@ -9,6 +9,7 @@ import {
   type PerformanceLeagueKind,
   type PerformanceLeagueWindow,
 } from '@/queries/performanceLeague'
+import { useAdminConsultancies } from '@/queries/adminConsultancies'
 import { formatMoney } from '@/lib/money'
 
 type Row = NonNullable<ReturnType<typeof usePerformanceLeague>['data']>['items'][number]
@@ -44,11 +45,26 @@ function formatHours(hours: number): string {
 // (2026-09-11): a time window, Sentpo leads only, and flags that are fair to small accounts.
 export function PerformanceLeaguePage() {
   const [windowDays, setWindowDays] = useState<PerformanceLeagueWindow>(90)
-  const [kind, setKind] = useState<PerformanceLeagueKind>('consultancy')
+  // Dashboard's "Applicants by Institute" card's own "View all" (L1 fix, 2026-09-12) lands here
+  // pre-switched to Institutes, same one-way "read the URL once on mount" convention used
+  // elsewhere (Finance Dashboard's ?rate=default, Complaints' ?status=).
+  const [searchParams] = useSearchParams()
+  const [kind, setKind] = useState<PerformanceLeagueKind>(() => (searchParams.get('view') === 'institute' ? 'institute' : 'consultancy'))
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const league = usePerformanceLeague(windowDays, kind)
   const t = league.data?.thresholds
+
+  // The league row itself doesn't carry rating_source (docs/PROGRESS.md §4's row is deliberately
+  // thin), so an admin-set rating is cross-referenced against Manage Consultancies' own list — the
+  // same "Set by admin" badge, admin-facing only, exactly as that page shows it. A small, bounded
+  // set (page's own review note), so one extra page-sized fetch is cheap.
+  const consultancies = useAdminConsultancies({ kind, active: true, limit: 100 })
+  const overriddenIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const c of consultancies.data?.items ?? []) if (c.rating_source === 'override' && c.id) ids.add(c.id)
+    return ids
+  }, [consultancies.data])
 
   // The server already sorts by leads received, most first; a column sort replaces that.
   const rows = useMemo(() => {
@@ -136,7 +152,12 @@ export function PerformanceLeaguePage() {
         ) : (
           <span className="flex items-center justify-end gap-xs">
             <span className="font-medium text-text-primary">{r.rating.toFixed(1)}</span>
-            {r.rating_count > 0 && <span className="text-caption text-text-secondary">({r.rating_count})</span>}
+            {/* Count is about the computed average — meaningless beside an admin-set number, same
+                reasoning as Manage Consultancies' own rating cell. */}
+            {!overriddenIds.has(r.consultancy_id) && r.rating_count > 0 && (
+              <span className="text-caption text-text-secondary">({r.rating_count})</span>
+            )}
+            {overriddenIds.has(r.consultancy_id) && <Badge color="warning">Set by admin</Badge>}
           </span>
         ),
     },

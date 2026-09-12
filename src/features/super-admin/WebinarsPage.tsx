@@ -17,6 +17,9 @@ import { useCursorPagination } from '@/lib/pagination'
 import { formatEventDateTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { EVENT_TIMEZONES, browserTimezone, utcIsoToWallClock, wallClockToUtcIso } from '@/lib/eventTimezones'
+import { TargetingFilter } from '@/features/super-admin/TargetingFilter'
+import { hasAnyTargeting, type Targeting } from '@/lib/targeting'
+import { useCountries } from '@/queries/countries'
 import type { components } from '@/api/schema'
 
 type Event = components['schemas']['Event']
@@ -77,10 +80,15 @@ function WebinarFormModal({
   const [meetingUrl, setMeetingUrl] = useState(source?.meeting_url ?? '')
   const [meetingPlatform, setMeetingPlatform] = useState<MeetingPlatform>(source?.meeting_platform ?? 'google_meet')
   const [pointsOverride, setPointsOverride] = useState(source?.points_override != null ? String(source.points_override) : '')
+  // Same targeting section Quizzes and Ads use (review M16, 2026-09-12) — any event type can be
+  // targeted now (server note in schema.d.ts's EventInput.targeting), it was quizzes-only before.
+  const [targeting, setTargeting] = useState<Targeting>(source?.targeting ?? {})
+  const countries = useCountries()
 
   const mutation = isEditing ? updateEvent : createEvent
   const meetingUrlValid = MEETING_URL_PATTERN.test(meetingUrl.trim())
-  const canSubmit = Boolean(title) && Boolean(startsAt) && Boolean(endsAt) && meetingUrlValid
+  const endBeforeStart = Boolean(startsAt && endsAt && endsAt <= startsAt)
+  const canSubmit = Boolean(title) && Boolean(startsAt) && Boolean(endsAt) && !endBeforeStart && meetingUrlValid
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -95,6 +103,7 @@ function WebinarFormModal({
       meeting_url: meetingUrl || null,
       meeting_platform: meetingPlatform,
       points_override: pointsOverride ? Number(pointsOverride) : null,
+      targeting: hasAnyTargeting(targeting) ? targeting : null,
     }
     if (isEditing) {
       updateEvent.mutate(
@@ -165,6 +174,7 @@ function WebinarFormModal({
             required
             value={endsAt}
             onChange={(e) => setEndsAt(e.target.value)}
+            error={endBeforeStart ? 'The end must be after the start.' : undefined}
           />
         </div>
         <SelectField label="Time zone" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
@@ -220,6 +230,15 @@ function WebinarFormModal({
         <p className="-mt-sm text-caption text-text-secondary">
           Overrides the default webinar_attended point value for attendees of this webinar.
         </p>
+        <div className="flex flex-col gap-sm rounded-md border border-border bg-background p-sm">
+          <FieldLabel htmlFor="webinar-targeting">Who can see this webinar</FieldLabel>
+          <TargetingFilter
+            value={targeting}
+            onChange={setTargeting}
+            countries={countries.data ?? []}
+            unknownDataPolicy="includes"
+          />
+        </div>
       </form>
     </Modal>
   )

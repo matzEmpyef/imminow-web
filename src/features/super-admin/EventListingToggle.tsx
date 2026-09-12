@@ -33,8 +33,8 @@ export function EventListingToggle({ event }: { event: Event }) {
         <button
           type="button"
           onClick={() => updateEvent.mutate({ listed: true })}
-          aria-label={`Restore ${event.title} to the app`}
-          title="Restore to the app"
+          aria-label={`Restore ${event.title}`}
+          title="Restore"
           className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
         >
           <Eye className="h-4 w-4" />
@@ -49,7 +49,7 @@ export function EventListingToggle({ event }: { event: Event }) {
         type="button"
         onClick={() => setConfirming(true)}
         aria-label={`Remove ${event.title} from the app`}
-        title="Remove from the app"
+        title="Unlist"
         className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-error"
       >
         <EyeOff className="h-4 w-4" />
@@ -57,7 +57,7 @@ export function EventListingToggle({ event }: { event: Event }) {
       {confirming && (
         <Modal
           onClose={() => setConfirming(false)}
-          title="Remove from the app"
+          title="Unlist"
           widthRem={24}
           footer={
             <div className="flex justify-end gap-sm">
@@ -73,7 +73,7 @@ export function EventListingToggle({ event }: { event: Event }) {
                     {
                       onSuccess: () => {
                         setConfirming(false)
-                        showToast(`${event.title} removed from listing`)
+                        showToast(`${event.title} unlisted`)
                       },
                     },
                   )

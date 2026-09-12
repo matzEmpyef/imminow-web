@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { ExternalLink } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Button } from '@/components/Button'
@@ -7,6 +8,7 @@ import { Toggle } from '@/components/Toggle'
 import { Badge } from '@/components/Badge'
 import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
+import { FilterChip } from '@/components/FilterChip'
 import { Modal } from '@/components/Modal'
 import { useBlogCategoryMappings, useUpdateMapping } from '@/queries/blogCategoryMappings'
 import {
@@ -42,7 +44,10 @@ const formatDate = (iso?: string) => (iso ? formatDateShared(iso) : '—')
  * carries 169 posts and only a fraction belong in a student's feed.
  */
 export function BlogAdminPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('Articles')
+  // Needs attention's "Blog categories to review" card (?tab=mappings) lands on Category Mapping
+  // instead of the Articles default; ?filter=new is read inside CategoryMappingTab itself.
+  const [searchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState<Tab>(() => (searchParams.get('tab') === 'mappings' ? 'Category Mapping' : 'Articles'))
 
   return (
     <AdminShell>
@@ -536,13 +541,19 @@ function CategoryMappingTab() {
   const mappings = useBlogCategoryMappings()
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState<BlogCategoryMapping | null>(null)
+  const [searchParams] = useSearchParams()
+  // Needs attention's "Blog categories to review" card (?filter=new) — new-from-website mappings
+  // waiting to be named and activated, same rule the card itself counts by.
+  const [newOnly, setNewOnly] = useState(() => searchParams.get('filter') === 'new')
 
   const rows = useMemo(() => {
-    const items = mappings.data ?? []
+    let items = mappings.data ?? []
+    if (newOnly) items = items.filter((m) => m.auto_added && !m.active)
     if (!search) return items
     const q = search.toLowerCase()
     return items.filter((m) => m.wp_category?.toLowerCase().includes(q) || m.app_tag?.toLowerCase().includes(q))
-  }, [mappings.data, search])
+  }, [mappings.data, search, newOnly])
+  const newCount = useMemo(() => (mappings.data ?? []).filter((m) => m.auto_added && !m.active).length, [mappings.data])
 
   const columns: TableColumn<BlogCategoryMapping>[] = [
     {
@@ -596,8 +607,11 @@ function CategoryMappingTab() {
         rowKey={(m) => m.id!}
         loading={mappings.isLoading}
         error={mappings.isError ? 'Could not load category mappings.' : undefined}
-        emptyMessage="No category mappings yet."
+        emptyMessage={newOnly ? 'No new website categories waiting.' : 'No category mappings yet.'}
         search={{ value: search, onChange: setSearch, placeholder: 'Search category or tag…' }}
+        quickFilters={
+          newCount > 0 && <FilterChip label={`New from website (${newCount})`} active={newOnly} onChange={setNewOnly} />
+        }
       />
     </div>
   )

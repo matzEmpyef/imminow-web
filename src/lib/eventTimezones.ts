@@ -30,7 +30,9 @@ export const EVENT_TIMEZONES = [
 /// not and is a suggestion they can change rather than a hidden default.
 export function browserTimezone(): string {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    // Some runtimes still report the pre-2001 alias (user, 2026-09-12: one zone, one name).
+    return zone === 'Asia/Calcutta' ? 'Asia/Kolkata' : zone
   } catch {
     return 'UTC'
   }

@@ -56,11 +56,15 @@ function OrgApplicantsCard({
   singular,
   plural,
   ranking,
+  viewAllHref,
 }: {
   title: string
   singular: string
   plural: string
   ranking: OrgRanking
+  // The Institute card used to send "View all" to the same plain /admin/performance-league link as
+  // Consultancy, landing on the League's default Consultancies view (bug fix, 2026-09-12).
+  viewAllHref: string
 }) {
   const noun = (n: number) => (n === 1 ? singular : plural)
   const slices = [
@@ -73,7 +77,7 @@ function OrgApplicantsCard({
     <Card>
       <div className="flex items-center justify-between gap-sm">
         <h2 className="text-h3 text-text-primary">{title}</h2>
-        <Link to="/admin/performance-league" className="text-body-sm text-primary hover:underline">
+        <Link to={viewAllHref} className="text-body-sm text-primary hover:underline">
           View all
         </Link>
       </div>
@@ -342,12 +346,14 @@ export function SuperAdminDashboardPage() {
               singular="consultancy"
               plural="consultancies"
               ranking={dashboard.data.applicants_by_organisation.consultancies}
+              viewAllHref="/admin/performance-league"
             />
             <OrgApplicantsCard
               title="Applicants by Institute"
               singular="institute"
               plural="institutes"
               ranking={dashboard.data.applicants_by_organisation.institutes}
+              viewAllHref="/admin/performance-league?view=institute"
             />
           </div>
         )}

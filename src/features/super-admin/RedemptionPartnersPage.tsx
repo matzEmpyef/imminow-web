@@ -135,13 +135,13 @@ function PartnerDetailModal({ partner, onClose }: { partner: RedemptionPartner; 
         <div className="flex items-center justify-between gap-sm rounded-md border border-border bg-background p-sm">
           <div className="min-w-0">
             <p className="text-body-sm font-medium text-text-primary">
-              {retired ? 'Retired' : 'Active'}{' '}
+              {retired ? 'Unlisted' : 'Active'}{' '}
               {retired && <Badge color="secondary">not accepting coupons</Badge>}
             </p>
             <p className="text-caption text-text-secondary">
               {retired
                 ? 'Hidden from the coupon picker and the student catalog. Coupons and redemption history are kept.'
-                : 'Retire this partner if the merchant leaves the programme — nothing is deleted.'}
+                : 'Unlist this partner if the merchant leaves the programme — nothing is deleted.'}
             </p>
           </div>
           {retired ? (
@@ -150,14 +150,14 @@ function PartnerDetailModal({ partner, onClose }: { partner: RedemptionPartner; 
             </Button>
           ) : (
             <Button variant="destructive" onClick={() => setConfirmRetire({ label: partner.name! })}>
-              Retire Partner
+              Unlist Partner
             </Button>
           )}
         </div>
         {confirmRetire && (
           <Modal
             onClose={() => setConfirmRetire(null)}
-            title={confirmRetire.locationId ? 'Retire Location' : 'Retire Partner'}
+            title={confirmRetire.locationId ? 'Unlist Location' : 'Unlist Partner'}
             widthRem={24}
             footer={
               <div className="flex justify-end gap-sm">
@@ -165,13 +165,13 @@ function PartnerDetailModal({ partner, onClose }: { partner: RedemptionPartner; 
                   Cancel
                 </Button>
                 <Button variant="destructive" loading={updatePartner.isPending || updateLocation.isPending} onClick={commitRetire}>
-                  Retire
+                  Unlist
                 </Button>
               </div>
             }
           >
             <p className="text-body-sm text-text-secondary">
-              Retire <span className="font-medium text-text-primary">{confirmRetire.label}</span>?{' '}
+              Unlist <span className="font-medium text-text-primary">{confirmRetire.label}</span>?{' '}
               {confirmRetire.locationId
                 ? 'Its merchant code will stop redeeming. Past redemptions are kept.'
                 : 'All its coupons disappear from the student catalog and stop redeeming. Coupons and past redemptions are kept, and you can reactivate it later.'}
@@ -264,7 +264,7 @@ function PartnerDetailModal({ partner, onClose }: { partner: RedemptionPartner; 
                 <Badge color="info">{loc.merchant_code}</Badge>
                 {loc.active === false ? (
                   <>
-                    <Badge color="secondary">Retired</Badge>
+                    <Badge color="secondary">Unlisted</Badge>
                     <button
                       type="button"
                       onClick={() => updateLocation.mutate({ locationId: loc.id!, active: true })}
@@ -281,7 +281,7 @@ function PartnerDetailModal({ partner, onClose }: { partner: RedemptionPartner; 
                     }
                     className="text-caption text-error hover:underline"
                   >
-                    Retire
+                    Unlist
                   </button>
                 )}
               </div>
@@ -342,7 +342,7 @@ function PartnerDetailModal({ partner, onClose }: { partner: RedemptionPartner; 
 // form." Was an inline Card that expanded below the page header; now a Modal, same fields.
 // `contact_person`/`contact_phone` added (2026-09-11) — RedemptionPartnerInput has always carried
 // them; Add Partner only ever collected name + category.
-function AddPartnerForm({ onClose }: { onClose: () => void }) {
+function AddPartnerForm({ onClose, onCreated }: { onClose: () => void; onCreated: (partner: RedemptionPartner) => void }) {
   const createPartner = useCreatePartner()
   const [name, setName] = useState('')
   const [category, setCategory] = useState('')
@@ -355,9 +355,12 @@ function AddPartnerForm({ onClose }: { onClose: () => void }) {
     createPartner.mutate(
       { name, category, contact_person: contactPerson, contact_phone: contactPhone },
       {
-        onSuccess: () => {
+        onSuccess: (created) => {
           showToast(`${name} added`)
-          onClose()
+          // Straight into Manage (product review, 2026-09-12) — a brand-new partner has no
+          // locations or codes yet, and Manage is exactly where both get added.
+          if (created) onCreated(created)
+          else onClose()
         },
       },
     )
@@ -444,6 +447,9 @@ export function RedemptionPartnersPage() {
   const partners = useRedemptionPartners()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [managingId, setManagingId] = useState<string | null>(null)
+  // Filled only right after Add Partner, so Manage has something to render for the first instant
+  // before the invalidated list has actually refetched and the row exists in `rows` below.
+  const [justCreated, setJustCreated] = useState<RedemptionPartner | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
@@ -466,7 +472,9 @@ export function RedemptionPartnersPage() {
   }, [partners.data, search, sort])
 
   const editingPartner = editingId ? rows.find((p) => p.id === editingId) : undefined
-  const managingPartner = managingId ? rows.find((p) => p.id === managingId) : undefined
+  const managingPartner = managingId
+    ? (rows.find((p) => p.id === managingId) ?? (justCreated?.id === managingId ? justCreated : undefined))
+    : undefined
 
   const columns: TableColumn<RedemptionPartner>[] = [
     {
@@ -476,7 +484,7 @@ export function RedemptionPartnersPage() {
       render: (p) => (
         <span className="flex items-center gap-xs">
           <span className={p.active === false ? 'font-medium text-text-secondary' : 'font-medium text-text-primary'}>{p.name}</span>
-          {p.active === false && <Badge color="secondary">Retired</Badge>}
+          {p.active === false && <Badge color="secondary">Unlisted</Badge>}
         </span>
       ),
     },
@@ -490,7 +498,23 @@ export function RedemptionPartnersPage() {
       header: 'Code Mode',
       render: (p) => <Badge color="primary">{p.code_mode === 'shared' ? 'Shared code' : 'Per-location codes'}</Badge>,
     },
-    { key: 'locations', header: 'Locations', sortable: true, align: 'right', render: (p) => p.locations?.length ?? 0 },
+    {
+      key: 'locations',
+      header: 'Locations',
+      sortable: true,
+      align: 'right',
+      render: (p) => {
+        const total = p.locations?.length ?? 0
+        const active = p.locations?.filter((loc) => loc.active !== false).length ?? 0
+        return total === 0 ? (
+          <span className="text-text-secondary">0</span>
+        ) : (
+          <span className="tabular-nums">
+            {active} active / {total} total
+          </span>
+        )
+      },
+    },
     {
       key: 'actions',
       header: '',
@@ -531,9 +555,26 @@ export function RedemptionPartnersPage() {
           <Button onClick={() => setShowAdd(true)}>Add Partner</Button>
         </div>
 
-        {showAdd && <AddPartnerForm onClose={() => setShowAdd(false)} />}
+        {showAdd && (
+          <AddPartnerForm
+            onClose={() => setShowAdd(false)}
+            onCreated={(created) => {
+              setShowAdd(false)
+              setJustCreated(created)
+              setManagingId(created.id!)
+            }}
+          />
+        )}
         {editingPartner && <EditPartnerModal partner={editingPartner} onClose={() => setEditingId(null)} />}
-        {managingPartner && <PartnerDetailModal partner={managingPartner} onClose={() => setManagingId(null)} />}
+        {managingPartner && (
+          <PartnerDetailModal
+            partner={managingPartner}
+            onClose={() => {
+              setManagingId(null)
+              setJustCreated(null)
+            }}
+          />
+        )}
 
         <Table
           columns={columns}

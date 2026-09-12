@@ -41,7 +41,10 @@ export function CollegeFormModal({
 
   const acceptanceValid =
     acceptanceRate === '' || (Number(acceptanceRate) >= 0 && Number(acceptanceRate) <= 100)
-  const canSave = Boolean(name.trim()) && acceptanceValid
+  // Rank 0 or negative isn't a rank (product review, 2026-09-12) — empty still means "not ranked."
+  const qsRankValid = qsRank === '' || Number(qsRank) >= 1
+  const theRankValid = theRank === '' || Number(theRank) >= 1
+  const canSave = Boolean(name.trim()) && acceptanceValid && qsRankValid && theRankValid
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -101,8 +104,22 @@ export function CollegeFormModal({
         />
         <TextField label="Website" value={website ?? ''} onChange={(e) => setWebsite(e.target.value)} />
         <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
-          <TextField label="QS rank" type="number" value={qsRank} onChange={(e) => setQsRank(e.target.value)} />
-          <TextField label="THE rank" type="number" value={theRank} onChange={(e) => setTheRank(e.target.value)} />
+          <TextField
+            label="QS rank"
+            type="number"
+            min="1"
+            value={qsRank}
+            onChange={(e) => setQsRank(e.target.value)}
+            error={qsRankValid ? undefined : 'Rank must be 1 or higher.'}
+          />
+          <TextField
+            label="THE rank"
+            type="number"
+            min="1"
+            value={theRank}
+            onChange={(e) => setTheRank(e.target.value)}
+            error={theRankValid ? undefined : 'Rank must be 1 or higher.'}
+          />
           <TextField
             label="Acceptance %"
             type="number"

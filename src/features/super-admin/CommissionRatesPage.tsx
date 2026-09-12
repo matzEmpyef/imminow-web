@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
@@ -38,11 +39,17 @@ const COVERAGE_BADGE = {
  * {@link CommissionAccountDrawer}.
  */
 export function CommissionRatesPage() {
+  // Needs attention's "Cases on the default rate" card (?focus=default_rate) has no filter of its
+  // own here — the coverage badge doesn't distinguish it — so it lands sorted by that column
+  // descending instead, worst first, same one-way "read the URL once" convention used elsewhere.
+  const [searchParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const [kind, setKind] = useState<'' | 'consultancy' | 'institute'>('')
   const [coverage, setCoverage] = useState('')
   const [freelancer, setFreelancer] = useState<'' | 'true' | 'false'>('')
-  const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
+  const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(() =>
+    searchParams.get('focus') === 'default_rate' ? { field: 'default_rate_cases', direction: 'desc' } : null,
+  )
   const [viewingId, setViewingId] = useState<string | null>(null)
   const [settingRates, setSettingRates] = useState(false)
   const [defaultsOpen, setDefaultsOpen] = useState(false)

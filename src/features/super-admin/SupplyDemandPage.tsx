@@ -3,8 +3,10 @@ import { AdminShell } from '@/features/auth/AdminShell'
 import { useAuthStore } from '@/stores/authStore'
 import { useUpdatePlatformSettings } from '@/queries/catalogSettings'
 import { Badge } from '@/components/Badge'
+import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { DoughnutChart, type DoughnutChartDatum } from '@/components/DoughnutChart'
+import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
 import { MonthlyBarChart } from '@/components/MonthlyBarChart'
 import { ErrorState, Skeleton } from '@/components/QueryState'
@@ -80,8 +82,26 @@ function CapacityAssumption({ casesPerStaff, onSaved }: { casesPerStaff: number;
   const update = useUpdatePlatformSettings()
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState(String(casesPerStaff))
+  // A confirm step (product review, 2026-09-12) — this one number reshapes Coverage by Country for
+  // every country at once, not just the row someone is looking at, so it earns a "you sure?" that
+  // shows exactly what is about to change.
+  const [confirming, setConfirming] = useState<number | null>(null)
   const parsed = Number(value)
   const valid = Number.isInteger(parsed) && parsed >= 1 && parsed <= 500
+
+  function save(next: number) {
+    update.mutate(
+      { cases_per_staff: next },
+      {
+        onSuccess: () => {
+          showToast('Capacity updated')
+          setConfirming(null)
+          setEditing(false)
+          onSaved()
+        },
+      },
+    )
+  }
 
   if (!editing) {
     return (
@@ -107,17 +127,8 @@ function CapacityAssumption({ casesPerStaff, onSaved }: { casesPerStaff: number;
       className="mt-sm flex flex-wrap items-center gap-sm text-body-sm"
       onSubmit={(e) => {
         e.preventDefault()
-        if (!valid) return
-        update.mutate(
-          { cases_per_staff: parsed },
-          {
-            onSuccess: () => {
-              showToast('Capacity updated')
-              setEditing(false)
-              onSaved()
-            },
-          },
-        )
+        if (!valid || parsed === casesPerStaff) return
+        setConfirming(parsed)
       }}
     >
       <label htmlFor="cases-per-staff" className="text-text-secondary">
@@ -144,6 +155,34 @@ function CapacityAssumption({ casesPerStaff, onSaved }: { casesPerStaff: number;
       </button>
       {!valid && <span className="text-caption text-error">A whole number from 1 to 500.</span>}
       {update.isError && <span className="text-caption text-error">Could not save — try again.</span>}
+
+      {confirming != null && (
+        <Modal
+          onClose={() => setConfirming(null)}
+          title="Change capacity for every country?"
+          widthRem={26}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setConfirming(null)}>
+                Cancel
+              </Button>
+              <Button loading={update.isPending} onClick={() => save(confirming)}>
+                Continue
+              </Button>
+            </>
+          }
+        >
+          <div className="flex flex-col gap-sm text-body-sm text-text-secondary">
+            <p>This changes coverage for every country. Continue?</p>
+            <p className="flex items-center gap-sm text-text-primary">
+              <span className="rounded-md bg-background px-sm py-xs font-medium tabular-nums">{casesPerStaff}</span>
+              <span aria-hidden>→</span>
+              <span className="rounded-md bg-background px-sm py-xs font-medium tabular-nums">{confirming}</span>
+              <span className="text-caption text-text-secondary">open cases per staff member</span>
+            </p>
+          </div>
+        </Modal>
+      )}
     </form>
   )
 }

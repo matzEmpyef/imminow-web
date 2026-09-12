@@ -15,6 +15,9 @@ import { useCursorPagination } from '@/lib/pagination'
 import { formatEventDateTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { EVENT_TIMEZONES, browserTimezone, utcIsoToWallClock, wallClockToUtcIso } from '@/lib/eventTimezones'
+import { TargetingFilter } from '@/features/super-admin/TargetingFilter'
+import { hasAnyTargeting, type Targeting } from '@/lib/targeting'
+import { useCountries } from '@/queries/countries'
 import type { components } from '@/api/schema'
 import { SelectField } from '@/components/SelectField'
 
@@ -63,6 +66,10 @@ function MeetingFormModal({
   const [venueCode, setVenueCode] = useState(source?.venue_code ?? '')
   const [capacity, setCapacity] = useState(source?.capacity != null ? String(source.capacity) : '')
   const [pointsOverride, setPointsOverride] = useState(source?.points_override != null ? String(source.points_override) : '')
+  // Same targeting section Quizzes and Ads use (review M16, 2026-09-12) — any event type can be
+  // targeted now (server note in schema.d.ts's EventInput.targeting), it was quizzes-only before.
+  const [targeting, setTargeting] = useState<Targeting>(source?.targeting ?? {})
+  const countries = useCountries()
 
   const mutation = isEditing ? updateEvent : createEvent
 
@@ -75,8 +82,10 @@ function MeetingFormModal({
     Date.now() >= new Date(editingEvent.starts_at).getTime() - 3 * 60 * 60 * 1000,
   )
 
+  // "Ends at" made required (review M16, 2026-09-12) — matching Webinar's own required field and
+  // validation message, rather than the two forms disagreeing about whether an event needs an end.
   const endBeforeStart = Boolean(startsAt && endsAt && endsAt <= startsAt)
-  const canSubmit = Boolean(title) && Boolean(startsAt) && !endBeforeStart
+  const canSubmit = Boolean(title) && Boolean(startsAt) && Boolean(endsAt) && !endBeforeStart
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -86,12 +95,13 @@ function MeetingFormModal({
       description: description || null,
       // Interpreted in the VENUE's zone, never the browser's — the bug this replaces.
       starts_at: wallClockToUtcIso(startsAt, timezone),
-      ends_at: endsAt ? wallClockToUtcIso(endsAt, timezone) : null,
+      ends_at: wallClockToUtcIso(endsAt, timezone),
       timezone,
       venue_address: venueAddress || null,
       ...(codeLocked ? {} : { venue_code: venueCode.trim() || null }),
       capacity: capacity ? Number(capacity) : null,
       points_override: pointsOverride ? Number(pointsOverride) : null,
+      targeting: hasAnyTargeting(targeting) ? targeting : null,
     }
     if (isEditing) {
       updateEvent.mutate(
@@ -159,9 +169,10 @@ function MeetingFormModal({
           <TextField
             label="Ends at"
             type="datetime-local"
+            required
             value={endsAt}
             onChange={(e) => setEndsAt(e.target.value)}
-            error={endBeforeStart ? 'Must be after the start.' : undefined}
+            error={endBeforeStart ? 'The end must be after the start.' : undefined}
           />
         </div>
         {/* The VENUE's zone, not the browser's. Attendees are shown this exact wall-clock time
@@ -206,6 +217,15 @@ function MeetingFormModal({
         <p className="-mt-sm text-caption text-text-secondary">
           Overrides the default physical_meeting_attended point value for attendees of this meeting.
         </p>
+        <div className="flex flex-col gap-sm rounded-md border border-border bg-background p-sm">
+          <FieldLabel htmlFor="meeting-targeting">Who can see this meeting</FieldLabel>
+          <TargetingFilter
+            value={targeting}
+            onChange={setTargeting}
+            countries={countries.data ?? []}
+            unknownDataPolicy="includes"
+          />
+        </div>
       </form>
     </Modal>
   )

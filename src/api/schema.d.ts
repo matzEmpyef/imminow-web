@@ -5019,7 +5019,7 @@ export interface paths {
                     "application/json": {
                         /** @description ISO 4217 code, upper-cased server-side. */
                         default_currency?: string;
-                        /** @description false stops offering the country (it leaves every picker; existing records keep it). Switching off a country that colleges have campuses in is refused (409 in_use, whose error carries `colleges` and `college_names`) until `confirm` is true (review C6, 2026-09-12). */
+                        /** @description false stops offering the country (it leaves every picker; existing records keep it). Switching off a country that colleges have campuses in is refused (409 in_use, whose error carries `details.colleges` and `details.college_names`) until `confirm` is true (review C6, 2026-09-12). */
                         active?: boolean;
                         confirm?: boolean;
                         offer_turnaround_days?: number;
@@ -5877,6 +5877,8 @@ export interface paths {
                         /** @enum {string} */
                         billing_cycle?: "monthly" | "annual";
                         subscription_amount?: number;
+                        /** @description Required true for a ₹0 term (review M5, 2026-09-12). An amount is required on every term — it is whatever was agreed for this account. */
+                        no_charge?: boolean;
                         billing_currency?: string;
                     };
                 };
@@ -18934,6 +18936,8 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
+                    /** @description Erased accounts are left out unless true (review M9, 2026-09-12). */
+                    include_erased?: boolean;
                     /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
                     cursor?: components["parameters"]["CursorParam"];
                     /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
@@ -19019,6 +19023,51 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{id}/sign-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End every session of one account (user_directory permission, review M9, 2026-09-12). The account is untouched and can sign in again. 409 for another Super Admin. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Sessions ended */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Another Super Admin */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -19989,6 +20038,8 @@ export interface components {
         ConsultancyCreateInput: {
             name: string;
             city: string;
+            /** @description Where the account is based (review M6, 2026-09-12) — it was shown and searched but never captured. */
+            country?: string;
             countries_served?: string[];
             /** @enum {string} */
             tier?: "starter" | "business" | "ultimate";

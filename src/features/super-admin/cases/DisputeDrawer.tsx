@@ -16,6 +16,7 @@ import { CaseProgressChips } from './CaseProgressChips'
 import { DisputeResolveModal } from './DisputeResolveModal'
 import { NotesLog } from './NotesLog'
 import { OwnerSection } from './OwnerSection'
+import { TakeOverConfirmModal } from './TakeOverConfirmModal'
 import { RESOLUTION_ACTION_LABELS } from './labels'
 
 const LINK_BUTTON =
@@ -36,6 +37,7 @@ export function DisputeDrawer({
   onUpdated: (updated: CaseDispute) => void
 }) {
   const [resolving, setResolving] = useState(false)
+  const [confirmingTakeOver, setConfirmingTakeOver] = useState(false)
 
   const pickUp = usePickUpDispute()
   const notes = useDisputeNotes(dispute.id)
@@ -144,7 +146,7 @@ export function DisputeDrawer({
           pending={pickUp.isPending}
           readOnly={resolved}
           onPickUp={() => pickUp.mutate(dispute.id, { onSuccess: (updated) => updated && onUpdated(updated) })}
-          onTakeOver={() => pickUp.mutate(dispute.id, { onSuccess: (updated) => updated && onUpdated(updated) })}
+          onTakeOver={() => setConfirmingTakeOver(true)}
         />
 
         {/* Notes */}
@@ -190,6 +192,22 @@ export function DisputeDrawer({
 
       {resolving && (
         <DisputeResolveModal dispute={dispute} onClose={() => setResolving(false)} onResolved={onUpdated} />
+      )}
+      {confirmingTakeOver && (
+        <TakeOverConfirmModal
+          ownerName={dispute.assigned_to_name ?? 'them'}
+          loading={pickUp.isPending}
+          error={pickUp.isError ? pickUp.error.message : undefined}
+          onClose={() => setConfirmingTakeOver(false)}
+          onConfirm={() =>
+            pickUp.mutate(dispute.id, {
+              onSuccess: (updated) => {
+                setConfirmingTakeOver(false)
+                if (updated) onUpdated(updated)
+              },
+            })
+          }
+        />
       )}
     </Drawer>
   )

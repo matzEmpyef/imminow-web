@@ -14,7 +14,11 @@ export interface ConsultancyFilters {
   // one kind is a filter on the existing endpoint rather than a second screen.
   kind?: 'consultancy' | 'institute'
   // Account state and subscription state in one select (Manage Consultancies, 2026-09-11).
-  status?: 'active' | 'suspended' | 'kyc_pending' | 'expiring' | 'grace' | 'lapsed'
+  // `never_billed` (review M5, 2026-09-12) — active, with no subscription term ever set. The mock
+  // server accepts it (see server.js's status filter), but schema.d.ts's typed enum for this query
+  // param hasn't been regenerated to include it — same "server is ahead of the generated type"
+  // situation as `no_charge` below, so the union is widened by hand here rather than left off.
+  status?: 'active' | 'suspended' | 'kyc_pending' | 'expiring' | 'grace' | 'lapsed' | 'never_billed'
   active?: boolean
   sort?: string
   cursor?: string
@@ -26,7 +30,9 @@ export function useAdminConsultancies(filters: ConsultancyFilters = {}) {
   return useQuery({
     queryKey: ['admin-consultancies', filters],
     queryFn: async () => {
-      const { data, error } = await api.GET('/consultancies', { params: { query: filters } })
+      // `status` is typed one value wider than the generated schema's enum (`never_billed`,
+      // review M5) — cast rather than wait on a schema regen this session isn't doing.
+      const { data, error } = await api.GET('/consultancies', { params: { query: filters as never } })
       if (error) throw new ApiError('Could not load consultancies.', error)
       return data
     },
@@ -81,6 +87,22 @@ function invalidateConsultancy(queryClient: ReturnType<typeof useQueryClient>, i
  * offering the form only while the account is unlinked and rendering the college as plain text
  * afterwards — the 409 is the enforcement, this is just not putting a door where there is a wall.
  */
+/** Where the account is based (review M6, 2026-09-12) — editable by the platform team. */
+export function useUpdateConsultancyCountry(id: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (country: string) => {
+      const { data, error } = await api.PATCH('/consultancies/{id}', {
+        params: { path: { id } },
+        body: { country },
+      })
+      if (error) throw new ApiError('Could not save the country.', error)
+      return data
+    },
+    onSuccess: () => invalidateConsultancy(queryClient, id),
+  })
+}
+
 export function useLinkCollege(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -113,6 +135,9 @@ export interface SubscriptionTermInput {
   subscription_started_at?: string
   billing_cycle?: 'monthly' | 'annual'
   subscription_amount?: number
+  // Required true for a ₹0 term (review M5, 2026-09-12) — an amount is required on every term
+  // otherwise, so this is how a genuinely free term says so rather than looking like an omission.
+  no_charge?: boolean
   billing_currency?: string
 }
 

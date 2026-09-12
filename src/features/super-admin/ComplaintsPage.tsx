@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
 import { CompactSelect } from '@/components/CompactSelect'
@@ -26,8 +27,19 @@ type StatusKey = (typeof STATUS_CHIPS)[number]['key']
  * students report from the Sentpo app — the consultancy involved never sees them; resolution
  * happens through the Sentpo team, off-platform, with the note here as the only record.
  */
+function isStatusKey(value: string | null): value is StatusKey {
+  return STATUS_CHIPS.some((c) => c.key === value)
+}
+
 export function ComplaintsPage() {
-  const [statusKey, setStatusKey] = useState<StatusKey>('unresolved')
+  // Read once on mount, same one-way "URL sets the initial filter" convention Finance Dashboard's
+  // Cases tab uses for ?rate=default — a deep link (e.g. Needs attention's "Open complaints" card)
+  // should land pre-filtered, but the chips still drive the state from there.
+  const [searchParams] = useSearchParams()
+  const [statusKey, setStatusKey] = useState<StatusKey>(() => {
+    const fromUrl = searchParams.get('status')
+    return isStatusKey(fromUrl) ? fromUrl : 'unresolved'
+  })
   const [category, setCategory] = useState('')
   const [search, setSearch] = useState('')
   const paging = useCursorPagination()

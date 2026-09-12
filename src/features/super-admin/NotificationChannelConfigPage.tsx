@@ -83,6 +83,7 @@ const LABELS: Record<string, string> = {
   visit_requested: 'Student requested a visit',
   visit_request_nudge: 'Student nudged a visit request',
   case_switched_away: 'Case moved to another consultancy',
+  case_taken_over: 'A case you handled was taken over',
 }
 
 // Row-level component so useUpdateNotificationChannelConfig() can be called at its own render top
