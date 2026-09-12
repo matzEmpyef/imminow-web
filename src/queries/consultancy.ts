@@ -6,7 +6,9 @@ import type { components } from '@/api/schema'
 
 type Consultancy = components['schemas']['Consultancy']
 
-export function useMyConsultancy() {
+// `enabled: false` for a caller that may not be consultancy staff (My Account serves every role,
+// 2026-09-12) — the route 403s for platform staff and freelancers.
+export function useMyConsultancy(options: { enabled?: boolean } = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['consultancy', 'me'],
@@ -15,7 +17,7 @@ export function useMyConsultancy() {
       if (error) throw new ApiError('Could not load consultancy details.', error)
       return data
     },
-    enabled: isAuthed,
+    enabled: isAuthed && (options.enabled ?? true),
     staleTime: 5 * 60 * 1000,
   })
 }
