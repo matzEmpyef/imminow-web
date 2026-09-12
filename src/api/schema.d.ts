@@ -6208,6 +6208,49 @@ export interface paths {
         };
         trace?: never;
     };
+    "/consultancies/{id}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Published reviews of one consultancy, newest first, with the rating summary (2026-09-12). `me` reads the caller's own consultancy — the read-only Reviews page in the consultancy console. Pending and hidden reviews never appear here. Any signed-in account. */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                    offset?: number;
+                };
+                header?: never;
+                path: {
+                    /** @description Consultancy id, or `me`. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ReviewPage"];
+                    };
+                };
+                404: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/consultancies/{id}/ratings": {
         parameters: {
             query?: never;
@@ -11781,7 +11824,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Verified Review — whether this journey's mandatory Plan Complete review has been submitted yet (Sentpo Mobile Wave 4). 404 until submitted, letting the client idempotently re-check on app restart mid-flow rather than re-showing the form after it was already completed. */
+        /** The student's own review of this journey, with its moderation status (reworked 2026-09-12). 404 until submitted, so the app can offer "Write a review" until then. */
         get: {
             parameters: {
                 query?: never;
@@ -11806,7 +11849,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Submit the mandatory Verified Review — exactly once per journey (build reference 2.2). 409 if one already exists for this journey; 403 if the journey isn't yet `plan_complete`, since this is meant to trigger automatically the moment the final step is confirmed, not be reachable earlier. Restricted to the owning student. */
+        /** Write the one-time review — exactly once per journey, never edited (build reference 1.3, reworked 2026-09-12: offered, not forced). Lands as `pending`; a platform admin publishes or hides it. 409 if one already exists; 403 until the journey is `plan_complete`; 400 when the text is under 20 or over 1000 characters. Owning student only. Platform staff are notified (`review_pending`). */
         post: {
             parameters: {
                 query?: never;
@@ -19030,6 +19073,97 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Moderation queue (2026-09-12). Consultancies permission (`consultancy_approval`) — whoever manages consultancies moderates what students say about them. `counts` carries the per-status totals for the Pending / Published / Hidden tabs regardless of the filter. */
+        get: {
+            parameters: {
+                query?: {
+                    status?: "pending" | "published" | "hidden";
+                    consultancy_id?: string;
+                    limit?: number;
+                    offset?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminReviewPage"];
+                    };
+                };
+                403: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/reviews/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Publish or hide a review (2026-09-12). Hiding requires `reason` (400 with details.reason=required otherwise) — it is the audit trail for taking a verified student's words down. Publishing notifies the consultancy's admins (`review_published`); hiding notifies nobody. A hidden review can be published again. Audited under Consultancies with the reason. Consultancies permission. */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "published" | "hidden";
+                        reason?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Review"];
+                    };
+                };
+                400: components["responses"]["ErrorResponse"];
+                403: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
+            };
+        };
+        trace?: never;
+    };
     "/admin/users/sentpo": {
         parameters: {
             query?: never;
@@ -20087,6 +20221,8 @@ export interface components {
             rating_override_reason?: string | null;
             /** Format: date-time */
             rating_override_at?: string | null;
+            /** @description Published written reviews (2026-09-12). rating_count also includes star-only ratings. */
+            readonly review_count?: number;
             /** @enum {string} */
             tier: "starter" | "business" | "ultimate";
             seat_limit: number;
@@ -21122,6 +21258,11 @@ export interface components {
              * @enum {string}
              */
             consultancy_kind?: "consultancy" | "institute";
+            /**
+             * @description Where this journey's one-time review stands (2026-09-12): null = not written yet (the app offers "Write a review" once the plan is complete), otherwise the moderation state. Lets Home and the plan say "awaiting moderation" / "published" without a second request.
+             * @enum {string|null}
+             */
+            review_status?: "pending" | "published" | "hidden" | null;
             /** @description e.g. "2/4" — null until a plan is assigned. */
             progress?: string | null;
             /** @description The current in-progress step's title — null until a plan is assigned. */
@@ -21837,14 +21978,73 @@ export interface components {
             /** Format: date-time */
             submitted_at: string;
         };
-        /** @description erd.md's `reviews` table — Verified Review (Sentpo Mobile Wave 4, build reference 2.2) — "triggered automatically the moment the final step is confirmed — a star rating and a written review of the consultancy, mandatory and permanent." Distinct from the Wave 3 `ratings` array behind `POST /consultancies/{id}/ratings` (optional, cooldown-gated, no written text, available any time during Stage 1 chat) — this one is exactly-once per journey, has no cooldown, and requires `text`. */
+        /** @description Verified review (build reference 1.3, reworked 2026-09-12): one per journey, written once after the plan is complete, never edited. Signed with the student's full name (user decision). `status` is the moderation state — `pending` until a platform admin with the Consultancies permission publishes it (pre-moderation: nothing unread is ever shown), `published` (visible in the app and to the consultancy, counts towards the rating), `hidden` (pulled by the platform with a reason; leaves the rating). Distinct from the star-only `ratings` behind POST /consultancies/{id}/ratings (cooldown-gated, no text, any time during Stage 1 chat). */
         Review: {
             id: components["schemas"]["UUID"];
-            journey_id: components["schemas"]["UUID"];
+            consultancy_id: components["schemas"]["UUID"];
+            /**
+             * Format: uuid
+             * @description Null on seeded reviews from before the mock modelled their journeys.
+             */
+            journey_id?: string | null;
+            student_name: string;
+            /** @description The journey's study level at the time (masters, bachelors…) — shown under the name. */
+            study_level?: string | null;
+            target_country?: string | null;
             stars: number;
             text: string;
+            /** @enum {string} */
+            status: "pending" | "published" | "hidden";
             /** Format: date-time */
             created_at: string;
+            /** @description Platform view only (GET/PATCH /admin/reviews). */
+            consultancy_name?: string;
+            /**
+             * Format: uuid
+             * @description Platform view only.
+             */
+            student_id?: string | null;
+            /**
+             * Format: date-time
+             * @description Platform view only.
+             */
+            moderated_at?: string | null;
+            /** @description Platform view only. */
+            moderated_by_name?: string | null;
+            /** @description Platform view only — required when hiding. */
+            hidden_reason?: string | null;
+        };
+        /** @description The numbers behind a consultancy's rating, as shown at the top of its reviews. */
+        ReviewSummary: {
+            /** @description Same value as Consultancy.rating (override or computed). */
+            rating: number | null;
+            /** @description Star ratings + published reviews — what the average is over. */
+            rating_count: number;
+            /** @description Published written reviews only. */
+            review_count: number;
+            /** @description Published reviews per star, keys "1" to "5". */
+            distribution: {
+                [key: string]: number;
+            };
+        };
+        ReviewPage: {
+            items: components["schemas"]["Review"][];
+            limit: number;
+            offset: number;
+            total: number;
+            summary: components["schemas"]["ReviewSummary"];
+        };
+        AdminReviewPage: {
+            items: components["schemas"]["Review"][];
+            limit: number;
+            offset: number;
+            total: number;
+            /** @description Reviews per status across the whole platform, for the queue tabs. */
+            counts: {
+                pending?: number;
+                published?: number;
+                hidden?: number;
+            };
         };
         /** @description A receiving consultancy's consent-to-accept for one incoming cross-consultancy transfer (build reference 1.18) — issued from Consultancy Profile's Incoming Transfers section, read back to the sending consultancy out-of-band, and consumed by POST /clients/{id}/transfer. */
         TransferCode: {

@@ -113,20 +113,45 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
     label: c.name ?? '',
   }))
 
+  // App review C3 — a creative on an outside host over plain http fails App Transport Security
+  // on the phone, so it is refused before the ad can save rather than discovered later as a
+  // broken banner. An uploaded image is host-relative (`/media/<id>`, see mediaUrl.ts) and is
+  // served by the API itself over whatever the API uses — locally http, in production https — so
+  // it is never the thing this check is protecting against and always passes.
+  const imageInsecure = Boolean(imageUrl) && /^http:\/\//i.test(imageUrl)
+
   const [attemptedStep1, setAttemptedStep1] = useState(false)
   const missingStep1Fields = useMemo(() => {
     const missing: string[] = []
     if (!imageUrl) missing.push('Image')
+    else if (imageInsecure) missing.push('Image (must be a secure https:// address)')
     if (destinationType === 'external_url' && !destinationUrl) missing.push('Destination URL')
     if (destinationType === 'event' && !destinationId) missing.push('Event')
     if (destinationType === 'internal' && !destinationId) missing.push('Consultancy')
     return missing
-  }, [imageUrl, destinationType, destinationUrl, destinationId])
+  }, [imageUrl, imageInsecure, destinationType, destinationUrl, destinationId])
   const step1Valid = missingStep1Fields.length === 0
   const step1Error =
     attemptedStep1 && !step1Valid
       ? `Missing: ${missingStep1Fields.join(', ')}.`
       : undefined
+  const imageFieldError = attemptedStep1
+    ? !imageUrl
+      ? 'Add an image.'
+      : imageInsecure
+        ? 'Must be a secure (https://) address — re-upload from a secure source.'
+        : undefined
+    : undefined
+
+  // What this ad actually opens, in plain words — so a mismatch (a "Scholarship Guide" ad
+  // pointing at an unrelated article) is visible right where it's being set, not just on the
+  // list afterwards (app review C3).
+  const destinationPreview =
+    destinationType === 'external_url'
+      ? destinationUrl || 'No URL yet'
+      : destinationType === 'event'
+        ? eventOptions.find((o) => o.id === destinationId)?.label || 'No event selected yet'
+        : consultancyOptions.find((o) => o.id === destinationId)?.label || 'No consultancy selected yet'
 
   function handleNext() {
     if (!step1Valid) {
@@ -220,6 +245,7 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
               onChange={setImageUrl}
               disabled={imageLocked}
               hint="Wide banner, 3:1 — shown full-width on the app's home screen. Ideal size 1200×400px."
+              error={imageFieldError}
             />
             {imageLocked && (
               <p className="text-caption text-text-secondary">
@@ -296,6 +322,12 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
                 />
               </div>
             )}
+            {/* App review C3 — says plainly what tapping the ad actually opens, right beside the
+                fields that set it, so a mismatched destination (the wrong event picked, a typo'd
+                URL) is caught here rather than after the ad is live. */}
+            <p className="rounded-md bg-background px-md py-sm text-body-sm text-text-secondary">
+              <span className="font-medium text-text-primary">Opens:</span> {destinationPreview}
+            </p>
             <TextField
               label="Priority"
               type="number"
@@ -378,6 +410,16 @@ function adDestinationLabel(ad: AdBanner): string {
 
 function adDisplayName(ad: AdBanner): string {
   return ad.name?.trim() || adDestinationLabel(ad)
+}
+
+// What the ad actually opens, in plain words (app review C3) — GET /ads returns only the raw
+// destination_id/destination_url, so the event/consultancy name has to be resolved client-side
+// against the lists the page already loads for the Add/Edit form's pickers. Shown on every row,
+// not just named ones, since an unlabelled ad benefits from this exactly as much.
+function adOpensSummary(ad: AdBanner, eventNameById: Map<string, string>, consultancyNameById: Map<string, string>): string {
+  if (ad.destination_type === 'external_url') return ad.destination_url || '—'
+  if (ad.destination_type === 'event') return eventNameById.get(ad.destination_id ?? '') || 'Unknown event'
+  return consultancyNameById.get(ad.destination_id ?? '') || 'Unknown consultancy'
 }
 
 // "—" until there have been any impressions to divide by — a 0/0 CTR reads as "0%", which claims
@@ -474,6 +516,20 @@ export function AdsManagerPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'' | NonNullable<AdBanner['status']>>('')
 
+  // Same lists the Add/Edit form uses for its pickers, fetched here too so the table's "Opens:"
+  // column (app review C3) can resolve a destination_id to a name — same cache, no extra request
+  // once the form has been opened once, and these lists are small even on a cold load.
+  const events = useAdminEvents()
+  const consultancies = useAdminConsultancies({ limit: 100 })
+  const eventNameById = useMemo(
+    () => new Map((events.data?.items ?? []).map((e) => [e.id!, e.title ?? ''])),
+    [events.data],
+  )
+  const consultancyNameById = useMemo(
+    () => new Map((consultancies.data?.items ?? []).map((c) => [c.id!, c.name ?? ''])),
+    [consultancies.data],
+  )
+
   const rows = useMemo(() => {
     let items = ads.data ?? []
     if (search) {
@@ -528,13 +584,15 @@ export function AdsManagerPage() {
           />
           <div className="min-w-0">
             <p className="truncate font-medium text-text-primary">{adDisplayName(ad)}</p>
-            <div className="flex items-center gap-xs">
-              {/* Without a name the destination is already the title — don't say it twice. */}
-              {ad.name && <span className="text-caption text-text-secondary">{adDestinationLabel(ad)}</span>}
-              {typeof ad.event_countdown_seconds === 'number' && (
-                <Badge color="warning">Starts in {Math.round(ad.event_countdown_seconds / 3600)}h</Badge>
-              )}
-            </div>
+            {/* Destination summary, always shown (app review C3) — the whole point is catching a
+                mismatch (an ad titled "Scholarship Guide" opening an unrelated article) at a
+                glance, which a name-only or type-only label doesn't do. */}
+            <p className="truncate text-caption text-text-secondary">
+              Opens: {adOpensSummary(ad, eventNameById, consultancyNameById)}
+            </p>
+            {typeof ad.event_countdown_seconds === 'number' && (
+              <Badge color="warning">Starts in {Math.round(ad.event_countdown_seconds / 3600)}h</Badge>
+            )}
           </div>
         </div>
       ),

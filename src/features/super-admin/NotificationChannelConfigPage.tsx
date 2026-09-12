@@ -48,6 +48,10 @@ const LABELS: Record<string, string> = {
   case_closed: 'Case closed (to the student)',
   incoming_transfer: 'Incoming consultancy transfer',
   kyc_submitted: 'KYC certificate submitted',
+  // Reviews pre-moderation (2026-09-12): a student's written review needs a Consultancies-
+  // permission holder to publish it before it appears anywhere; publishing tells the consultancy.
+  review_pending: 'Review awaiting moderation',
+  review_published: 'New review published',
   countries_served_changed: 'Countries served changed',
   upgrade_requested: 'Consultancy requested a plan upgrade',
   applicant_allocated: 'Applicant allocated to the consultancy by immiNow',

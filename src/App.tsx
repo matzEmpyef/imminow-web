@@ -109,6 +109,10 @@ const SuperAdminDashboardPage = lazy(() =>
 const ManageConsultanciesPage = lazy(() =>
   import('@/features/super-admin/ManageConsultanciesPage').then((m) => ({ default: m.ManageConsultanciesPage })),
 )
+const ReviewsPage = lazy(() => import('@/features/super-admin/ReviewsPage').then((m) => ({ default: m.ReviewsPage })))
+const ConsultancyReviewsPage = lazy(() =>
+  import('@/features/administration/ConsultancyReviewsPage').then((m) => ({ default: m.ConsultancyReviewsPage })),
+)
 const ApplicantAllocationPage = lazy(() =>
   import('@/features/super-admin/ApplicantAllocationPage').then((m) => ({ default: m.ApplicantAllocationPage })),
 )
@@ -339,6 +343,14 @@ function App() {
               </PermissionGate>
             }
           />
+          <Route
+            path="/administration/reviews"
+            element={
+              <PermissionGate permission="settings.edit_profile" area="Reviews">
+                <ConsultancyReviewsPage />
+              </PermissionGate>
+            }
+          />
           <Route path="/administration/commission-details" element={<CommissionDetailsPage />} />
           <Route
             path="/administration/plan-templates"
@@ -452,6 +464,7 @@ function App() {
         <Route element={<PlatformLayout permission="consultancy_approval" />}>
           <Route path="/admin/consultancies" element={<ManageConsultanciesPage />} />
           <Route path="/admin/performance-league" element={<PerformanceLeaguePage />} />
+          <Route path="/admin/reviews" element={<ReviewsPage />} />
         </Route>
         <Route element={<PlatformLayout permission="applicant_allocation" />}>
           <Route path="/admin/applicant-allocation" element={<ApplicantAllocationPage />} />

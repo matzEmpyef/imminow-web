@@ -117,6 +117,10 @@ const SECTIONS: AdminSection[] = [
           { label: 'Consultancies', path: '/admin/consultancies', permission: 'consultancy_approval' },
           // A ranking of the same consultancies, so it sits beside them rather than on its own.
           { label: 'Performance League', path: '/admin/performance-league', permission: 'consultancy_approval' },
+          // Pre-moderation queue for what students write about them (2026-09-12) — same
+          // Consultancies permission, so it sits beside the consultancies it moderates rather than
+          // getting its own top-level link.
+          { label: 'Reviews', path: '/admin/reviews', permission: 'consultancy_approval' },
         ],
       },
       {

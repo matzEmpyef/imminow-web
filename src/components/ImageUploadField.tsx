@@ -11,6 +11,9 @@ interface ImageUploadFieldProps {
   hint?: string
   disabled?: boolean
   required?: boolean
+  /** Caller-supplied validation message (e.g. Ads Manager's https-only rule, 2026-09-12) — shown
+   * alongside, never instead of, an upload failure the field found on its own. */
+  error?: string
 }
 
 // User-requested (2026-08-18) — "We should be able to upload the image. No point just giving
@@ -24,10 +27,10 @@ interface ImageUploadFieldProps {
 // `disabled` added (2026-08-18) — Ads Manager needs to lock the image once an ad has real
 // impressions ("Don't let replace ad image if impression is more than 1"); added here rather
 // than as an Ads-only wrapper so the same lock affordance is available to any future caller.
-export function ImageUploadField({ label, value, onChange, hint, disabled, required }: ImageUploadFieldProps) {
+export function ImageUploadField({ label, value, onChange, hint, disabled, required, error }: ImageUploadFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const uploadMedia = useUploadMedia()
-  const [error, setError] = useState<string | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   // The image address that failed to load, if any (2026-09-10: a consultancy logo pointing at a
   // dead URL showed the browser's broken-image icon). Keyed by address, so uploading a new image
   // clears it without any reset logic.
@@ -39,10 +42,10 @@ export function ImageUploadField({ label, value, onChange, hint, disabled, requi
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    setError(null)
+    setUploadError(null)
     uploadMedia.mutate(file, {
       onSuccess: (url) => onChange(url),
-      onError: () => setError('Could not upload this image.'),
+      onError: () => setUploadError('Could not upload this image.'),
     })
   }
 
@@ -102,8 +105,9 @@ export function ImageUploadField({ label, value, onChange, hint, disabled, requi
         disabled={disabled}
         className="hidden"
       />
-      {error && <span className="text-caption text-error">{error}</span>}
-      {broken && !error && (
+      {uploadError && <span className="text-caption text-error">{uploadError}</span>}
+      {error && !uploadError && <span className="text-caption text-error">{error}</span>}
+      {broken && !uploadError && !error && (
         <span className="text-caption text-error">This image couldn&rsquo;t be loaded. Upload a new one.</span>
       )}
     </div>
