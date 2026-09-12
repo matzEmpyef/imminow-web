@@ -32,17 +32,23 @@ export const SELECT_CLASS = 'h-10 rounded-md border border-border bg-surface px-
 
 /**
  * Capture completeness (COURSES_MODULE_PLAN.md §5) — the meter that makes catalog quality
- * visible instead of hoped for. Five checks: fee, duration_months, intake deadlines, entry
- * requirements block, and the co-op/PSW flags being deliberately set is not checkable, so the
- * fifth is language (required at capture since 2026-08-21 but legacy rows may lack it).
+ * visible instead of hoped for. Six checks: fee, duration_months, intake deadlines, entry
+ * requirements block, language (required at capture since 2026-08-21 but legacy rows may lack
+ * it), and campus (review C7, 2026-09-12 — mirrors the server's COURSE_CAPTURE_CHECKS exactly:
+ * a course fails this one only when it has no campus_ids AND its college actually has an active
+ * campus to pick — a college with none yet cannot be faulted for a course that can't name one).
  */
-export function courseCompleteness(course: Course): { done: number; total: number; missing: string[] } {
+export function courseCompleteness(
+  course: Course,
+  hasActiveCampuses: boolean,
+): { done: number; total: number; missing: string[] } {
   const checks: Array<[string, boolean]> = [
     ['fee', course.fee?.amount != null],
     ['duration', course.duration_months != null],
     ['deadlines', (course.intake_deadlines ?? []).some((d) => d.application_deadline)],
     ['requirements', course.requirements != null],
     ['language', Boolean(course.language)],
+    ['campus', (course.campus_ids ?? []).length > 0 || !hasActiveCampuses],
   ]
   const missing = checks.filter(([, ok]) => !ok).map(([label]) => label)
   return { done: checks.length - missing.length, total: checks.length, missing }

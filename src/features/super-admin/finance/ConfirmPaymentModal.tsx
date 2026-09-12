@@ -38,6 +38,19 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
   const trimmedNote = note.trim()
   const invalid = !isValidNumber || parsed <= 0 || (differs && trimmedNote.length < MIN_REASON_LENGTH)
 
+  // /commission/payments/{id}/confirm has no allow_overpayment flag (unlike /commission-
+  // entries/{id}/receive — review C5, 2026-09-12) — a "received more than what's still owed" case
+  // here is only ever a corrected figure, already gated by the reason field above. This is an
+  // informational heads-up, not a second gate: the case's own outstanding is tracked in INR while
+  // the amount received is entered in its own currency, so a non-INR figure is converted at the
+  // same rate `amount_inr` was fixed at (approximate, same "≈" convention as approxInr above).
+  const declaredRateToInr = currency !== 'INR' && declaredAmount > 0 ? (payment.amount_inr ?? 0) / declaredAmount : 1
+  const receivedInr = isValidNumber ? parsed * declaredRateToInr : null
+  const overpaymentInr =
+    receivedInr != null && payment.entry_outstanding_inr != null && receivedInr > payment.entry_outstanding_inr
+      ? receivedInr - payment.entry_outstanding_inr
+      : 0
+
   return (
     <Modal
       onClose={onClose}
@@ -106,6 +119,13 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
           value={receivedAmount}
           onChange={(e) => setReceivedAmount(e.target.value)}
         />
+
+        {overpaymentInr > 0 && (
+          <p className="text-body-sm text-warning">
+            That&rsquo;s {currency === 'INR' ? '' : '~'}
+            {inr(overpaymentInr)} more than this case still owes.
+          </p>
+        )}
 
         {differs && (
           <>

@@ -102,6 +102,9 @@ export interface CourseFormValue {
   setActiveTab: (tab: FormTab) => void
   // Mirrors handleSubmit's own `if (!name || !language) return` gate exactly.
   isValid: boolean
+  // True when the college has an active campus and none is picked — the Campuses & Intakes tab's
+  // own inline "Pick at least one campus" error (review C7, 2026-09-12).
+  campusRequired: boolean
   toPayload: () => Omit<CourseInput, 'college_id' | 'active'>
 }
 
@@ -134,8 +137,13 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
   const [benefits, setBenefits] = useState(editingCourse?.benefits ?? '')
 
   // Campuses & Intakes
+  // A course is only ever found through a campus, so a new one needs a starting answer (review
+  // C7, 2026-09-12): with exactly one active campus there's nothing to actually choose, so it's
+  // pre-selected; with several the admin must pick (see `campusRequired` below) rather than
+  // silently defaulting to all or none of them.
+  const activeCampuses = (college.campuses ?? []).filter((c) => c.active !== false)
   const [campusIds, setCampusIds] = useState<string[]>(
-    editingCourse?.campus_ids ?? (defaultCampusId ? [defaultCampusId] : []),
+    editingCourse?.campus_ids ?? (defaultCampusId ? [defaultCampusId] : activeCampuses.length === 1 ? [activeCampuses[0].id!] : []),
   )
   const [intakes, setIntakes] = useState<string[]>(editingCourse?.intakes ?? [])
   const [deadlines, setDeadlines] = useState<Record<string, { deadline: string; open: boolean }>>(() =>
@@ -209,6 +217,11 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
 
   const allCampusIds = (college.campuses ?? []).map((c) => c.id!)
   const allSelected = allCampusIds.length > 0 && allCampusIds.every((id) => campusIds.includes(id))
+  // Mirrors the server's own campus capture check (COURSE_CAPTURE_CHECKS, mock-server/server.js)
+  // client-side, so the gap is caught before submit rather than only as a 400 back from it. A
+  // college with no active campuses at all has nothing to require here — same "empty is fine"
+  // convention every other capture check on this form already follows.
+  const campusRequired = activeCampuses.length > 0 && campusIds.length === 0
 
   function toggleCampus(id: string) {
     setCampusIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]))
@@ -369,7 +382,8 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
 
     activeTab,
     setActiveTab,
-    isValid: Boolean(name && language),
+    isValid: Boolean(name && language) && !campusRequired,
+    campusRequired,
     toPayload,
   }
 }

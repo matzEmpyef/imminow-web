@@ -159,6 +159,13 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
             <SummaryStat label="Overdue (₹)" value={inr(row.overdue_inr)} warning={(row.overdue_inr ?? 0) > 0} />
           </div>
 
+          {/* outstanding_inr floors at 0 (review C5, 2026-09-12), so a genuine over-payment
+              recorded via ReceiveDueModal's checkbox would otherwise vanish from this drawer
+              entirely — paid_inr - due_inr surfaces it back. */}
+          {row.paid_inr > row.due_inr && (
+            <p className="text-body-sm text-warning">Overpaid by {inr(row.paid_inr - row.due_inr)}</p>
+          )}
+
           {byCurrency.length > 0 && (
             <div>
               <h3 className="text-body-sm font-medium text-text-primary">By currency</h3>

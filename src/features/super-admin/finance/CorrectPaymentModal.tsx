@@ -28,12 +28,36 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
   const currency = payment.amount.currency ?? 'INR'
   const [amount, setAmount] = useState(String(currentAmount))
   const [reason, setReason] = useState('')
+  const [attempted, setAttempted] = useState(false)
 
   const parsed = Number(amount)
   const isValidNumber = amount.trim() !== '' && Number.isFinite(parsed)
   const trimmedReason = reason.trim()
   const invalid = !isValidNumber || parsed < 0 || parsed === currentAmount || trimmedReason.length < MIN_REASON_LENGTH
   const corrections = payment.corrections ?? []
+
+  const amountError = !attempted
+    ? undefined
+    : !isValidNumber
+      ? 'Enter an amount.'
+      : parsed < 0
+        ? 'Amount can’t be negative.'
+        : parsed === currentAmount
+          ? 'That’s the amount already on record — change it or cancel.'
+          : undefined
+  const reasonError = attempted && trimmedReason.length < MIN_REASON_LENGTH ? 'Add a reason (at least 3 characters).' : undefined
+
+  // /commission/payments/{id}/correct has no allow_overpayment flag either (see the note in
+  // ConfirmPaymentModal) — informational only, already gated by the required reason above.
+  // `entry_outstanding_inr` already has the CURRENT confirmed amount subtracted out (this payment
+  // is already confirmed), so what matters is only the extra the correction adds on top of that —
+  // not the corrected total against outstanding.
+  const currentRateToInr = currency !== 'INR' && currentAmount > 0 ? (payment.amount_inr ?? 0) / currentAmount : 1
+  const deltaInr = isValidNumber ? (parsed - currentAmount) * currentRateToInr : null
+  const overpaymentInr =
+    deltaInr != null && payment.entry_outstanding_inr != null && deltaInr > payment.entry_outstanding_inr
+      ? deltaInr - payment.entry_outstanding_inr
+      : 0
 
   return (
     <Modal
@@ -48,8 +72,11 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
           </Button>
           <Button
             loading={correct.isPending}
-            disabled={invalid}
-            onClick={() =>
+            onClick={() => {
+              if (invalid) {
+                setAttempted(true)
+                return
+              }
               correct.mutate(
                 { paymentId: payment.id, amount: parsed, reason: trimmedReason },
                 {
@@ -59,7 +86,7 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
                   },
                 },
               )
-            }
+            }}
           >
             Save correction
           </Button>
@@ -96,7 +123,14 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
           required
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
+          error={amountError}
         />
+        {overpaymentInr > 0 && (
+          <p className="text-body-sm text-warning">
+            That&rsquo;s {currency === 'INR' ? '' : '~'}
+            {money({ amount: overpaymentInr, currency: 'INR' })} more than this case still owes.
+          </p>
+        )}
         <TextAreaField
           label="Reason"
           required
@@ -104,6 +138,7 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           hint="The consultancy is shown this reason."
+          error={reasonError}
         />
         <p className="text-caption text-text-secondary">Entering ₹0 records that the money bounced.</p>
 

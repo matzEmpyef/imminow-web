@@ -4,6 +4,7 @@ import { AdminShell } from '@/features/auth/AdminShell'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
+import { Modal } from '@/components/Modal'
 import { useAppConfig, useUpdateAppConfig } from '@/queries/appConfig'
 import { FeaturedInstitutesCard } from './FeaturedInstitutesCard'
 import type { components } from '@/api/schema'
@@ -12,6 +13,19 @@ import { showToast } from '@/lib/toast'
 type AppConfig = components['schemas']['AppConfig']
 
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+$/
+
+// Plain MAJOR.MINOR.PATCH comparison — no pre-release/build metadata in this app's own version
+// strings, so a numeric part-by-part compare is enough; a real semver range parser would be
+// overkill for a field that's already regex-validated to three dot-separated integers.
+function compareVersions(a: string, b: string): number {
+  const pa = a.split('.').map(Number)
+  const pb = b.split('.').map(Number)
+  for (let i = 0; i < 3; i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0)
+    if (diff !== 0) return diff
+  }
+  return 0
+}
 
 /**
  * App Config (Session 37, 2026-08-30) — the server-driven version gate + store-rating prompt
@@ -28,6 +42,11 @@ function VersionAndRatingCard() {
   const update = useUpdateAppConfig()
 
   const [form, setForm] = useState<AppConfig | null>(null)
+  // Any change to the version gate is irreversible-feeling enough (an app below Minimum is
+  // blocked with no way to dismiss it) to need a confirmation step (review C1, 2026-09-12) — held
+  // separately from `form` so cancelling the confirmation never loses the rest of an in-progress
+  // edit.
+  const [confirmingVersions, setConfirmingVersions] = useState(false)
 
   // Sync local editable state from the fetched config exactly once it arrives — a plain settings
   // form, not a per-row table, so one local copy that the Save button writes back is simpler than
@@ -53,13 +72,18 @@ function VersionAndRatingCard() {
   }
 
   const versionsValid = SEMVER_PATTERN.test(form.latest_version) && SEMVER_PATTERN.test(form.minimum_version)
+  const minAboveLatest = versionsValid && compareVersions(form.minimum_version, form.latest_version) > 0
   const canSave =
     versionsValid &&
+    !minAboveLatest &&
     form.update_url.trim().length > 0 &&
     form.release_notes.trim().length > 0 &&
     form.rating.min_days_since_install >= 0 &&
     form.rating.min_sessions >= 0 &&
     form.rating.cooldown_days >= 0
+
+  const minimumChanged = config.data != null && form.minimum_version !== config.data.minimum_version
+  const latestChanged = config.data != null && form.latest_version !== config.data.latest_version
 
   function updateField<K extends keyof AppConfig>(key: K, value: AppConfig[K]) {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev))
@@ -71,10 +95,25 @@ function VersionAndRatingCard() {
 
   function handleSave() {
     if (!form || !canSave) return
-    update.mutate(form, { onSuccess: () => showToast('App settings saved') })
+    if (minimumChanged || latestChanged) {
+      setConfirmingVersions(true)
+      return
+    }
+    saveNow()
+  }
+
+  function saveNow() {
+    if (!form) return
+    update.mutate(form, {
+      onSuccess: () => {
+        setConfirmingVersions(false)
+        showToast('App settings saved')
+      },
+    })
   }
 
   return (
+    <>
     <Card className="flex flex-col gap-lg">
       <div className="flex flex-col gap-md">
         <h2 className="text-body font-medium text-text-primary">Version gate</h2>
@@ -96,7 +135,11 @@ function VersionAndRatingCard() {
             onChange={(e) => updateField('minimum_version', e.target.value)}
             placeholder="1.0.0"
             error={
-              form.minimum_version && !SEMVER_PATTERN.test(form.minimum_version) ? 'Use MAJOR.MINOR.PATCH' : undefined
+              form.minimum_version && !SEMVER_PATTERN.test(form.minimum_version)
+                ? 'Use MAJOR.MINOR.PATCH'
+                : minAboveLatest
+                  ? "Can't be above the latest version — every installed app would be blocked"
+                  : undefined
             }
           />
         </div>
@@ -168,12 +211,53 @@ function VersionAndRatingCard() {
       </div>
 
       <div className="flex items-center justify-end gap-md border-t border-border pt-lg">
-        {update.isError && <p className="mr-auto text-body-sm text-error">{update.error.message}</p>}
+        {update.isError && !confirmingVersions && <p className="mr-auto text-body-sm text-error">{update.error.message}</p>}
         <Button onClick={handleSave} loading={update.isPending} disabled={!canSave}>
           Save
         </Button>
       </div>
     </Card>
+
+    {confirmingVersions && config.data && (
+      <Modal
+        onClose={() => setConfirmingVersions(false)}
+        title="Change the version gate?"
+        widthRem={28}
+        footer={
+          <>
+            {update.isError && <p className="mr-auto self-center text-body-sm text-error">{update.error.message}</p>}
+            <Button variant="secondary" onClick={() => setConfirmingVersions(false)} disabled={update.isPending}>
+              Cancel
+            </Button>
+            <Button onClick={saveNow} loading={update.isPending}>
+              Change gate
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-md">
+          <p className="text-body-sm text-text-secondary">
+            Apps below the minimum see an &ldquo;Update required&rdquo; screen they can&rsquo;t dismiss. Apps at or
+            above minimum but below latest see a one-time, dismissible &ldquo;What&rsquo;s new&rdquo; sheet instead.
+          </p>
+          <div className="flex flex-col gap-xs rounded-md border border-border bg-background p-sm text-body-sm">
+            {minimumChanged && (
+              <p className="text-text-primary">
+                Minimum version: <span className="text-text-secondary">{config.data.minimum_version}</span> &rarr;{' '}
+                <span className="font-medium">{form.minimum_version}</span>
+              </p>
+            )}
+            {latestChanged && (
+              <p className="text-text-primary">
+                Latest version: <span className="text-text-secondary">{config.data.latest_version}</span> &rarr;{' '}
+                <span className="font-medium">{form.latest_version}</span>
+              </p>
+            )}
+          </div>
+        </div>
+      </Modal>
+    )}
+    </>
   )
 }
 

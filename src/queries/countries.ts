@@ -6,12 +6,21 @@ import { ApiError } from './auth'
 // Shared reference list (user-requested) — backs the Countries Served multiselect on
 // Consultancy Management's Profile tab, plus the other country fields wired to it. Rarely
 // changes, so a long staleTime is fine.
-export function useCountries() {
+//
+// `includeInactive` (review C6, 2026-09-12) — disabled countries are omitted by default (the
+// point of disabling one), but a college can still have campuses in a country switched off after
+// the fact. Management screens that filter/pick among EXISTING records (the Colleges & Courses
+// country filter) need those included so a campus's country never quietly becomes unfilterable;
+// screens offering a country for something NEW keep the default.
+export function useCountries(options: { includeInactive?: boolean } = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  const includeInactive = options.includeInactive ?? false
   return useQuery({
-    queryKey: ['countries'],
+    queryKey: ['countries', { includeInactive }],
     queryFn: async () => {
-      const { data, error } = await api.GET('/countries')
+      const { data, error } = await api.GET('/countries', {
+        params: { query: includeInactive ? { include_inactive: true } : undefined },
+      })
       if (error) throw new ApiError('Could not load the countries list.', error)
       return data
     },
@@ -69,10 +78,12 @@ export function useUpdateCountryCurrency() {
 export function useSetCountryActive() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ name, active }: { name: string; active: boolean }) => {
+    mutationFn: async ({ name, active, confirm }: { name: string; active: boolean; confirm?: boolean }) => {
+      // Switching a country off that colleges have campuses in is refused 409 `in_use` (its
+      // `details.college_names` names them) until `confirm: true` (review C6, 2026-09-12).
       const { data, error } = await api.PATCH('/countries/{name}', {
         params: { path: { name } },
-        body: { active },
+        body: { active, confirm },
       })
       if (error) throw new ApiError('Could not update this country.', error)
       return data

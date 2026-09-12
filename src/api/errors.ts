@@ -1,6 +1,6 @@
 /** The uniform error envelope every endpoint returns — `openapi.yaml`'s `Error` schema. */
 interface ApiErrorEnvelope {
-  error?: { code?: string; message?: string; request_id?: string }
+  error?: { code?: string; message?: string; request_id?: string; details?: Record<string, unknown> }
 }
 
 /**
@@ -27,6 +27,8 @@ export class ApiError extends Error {
   readonly code?: string
   /** Correlates a user's report with the server log. */
   readonly requestId?: string
+  /** Field-level/structured extras some codes carry — e.g. `in_use`'s `college_names` (2026-09-12). */
+  readonly details?: Record<string, unknown>
 
   constructor(fallback: string, body?: unknown) {
     const envelope = (body as ApiErrorEnvelope | undefined)?.error
@@ -35,5 +37,6 @@ export class ApiError extends Error {
     this.name = 'ApiError'
     this.code = envelope?.code
     this.requestId = envelope?.request_id
+    this.details = envelope?.details
   }
 }

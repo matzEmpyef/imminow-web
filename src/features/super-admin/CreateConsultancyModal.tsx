@@ -335,6 +335,13 @@ function ExistingUserPicker({
   const [query, setQuery] = useState('')
   const trimmed = query.trim()
   const results = useUserSearch(trimmed.length >= 2 ? trimmed : '')
+  // Only a consultancy_admin or consultant login can become an institute's admin (review C4,
+  // 2026-09-12) — a student, freelancer, or platform staffer picked here would only earn the
+  // server's 400 at submit time, several fields later. `/users/search` has no role filter of its
+  // own, so this narrows the page it returned rather than asking the server to.
+  const eligibleResults = (results.data?.items ?? []).filter(
+    (user) => user.role === 'consultancy_admin' || user.role === 'consultant',
+  )
 
   if (selected) {
     return (
@@ -372,11 +379,11 @@ function ExistingUserPicker({
         <p className="text-caption text-text-secondary">Searching…</p>
       ) : results.isError ? (
         <p className="text-caption text-error">Could not run this search.</p>
-      ) : (results.data?.items ?? []).length === 0 ? (
-        <p className="text-caption text-text-secondary">No matches for &ldquo;{trimmed}&rdquo;.</p>
+      ) : eligibleResults.length === 0 ? (
+        <p className="text-caption text-text-secondary">No matching consultancy staff logins for &ldquo;{trimmed}&rdquo;.</p>
       ) : (
         <ul className="flex max-h-56 flex-col overflow-y-auto rounded-md border border-border">
-          {(results.data?.items ?? []).map((user) => (
+          {eligibleResults.map((user) => (
             <li key={user.id} className="border-b border-border last:border-b-0">
               <button
                 type="button"
@@ -390,6 +397,10 @@ function ExistingUserPicker({
           ))}
         </ul>
       )}
+      <p className="text-caption text-text-secondary">
+        Only consultancy staff logins can be attached. Students, freelancers and platform staff can&rsquo;t be an
+        institute&rsquo;s admin.
+      </p>
     </div>
   )
 }

@@ -4,7 +4,7 @@ import { Button } from '@/components/Button'
 import { CompactSelect } from '@/components/CompactSelect'
 import { TextField } from '@/components/TextField'
 import { TextAreaField } from '@/components/TextAreaField'
-import { currencyOptions } from './money'
+import { currencyOptions, money } from './money'
 import { useReceiveCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { localDateISO } from '@/lib/time'
 import { showToast } from '@/lib/toast'
@@ -38,10 +38,21 @@ export function ReceiveDueModal({
   const [receivedOn, setReceivedOn] = useState(localDateISO())
   const [reference, setReference] = useState('')
   const [note, setNote] = useState('')
+  // Overpayment guard (review C5, 2026-09-12) — the modal already knows what's outstanding for
+  // this part/case+currency, so it warns before the round trip rather than waiting on the
+  // server's 409. Only ticking the checkbox sends allow_overpayment: true.
+  const [allowOverpayment, setAllowOverpayment] = useState(false)
+
+  const effectiveCurrency = part ? (part.currency ?? 'INR') : currency
+  const outstanding = part
+    ? part.outstanding
+    : (caseRow.by_currency ?? []).find((c) => c.currency === effectiveCurrency)?.outstanding
 
   const parsed = Number(amount)
   const isValidAmount = amount.trim() !== '' && Number.isFinite(parsed) && parsed > 0
-  const invalid = !isValidAmount || !receivedOn
+  const isOverpayment = isValidAmount && outstanding != null && parsed > outstanding
+  const overpaymentBy = isOverpayment ? parsed - outstanding! : 0
+  const invalid = !isValidAmount || !receivedOn || (isOverpayment && !allowOverpayment)
 
   return (
     <Modal
@@ -67,6 +78,7 @@ export function ReceiveDueModal({
                   received_on: receivedOn,
                   reference: reference.trim() || undefined,
                   note: note.trim() || undefined,
+                  allow_overpayment: isOverpayment ? allowOverpayment : undefined,
                 },
                 {
                   onSuccess: (row) => {
@@ -112,6 +124,22 @@ export function ReceiveDueModal({
             </CompactSelect>
           )}
         </div>
+        {isOverpayment && (
+          <div className="flex flex-col gap-sm rounded-md border border-warning bg-warning-subtle p-sm">
+            <p className="text-body-sm text-text-primary">
+              That&rsquo;s {money({ amount: overpaymentBy, currency: effectiveCurrency })} more than is outstanding.
+            </p>
+            <label className="flex items-center gap-sm text-body-sm text-text-primary">
+              <input
+                type="checkbox"
+                checked={allowOverpayment}
+                onChange={(e) => setAllowOverpayment(e.target.checked)}
+                className="h-4 w-4 rounded border-border"
+              />
+              Record it anyway — this is a genuine over-payment
+            </label>
+          </div>
+        )}
         <div className="flex flex-col gap-xs">
           <label htmlFor="receive-due-date" className="pl-lg text-caption text-text-secondary">
             Received on

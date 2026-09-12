@@ -5019,6 +5019,11 @@ export interface paths {
                     "application/json": {
                         /** @description ISO 4217 code, upper-cased server-side. */
                         default_currency?: string;
+                        /** @description false stops offering the country (it leaves every picker; existing records keep it). Switching off a country that colleges have campuses in is refused (409 in_use, whose error carries `colleges` and `college_names`) until `confirm` is true (review C6, 2026-09-12). */
+                        active?: boolean;
+                        confirm?: boolean;
+                        offer_turnaround_days?: number;
+                        expected_close_days?: number;
                     };
                 };
             };
@@ -5038,6 +5043,15 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description Colleges have campuses in this country — confirm to switch it off */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -8611,7 +8625,7 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Change the app-lifecycle configuration
+         * Update the app gate and rating prompt (app_config permission). minimum_version can never be above latest_version (400, review C1 2026-09-12) — the app force-blocks anything below the minimum with no dismiss. Every change is audited as "App configuration".
          * @description Requires the `app_config` platform permission (part of `platform_staff_administration` before the 2026-09-10 split). Every change is audited.
          */
         patch: {
@@ -8722,7 +8736,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Create course (admin) */
+        /** Create a course (catalog permission). campus_ids: the college's only active campus is taken as read; with several, at least one is required (400, review C7 2026-09-12) — a course with no campus never shows to students. */
         post: {
             parameters: {
                 query?: never;
@@ -13037,6 +13051,61 @@ export interface paths {
         };
         trace?: never;
     };
+    "/broadcast/audience-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** How many people a broadcast would reach, before it is sent (notifications permission, review C3, 2026-09-12). Same body shape as POST /broadcast minus title/body/category; counted with the same predicate the send uses, so the number shown is the number notified. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        audience: "all_students" | "segment" | "all_staff";
+                        targeting?: components["schemas"]["Targeting"];
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            count: number;
+                        };
+                    };
+                };
+                /** @description Invalid targeting */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/broadcast": {
         parameters: {
             query?: never;
@@ -16253,6 +16322,8 @@ export interface paths {
                         received_on?: string;
                         reference?: string;
                         note?: string;
+                        /** @description Required true to record more than is outstanding (review C5, 2026-09-12) — otherwise 409 more_than_outstanding with the outstanding figure in the message. */
+                        allow_overpayment?: boolean;
                     };
                 };
             };
@@ -22936,6 +23007,8 @@ export interface components {
             cases: number;
             consultancies_owing: number;
             payment_followups: number;
+            /** @description What the open payment follow-ups are worth (review H5, 2026-09-12). */
+            payment_followups_pending_inr?: number;
             /** @description Confirmed payments per calendar month, the last 12 months, oldest first. */
             revenue_by_month: {
                 /** @example 2026-09 */
@@ -23002,8 +23075,11 @@ export interface components {
             paid_inr: number;
             awaiting_inr: number;
             outstanding_inr: number;
-            /** @enum {string} */
-            payment_status: "unpaid" | "part_paid" | "paid" | "not_due";
+            /**
+             * @description closed (review H2, 2026-09-12) — what was left was closed without payment; nothing more is expected and it was not collected. It used to read paid.
+             * @enum {string}
+             */
+            payment_status: "unpaid" | "part_paid" | "paid" | "closed" | "not_due";
         };
         /** @description immiNow's share on one case in one currency (2026-09-11). Money is owed in the currency it arrives in. */
         CommissionCurrencyTotals: {

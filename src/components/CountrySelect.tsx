@@ -41,10 +41,20 @@ export function CountrySelect({
 }: CountrySelectProps) {
   const countries = useCountries()
   const selectId = useId()
+  // /countries omits disabled countries by default (the whole point of disabling one), but a
+  // record set to a country BEFORE it was switched off still holds that value — reopening Edit
+  // Campus on it must not show a blank "Select…" for a field that plainly has a value (review C6,
+  // 2026-09-12). Marked "(not offered)" rather than silently blended in, so it reads as a stored
+  // fact, not a live option nobody else can newly pick.
+  const knownCountries = countries.data ?? []
+  const storedButUnlisted = value && !knownCountries.includes(value) ? value : null
   const options = (
     <>
       <option value="">Select…</option>
-      {countries.data?.map((country) => (
+      {storedButUnlisted && (
+        <option value={storedButUnlisted}>{storedButUnlisted} (not offered)</option>
+      )}
+      {knownCountries.map((country) => (
         <option key={country} value={country}>
           {country}
         </option>

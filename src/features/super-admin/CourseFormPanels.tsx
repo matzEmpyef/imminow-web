@@ -228,6 +228,11 @@ export function CourseCampusIntakesPanel({
             ))}
           </div>
         )}
+        {form.campusRequired && (
+          <p className="text-body-sm text-error">
+            Pick at least one campus — students only see a course through its campus.
+          </p>
+        )}
       </FormSection>
 
       <FormSection title="Intakes" hint="The months this course starts.">

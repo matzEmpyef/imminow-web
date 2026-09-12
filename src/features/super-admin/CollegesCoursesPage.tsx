@@ -74,7 +74,9 @@ export function CollegesCoursesPage() {
   const [healthFilter, setHealthFilter] = useState<'' | 'needs_details' | 'complete'>('')
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const paging = useCursorPagination()
-  const countries = useCountries()
+  // Disabled countries included (review C6, 2026-09-12) — a college can have campuses in a
+  // country switched off after the fact, and this filter needs to keep finding it.
+  const countries = useCountries({ includeInactive: true })
 
   const colleges = useAdminColleges({
     search: search || undefined,

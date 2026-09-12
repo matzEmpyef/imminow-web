@@ -41,13 +41,14 @@ type College = components['schemas']['College']
 type Campus = components['schemas']['Campus']
 type Course = components['schemas']['Course']
 
-// The five capture checks, as people read them (courseCompleteness returns keys).
+// The six capture checks, as people read them (courseCompleteness returns keys).
 const CHECK_LABELS: Record<string, string> = {
   fee: 'Fee',
   duration: 'Duration',
   deadlines: 'Application deadline',
   requirements: 'Entry requirements',
   language: 'Language',
+  campus: 'Campus',
 }
 
 function titleCase(value: string): string {
@@ -212,6 +213,11 @@ export function CourseFormModal({
               Language of teaching is required (Basics tab).
             </p>
           )}
+          {form.campusRequired && (
+            <p className="mr-auto self-center text-body-sm text-error">
+              Pick at least one campus (Campuses &amp; Intakes tab).
+            </p>
+          )}
           <Button type="submit" form="course-form" loading={mutation.isPending} disabled={!form.isValid}>
             {isEditing ? 'Save Changes' : 'Create Course'}
           </Button>
@@ -222,7 +228,7 @@ export function CourseFormModal({
           scroll away with the Basics fields, so switching tab meant scrolling back up first. */}
       <div className="sticky top-0 z-10 -mx-lg -mt-md mb-md flex gap-xs border-b border-border bg-surface px-lg pt-sm">
         {FORM_TABS.map((tab) => {
-          // A dot on the tab that holds a missing capture check (2026-09-11) — the same five checks
+          // A dot on the tab that holds a missing capture check (2026-09-11) — the same six checks
           // as the Data column, so the gap is findable without opening every tab.
           const missing =
             tab === 'Basics'
@@ -232,9 +238,11 @@ export function CourseFormModal({
                   ? 'length in months'
                   : null
               : tab === 'Campuses & Intakes'
-                ? form.intakes.some((m) => form.deadlines[m]?.deadline)
-                  ? null
-                  : 'an application deadline'
+                ? form.campusRequired
+                  ? 'a campus'
+                  : form.intakes.some((m) => form.deadlines[m]?.deadline)
+                    ? null
+                    : 'an application deadline'
                 : tab === 'Fees'
                   ? form.feeAmount
                     ? null
@@ -572,7 +580,8 @@ export function CollegeDetailPage() {
       header: 'Data',
       hideBelow: 'sm',
       render: (course) => {
-        const { done, total, missing } = courseCompleteness(course)
+        const hasActiveCampuses = (record.campuses ?? []).some((c) => c.active !== false)
+        const { done, total, missing } = courseCompleteness(course, hasActiveCampuses)
         if (done === total) return <Badge color="success">Complete</Badge>
         const labels = missing.map((m) => CHECK_LABELS[m] ?? m)
         return (

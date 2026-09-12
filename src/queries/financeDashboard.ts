@@ -92,7 +92,7 @@ export interface FinanceCasesFilters {
   consultancy_id?: string
   destination_country?: string
   payer_method?: 'college' | 'applicant' | 'split'
-  payment_status?: 'unpaid' | 'part_paid' | 'paid'
+  payment_status?: 'unpaid' | 'part_paid' | 'paid' | 'closed'
   /** configured | fallback_default — Commission Rates' "Cases priced at the default" tile links here with fallback_default (2026-09-11). */
   rate_source?: 'configured' | 'fallback_default'
   /** A dated due part is past its date and unpaid (2026-09-11) — Cases' "Overdue" quick filter and the Overview tile both land here. */
@@ -325,6 +325,7 @@ export function useReceiveCommissionDue() {
       received_on,
       reference,
       note,
+      allow_overpayment,
     }: {
       entryId: string
       amount: number
@@ -333,10 +334,11 @@ export function useReceiveCommissionDue() {
       received_on?: string
       reference?: string
       note?: string
+      allow_overpayment?: boolean
     }) => {
       const { data, error } = await api.POST('/commission-entries/{id}/receive', {
         params: { path: { id: entryId } },
-        body: { amount, currency, part_key, received_on, reference, note },
+        body: { amount, currency, part_key, received_on, reference, note, allow_overpayment },
       })
       if (error) throw new ApiError('Could not record this payment.', error)
       return data

@@ -43,6 +43,7 @@ import {
 } from '@/queries/countryContent'
 import { formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
+import { ApiError } from '@/api/errors'
 import type { components } from '@/api/schema'
 
 type Exam = components['schemas']['Exam']
@@ -387,15 +388,70 @@ function AddCountryModal({ onClose }: { onClose: () => void }) {
 // row re-renders with what the server actually stored.
 function CountryActiveToggle({ row }: { row: CountrySetting }) {
   const setActive = useSetCountryActive()
+  // Switching off a country with existing campuses is refused 409 `in_use` — its
+  // `details.college_names` names who is affected (review C6, 2026-09-12). Held here rather than
+  // read straight off setActive.error so the confirmation modal survives the mutation resetting
+  // between the first (refused) attempt and the confirmed retry.
+  const [pendingInUse, setPendingInUse] = useState<{ college_names?: string[] } | null>(null)
+
+  function trySwitchOff() {
+    setActive.mutate(
+      { name: row.name, active: false },
+      {
+        onError: (error) => {
+          if (error instanceof ApiError && error.code === 'in_use') {
+            setPendingInUse((error.details as { college_names?: string[] } | undefined) ?? {})
+          }
+        },
+      },
+    )
+  }
+
   return (
     <StopPropagation className="flex items-center gap-xs">
       <Toggle
         size="sm"
         checked={row.active !== false}
-        onChange={(checked) => setActive.mutate({ name: row.name, active: checked })}
+        onChange={(checked) => (checked ? setActive.mutate({ name: row.name, active: true }) : trySwitchOff())}
         label={`Offer ${row.name}`}
       />
-      {setActive.isError && <span className="text-caption text-error">Not saved</span>}
+      {setActive.isError && !pendingInUse && <span className="text-caption text-error">Not saved</span>}
+      {pendingInUse && (
+        <Modal
+          onClose={() => setPendingInUse(null)}
+          title={`Switch off ${row.name}?`}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setPendingInUse(null)} disabled={setActive.isPending}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                loading={setActive.isPending}
+                onClick={() =>
+                  setActive.mutate(
+                    { name: row.name, active: false, confirm: true },
+                    { onSuccess: () => setPendingInUse(null) },
+                  )
+                }
+              >
+                Switch off anyway
+              </Button>
+            </>
+          }
+        >
+          <div className="flex flex-col gap-sm">
+            <p className="text-body-sm text-text-primary">
+              {(pendingInUse.college_names?.length ?? 0)} college{pendingInUse.college_names?.length === 1 ? '' : 's'}{' '}
+              have campuses there
+              {pendingInUse.college_names?.length ? <>: {pendingInUse.college_names.join(', ')}</> : null}.
+            </p>
+            <p className="text-body-sm text-text-secondary">
+              Their records keep the country; nobody can pick it for anything new.
+            </p>
+          </div>
+        </Modal>
+      )}
     </StopPropagation>
   )
 }

@@ -19,7 +19,7 @@ import { SearchSelect } from '@/components/SearchSelect'
 import { BlogArticleSearchSelect } from '@/features/super-admin/blog/BlogArticleSearchSelect'
 import { useAdminEvents } from '@/queries/eventsAdmin'
 import { useCountries } from '@/queries/countries'
-import { useBroadcastHistory, useSendBroadcast } from '@/queries/broadcast'
+import { useBroadcastAudienceCount, useBroadcastHistory, useSendBroadcast } from '@/queries/broadcast'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDateTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
@@ -60,6 +60,15 @@ const AUDIENCE_LABELS: Record<Audience, string> = {
 // same sweep as every other "wherever there is add button, use popup" conversion this session.
 // Was an inline Card rendered above the send history table; now a Modal opened by a header
 // button, same shape.
+// Reads a live compose draft back as the sentence the confirmation modal and the on-form estimate
+// both need — the same audience/targeting shape describeSegment already turns into English for
+// send history, minus the "no filters" fallback the form already shows as its own warning.
+function describeAudience(audience: Audience, targeting: BroadcastTargeting): string {
+  if (audience === 'all_students') return 'Every student.'
+  if (audience === 'all_staff') return 'Every immiNow staff member.'
+  return describeSegment(targeting)
+}
+
 function SendBroadcastModal({ onClose }: { onClose: () => void }) {
   const sendBroadcast = useSendBroadcast()
   const [title, setTitle] = useState('')
@@ -77,9 +86,17 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
   const deepLink = needsArticle || needsEvent ? (targetId ? `/${destination}/${targetId}` : '') : destination
   const [targeting, setTargeting] = useState<BroadcastTargeting>({})
   const countries = useCountries()
+  // Confirmation gate before Send actually fires (review C3, 2026-09-12) — a broadcast can't be
+  // unsent, so the sender sees the reach and a preview before it's irreversible.
+  const [confirming, setConfirming] = useState(false)
 
   const isSegment = composeAudience === 'segment'
   const hasFilters = hasAnyTargeting(targeting)
+
+  const audienceCount = useBroadcastAudienceCount(composeAudience, isSegment ? targeting : {})
+  const reach = audienceCount.data?.count ?? null
+  const nobodyMatches = reach === 0
+  const audienceNoun = composeAudience === 'all_staff' ? 'staff' : 'students'
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -87,6 +104,15 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
     // Choosing "a specific article/event" and not picking one would send the same dead-end
     // notification this field exists to eliminate.
     if ((needsArticle || needsEvent) && !targetId) return
+    if (nobodyMatches) return
+    setConfirming(true)
+  }
+
+  function handleConfirmSend() {
+    // Reachable only via handleSubmit's own gate, which already checked this — re-checked here
+    // just to keep TypeScript's narrowing (category is '' | BroadcastCategory in state) rather
+    // than asserting it away.
+    if (!category) return
     // Targeting is sent only for `segment`; the other two audiences ignore it server-side, and
     // posting a stale object from a switched-away segment draft would be recorded as the
     // broadcast's segment in send history even though it filtered nothing.
@@ -108,6 +134,37 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
     )
   }
 
+  if (confirming) {
+    return (
+      <Modal
+        onClose={() => setConfirming(false)}
+        title={reach == null ? 'Send broadcast?' : `Send to ${reach} ${audienceNoun}?`}
+        footer={
+          <>
+            {sendBroadcast.isError && (
+              <p className="mr-auto self-center text-body-sm text-error">{sendBroadcast.error.message}</p>
+            )}
+            <Button variant="secondary" onClick={() => setConfirming(false)} disabled={sendBroadcast.isPending}>
+              Back
+            </Button>
+            <Button onClick={handleConfirmSend} loading={sendBroadcast.isPending}>
+              {reach == null ? 'Send' : `Send to ${reach} ${audienceNoun}`}
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-md">
+          <p className="text-body-sm text-text-secondary">{describeAudience(composeAudience, targeting)}</p>
+          <div className="flex flex-col gap-xs rounded-md border border-border bg-background p-sm">
+            <p className="text-body font-medium text-text-primary">{title}</p>
+            <p className="whitespace-pre-wrap text-body-sm text-text-secondary">{body}</p>
+          </div>
+          <p className="text-caption text-text-secondary">This cannot be undone once sent.</p>
+        </div>
+      </Modal>
+    )
+  }
+
   return (
     <Modal
       onClose={onClose}
@@ -117,14 +174,13 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
       widthRem={46}
       footer={
         <>
-          {sendBroadcast.isError && (
-            <p className="mr-auto self-center text-body-sm text-error">{sendBroadcast.error.message}</p>
+          {nobodyMatches && (
+            <p className="mr-auto self-center text-body-sm text-error">Nobody matches these filters.</p>
           )}
           <Button
             type="submit"
             form="broadcast-form"
-            loading={sendBroadcast.isPending}
-            disabled={!title || !body || !category || ((needsArticle || needsEvent) && !targetId)}
+            disabled={!title || !body || !category || ((needsArticle || needsEvent) && !targetId) || nobodyMatches}
           >
             Send Broadcast
           </Button>
@@ -158,6 +214,14 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
           <option value="segment">Filtered segment</option>
           <option value="all_staff">All immiNow staff</option>
         </SelectField>
+        {!isSegment &&
+          (nobodyMatches ? (
+            <p className="text-body-sm text-error">Nobody matches these filters.</p>
+          ) : (
+            <p className="text-body-sm text-text-secondary">
+              {reach == null ? 'Estimating reach…' : `This will reach ~${reach} ${audienceNoun}.`}
+            </p>
+          ))}
         <SelectField
           label="Opens"
           id="destination"
@@ -209,6 +273,13 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
             {!hasFilters && (
               <p className="text-caption text-warning">
                 No filters set — this would reach every student, the same as &ldquo;All students&rdquo;.
+              </p>
+            )}
+            {nobodyMatches ? (
+              <p className="text-body-sm text-error">Nobody matches these filters.</p>
+            ) : (
+              <p className="text-body-sm text-text-secondary">
+                {reach == null ? 'Estimating reach…' : `This will reach ~${reach} students.`}
               </p>
             )}
           </div>
