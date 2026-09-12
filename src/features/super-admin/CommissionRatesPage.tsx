@@ -72,6 +72,11 @@ export function CommissionRatesPage() {
     cursor: paging.cursor,
     limit: 20,
   })
+  // The summary's `with_gaps` never counted `none_served` accounts (product review L12) and has no
+  // field for them either — a second, cheap query (limit 1, just for `meta.total`) is the only way
+  // to get an exact count without inventing a new endpoint or trusting only whatever page happens
+  // to be loaded in `rows`.
+  const noCountriesCoverage = useCommissionRatesCoverage({ coverage: 'none_served', limit: 1 })
 
   const gapsActive = coverage === 'partial,missing'
 
@@ -178,7 +183,12 @@ export function CommissionRatesPage() {
           </div>
         </div>
 
-        <CommissionSummaryTiles summary={rows.data?.summary} gapsActive={gapsActive} onToggleGaps={toggleGaps} />
+        <CommissionSummaryTiles
+          summary={rows.data?.summary}
+          gapsActive={gapsActive}
+          onToggleGaps={toggleGaps}
+          noCountriesCount={noCountriesCoverage.data?.meta.total ?? undefined}
+        />
 
         <Table
           columns={columns}

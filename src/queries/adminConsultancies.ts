@@ -88,6 +88,19 @@ function invalidateConsultancy(queryClient: ReturnType<typeof useQueryClient>, i
  * afterwards — the 409 is the enforcement, this is just not putting a door where there is a wall.
  */
 /** Where the account is based (review M6, 2026-09-12) — editable by the platform team. */
+// Super Admin's per-consultancy 2FA escalation (build reference §1.1; review L15, 2026-09-12).
+export function useUpdateMfaPolicy(id: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { mfa_policy: 'admins_only' | 'all_staff'; reason: string }) => {
+      const { data, error } = await api.PATCH('/consultancies/{id}/mfa-policy', { params: { path: { id } }, body })
+      if (error) throw new ApiError('Could not change the two-factor requirement.', error)
+      return data
+    },
+    onSuccess: () => invalidateConsultancy(queryClient, id),
+  })
+}
+
 export function useUpdateConsultancyCountry(id: string) {
   const queryClient = useQueryClient()
   return useMutation({

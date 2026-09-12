@@ -29,6 +29,7 @@ import {
   useTierImpact,
   useUpdateConsultancyCountry,
   useUpdateEntitlements,
+  useUpdateMfaPolicy,
 } from '@/queries/adminConsultancies'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate, localDateISO } from '@/lib/time'
@@ -103,16 +104,6 @@ function FeatureToggleRow({
   )
 }
 
-// Rating, in the Manage popup.
-//
-// The rating a student sees is COMPUTED from real submissions — every Stage 1 star rating plus
-// every Verified Review. Until 2026-08-23 it was a static seed number that nothing could move,
-// which is why this control exists at all. The override is for the two cases the computation can't
-// serve: a brand-new agency nobody has rated yet, and a rating that is demonstrably unfair. It is
-// always reversible — "Use computed rating" clears it and the live average takes over again.
-//
-// The computed value and the count stay visible WHILE an override is in force, deliberately: an
-// admin overriding 2.1 to 4.5 should have to look at the 2.1 while doing it.
 // Where the account is based (review M6, 2026-09-12). It was shown in the list and searched, but
 // nothing ever set it — every admin-created account read "—".
 function CountrySection({ consultancy }: { consultancy: Consultancy }) {
@@ -162,6 +153,96 @@ function CountrySection({ consultancy }: { consultancy: Consultancy }) {
   )
 }
 
+// Per-consultancy 2FA escalation (build reference §1.1; review L15, 2026-09-12). Admins always
+// must — the floor. Super Admin can require it of every employee here; the consultancy's own admin
+// can do the same from Consultancy Management but can never lower what immiNow set.
+function MfaSection({ consultancy }: { consultancy: Consultancy }) {
+  const update = useUpdateMfaPolicy(consultancy.id!)
+  const everyone = consultancy.mfa_policy === 'all_staff'
+  const [editing, setEditing] = useState(false)
+  const [reason, setReason] = useState('')
+  const [touched, setTouched] = useState(false)
+  const next = everyone ? 'admins_only' : 'all_staff'
+  const reasonError = touched && !reason.trim() ? 'A reason is required for a security change.' : undefined
+
+  function submit() {
+    setTouched(true)
+    if (!reason.trim()) return
+    update.mutate(
+      { mfa_policy: next, reason: reason.trim() },
+      {
+        onSuccess: () => {
+          setEditing(false)
+          setReason('')
+          setTouched(false)
+          showToast(
+            next === 'all_staff'
+              ? `Two-factor is now required for everyone at ${consultancy.name}`
+              : `Two-factor is required for admins only at ${consultancy.name}`,
+          )
+        },
+      },
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-sm p-md">
+      <div className="flex items-center justify-between gap-md">
+        <div className="min-w-0">
+          <p className="text-body-sm font-medium text-text-primary">Two-factor authentication</p>
+          <p className="text-caption text-text-secondary">
+            {everyone
+              ? `Required for everyone · set by ${consultancy.mfa_policy_set_by === 'consultancy' ? 'their admin' : 'immiNow'}`
+              : 'Required for admins only (the platform floor)'}
+          </p>
+        </div>
+        {!editing && (
+          <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
+            {everyone ? 'Admins only' : 'Require for everyone'}
+          </Button>
+        )}
+      </div>
+      {editing && (
+        <div className="flex flex-col gap-sm">
+          <p className="text-caption text-text-secondary">
+            {everyone
+              ? 'Only admins will have to use two-factor authentication. Their staff are told.'
+              : 'Every employee will have to use two-factor authentication once sign-in set-up is live. Their staff are told now.'}
+          </p>
+          <TextField
+            label="Reason"
+            required
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            onBlur={() => setTouched(true)}
+            error={reasonError}
+            placeholder="Recorded in the audit log"
+          />
+          {update.isError && <p className="text-body-sm text-error">{update.error.message}</p>}
+          <div className="flex justify-end gap-sm">
+            <Button variant="secondary" size="sm" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" loading={update.isPending} onClick={submit}>
+              {everyone ? 'Require for admins only' : 'Require for everyone'}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Rating, in the Manage popup.
+//
+// The rating a student sees is COMPUTED from real submissions — every Stage 1 star rating plus
+// every Verified Review. Until 2026-08-23 it was a static seed number that nothing could move,
+// which is why this control exists at all. The override is for the two cases the computation can't
+// serve: a brand-new agency nobody has rated yet, and a rating that is demonstrably unfair. It is
+// always reversible — "Use computed rating" clears it and the live average takes over again.
+//
+// The computed value and the count stay visible WHILE an override is in force, deliberately: an
+// admin overriding 2.1 to 4.5 should have to look at the 2.1 while doing it.
 function RatingSection({ consultancy }: { consultancy: Consultancy }) {
   const setRating = useSetConsultancyRating(consultancy.id!)
   const [editing, setEditing] = useState(false)
@@ -859,12 +940,13 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
             <KycSection consultancyId={consultancy.id!} kycVerified={Boolean(consultancy.kyc_verified)} />
             <RatingSection consultancy={consultancy} />
             <CountrySection consultancy={consultancy} />
+            <MfaSection consultancy={consultancy} />
             <div className="flex items-center justify-between gap-md p-md">
               <div className="min-w-0">
                 <p className="text-body-sm font-medium text-text-primary">Partner colleges</p>
                 <p className="text-caption text-text-secondary">
                   {isInstitute
-                    ? 'Itself, and only itself — not editable for an institute (D13).'
+                    ? 'Itself, and only itself — not editable for an institute.'
                     : 'The colleges this account works with, and its commission terms with each.'}
                 </p>
               </div>

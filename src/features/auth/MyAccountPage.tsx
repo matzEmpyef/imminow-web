@@ -271,10 +271,14 @@ export function MyAccountPage() {
                 {/* The toggle stays (user, 2026-08-25 — it is what the real 2FA will hang off), but
                     the copy no longer claims it is on: nothing enforces it until the new sign-in
                     system lands (2026-09-12). */}
+                {/* Required for admins always, and for everyone at a consultancy whose admin (or
+                    immiNow) has mandated it — the server computes the flag (review L15). */}
                 <p className="text-caption text-text-secondary">
                   {user.two_factor_required
-                    ? 'Will be required for your role. Set-up arrives with the new sign-in system.'
-                    : 'Arrives with the new sign-in system.'}
+                    ? role === 'super_admin' || role === 'consultancy_admin'
+                      ? 'Required for your role. Set-up arrives with the new sign-in system.'
+                      : 'Required for everyone at your consultancy. Set-up arrives with the new sign-in system.'
+                    : 'Optional for your role. Set-up arrives with the new sign-in system.'}
                 </p>
               </div>
               <div className="flex items-center gap-sm">

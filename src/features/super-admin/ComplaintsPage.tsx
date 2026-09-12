@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { ChevronRight } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
 import { CompactSelect } from '@/components/CompactSelect'
@@ -144,6 +145,16 @@ export function ComplaintsPage() {
           {COMPLAINT_STATUS_META[c.status]?.label ?? c.status}
         </Badge>
       ),
+    },
+    {
+      // A trailing chevron so the row reads as clickable without hovering it first (product review
+      // L7, 2026-09-12) — the student name's own bold text was the only thing that looked
+      // interactive before this; the hover tint alone only shows up once the pointer is already there.
+      key: 'chevron',
+      header: '',
+      align: 'right',
+      width: '2rem',
+      render: () => <ChevronRight className="h-4 w-4 text-text-secondary" aria-hidden="true" />,
     },
   ]
 

@@ -57,6 +57,26 @@ export function useIssueTransferCode() {
   })
 }
 
+export type MfaPolicy = components['schemas']['MfaPolicyChange']['mfa_policy']
+
+// The consultancy's own admin raising (or lowering) who must use 2FA (review L15, 2026-09-12).
+// Lowering a policy immiNow set comes back as 409 `platform_floor` — surfaced as-is.
+export function useUpdateMyMfaPolicy() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { mfa_policy: MfaPolicy; reason: string }) => {
+      const { data, error } = await api.PATCH('/consultancies/me/mfa-policy', { body })
+      if (error) throw new ApiError('Could not change the two-factor requirement.', error)
+      return data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['consultancy', 'me'] })
+      // Every employee's `two_factor_required` just changed — My Account reads it from /profile.
+      void queryClient.invalidateQueries({ queryKey: ['profile'] })
+    },
+  })
+}
+
 export function useUpdateConsultancyProfile() {
   const queryClient = useQueryClient()
   return useMutation({

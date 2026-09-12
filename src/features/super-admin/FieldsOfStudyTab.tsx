@@ -3,6 +3,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { Archive, ArchiveRestore, GitMerge, Pencil } from 'lucide-react'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
+import { FilterChip } from '@/components/FilterChip'
 import { Modal } from '@/components/Modal'
 import { SearchSelect } from '@/components/SearchSelect'
 import { Table, type TableColumn } from '@/components/Table'
@@ -27,6 +28,13 @@ function splitAliases(text: string): string[] {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
+}
+
+// A field nobody can currently find a course for, but that students are already asking about —
+// the one case this list couldn't be filtered to before (product review L14, 2026-09-12), even
+// though the two counts needed to spot it (Courses, Students) already sat right there in the table.
+function isDemandGap(f: FieldOfStudy): boolean {
+  return (f.course_count ?? 0) === 0 && (f.student_count ?? 0) > 0
 }
 
 function FieldFormModal({ field, onClose }: { field?: FieldOfStudy; onClose: () => void }) {
@@ -270,16 +278,23 @@ function FieldRowActions({
 export function FieldsOfStudyTab() {
   const fields = useFieldsOfStudy(true)
   const [search, setSearch] = useState('')
+  const [demandGapsOnly, setDemandGapsOnly] = useState(false)
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<FieldOfStudy | null>(null)
   const [merging, setMerging] = useState<FieldOfStudy | null>(null)
   const all = useMemo(() => fields.data ?? [], [fields.data])
 
-  const rows = useMemo(() => {
+  const searched = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return all
     return all.filter((f) => f.name.toLowerCase().includes(q) || (f.aliases ?? []).some((a) => a.toLowerCase().includes(q)))
   }, [all, search])
+
+  // Counted off `searched`, not `all` — same "chip count reflects search, not itself" convention
+  // Platform Team's status chips already use, so the number in the chip always matches what turning
+  // it on would actually show.
+  const demandGapCount = useMemo(() => searched.filter(isDemandGap).length, [searched])
+  const rows = useMemo(() => (demandGapsOnly ? searched.filter(isDemandGap) : searched), [searched, demandGapsOnly])
 
   const columns: TableColumn<FieldOfStudy>[] = [
     {
@@ -351,8 +366,21 @@ export function FieldsOfStudyTab() {
         rowKey={(f) => f.id}
         loading={fields.isLoading}
         error={fields.isError ? 'Could not load the fields of study list.' : undefined}
-        emptyMessage={search ? 'No field or alternate name matches.' : 'No fields of study yet.'}
+        emptyMessage={
+          demandGapsOnly
+            ? 'No demand gaps — every field with waiting students has at least one course.'
+            : search
+              ? 'No field or alternate name matches.'
+              : 'No fields of study yet.'
+        }
         search={{ value: search, onChange: setSearch, placeholder: 'Search fields and alternate names…' }}
+        quickFilters={
+          <FilterChip
+            label={`Demand gaps — 0 courses, students waiting (${demandGapCount})`}
+            active={demandGapsOnly}
+            onChange={setDemandGapsOnly}
+          />
+        }
       />
       {adding && <FieldFormModal onClose={() => setAdding(false)} />}
       {editing && <FieldFormModal field={editing} onClose={() => setEditing(null)} />}

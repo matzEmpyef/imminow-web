@@ -149,38 +149,25 @@ export function CommissionDefaultsCard({ variant = 'page' }: { variant?: 'page' 
     })
   }
 
+  // Save (and Reset) moved below the fields, not beside the heading (product review L12,
+  // 2026-09-12) — a button above the row it acts on reads as if it saves something already
+  // visible above it; every other form footer in this console sits after its fields.
   const content = (
     <>
-      <div className="flex flex-wrap items-start justify-between gap-md">
-        {variant === 'page' ? (
-          <div>
-            <h2 className="text-body-sm font-medium text-text-primary">When no rate is set</h2>
-            <p className="mt-2xs text-caption text-text-secondary">
-              Applied to a case with no Commission Rates row. A change here prices cases accepted from then on —
-              cases already accepted keep their rate.
-            </p>
-          </div>
-        ) : (
-          <p className="text-caption text-text-secondary">
-            Applied to a case with no Commission Rates row. A change here prices cases accepted from then on —
-            cases already accepted keep their rate.
+      {variant === 'page' ? (
+        <div>
+          <h2 className="text-body-sm font-medium text-text-primary">When no rate is set</h2>
+          <p className="mt-2xs text-caption text-text-secondary">
+            Applied to a case with no Commission Rates row. A change here prices cases accepted from then on — cases
+            already accepted keep their rate.
           </p>
-        )}
-        <div className="flex items-center gap-sm">
-          {dirty && (
-            <button
-              type="button"
-              onClick={() => setValues(fromServer(defaults.data))}
-              className="text-caption text-text-secondary hover:underline"
-            >
-              Reset
-            </button>
-          )}
-          <Button disabled={!canSave} loading={updateDefaults.isPending} onClick={() => setConfirming(true)}>
-            Save
-          </Button>
         </div>
-      </div>
+      ) : (
+        <p className="text-caption text-text-secondary">
+          Applied to a case with no Commission Rates row. A change here prices cases accepted from then on — cases
+          already accepted keep their rate.
+        </p>
+      )}
 
       <div className={`mt-md grid grid-cols-1 gap-sm ${variant === 'page' ? 'sm:grid-cols-2' : ''}`}>
         {FIELDS.map((f) => (
@@ -197,6 +184,21 @@ export function CommissionDefaultsCard({ variant = 'page' }: { variant?: 'page' 
             </span>
           </DefaultRow>
         ))}
+      </div>
+
+      <div className="mt-md flex items-center justify-end gap-sm">
+        {dirty && (
+          <button
+            type="button"
+            onClick={() => setValues(fromServer(defaults.data))}
+            className="text-caption text-text-secondary hover:underline"
+          >
+            Reset
+          </button>
+        )}
+        <Button disabled={!canSave} loading={updateDefaults.isPending} onClick={() => setConfirming(true)}>
+          Save
+        </Button>
       </div>
 
       {updateDefaults.isError && <p className="mt-sm text-body-sm text-error">{updateDefaults.error.message}</p>}

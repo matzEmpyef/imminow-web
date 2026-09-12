@@ -130,9 +130,28 @@ function InstitutionFormModal({
       }
     >
       <form id="institution-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <TextField
+          label="Name"
+          required
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value)
+            // A duplicate-name error (server-side, name+city) used to stick around after the admin
+            // fixed the name — the error stayed in `mutation`'s own state, not tied to the fields it
+            // was about, so nothing re-validated on edit (product review L13, 2026-09-12).
+            if (mutation.isError) mutation.reset()
+          }}
+        />
         <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
-          <TextField label="City" required value={city} onChange={(e) => setCity(e.target.value)} />
+          <TextField
+            label="City"
+            required
+            value={city}
+            onChange={(e) => {
+              setCity(e.target.value)
+              if (mutation.isError) mutation.reset()
+            }}
+          />
           <TextField label="State/Province" value={state} onChange={(e) => setState(e.target.value)} />
         </div>
         <SelectField label="Type" id="institution-type" value={type} onChange={(e) => setType(e.target.value as 'school' | 'college')}>

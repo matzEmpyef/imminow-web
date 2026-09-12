@@ -3979,6 +3979,109 @@ export interface paths {
         };
         trace?: never;
     };
+    "/consultancies/me/mfa-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Consultancy Admin raises or lowers who at their own consultancy must use two-factor authentication (user decision, review L15, 2026-09-12). Audited with the mandatory reason; every employee gets one in-app notice (`mfa_policy_changed`). Lowering a policy immiNow set is refused with 409 `platform_floor`. */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MfaPolicyChange"];
+                };
+            };
+            responses: {
+                /** @description Updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Consultancy"];
+                    };
+                };
+                /** @description Not a consultancy admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description platform_floor — immiNow requires all_staff here; only immiNow can lower it */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/consultancies/{id}/mfa-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Super Admin sets a consultancy's two-factor policy from Manage Consultancies (build reference §1.1 per-consultancy MFA escalation). Requires the consultancy_approval permission; audited with the mandatory reason; the consultancy's staff are notified. */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["schemas"]["UUID"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MfaPolicyChange"];
+                };
+            };
+            responses: {
+                /** @description Updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Consultancy"];
+                    };
+                };
+                /** @description Consultancy not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        trace?: never;
+    };
     "/consultancies/me/gallery": {
         parameters: {
             query?: never;
@@ -5674,6 +5777,8 @@ export interface paths {
                         about_us?: string;
                         countries_served?: string[];
                         city?: string;
+                        /** @description Editable by the platform team (review M6, 2026-09-12). */
+                        country?: string;
                         /** @description Attaches a college to an institute account created without one (D8, the "create the login first, attach the college after" direction — in practice the order institutes arrive in). Accepted only when `kind` is `institute` and `college_id` is currently null; a second attempt is refused 409 `college_already_linked`, because moving an account between colleges is not a supported operation — it would silently reassign every case, application and commission entry on it. Attaching also creates the institute's single self-referencing `ConsultancyCollege` row (`payer_method: applicant`) and is audited as `link_college`, exactly as attaching at creation is. Refused 400 for a `kind: consultancy` account, for an unknown college, and for an explicit null (a link cannot be cleared). */
                         college_id?: components["schemas"]["UUID"];
                     };
@@ -19391,7 +19496,7 @@ export interface components {
             readonly walkthrough_seen_at?: string | null;
             /** @description Managed via Cognito's MFA enrollment (TRD Section 9's delegation-to-provider principle), not settable through /profile — display-only here. */
             readonly two_factor_enabled?: boolean;
-            /** @description True for consultancy_admin and super_admin, whose access is permanently full and unremovable (build reference 2.1). False elsewhere, where 2FA is optional and self-serve. */
+            /** @description Computed, never stored (review L15, 2026-09-12). True for consultancy_admin and super_admin, whose access is permanently full and unremovable (build reference 2.1), and for every employee of a consultancy whose `mfa_policy` is `all_staff`. False elsewhere, where 2FA is optional and self-serve. Enforcement arrives with the real sign-in system; the console shows the requirement now. */
             readonly two_factor_required?: boolean;
             /** @description Server-resolved console flags, present ONLY for super_admin and platform_staff callers (build reference 1.23 / request 12). super_admin always resolves to every flag true; platform_staff gets their configured flags; every other role — and a disabled platform_staff account — gets no field at all. The React shell renders exactly the /admin areas these flags name; the same flags are enforced server-side on every admin endpoint, so hiding a section is presentation, never the security boundary. */
             readonly platform_permissions?: components["schemas"]["PlatformPermissions"] | null;
@@ -19922,6 +20027,12 @@ export interface components {
                 name?: string;
             } | null;
         };
+        MfaPolicyChange: {
+            /** @enum {string} */
+            mfa_policy: "admins_only" | "all_staff";
+            /** @description Mandatory — recorded on the audit entry (build reference 1.24, sensitive action). */
+            reason: string;
+        };
         Consultancy: {
             id: components["schemas"]["UUID"];
             /**
@@ -19938,6 +20049,16 @@ export interface components {
             countries_served?: string[];
             /** @description Where the consultancy itself is based — distinct from countries_served, which lists the destinations it sends students to. Drives the default currency on invoices it raises, via the same country-to-currency map student display currency uses. */
             country?: string | null;
+            /**
+             * @description Who must use two-factor authentication (build reference §1.1; review L15, 2026-09-12). `admins_only` is the platform floor — Consultancy Admin and Super Admin always must. `all_staff` extends it to every employee. Changed through PATCH /consultancies/{id}/mfa-policy (platform) or PATCH /consultancies/me/mfa-policy (the consultancy's own admin); never through the profile edit routes.
+             * @enum {string}
+             */
+            readonly mfa_policy?: "admins_only" | "all_staff";
+            /**
+             * @description Who raised the policy to `all_staff`; null while `admins_only`. A consultancy admin can lower their own escalation but not the platform's (409 `platform_floor`).
+             * @enum {string|null}
+             */
+            readonly mfa_policy_set_by?: "platform" | "consultancy" | null;
             city?: string;
             public_email?: string | null;
             public_phone?: string | null;

@@ -84,6 +84,7 @@ const LABELS: Record<string, string> = {
   visit_request_nudge: 'Student nudged a visit request',
   case_switched_away: 'Case moved to another consultancy',
   case_taken_over: 'A case you handled was taken over',
+  mfa_policy_changed: 'Two-factor requirement changed for a consultancy',
 }
 
 // Row-level component so useUpdateNotificationChannelConfig() can be called at its own render top

@@ -7,6 +7,8 @@ import { usePermission } from '@/lib/permissions'
 import { PartnerCollegesPanel } from './PartnerCollegesPanel'
 import { ProfileTab } from './ConsultancyProfileTab'
 import { SubscriptionTab } from './ConsultancySubscriptionTab'
+import { SecurityTab } from './ConsultancySecurityTab'
+import { useAuthStore } from '@/stores/authStore'
 import { CommissionRatesTab } from './ConsultancyCommissionRatesTab'
 import { AllocationTab } from './ConsultancyAllocationTab'
 import { TagManagementTab } from './ConsultancyTagManagementTab'
@@ -15,6 +17,8 @@ import { IncomingTransfersTab } from './ConsultancyIncomingTransfersTab'
 const TABS = [
   'Profile',
   'Subscription',
+  // Consultancy-admin only (review L15, 2026-09-12): who must use two-factor authentication.
+  'Security',
   'Partner Colleges',
   // Renamed from "Commission Rates" (user, 2026-09-10): these are the rates immiNow charges the
   // consultancy, not the commission a college pays it (that lives on Partner Colleges).
@@ -38,7 +42,10 @@ export function ConsultancyProfilePage() {
   )
   // Incoming Transfers is about accepting cases, not settings — its own permission gate.
   const canAcceptTransfers = usePermission('clients.transfer_applicant')
-  const visibleTabs = TABS.filter((tab) => tab !== 'Incoming Transfers' || canAcceptTransfers)
+  const isConsultancyAdmin = useAuthStore((s) => s.user?.role === 'consultancy_admin')
+  const visibleTabs = TABS.filter(
+    (tab) => (tab !== 'Incoming Transfers' || canAcceptTransfers) && (tab !== 'Security' || isConsultancyAdmin),
+  )
 
   if (consultancy.isLoading) {
     return (
@@ -77,6 +84,7 @@ export function ConsultancyProfilePage() {
 
         {activeTab === 'Profile' && <ProfileTab consultancy={consultancy.data} />}
         {activeTab === 'Subscription' && <SubscriptionTab consultancy={consultancy.data} />}
+        {activeTab === 'Security' && isConsultancyAdmin && <SecurityTab consultancy={consultancy.data} />}
         {/* `kind`, not a feature flag (INSTITUTE_ACCOUNT_PLAN D13): an institute's partner
             colleges are itself and only itself, so the panel renders read-only. A
             `partner_colleges` entitlement key was deliberately NOT registered — it would have

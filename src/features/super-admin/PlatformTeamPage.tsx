@@ -195,13 +195,28 @@ function PermissionGroups({
 // User-requested (2026-08-15) — "wherever there is add button, use popup, instead of inline
 // form." Invite modal now also offers a starting set of permissions, so a new hire doesn't land
 // with zero access and need a second trip to the drawer.
+// Inline errors under the field, shown on submit/blur, no native `required` bubbles (product
+// review L3, 2026-09-12) — this form used to be the odd one out, relying on the browser's own
+// validation UI while every other form in the console (App Config included) shows its errors this
+// way. `noValidate` on the <form> below stops the browser from ever stepping in on its own.
 function InviteStaffModal({ onClose, onInvited }: { onClose: () => void; onInvited: (email: string) => void }) {
   const createStaff = useCreatePlatformStaff()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [permissions, setPermissions] = useState<Record<string, boolean>>({})
-  const emailError = email && !isValidEmail(email) ? EMAIL_ERROR : undefined
-  const canSubmit = Boolean(name.trim() && email) && !emailError
+  const [attempted, setAttempted] = useState(false)
+  const [nameTouched, setNameTouched] = useState(false)
+  const [emailTouched, setEmailTouched] = useState(false)
+
+  const nameError = (attempted || nameTouched) && !name.trim() ? 'Name is required.' : undefined
+  const emailError = (attempted || emailTouched)
+    ? !email.trim()
+      ? 'Email is required.'
+      : !isValidEmail(email)
+        ? EMAIL_ERROR
+        : undefined
+    : undefined
+  const canSubmit = Boolean(name.trim() && email.trim() && isValidEmail(email))
 
   function toggle(key: PlatformPermissionKey) {
     setPermissions((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -218,7 +233,10 @@ function InviteStaffModal({ onClose, onInvited }: { onClose: () => void; onInvit
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!canSubmit) return
+    if (!canSubmit) {
+      setAttempted(true)
+      return
+    }
     createStaff.mutate(
       { name: name.trim(), email, permissions },
       {
@@ -246,15 +264,23 @@ function InviteStaffModal({ onClose, onInvited }: { onClose: () => void; onInvit
         </>
       }
     >
-      <form id="add-staff-form" onSubmit={handleSubmit} className="flex flex-col gap-lg">
+      <form id="add-staff-form" onSubmit={handleSubmit} noValidate className="flex flex-col gap-lg">
         <div className="flex flex-col gap-md">
-          <TextField label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
+          <TextField
+            label="Name"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => setNameTouched(true)}
+            error={nameError}
+          />
           <TextField
             label="Email"
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onBlur={() => setEmailTouched(true)}
             error={emailError}
           />
           <p className="text-caption text-text-secondary">

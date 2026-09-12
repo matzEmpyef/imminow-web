@@ -15,6 +15,7 @@ function Tile({
   onClick,
   active,
   to,
+  hint,
 }: {
   label: string
   value: number
@@ -22,12 +23,14 @@ function Tile({
   onClick?: () => void
   active?: boolean
   to?: string
+  hint?: string
 }) {
   const valueClass = warn && value > 0 ? 'text-warning' : 'text-text-primary'
   const content = (
     <>
       <p className="text-caption text-text-secondary">{label}</p>
       <p className={`text-h2 ${valueClass}`}>{value}</p>
+      {hint && <p className="text-caption text-text-secondary">{hint}</p>}
     </>
   )
   const clickable = Boolean(onClick || to)
@@ -58,19 +61,40 @@ function Tile({
  * currently-active cases are being priced at the invisible fallback default right now.
  * "Accounts with gaps" toggles the table's coverage filter; "Cases priced at the default" jumps to
  * Finance → Cases pre-filtered to exactly those.
+ *
+ * The tile's own number (`summary.with_gaps`) only ever counted `coverage: partial|missing` —
+ * accounts serving zero countries (`coverage: none_served`) were invisible in it, which read as
+ * "only 7 accounts need attention" when a `none_served` account needs attention too, just not a
+ * rate-editing kind (product review L12, 2026-09-12). Rather than folding a different kind of gap
+ * into one number, the label now says exactly what it counts and a hint line names the rest —
+ * `noCountriesCount` comes from a separate `filter[coverage]=none_served` query's `meta.total`
+ * (see CommissionRatesPage), since the summary object itself has no such field to read.
  */
 export function CommissionSummaryTiles({
   summary,
   gapsActive,
   onToggleGaps,
+  noCountriesCount,
 }: {
   summary: Summary | undefined
   gapsActive: boolean
   onToggleGaps: () => void
+  noCountriesCount?: number
 }) {
   return (
     <div className="grid grid-cols-2 gap-md sm:grid-cols-4">
-      <Tile label="Accounts with gaps" value={summary?.with_gaps ?? 0} warn onClick={onToggleGaps} active={gapsActive} />
+      <Tile
+        label="Accounts with partial or missing rates"
+        value={summary?.with_gaps ?? 0}
+        warn
+        onClick={onToggleGaps}
+        active={gapsActive}
+        hint={
+          noCountriesCount != null
+            ? `${noCountriesCount} ${noCountriesCount === 1 ? 'account has' : 'accounts have'} no countries yet`
+            : undefined
+        }
+      />
       <Tile label="Countries with no rate" value={summary?.countries_without_rates ?? 0} warn />
       <Tile label="Countries partly set" value={summary?.countries_partly_set ?? 0} warn />
       <Tile

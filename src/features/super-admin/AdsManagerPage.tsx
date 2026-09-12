@@ -84,8 +84,17 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
   const [targeting, setTargeting] = useState<AdTargeting>(editingAd?.targeting ?? {})
   const countries = useCountries()
   const audienceCount = useAdAudienceCount(targeting)
+  // Shares the ['admin-ads'] cache the page already fetched — no extra request, just reads what's
+  // already there so the priority warning below has every other ad to compare against.
+  const allAds = useAdminAds()
 
   const mutation = isEditing ? updateAd : createAd
+  // Product review L10 (2026-09-12) — priorities were a bare number with nothing stopping two ads
+  // from sharing one; the app just shows whichever the client happens to render first. A warning,
+  // not a block, since a deliberate tie (e.g. both scheduled to go live the same day) is legitimate.
+  const priorityCollision = (allAds.data ?? []).find(
+    (a) => a.id !== editingAd?.id && a.status === 'live' && (a.priority ?? 0) === priority,
+  )
   // User-requested (2026-08-18) — "Don't let replace ad image if impression is more than 1."
   // Mirrors the server-side rejection in PATCH /ads/:id; disabled here too so the admin isn't led
   // into a doomed submission and sees why up front.
@@ -295,6 +304,12 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
               onChange={(e) => setPriority(Number(e.target.value))}
             />
             <p className="text-caption text-text-secondary">1 shows first in the app's carousel.</p>
+            {priorityCollision && (
+              <p className="rounded-md bg-warning/10 p-sm text-caption text-text-secondary">
+                Priority {priority} is also used by {adDisplayName(priorityCollision)} — the app shows the lower one
+                first.
+              </p>
+            )}
             <div className="flex gap-md">
               <TextField
                 label="Start date"

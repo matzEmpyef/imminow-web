@@ -245,7 +245,13 @@ export function Table<T>({
                     <tr
                       className={`${i > 0 ? 'border-t border-border' : ''} ${
                         onRowClick
-                          ? 'cursor-pointer hover:bg-background focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary'
+                          ? // `hover:bg-background` (#f8fafc on a white #ffffff row) used to be here — nearly
+                            // the same lightness as the row itself, so the "clickable row" affordance was
+                            // real in the DOM but not visible on screen (product review L7, 2026-09-12).
+                            // `primary-subtle` is the same light-blue tint nav items already use for their
+                            // active state, so a hovered row now visibly reads as interactive everywhere
+                            // onRowClick is used, not just where a page adds its own rowClassName.
+                            'cursor-pointer hover:bg-primary-subtle focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary'
                           : ''
                       } ${rowClassName?.(row) ?? ''}`}
                       onClick={onRowClick ? () => onRowClick(row) : undefined}
