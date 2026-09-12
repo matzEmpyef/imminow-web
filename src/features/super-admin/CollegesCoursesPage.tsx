@@ -178,8 +178,10 @@ export function CollegesCoursesPage() {
       render: (college) => college.partner_consultancy_count ?? 0,
     },
     {
-      // Catalog-health rollup (COURSES_MODULE_PLAN.md §5) — server-counted against the same five
-      // capture checks the per-course meter runs. Hovering names the checks that fall short.
+      // Catalog-health rollup (COURSES_MODULE_PLAN.md §5) — server-counted against the same
+      // capture checks the per-course meter runs (seven since Description joined on 2026-09-13).
+      // Labels come from the server, so a new check appears here without a change. Hovering names
+      // the checks that fall short.
       key: 'catalog_health',
       header: 'Catalog health',
       sortable: true,

@@ -32,9 +32,11 @@ export const SELECT_CLASS = 'h-10 rounded-md border border-border bg-surface px-
 
 /**
  * Capture completeness (COURSES_MODULE_PLAN.md §5) — the meter that makes catalog quality
- * visible instead of hoped for. Six checks: fee, duration_months, intake deadlines, entry
+ * visible instead of hoped for. Seven checks: fee, duration_months, intake deadlines, entry
  * requirements block, language (required at capture since 2026-08-21 but legacy rows may lack
- * it), and campus (review C7, 2026-09-12 — mirrors the server's COURSE_CAPTURE_CHECKS exactly:
+ * it), description (app review H8, 2026-09-13 — the app hides About the course when there is
+ * none, so the course is listed with nothing to read), and campus (review C7, 2026-09-12 —
+ * mirrors the server's COURSE_CAPTURE_CHECKS exactly:
  * a course fails this one only when it has no campus_ids AND its college actually has an active
  * campus to pick — a college with none yet cannot be faulted for a course that can't name one).
  */
@@ -48,6 +50,7 @@ export function courseCompleteness(
     ['deadlines', (course.intake_deadlines ?? []).some((d) => d.application_deadline)],
     ['requirements', course.requirements != null],
     ['language', Boolean(course.language)],
+    ['description', Boolean((course.description ?? '').trim())],
     ['campus', (course.campus_ids ?? []).length > 0 || !hasActiveCampuses],
   ]
   const missing = checks.filter(([, ok]) => !ok).map(([label]) => label)

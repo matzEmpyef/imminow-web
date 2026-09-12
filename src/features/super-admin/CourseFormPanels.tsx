@@ -191,6 +191,9 @@ export function CourseBasicsPanel({ hidden, form }: { hidden: boolean; form: Cou
           value={form.description}
           onChange={(e) => form.setDescription(e.target.value)}
           rows={3}
+          // A capture check since 2026-09-13 (app review H8) — still optional to save, but the
+          // meter counts it, so say what the gap costs a student.
+          hint="Shown as About the course in the app; without it the app shows nothing."
         />
         <TextAreaField label="Benefits" value={form.benefits} onChange={(e) => form.setBenefits(e.target.value)} rows={2} />
       </FormSection>

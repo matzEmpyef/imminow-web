@@ -3962,6 +3962,8 @@ export interface paths {
                         city?: string;
                         public_email?: string | null;
                         public_phone?: string | null;
+                        address?: string | null;
+                        visiting_hours?: string | null;
                     };
                 };
             };
@@ -5779,6 +5781,8 @@ export interface paths {
                         city?: string;
                         /** @description Editable by the platform team (review M6, 2026-09-12). */
                         country?: string;
+                        address?: string | null;
+                        visiting_hours?: string | null;
                         /** @description Attaches a college to an institute account created without one (D8, the "create the login first, attach the college after" direction — in practice the order institutes arrive in). Accepted only when `kind` is `institute` and `college_id` is currently null; a second attempt is refused 409 `college_already_linked`, because moving an account between colleges is not a supported operation — it would silently reassign every case, application and commission entry on it. Attaching also creates the institute's single self-referencing `ConsultancyCollege` row (`payer_method: applicant`) and is audited as `link_college`, exactly as attaching at creation is. Refused 400 for a `kind: consultancy` account, for an unknown college, and for an explicit null (a link cannot be cleared). */
                         college_id?: components["schemas"]["UUID"];
                     };
@@ -6282,6 +6286,13 @@ export interface paths {
             responses: {
                 /** @description Recorded */
                 201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description not_yet_rateable — the consultancy has not replied yet, or the conversation is under three days old (app review H3, 2026-09-13). */
+                403: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -11849,7 +11860,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Write the one-time review — exactly once per journey, never edited (build reference 1.3, reworked 2026-09-12: offered, not forced). Lands as `pending`; a platform admin publishes or hides it. 409 if one already exists; 403 until the journey is `plan_complete`; 400 when the text is under 20 or over 1000 characters. Owning student only. Platform staff are notified (`review_pending`). */
+        /** Write the one-time review — exactly once per journey, never edited (build reference 1.3, reworked 2026-09-12: offered, not forced). Lands as `pending`; a platform admin publishes or hides it. 409 if one already exists; 403 until the journey is `plan_complete`, `closed_completed`, or `closed` with outcome `success` (a case the consultancy closed as a success also qualifies — user decision 2026-09-12; the journey keeps its consultancy after closing; a case closed as a failure is not reviewed); 400 when the text is under 20 or over 1000 characters. Owning student only. Platform staff are notified (`review_pending`). */
         post: {
             parameters: {
                 query?: never;
@@ -20223,6 +20234,12 @@ export interface components {
             rating_override_at?: string | null;
             /** @description Published written reviews (2026-09-12). rating_count also includes star-only ratings. */
             readonly review_count?: number;
+            /** @description Street address shown on the app's consultancy page (app review H2, 2026-09-13). Editable by the consultancy and the platform team. */
+            address?: string | null;
+            /** @description Free text in the consultancy's own words, e.g. "Mon–Sat, 10:00–17:00" (app review H2). The visit form's booking window is the platform's rule, not this. */
+            visiting_hours?: string | null;
+            /** @description Median hours between a student's message and the consultancy's next reply over the last 90 days of lead chats (app review H2, 2026-09-13). Null under three samples. */
+            readonly typical_reply_hours?: number | null;
             /** @enum {string} */
             tier: "starter" | "business" | "ultimate";
             seat_limit: number;
@@ -20519,6 +20536,13 @@ export interface components {
             last_message_preview?: string | null;
             /** @description Server-computed — true when the most recent message is from the student and arrived after the viewer last opened this conversation (POST /leads/{id}/read). Always false once the consultant has replied, since that makes their own message the most recent one. */
             unread?: boolean;
+            /** @description Student view only (GET /leads/mine; app review H3, 2026-09-13): true once the consultancy has replied at least once and the conversation is at least three days old. POST /consultancies/{id}/ratings returns 403 not_yet_rateable otherwise. */
+            rating_eligible?: boolean;
+            /**
+             * @description Why rating_eligible is false; null when it is true.
+             * @enum {string|null}
+             */
+            rating_eligible_reason?: "no_reply_yet" | "too_new" | null;
             /** @description Server-computed — true when the most recent message is from the student and the consultant hasn't replied yet. Unlike `unread`, this doesn't care whether anyone has opened the conversation, only whether anyone has responded. Shown as "Pending Response" on Active Leads (build reference 2.2) — the field name stays `unattended` for continuity with `unattended_cases`/`unattended=true` filtering elsewhere; only the on-screen label changed. */
             unattended: boolean;
             /** @description The student's most recent message on this lead, shown in the Lead Pool table (2026-09-10). Null when the student has sent nothing, and always for imported leads. A shared Dream Courses card with no text reads "Shared their Dream Courses". */
@@ -21258,11 +21282,29 @@ export interface components {
              * @enum {string}
              */
             consultancy_kind?: "consultancy" | "institute";
+            /** @description The assigned consultant's full name (app review H12 + C4, 2026-09-13) for the chat header and the "plan being prepared" card. */
+            consultant_name?: string | null;
             /**
-             * @description Where this journey's one-time review stands (2026-09-12): null = not written yet (the app offers "Write a review" once the plan is complete), otherwise the moderation state. Lets Home and the plan say "awaiting moderation" / "published" without a second request.
+             * Format: date-time
+             * @description When the consultancy took the case (falls back to the journey's creation).
+             */
+            assigned_at?: string | null;
+            /** @description Whole days since assignment while status is pending_plan_assignment; null otherwise. */
+            days_waiting_for_plan?: number | null;
+            /**
+             * @description Where this journey's one-time review stands (2026-09-12): null = not written yet (the app offers "Write a review" once the plan is complete or the case is closed as a success), otherwise the moderation state. Lets Home and the plan say "awaiting moderation" / "published" without a second request. See `review_offer` for a case that closed and dropped the student back to exploring.
              * @enum {string|null}
              */
             review_status?: "pending" | "published" | "hidden" | null;
+            /** @description Home's one-time review offer (2026-09-12): the student's most recent reviewable journey — the plan finished, or the case closed as a success — whether it is the journey this response describes or a closed one (the student is then `exploring` again, with no other link to that consultancy). Null when there is nothing to review. The app shows "Write a review" while `review_status` is null and the outcome wording afterwards. */
+            review_offer?: {
+                journey_id: components["schemas"]["UUID"];
+                consultancy_id: components["schemas"]["UUID"];
+                consultancy_name: string;
+                journey_status: string;
+                /** @enum {string|null} */
+                review_status: "pending" | "published" | "hidden" | null;
+            } | null;
             /** @description e.g. "2/4" — null until a plan is assigned. */
             progress?: string | null;
             /** @description The current in-progress step's title — null until a plan is assigned. */
@@ -22304,6 +22346,8 @@ export interface components {
              * @enum {string|null}
              */
             readonly my_rsvp_status?: "rsvpd" | "waitlisted" | null;
+            /** @description Whether the caller checked in (in-person / webinar) or attempted (quiz) — app review H9, 2026-09-13. Null for a caller with no student context. points_on_offer is null once the event has ended; this says what actually happened. */
+            my_attended?: boolean | null;
             /** @description Webinars only, and only for a signed-in caller. Drives the "email me the link" button — see the schema for why the window is resolved server-side. */
             readonly my_link_email?: components["schemas"]["WebinarLinkEmailState"];
         };

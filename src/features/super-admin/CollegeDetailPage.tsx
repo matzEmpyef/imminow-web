@@ -41,13 +41,16 @@ type College = components['schemas']['College']
 type Campus = components['schemas']['Campus']
 type Course = components['schemas']['Course']
 
-// The six capture checks, as people read them (courseCompleteness returns keys).
+// The seven capture checks, as people read them (courseCompleteness returns keys). Same order and
+// same labels as the server's COURSE_CAPTURE_CHECKS — Description joined on 2026-09-13 (app
+// review H8). A key with no entry here falls back to the raw key rather than being dropped.
 const CHECK_LABELS: Record<string, string> = {
   fee: 'Fee',
   duration: 'Duration',
   deadlines: 'Application deadline',
   requirements: 'Entry requirements',
   language: 'Language',
+  description: 'Description',
   campus: 'Campus',
 }
 
@@ -228,15 +231,19 @@ export function CourseFormModal({
           scroll away with the Basics fields, so switching tab meant scrolling back up first. */}
       <div className="sticky top-0 z-10 -mx-lg -mt-md mb-md flex gap-xs border-b border-border bg-surface px-lg pt-sm">
         {FORM_TABS.map((tab) => {
-          // A dot on the tab that holds a missing capture check (2026-09-11) — the same six checks
-          // as the Data column, so the gap is findable without opening every tab.
+          // A dot on the tab that holds a missing capture check (2026-09-11) — the same seven
+          // checks as the Data column, so the gap is findable without opening every tab.
           const missing =
             tab === 'Basics'
               ? !form.language
                 ? 'language of teaching'
                 : !form.durationMonths
                   ? 'length in months'
-                  : null
+                  : // Description joined the checks on 2026-09-13 (app review H8) and lives in
+                    // this tab's Details section.
+                    !form.description.trim()
+                    ? 'a description'
+                    : null
               : tab === 'Campuses & Intakes'
                 ? form.campusRequired
                   ? 'a campus'

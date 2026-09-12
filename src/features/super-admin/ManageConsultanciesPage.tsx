@@ -153,6 +153,29 @@ function CountrySection({ consultancy }: { consultancy: Consultancy }) {
   )
 }
 
+// Read-only here (app review H2, 2026-09-13): address and visiting hours are the consultancy's own
+// words about its front door, edited in Consultancy Management. Typical reply time is measured, not
+// typed — null until three replies exist, and the app says nothing rather than guessing.
+function AddressHoursSection({ consultancy }: { consultancy: Consultancy }) {
+  const replyHours = consultancy.typical_reply_hours
+  return (
+    <div className="flex flex-col gap-xs p-md">
+      <p className="text-body-sm font-medium text-text-primary">Address &amp; hours</p>
+      <p className="text-caption text-text-secondary">{consultancy.address || 'Not set'}</p>
+      <p className="text-caption text-text-secondary">{consultancy.visiting_hours || 'Not set'}</p>
+      <p className="text-caption text-text-secondary">
+        {replyHours == null
+          ? 'No reply data yet'
+          : replyHours < 1
+            ? 'Typically replies within the hour'
+            : replyHours < 24
+              ? `Typically replies within ${Math.ceil(replyHours)} hours`
+              : `Typically replies within ${Math.ceil(replyHours / 24)} days`}
+      </p>
+    </div>
+  )
+}
+
 // Per-consultancy 2FA escalation (build reference §1.1; review L15, 2026-09-12). Admins always
 // must — the floor. Super Admin can require it of every employee here; the consultancy's own admin
 // can do the same from Consultancy Management but can never lower what immiNow set.
@@ -940,6 +963,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
             <KycSection consultancyId={consultancy.id!} kycVerified={Boolean(consultancy.kyc_verified)} />
             <RatingSection consultancy={consultancy} />
             <CountrySection consultancy={consultancy} />
+            <AddressHoursSection consultancy={consultancy} />
             <MfaSection consultancy={consultancy} />
             <div className="flex items-center justify-between gap-md p-md">
               <div className="min-w-0">

@@ -25,7 +25,18 @@ export function useMyConsultancy(options: { enabled?: boolean } = {}) {
 type ConsultancyProfileEdits = Partial<
   Pick<
     Consultancy,
-    'logo_url' | 'description' | 'about_us' | 'countries_served' | 'city' | 'country' | 'public_email' | 'public_phone'
+    | 'logo_url'
+    | 'description'
+    | 'about_us'
+    | 'countries_served'
+    | 'city'
+    | 'country'
+    | 'public_email'
+    | 'public_phone'
+    // App review H2 (2026-09-13) — the app's consultancy page had no address and no visiting
+    // hours to show, so a student who wanted to walk in had nothing to go on.
+    | 'address'
+    | 'visiting_hours'
   >
 >
 

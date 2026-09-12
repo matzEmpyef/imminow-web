@@ -36,6 +36,10 @@ export function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnTyp
   const [country, setCountry] = useState('')
   const [publicEmail, setPublicEmail] = useState('')
   const [publicPhone, setPublicPhone] = useState('')
+  // App review H2 (2026-09-13): the app's consultancy page showed no address and no opening
+  // hours, so "visit us" was an invitation with no directions attached.
+  const [address, setAddress] = useState('')
+  const [visitingHours, setVisitingHours] = useState('')
   const countryOptions = useCountries()
 
   useEffect(() => {
@@ -47,6 +51,8 @@ export function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnTyp
     setCountry(consultancy.country ?? '')
     setPublicEmail(consultancy.public_email ?? '')
     setPublicPhone(consultancy.public_phone ?? '')
+    setAddress(consultancy.address ?? '')
+    setVisitingHours(consultancy.visiting_hours ?? '')
   }, [consultancy])
 
   const publicEmailError = publicEmail && !isValidEmail(publicEmail) ? EMAIL_ERROR : undefined
@@ -70,6 +76,8 @@ export function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnTyp
         country,
         public_email: publicEmail || null,
         public_phone: publicPhone || null,
+        address: address || null,
+        visiting_hours: visitingHours || null,
       },
       { onSuccess: () => showToast('Profile updated') },
     )
@@ -102,6 +110,26 @@ export function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnTyp
               Served below. Added 2026-08-23: invoices default to this country's currency, which
               until now was hardcoded to INR for everyone. */}
           <CountrySelect label="Country" value={country} onChange={setCountry} />
+          {/* App review H2 (2026-09-13) — both optional, both shown on the consultancy's page in
+              the app. Visiting hours is free text in your own words; it does NOT change the visit
+              booking window, which is a platform rule. */}
+          <TextField
+            label="Address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="3rd Floor, Trade Centre, Linking Road, Bandra West, Mumbai 400050"
+          />
+          <div className="flex flex-col gap-xs">
+            <TextField
+              label="Visiting hours"
+              value={visitingHours}
+              onChange={(e) => setVisitingHours(e.target.value)}
+              placeholder="Mon–Sat, 10:00–17:00"
+            />
+            <span className="pl-lg text-caption text-text-secondary">
+              Shown on your page in the app. The visit-booking window (Mon–Sat 10–17) is separate.
+            </span>
+          </div>
           <div className="flex flex-col gap-xs lg:col-span-2">
             <FieldLabel htmlFor="consultancy-description">Description</FieldLabel>
             <textarea
