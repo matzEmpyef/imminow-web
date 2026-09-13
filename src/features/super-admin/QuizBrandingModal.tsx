@@ -5,7 +5,7 @@ import { Modal } from '@/components/Modal'
 import { ImageUploadField } from '@/components/ImageUploadField'
 import { useUpdateEvent } from '@/queries/eventsAdmin'
 import { showToast } from '@/lib/toast'
-import { type Event } from './quizShared'
+import { QUIZ_BANNER_ASPECT, QUIZ_CARD_ASPECT, type Event } from './quizShared'
 
 // User-requested (2026-08-18) — "No quiz needs ad options too... do not include in the existing
 // popup." Build reference 1.13's "three configurable branding placements" (pre-load screen,
@@ -24,6 +24,12 @@ import { type Event } from './quizShared'
 // given. Re-dimensioned 2026-09-04 (user): Pre-load and Results share one 8:5 card size
 // (640×400) so the same creative works on both screens, and the In-quiz banner is 8:3 (640×240)
 // so one upload fits both the strip above the question counter and the Happening Now card on Home.
+// Those two sizes became ENFORCED rather than advisory (2026-09-13, user decision — "image SIZES
+// are fixed on immiNow"): the app draws each placement at the creative's own aspect ratio, so an
+// off-ratio upload is not letterboxed, it just looks wrong inside the quiz. Shapes live in
+// quizShared.ts (QUIZ_BANNER_ASPECT / QUIZ_CARD_ASPECT) because Pre-load and Results share one.
+// The in-quiz banner doubles as the quiz's Happening Now image, which is why a quiz has no
+// separate 16:9 cover field the way a webinar or in-person meeting does.
 export function QuizBrandingModal({ event, onClose }: { event: Event; onClose: () => void }) {
   const updateEvent = useUpdateEvent(event.id!)
   const branding = (event.branding ?? {}) as Record<string, unknown>
@@ -87,19 +93,22 @@ export function QuizBrandingModal({ event, onClose }: { event: Event; onClose: (
           label="Pre-load screen image"
           value={preloadScreen}
           onChange={setPreloadScreen}
-          hint="640×400px (8:5), the same size as the Results screen image. Shown on the Ready screen before the quiz starts."
+          aspect={QUIZ_CARD_ASPECT}
+          hint="The same creative as the Results screen image. Shown on the Ready screen before the quiz starts."
         />
         <ImageUploadField
           label="In-quiz banner image"
           value={inQuizBanner}
           onChange={setInQuizBanner}
-          hint="640×240px (8:3). The only image shown DURING the quiz — a banner above the question counter on every question. Also used as the background of the quiz's Happening Now card on Home."
+          aspect={QUIZ_BANNER_ASPECT}
+          hint="The only image shown DURING the quiz — a banner above the question counter on every question. Also the quiz's Happening Now card on Home, which is why a quiz needs no separate cover image."
         />
         <ImageUploadField
           label="Results screen image"
           value={resultsScreen}
           onChange={setResultsScreen}
-          hint="640×400px (8:5), the same size as the Pre-load screen image. Shown with the student's score."
+          aspect={QUIZ_CARD_ASPECT}
+          hint="The same creative as the Pre-load screen image. Shown with the student's score."
         />
       </form>
     </Modal>

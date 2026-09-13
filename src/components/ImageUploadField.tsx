@@ -3,6 +3,7 @@ import { X } from 'lucide-react'
 import { Button } from './Button'
 import { useUploadMedia } from '@/queries/uploads'
 import { mediaUrl } from '@/lib/mediaUrl'
+import { aspectHintLine, readImageSize, validateImageDimensions, type AspectRequirement } from '@/lib/imageAspect'
 
 interface ImageUploadFieldProps {
   label: string
@@ -14,6 +15,8 @@ interface ImageUploadFieldProps {
   /** Caller-supplied validation message (e.g. Ads Manager's https-only rule, 2026-09-12) — shown
    * alongside, never instead of, an upload failure the field found on its own. */
   error?: string
+  /** When set, the chosen file's real pixel size is checked before it is uploaded (2026-09-13). */
+  aspect?: AspectRequirement
 }
 
 // User-requested (2026-08-18) — "We should be able to upload the image. No point just giving
@@ -27,10 +30,16 @@ interface ImageUploadFieldProps {
 // `disabled` added (2026-08-18) — Ads Manager needs to lock the image once an ad has real
 // impressions ("Don't let replace ad image if impression is more than 1"); added here rather
 // than as an Ads-only wrapper so the same lock affordance is available to any future caller.
-export function ImageUploadField({ label, value, onChange, hint, disabled, required, error }: ImageUploadFieldProps) {
+// `aspect` added (2026-09-13, user decision — "image SIZES are fixed on immiNow") — the one place
+// every placement's shape rule is enforced, so Ads (3:1) and Event covers (16:9) can't drift apart.
+// Deliberately a refusal, not a warning: the app has no crop step and renders whatever it is given.
+export function ImageUploadField({ label, value, onChange, hint, disabled, required, error, aspect }: ImageUploadFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const uploadMedia = useUploadMedia()
   const [uploadError, setUploadError] = useState<string | null>(null)
+  // Decoding the picked file to read its size is async, so the button keeps its busy state across
+  // the check as well as the upload — otherwise a large file looks like a dead click.
+  const [checking, setChecking] = useState(false)
   // The image address that failed to load, if any (2026-09-10: a consultancy logo pointing at a
   // dead URL showed the browser's broken-image icon). Keyed by address, so uploading a new image
   // clears it without any reset logic.
@@ -38,11 +47,29 @@ export function ImageUploadField({ label, value, onChange, hint, disabled, requi
   const src = mediaUrl(value)
   const broken = Boolean(value) && failedSrc === src
 
-  function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
     setUploadError(null)
+    if (aspect) {
+      setChecking(true)
+      let size: { width: number; height: number }
+      try {
+        size = await readImageSize(file)
+      } catch {
+        setChecking(false)
+        setUploadError('Could not read this image. Try a JPG or PNG.')
+        return
+      }
+      setChecking(false)
+      const problem = validateImageDimensions(size.width, size.height, aspect)
+      // Nothing is sent to POST /media when the shape is wrong — the refusal is the whole point.
+      if (problem) {
+        setUploadError(problem)
+        return
+      }
+    }
     uploadMedia.mutate(file, {
       onSuccess: (url) => onChange(url),
       onError: () => setUploadError('Could not upload this image.'),
@@ -56,7 +83,12 @@ export function ImageUploadField({ label, value, onChange, hint, disabled, requi
           {label}
           {required && <span className="text-required"> *</span>}
         </span>
-        {hint && <p className="text-caption text-text-secondary">Ideal size: {hint}</p>}
+        {/* With an `aspect` the requirement line below already names the ideal size, so the
+            caller's `hint` is free to be the plain "where this shows up" sentence and keeps its
+            own wording; without one, the legacy "Ideal size: …" prefix stays as every existing
+            caller wrote its hint to read. */}
+        {aspect && <p className="text-caption text-text-secondary">{aspectHintLine(aspect)}</p>}
+        {hint && <p className="text-caption text-text-secondary">{aspect ? hint : `Ideal size: ${hint}`}</p>}
       </div>
       <div className="flex items-center gap-sm">
         {value && broken ? (
@@ -79,7 +111,7 @@ export function ImageUploadField({ label, value, onChange, hint, disabled, requi
           type="button"
           variant="secondary"
           size="sm"
-          loading={uploadMedia.isPending}
+          loading={uploadMedia.isPending || checking}
           disabled={disabled}
           onClick={() => inputRef.current?.click()}
         >

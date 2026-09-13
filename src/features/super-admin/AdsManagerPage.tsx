@@ -244,7 +244,11 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
               value={imageUrl}
               onChange={setImageUrl}
               disabled={imageLocked}
-              hint="Wide banner, 3:1 — shown full-width on the app's home screen. Ideal size 1200×400px."
+              // Enforced, not advised (2026-09-13) — the app draws the banner at the creative's own
+              // aspect ratio, so a 4:3 upload is a squashed, half-cropped ad nobody sees until it
+              // is live. Refused at pick time instead, with the exact numbers to crop to.
+              aspect={{ width: 3, height: 1, tolerance: 0.05, idealLabel: '1200×400', minWidth: 600, subject: 'Ads' }}
+              hint="Wide banner shown full-width on the app's home screen."
               error={imageFieldError}
             />
             {imageLocked && (

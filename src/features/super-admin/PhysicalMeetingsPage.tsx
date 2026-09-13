@@ -7,6 +7,9 @@ import { TextField } from '@/components/TextField'
 import { FieldLabel } from '@/components/FieldLabel'
 import { Table, type TableColumn } from '@/components/Table'
 import { Modal } from '@/components/Modal'
+import { ImageUploadField } from '@/components/ImageUploadField'
+import { EVENT_COVER_ASPECT, EVENT_COVER_HINT } from '@/features/super-admin/eventCover'
+import { EventCoverThumb } from '@/features/super-admin/EventCoverThumb'
 import { EventStatusBadge } from '@/features/super-admin/EventStatusBadge'
 import { EventAttendanceCell } from '@/features/super-admin/EventAttendanceCell'
 import { EventDetailsModal } from '@/features/super-admin/EventDetailsModal'
@@ -66,6 +69,8 @@ function MeetingFormModal({
   const [venueCode, setVenueCode] = useState(source?.venue_code ?? '')
   const [capacity, setCapacity] = useState(source?.capacity != null ? String(source.capacity) : '')
   const [pointsOverride, setPointsOverride] = useState(source?.points_override != null ? String(source.points_override) : '')
+  // Optional 16:9 cover (2026-09-13), same shared rule the other two event forms use.
+  const [coverImageUrl, setCoverImageUrl] = useState(source?.cover_image_url ?? '')
   // Same targeting section Quizzes and Ads use (review M16, 2026-09-12) — any event type can be
   // targeted now (server note in schema.d.ts's EventInput.targeting), it was quizzes-only before.
   const [targeting, setTargeting] = useState<Targeting>(source?.targeting ?? {})
@@ -101,6 +106,8 @@ function MeetingFormModal({
       ...(codeLocked ? {} : { venue_code: venueCode.trim() || null }),
       capacity: capacity ? Number(capacity) : null,
       points_override: pointsOverride ? Number(pointsOverride) : null,
+      // Explicit null, not undefined, so clearing the cover on an edit actually removes it.
+      cover_image_url: coverImageUrl || null,
       targeting: hasAnyTargeting(targeting) ? targeting : null,
     }
     if (isEditing) {
@@ -158,6 +165,13 @@ function MeetingFormModal({
             className="rounded-md border border-border bg-surface p-sm text-body text-text-primary"
           />
         </div>
+        <ImageUploadField
+          label="Cover image"
+          value={coverImageUrl}
+          onChange={setCoverImageUrl}
+          aspect={EVENT_COVER_ASPECT}
+          hint={EVENT_COVER_HINT}
+        />
         <div className="grid grid-cols-2 gap-sm">
           <TextField
             label="Starts at"
@@ -268,16 +282,20 @@ export function PhysicalMeetingsPage() {
       key: 'title',
       header: 'Meeting',
       sortable: true,
+      // Cover thumbnail beside the title (2026-09-13) — see WebinarsPage for why.
       render: (e) => (
-        <div>
-          <button
-            type="button"
-            onClick={() => setViewingId(e.id!)}
-            className="text-left font-medium text-text-primary hover:text-primary hover:underline"
-          >
-            {e.title}
-          </button>
-          {e.venue_code && <p className="text-caption text-text-secondary">Code: {e.venue_code}</p>}
+        <div className="flex items-center gap-sm">
+          <EventCoverThumb coverImageUrl={e.cover_image_url} />
+          <div>
+            <button
+              type="button"
+              onClick={() => setViewingId(e.id!)}
+              className="text-left font-medium text-text-primary hover:text-primary hover:underline"
+            >
+              {e.title}
+            </button>
+            {e.venue_code && <p className="text-caption text-text-secondary">Code: {e.venue_code}</p>}
+          </div>
         </div>
       ),
     },

@@ -9,6 +9,9 @@ import { TextField } from '@/components/TextField'
 import { FieldLabel } from '@/components/FieldLabel'
 import { Table, type TableColumn } from '@/components/Table'
 import { Modal } from '@/components/Modal'
+import { ImageUploadField } from '@/components/ImageUploadField'
+import { EVENT_COVER_ASPECT, EVENT_COVER_HINT } from '@/features/super-admin/eventCover'
+import { EventCoverThumb } from '@/features/super-admin/EventCoverThumb'
 import { EventStatusBadge } from '@/features/super-admin/EventStatusBadge'
 import { EventAttendanceCell } from '@/features/super-admin/EventAttendanceCell'
 import { EventDetailsModal } from '@/features/super-admin/EventDetailsModal'
@@ -80,6 +83,9 @@ function WebinarFormModal({
   const [meetingUrl, setMeetingUrl] = useState(source?.meeting_url ?? '')
   const [meetingPlatform, setMeetingPlatform] = useState<MeetingPlatform>(source?.meeting_platform ?? 'google_meet')
   const [pointsOverride, setPointsOverride] = useState(source?.points_override != null ? String(source.points_override) : '')
+  // Optional 16:9 cover (2026-09-13) — carried by Duplicate along with the rest of the copy, since
+  // a duplicated webinar is the same campaign artwork in almost every case.
+  const [coverImageUrl, setCoverImageUrl] = useState(source?.cover_image_url ?? '')
   // Same targeting section Quizzes and Ads use (review M16, 2026-09-12) — any event type can be
   // targeted now (server note in schema.d.ts's EventInput.targeting), it was quizzes-only before.
   const [targeting, setTargeting] = useState<Targeting>(source?.targeting ?? {})
@@ -103,6 +109,8 @@ function WebinarFormModal({
       meeting_url: meetingUrl || null,
       meeting_platform: meetingPlatform,
       points_override: pointsOverride ? Number(pointsOverride) : null,
+      // Explicit null, not undefined, so clearing the cover on an edit actually removes it.
+      cover_image_url: coverImageUrl || null,
       targeting: hasAnyTargeting(targeting) ? targeting : null,
     }
     if (isEditing) {
@@ -160,6 +168,13 @@ function WebinarFormModal({
             className="rounded-md border border-border bg-surface p-sm text-body text-text-primary"
           />
         </div>
+        <ImageUploadField
+          label="Cover image"
+          value={coverImageUrl}
+          onChange={setCoverImageUrl}
+          aspect={EVENT_COVER_ASPECT}
+          hint={EVENT_COVER_HINT}
+        />
         <div className="grid grid-cols-2 gap-sm">
           <TextField
             label="Starts at"
@@ -283,14 +298,20 @@ export function WebinarsPage() {
       key: 'title',
       header: 'Webinar',
       sortable: true,
+      // Cover thumbnail beside the title (2026-09-13) — which events have artwork is otherwise
+      // invisible from the list, and an event with no cover falls back to a plain colour card in
+      // the app's Happening Now carousel.
       render: (e) => (
-        <button
-          type="button"
-          onClick={() => setViewingId(e.id!)}
-          className="text-left font-medium text-text-primary hover:text-primary hover:underline"
-        >
-          {e.title}
-        </button>
+        <div className="flex items-center gap-sm">
+          <EventCoverThumb coverImageUrl={e.cover_image_url} />
+          <button
+            type="button"
+            onClick={() => setViewingId(e.id!)}
+            className="text-left font-medium text-text-primary hover:text-primary hover:underline"
+          >
+            {e.title}
+          </button>
+        </div>
       ),
     },
     {

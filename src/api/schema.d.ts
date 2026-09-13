@@ -13587,6 +13587,7 @@ export interface paths {
                         ends_at?: string | null;
                         capacity?: number | null;
                         points_override?: number | null;
+                        cover_image_url?: string | null;
                         venue_address?: string | null;
                         meeting_url?: string | null;
                         meeting_platform?: string | null;
@@ -22456,6 +22457,8 @@ export interface components {
             readonly my_rsvp_status?: "rsvpd" | "waitlisted" | null;
             /** @description Whether the caller checked in (in-person / webinar) or attempted (quiz) — app review H9, 2026-09-13. Null for a caller with no student context. points_on_offer is null once the event has ended; this says what actually happened. */
             my_attended?: boolean | null;
+            /** @description 16:9 cover set on immiNow at a fixed size (1280×720) — the app renders it at its own aspect ratio with no fixed height (mobile corrections #3, 2026-09-13). Null shows the gradient card. */
+            cover_image_url?: string | null;
             /** @description Webinars only, and only for a signed-in caller. Drives the "email me the link" button — see the schema for why the window is resolved server-side. */
             readonly my_link_email?: components["schemas"]["WebinarLinkEmailState"];
         };
@@ -22521,6 +22524,8 @@ export interface components {
             ends_at?: string | null;
             capacity?: number | null;
             points_override?: number | null;
+            /** @description 16:9 cover set on immiNow at a fixed size (webinars and in-person meetings; quizzes use their in-quiz branding banner). */
+            cover_image_url?: string | null;
             venue_address?: string | null;
             /** @description Physical Meeting only — omit on create to get a system-generated code. On PATCH, rejected with 400 within 3 hours of starts_at (see Event.venue_code). */
             venue_code?: string | null;
