@@ -187,3 +187,19 @@ export function useRequestUpgrade(consultancyId: string) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['consultancy', 'me'] }),
   })
 }
+
+// Console review H13 (2026-09-13) — an upgrade request was a one-way door: pressed by accident,
+// it sat as "Requested" with nothing to undo it. Invalidates the same ['consultancy','me'] query
+// the request itself writes to, so the Subscription tab re-renders from the RECORDED state.
+export function useWithdrawUpgrade(consultancyId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await api.DELETE('/consultancies/{id}/upgrade-request', {
+        params: { path: { id: consultancyId } },
+      })
+      if (error) throw new ApiError('Could not withdraw the upgrade request.', error)
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['consultancy', 'me'] }),
+  })
+}

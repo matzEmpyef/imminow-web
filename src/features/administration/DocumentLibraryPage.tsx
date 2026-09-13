@@ -22,6 +22,7 @@ import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { FilterMultiSelect } from '@/components/FilterMultiSelect'
+import { useAccountWords } from '@/lib/accountWords'
 
 type LibraryDocument = NonNullable<ReturnType<typeof useDocumentLibrary>['data']>['items'][number]
 
@@ -106,6 +107,8 @@ function DocumentRowActions({
 }
 
 export function DocumentLibraryPage() {
+  // H2 (2026-09-13) — an institute is not a consultancy; the nouns follow `kind`.
+  const words = useAccountWords()
   const [tagFilter, setTagFilter] = useState<string[]>([])
   const [mimeType, setMimeType] = useState('')
   const [from, setFrom] = useState('')
@@ -219,7 +222,7 @@ export function DocumentLibraryPage() {
           <div>
             <h1 className="text-h1 text-text-primary">Document Library</h1>
             <p className="text-body-sm text-text-secondary">
-              Common documents your consultancy can share with any applicant.
+              Common documents your {words.org} can share with any applicant.
             </p>
           </div>
           <label>

@@ -112,7 +112,17 @@ export function ConsultancyReviewsPage() {
               written {summary.review_count === 1 ? 'review' : 'reviews'}
             </span>
           </div>
-          <DistributionBars distribution={summary.distribution} total={summary.review_count} />
+          {/* H11 (2026-09-13): the bars were an unlabelled block beside a number that counts
+              RATINGS, so they read as a breakdown of all 13 when they only ever plotted the 3
+              written reviews. The title says which set they are. */}
+          <div className="flex flex-col gap-xs">
+            <p className="text-body-sm font-medium text-text-primary">Written reviews</p>
+            <DistributionBars distribution={summary.distribution} total={summary.review_count} />
+            <p className="text-caption text-text-secondary">
+              Star-only ratings are not shown here — these bars count the {summary.review_count} written{' '}
+              {summary.review_count === 1 ? 'review' : 'reviews'} only.
+            </p>
+          </div>
         </div>
 
         <Table

@@ -9,6 +9,7 @@ import { useEmployees } from '@/queries/staff'
 import { useAllocateLead, useBulkAllocateLeads, useLeads } from '@/queries/leads'
 import { useCursorPagination } from '@/lib/pagination'
 import { usePermissionChecker } from '@/lib/permissions'
+import { useAccountWords } from '@/lib/accountWords'
 import { Eye, XCircle } from 'lucide-react'
 import { formatDate, relativeTime } from '@/lib/time'
 import { LeadDetailModal } from '@/features/clients/LeadDetailModal'
@@ -41,6 +42,8 @@ function SourceIcon({ origin }: { origin: 'sentpo' | 'imported' }) {
 }
 
 export function LeadPoolPage() {
+  // H2 (2026-09-13) — an institute is not a consultancy; the nouns follow `kind`.
+  const words = useAccountWords()
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
   const paging = useCursorPagination()
@@ -244,7 +247,7 @@ export function LeadPoolPage() {
           emptyMessage={
             search
               ? 'No leads in the pool match your search.'
-              : 'No unallocated leads right now. New Sentpo leads land here until a consultant is allocated.'
+              : `No unallocated leads right now. New Sentpo leads land here until a ${words.person} is allocated.`
           }
           sort={sort}
           onSortChange={(field, direction) => {

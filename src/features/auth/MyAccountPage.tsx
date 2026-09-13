@@ -13,6 +13,7 @@ import { ChangePasswordModal } from './ChangePasswordModal'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useProfile, useUpdateProfile } from '@/queries/profile'
 import { useMyConsultancy } from '@/queries/consultancy'
+import { useAccountWords } from '@/lib/accountWords'
 import { useNotificationSettings, useUpdateNotificationSettings } from '@/queries/notifications'
 import { useAuthStore } from '@/stores/authStore'
 import type { components } from '@/api/schema'
@@ -108,6 +109,13 @@ export function MyAccountPage() {
   const isConsultancyStaff = role === 'consultancy_admin' || role === 'consultant'
   const isPlatform = role === 'super_admin' || role === 'platform_staff'
   const consultancy = useMyConsultancy({ enabled: isConsultancyStaff })
+  // H2 (2026-09-13): a university's own admin was told they were a "Consultancy Admin". Same
+  // query, same gating — the words come from `kind`.
+  const words = useAccountWords({ enabled: isConsultancyStaff })
+  // H14 (2026-09-13): "Set by your consultancy admin" is nonsense read by the admin themselves.
+  // Read off the role, not `usePermissionChecker` — this page also serves students and platform
+  // staff, who have no employee row for the staff queries that checker runs to resolve against.
+  const isAccountAdmin = role === 'consultancy_admin'
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -155,6 +163,11 @@ export function MyAccountPage() {
         ? 'Sentpo freelancer partner'
         : ''
   const copyKey = isPlatform ? 'platform' : role === 'freelancer' ? 'freelancer' : 'staff'
+  const roleLabel = user.role === 'consultancy_admin' ? words.adminLabel : ROLE_LABEL[user.role]
+  // The seeded admin's designation is literally the role ("Institute Admin"), so printing both
+  // said the same two words four times on one screen (H2). A designation only earns a line when
+  // it says something the role badge doesn't.
+  const designation = user.designation && user.designation !== roleLabel ? user.designation : null
 
   return (
     <Shell>
@@ -177,10 +190,10 @@ export function MyAccountPage() {
                 <p className="text-h2 text-text-primary">
                   {user.first_name} {user.last_name}
                 </p>
-                <Badge color={isPlatform ? 'primary' : 'info'}>{ROLE_LABEL[user.role]}</Badge>
+                <Badge color={isPlatform ? 'primary' : 'info'}>{roleLabel}</Badge>
               </div>
               <p className="truncate text-body-sm text-text-secondary">
-                {[organisation, user.designation].filter(Boolean).join(' · ') || user.email}
+                {[organisation, designation].filter(Boolean).join(' · ') || user.email}
               </p>
             </div>
             <div className="flex w-full flex-col gap-xs text-caption text-text-secondary sm:w-auto sm:text-right">
@@ -239,10 +252,15 @@ export function MyAccountPage() {
                 value={user.email ?? '—'}
                 hint={isPlatform ? 'Changed through Support Tools.' : 'To change it, ask immiNow support.'}
               />
-              <Fact label="Role" value={ROLE_LABEL[user.role]} />
+              {/* No Role row: the badge beside the name above already states it, and an institute
+                  admin was reading "Institute Admin" twice on one screen (H2, 2026-09-13). */}
               {organisation && <Fact label="Organisation" value={organisation} />}
-              {user.designation && (
-                <Fact label="Designation" value={user.designation} hint="Set by your consultancy admin." />
+              {designation && (
+                <Fact
+                  label="Designation"
+                  value={designation}
+                  hint={isAccountAdmin ? 'Owner/Admin.' : `Set by your ${words.org} admin.`}
+                />
               )}
               {user.referral_code && (
                 <Fact label="Referral code" value={user.referral_code} hint="Share it from your dashboard." />
@@ -277,7 +295,7 @@ export function MyAccountPage() {
                   {user.two_factor_required
                     ? role === 'super_admin' || role === 'consultancy_admin'
                       ? 'Required for your role. Set-up arrives with the new sign-in system.'
-                      : 'Required for everyone at your consultancy. Set-up arrives with the new sign-in system.'
+                      : `Required for everyone at your ${words.org}. Set-up arrives with the new sign-in system.`
                     : 'Optional for your role. Set-up arrives with the new sign-in system.'}
                 </p>
               </div>

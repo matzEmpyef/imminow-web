@@ -6,6 +6,7 @@ import { Badge } from '@/components/Badge'
 import { Table, type TableColumn } from '@/components/Table'
 import { StopPropagation } from '@/components/StopPropagation'
 import { usePermissionChecker } from '@/lib/permissions'
+import { useAccountWords } from '@/lib/accountWords'
 import { useCommission } from '@/queries/commission'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { formatDate } from '@/lib/time'
@@ -132,10 +133,25 @@ export function CommissionDetailsPage() {
   // promised permission-based access — now it actually checks the key. usePermissionChecker
   // (not usePermission) because a denial page must not flash while permissions are loading.
   const { can, isLoading: permsLoading, isError: permsError, refetch: refetchPerms } = usePermissionChecker()
+  // H3 (2026-09-13): the route stays reachable (a bookmark, a stale link) but says why there is
+  // nothing here — same not-available card the permission denial below uses.
+  const { isInstitute } = useAccountWords()
   const commission = useCommission()
   const [activeTab, setActiveTab] = useState<Tab>('Active Cases')
   const [payingDue, setPayingDue] = useState<CommissionDue | null>(null)
   const [viewingSchedule, setViewingSchedule] = useState<CommissionDue | null>(null)
+
+  if (isInstitute) {
+    return (
+      <AppShell>
+        <Card>
+          <p className="text-body text-text-secondary">
+            Your applicants pay you directly — there is no platform commission to track.
+          </p>
+        </Card>
+      </AppShell>
+    )
+  }
 
   if (permsLoading) {
     return (

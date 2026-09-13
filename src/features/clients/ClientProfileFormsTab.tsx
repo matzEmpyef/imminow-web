@@ -5,11 +5,68 @@ import { Button } from '@/components/Button'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useLatestFormResponse, usePlans, useSaveFormResponse } from '@/queries/plans'
 import { useFormTemplate } from '@/queries/formTemplates'
+import { useClient } from '@/queries/clients'
 import { formatDateTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 
 type FormField = NonNullable<ReturnType<typeof useFormTemplate>['data']>['fields'][number]
 type FormAnswers = Record<string, unknown>
+type Client = NonNullable<ReturnType<typeof useClient>['data']>
+
+// H9 (2026-09-13) - the console already knows the applicant's name, email, phone and date of
+// birth, and still handed the consultant a blank "First name" to retype. A form's fields are
+// free text authored by each consultancy, so the match is on what the label SAYS, normalised:
+// "First Name", "first name*" and "Given name" are all the same question.
+function normaliseLabel(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/[^a-z ]/g, ' ')
+    .replace(/ +/g, ' ')
+    .trim()
+}
+
+// Only facts the profile actually holds. `nationality` resolves from the student's resident
+// country - the nearest thing the profile records - and like every other prefill it is marked
+// "from profile" so a consultant can correct it before saving rather than inheriting a guess.
+function profileValueFor(label: string, client: Client): string | undefined {
+  const l = normaliseLabel(label)
+  const s = client.student
+  const prefs = client.preferences
+  const has = (...needles: string[]) => needles.some((n) => l.includes(n))
+  if (has('first name', 'given name')) return s.first_name || undefined
+  if (has('last name', 'surname', 'family name')) return s.last_name || undefined
+  // "Full legal name" is the wording the seeded Applicant Background Form uses, so the name
+  // needles cover the common variants rather than one exact spelling.
+  if (
+    has('full name', 'full legal name', 'legal name', 'name of applicant', 'name of the applicant') ||
+    ['name', 'applicant name', 'student name', 'candidate name'].includes(l)
+  )
+    return [s.first_name, s.last_name].filter(Boolean).join(' ') || undefined
+  if (has('email')) return s.email || undefined
+  if (has('phone', 'mobile', 'contact number')) return s.phone || undefined
+  if (has('date of birth', 'dob', 'birth date')) return prefs?.date_of_birth?.slice(0, 10) || undefined
+  if (has('nationality', 'citizenship')) return prefs?.resident_country || undefined
+  return undefined
+}
+
+// Flattened across groups - a "Personal details" section's children are ordinary fields.
+function buildPrefill(fields: FormField[], client: Client | undefined): Record<string, string> {
+  if (!client) return {}
+  const out: Record<string, string> = {}
+  const walk = (list: FormField[]) => {
+    for (const field of list) {
+      if (field.type === 'group') {
+        walk(field.fields ?? [])
+        continue
+      }
+      if (field.type !== 'text' && field.type !== 'long_text' && field.type !== 'date') continue
+      const value = profileValueFor(field.label, client)
+      if (value) out[field.id] = value
+    }
+  }
+  walk(fields)
+  return out
+}
 
 // FILLABLE (user, 2026-08-20: "if there is a form to fill they can fill and save… Both can see
 // the details and edit") — real inputs per field type, prefilled from the latest saved response
@@ -20,10 +77,14 @@ function FillableField({
   field,
   answers,
   onChange,
+  fromProfile,
 }: {
   field: FormField
   answers: FormAnswers
   onChange: (fieldId: string, value: unknown) => void
+  // Field ids currently showing a value taken from the applicant's profile rather than typed or
+  // submitted (H9) - the tag disappears the moment the value is edited.
+  fromProfile: Set<string>
 }) {
   const value = answers[field.id]
 
@@ -33,7 +94,13 @@ function FillableField({
         <p className="text-body-sm font-medium text-text-primary">{field.label}</p>
         <div className="flex flex-col gap-sm pl-md">
           {(field.fields ?? []).map((child) => (
-            <FillableField key={child.id} field={child} answers={answers} onChange={onChange} />
+            <FillableField
+              key={child.id}
+              field={child}
+              answers={answers}
+              onChange={onChange}
+              fromProfile={fromProfile}
+            />
           ))}
         </div>
       </div>
@@ -44,6 +111,9 @@ function FillableField({
     <span className="text-body-sm text-text-primary">
       {field.label}
       {field.required && <span className="text-required"> *</span>}
+      {fromProfile.has(field.id) && (
+        <span className="ml-xs text-caption font-normal text-text-secondary">from profile</span>
+      )}
     </span>
   )
 
@@ -180,6 +250,7 @@ function LinkedFormViewer({
   const form = useFormTemplate(formId)
   const saved = useLatestFormResponse(formId, clientId)
   const saveForm = useSaveFormResponse(formId, clientId)
+  const client = useClient(clientId)
   const [draft, setDraft] = useState<FormAnswers | null>(null)
 
   if (form.isLoading || saved.isLoading) return <Skeleton className="h-24 rounded-lg" />
@@ -187,7 +258,18 @@ function LinkedFormViewer({
     return <ErrorState message={`Could not load "${formName}".`} onRetry={() => form.refetch()} />
   }
 
-  const answers = draft ?? ((saved.data?.answers ?? {}) as FormAnswers)
+  const savedAnswers = (saved.data?.answers ?? {}) as FormAnswers
+  // Prefill fills the GAPS only (H9) - anything already answered from the app wins, and the
+  // profile never overwrites what somebody actually typed.
+  const prefill = buildPrefill(form.data.fields, client.data)
+  const gaps = Object.fromEntries(
+    Object.entries(prefill).filter(([id]) => {
+      const existing = savedAnswers[id]
+      return existing === undefined || existing === null || existing === ''
+    }),
+  )
+  const answers = draft ?? { ...savedAnswers, ...gaps }
+  const fromProfile = new Set(Object.keys(gaps).filter((id) => answers[id] === gaps[id]))
 
   return (
     <div className="flex flex-col gap-sm">
@@ -199,6 +281,7 @@ function LinkedFormViewer({
           key={field.id}
           field={field}
           answers={answers}
+          fromProfile={fromProfile}
           onChange={(fieldId, value) => setDraft({ ...answers, [fieldId]: value })}
         />
       ))}

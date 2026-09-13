@@ -8,11 +8,13 @@ import { TagEditorMenu } from '@/components/TagEditorMenu'
 import { AssignConsultantMenu } from '@/features/sales/AssignConsultantMenu'
 import { StopPropagation } from '@/components/StopPropagation'
 import { ReopenLeadModal } from './ReopenLeadModal'
-import { useEmployees } from '@/queries/staff'
+import { useBranches, useEmployees } from '@/queries/staff'
 import { useAllocateLead, useLeads, useSetLeadTags } from '@/queries/leads'
 import { useCreateTag, useTags } from '@/queries/tags'
 import { useCursorPagination } from '@/lib/pagination'
 import { usePermission } from '@/lib/permissions'
+import { useAccountWords } from '@/lib/accountWords'
+import { useAuthStore } from '@/stores/authStore'
 import { FilterChip } from '@/components/FilterChip'
 import { Toggle } from '@/components/Toggle'
 
@@ -74,7 +76,18 @@ export function ActiveLeadsPage() {
     limit: 20,
   })
   const employees = useEmployees()
+  const branches = useBranches()
   const reassign = useAllocateLead()
+  // H2 (2026-09-13) — an institute's staff are not "consultants". The column now says what it
+  // means for both kinds of account.
+  const words = useAccountWords()
+  // H7 (2026-09-13): branch scoping decided what this list showed and said so nowhere. The note
+  // is for the viewer it actually narrows — an admin covers every branch, so it would be noise.
+  const userId = useAuthStore((s) => s.user?.id)
+  const me = employees.data?.items.find((e) => e.user!.id === userId)
+  const myBranchNames = me?.is_consultancy_admin
+    ? []
+    : (branches.data ?? []).filter((b) => me?.branch_ids?.includes(b.id!)).map((b) => b.name)
   const tags = useTags()
   const createTag = useCreateTag()
   const setLeadTags = useSetLeadTags()
@@ -117,7 +130,7 @@ export function ActiveLeadsPage() {
     },
     {
       key: 'consultant_name',
-      header: 'Consultant',
+      header: 'Assigned to',
       sortable: true,
       render: (lead) => lead.assigned_employee_name ?? 'Unassigned',
     },
@@ -172,6 +185,12 @@ export function ActiveLeadsPage() {
       <div className="flex flex-col gap-lg">
         <h1 className="text-h1 text-text-primary">Active Leads</h1>
 
+        {myBranchNames.length > 0 && (
+          <p className="text-body-sm text-text-secondary">
+            Showing leads in your branches: {myBranchNames.join(', ')}.
+          </p>
+        )}
+
         <Table
           columns={columns}
           rows={leads.data?.items ?? []}
@@ -181,7 +200,7 @@ export function ActiveLeadsPage() {
           emptyMessage={
             search || assignedToMe || unattendedOnly
               ? 'No leads match your search or filters.'
-              : 'No active leads yet. A lead arrives when a student starts a chat with your consultancy, or when you allocate one from the Lead Pool.'
+              : `No active leads yet. A lead arrives when a student starts a chat with your ${words.org}, or when you allocate one from the Lead Pool.`
           }
           onRowClick={(lead) => navigate(`/sales/leads/${lead.id}`)}
           sort={sort}

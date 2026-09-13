@@ -17,7 +17,7 @@ import { useFeature } from '@/lib/features'
 import { useBranches, useEmployees } from '@/queries/staff'
 import { useCreateTag, useTags } from '@/queries/tags'
 import { usePermission } from '@/lib/permissions'
-import { usePlans } from '@/queries/plans'
+import { usePlans, useLinkedFormResponses } from '@/queries/plans'
 import { Skeleton } from '@/components/QueryState'
 import { TransferApplicantModal } from './TransferApplicantModal'
 
@@ -65,6 +65,26 @@ export function OverviewTab({
   const canAssignTemplate = usePermission('clients.assign_template')
   const plans = usePlans(clientId)
   const planItems = plans.data?.items ?? []
+  // H9 (2026-09-13): a case whose plan links an applicant form gave no sign anywhere on Overview
+  // that the form was still untouched — it was three tabs away, and only if someone went looking.
+  const linkedFormIds = [
+    ...new Set(
+      planItems
+        .flatMap((plan) => plan.steps)
+        .flatMap((step) => step.components)
+        .filter((c) => c.type === 'form_link')
+        .map((c) => {
+          const payload = (c.payload ?? {}) as { form_template_id?: string; form_id?: string }
+          return payload.form_template_id ?? payload.form_id ?? ''
+        })
+        .filter(Boolean),
+    ),
+  ]
+  const formResponses = useLinkedFormResponses(linkedFormIds, clientId)
+  const applicantFormNotStarted =
+    linkedFormIds.length > 0 &&
+    formResponses.every((r) => !r.isLoading && !r.isError) &&
+    formResponses.every((r) => !r.data)
   const navigate = useNavigate()
   if (!client.data) return null
   const data = client.data
@@ -161,7 +181,12 @@ export function OverviewTab({
         <h2 className="text-h3 text-text-primary">Study Preference</h2>
         {/* No "Lives in" here (user, 2026-09-10: "Remove Lives in") — Contact details on the right
             already carries the student's state and country of residence. */}
-        <StudentProfilePanels prefs={data.preferences} surface omit={['Lives in']} />
+        <StudentProfilePanels
+          prefs={data.preferences}
+          surface
+          omit={['Lives in']}
+          note={applicantFormNotStarted ? 'Applicant form not started' : undefined}
+        />
       </Card>
       </div>
 

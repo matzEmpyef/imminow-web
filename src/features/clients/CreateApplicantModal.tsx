@@ -7,12 +7,15 @@ import { TextField } from '@/components/TextField'
 import { useEmployees } from '@/queries/staff'
 import { useCreateApplicant } from '@/queries/clients'
 import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
+import { useAccountWords } from '@/lib/accountWords'
 
 // Was its own page (`/clients/new`) — folded into Clients List as a popup (user-requested),
 // same move already made for Import Leads/Add Lead on Lead Pool (see ImportLeadsModal.tsx).
 // ClientsListPage decides whether to render the trigger button at all (tier gate), so this modal
 // assumes it's already allowed to be open.
 export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
+  // H2 (2026-09-13) — an institute is not a consultancy; the nouns follow `kind`.
+  const words = useAccountWords()
   const navigate = useNavigate()
   const employees = useEmployees()
   const createApplicant = useCreateApplicant()
@@ -105,7 +108,7 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
         </fieldset>
 
         <SelectField
-          label="Assigned Consultant"
+          label={words.isInstitute ? 'Assigned team member' : 'Assigned Consultant'}
           id="assigned-consultant"
           value={employeeId}
           onChange={(e) => setEmployeeId(e.target.value)}
@@ -117,7 +120,7 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
             </option>
           ))}
         </SelectField>
-        <p className="text-caption text-text-secondary">Branch auto-fills from the assigned consultant.</p>
+        <p className="text-caption text-text-secondary">Branch auto-fills from the assigned {words.person}.</p>
       </form>
     </Modal>
   )

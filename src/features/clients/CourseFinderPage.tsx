@@ -17,6 +17,7 @@ import { useSuggestCourseToLead, useLeadMessages } from '@/queries/leads'
 import { usePersonPicker } from '@/lib/usePersonPicker'
 import { useCourseFinder } from '@/queries/courseFinder'
 import { useMyConsultancy } from '@/queries/consultancy'
+import { useAccountWords } from '@/lib/accountWords'
 import { useCollegeDetail } from '@/queries/adminColleges'
 import type { components } from '@/api/schema'
 
@@ -62,6 +63,9 @@ export function CourseFinderPage() {
   // Typed in the consultancy's own currency (2026-09-10) and converted server-side, with a small
   // margin for courses priced in another currency — rates are set by hand, not live.
   const feeCurrency = useMyConsultancy().data?.display_currency ?? 'INR'
+  // H4 (2026-09-13): a college's catalogue is its own courses in its own country, so a country
+  // picker narrows nothing and the cross-currency note describes a conversion that never happens.
+  const { isInstitute } = useAccountWords()
   const feeMax = state.feeMax ? Number(state.feeMax) : undefined
   const durationBucket = state.durationBucket ? DURATION_BUCKETS[state.durationBucket] : undefined
   // H12 fix (frontend review, 1 Sep 2026) — true once the consultant has done ANYTHING: picked an
@@ -152,7 +156,7 @@ export function CourseFinderPage() {
     <AppShell>
       <div className="flex flex-col gap-lg">
         <div className="flex items-center justify-between">
-          <h1 className="text-h1 text-text-primary">Course Finder</h1>
+          <h1 className="text-h1 text-text-primary">{isInstitute ? 'Your courses' : 'Course Finder'}</h1>
           <div className="flex items-center gap-md">
             {selectedPerson && (
               // `Button`'s own base classes have no `display: flex` at all — harmless for every
@@ -194,6 +198,7 @@ export function CourseFinderPage() {
           onPersonChange={handlePersonChange}
           canCheckFit={canCheckFit}
           personName={selectedClient?.student.first_name ?? selectedLead?.name}
+          isInstitute={isInstitute}
         />
 
         {/* The results are NOT gated on picking an applicant (user, 2026-08-23): "what if a

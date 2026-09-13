@@ -43,8 +43,14 @@ export function ConsultancyProfilePage() {
   // Incoming Transfers is about accepting cases, not settings — its own permission gate.
   const canAcceptTransfers = usePermission('clients.transfer_applicant')
   const isConsultancyAdmin = useAuthStore((s) => s.user?.role === 'consultancy_admin')
+  // H3 (2026-09-13): an institute is paid by its own applicants, so immiNow charges it no
+  // per-case commission — there are no platform rates for it to read.
+  const isInstitute = consultancy.data?.kind === 'institute'
   const visibleTabs = TABS.filter(
-    (tab) => (tab !== 'Incoming Transfers' || canAcceptTransfers) && (tab !== 'Security' || isConsultancyAdmin),
+    (tab) =>
+      (tab !== 'Incoming Transfers' || canAcceptTransfers) &&
+      (tab !== 'Security' || isConsultancyAdmin) &&
+      (tab !== 'Platform Commission Rates' || !isInstitute),
   )
 
   if (consultancy.isLoading) {
@@ -66,7 +72,9 @@ export function ConsultancyProfilePage() {
   return (
     <AppShell>
       <div className="flex flex-col gap-lg">
-        <h1 className="text-h1 text-text-primary">Consultancy Management</h1>
+        {/* The sidebar keeps "Consultancy Management" (a proper name for the area); the page
+            itself says what the account actually is (H2, 2026-09-13). */}
+        <h1 className="text-h1 text-text-primary">{consultancy.data.kind === 'institute' ? 'Institute' : 'Consultancy'} Management</h1>
 
         <div className="flex gap-xs overflow-x-auto border-b border-border">
           {visibleTabs.map((tab) => (
@@ -91,12 +99,16 @@ export function ConsultancyProfilePage() {
             handed a Super Admin a switch to turn this screen off for an ordinary consultancy,
             where their commission terms live. */}
         {activeTab === 'Partner Colleges' && <PartnerCollegesPanel kind={consultancy.data.kind} />}
-        {activeTab === 'Platform Commission Rates' && <CommissionRatesTab consultancy={consultancy.data} />}
+        {activeTab === 'Platform Commission Rates' && !isInstitute && (
+          <CommissionRatesTab consultancy={consultancy.data} />
+        )}
         {activeTab === 'Allocation Rule' && (
           <AllocationTab enabled={Boolean(consultancy.data.features?.allocation_rule)} />
         )}
         {activeTab === 'Tag Management' && <TagManagementTab />}
-        {activeTab === 'Incoming Transfers' && canAcceptTransfers && <IncomingTransfersTab />}
+        {activeTab === 'Incoming Transfers' && canAcceptTransfers && (
+          <IncomingTransfersTab isInstitute={isInstitute} />
+        )}
       </div>
     </AppShell>
   )

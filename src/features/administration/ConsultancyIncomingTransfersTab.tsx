@@ -108,7 +108,7 @@ function IssueCodeModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-export function IncomingTransfersTab() {
+export function IncomingTransfersTab({ isInstitute = false }: { isInstitute?: boolean }) {
   const codes = useTransferCodes(true)
   const [issuing, setIssuing] = useState(false)
 
@@ -141,6 +141,14 @@ export function IncomingTransfersTab() {
             they need it to complete the transfer. Issuing a code is your consent to take the case. Codes are single-use
             and expire after 72 hours.
           </p>
+          {/* H3 (2026-09-13): a college reading "another consultancy wants to transfer an
+              applicant to you" had no idea why that would ever happen to it. */}
+          {isInstitute && (
+            <p className="mt-xs text-body-sm text-text-secondary">
+              Use this when a consultancy applied to your college on a student&rsquo;s behalf and wants you to take
+              over servicing the applicant.
+            </p>
+          )}
         </div>
         <Button onClick={() => setIssuing(true)} className="inline-flex shrink-0 items-center gap-xs">
           <Plus className="h-4 w-4" aria-hidden />

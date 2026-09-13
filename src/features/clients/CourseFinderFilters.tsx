@@ -20,6 +20,8 @@ interface CourseFinderFiltersProps {
   canCheckFit: boolean
   /** First name of the selected applicant/lead, for the eligibility toggle's label. */
   personName: string | undefined
+  /** An institute lists only its own courses (H4, 2026-09-13) — no country, no conversion note. */
+  isInstitute?: boolean
 }
 
 // The finder's whole filter Card (search/field/level/person, country/fee, eligibility toggle,
@@ -33,6 +35,7 @@ export function CourseFinderFilters({
   onPersonChange,
   canCheckFit,
   personName,
+  isInstitute = false,
 }: CourseFinderFiltersProps) {
   const { data: fields } = useCourseFields()
   // The consultancy's own currency (2026-09-10) — the same one CourseFinderPage sends as
@@ -100,12 +103,14 @@ export function CourseFinderFilters({
 
       {/* Row 2 — the narrowing filters. */}
       <div className="mt-md grid grid-cols-1 gap-md md:grid-cols-4">
-        <CountrySelect
-          label="Country"
-          size="pill"
-          value={state.country}
-          onChange={(country) => onChange({ country })}
-        />
+        {!isInstitute && (
+          <CountrySelect
+            label="Country"
+            size="pill"
+            value={state.country}
+            onChange={(country) => onChange({ country })}
+          />
+        )}
         <div className="flex flex-col gap-xs">
           <TextField
             label={`Max fee (${feeCurrency})`}
@@ -115,10 +120,13 @@ export function CourseFinderFilters({
             placeholder="Any"
           />
           {/* Rates are set by hand, not live (user, 2026-09-10) — say so, since the margin can let
-              in a course that looks a little over the figure typed. */}
-          <p className="text-caption text-text-secondary">
-            Courses priced in another currency are converted, with a small margin as rates change.
-          </p>
+              in a course that looks a little over the figure typed. An institute's own courses are
+              all priced in its own currency, so there is nothing to convert. */}
+          {!isInstitute && (
+            <p className="text-caption text-text-secondary">
+              Courses priced in another currency are converted, with a small margin as rates change.
+            </p>
+          )}
         </div>
         <SelectField
           id="cf-duration"

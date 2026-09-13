@@ -1,5 +1,21 @@
 import { browserTimezoneAbbreviation } from '@/lib/eventTimezones'
 
+// Whole days since a timestamp, floored — so something that happened this morning reads as 0
+// rather than claiming a day has already passed (console review H8, 2026-09-13).
+export function daysSince(iso: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000))
+}
+
+/** A week is where an unreviewed submission stops being a queue and starts being a problem. */
+export const AWAITING_REVIEW_WARNING_DAYS = 7
+
+// How long a submitted step has been waiting (H8). Lives here so the Activity queue and the
+// client profile's own step panel say it in exactly the same words.
+export function awaitingReviewLabel(iso: string): string {
+  const days = daysSince(iso)
+  return days === 0 ? 'Awaiting review since today' : `Awaiting review for ${days} day${days === 1 ? '' : 's'}`
+}
+
 export function relativeTime(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime()
   const minutes = Math.round(diffMs / 60000)

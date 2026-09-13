@@ -7,6 +7,7 @@ import { useAuditLog, type AuditLogFilters } from '@/queries/auditLog'
 import { useEmployees } from '@/queries/staff'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDateTime } from '@/lib/time'
+import { useAccountWords } from '@/lib/accountWords'
 
 const ACTION_COLORS = { create: 'success', update: 'info', delete: 'error' } as const
 
@@ -23,6 +24,8 @@ function labelize(value: string): string {
 type Entry = NonNullable<ReturnType<typeof useAuditLog>['data']>['items'][number]
 
 export function AuditLogPage() {
+  // H2 (2026-09-13) — an institute is not a consultancy; the nouns follow `kind`.
+  const words = useAccountWords()
   const employees = useEmployees()
   const [actorId, setActorId] = useState('')
   const [actionType, setActionType] = useState<AuditLogFilters['action_type'] | ''>('')
@@ -90,8 +93,8 @@ export function AuditLogPage() {
           {/* C5 (2026-09-13): "its own data" promised more than the log holds. This names what is
               actually written, and what is deliberately not. */}
           <p className="text-body-sm text-text-secondary">
-            Every change to this consultancy's records — leads, cases, plans, staff, settings, documents, phonebook and
-            rating requests. Chat messages and internal notes are not logged.
+            Every change to this {words.org}&rsquo;s records — leads, cases, plans, staff, settings, documents,
+            phonebook and rating requests. Chat messages and internal notes are not logged.
           </p>
         </div>
 

@@ -7,7 +7,15 @@ import { Badge } from '@/components/Badge'
 import { StopPropagation } from '@/components/StopPropagation'
 import { useActivityFeed, useCompleteActivityTask } from '@/queries/activity'
 import { Skeleton, ErrorState } from '@/components/QueryState'
-import { formatDate, formatDateTime, formatDayLabel, localDateISO } from '@/lib/time'
+import {
+  AWAITING_REVIEW_WARNING_DAYS,
+  awaitingReviewLabel,
+  daysSince,
+  formatDate,
+  formatDateTime,
+  formatDayLabel,
+  localDateISO,
+} from '@/lib/time'
 import { AssignTaskModal } from './AssignTaskModal'
 import type { components } from '@/api/schema'
 
@@ -71,7 +79,12 @@ export function ActivityPage() {
 
   // "My tasks due/overdue" — open, due today or earlier (same window needs_action_today_count
   // itself counts server-side). Future open tasks show instead under Coming Up.
-  const myTasksDue = data.tasks.filter((t) => t.status === 'open' && t.due_date <= today)
+  // Overdue first, then by due date (H8, 2026-09-13): a task three days late read exactly like
+  // one due this afternoon, sitting wherever the server happened to return it.
+  const myTasksDue = data.tasks
+    .filter((t) => t.status === 'open' && t.due_date <= today)
+    .slice()
+    .sort((a, b) => a.due_date.localeCompare(b.due_date))
   const myTasksFuture = data.tasks.filter((t) => t.status === 'open' && t.due_date > today)
 
   const hasAnyAction =
@@ -178,6 +191,16 @@ export function ActivityPage() {
                         {item.client_name} — {item.step_title}
                       </p>
                       <p className="text-caption text-text-secondary">Submitted {formatDateTime(item.submitted_at)}</p>
+                      {/* H8 (2026-09-13): the submission date alone made nobody count. */}
+                      <p
+                        className={`text-caption ${
+                          daysSince(item.submitted_at) >= AWAITING_REVIEW_WARNING_DAYS
+                            ? 'font-medium text-warning'
+                            : 'text-text-secondary'
+                        }`}
+                      >
+                        {awaitingReviewLabel(item.submitted_at)}
+                      </p>
                     </div>
                     <Badge color="warning">Review</Badge>
                   </ActionRow>
@@ -290,6 +313,7 @@ export function ActivityPage() {
                   <TaskRow
                     key={task.id}
                     task={task}
+                    overdue={task.due_date < today}
                     onComplete={() => completeTask.mutate(task.id)}
                     pending={completeTask.isPending && completeTask.variables === task.id}
                   />
@@ -340,7 +364,13 @@ export function ActivityPage() {
           <Card>
             <p className="text-body-sm font-medium text-text-primary">Tasks I've assigned</p>
             <div className="mt-sm flex flex-col gap-xs">
-              {data.delegated_tasks.map((task) => (
+              {[...data.delegated_tasks]
+                .sort(
+                  (a, b) =>
+                    Number(a.status === 'done') - Number(b.status === 'done') ||
+                    a.due_date.localeCompare(b.due_date),
+                )
+                .map((task) => (
                 <div key={task.id} className="flex items-center gap-md border-b border-border py-xs last:border-0">
                   <div className="min-w-0 flex-1">
                     <p className="text-body-sm text-text-primary">
@@ -365,9 +395,13 @@ export function ActivityPage() {
                       {task.due_time ? `, ${task.due_time}` : ''}
                     </p>
                   </div>
-                  <Badge color={task.status === 'done' ? 'success' : 'warning'}>
-                    {task.status === 'done' ? 'Done' : 'Open'}
-                  </Badge>
+                  {task.status === 'done' ? (
+                    <Badge color="success">Done</Badge>
+                  ) : task.due_date < today ? (
+                    <Badge color="error">Overdue</Badge>
+                  ) : (
+                    <Badge color="warning">Open</Badge>
+                  )}
                 </div>
               ))}
             </div>
@@ -380,7 +414,18 @@ export function ActivityPage() {
 
 // One "My tasks" row — whole-row Link to the related client (when there is one), with the Mark
 // Done button wrapped in StopPropagation so clicking it doesn't also navigate away.
-function TaskRow({ task, onComplete, pending }: { task: ActivityTask; onComplete: () => void; pending: boolean }) {
+function TaskRow({
+  task,
+  onComplete,
+  pending,
+  overdue,
+}: {
+  task: ActivityTask
+  onComplete: () => void
+  pending: boolean
+  // Past its due date and still open (H8) — the row has to look different from one due today.
+  overdue: boolean
+}) {
   const to = task.journey_id ? `/clients/${task.journey_id}` : null
   const body = (
     <>
@@ -389,9 +434,12 @@ function TaskRow({ task, onComplete, pending }: { task: ActivityTask; onComplete
           {task.note}
           {task.client_name ? ` (${task.client_name})` : task.lead_name ? ` (${task.lead_name})` : ''}
         </p>
-        <p className="text-caption text-text-secondary">
-          Due {formatDate(task.due_date)}
-          {task.due_time ? `, ${task.due_time}` : ''}
+        <p className="flex items-center gap-xs text-caption text-text-secondary">
+          {overdue && <Badge color="error">Overdue</Badge>}
+          <span>
+            Due {formatDate(task.due_date)}
+            {task.due_time ? `, ${task.due_time}` : ''}
+          </span>
         </p>
       </div>
       <StopPropagation>

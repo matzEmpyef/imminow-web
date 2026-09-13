@@ -5654,7 +5654,29 @@ export interface paths {
                 403: components["responses"]["ErrorResponse"];
             };
         };
-        delete?: never;
+        /** Withdraw the open upgrade request (console review H13, 2026-09-13). The console confirms before filing one and offers this to take it back; audited as upgrade_request_withdrawn. 404 when none is open; 403 for another consultancy. Needs settings.edit_profile. */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Withdrawn */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                403: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;

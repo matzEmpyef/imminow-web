@@ -1,7 +1,10 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { AppShell } from '@/features/auth/AppShell'
 import { Card } from '@/components/Card'
 import { useFeatures, TIER_LABEL, type FeatureDef } from '@/lib/features'
+import { usePermissionChecker } from '@/lib/permissions'
+import { useAccountWords } from '@/lib/accountWords'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 
 /**
@@ -19,6 +22,11 @@ import { ErrorState, Skeleton } from '@/components/QueryState'
  */
 export function FeatureGate({ feature, children }: { feature: FeatureDef; children: ReactNode }) {
   const { data: features, isLoading, isError } = useFeatures()
+  // H14 (2026-09-13): telling the admin to go and ask the admin is a dead end. They hold the
+  // upgrade, so they get the route to it instead.
+  const { can } = usePermissionChecker()
+  const { org } = useAccountWords()
+  const isAccountAdmin = can('settings.edit_profile')
 
   if (isLoading) {
     return (
@@ -42,8 +50,21 @@ export function FeatureGate({ feature, children }: { feature: FeatureDef; childr
         <Card>
           <p className="text-body text-error">{feature.label} isn't included in your current plan.</p>
           <p className="mt-xs text-body-sm text-text-secondary">
-            This is part of the {TIER_LABEL[feature.tier]} plan. Ask your consultancy admin to upgrade from
-            Consultancy Management's Subscription tab.
+            This is part of the {TIER_LABEL[feature.tier]} plan.{' '}
+            {isAccountAdmin ? (
+              <>
+                Upgrade from{' '}
+                <Link
+                  to="/administration/consultancy-profile"
+                  className="font-medium text-primary hover:underline"
+                >
+                  Consultancy Management &rarr; Subscription
+                </Link>
+                .
+              </>
+            ) : (
+              <>Ask your {org} admin to upgrade from Consultancy Management&rsquo;s Subscription tab.</>
+            )}
           </p>
         </Card>
       </AppShell>

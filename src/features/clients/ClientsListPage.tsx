@@ -19,8 +19,9 @@ import { useAssignClient, useClients, useSetClientTags } from '@/queries/clients
 import { useFeature } from '@/lib/features'
 import { useCreateTag, useTags } from '@/queries/tags'
 import { useCountries } from '@/queries/countries'
-import { useEmployees } from '@/queries/staff'
+import { useBranches, useEmployees } from '@/queries/staff'
 import { usePermissionChecker } from '@/lib/permissions'
+import { useAuthStore } from '@/stores/authStore'
 import { useCursorPagination } from '@/lib/pagination'
 import { showToast } from '@/lib/toast'
 
@@ -162,6 +163,14 @@ export function ClientsListPage() {
   const setClientTags = useSetClientTags()
   const countries = useCountries()
   const employees = useEmployees()
+  const branches = useBranches()
+  // H7 (2026-09-13): the same branch note Active Leads carries — a viewer scoped to specific
+  // branches should be told that is what they are looking at. Admins cover every branch.
+  const userId = useAuthStore((s) => s.user?.id)
+  const me = employees.data?.items.find((e) => e.user!.id === userId)
+  const myBranchNames = me?.is_consultancy_admin
+    ? []
+    : (branches.data ?? []).filter((b) => me?.branch_ids?.includes(b.id!)).map((b) => b.name)
   const employeeOptions: SearchSelectOption[] = (employees.data?.items ?? []).map((e) => ({
     id: e.id!,
     label: `${e.user!.first_name} ${e.user!.last_name}`,
@@ -302,7 +311,7 @@ export function ClientsListPage() {
     },
     {
       key: 'consultant_name',
-      header: 'Consultant',
+      header: 'Assigned to',
       sortable: true,
       render: (client) => client.assigned_employee_name ?? <Badge color="warning">Unassigned</Badge>,
     },
@@ -340,6 +349,12 @@ export function ClientsListPage() {
           <h1 className="text-h1 text-text-primary">Clients</h1>
           {canCreateApplicant && <Button onClick={() => setShowCreateModal(true)}>Create Applicant</Button>}
         </div>
+
+        {myBranchNames.length > 0 && (
+          <p className="text-body-sm text-text-secondary">
+            Showing clients in your branches: {myBranchNames.join(', ')}.
+          </p>
+        )}
 
         {showCreateModal && <CreateApplicantModal onClose={() => setShowCreateModal(false)} />}
 

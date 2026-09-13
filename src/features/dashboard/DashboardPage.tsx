@@ -11,6 +11,7 @@ import { DoughnutChart } from '@/components/DoughnutChart'
 import { MonthlyBarChart } from '@/components/MonthlyBarChart'
 import { useAuthStore } from '@/stores/authStore'
 import { useDashboard } from '@/queries/dashboard'
+import { useAccountWords } from '@/lib/accountWords'
 import { formatDate } from '@/lib/time'
 
 const SCOPE_LABELS = {
@@ -138,6 +139,9 @@ export function DashboardPage() {
   const user = useAuthStore((s) => s.user)
   const [scope, setScope] = useState<Scope>('personal')
   const dashboard = useDashboard(scope)
+  // H2 (2026-09-13) — a college's whole-account view is not a "Whole Consultancy" view. Every
+  // other scope word is the same for both kinds of account.
+  const words = useAccountWords()
 
   const today = formatDate(new Date())
 
@@ -185,7 +189,7 @@ export function DashboardPage() {
                     scope === s ? 'bg-primary text-text-on-primary' : 'text-text-secondary'
                   }`}
                 >
-                  {SCOPE_LABELS[s]}
+                  {s === 'consultancy' ? words.wholeLabel : SCOPE_LABELS[s]}
                 </button>
               ))}
             </div>

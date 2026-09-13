@@ -332,6 +332,7 @@ export function StudentProfilePanels({
   extraStudyFacts = [],
   surface = false,
   omit = [],
+  note,
 }: {
   prefs: StudentPreferences | null | undefined
   extraStudyFacts?: { label: string; icon: ReactNode; color: IconColor; lines: Lines }[]
@@ -339,6 +340,12 @@ export function StudentProfilePanels({
   surface?: boolean
   /** Fact labels a page shows elsewhere and leaves out here — neither shown nor counted. */
   omit?: string[]
+  /**
+   * Appended to the completeness line, after a "·" (console review H9, 2026-09-13). For a fact
+   * about the case rather than the profile — the client Overview says here when the applicant
+   * form has not been started. Not counted in the bar, which measures the profile alone.
+   */
+  note?: string
 }) {
   const full = profileFacts(prefs, { countryPills: false })
   const keep = <T extends { label: string }>(list: T[]) => list.filter((f) => !omit.includes(f.label))
@@ -360,6 +367,7 @@ export function StudentProfilePanels({
           <span className="font-medium text-text-primary">Profile completeness</span>
           <span className="text-text-secondary">
             {added} of {all.length} details added
+            {note ? ` · ${note}` : ''}
           </span>
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-background">

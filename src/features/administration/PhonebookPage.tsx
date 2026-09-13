@@ -8,10 +8,13 @@ import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
 import { useDeletePhonebookContact, usePhonebook } from '@/queries/phonebook'
 import { AddPhonebookContactModal } from './AddPhonebookContactModal'
+import { useAccountWords } from '@/lib/accountWords'
 
 type Contact = NonNullable<ReturnType<typeof usePhonebook>['data']>[number]
 
 export function PhonebookPage() {
+  // H2 (2026-09-13) — an institute is not a consultancy; the nouns follow `kind`.
+  const words = useAccountWords()
   const contacts = usePhonebook()
   const deleteContact = useDeletePhonebookContact()
   const [showAddModal, setShowAddModal] = useState(false)
@@ -131,7 +134,9 @@ export function PhonebookPage() {
           emptyMessage={
             search || categoryFilter
               ? 'No contacts match your search or category.'
-              : 'No contacts yet. Add the colleges, agents and other numbers your team calls often.'
+              : words.isInstitute
+                ? 'No contacts yet. Add the agents, partners and other numbers your team calls often.'
+                : 'No contacts yet. Add the colleges, agents and other numbers your team calls often.'
           }
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}

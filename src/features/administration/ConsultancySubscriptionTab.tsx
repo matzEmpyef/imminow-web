@@ -2,11 +2,18 @@
 // Full width (user, 2026-09-10: "cards in the tabs, use full width"): Seats and Billing side by
 // side in the first row, Membership full width below (user, same day: "Seat and billing in first
 // row and membership below").
+import { useState } from 'react'
 import { CheckCircle2 } from 'lucide-react'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
-import { useMyConsultancy, useRequestRenewal, useRequestUpgrade } from '@/queries/consultancy'
+import { Modal } from '@/components/Modal'
+import {
+  useMyConsultancy,
+  useRequestRenewal,
+  useRequestUpgrade,
+  useWithdrawUpgrade,
+} from '@/queries/consultancy'
 import { useEmployees } from '@/queries/staff'
 import { formatDate } from '@/lib/time'
 import { BUSINESS_FEATURES, ULTIMATE_FEATURES, STARTER_CORE_FEATURES, TIER_ORDER, TIER_LABEL } from '@/lib/features'
@@ -21,7 +28,11 @@ type Consultancy = NonNullable<ReturnType<typeof useMyConsultancy>['data']>
 
 export function SubscriptionTab({ consultancy }: { consultancy: Consultancy }) {
   const requestUpgrade = useRequestUpgrade(consultancy.id)
+  const withdrawUpgrade = useWithdrawUpgrade(consultancy.id)
   const employees = useEmployees()
+  // H13 (2026-09-13): "Upgrade to Ultimate" fired a real request to immiNow on one click, with
+  // nothing said about what happens next. It asks first now.
+  const [confirmUpgrade, setConfirmUpgrade] = useState(false)
 
   const tier = consultancy.tier
   const tierIndex = TIER_ORDER.indexOf(tier)
@@ -85,29 +96,72 @@ export function SubscriptionTab({ consultancy }: { consultancy: Consultancy }) {
           {nextTier && (
             <div className="mt-md flex flex-wrap items-center justify-between gap-sm border-t border-border pt-md">
               {upgradeRequested ? (
-                <p className="text-body-sm text-success">
-                  Requested — immiNow will contact you about upgrading to{' '}
-                  {TIER_LABEL[consultancy.upgrade_requested_tier!]}.
-                </p>
+                <div className="flex flex-wrap items-center gap-sm">
+                  <p className="text-body-sm text-success">
+                    Requested — immiNow will contact you about upgrading to{' '}
+                    {TIER_LABEL[consultancy.upgrade_requested_tier!]}.
+                  </p>
+                  {/* A request nobody can take back is a trap (H13) — pressed by accident, it
+                      simply sat there. */}
+                  <button
+                    type="button"
+                    disabled={withdrawUpgrade.isPending}
+                    onClick={() => withdrawUpgrade.mutate()}
+                    className="text-body-sm font-medium text-primary hover:underline disabled:opacity-50"
+                  >
+                    {withdrawUpgrade.isPending ? 'Withdrawing…' : 'Withdraw request'}
+                  </button>
+                </div>
               ) : (
                 <>
                   <p className="text-body-sm text-text-secondary">
                     Need more? {TIER_LABEL[nextTier] ?? nextTier} adds more features and seats.
                   </p>
-                  <Button
-                    variant="secondary"
-                    loading={requestUpgrade.isPending}
-                    onClick={() => requestUpgrade.mutate(nextTier as 'business' | 'ultimate')}
-                  >
+                  <Button variant="secondary" onClick={() => setConfirmUpgrade(true)}>
                     Upgrade to {TIER_LABEL[nextTier] ?? nextTier}
                   </Button>
                 </>
               )}
               {requestUpgrade.isError && <p className="w-full text-body-sm text-error">{requestUpgrade.error.message}</p>}
+              {withdrawUpgrade.isError && (
+                <p className="w-full text-body-sm text-error">{withdrawUpgrade.error.message}</p>
+              )}
             </div>
           )}
         </Card>
       </div>
+
+      {confirmUpgrade && nextTier && (
+        // The question itself is the body copy, so the header names the action rather than
+        // repeating it word for word.
+        <Modal
+          onClose={() => setConfirmUpgrade(false)}
+          title={`Upgrade to ${TIER_LABEL[nextTier] ?? nextTier}`}
+          widthRem={28}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setConfirmUpgrade(false)}>
+                Cancel
+              </Button>
+              <Button
+                loading={requestUpgrade.isPending}
+                onClick={() =>
+                  requestUpgrade.mutate(nextTier as 'business' | 'ultimate', {
+                    onSuccess: () => setConfirmUpgrade(false),
+                  })
+                }
+              >
+                Confirm
+              </Button>
+            </>
+          }
+        >
+          <p className="text-body-sm text-text-secondary">
+            Request an upgrade to {TIER_LABEL[nextTier] ?? nextTier}? immiNow will contact you with the price and the
+            seat limit; nothing changes until you agree.
+          </p>
+        </Modal>
+      )}
     </>
   )
 }

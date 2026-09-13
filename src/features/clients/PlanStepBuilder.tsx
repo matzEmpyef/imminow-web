@@ -17,7 +17,7 @@ import { useAddStep, useDeleteStep, useReorderSteps, useUpdateStep } from '@/que
 import { useApproveStep, useRejectStep } from '@/queries/steps'
 import { usePermission } from '@/lib/permissions'
 import { FieldLabel } from '@/components/FieldLabel'
-import { formatDate, formatDateTime } from '@/lib/time'
+import { AWAITING_REVIEW_WARNING_DAYS, awaitingReviewLabel, daysSince, formatDate, formatDateTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import type { ComponentInput } from '@/lib/planComponents'
 import type { components } from '@/api/schema'
@@ -92,6 +92,19 @@ function StepApprovalActions({ step, clientId }: { step: Step; clientId: string 
           Submitted {step.submitted_at && formatDateTime(step.submitted_at)}
         </span>
       </div>
+      {/* H8 (2026-09-13) — the date alone made nobody count. Same line and same one-week
+          threshold the Activity queue uses, so a step reads identically in both places. */}
+      {step.submitted_at && (
+        <p
+          className={`text-caption ${
+            daysSince(step.submitted_at) >= AWAITING_REVIEW_WARNING_DAYS
+              ? 'font-medium text-warning'
+              : 'text-text-secondary'
+          }`}
+        >
+          {awaitingReviewLabel(step.submitted_at)}
+        </p>
+      )}
       <SubmissionPreview submission={step.submission} />
       {canReview &&
         (rejecting ? (

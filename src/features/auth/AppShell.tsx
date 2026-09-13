@@ -31,6 +31,7 @@ import { NotificationsDropdown } from '@/components/NotificationsDropdown'
 import { usePermissionChecker } from '@/lib/permissions'
 import { useFeatures } from '@/lib/features'
 import { useActivityFeed } from '@/queries/activity'
+import { useAccountWords } from '@/lib/accountWords'
 import { SubscriptionBanner } from './SubscriptionBanner'
 
 // Only sections/links with real, built pages appear here — a link shows only once its wave has
@@ -43,6 +44,13 @@ interface GatedSubLink extends SidebarSubLink {
   feature?: string
   /** Consultancy permission key required to see this link, e.g. `staff.manage_employees`. */
   permission?: string
+  /**
+   * Hidden on an `institute` account (H3, 2026-09-13). Not a feature flag: a college's applicants
+   * pay the college directly, so there is no platform commission for ANY institute to track —
+   * that is a property of the account kind, not something a Super Admin should be able to switch
+   * on for one college and off for another.
+   */
+  consultancyOnly?: boolean
 }
 
 interface GatedSection extends Omit<SidebarSection, 'sidebarLinks'> {
@@ -143,6 +151,7 @@ const SECTIONS: GatedSection[] = [
         path: '/administration/commission-details',
         icon: Percent,
         permission: 'billing.view_commission_details',
+        consultancyOnly: true,
       },
       { label: 'Forms', path: '/administration/forms', icon: ClipboardList },
       {
@@ -196,6 +205,7 @@ const SECTIONS: GatedSection[] = [
 export function AppShell({ children }: { children: ReactNode }) {
   const { data: features } = useFeatures()
   const { can } = usePermissionChecker()
+  const { isInstitute } = useAccountWords()
   // User-requested (2026-08-19) — "show number of activities that need action today as a counter
   // in Activities side menu." Only fetched once Activity is actually visible (the
   // `activity_queue` entitlement, Ultimate by default) — see useActivityFeed's own note on why
@@ -212,6 +222,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const sidebarLinks = section.sidebarLinks
       .filter((link) => !link.feature || features[link.feature])
       .filter((link) => !link.permission || can(link.permission))
+      .filter((link) => !link.consultancyOnly || !isInstitute)
       .map((link) =>
         link.label === 'Activity' ? { ...link, badge: activityFeed.data?.needs_action_today_count } : link,
       )

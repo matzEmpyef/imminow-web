@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
@@ -264,6 +264,30 @@ export function useLatestFormResponse(formId: string, clientId: string) {
     },
     enabled: isAuthed && Boolean(formId) && Boolean(clientId),
     retry: false,
+  })
+}
+
+// Whether each linked form has any saved response for this case (console review H9,
+// 2026-09-13) - the client Overview needs "has the applicant form been started at all?" across
+// every form_link on the case, and a hook cannot be called in a loop. `useQueries` shares the
+// exact query keys `useLatestFormResponse` uses, so a form already read in the Forms tab costs
+// nothing here.
+export function useLinkedFormResponses(formIds: string[], clientId: string | undefined) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQueries({
+    queries: formIds.map((formId) => ({
+      queryKey: ['forms', formId, 'responses', clientId],
+      queryFn: async () => {
+        const { data, error, response } = await api.GET('/forms/{id}/responses', {
+          params: { path: { id: formId }, query: { journey_id: clientId! } },
+        })
+        if (response.status === 404) return null
+        if (error) throw new ApiError('Could not load the saved answers.', error)
+        return data ?? null
+      },
+      enabled: isAuthed && Boolean(clientId),
+      retry: false,
+    })),
   })
 }
 
