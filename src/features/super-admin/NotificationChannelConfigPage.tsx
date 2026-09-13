@@ -72,6 +72,7 @@ const LABELS: Record<string, string> = {
   subscription_expired: 'Consultancy subscription expired — grace period started',
   subscription_lapsed: 'Consultancy subscription lapsed — only admins can sign in',
   subscription_renewed: 'Consultancy subscription renewed',
+  renewal_requested: 'Renewal requested',
   consultancy_subscription_expired: 'A consultancy’s subscription expired (Sentpo staff)',
   payer_method_changed: 'Payer method changed',
   institution_suggested: 'School or college not in the list',

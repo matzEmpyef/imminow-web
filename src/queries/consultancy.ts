@@ -151,6 +151,25 @@ export function useDeleteGalleryImage() {
   })
 }
 
+// Console review C7 (2026-09-13) — the expiring/grace/lapsed notices told the admin to "contact
+// immiNow" with nothing to click, so the one action the account actually needed lived outside the
+// product. Idempotent server-side: a second call while a request is open returns the same pending
+// answer, which is why the button doesn't need to guard against being pressed twice. Invalidates
+// the same ['consultancy','me'] query the banner and the Subscription tab read, so the RECORDED
+// `renewal_requested_at` is what both re-render from — not local mutation state that a refresh
+// would forget (same reasoning as useRequestUpgrade below).
+export function useRequestRenewal() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await api.POST('/consultancies/me/renewal-request')
+      if (error) throw new ApiError('Could not send the renewal request.', error)
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['consultancy', 'me'] }),
+  })
+}
+
 export function useRequestUpgrade(consultancyId: string) {
   const queryClient = useQueryClient()
   return useMutation({

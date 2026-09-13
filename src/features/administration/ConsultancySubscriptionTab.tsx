@@ -6,7 +6,7 @@ import { CheckCircle2 } from 'lucide-react'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
-import { useMyConsultancy, useRequestUpgrade } from '@/queries/consultancy'
+import { useMyConsultancy, useRequestRenewal, useRequestUpgrade } from '@/queries/consultancy'
 import { useEmployees } from '@/queries/staff'
 import { formatDate } from '@/lib/time'
 import { BUSINESS_FEATURES, ULTIMATE_FEATURES, STARTER_CORE_FEATURES, TIER_ORDER, TIER_LABEL } from '@/lib/features'
@@ -113,6 +113,7 @@ export function SubscriptionTab({ consultancy }: { consultancy: Consultancy }) {
 }
 
 function BillingCard({ consultancy }: { consultancy: Consultancy }) {
+  const requestRenewal = useRequestRenewal()
   const { subscription_started_at, subscription_expires_at, billing_cycle, subscription_amount, billing_currency } =
     consultancy
 
@@ -174,9 +175,28 @@ function BillingCard({ consultancy }: { consultancy: Consultancy }) {
             : 'Only admins can sign in, and new leads and new clients are paused. Existing clients are still served.'}
         </p>
       )}
-      <p className="mt-sm text-caption text-text-secondary">
-        Billing terms are set by immiNow — contact Platform Admin for changes or renewal.
-      </p>
+      {/* C7 (2026-09-13): renewal is an action now, not an instruction to go and find someone.
+          Offered only in the states where there is something to renew — an active subscription has
+          no ask to make. Same recorded `renewal_requested_at` the banner reads. */}
+      {(status === 'expiring' || status === 'grace' || status === 'lapsed') && (
+        <div className="mt-sm">
+          {consultancy.renewal_requested_at ? (
+            <p className="text-body-sm text-success">
+              Renewal requested on {formatDate(consultancy.renewal_requested_at)} — immiNow will contact you.
+            </p>
+          ) : (
+            <>
+              <Button size="sm" loading={requestRenewal.isPending} onClick={() => requestRenewal.mutate()}>
+                Request renewal
+              </Button>
+              {requestRenewal.isError && (
+                <p className="mt-xs text-body-sm text-error">{requestRenewal.error.message}</p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+      <p className="mt-sm text-caption text-text-secondary">Billing terms are set by immiNow.</p>
     </Card>
   )
 }

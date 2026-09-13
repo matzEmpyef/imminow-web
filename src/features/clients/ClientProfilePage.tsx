@@ -55,6 +55,10 @@ export function ClientProfilePage() {
   const hasCaseReopening = useFeature('case_reopening')
   const canReopenPlan = usePermission('step_review.reopen_plan') && hasCaseReopening
   const canViewCommissions = usePermission('clients.view_commissions')
+  // Console review C2 (2026-09-13) — Close Case rendered for everyone while the server enforces
+  // `clients.close` on POST /clients/{id}/close, so a consultant without it only found out by
+  // filling in the modal and collecting a 403. Same key now gates Close Lead (LeadConversationPage).
+  const canCloseCase = usePermission('clients.close')
   const tabParam = searchParams.get('tab')
   const activeTab: Tab = (TABS as readonly string[]).includes(tabParam ?? '') ? (tabParam as Tab) : 'Overview'
   // Which plan the Plan tab should open, when the consultant arrived by clicking one on
@@ -184,9 +188,11 @@ export function ClientProfilePage() {
                 <Button variant="secondary" onClick={() => setShowRaiseIssue(true)}>
                   Raise an Issue
                 </Button>
-                <Button variant="destructive" onClick={() => setShowCloseCase(true)}>
-                  Close Case
-                </Button>
+                {canCloseCase && (
+                  <Button variant="destructive" onClick={() => setShowCloseCase(true)}>
+                    Close Case
+                  </Button>
+                )}
               </>
             )}
           </div>

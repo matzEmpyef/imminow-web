@@ -331,8 +331,25 @@ function App() {
           <Route path="/sales/leads/:id" element={<LeadConversationPage />} />
           <Route path="/clients" element={<ClientsListPage />} />
           <Route path="/clients/course-finder" element={<CourseFinderPage />} />
-          <Route path="/clients/invoices" element={<InvoicesPage />} />
-          <Route path="/clients/receipts" element={<ReceiptsPage />} />
+          {/* C3 (2026-09-13): both lists are money the server now guards with
+              `billing.view_commission_details` — same route-level gate the Administration pages use,
+              so a direct link explains itself instead of rendering an empty table over a 403. */}
+          <Route
+            path="/clients/invoices"
+            element={
+              <PermissionGate permission="billing.view_commission_details" area="Invoices">
+                <InvoicesPage />
+              </PermissionGate>
+            }
+          />
+          <Route
+            path="/clients/receipts"
+            element={
+              <PermissionGate permission="billing.view_commission_details" area="Receipts">
+                <ReceiptsPage />
+              </PermissionGate>
+            }
+          />
           <Route path="/clients/:id" element={<ClientProfilePage />} />
           <Route path="/clients/:id/conversation" element={<ClientConversationPage />} />
           <Route

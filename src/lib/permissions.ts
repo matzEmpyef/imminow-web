@@ -27,7 +27,6 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'leads.import', label: 'Import leads' },
       { key: 'leads.edit_self_sourced', label: 'Edit self-sourced leads' },
       { key: 'leads.delete', label: 'Delete leads' },
-      { key: 'leads.close', label: 'Close leads' },
     ],
   },
   {
@@ -45,7 +44,9 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'clients.edit_plan', label: 'Edit plan' },
       { key: 'clients.assign_template', label: 'Assign template' },
       { key: 'clients.view_commissions', label: 'View Commissions tab' },
-      { key: 'clients.close', label: 'Close clients' },
+      // Console review C2 (2026-09-13) — the server now enforces this one key on BOTH
+      // POST /clients/{id}/close and POST /leads/{id}/close, so the label says so.
+      { key: 'clients.close', label: 'Close leads and cases' },
     ],
   },
   {

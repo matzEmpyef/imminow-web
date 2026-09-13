@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { AppShell } from '@/features/auth/AppShell'
+import { PermissionGate } from '@/features/auth/PermissionGate'
 import { SelectField } from '@/components/SelectField'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
@@ -9,6 +10,7 @@ import { CompactSelect } from '@/components/CompactSelect'
 import { Modal } from '@/components/Modal'
 import { useCreateReceipt, useInvoices, useReceipts, useVoidReceipt } from '@/queries/invoicing'
 import { useCursorPagination } from '@/lib/pagination'
+import { usePermission } from '@/lib/permissions'
 import { formatDate } from '@/lib/time'
 import { formatMoneyAmount } from '@/lib/money'
 import { showToast } from '@/lib/toast'
@@ -96,6 +98,10 @@ export function ReceiptsPage() {
     limit: 20,
   })
   const voidReceipt = useVoidReceipt()
+  // C3 (2026-09-13): recording and voiding a payment are `billing.record_payment` on the server —
+  // reading the list is only `billing.view_commission_details`. Someone who may see the money
+  // should not be shown controls that can only 403.
+  const canRecordPayment = usePermission('billing.record_payment')
   const [showForm, setShowForm] = useState(false)
   const [voidingId, setVoidingId] = useState<string | null>(null)
   const [voidReason, setVoidReason] = useState('')
@@ -132,6 +138,7 @@ export function ReceiptsPage() {
       key: 'actions',
       header: '',
       render: (r) =>
+        canRecordPayment &&
         r.status !== 'void' && (
           <div className="flex items-center justify-end gap-xs">
             {voidingId === r.id ? (
@@ -173,63 +180,68 @@ export function ReceiptsPage() {
   ]
 
   return (
-    <AppShell>
-      <div className="flex flex-col gap-lg">
-        <div className="flex items-center justify-between">
-          <h1 className="text-h1 text-text-primary">Receipts</h1>
-          <Button onClick={() => setShowForm(true)}>Record a Payment</Button>
-        </div>
+    // The route carries this same gate (App.tsx); it is repeated here so the page is never
+    // reachable un-gated however it is mounted, and so it explains itself with the one denial
+    // pattern the rest of the console already uses rather than a second one.
+    <PermissionGate permission="billing.view_commission_details" area="Receipts">
+      <AppShell>
+        <div className="flex flex-col gap-lg">
+          <div className="flex items-center justify-between">
+            <h1 className="text-h1 text-text-primary">Receipts</h1>
+            {canRecordPayment && <Button onClick={() => setShowForm(true)}>Record a Payment</Button>}
+          </div>
 
-        {showForm && <RecordReceiptForm onClose={() => setShowForm(false)} />}
+          {showForm && <RecordReceiptForm onClose={() => setShowForm(false)} />}
 
-        <Table
-          columns={columns}
-          rows={receipts.data?.items ?? []}
-          rowKey={(r) => r.id}
-          loading={receipts.isLoading}
-          error={receipts.isError ? 'Could not load receipts.' : undefined}
-          emptyMessage={
-            search || status
-              ? 'No receipts match your search or status filter.'
-              : 'No payments recorded yet. Record one against an invoice with the button above.'
-          }
-          sort={sort}
-          onSortChange={(field, direction) => {
-            setSort({ field, direction })
-            resetPaging()
-          }}
-          search={{
-            value: search,
-            onChange: (value) => {
-              setSearch(value)
+          <Table
+            columns={columns}
+            rows={receipts.data?.items ?? []}
+            rowKey={(r) => r.id}
+            loading={receipts.isLoading}
+            error={receipts.isError ? 'Could not load receipts.' : undefined}
+            emptyMessage={
+              search || status
+                ? 'No receipts match your search or status filter.'
+                : 'No payments recorded yet. Record one against an invoice with the button above.'
+            }
+            sort={sort}
+            onSortChange={(field, direction) => {
+              setSort({ field, direction })
               resetPaging()
-            },
-            placeholder: 'Search invoice or applicant…',
-          }}
-          filters={
-            <CompactSelect
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value as typeof status)
+            }}
+            search={{
+              value: search,
+              onChange: (value) => {
+                setSearch(value)
                 resetPaging()
-              }}
-              label="Status"
-              className="capitalize"
-            >
-              <option value="">Any status</option>
-              <option value="recorded">Recorded</option>
-              <option value="void">Void</option>
-            </CompactSelect>
-          }
-          pagination={{
-            hasNext: Boolean(receipts.data?.meta.next_cursor),
-            hasPrevious: paging.hasPrevious,
-            onNext: () => receipts.data?.meta.next_cursor && paging.next(receipts.data.meta.next_cursor),
-            onPrevious: paging.previous,
-            total: receipts.data?.meta.total,
-          }}
-        />
-      </div>
-    </AppShell>
+              },
+              placeholder: 'Search invoice or applicant…',
+            }}
+            filters={
+              <CompactSelect
+                value={status}
+                onChange={(e) => {
+                  setStatus(e.target.value as typeof status)
+                  resetPaging()
+                }}
+                label="Status"
+                className="capitalize"
+              >
+                <option value="">Any status</option>
+                <option value="recorded">Recorded</option>
+                <option value="void">Void</option>
+              </CompactSelect>
+            }
+            pagination={{
+              hasNext: Boolean(receipts.data?.meta.next_cursor),
+              hasPrevious: paging.hasPrevious,
+              onNext: () => receipts.data?.meta.next_cursor && paging.next(receipts.data.meta.next_cursor),
+              onPrevious: paging.previous,
+              total: receipts.data?.meta.total,
+            }}
+          />
+        </div>
+      </AppShell>
+    </PermissionGate>
   )
 }

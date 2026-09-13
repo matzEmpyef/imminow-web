@@ -87,7 +87,12 @@ export function AuditLogPage() {
       <div className="flex flex-col gap-lg">
         <div>
           <h1 className="text-h1 text-text-primary">Audit Log</h1>
-          <p className="text-body-sm text-text-secondary">Every change to this consultancy's own data.</p>
+          {/* C5 (2026-09-13): "its own data" promised more than the log holds. This names what is
+              actually written, and what is deliberately not. */}
+          <p className="text-body-sm text-text-secondary">
+            Every change to this consultancy's records — leads, cases, plans, staff, settings, documents, phonebook and
+            rating requests. Chat messages and internal notes are not logged.
+          </p>
         </div>
 
         <Table

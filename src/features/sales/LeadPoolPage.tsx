@@ -78,7 +78,9 @@ export function LeadPoolPage() {
   // The lead being closed from its row, or null.
   const [closingLead, setClosingLead] = useState<Lead | null>(null)
   // Same permission that gates Close on the lead page.
-  const canClose = can('leads.close')
+  // One key closes leads and cases — the server enforces clients.close on both (console review C2,
+  // 2026-09-13); `leads.close` never existed server-side, so this row control was always shown.
+  const canClose = can('clients.close')
 
   function handleBulkAllocate(employeeId: string) {
     // T8: pending guard + one key per confirmed selection — a double-fire of the same

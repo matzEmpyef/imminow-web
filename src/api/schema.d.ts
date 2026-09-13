@@ -5558,6 +5558,49 @@ export interface paths {
         };
         trace?: never;
     };
+    "/consultancies/me/renewal-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The account's admin asks immiNow to renew the subscription (console review C7, 2026-09-13) — the banner and the Subscription tab used to say "contact immiNow" with nothing to click. Recorded on the account (renewal_requested_at), platform staff notified (renewal_requested), audited; a second call while one is open returns the same pending answer. 409 nothing_to_renew when the account has no subscription term. Needs settings.edit_profile. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Recorded */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            status?: "pending";
+                            /** Format: date-time */
+                            requested_at?: string;
+                        };
+                    };
+                };
+                403: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/consultancies/{id}/upgrade-request": {
         parameters: {
             query?: never;
@@ -6920,7 +6963,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Close a lead — user-requested. Gated two ways (both matter, neither replaces the other) — Ultimate tier, since this whole action is Ultimate-only, and the `leads.close` permission (build reference 1.15), which controls which employee inside an already-entitled consultancy can use it. Not yet enforced by the mock server or this frontend, the same as every other granular Leads permission today (`leads.reassign`, `leads.delete`, etc.) — real enforcement is Phase 6 backend work, consistent with how this whole permission system is currently only a configuration surface (Designations/Employees), not an authorization check. Audit-logged with the required reason. */
+        /** Close a lead — user-requested. Gated two ways (both matter, neither replaces Needs clients.close (console review C2, 2026-09-13) — the key was in the matrix and enforced nowhere. the other) — Ultimate tier, since this whole action is Ultimate-only, and the `leads.close` permission (build reference 1.15), which controls which employee inside an already-entitled consultancy can use it. Not yet enforced by the mock server or this frontend, the same as every other granular Leads permission today (`leads.reassign`, `leads.delete`, etc.) — real enforcement is Phase 6 backend work, consistent with how this whole permission system is currently only a configuration surface (Designations/Employees), not an authorization check. Audit-logged with the required reason. */
         post: {
             parameters: {
                 query?: never;
@@ -10415,7 +10458,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Close a client's case. Consultancy staff only — until 2026-09-09 this carried `requireAuth` alone, so any logged-in caller holding a journey id could end someone's case.
+         * Needs clients.close (console review C2, 2026-09-13) — the key was in the matrix and enforced nowhere. Close a client's case. Consultancy staff only — until 2026-09-09 this carried `requireAuth` alone, so any logged-in caller holding a journey id could end someone's case.
          *     THE OUTCOME IS DERIVED, NEVER CHOSEN (2026-09-09). Success means an accepted application exists and the consultancy is not claiming the student failed to go; anything else is a failure and needs a `sub_reason`. A consultancy therefore cannot close as a failure to dodge the commission, nor claim success without an acceptance.
          *     A PR case has no colleges, so its counterpart to an accepted application is the applicant's recorded contribution (POST /clients/{id}/commission-entry, 2026-09-10). Before this a PR case could never close as a success, and closing one reversed the contribution the consultant had recorded.
          *     CLOSE IS THE MONEY EVENT. The commission entry was created back at acceptance, because that is when the amounts became knowable, but an entry with no `recognized_at` is not revenue and appears in no finance report. A success close stamps `recognized_at`; a failure close REVERSES the entry — a deliberately different status from `voided`, because voided means the acceptance itself was wrong while reversed means it was real and the student still never went, and finance has to tell those apart.
@@ -18341,7 +18384,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List invoices. Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts number, applicant_name, amount, created_at. filter[status]= accepts sent|paid|overdue|void. search matches invoice number and applicant name. */
+        /** List invoices. Default sort created_at desc, id always appended as the Needs billing.view_commission_details (console review C3, 2026-09-13); creating and voiding need billing.record_payment. deterministic secondary key (TRD Section 7). sort= accepts number, applicant_name, amount, created_at. filter[status]= accepts sent|paid|overdue|void. search matches invoice number and applicant name. */
         get: {
             parameters: {
                 query?: {
@@ -18472,7 +18515,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List receipts. Default sort recorded_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts applicant_name, amount, recorded_at. filter[status]= accepts recorded|void. search matches invoice number and applicant name. */
+        /** List receipts. Default sort recorded_at desc, id always appended as the Needs billing.view_commission_details (console review C3, 2026-09-13); recording needs billing.record_payment. deterministic secondary key (TRD Section 7). sort= accepts applicant_name, amount, recorded_at. filter[status]= accepts recorded|void. search matches invoice number and applicant name. */
         get: {
             parameters: {
                 query?: {
@@ -20293,6 +20336,11 @@ export interface components {
              * @enum {string|null}
              */
             readonly upgrade_requested_tier?: "business" | "ultimate" | null;
+            /**
+             * Format: date-time
+             * @description When the account's admin asked immiNow to renew (POST /consultancies/me/renewal-request, console review C7, 2026-09-13); cleared by the platform's renewal.
+             */
+            readonly renewal_requested_at?: string | null;
             /** Format: date-time */
             readonly upgrade_requested_at?: string | null;
             /** @description Up to 5 consultancy-curated images (student-facing decision, 2026-08-30) rendered as a hero slideshow at the top of Consultancy Detail. Included on every read a student already sees (this schema, both list and detail) and on GET /consultancies/me. Managed by the consultancy's own staff via POST/PATCH/DELETE `/consultancies/me/gallery(/{imageId})`, gated the same as the profile self-PATCH (`settings.edit_profile`) — never editable through this schema's own PATCH endpoint. Empty for every consultancy that has not added one; clients MUST render today's layout unchanged when this is empty, adding the slideshow only above it when non-empty, never replacing or reordering anything else on the page. */
@@ -23296,8 +23344,13 @@ export interface components {
             number: string;
             applicant_name?: string;
             amount: components["schemas"]["Money"];
-            /** @enum {string} */
-            status: "sent" | "paid" | "overdue" | "void";
+            /**
+             * @description Derived on every read from the receipts recorded against the invoice (console review C4, 2026-09-13): sent (nothing recorded), part_paid (some, less than the total), paid (total or more). draft and void are stored states.
+             * @enum {string}
+             */
+            status: "sent" | "paid" | "overdue" | "void" | "part_paid";
+            paid_amount?: components["schemas"]["Money"];
+            balance_due?: components["schemas"]["Money"];
             line_items?: components["schemas"]["InvoiceLineItem"][];
             void_reason?: string | null;
             /** Format: date-time */

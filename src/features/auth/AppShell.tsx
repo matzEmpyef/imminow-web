@@ -102,8 +102,23 @@ const SECTIONS: GatedSection[] = [
     matches: (p) => p.startsWith('/clients'),
     sidebarLinks: [
       { label: 'Clients List', path: '/clients', icon: ListChecks },
-      { label: 'Invoices', path: '/clients/invoices', icon: FileText },
-      { label: 'Receipts', path: '/clients/receipts', icon: Receipt },
+      // Console review C3 (2026-09-13) — both pages are money, and the server now requires
+      // `billing.view_commission_details` to read /invoices and /receipts at all. Listing them for
+      // a consultant who can only 403 on them advertised a door that was already locked; same
+      // `permission` field the Administration group's links have used since 2026-08-23 (the filter
+      // in `resolvedSections` below runs over every group, not just that one).
+      {
+        label: 'Invoices',
+        path: '/clients/invoices',
+        icon: FileText,
+        permission: 'billing.view_commission_details',
+      },
+      {
+        label: 'Receipts',
+        path: '/clients/receipts',
+        icon: Receipt,
+        permission: 'billing.view_commission_details',
+      },
     ],
   },
   {

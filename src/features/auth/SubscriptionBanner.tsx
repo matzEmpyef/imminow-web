@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { AlertTriangle, Clock } from 'lucide-react'
-import { useMyConsultancy } from '@/queries/consultancy'
+import { Button } from '@/components/Button'
+import { useMyConsultancy, useRequestRenewal } from '@/queries/consultancy'
 import { usePermissionChecker } from '@/lib/permissions'
 import { formatDate } from '@/lib/time'
 
@@ -27,6 +28,30 @@ function Notice({ tone, children }: { tone: 'info' | 'warning' | 'error'; childr
   )
 }
 
+// C7 (2026-09-13): every one of these notices used to end in "Contact immiNow to renew" — an
+// instruction to leave the product to do the one thing it was telling the admin to do. The admin
+// now asks from here, and once asked the notice says so rather than repeating the ask: the answer
+// comes from the RECORDED `renewal_requested_at`, so it survives a reload and a second session.
+function RenewalAction({ requestedAt }: { requestedAt?: string | null }) {
+  const requestRenewal = useRequestRenewal()
+  if (requestedAt) {
+    return <>Renewal requested on {formatDate(requestedAt)} — immiNow will contact you.</>
+  }
+  return (
+    <>
+      <Button
+        size="sm"
+        className="ml-xs align-middle"
+        loading={requestRenewal.isPending}
+        onClick={() => requestRenewal.mutate()}
+      >
+        Request renewal
+      </Button>
+      {requestRenewal.isError && <span className="ml-xs text-error">{requestRenewal.error.message}</span>}
+    </>
+  )
+}
+
 export function SubscriptionBanner() {
   const { data } = useMyConsultancy()
   const { can } = usePermissionChecker()
@@ -36,12 +61,16 @@ export function SubscriptionBanner() {
   const isAdmin = can('settings.edit_profile')
   const expires = data.subscription_expires_at ? formatDate(data.subscription_expires_at) : 'its end date'
   const graceEnds = data.grace_ends_at ? formatDate(data.grace_ends_at) : 'the end of the grace period'
+  // One sentence for everyone who cannot act on this themselves, in every state — it was three
+  // different sentences before, one of which told a consultant to contact immiNow directly.
+  const askYourAdmin = 'Ask your admin to renew it with immiNow.'
 
   if (status === 'expiring') {
+    // Still hidden from non-admins (nothing is wrong yet, and they have nothing to do about it).
     if (!isAdmin) return null
     return (
       <Notice tone="info">
-        Your subscription ends on <strong>{expires}</strong>. Contact immiNow to renew so nothing is interrupted.
+        Your subscription ends on <strong>{expires}</strong>. <RenewalAction requestedAt={data.renewal_requested_at} />
       </Notice>
     )
   }
@@ -50,14 +79,15 @@ export function SubscriptionBanner() {
       <Notice tone="warning">
         Your subscription expired on <strong>{expires}</strong>. Unless it is renewed by <strong>{graceEnds}</strong>,
         only admins will be able to sign in, and new leads and new clients will stop.{' '}
-        {isAdmin ? 'Contact immiNow to renew.' : 'Ask your admin to renew it with immiNow.'}
+        {isAdmin ? <RenewalAction requestedAt={data.renewal_requested_at} /> : askYourAdmin}
       </Notice>
     )
   }
   return (
     <Notice tone="error">
       Your subscription has lapsed. Only admins can sign in, and new leads and new clients are paused — you can still
-      serve your existing clients. Contact immiNow to renew; your team can sign in again as soon as it is renewed.
+      serve your existing clients. Your team can sign in again as soon as it is renewed.{' '}
+      {isAdmin ? <RenewalAction requestedAt={data.renewal_requested_at} /> : askYourAdmin}
     </Notice>
   )
 }

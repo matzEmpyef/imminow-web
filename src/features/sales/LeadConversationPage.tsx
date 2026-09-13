@@ -30,6 +30,7 @@ import {
 } from '@/queries/leads'
 import { useBranches } from '@/queries/staff'
 import { useFeature } from '@/lib/features'
+import { usePermission } from '@/lib/permissions'
 import { formatDate, formatDateTime } from '@/lib/time'
 import { formatMoney } from '@/lib/money'
 import type { components } from '@/api/schema'
@@ -307,11 +308,13 @@ export function LeadConversationPage() {
   // Activity work-queue, so without that page there's nowhere for one to surface.
   const canSetReminder = useFeature('activity_queue')
   // Close Lead is Starter core (build reference 1.16 made real, 2026-08-29 — hygiene fix, it was
-  // mis-gated Ultimate before) and stays open on every plan; `leads.close` (permissions.ts) gates
-  // who inside an already-entitled consultancy can close (configurable via Designations/
-  // Employees, not yet enforced here or server-side — matching every other granular Leads
-  // permission in this codebase today; see PROGRESS.md). Reopen is the `case_reopening`
-  // entitlement, same flag as Reopen Case/Reopen Plan on the client side.
+  // mis-gated Ultimate before) and stays open on every plan. Console review C2 (2026-09-13): the
+  // button is now gated on the permission the SERVER enforces on POST /leads/{id}/close —
+  // `clients.close`, the one key that guards closing a lead and closing a case alike. It used to
+  // render for everyone, so a limited consultant clicked it and got a 403 for their trouble.
+  // Reopen is the `case_reopening` entitlement, same flag as Reopen Case/Reopen Plan on the
+  // client side.
+  const canCloseLead = usePermission('clients.close')
   const canReopenLead = useFeature('case_reopening')
 
   // `mutate` is destructured because it is referentially stable in React Query v5, so it can be
@@ -415,9 +418,11 @@ export function LeadConversationPage() {
                   <Button onClick={() => setShowConvertModal(true)}>Convert to Client</Button>
                 )}
 
-                <Button variant="destructive" onClick={() => setShowCloseModal(true)}>
-                  Close Lead
-                </Button>
+                {canCloseLead && (
+                  <Button variant="destructive" onClick={() => setShowCloseModal(true)}>
+                    Close Lead
+                  </Button>
+                )}
               </>
             )}
           </div>
