@@ -326,7 +326,17 @@ function App() {
         </Route>
         <Route element={<ConsultancyLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/sales/lead-pool" element={<LeadPoolPage />} />
+          {/* M16 (2026-09-13): the server stopped returning pool leads to a caller without
+              `leads.allocate_from_pool`, so this page rendered an empty table with no explanation
+              for anyone else. Same route-level gate the money pages use. */}
+          <Route
+            path="/sales/lead-pool"
+            element={
+              <PermissionGate permission="leads.allocate_from_pool" area="the Lead Pool">
+                <LeadPoolPage />
+              </PermissionGate>
+            }
+          />
           <Route path="/sales/active-leads" element={<ActiveLeadsPage />} />
           <Route path="/sales/leads/:id" element={<LeadConversationPage />} />
           <Route path="/clients" element={<ClientsListPage />} />

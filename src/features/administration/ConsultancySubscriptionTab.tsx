@@ -17,7 +17,7 @@ import {
 import { useEmployees } from '@/queries/staff'
 import { formatDate } from '@/lib/time'
 import { BUSINESS_FEATURES, ULTIMATE_FEATURES, STARTER_CORE_FEATURES, TIER_ORDER, TIER_LABEL } from '@/lib/features'
-import { formatMoney } from '@/lib/money'
+import { formatApprox, formatMoney } from '@/lib/money'
 
 type Consultancy = NonNullable<ReturnType<typeof useMyConsultancy>['data']>
 
@@ -168,8 +168,14 @@ export function SubscriptionTab({ consultancy }: { consultancy: Consultancy }) {
 
 function BillingCard({ consultancy }: { consultancy: Consultancy }) {
   const requestRenewal = useRequestRenewal()
-  const { subscription_started_at, subscription_expires_at, billing_cycle, subscription_amount, billing_currency } =
-    consultancy
+  const {
+    subscription_started_at,
+    subscription_expires_at,
+    billing_cycle,
+    subscription_amount,
+    billing_currency,
+    subscription_amount_local,
+  } = consultancy
 
   const daysLeft = subscription_expires_at
     ? Math.ceil((new Date(subscription_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
@@ -191,7 +197,23 @@ function BillingCard({ consultancy }: { consultancy: Consultancy }) {
       ),
     },
     { label: 'Billing cycle', value: <span className="capitalize">{billing_cycle ?? '—'}</span> },
-    { label: 'Amount', value: formatMoney(billing_currency, subscription_amount) },
+    {
+      label: 'Amount',
+      // A Canadian university read "INR 2,40,000" with nothing to compare it against (console
+      // review M13, 2026-09-13). The server converts through the exchange table and sends
+      // `subscription_amount_local` only when the account's own currency differs — so the "≈"
+      // half simply does not render for an Indian consultancy, and the line underneath says why
+      // the first figure is the one that is actually charged.
+      value: (
+        <>
+          {formatMoney(billing_currency, subscription_amount)}
+          {subscription_amount_local && (
+            <span className="text-text-secondary"> ({formatApprox(subscription_amount_local)})</span>
+          )}
+          <span className="mt-0.5 block text-caption text-text-secondary">All immiNow billing is in INR.</span>
+        </>
+      ),
+    },
   ]
 
   // The server-derived state (2026-09-10) — the date alone no longer tells the whole story, since

@@ -24,6 +24,12 @@ export function PhonebookPage() {
   const [deletingContact, setDeletingContact] = useState<Contact | null>(null)
 
   const categories = [...new Set(contacts.data?.map((c) => c.category) ?? [])]
+  // "Other" is always offered, even on an empty phonebook (console review M9, 2026-09-13). The
+  // dropdown is seeded from categories already in use, so the very first contact — and anyone
+  // filing someone who fits none of the existing groups — faced a required field with nothing
+  // pickable and had to invent a category name. The server stores `category` as a free string
+  // (no whitelist on POST/PATCH /phonebook), so this needs nothing server-side.
+  const addModalCategories = categories.includes('Other') ? categories : [...categories, 'Other']
 
   const rows = useMemo(() => {
     let items = contacts.data ?? []
@@ -91,7 +97,9 @@ export function PhonebookPage() {
           <Button onClick={() => setShowAddModal(true)}>Add Contact</Button>
         </div>
 
-        {showAddModal && <AddPhonebookContactModal categories={categories} onClose={() => setShowAddModal(false)} />}
+        {showAddModal && (
+          <AddPhonebookContactModal categories={addModalCategories} onClose={() => setShowAddModal(false)} />
+        )}
 
         {deletingContact && (
           <Modal

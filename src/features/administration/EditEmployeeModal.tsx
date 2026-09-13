@@ -3,18 +3,20 @@ import { Pencil } from 'lucide-react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
+import { SelectField } from '@/components/SelectField'
 import { useUpdateEmployee } from '@/queries/staff'
 import { PHONE_ERROR, isValidPhone } from '@/lib/validation'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type Employee = components['schemas']['Employee']
+type Designation = components['schemas']['Designation']
 
 // User-requested (2026-08-15) — a separate, lightweight Edit popup for name/phone/designation
-// (the free-text job title), distinct from Manage Access which stays the sensitive-change path
-// (branch(es), Access Rights, permission overrides — reason required). Mirrors
-// InviteEmployeeModal.tsx's shape.
-export function EditEmployeeModal({ employee }: { employee: Employee }) {
+// (the job title, picked from the consultancy's designations since console review M6,
+// 2026-09-13), distinct from Manage Access which stays the sensitive-change path (branch(es),
+// Access Rights, permission overrides — reason required). Mirrors InviteEmployeeModal.tsx's shape.
+export function EditEmployeeModal({ employee, designations }: { employee: Employee; designations: Designation[] }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="contents">
@@ -27,17 +29,37 @@ export function EditEmployeeModal({ employee }: { employee: Employee }) {
       >
         <Pencil className="h-4 w-4" />
       </button>
-      {open && <EditEmployeeModalBody employee={employee} onClose={() => setOpen(false)} />}
+      {open && (
+        <EditEmployeeModalBody employee={employee} designations={designations} onClose={() => setOpen(false)} />
+      )}
     </div>
   )
 }
 
-function EditEmployeeModalBody({ employee, onClose }: { employee: Employee; onClose: () => void }) {
+function EditEmployeeModalBody({
+  employee,
+  designations,
+  onClose,
+}: {
+  employee: Employee
+  designations: Designation[]
+  onClose: () => void
+}) {
   const updateEmployee = useUpdateEmployee(employee.id!)
   const [firstName, setFirstName] = useState(employee.user!.first_name)
   const [lastName, setLastName] = useState(employee.user!.last_name)
   const [phone, setPhone] = useState(employee.user!.phone ?? '')
+  // A select over the consultancy's own designations, not free text (console review M6,
+  // 2026-09-13) — the same list Invite now uses, so the two forms cannot disagree about what a
+  // designation is called. Keyed on the NAME rather than the id: this modal writes the job title
+  // only (`designation`), never `designation_id` — changing access rights stays behind Manage
+  // Access, which requires a reason and is audited as such. A title recorded before this list
+  // existed is kept as its own option so a save from here can't quietly erase it.
   const [designation, setDesignation] = useState(employee.user!.designation ?? '')
+  const legacyTitle =
+    employee.user!.designation && !designations.some((d) => d.name === employee.user!.designation)
+      ? employee.user!.designation
+      : null
 
   const phoneError = phone && !isValidPhone(phone) ? PHONE_ERROR : undefined
   const canSave = Boolean(firstName && lastName) && !phoneError
@@ -89,12 +111,23 @@ function EditEmployeeModalBody({ employee, onClose }: { employee: Employee; onCl
           onChange={(e) => setPhone(e.target.value)}
           error={phoneError}
         />
-        <TextField
+        <SelectField
           label="Designation"
+          id={`edit-employee-designation-${employee.id}`}
           value={designation}
           onChange={(e) => setDesignation(e.target.value)}
-          placeholder="e.g. Senior Consultant"
-        />
+        >
+          <option value="">Select…</option>
+          {legacyTitle && <option value={legacyTitle}>{legacyTitle} (current)</option>}
+          {designations.map((d) => (
+            <option key={d.id} value={d.name}>
+              {d.name}
+            </option>
+          ))}
+        </SelectField>
+        <p className="text-caption text-text-secondary">
+          Access rights are changed under Manage Access, which asks for a reason.
+        </p>
       </form>
     </Modal>
   )

@@ -369,21 +369,37 @@ export function ChatPanel({
           <span>{composerLocked}</span>
         </div>
       ) : (
-        <form onSubmit={onSend} className="flex shrink-0 items-center gap-sm border-t border-border px-md py-sm">
-          <input
-            value={draft}
-            onChange={(e) => onDraftChange(e.target.value)}
-            placeholder="Write a message…"
-            className="h-11 flex-1 rounded-full border border-border bg-background px-md text-body text-text-primary outline-none focus:border-2 focus:border-primary"
-          />
-          <button
-            type="submit"
-            disabled={sending || !draft.trim()}
-            aria-label="Send message"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-text-on-primary disabled:opacity-40"
-          >
-            <ArrowUp className="h-5 w-5" />
-          </button>
+        <form onSubmit={onSend} className="flex shrink-0 flex-col gap-xs border-t border-border px-md py-sm">
+          <div className="flex items-end gap-sm">
+            {/* A textarea, not an input (console review M2, 2026-09-13) — Enter sends and
+                Shift+Enter starts a new line, the convention every chat app trains people on.
+                An `<input>` could not hold a newline at all, so a multi-line message was
+                impossible; `requestSubmit` routes Enter through the same submit handler the
+                send button uses, so nothing needs a second code path. */}
+            <textarea
+              value={draft}
+              onChange={(e) => onDraftChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' || e.shiftKey) return
+                // Leave IME composition alone — mid-composition Enter commits the candidate.
+                if (e.nativeEvent.isComposing) return
+                e.preventDefault()
+                e.currentTarget.form?.requestSubmit()
+              }}
+              rows={1}
+              placeholder="Write a message…"
+              className="max-h-24 min-h-11 flex-1 resize-none rounded-2xl border border-border bg-background px-md py-sm text-body text-text-primary outline-none focus:border-2 focus:border-primary"
+            />
+            <button
+              type="submit"
+              disabled={sending || !draft.trim()}
+              aria-label="Send message"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-text-on-primary disabled:opacity-40"
+            >
+              <ArrowUp className="h-5 w-5" />
+            </button>
+          </div>
+          <p className="text-caption text-text-secondary">Enter to send · Shift+Enter for a new line</p>
         </form>
       )}
     </div>

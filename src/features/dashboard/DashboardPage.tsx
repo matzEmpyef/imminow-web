@@ -11,6 +11,7 @@ import { DoughnutChart } from '@/components/DoughnutChart'
 import { MonthlyBarChart } from '@/components/MonthlyBarChart'
 import { useAuthStore } from '@/stores/authStore'
 import { useDashboard } from '@/queries/dashboard'
+import { usePermission } from '@/lib/permissions'
 import { useAccountWords } from '@/lib/accountWords'
 import { formatDate } from '@/lib/time'
 
@@ -21,6 +22,10 @@ const SCOPE_LABELS = {
 } as const
 
 type Scope = keyof typeof SCOPE_LABELS
+
+// A week with no reply is the point the figure stops being a statistic and starts being a
+// problem: the tile turns warning-coloured at or past it.
+const OLDEST_UNANSWERED_WARN_DAYS = 7
 
 // One icon + accent color per stat card key — the first (unallocated_leads) doubles as the hero
 // card's icon. Each card gets a distinct color so the row reads at a glance, same idea as a
@@ -34,9 +39,21 @@ const STAT_META: Record<string, { icon: ReactNode; color: 'primary' | 'secondary
   // and colour on purpose: it occupies the same slot and means the same kind of thing, so the row
   // must not appear to gain a different card when the viewer changes scope.
   clients: { icon: <CheckCircle2 className="h-5 w-5" />, color: 'success' },
-  // Branch and consultancy scope's fourth card (2026-09-10). Warning, not success: every one of
-  // these is a committed student waiting on the consultancy, so a non-zero count wants action.
+  // The whole-account fifth card (console review M10, 2026-09-13; branch/consultancy's fourth
+  // before that). Warning, not success: every one of these is a committed student waiting on the
+  // consultancy, so a non-zero count wants action.
   pending_allocation: { icon: <UserPlus className="h-5 w-5" />, color: 'warning' },
+}
+
+// One literal class per count — Tailwind only emits classes it can see as whole strings, so a
+// computed `grid-cols-${n}` would generate no CSS at all. The row is four cards in most scopes,
+// five in the whole-account scope (M10), and fewer for a consultant who cannot see the pool.
+const STAT_GRID_COLS: Record<number, string> = {
+  1: 'grid-cols-1',
+  2: 'grid-cols-2',
+  3: 'grid-cols-3',
+  4: 'grid-cols-4',
+  5: 'grid-cols-5',
 }
 
 // User-requested (2026-08-19) — "If any of KPIs should be redirected to another page, let us do
@@ -139,6 +156,7 @@ export function DashboardPage() {
   const user = useAuthStore((s) => s.user)
   const [scope, setScope] = useState<Scope>('personal')
   const dashboard = useDashboard(scope)
+  const canAllocateFromPool = usePermission('leads.allocate_from_pool')
   // H2 (2026-09-13) — a college's whole-account view is not a "Whole Consultancy" view. Every
   // other scope word is the same for both kinds of account.
   const words = useAccountWords()
@@ -169,7 +187,13 @@ export function DashboardPage() {
   }
 
   const data = dashboard.data
-  const [heroCard, ...restCards] = data.stat_cards
+  // The pool is for whoever may allocate from it (console review M16, 2026-09-13). A consultant
+  // without the permission cannot open Lead Pool at all now, so a tile counting it — and linking
+  // straight at the page that would refuse them — was advertising a door that is locked.
+  const statCards = canAllocateFromPool
+    ? data.stat_cards
+    : data.stat_cards.filter((card) => card.key !== 'unallocated_leads')
+  const [heroCard, ...restCards] = statCards
 
   return (
     <AppShell>
@@ -196,7 +220,7 @@ export function DashboardPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-4 gap-md">
+        <div className={`grid gap-md ${STAT_GRID_COLS[statCards.length] ?? 'grid-cols-4'}`}>
           {heroCard && (
             <CardOrLink
               to={statLinkFor(heroCard.key, scope)}
@@ -285,7 +309,13 @@ export function DashboardPage() {
         {data.branch_breakdown && (
           <Card>
             <h2 className="text-h3 text-text-primary">Branch Breakdown</h2>
+            {/* This card ignores the scope toggle above it — it is always every branch's open
+                leads (console review M10, 2026-09-13). Read next to a Personal-scope KPI row it
+                looked like the same numbers refusing to agree, so it says what it covers. */}
             <p className="mt-xs text-caption text-text-secondary">
+              Whole {words.org} · all open leads
+            </p>
+            <p className="text-caption text-text-secondary">
               {data.branch_breakdown.length} branches: {data.branch_breakdown.map((b) => b.branch_name).join(', ')}
             </p>
             <div className="mt-sm flex flex-col gap-xs">
@@ -317,6 +347,21 @@ export function DashboardPage() {
                   {data.analytics.response_time_median_hours == null
                     ? 'No data yet'
                     : `${Math.round(data.analytics.response_time_median_hours)}h`}
+                </p>
+                {/* The median only counts leads that GOT a reply (console review M19,
+                    2026-09-13), so a lead sitting unanswered for weeks never moved it. This is
+                    the one that is actually going wrong, beside the one that looks fine. */}
+                <p
+                  className={`mt-xs text-body-sm ${
+                    (data.analytics.oldest_unanswered_lead_days ?? 0) >= OLDEST_UNANSWERED_WARN_DAYS
+                      ? 'font-medium text-warning'
+                      : 'text-text-secondary'
+                  }`}
+                >
+                  Oldest unanswered lead:{' '}
+                  {data.analytics.oldest_unanswered_lead_days == null
+                    ? 'none'
+                    : `${data.analytics.oldest_unanswered_lead_days} days`}
                 </p>
               </div>
               <div className="rounded-md border border-border p-md">

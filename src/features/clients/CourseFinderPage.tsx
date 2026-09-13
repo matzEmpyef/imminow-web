@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ListChecks } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Button } from '@/components/Button'
 import { Table } from '@/components/Table'
+import { CountryLabel } from '@/components/CountryLabel'
 import { CollegeDetailModal } from './CollegeDetailModal'
 import { CourseDetailModal } from './CourseDetailModal'
 import { ClientDetailModal } from './ClientDetailModal'
@@ -225,7 +227,25 @@ export function CourseFinderPage() {
             loading={courses.isLoading}
             error={courses.isError ? 'Could not load courses.' : undefined}
             emptyMessage={
-              hasFilters ? 'No courses match these filters.' : 'Pick an applicant or search to browse the catalog.'
+              !hasFilters ? (
+                'Pick an applicant or search to browse the catalog.'
+              ) : state.country ? (
+                // Names the gap instead of blaming the filters (console review M18, 2026-09-13):
+                // an empty result for a country we simply have no courses in is a catalogue gap,
+                // and the one thing the consultant can do about it is tell us. Only when a
+                // COUNTRY was picked — without one the result really is "these filters", and
+                // claiming a coverage gap would be a guess.
+                <span>
+                  No courses match. We have no courses in <CountryLabel name={state.country} />
+                  {state.fieldOfStudy.length > 0 ? ` for ${state.fieldOfStudy.join(', ')}` : ''} yet — try another
+                  country, or suggest one.{' '}
+                  <Link to="/administration/course-suggestions" className="text-primary hover:underline">
+                    Suggest a course
+                  </Link>
+                </span>
+              ) : (
+                'No courses match these filters.'
+              )
             }
           />
         </div>

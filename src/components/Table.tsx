@@ -49,7 +49,11 @@ interface TableProps<T> {
   rowKey: (row: T) => string
   loading?: boolean
   error?: ReactNode
-  emptyMessage?: string
+  /**
+   * ReactNode, not string (console review M18, 2026-09-13) — an empty state that can say what to
+   * do next needs to be able to link there, same as `error` above has always been able to.
+   */
+  emptyMessage?: ReactNode
   sort?: TableSort | null
   onSortChange?: (field: string, direction: 'asc' | 'desc') => void
   search?: { value: string; onChange: (debounced: string) => void; placeholder?: string }

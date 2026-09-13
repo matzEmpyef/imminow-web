@@ -354,7 +354,8 @@ function CouponClaimsCell({
                   updatedAt: r.redeemed_at ? formatDateTime(r.redeemed_at) : '',
                 }))
           }
-          emptyMessage={redemptions.isLoading ? 'Loading…' : 'No claims yet.'}
+          loading={redemptions.isLoading}
+          emptyMessage="No claims yet."
           intro={
             coupon.redemptions_by_location ? <BranchBreakdown breakdown={coupon.redemptions_by_location} /> : undefined
           }

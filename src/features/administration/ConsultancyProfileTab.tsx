@@ -14,6 +14,7 @@ import { useAddGalleryImage, useDeleteGalleryImage, useMyConsultancy, useUpdateC
 import { mediaUrl } from '@/lib/mediaUrl'
 import { useCountries } from '@/queries/countries'
 import { useMyKyc, useSubmitKyc } from '@/queries/kyc'
+import { useAccountWords } from '@/lib/accountWords'
 import type { components } from '@/api/schema'
 import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
 import { showToast } from '@/lib/toast'
@@ -426,6 +427,11 @@ function KycCard() {
   const kyc = useMyKyc()
   const submitKyc = useSubmitKyc()
   const [documentUrl, setDocumentUrl] = useState<string | null>(null)
+  // "KYC" is a consultancy's word (console review M12, 2026-09-13). A university does not do
+  // Know-Your-Customer against itself — it holds an ACCREDITATION, and the thing it is being
+  // asked for has a different name. Same endpoint, same review queue, same Verified badge; only
+  // the wording changes, and only for an institute.
+  const { isInstitute } = useAccountWords()
 
   // T6 (third-pass review): loading and error used to default to 'not_submitted', showing a
   // VERIFIED consultancy the "upload your certificate" pitch — and a re-upload from there
@@ -451,7 +457,7 @@ function KycCard() {
   return (
     <Card>
       <div className="flex items-center gap-sm">
-        <h2 className="text-h2 text-text-primary">KYC Verification</h2>
+        <h2 className="text-h2 text-text-primary">{isInstitute ? 'Verification' : 'KYC Verification'}</h2>
         <Badge
           color={status === 'verified' ? 'success' : status === 'pending' ? 'warning' : 'secondary'}
           className="capitalize"
@@ -461,10 +467,12 @@ function KycCard() {
       </div>
       <p className="mt-xs text-body-sm text-text-secondary">
         {status === 'verified'
-          ? 'Your certificate is verified — students see the Verified badge on your profile.'
+          ? `Your ${isInstitute ? 'document' : 'certificate'} is verified — students see the Verified badge on your profile.`
           : status === 'pending'
-            ? 'Your certificate is with the Platform Admin for review.'
-            : 'Upload your registration certificate to earn the Verified badge students see.'}
+            ? `Your ${isInstitute ? 'document' : 'certificate'} is with the Platform Admin for review.`
+            : isInstitute
+              ? 'Send us your accreditation or registration document so students see the Verified badge.'
+              : 'Upload your registration certificate to earn the Verified badge students see.'}
       </p>
       <div className="mt-md flex flex-col gap-md">
         {kyc.data?.document_url && (
@@ -474,14 +482,26 @@ function KycCard() {
             rel="noreferrer"
             className="w-fit text-body-sm text-primary underline"
           >
-            View submitted certificate
+            {isInstitute ? 'View submitted document' : 'View submitted certificate'}
           </a>
         )}
         <ImageUploadField
-          label={status === 'not_submitted' ? 'Certificate' : 'Replace certificate'}
+          label={
+            isInstitute
+              ? status === 'not_submitted'
+                ? 'Accreditation document'
+                : 'Replace document'
+              : status === 'not_submitted'
+                ? 'Certificate'
+                : 'Replace certificate'
+          }
           value={documentUrl ?? ''}
           onChange={setDocumentUrl}
-          hint="Image of your registration/incorporation certificate. Re-uploading restarts verification."
+          hint={
+            isInstitute
+              ? 'Image of your accreditation or registration document. Re-uploading restarts verification.'
+              : 'Image of your registration/incorporation certificate. Re-uploading restarts verification.'
+          }
         />
         {submitKyc.isError && <p className="text-body-sm text-error">{submitKyc.error.message}</p>}
         <Button
@@ -498,7 +518,7 @@ function KycCard() {
             })
           }
         >
-          Submit for verification
+          {isInstitute ? 'Upload accreditation document' : 'Submit for verification'}
         </Button>
       </div>
     </Card>

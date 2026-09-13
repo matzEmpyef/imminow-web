@@ -21,6 +21,7 @@ import { useCreateTag, useTags } from '@/queries/tags'
 import { useCountries } from '@/queries/countries'
 import { useBranches, useEmployees } from '@/queries/staff'
 import { usePermissionChecker } from '@/lib/permissions'
+import { useAccountWords } from '@/lib/accountWords'
 import { useAuthStore } from '@/stores/authStore'
 import { useCursorPagination } from '@/lib/pagination'
 import { showToast } from '@/lib/toast'
@@ -156,6 +157,7 @@ export function ClientsListPage() {
   // includes, the permission says what this employee may do with it (clients.create_applicant is
   // also enforced on POST /clients server-side, alongside the create_applicant entitlement).
   const { can } = usePermissionChecker()
+  const { isInstitute } = useAccountWords()
   const canCreateApplicant = useFeature('create_applicant') && can('clients.create_applicant')
   const canAssign = can('clients.reassign')
   const tags = useTags()
@@ -267,16 +269,24 @@ export function ClientsListPage() {
         )
       },
     },
-    {
-      key: 'preferred_destination',
-      header: 'Preferred Destination',
-      // Where the student wants to study, their target countries (user, 2026-09-10). Plain text,
-      // no flag, and filtered from the bar above rather than sorted.
-      render: (client) => {
-        const targets = client.preferences?.target_countries ?? []
-        return <span className="text-text-secondary">{targets.length > 0 ? targets.join(', ') : '—'}</span>
-      },
-    },
+    // Where the student wants to study, their target countries (user, 2026-09-10). Plain text,
+    // no flag, and filtered from the bar above rather than sorted.
+    //
+    // L4 (2026-09-13): an institute's applicants are applying TO the institute, in the institute's
+    // own country — the column and its filter answered a question that does not arise there, and
+    // the same value stays on the record for everyone else who does need it.
+    ...(isInstitute
+      ? []
+      : [
+          {
+            key: 'preferred_destination',
+            header: 'Preferred Destination',
+            render: (client: Client) => {
+              const targets = client.preferences?.target_countries ?? []
+              return <span className="text-text-secondary">{targets.length > 0 ? targets.join(', ') : '—'}</span>
+            },
+          } satisfies TableColumn<Client>,
+        ]),
     {
       key: 'tags',
       header: 'Tags',
@@ -395,16 +405,18 @@ export function ClientsListPage() {
                   resetPaging()
                 }}
               />
-              <FilterMultiSelect
-                label="Preferred destination"
-                options={countries.data ?? []}
-                selected={destinationFilter}
-                onChange={(next) => {
-                  setDestinationFilter(next)
-                  resetPaging()
-                }}
-                renderOption={(c) => <CountryLabel name={c} />}
-              />
+              {!isInstitute && (
+                <FilterMultiSelect
+                  label="Preferred destination"
+                  options={countries.data ?? []}
+                  selected={destinationFilter}
+                  onChange={(next) => {
+                    setDestinationFilter(next)
+                    resetPaging()
+                  }}
+                  renderOption={(c) => <CountryLabel name={c} />}
+                />
+              )}
             </>
           }
           quickFilters={

@@ -21,6 +21,12 @@ interface PersonListModalProps {
    * than a second popup: they are one question, and two affordances in one table cell is clutter.
    */
   intro?: ReactNode
+  /**
+   * While true the list renders Table's own loading state instead of `emptyMessage` (console
+   * review M5, 2026-09-13) — callers used to pass an empty `rows` array plus the word "Loading…"
+   * as the empty message, which reads as a verdict on an empty list rather than a pending fetch.
+   */
+  loading?: boolean
 }
 
 type IndexedRow = PersonListRow & { index: number }
@@ -47,7 +53,7 @@ const typeBadgeColor: Record<'applicant' | 'aspirant', 'success' | 'info'> = {
 // - left aligned") instead of hand-rolled div rows — # and Name are real left-aligned columns now
 // (Table's default alignment), same shape as the Quiz Leaderboard popup built the same day.
 // `bare` drops Table's own card chrome since it's already nested inside Modal's.
-export function PersonListModal({ title, rows, emptyMessage, onClose, intro }: PersonListModalProps) {
+export function PersonListModal({ title, rows, emptyMessage, onClose, intro, loading }: PersonListModalProps) {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
@@ -89,6 +95,7 @@ export function PersonListModal({ title, rows, emptyMessage, onClose, intro }: P
         columns={columns}
         rows={pageRows}
         rowKey={(r) => `${r.index}-${r.email}`}
+        loading={loading}
         emptyMessage={rows.length === 0 ? emptyMessage : 'No matches.'}
         search={{
           value: search,

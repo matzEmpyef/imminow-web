@@ -22,6 +22,11 @@ export function FormBuilderPage() {
 
   const [name, setName] = useState('')
   const [fields, setFields] = useState<FormFieldInput[]>([])
+  // The editor renders from LOCAL state, which the effect below fills in only AFTER the fetch
+  // resolves — so for one paint `existing.isLoading` was already false while `fields` was still
+  // `[]`, and the builder flashed "No fields yet." at a form that has plenty (console review M5,
+  // 2026-09-13). Hold the skeleton until local state actually carries the template.
+  const [hydrated, setHydrated] = useState(isNew)
   const [showAddField, setShowAddField] = useState(false)
   const [showAddGroup, setShowAddGroup] = useState(false)
   const [editingField, setEditingField] = useState<{ field: FormFieldInput; groupId: string | null } | null>(null)
@@ -31,6 +36,7 @@ export function FormBuilderPage() {
     if (!existing.data) return
     setName(existing.data.name)
     setFields(existing.data.fields)
+    setHydrated(true)
   }, [existing.data])
 
   function addField(field: FormFieldInput, targetGroupId: string | null) {
@@ -111,7 +117,7 @@ export function FormBuilderPage() {
   const error = createForm.error ?? updateForm.error
   const groups = listGroups(fields)
 
-  if (!isNew && existing.isLoading) {
+  if (!isNew && !hydrated && !existing.isError) {
     return (
       <AppShell>
         <Skeleton className="h-64 rounded-lg" />

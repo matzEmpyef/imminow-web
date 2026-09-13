@@ -98,7 +98,11 @@ const SECTIONS: GatedSection[] = [
     icon: Users,
     matches: (p) => p.startsWith('/sales'),
     sidebarLinks: [
-      { label: 'Lead Pool', path: '/sales/lead-pool', icon: Users },
+      // The pool is for whoever may allocate from it (console review M16, 2026-09-13). The
+      // server now hides unallocated leads from everyone else, so a Consultant without this
+      // permission was being offered a permanently empty page. `can` bypasses to true for the
+      // consultancy admin, same as every other permission-gated link here.
+      { label: 'Lead Pool', path: '/sales/lead-pool', icon: Users, permission: 'leads.allocate_from_pool' },
       { label: 'Active Leads', path: '/sales/active-leads', icon: UserCheck },
     ],
   },

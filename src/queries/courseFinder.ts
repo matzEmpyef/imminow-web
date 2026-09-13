@@ -47,6 +47,25 @@ export function useCourseFields() {
   })
 }
 
+// Level chooser (console review M14, 2026-09-13) — every level actually present in the catalogue
+// this caller can see, replacing a hardcoded four in Course Finder's own filter that offered
+// school grades (10th/11th/12th) beside Masters and could not name a rung the catalogue had
+// gained. Same shape, scoping and staleness as useCourseFields above; the Sentpo app already
+// derives its own level chips this way.
+export function useCourseLevels() {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['course-levels'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/courses/levels')
+      if (error) throw new ApiError('Could not load the course levels list.', error)
+      return data
+    },
+    enabled: isAuthed,
+    staleTime: 30 * 60 * 1000,
+  })
+}
+
 // `hasFilters` (H12 fix, frontend review 1 Sep 2026) — CourseFinderPage builds this from whether
 // the consultant has picked an applicant or set any filter/search; without it, mounting the page
 // fired `GET /courses` immediately with an empty filter set, before the consultant did anything.

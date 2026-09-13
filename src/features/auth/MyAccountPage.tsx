@@ -290,13 +290,16 @@ export function MyAccountPage() {
                     the copy no longer claims it is on: nothing enforces it until the new sign-in
                     system lands (2026-09-12). */}
                 {/* Required for admins always, and for everyone at a consultancy whose admin (or
-                    immiNow) has mandated it — the server computes the flag (review L15). */}
+                    immiNow) has mandated it — the server computes the flag (review L15). Stated
+                    in the FUTURE tense (console review M4, 2026-09-13): "Required" read as a rule
+                    already in force, so people went looking for the set-up step that does not
+                    exist yet. Nothing enforces 2FA until the new sign-in system lands. */}
                 <p className="text-caption text-text-secondary">
                   {user.two_factor_required
                     ? role === 'super_admin' || role === 'consultancy_admin'
-                      ? 'Required for your role. Set-up arrives with the new sign-in system.'
-                      : `Required for everyone at your ${words.org}. Set-up arrives with the new sign-in system.`
-                    : 'Optional for your role. Set-up arrives with the new sign-in system.'}
+                      ? 'Will be required for your role — arrives with the new sign-in system, nothing to do yet.'
+                      : `Will be required for everyone at your ${words.org} — arrives with the new sign-in system, nothing to do yet.`
+                    : 'Arrives with the new sign-in system.'}
                 </p>
               </div>
               <div className="flex items-center gap-sm">

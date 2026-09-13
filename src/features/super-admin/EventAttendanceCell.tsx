@@ -81,7 +81,8 @@ export function EventAttendanceCell({ event }: { event: Event }) {
                   updatedAt: r.created_at ? formatDateTime(r.created_at) : '',
                 }))
           }
-          emptyMessage={attendance.isLoading ? 'Loading…' : 'No RSVPs yet.'}
+          loading={attendance.isLoading}
+          emptyMessage="No RSVPs yet."
           onClose={() => setOpenList(null)}
         />
       )}
@@ -99,7 +100,8 @@ export function EventAttendanceCell({ event }: { event: Event }) {
                   updatedAt: a.verified_at ? formatDateTime(a.verified_at) : '',
                 }))
           }
-          emptyMessage={attendance.isLoading ? 'Loading…' : 'No attendance recorded yet.'}
+          loading={attendance.isLoading}
+          emptyMessage="No attendance recorded yet."
           onClose={() => setOpenList(null)}
         />
       )}

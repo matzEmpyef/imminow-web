@@ -26,8 +26,15 @@ export function InviteEmployeeModal({
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
-  const [designation, setDesignation] = useState('')
+  // ONE Designation field (console review M6, 2026-09-13). It used to be two: a free-text job
+  // title ("e.g. Senior Consultant") plus a separate "Access Rights" select over the very same
+  // designations list, so an admin had to type a name and then pick the matching one — and the
+  // two drifted apart the moment either was edited. The select is the field now; its NAME is
+  // still sent as the title, so the Employees table's Designation column keeps reading the same
+  // way and the server's payload shape is unchanged.
   const [designationId, setDesignationId] = useState('')
+
+  const selectedDesignation = designations.find((d) => d.id === designationId)
 
   const emailError = email && !isValidEmail(email) ? EMAIL_ERROR : undefined
   const phoneError = phone && !isValidPhone(phone) ? PHONE_ERROR : undefined
@@ -42,7 +49,7 @@ export function InviteEmployeeModal({
         last_name: lastName,
         email,
         phone: phone || undefined,
-        designation: designation || undefined,
+        designation: selectedDesignation?.name || undefined,
         designation_id: hasDesignations ? designationId || undefined : undefined,
       },
       {
@@ -89,26 +96,24 @@ export function InviteEmployeeModal({
           onChange={(e) => setPhone(e.target.value)}
           error={phoneError}
         />
-        <TextField
+        <SelectField
           label="Designation"
-          value={designation}
-          onChange={(e) => setDesignation(e.target.value)}
-          placeholder="e.g. Senior Consultant"
-        />
+          id="invite-designation"
+          value={designationId}
+          onChange={(e) => setDesignationId(e.target.value)}
+        >
+          <option value="">Select…</option>
+          {designations.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </SelectField>
         {hasDesignations && (
-          <SelectField
-            label="Access Rights"
-            id="invite-designation"
-            value={designationId}
-            onChange={(e) => setDesignationId(e.target.value)}
-          >
-            <option value="">Select…</option>
-            {designations.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </SelectField>
+          <p className="text-caption text-text-secondary">
+            The designation also sets this employee&rsquo;s access rights. Adjust individual permissions afterwards from
+            Manage Access.
+          </p>
         )}
       </form>
     </Modal>

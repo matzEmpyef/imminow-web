@@ -18,6 +18,7 @@ import { Modal } from '@/components/Modal'
 import { CountryLabel } from '@/components/CountryLabel'
 import { Badge } from '@/components/Badge'
 import { IconBadge } from '@/components/IconBadge'
+import { Skeleton } from '@/components/QueryState'
 import { SuggestCorrectionButton } from '@/features/clients/SuggestCorrectionButton'
 import { useExams } from '@/queries/catalogSettings'
 import { useCollegeDetail } from '@/queries/adminColleges'
@@ -298,7 +299,10 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
             : offeredCampuses.length > 0
               ? offeredCampuses.map((c) => [c.city, c.province_state].filter(Boolean).join(', ') || c.country).join(' · ')
               : college.isLoading
-                ? 'Loading…'
+                ? // A bar, not the word "Loading…" (console review M5, 2026-09-13) — text in a
+                  // fact tile reads as the fact itself, so the tile looked like it was answering
+                  // the question rather than still fetching the college.
+                  <Skeleton className="h-4 w-24 rounded-sm" />
                 : `${(course.campus_ids ?? []).length} linked`}
         </Fact>
         <Fact icon={<Award className="h-5 w-5" />} color="primary" label="Scholarship">

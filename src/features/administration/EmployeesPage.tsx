@@ -7,6 +7,7 @@ import { InviteEmployeeModal } from './InviteEmployeeModal'
 import { EmployeeAccessModal } from './EmployeeAccessModal'
 import { EditEmployeeModal } from './EditEmployeeModal'
 import { useFeature } from '@/lib/features'
+import { useAccountWords } from '@/lib/accountWords'
 import { useBranches, useDesignations, useEmployees } from '@/queries/staff'
 import type { components } from '@/api/schema'
 
@@ -19,6 +20,7 @@ export function EmployeesPage() {
   // branch checklist's designation half (EmployeeAccessModal).
   const hasDesignations = useFeature('designations')
   const hasMultiBranch = useFeature('multi_branch')
+  const words = useAccountWords()
   const employees = useEmployees()
   const designations = useDesignations()
   const branches = useBranches()
@@ -92,7 +94,15 @@ export function EmployeesPage() {
                 .map((b) => b.name)
               return (
                 <span className="text-text-secondary">
-                  {designation?.name ?? 'No access rights'}
+                  {/* The owner carries every permission by definition — `usePermissionChecker`
+                      bypasses to true for them, whether or not a designation row happens to be
+                      attached. An institute (which has no designations at all) therefore showed
+                      its owner as having "No access rights" (console review M3, 2026-09-13), and
+                      a consultancy showed the protected "Owner/Admin" designation, repeating the
+                      badge already on the Name cell. One honest answer for both. */}
+                  {employee.is_consultancy_admin
+                    ? 'Full access (owner)'
+                    : (designation?.name ?? 'No access rights')}
                   {branchNames.length > 0 ? ` · ${branchNames.join(', ')}` : ''}
                 </span>
               )
@@ -105,7 +115,7 @@ export function EmployeesPage() {
       header: '',
       render: (employee) => (
         <div className="flex justify-end">
-          <EditEmployeeModal employee={employee} />
+          <EditEmployeeModal employee={employee} designations={designations.data ?? []} />
           {hasDesignations && !employee.is_consultancy_admin && (
             <EmployeeAccessModal
               employee={employee}
@@ -151,7 +161,10 @@ export function EmployeesPage() {
           emptyMessage={
             search
               ? 'No employees match your search.'
-              : 'No employees yet. Invite your first colleague with Invite Employee above.'
+              : // L1 (2026-09-13): "employee" is the record, and the ROLE word is whatever this
+                // account calls the people who carry leads and cases — a college's staff are team
+                // members, not consultants.
+                `No employees yet. Invite your first ${words.person} with Invite Employee above.`
           }
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}

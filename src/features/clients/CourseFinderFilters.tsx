@@ -6,8 +6,9 @@ import { Toggle } from '@/components/Toggle'
 import { CountrySelect } from '@/components/CountrySelect'
 import { SearchSelect } from '@/components/SearchSelect'
 import { CompactSelect } from '@/components/CompactSelect'
-import { useCourseFields } from '@/queries/courseFinder'
+import { useCourseFields, useCourseLevels } from '@/queries/courseFinder'
 import { useMyConsultancy } from '@/queries/consultancy'
+import { courseLevelLabel } from '@/lib/studyLevels'
 import type { usePersonPicker } from '@/lib/usePersonPicker'
 import { DURATION_BUCKETS, type FinderState } from './courseFinderState'
 
@@ -38,6 +39,7 @@ export function CourseFinderFilters({
   isInstitute = false,
 }: CourseFinderFiltersProps) {
   const { data: fields } = useCourseFields()
+  const { data: levels } = useCourseLevels()
   // The consultancy's own currency (2026-09-10) — the same one CourseFinderPage sends as
   // filter[fee_currency]; a cached read, so the second call costs nothing.
   const feeCurrency = useMyConsultancy().data?.display_currency ?? 'INR'
@@ -60,6 +62,10 @@ export function CourseFinderFilters({
           selected={state.fieldOfStudy}
           onChange={(fieldOfStudy) => onChange({ fieldOfStudy })}
         />
+        {/* The catalogue's own levels (console review M14, 2026-09-13) — the hardcoded four here
+            could neither drop a rung this caller's catalogue has none of nor offer one it has
+            gained, and the same list elsewhere in the console offered 10th/11th/12th, which no
+            course is ever filed under. */}
         <SelectField
           id="cf-level"
           label="Level"
@@ -67,10 +73,11 @@ export function CourseFinderFilters({
           onChange={(e) => onChange({ level: e.target.value })}
         >
           <option value="">Any level</option>
-          <option value="bachelors">Bachelors</option>
-          <option value="masters">Masters</option>
-          <option value="diploma">Diploma</option>
-          <option value="phd">PhD</option>
+          {(levels ?? []).map((level) => (
+            <option key={level} value={level}>
+              {courseLevelLabel(level)}
+            </option>
+          ))}
         </SelectField>
         <SearchSelect
           id="cf-client"

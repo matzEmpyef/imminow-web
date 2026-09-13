@@ -9036,6 +9036,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/courses/levels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Levels that occur in the catalogue this caller can see (console review M14, 2026-09-13) — the console's level pickers derive their options here instead of a fixed list that offered school grades beside Masters. Same scoping as /courses/fields. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": string[];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/courses/fee-range": {
         parameters: {
             query?: never;
@@ -20363,6 +20399,8 @@ export interface components {
              * @description When the account's admin asked immiNow to renew (POST /consultancies/me/renewal-request, console review C7, 2026-09-13); cleared by the platform's renewal.
              */
             readonly renewal_requested_at?: string | null;
+            /** @description The platform bill converted to the account country's currency via the exchange table (console review M13, 2026-09-13); null when it already bills in that currency or no rate is set. */
+            readonly subscription_amount_local?: components["schemas"]["Money"] | null;
             /** Format: date-time */
             readonly upgrade_requested_at?: string | null;
             /** @description Up to 5 consultancy-curated images (student-facing decision, 2026-08-30) rendered as a hero slideshow at the top of Consultancy Detail. Included on every read a student already sees (this schema, both list and detail) and on GET /consultancies/me. Managed by the consultancy's own staff via POST/PATCH/DELETE `/consultancies/me/gallery(/{imageId})`, gated the same as the profile self-PATCH (`settings.edit_profile`) — never editable through this schema's own PATCH endpoint. Empty for every consultancy that has not added one; clients MUST render today's layout unchanged when this is empty, adding the slideshow only above it when non-empty, never replacing or reordering anything else on the page. */
@@ -23965,6 +24003,8 @@ export interface components {
             collecting_since: string;
             /** @description Median hours from a lead's created_at to the first sender=consultant message on that lead's conversation, within the current scope. Null when nothing in scope has a consultant reply yet. */
             response_time_median_hours?: number | null;
+            /** @description Age in whole days of the oldest open lead whose last message is the student's (console review M19, 2026-09-13); null when every lead has been answered. The median above counts only leads that got a reply. */
+            oldest_unanswered_lead_days?: number | null;
             /** @description Median days from lead created_at to its lead->converted status_transitions row. Null with no conversions yet in scope. */
             conversion_median_days?: number | null;
             /** @description This consultancy's committed (Stage-2) students, bucketed by last_active_at recency (last_login_at before 2026-09-10); `never_logged_in` means never active in the app (labelled "Never active"). All four buckets are always present, even at 0, so the UI never has to guess the vocabulary. */

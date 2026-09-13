@@ -160,11 +160,13 @@ export function InternalMessagingPage() {
               </div>
             )}
 
-            {id && !selected && (
+            {/* While the roster is still loading there is no "not found" answer yet (console
+                review M5, 2026-09-13) — a skeleton, not a word, so the panel does not read as
+                an empty conversation for the half-second before it resolves. */}
+            {id && !selected && conversations.isLoading && <Skeleton className="h-full rounded-lg" />}
+            {id && !selected && !conversations.isLoading && (
               <div className="flex h-full items-center justify-center rounded-lg border border-border bg-surface">
-                <p className="text-body-sm text-text-secondary">
-                  {conversations.isLoading ? 'Loading…' : 'Conversation not found.'}
-                </p>
+                <p className="text-body-sm text-text-secondary">Conversation not found.</p>
               </div>
             )}
 
