@@ -20773,7 +20773,7 @@ export interface components {
             /** @description List rows only (2026-09-11) — each capture check at least one of this college's courses fails, with how many courses fail it. */
             readonly missing_checks?: {
                 /** @enum {string} */
-                key: "fee" | "duration" | "deadline" | "requirements" | "language";
+                key: "fee" | "duration" | "deadline" | "requirements" | "language" | "description" | "campus";
                 label: string;
                 count: number;
             }[];
