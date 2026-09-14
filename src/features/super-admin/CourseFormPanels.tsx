@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
@@ -12,6 +12,7 @@ import { useCurrencyCodes } from '@/lib/currencies'
 import type { CourseFormValue } from './useCourseForm'
 import { useStudyLevels } from '@/queries/studyLevels'
 import { useFieldsOfStudy } from '@/queries/fieldsOfStudy'
+import { useCourseLanguages } from '@/queries/courseFinder'
 import { useCourses } from '@/queries/courseSuggestions'
 
 type College = components['schemas']['College']
@@ -94,9 +95,77 @@ function RemoveRowButton({ label, onClick }: { label: string; onClick: () => voi
   )
 }
 
+const ADD_NEW = '__add_new__'
+
+/**
+ * A dropdown built off a derived list (like Level and Field of study above), plus an "+ Add
+ * new…" row that switches to a plain text field for a value the list does not have yet (product
+ * owner, 2026-09-15: "language of instruction needs to be a dropdown with ability to add new
+ * there"). Unlike Field of study this has no separate managed-list page behind it — the list is
+ * simply whatever the catalogue already uses, and the admin typing a new one here is how it grows.
+ *
+ * Also switches to the text field on mount if the course already carries a value the list does
+ * not have (an older course, or one entered before its language existed anywhere else) — a
+ * dropdown that silently dropped that value on the next save would be a data-loss bug, not a UI
+ * nicety.
+ */
+function AddableSelectField({
+  label,
+  value,
+  options,
+  onChange,
+  required,
+  placeholder,
+}: {
+  label: string
+  value: string
+  options: string[]
+  onChange: (value: string) => void
+  required?: boolean
+  placeholder?: string
+}) {
+  const [typing, setTyping] = useState(false)
+  if (typing || (value && !options.includes(value))) {
+    return (
+      <div className="flex flex-col gap-xs">
+        <TextField label={label} required={required} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+        {options.length > 0 && (
+          <button
+            type="button"
+            className="self-start text-caption text-primary underline"
+            onClick={() => {
+              setTyping(false)
+              onChange('')
+            }}
+          >
+            Choose from the list instead
+          </button>
+        )}
+      </div>
+    )
+  }
+  return (
+    <SelectField
+      label={label}
+      required={required}
+      value={value}
+      onChange={(e) => (e.target.value === ADD_NEW ? setTyping(true) : onChange(e.target.value))}
+    >
+      <option value="">Not set</option>
+      {options.map((o) => (
+        <option key={o} value={o}>
+          {o}
+        </option>
+      ))}
+      <option value={ADD_NEW}>+ Add new…</option>
+    </SelectField>
+  )
+}
+
 export function CourseBasicsPanel({ hidden, form }: { hidden: boolean; form: CourseFormValue }) {
   const { data: studyLevels } = useStudyLevels()
   const { data: fields } = useFieldsOfStudy()
+  const { data: languages } = useCourseLanguages()
   return (
     <div className={panelClass(hidden)}>
       <FormSection title="Course">
@@ -148,11 +217,15 @@ export function CourseBasicsPanel({ hidden, form }: { hidden: boolean; form: Cou
             onChange={(e) => form.setCredentials(e.target.value)}
             placeholder="e.g. MSc"
           />
-          <TextField
+          {/* Derived from the catalogue like Level, with an "+ Add new…" escape hatch like
+              Field of study's own management page gives it — but no separate managed list, since
+              a language has no aliases or merge story to justify one (product owner, 2026-09-15). */}
+          <AddableSelectField
             label="Language of teaching"
             required
             value={form.language}
-            onChange={(e) => form.setLanguage(e.target.value)}
+            options={languages ?? []}
+            onChange={form.setLanguage}
             placeholder="e.g. English"
           />
         </div>

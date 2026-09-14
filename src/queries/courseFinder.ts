@@ -66,6 +66,24 @@ export function useCourseLevels() {
   })
 }
 
+// Language chooser (product owner, 2026-09-15) — every language of teaching actually present in
+// the catalogue this caller can see, backing the super-admin course form's dropdown. Same shape,
+// scoping and staleness as useCourseLevels above; unlike Level this list is not a closed enum —
+// the form still lets an admin type a value that is not here yet.
+export function useCourseLanguages() {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['course-languages'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/courses/languages')
+      if (error) throw new ApiError('Could not load the course languages list.', error)
+      return data
+    },
+    enabled: isAuthed,
+    staleTime: 30 * 60 * 1000,
+  })
+}
+
 // `hasFilters` (H12 fix, frontend review 1 Sep 2026) — CourseFinderPage builds this from whether
 // the consultant has picked an applicant or set any filter/search; without it, mounting the page
 // fired `GET /courses` immediately with an empty filter set, before the consultant did anything.

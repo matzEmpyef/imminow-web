@@ -9072,6 +9072,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/courses/languages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Languages of teaching that occur in the catalogue this caller can see (product owner, 2026-09-15) — backs both immiNow's Language of teaching dropdown on the course form and Sentpo Mobile's Language filter. Same caller-scoped derivation as /courses/levels; unlike Field of Study this is not a separately managed resource with aliases or merge — a language has none of that story — so immiNow's course form still accepts a value that is not in this list yet, and that course becomes the first one teaching it. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": string[];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/courses/fee-range": {
         parameters: {
             query?: never;
