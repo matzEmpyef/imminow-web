@@ -413,8 +413,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Passwordless door, step 1 — send an OTP to an email or phone (build reference 1.1, revised 2026-09-02)
-         * @description The student app's ONE door. `identifier` is an email address or an E.164 phone number — the server detects which. A KNOWN identifier opens a login challenge; an unknown one opens a signup challenge — the caller learns which via `mode`, so the client can label the next screen honestly, but the OTP step itself is identical. Replaces email/password for students entirely; staff (immiNow) keep /auth/login. Delivery is mocked until Phase 6 (fixed dev code, same convention as /auth/otp/request); binding, expiry and single-use are real. Unauthenticated by design.
+         * Passwordless door, step 1 — send an OTP to an email or phone, OR say this identifier wants a password instead (build reference 1.1, revised 2026-09-02; `staff` mode added 2026-09-15)
+         * @description The ONE door Sentpo Mobile shows every visitor — nothing about the screen itself reveals that a staff login exists. `identifier` is an email address or an E.164 phone number; the server detects which and, for an email, also looks up whether it belongs to an EXISTING non-student account. Three outcomes, all via `mode`: `login` (a known student — OTP sent), `signup` (identifier not on file — OTP sent, a signup challenge), `staff` (a consultancy/institute account — NO OTP is sent or challenge opened; the client shows a password field instead, using the same `identifier` against /auth/login). A staff identifier is never told apart from a brand-new one by timing or response shape beyond this one field, and — deliberately — never opens a signup challenge that would 409 at the end (the pre-2026-09-15 behavior, which read as a broken form rather than "use your password"). Platform staff, a super admin, and a freelancer also resolve to `staff` here (they DO have a password) even though Sentpo Mobile's own password login only accepts a consultancy/institute role — that refusal happens at /auth/login, not here.
          */
         post: {
             parameters: {
@@ -432,7 +432,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OTP sent */
+                /** @description OTP sent, OR (mode=staff) nothing sent at all — see the operation description for what each mode means and why `staff` carries no challenge. */
                 202: {
                     headers: {
                         [name: string]: unknown;
@@ -440,7 +440,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             /** @enum {string} */
-                            mode: "login" | "signup";
+                            mode: "login" | "signup" | "staff";
                             /** @enum {string} */
                             channel: "email" | "sms";
                             /** @description e.g. "is•••@gmail.com" / "+91 ••••• ••123" — display only. */
