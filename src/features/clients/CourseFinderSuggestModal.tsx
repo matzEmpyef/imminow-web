@@ -15,6 +15,38 @@ interface CourseFinderSuggestModalProps {
 // distinguish it from the reversible "Note down" toggle right next to it, even though Suggest is
 // the one action that writes to the person's own record and notifies them. Extracted from
 // CourseFinderPage's body in the 2026-08-25 decomposition pass.
+// What Suggest does, in words — one copy for Course Finder and for Suggest a course in chat, so the
+// two entry points can never describe the same action differently.
+export function SuggestDestination({
+  kind,
+  firstName,
+  hasApp,
+}: {
+  kind: 'lead' | 'client'
+  firstName: string
+  hasApp: boolean
+}) {
+  if (kind === 'client') {
+    return (
+      <>
+        {' '}
+        will be added to {firstName}&rsquo;s Applications and sent to them as a message in their chat, and
+        they&rsquo;ll get a notification pointing them at it.
+      </>
+    )
+  }
+  if (hasApp) {
+    return (
+      <>
+        {' '}
+        will be sent as a message in {firstName}&rsquo;s chat, and they&rsquo;ll get a notification pointing them
+        at it.
+      </>
+    )
+  }
+  return <> will be sent as a message in {firstName}&rsquo;s chat.</>
+}
+
 export function CourseFinderSuggestModal({
   courseName,
   destinationCopy,

@@ -128,7 +128,8 @@ export function useCourseFinderState(
   clientRows: ReturnType<typeof usePersonPicker>['clientRows'],
   leadRows: ReturnType<typeof usePersonPicker>['leadRows'],
 ) {
-  const [state, setState] = useState<FinderState>(loadInitialState)
+  // A shared search card links here with its filters in the URL; that wins over the cache.
+  const [state, setState] = useState<FinderState>(() => finderStateFromUrl() ?? loadInitialState())
   const [shortlist, setShortlist] = useState<ShortlistEntry[]>(() =>
     state.personId ? loadShortlist(state.personId) : [],
   )
@@ -223,4 +224,73 @@ export function useCourseFinderState(
   }
 
   return { state, setState, shortlist, setShortlist, drawerOpen, setDrawerOpen, handlePersonChange, toggleShortlist }
+}
+
+// ---- Shared searches (2026-09-14) -------------------------------------------------------------
+// A search card in chat carries GET /courses filter keys. These three helpers turn that into a
+// Course Finder link, read the link back into state, and turn state into what "Send this search"
+// posts — so the round trip uses one vocabulary end to end.
+
+export function durationBucketKeyFor(min: number | null, max: number | null): string {
+  const hit = Object.entries(DURATION_BUCKETS).find(([, b]) => (b.min ?? null) === min && (b.max ?? null) === max)
+  return hit ? hit[0] : ''
+}
+
+export function courseFinderUrlForSharedSearch(
+  person: { id: string; kind: 'client' | 'lead' },
+  filters: Record<string, string>,
+): string {
+  const params = new URLSearchParams({ person: person.id, kind: person.kind })
+  for (const key of ['country', 'level', 'field_of_study', 'fee_max', 'search']) {
+    if (filters[key]) params.set(key, filters[key])
+  }
+  const bucket = durationBucketKeyFor(
+    filters.duration_min_months ? Number(filters.duration_min_months) : null,
+    filters.duration_max_months ? Number(filters.duration_max_months) : null,
+  )
+  if (bucket) params.set('duration', bucket)
+  return `/clients/course-finder?${params.toString()}`
+}
+
+export function finderStateFromUrl(): FinderState | null {
+  try {
+    const params = new URLSearchParams(window.location.search)
+    const personId = params.get('person')
+    if (!personId) return null
+    const duration = params.get('duration') ?? ''
+    return {
+      ...DEFAULT_STATE,
+      personId,
+      personKind: params.get('kind') === 'lead' ? 'lead' : 'client',
+      search: params.get('search') ?? '',
+      country: params.get('country') ?? '',
+      level: params.get('level') ?? '',
+      fieldOfStudy: (params.get('field_of_study') ?? '')
+        .split(',')
+        .map((f) => f.trim())
+        .filter(Boolean),
+      feeMax: params.get('fee_max') ?? '',
+      durationBucket: DURATION_BUCKETS[duration] ? duration : '',
+    }
+  } catch {
+    return null
+  }
+}
+
+export function sharedSearchFiltersFrom(
+  state: FinderState,
+  feeCurrency: string,
+): { filters: Record<string, string>; search?: string } {
+  const filters: Record<string, string> = {}
+  if (state.country) filters.country = state.country
+  if (state.level) filters.level = state.level
+  if (state.fieldOfStudy.length) filters.field_of_study = state.fieldOfStudy.join(',')
+  if (state.feeMax && Number(state.feeMax) > 0) {
+    filters.fee_max = state.feeMax
+    filters.fee_currency = feeCurrency
+  }
+  const bucket = state.durationBucket ? DURATION_BUCKETS[state.durationBucket] : undefined
+  if (bucket?.min != null) filters.duration_min_months = String(bucket.min)
+  if (bucket?.max != null) filters.duration_max_months = String(bucket.max)
+  return { filters, search: state.search || undefined }
 }

@@ -4,7 +4,8 @@ import { ExternalLink, Minus, X } from 'lucide-react'
 import { ChatPanel } from './ChatPanel'
 import { useChatWindowStore } from '@/stores/chatWindowStore'
 import { useLead, useLeadMessages, useMarkLeadRead, useSendLeadMessage } from '@/queries/leads'
-import { useClientMessages, useMarkClientRead, useSendClientMessage } from '@/queries/clients'
+import { useClient, useClientMessages, useMarkClientRead, useSendClientMessage } from '@/queries/clients'
+import { SuggestCourseInChat, type ChatPerson } from '@/features/clients/SuggestCourseInChat'
 import {
   useInternalConversationMessages,
   useMarkInternalConversationRead,
@@ -37,6 +38,8 @@ export function FloatingChatWindow() {
   // Only to know whether the lead is still in the pool; no one replies to it until it is allocated.
   const lead = useLead(leadId)
   const clientMessages = useClientMessages(clientId)
+  // Only for Suggest a course: whether this is a study case, and the student's first name.
+  const client = useClient(clientId ?? '')
   const internalMessages = useInternalConversationMessages(internalId)
   const sendLeadMessage = useSendLeadMessage(leadId ?? '')
   const sendClientMessage = useSendClientMessage(clientId ?? '')
@@ -68,6 +71,7 @@ export function FloatingChatWindow() {
         sharedCourse: m.shared_course,
         fitSummary: m.fit_summary,
         visitRequest: m.visit_request,
+        sharedSearch: m.shared_search,
         isSessionBreak: m.type === 'session_break',
         isCallInitiated: m.type === 'call_initiated',
       }))
@@ -80,6 +84,7 @@ export function FloatingChatWindow() {
           sharedCourse: m.shared_course,
           fitSummary: m.fit_summary,
           visitRequest: m.visit_request,
+          sharedSearch: m.shared_search,
           isSessionBreak: m.type === 'session_break',
           isCallInitiated: m.type === 'call_initiated',
         }))
@@ -101,6 +106,18 @@ export function FloatingChatWindow() {
     : isClient
       ? `/clients/${conversation.id}/conversation`
       : `/administration/internal-messaging/${conversation.id}`
+
+  const chatPerson: ChatPerson | null =
+    isLead && lead.data
+      ? {
+          id: conversation.id,
+          kind: 'lead',
+          firstName: conversation.name,
+          hasApp: lead.data.origin === 'sentpo' && Boolean(lead.data.student_id),
+        }
+      : isClient && client.data?.case_type === 'student'
+        ? { id: conversation.id, kind: 'client', firstName: client.data.student.first_name, hasApp: true }
+        : null
 
   function handleSend(e: FormEvent) {
     e.preventDefault()
@@ -152,6 +169,8 @@ export function FloatingChatWindow() {
               : undefined
           }
         sending={sending}
+        person={isLead || isClient ? { id: conversation.id, kind: isLead ? 'lead' : 'client' } : undefined}
+        composerAction={chatPerson ? <SuggestCourseInChat person={chatPerson} /> : undefined}
         onUnsend={isInternal ? (messageId) => unsendInternalMessage.mutateAsync(messageId) : undefined}
         className="shadow-lg"
         headerActions={

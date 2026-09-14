@@ -7446,7 +7446,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Student-side "Share with consultant" (Sentpo Mobile Wave 5's Shortlist screen, build reference 2.2) — the mirror of `POST /leads/{id}/request-shortlist` above, from the other direction. Sends a `LeadMessage` with `type = shortlist_share` and `shared_course_ids` set to every course currently on the caller's own shortlist (an empty shortlist still sends — the human-readable `content` fallback says so). Restricted to the owning student. */
+        /** Student-side "Share with consultant" (Sentpo Mobile Wave 5's Shortlist screen, build reference 2.2) — the mirror of `POST /leads/{id}/request-shortlist` above, from the other direction. Sends a `LeadMessage` with `type = shortlist_share` and `shared_course_ids` set to every course currently on the caller's own shortlist (an empty shortlist still sends — the human-readable `content` fallback says so). Restricted to the owning student. Since 2026-09-14 `course_ids` narrows the share to the courses the student ticked; ids not on their Dream Courses list are ignored, and a list with none left is refused. */
         post: {
             parameters: {
                 query?: never;
@@ -7456,7 +7456,13 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        course_ids?: components["schemas"]["UUID"][];
+                    };
+                };
+            };
             responses: {
                 /** @description Sent */
                 201: {
@@ -7680,6 +7686,146 @@ export interface paths {
                     content?: never;
                 };
                 /** @description lead_not_allocated (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leads/{id}/share-search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Share a course search in a lead's chat (2026-09-14). The owning student sends the search they are looking at in the Sentpo app; consultancy staff send a Course Finder search to the student. Sends a LeadMessage with type = search_share and `shared_search` built server-side. The other side is notified. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ShareSearchRequest"];
+                };
+            };
+            responses: {
+                /** @description Sent */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LeadMessage"];
+                    };
+                };
+                /** @description filters is not an object */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Caller is neither the owning student nor consultancy staff */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Lead not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description lead_not_allocated. Staff may not write into a lead's chat while the lead is still in the pool. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clients/{id}/share-search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Consultancy staff send a Course Finder search into a client's chat (2026-09-14). Same message as `POST /leads/{id}/share-search`. Staff only — a committed student's saved courses already reach the consultancy as applications. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["schemas"]["UUID"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ShareSearchRequest"];
+                };
+            };
+            responses: {
+                /** @description Sent */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LeadMessage"];
+                    };
+                };
+                /** @description filters is not an object */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Caller is not consultancy staff */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Client not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description The journey is paused while Sentpo reviews it */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -20703,6 +20849,11 @@ export interface components {
             consultancy_id: components["schemas"]["UUID"];
             /** @description Denormalized for display (Sentpo Mobile Wave 3's Lead Chat List — "each showing the consultancy's name, logo"), same idiom as assigned_employee_name below. */
             readonly consultancy_name?: string | null;
+            /**
+             * @description Which kind of counterparty the lead's chat is with (2026-09-14), so the app can tag an institute the way Discovery does.
+             * @enum {string}
+             */
+            readonly consultancy_kind?: "consultancy" | "institute";
             readonly consultancy_logo_url?: string | null;
             assigned_employee_id?: components["schemas"]["UUID"];
             /** @description Denormalized for display/sort (e.g. Active Leads' consultant column) — null when unassigned. */
@@ -20814,10 +20965,10 @@ export interface components {
             /** @enum {string} */
             sender: "student" | "consultant";
             /**
-             * @description User-requested (2026-08-19) — "we need ability for consultant to see the shortlisted courses when student decides to [share]." Absent/omitted means `text` (every pre-existing message). `shortlist_share` is the "Share with consultant" action from the student's own Shortlist screen (build reference 2.2) — the only real way this ever gets sent, since it's student-initiated; nothing on the consultant side creates one. Distinct from the TRD's own `filter_share_card` envelope on the aspirational ChatMessage/WebSocket schema — this is the actual, working mock implementation of the narrower "share the Shortlist specifically" case, not the general "share any filtered search" case, which remains unbuilt (see the Deferred list in PROGRESS.md). `shortlist_request` (user-requested, 2026-08-19 — "a button in lead's detail page, request for shortlist courses") is the consultant-sent counterpart, from `POST /leads/{id}/request-shortlist`, gating that button's own state (Request → Requested → View). `session_break` (same request — "there should be a distinguishable break between the two sessions [lead and client chat]") is a synthetic, server-inserted marker (never sent by anyone) — see `GET /clients/{id}/messages`'s own note on how a converted client's message history is spliced together. `step_question` (Sentpo Mobile Wave 4, build reference 1.7 — "An 'Ask a question' action on any step deep-links into chat, pre-tagged with which step it's about") is student-sent only, via `POST /clients/{id}/messages` with `step_id` set; `content` still carries the actual question text. `visit_request` (2026-08-24, "a student should be able to request for an in-person visit to consultancy office... lead or applicant suggest a time, we get intimated, rest of the things can happen over chat") is student-sent only, via `POST /leads/{id}/request-visit` or `/clients/{id}/request-visit` — deliberately a single proposed date/time plus an optional note, not a slot-picker or calendar; any confirming, countering, or rescheduling happens as ordinary follow-up messages in the same thread, never a status the API tracks. Also creates a `VisitRequest` row (see that schema) so Support Tools' cross-consultancy list doesn't need to scan every conversation on the platform. `call_initiated` (2026-09-01, "we need to know calls triggered too") is student-sent only, via `POST /leads/{id}/call-initiated` or `/clients/{id}/call-initiated` — fired right before the device's own phone dialer opens, from the "Call" option in the same two-option sheet `visit_request` comes from. Deliberately INTENT wording only ("Tapped to call", never "Called you") — the device has no way to confirm the call actually connected, so the message can only honestly report that the tap happened. No side-record the way `visit_request` gets one — a call has nothing analogous to Support Tools' cross-consultancy list to query.
+             * @description User-requested (2026-08-19) — "we need ability for consultant to see the shortlisted courses when student decides to [share]." Absent/omitted means `text` (every pre-existing message). `shortlist_share` is the "Share with consultant" action from the student's own Shortlist screen (build reference 2.2) — the only real way this ever gets sent, since it's student-initiated; nothing on the consultant side creates one. Distinct from the TRD's own `filter_share_card` envelope on the aspirational ChatMessage/WebSocket schema — this is the actual, working mock implementation of the narrower "share the Shortlist specifically" case. Sharing a filtered search is `search_share` (2026-09-14) — see `shared_search`. `shortlist_request` (user-requested, 2026-08-19 — "a button in lead's detail page, request for shortlist courses") is the consultant-sent counterpart, from `POST /leads/{id}/request-shortlist`, gating that button's own state (Request → Requested → View). `session_break` (same request — "there should be a distinguishable break between the two sessions [lead and client chat]") is a synthetic, server-inserted marker (never sent by anyone) — see `GET /clients/{id}/messages`'s own note on how a converted client's message history is spliced together. `step_question` (Sentpo Mobile Wave 4, build reference 1.7 — "An 'Ask a question' action on any step deep-links into chat, pre-tagged with which step it's about") is student-sent only, via `POST /clients/{id}/messages` with `step_id` set; `content` still carries the actual question text. `visit_request` (2026-08-24, "a student should be able to request for an in-person visit to consultancy office... lead or applicant suggest a time, we get intimated, rest of the things can happen over chat") is student-sent only, via `POST /leads/{id}/request-visit` or `/clients/{id}/request-visit` — deliberately a single proposed date/time plus an optional note, not a slot-picker or calendar; any confirming, countering, or rescheduling happens as ordinary follow-up messages in the same thread, never a status the API tracks. Also creates a `VisitRequest` row (see that schema) so Support Tools' cross-consultancy list doesn't need to scan every conversation on the platform. `call_initiated` (2026-09-01, "we need to know calls triggered too") is student-sent only, via `POST /leads/{id}/call-initiated` or `/clients/{id}/call-initiated` — fired right before the device's own phone dialer opens, from the "Call" option in the same two-option sheet `visit_request` comes from. Deliberately INTENT wording only ("Tapped to call", never "Called you") — the device has no way to confirm the call actually connected, so the message can only honestly report that the tap happened. No side-record the way `visit_request` gets one — a call has nothing analogous to Support Tools' cross-consultancy list to query.
              * @enum {string}
              */
-            type?: "text" | "shortlist_share" | "shortlist_request" | "session_break" | "step_question" | "college_share" | "course_share" | "visit_request" | "call_initiated";
+            type?: "text" | "shortlist_share" | "shortlist_request" | "session_break" | "step_question" | "college_share" | "course_share" | "visit_request" | "call_initiated" | "search_share";
             /** @description Human-readable fallback (e.g. "Shared their shortlist (2 courses)." or "Converted to Client" for a `session_break`), shown for any client too old to render `shared_courses` as a card. */
             content: string;
             /** @description Only present when `type = shortlist_share` — the exact courses shared, resolved server-side from the stored course references so the card never goes stale if a course is edited afterward. */
@@ -20828,6 +20979,7 @@ export interface components {
             shared_course?: components["schemas"]["Course"];
             /** @description Only present when type = course_share — one line of the student's fit at SEND time (e.g. "Borderline — IELTS 5.5 vs ≥ 6 required"), captured then because the question the consultant is being asked is about the student's standing at that moment; re-resolving it later would silently rewrite what they asked about. FACT-WORDING ONLY (plan §0.3), same as the badge it snapshots. */
             fit_summary?: string | null;
+            shared_search?: components["schemas"]["SharedSearch"];
             /** @description Only present when `type = step_question` — which step the question is about. */
             step_id?: components["schemas"]["UUID"];
             /** @description Denormalized alongside `step_id` for display, same convention as `Lead.consultancy_name` — avoids a second round-trip just to label the tag. */
@@ -20842,6 +20994,27 @@ export interface components {
             } | null;
             /** Format: date-time */
             created_at: string;
+        };
+        ShareSearchRequest: {
+            /** @description GET /courses `filter[...]` keys and values, as the sender's search screen holds them. */
+            filters?: {
+                [key: string]: string;
+            };
+            /** @description Course Finder's keyword, if any. */
+            search?: string | null;
+        };
+        /** @description Only present when LeadMessage.type = search_share (2026-09-14). A course search shared in chat — by a student from Search Results, or by consultancy staff from Course Finder. The card opens the other side's own search screen with `filters`. Only filters both screens can apply are kept; the rest are named in `left_out` so the card can say what did not come across. Built entirely server-side at send time. */
+        SharedSearch: {
+            /** @description GET /courses `filter[...]` keys, as strings — any of country (comma-separated), level, field_of_study (comma-separated), fee_max with fee_currency, duration_min_months, duration_max_months — plus `search`, a keyword that only ever travels to Course Finder. A fee sent to a consultancy is converted into the consultancy's own currency. */
+            filters: {
+                [key: string]: string;
+            };
+            /** @description One line naming the search, e.g. "Masters · Canada · up to CAD 30,000". */
+            summary: string;
+            /** @description How many courses matched these filters in the sender's catalogue when it was shared. */
+            match_count: number;
+            /** @description Human-readable names of filters the sender had set that could not be carried across. */
+            left_out: string[];
         };
         /** @description The queryable side-record of a `visit_request` chat message (2026-08-24) — Support Tools' cross-consultancy list reads this, not the per-conversation message stores, since a platform admin has no reason to scan every lead/client's chat on the platform to find these. One row per request, created alongside its chat message and never mutated afterward (no status field — see `responded` below for why one wasn't needed). */
         VisitRequest: {

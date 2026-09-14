@@ -1,8 +1,11 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ListChecks } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { ListChecks, Send } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Button } from '@/components/Button'
+import { Modal } from '@/components/Modal'
+import { showToast } from '@/lib/toast'
+import { useShareSearch } from '@/queries/searchShare'
 import { Table } from '@/components/Table'
 import { CountryLabel } from '@/components/CountryLabel'
 import { CollegeDetailModal } from './CollegeDetailModal'
@@ -11,9 +14,14 @@ import { ClientDetailModal } from './ClientDetailModal'
 import { LeadDetailModal } from './LeadDetailModal'
 import { CourseFinderFilters } from './CourseFinderFilters'
 import { CourseFinderNotesDrawer } from './CourseFinderNotesDrawer'
-import { CourseFinderSuggestModal } from './CourseFinderSuggestModal'
+import { CourseFinderSuggestModal, SuggestDestination } from './CourseFinderSuggestModal'
 import { buildCourseFinderColumns } from './CourseFinderColumns'
-import { useCourseFinderState, DURATION_BUCKETS, type SelectedPerson } from './courseFinderState'
+import {
+  useCourseFinderState,
+  DURATION_BUCKETS,
+  sharedSearchFiltersFrom,
+  type SelectedPerson,
+} from './courseFinderState'
 import { useApplications, useAddApplication } from '@/queries/clients'
 import { useSuggestCourseToLead, useLeadMessages } from '@/queries/leads'
 import { usePersonPicker } from '@/lib/usePersonPicker'
@@ -40,6 +48,12 @@ export function CourseFinderPage() {
   const { clientRows, leadRows } = usePersonPicker()
   const { state, setState, shortlist, setShortlist, drawerOpen, setDrawerOpen, handlePersonChange, toggleShortlist } =
     useCourseFinderState(clientRows, leadRows)
+  // A shared search card opened this page with its filters in the URL; the state has read them,
+  // so drop them — otherwise a refresh would throw away whatever the consultant changed since.
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    if (searchParams.get('person')) setSearchParams({}, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const [collegeDetailId, setCollegeDetailId] = useState<string | null>(null)
   // The full row object goes straight into state (unlike college, which needs its own fetch) —
@@ -53,6 +67,7 @@ export function CourseFinderPage() {
   const [showClientDetail, setShowClientDetail] = useState(false)
   const [showLeadDetail, setShowLeadDetail] = useState(false)
   const [confirmSuggest, setConfirmSuggest] = useState<{ id: string; name: string } | null>(null)
+  const [confirmSendSearch, setConfirmSendSearch] = useState(false)
 
   const selectedClient = state.personKind === 'client' ? clientRows.find((c) => c.id === state.personId) : undefined
   const selectedLead = state.personKind === 'lead' ? leadRows.find((l) => l.id === state.personId) : undefined
@@ -124,6 +139,11 @@ export function CourseFinderPage() {
   }
   const suggestPending = selectedClient ? addSelected.isPending : suggestToLead.isPending
   const suggestingId = selectedClient ? addSelected.variables?.course_id : suggestToLead.variables
+  const shareSearch = useShareSearch(selectedPerson?.kind ?? 'lead', selectedPerson?.id ?? '')
+  const personFirstName = selectedClient?.student.first_name ?? selectedLead?.name ?? ''
+  // Somebody with the Sentpo app — a client, or a lead who came through Sentpo. A lead the
+  // consultancy imported has no app for a search card to open in.
+  const personHasApp = Boolean(selectedClient) || (selectedLead?.origin === 'sentpo' && Boolean(selectedLead.student_id))
 
   const allRows = courses.data?.items ?? []
   // "Eligible only" default ON for consultants (plan §4.1) — the one place hiding is allowed,
@@ -169,6 +189,12 @@ export function CourseFinderPage() {
               <Button variant="secondary" onClick={() => setDrawerOpen(true)} className="flex items-center">
                 <ListChecks className="mr-xs h-4 w-4" />
                 Noted ({shortlist.length})
+              </Button>
+            )}
+            {selectedPerson && personHasApp && (
+              <Button variant="secondary" onClick={() => setConfirmSendSearch(true)} className="flex items-center">
+                <Send className="mr-xs h-4 w-4" />
+                Send this search
               </Button>
             )}
             {selectedClient && (
@@ -273,6 +299,40 @@ export function CourseFinderPage() {
           <LeadDetailModal lead={selectedLead} onClose={() => setShowLeadDetail(false)} />
         )}
 
+        {confirmSendSearch && selectedPerson && (
+          <Modal
+            onClose={() => setConfirmSendSearch(false)}
+            title="Send this search?"
+            footer={
+              <div className="flex justify-end gap-sm">
+                <Button variant="secondary" onClick={() => setConfirmSendSearch(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  loading={shareSearch.isPending}
+                  onClick={() =>
+                    shareSearch.mutate(sharedSearchFiltersFrom(state, feeCurrency), {
+                      onSuccess: () => {
+                        setConfirmSendSearch(false)
+                        showToast(`Search sent to ${personFirstName}'s chat`)
+                      },
+                      onError: (error) => showToast(error.message, 'error'),
+                    })
+                  }
+                >
+                  Send
+                </Button>
+              </div>
+            }
+          >
+            <p className="text-body-sm text-text-secondary">
+              {personFirstName} gets a card in their chat that opens these results in the Sentpo app, and a
+              notification pointing them at it.
+              {state.search && ' The keyword is not sent — the app has no keyword search — and the card says so.'}
+            </p>
+          </Modal>
+        )}
+
         {confirmSuggest && (
           <CourseFinderSuggestModal
             courseName={confirmSuggest.name}
@@ -283,21 +343,11 @@ export function CourseFinderPage() {
               setConfirmSuggest(null)
             }}
             destinationCopy={
-              selectedClient ? (
-                <>
-                  {' '}
-                  will be added to {selectedClient.student.first_name}&rsquo;s Applications and sent to them as a
-                  message in their chat, and they&rsquo;ll get a notification pointing them at it.
-                </>
-              ) : selectedLead?.origin === 'sentpo' && selectedLead.student_id ? (
-                <>
-                  {' '}
-                  will be sent as a message in {selectedLead.name}&rsquo;s chat, and they&rsquo;ll get a notification
-                  pointing them at it.
-                </>
-              ) : (
-                <> will be sent as a message in {selectedLead?.name}&rsquo;s chat.</>
-              )
+              <SuggestDestination
+                kind={selectedClient ? 'client' : 'lead'}
+                firstName={personFirstName}
+                hasApp={personHasApp}
+              />
             }
           />
         )}

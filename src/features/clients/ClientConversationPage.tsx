@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, PictureInPicture2 } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
 import { ChatPanel } from '@/components/ChatPanel'
+import { SuggestCourseInChat } from './SuggestCourseInChat'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useClient, useClientMessages, useMarkClientRead, useSendClientMessage } from '@/queries/clients'
 import { useChatWindowStore } from '@/stores/chatWindowStore'
@@ -71,6 +72,7 @@ export function ClientConversationPage() {
             sharedCourse: m.shared_course,
             fitSummary: m.fit_summary,
             visitRequest: m.visit_request,
+            sharedSearch: m.shared_search,
             isSessionBreak: m.type === 'session_break',
             isCallInitiated: m.type === 'call_initiated',
           }))}
@@ -82,6 +84,15 @@ export function ClientConversationPage() {
           onSend={handleSend}
           sending={sendMessage.isPending}
           heightClassName="h-full"
+          person={{ id, kind: 'client' }}
+          composerAction={
+            // Courses only mean something on a study case; a PR case has no Applications tab.
+            client.data.case_type === 'student' ? (
+              <SuggestCourseInChat
+                person={{ id, kind: 'client', firstName: client.data.student.first_name, hasApp: true }}
+              />
+            ) : undefined
+          }
           headerActions={
             <button
               onClick={() =>

@@ -1,5 +1,8 @@
-import { ArrowUp, CalendarClock, Lock, Undo2 } from 'lucide-react'
+import { ArrowUp, CalendarClock, Lock, Search, Undo2 } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { CourseDetailModal } from '@/features/clients/CourseDetailModal'
+import { courseFinderUrlForSharedSearch } from '@/features/clients/courseFinderState'
 import { Button } from './Button'
 import { Modal } from './Modal'
 import { formatDate, formatDayLabel, formatTime, isSameCalendarDay } from '@/lib/time'
@@ -8,6 +11,7 @@ import type { components } from '@/api/schema'
 
 type Course = components['schemas']['Course']
 type College = components['schemas']['College']
+type SharedSearch = components['schemas']['SharedSearch']
 
 interface ChatMessage {
   id: string
@@ -50,6 +54,9 @@ interface ChatMessage {
   // same family as sharedCourse/sharedCollege. One proposed time, not a slot-picker; confirming or
   // countering happens as ordinary follow-up messages, so there is no status on this card at all.
   visitRequest?: { proposed_date?: string; proposed_time?: string; note?: string | null } | null
+  // A course search shared in chat (2026-09-14) — set only on a `type: search_share` message.
+  // Renders as a card that reopens the search in Course Finder for this person.
+  sharedSearch?: SharedSearch | null
 }
 
 interface ChatPanelProps {
@@ -79,6 +86,11 @@ interface ChatPanelProps {
   // the pool, which no one on staff may reply to until it is allocated (user, 2026-09-10). The
   // server refuses those replies too; this only says why before anyone types.
   composerLocked?: ReactNode
+  // The lead or client this conversation is with. Lets a shared search card reopen Course Finder
+  // for them; internal conversations leave it unset.
+  person?: { id: string; kind: 'lead' | 'client' }
+  // Sits beside the message box — the lead and client chats put Suggest a course here.
+  composerAction?: ReactNode
 }
 
 // Shared conversation UI for Lead (Aspirant), Client (Applicant), and Internal (colleague/Team)
@@ -107,12 +119,18 @@ export function ChatPanel({
   heightClassName = 'h-96',
   onUnsend,
   composerLocked,
+  person,
+  composerAction,
 }: ChatPanelProps) {
   // Confirm-gated per the platform's standing delete rule; owned here (not per caller) so both
   // the Internal Messaging page and the floating window get one identical implementation.
   const [unsendTarget, setUnsendTarget] = useState<string | null>(null)
   const [unsendBusy, setUnsendBusy] = useState(false)
   const [unsendError, setUnsendError] = useState<string | null>(null)
+  // Course cards open the same course popup Course Finder uses (2026-09-14) — a card that
+  // looks like a course but does nothing when clicked was a dead end.
+  const [openCourse, setOpenCourse] = useState<Course | null>(null)
+  const navigate = useNavigate()
 
   // Auto-scroll to the latest message (user, 2026-08-24: "chat auto scroll to last message" — the
   // mobile app already gets this for free from its reversed ListView; web had no scroll behavior
@@ -219,13 +237,19 @@ export function ChatPanel({
                     }`}
                   >
                     <p className="text-caption font-medium text-text-secondary">{m.content}</p>
-                    <div className="rounded-md bg-background px-sm py-xs">
-                      <p className="text-body-sm font-medium text-text-primary">{m.sharedCourse.name}</p>
-                      <p className="text-caption text-text-secondary">
+                    <button
+                      type="button"
+                      onClick={() => setOpenCourse(m.sharedCourse ?? null)}
+                      className="block w-full rounded-md bg-background px-sm py-xs text-left hover:bg-primary-subtle"
+                    >
+                      <span className="block text-body-sm font-medium text-text-primary">{m.sharedCourse.name}</span>
+                      <span className="block text-caption text-text-secondary">
                         {[m.sharedCourse.college_name, m.sharedCourse.country].filter(Boolean).join(' · ') || 'Course'}
-                      </p>
-                      {m.fitSummary && <p className="mt-xs text-caption font-medium text-warning">{m.fitSummary}</p>}
-                    </div>
+                      </span>
+                      {m.fitSummary && (
+                        <span className="mt-xs block text-caption font-medium text-warning">{m.fitSummary}</span>
+                      )}
+                    </button>
                     <span className="self-end text-caption text-text-secondary">{formatTime(m.created_at)}</span>
                   </div>
                 ) : m.sharedCollege ? (
@@ -270,6 +294,43 @@ export function ChatPanel({
                     {m.visitRequest.note && <p className="text-caption text-text-secondary">{m.visitRequest.note}</p>}
                     <span className="self-end text-caption text-text-secondary">{formatTime(m.created_at)}</span>
                   </div>
+                ) : m.sharedSearch ? (
+                  // A shared search (2026-09-14). Opens Course Finder for this person with the same
+                  // filters; anything the other side could not apply is named, never silently lost.
+                  <div
+                    style={{ maxWidth: '85%' }}
+                    className={`flex flex-col gap-sm rounded-2xl border border-border bg-surface px-md py-sm ${
+                      m.fromMe ? 'self-end' : 'self-start'
+                    }`}
+                  >
+                    <p className="text-caption font-medium text-text-secondary">
+                      {m.fromMe ? 'You sent a search' : 'Shared a search'}
+                    </p>
+                    <button
+                      type="button"
+                      disabled={!person}
+                      onClick={() => {
+                        if (person && m.sharedSearch) navigate(courseFinderUrlForSharedSearch(person, m.sharedSearch.filters))
+                      }}
+                      className="flex w-full flex-col items-start gap-xs rounded-md bg-background px-sm py-xs text-left enabled:hover:bg-primary-subtle"
+                    >
+                      <span className="flex items-center gap-xs text-body-sm font-medium text-text-primary">
+                        <Search className="h-4 w-4 shrink-0 text-primary" />
+                        {m.sharedSearch.summary}
+                      </span>
+                      <span className="text-caption text-text-secondary">
+                        {m.sharedSearch.match_count} course{m.sharedSearch.match_count === 1 ? '' : 's'} matched when
+                        shared
+                      </span>
+                      {m.sharedSearch.left_out.length > 0 && (
+                        <span className="text-caption text-warning">
+                          Not carried over: {m.sharedSearch.left_out.join(', ')}
+                        </span>
+                      )}
+                      {person && <span className="text-caption font-medium text-primary">Open these results</span>}
+                    </button>
+                    <span className="self-end text-caption text-text-secondary">{formatTime(m.created_at)}</span>
+                  </div>
                 ) : m.sharedCourses ? (
                   // User-requested (2026-08-19) — a shared Shortlist renders as a card of courses,
                   // not a plain text bubble, so the consultant can actually see what was shared.
@@ -282,14 +343,19 @@ export function ChatPanel({
                     <p className="text-caption font-medium text-text-secondary">{m.content}</p>
                     <div className="flex flex-col gap-xs">
                       {m.sharedCourses.map((course) => (
-                        <div key={course.id} className="rounded-md bg-background px-sm py-xs">
-                          <p className="text-body-sm font-medium text-text-primary">{course.name}</p>
-                          <p className="text-caption text-text-secondary">
+                        <button
+                          type="button"
+                          key={course.id}
+                          onClick={() => setOpenCourse(course)}
+                          className="block w-full rounded-md bg-background px-sm py-xs text-left hover:bg-primary-subtle"
+                        >
+                          <span className="block text-body-sm font-medium text-text-primary">{course.name}</span>
+                          <span className="block text-caption text-text-secondary">
                             {course.college_name}
                             {course.country ? ` · ${course.country}` : ''}
                             {course.fee?.amount ? ` · ${formatMoney(course.fee.currency, course.fee.amount)}` : ''}
-                          </p>
-                        </div>
+                          </span>
+                        </button>
                       ))}
                     </div>
                     <span className="self-end text-caption text-text-secondary">{formatTime(m.created_at)}</span>
@@ -340,6 +406,8 @@ export function ChatPanel({
         <div ref={bottomRef} />
       </div>
 
+      {openCourse && <CourseDetailModal course={openCourse} onClose={() => setOpenCourse(null)} />}
+
       {unsendTarget && (
         <Modal
           onClose={() => setUnsendTarget(null)}
@@ -371,6 +439,7 @@ export function ChatPanel({
       ) : (
         <form onSubmit={onSend} className="flex shrink-0 flex-col gap-xs border-t border-border px-md py-sm">
           <div className="flex items-end gap-sm">
+            {composerAction}
             {/* A textarea, not an input (console review M2, 2026-09-13) — Enter sends and
                 Shift+Enter starts a new line, the convention every chat app trains people on.
                 An `<input>` could not hold a newline at all, so a multi-line message was

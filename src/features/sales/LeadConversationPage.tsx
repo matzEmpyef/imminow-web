@@ -17,6 +17,7 @@ import { RequestRatingModal } from './RequestRatingModal'
 import { ConvertToClientModal } from './ConvertToClientModal'
 import { CloseLeadModal } from './CloseLeadModal'
 import { ReopenLeadModal } from './ReopenLeadModal'
+import { SuggestCourseInChat } from '@/features/clients/SuggestCourseInChat'
 import {
   useAddLeadNote,
   useLead,
@@ -457,6 +458,7 @@ export function LeadConversationPage() {
                 sharedCourse: m.shared_course,
                 fitSummary: m.fit_summary,
                 visitRequest: m.visit_request,
+                sharedSearch: m.shared_search,
                 isCallInitiated: m.type === 'call_initiated',
               }))}
               isLoading={messages.isLoading}
@@ -467,6 +469,17 @@ export function LeadConversationPage() {
               onSend={handleSend}
               sending={sendMessage.isPending}
               heightClassName="h-full"
+              person={{ id, kind: 'lead' }}
+              composerAction={
+                <SuggestCourseInChat
+                  person={{
+                    id,
+                    kind: 'lead',
+                    firstName: data.name,
+                    hasApp: data.origin === 'sentpo' && Boolean(data.student_id),
+                  }}
+                />
+              }
               composerLocked={
                 data.assigned_employee_id ? undefined : 'Allocate this lead to a consultant from Lead Pool to reply.'
               }
