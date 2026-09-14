@@ -15,6 +15,7 @@ import { useCaseNotes, useRecordFollowup, type CaseFollowupOutcome } from '@/que
 import { LogCallModal, type LogCallInput } from './followups/LogCallModal'
 import { CASE_OUTCOME_OPTIONS, OUTCOME_LABELS } from './followups/labels'
 import { showToast } from '@/lib/toast'
+import { clientStatusLabel } from '@/lib/clientStatus'
 
 function useApplicantCase(journeyId: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
@@ -118,7 +119,7 @@ export function ApplicantCaseViewPage() {
             ) : (
               'unassigned'
             )}{' '}
-            &middot; {data.status?.replace(/_/g, ' ')}
+            &middot; {clientStatusLabel(data.status)}
             {data.outcome && <span> &middot; {data.outcome}</span>}
             {data.previous_journey_id && (
               <>

@@ -20,14 +20,14 @@ import { usePermission } from '@/lib/permissions'
 import { usePlans, useLinkedFormResponses } from '@/queries/plans'
 import { Skeleton } from '@/components/QueryState'
 import { TransferApplicantModal } from './TransferApplicantModal'
+import { CLIENT_STATUS_LABELS, clientStatusColor, clientStatusLabel, type ClientStatusColor } from '@/lib/clientStatus'
 
-const STATUS_INFO: Record<string, { label: string; color: 'warning' | 'info' | 'success' | 'secondary' }> = {
-  pending_plan_assignment: { label: 'Pending Plan', color: 'warning' },
-  in_plan: { label: 'In Plan', color: 'info' },
-  plan_complete: { label: 'Plan Complete', color: 'success' },
-  closed: { label: 'Closed', color: 'secondary' },
-  closed_completed: { label: 'Closed', color: 'secondary' },
-}
+// Labels and colours come from one shared map (2026-09-14) — this tab, the detail modal and the
+// profile header each used to label the same status differently ("Closed" here for a completed
+// case, "closed completed" in the header one line above it).
+const STATUS_INFO: Record<string, { label: string; color: ClientStatusColor }> = Object.fromEntries(
+  Object.keys(CLIENT_STATUS_LABELS).map((status) => [status, { label: clientStatusLabel(status), color: clientStatusColor(status) }]),
+)
 
 // Rebuilt (user-requested, 2026-08-15, loosely inspired by a screenshot of the user's *other*
 // immiNow product — visual reference only, not copied field-for-field: no Priority/photo-upload/

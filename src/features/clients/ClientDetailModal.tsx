@@ -5,16 +5,13 @@ import { CountryLabel } from '@/components/CountryLabel'
 import { Badge } from '@/components/Badge'
 import { FinalizedCountryIcon, StudentProfilePanels } from '@/components/StudentProfileFields'
 import type { components } from '@/api/schema'
+import { CLIENT_STATUS_LABELS } from '@/lib/clientStatus'
 
 type Client = components['schemas']['Client']
 
-const STATUS_LABEL: Record<string, string> = {
-  pending_plan_assignment: 'Pending plan assignment',
-  in_plan: 'In plan',
-  plan_complete: 'Plan complete',
-  closed: 'Closed',
-  closed_completed: 'Completed',
-}
+// One shared map (2026-09-14) — this modal, the Overview tab and the profile header each used to
+// label the same status differently.
+const STATUS_LABEL = CLIENT_STATUS_LABELS
 
 /**
  * The applicant's profile as it matters for picking a college/course, without leaving Course

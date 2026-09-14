@@ -22,6 +22,7 @@ import { DocumentsTab } from './ClientProfileDocumentsTab'
 import { InternalNotesTab } from './ClientProfileInternalNotesTab'
 import { ActivityTab } from './ClientProfileActivityTab'
 import { FormsTab } from './ClientProfileFormsTab'
+import { clientStatusLabel } from '@/lib/clientStatus'
 
 const TABS = [
   'Overview',
@@ -144,7 +145,7 @@ export function ClientProfilePage() {
                 )}
               </h1>
               <p className="text-body-sm text-text-secondary">
-                {data.status.replace(/_/g, ' ')}
+                {clientStatusLabel(data.status)}
                 {/* A closed case now says HOW it ended. The outcome is derived at close from
                     whether a college was accepted and whether the student actually went, so it
                     is a fact about the case rather than a label someone chose. */}
