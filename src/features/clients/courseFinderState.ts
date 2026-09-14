@@ -264,7 +264,8 @@ export function finderStateFromUrl(): FinderState | null {
       personKind: params.get('kind') === 'lead' ? 'lead' : 'client',
       search: params.get('search') ?? '',
       country: params.get('country') ?? '',
-      level: params.get('level') ?? '',
+      // The catalogue's levels are lowercase keys (`masters`); a link may carry either case.
+      level: (params.get('level') ?? '').toLowerCase(),
       fieldOfStudy: (params.get('field_of_study') ?? '')
         .split(',')
         .map((f) => f.trim())
