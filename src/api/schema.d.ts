@@ -20269,7 +20269,7 @@ export interface components {
             /** @description The colleague's job designation (e.g. "Senior Consultant"), set only on internal DM rows — null for the Whole Team row and for lead/client rows. Every colleague in Internal Messaging is already known to be a colleague, so its own chat header shows this instead of the generic "Colleague" label; the Global Chat Drawer and the floating window keep showing "Colleague" there since those surfaces mix colleagues in with leads/clients. */
             designation?: string | null;
             /** Format: date-time */
-            last_message_at: string | null;
+            last_message_at?: string | null;
             last_message_preview?: string | null;
             /** @description Same computation as Lead.unread/Client.unread. */
             unread: boolean;
