@@ -3463,7 +3463,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Global Chat Drawer (build reference 1.22/2.2) — every Lead and Client the viewer has access to, messaged-first-by-recency then unmessaged alphabetically. For Ultimate-tier viewers, also unions every active colleague and the consultancy-wide "team" channel (type = internal) — the same rows /internal-conversations returns — into the same list. */
+        /**
+         * Global Chat Drawer (build reference 1.22/2.2), and the inbox behind Sentpo Mobile's staff chat login (2026-09-15) — every Lead and Client the viewer has access to, messaged-first-by-recency then unmessaged alphabetically. For Ultimate-tier viewers, also unions every active colleague and the consultancy-wide "team" channel (type = internal) — the same rows /internal-conversations returns — into the same list.
+         * @description "Has access to" is the same scoping GET /leads and GET /clients already apply, not merely tenant isolation (2026-09-15): a view_own-only viewer sees only leads/clients assigned to them, a view_all viewer sees every one in their own branch(es), and a consultancy admin sees the whole consultancy regardless of branch. A conversation never appears here that the caller could not already find by opening the list it came from. Internal rows are unaffected — they are already per-employee by construction.
+         */
         get: {
             parameters: {
                 query?: never;
