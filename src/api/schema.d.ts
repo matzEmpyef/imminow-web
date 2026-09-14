@@ -9513,6 +9513,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/journeys/me/explore-again": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Leave Stage 3 for Stage 1, by the student's own choice (2026-09-14). A completed case (`closed_completed`) is retired to history — it keeps its consultancy, file number and review; it simply stops being the case GET /journeys/me reports — and the response is the student's new state, plain `exploring`. One-way: there is no way back into a retired case, and the app's confirm sheet says so before calling this. A PR case goes the same way — PR granted is as complete as a case gets, and starting over means a new case. 409 `not_on_stage_3` unless the student's current journey is a completed one. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The student's journey state after leaving — Stage 1, exploring. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Journey"];
+                    };
+                };
+                /** @description Not on Stage 3 — nothing to leave. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/journeys/commit": {
         parameters: {
             query?: never;
@@ -10560,6 +10605,7 @@ export interface paths {
          *     A PR case has no colleges, so its counterpart to an accepted application is the applicant's recorded contribution (POST /clients/{id}/commission-entry, 2026-09-10). Before this a PR case could never close as a success, and closing one reversed the contribution the consultant had recorded.
          *     CLOSE IS THE MONEY EVENT. The commission entry was created back at acceptance, because that is when the amounts became knowable, but an entry with no `recognized_at` is not revenue and appears in no finance report. A success close stamps `recognized_at`; a failure close REVERSES the entry — a deliberately different status from `voided`, because voided means the acceptance itself was wrong while reversed means it was real and the student still never went, and finance has to tell those apart.
          *     Never automatic. No timer, inactivity rule or stale-after-N-days sweep ever closes a case (user, 2026-09-09) — every detection signal produces a queue row for a person to work, because an auto-close would move money on a case nobody looked at and end a student's case with no one able to say why.
+         *     BOTH OUTCOMES CLOSE TO PLAIN `closed`, never `closed_completed` (that status exists in the schema but nothing sets it today — it is not this endpoint's success path, confirmed against qa-check.sh's own review-offer assertions). `GET /journeys/me` does not fall back to a plain-`closed` journey, so EITHER outcome frees the student to Stage 1 (exploring) immediately and silently. A success case is not lost, though: `reviewOfferFor()` still surfaces it via `GET /journeys/me`'s own `review_offer` field — "the student's most recent reviewable journey, whether it is the case /journeys/me still reports or one that closed and dropped them back to exploring" (that function's own doc comment) — which is how Home is meant to offer the one-time review even though the journey itself is no longer current.
          *     409 `case_in_dispute` if the case is frozen: a case under mediation is the platform's to end. Distinct from Transfer Applicant (sets closed_switched) and Reopen Plan.
          */
         post: {
@@ -21417,10 +21463,16 @@ export interface components {
              * @enum {string}
              */
             acquisition_source: "A" | "B" | "C";
-            /** @enum {integer} */
-            current_stage: 1 | 2;
-            /** @enum {string} */
-            status: "exploring" | "awaiting_match" | "commit_confirm" | "pending_plan_assignment" | "in_plan" | "plan_complete" | "closed" | "closed_switched" | "closed_completed";
+            /**
+             * @description 1 = exploring (or awaiting a match), 2 = the case, 3 = post-arrival (2026-09-14): a case closed as a success stays the student's case as `closed_completed` — the same Home without the plan card or the consultancy chat, both of which ended with the case. The one-time review is offered there. POST /journeys/me/explore-again leaves Stage 3 for Stage 1 by the student's own choice. Vendor chat for post-arrival services is later work; Stage 3 carries nothing of its own yet.
+             * @enum {integer}
+             */
+            current_stage: 1 | 2 | 3;
+            /**
+             * @description `in_dispute` joined this list on 2026-09-14 — it was already real and reachable (POST /clients/{id}/raise-issue, or an escalated complaint) and already sent here as `status`, but only the staff-facing Client schema listed it, so the generated student client had no value to decode it into. `closed_completed` is a success close (Stage 3); `closed` is a failure close (the student is back to Stage 1).
+             * @enum {string}
+             */
+            status: "exploring" | "awaiting_match" | "commit_confirm" | "pending_plan_assignment" | "in_plan" | "plan_complete" | "in_dispute" | "closed" | "closed_switched" | "closed_completed";
             /** @enum {string} */
             case_type: "student" | "pr";
             /** @description Sentpo Mobile's Stage 2 Home status card (build reference 2.2) — null until a consultancy is assigned. A handful of display-only fields below are additive to the aggregate-root fields above, kept minimal and nullable rather than duplicating Client's full denormalized set, since a Stage-1 (exploring) Journey has none of them. */
@@ -21444,14 +21496,19 @@ export interface components {
              * @enum {string|null}
              */
             review_status?: "pending" | "published" | "hidden" | null;
-            /** @description Home's one-time review offer (2026-09-12): the student's most recent reviewable journey — the plan finished, or the case closed as a success — whether it is the journey this response describes or a closed one (the student is then `exploring` again, with no other link to that consultancy). Null when there is nothing to review. The app shows "Write a review" while `review_status` is null and the outcome wording afterwards. */
+            /** @description Home's one-time review offer (2026-09-12): the student's most recent reviewable journey — the plan finished, or the case closed, EITHER outcome since 2026-09-14 (a failed case is reviewable too; moderation still sits in front of every review) — whether it is the journey this response describes (a Stage 3 completed case) or a failed one that dropped the student back to `exploring`. Null when there is nothing to review. The app shows "Write a review" while `review_status` is null and hides the card for good once a review exists. `outcome` is how the card words it — "is complete" vs "has ended". */
             review_offer?: {
                 journey_id: components["schemas"]["UUID"];
                 consultancy_id: components["schemas"]["UUID"];
                 consultancy_name: string;
                 journey_status: string;
+                /**
+                 * @description How the case ended. `success` for a completed (Stage 3) case, `failure` for a plain close; null for a plan that finished without the case closing.
+                 * @enum {string|null}
+                 */
+                outcome?: "success" | "failure" | null;
                 /** @enum {string|null} */
-                review_status: "pending" | "published" | "hidden" | null;
+                review_status?: "pending" | "published" | "hidden" | null;
             } | null;
             /** @description e.g. "2/4" — null until a plan is assigned. */
             progress?: string | null;
