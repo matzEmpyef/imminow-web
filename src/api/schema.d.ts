@@ -15710,7 +15710,7 @@ export interface paths {
                     "application/json": {
                         image_url?: string;
                         /** @enum {string} */
-                        destination_type?: "internal" | "event" | "external_url";
+                        destination_type?: "internal" | "event" | "blog" | "external_url";
                         destination_id?: components["schemas"]["UUID"];
                         destination_url?: string | null;
                         priority?: number;
@@ -23722,7 +23722,7 @@ export interface components {
             id: components["schemas"]["UUID"];
             image_url: string;
             /** @enum {string} */
-            destination_type: "internal" | "event" | "external_url";
+            destination_type: "internal" | "event" | "blog" | "external_url";
             destination_id?: components["schemas"]["UUID"];
             /** @description Set when destination_type=external_url. */
             destination_url?: string | null;
@@ -23746,7 +23746,7 @@ export interface components {
             name?: string | null;
             image_url: string;
             /** @enum {string} */
-            destination_type: "internal" | "event" | "external_url";
+            destination_type: "internal" | "event" | "blog" | "external_url";
             destination_id?: components["schemas"]["UUID"];
             destination_url?: string | null;
             priority: number;

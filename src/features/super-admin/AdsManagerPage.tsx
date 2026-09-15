@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { Pencil, Trash2 } from 'lucide-react'
+import { ChevronDown, Pencil, Trash2 } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { SelectField } from '@/components/SelectField'
 import { Button } from '@/components/Button'
@@ -24,6 +24,7 @@ import {
 } from '@/queries/adsAdmin'
 import { PersonListModal } from '@/features/super-admin/PersonListModal'
 import { useAdminEvents } from '@/queries/eventsAdmin'
+import { useAdminBlogArticles } from '@/queries/blogArticles'
 import { useAdminConsultancies } from '@/queries/adminConsultancies'
 import { useCountries } from '@/queries/countries'
 import { formatEventDateTime, formatDateTime, formatDate } from '@/lib/time'
@@ -72,6 +73,9 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
   const updateAd = useUpdateAd(editingAd?.id ?? '')
   const events = useAdminEvents()
   const consultancies = useAdminConsultancies({ limit: 100 })
+  // Published only — the server refuses an ad for a hidden article, and stops serving one whose
+  // article is hidden later (2026-09-15).
+  const articles = useAdminBlogArticles({ status: 'published', limit: 100 })
   const [step, setStep] = useState<1 | 2>(1)
   const [name, setName] = useState(editingAd?.name ?? '')
   const [imageUrl, setImageUrl] = useState(editingAd?.image_url ?? '')
@@ -112,6 +116,10 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
     id: c.id!,
     label: c.name ?? '',
   }))
+  const articleOptions: SearchSelectOption[] = (articles.data?.items ?? []).map((a) => ({
+    id: a.id!,
+    label: a.title ?? '',
+  }))
 
   // App review C3 — a creative on an outside host over plain http fails App Transport Security
   // on the phone, so it is refused before the ad can save rather than discovered later as a
@@ -127,6 +135,7 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
     else if (imageInsecure) missing.push('Image (must be a secure https:// address)')
     if (destinationType === 'external_url' && !destinationUrl) missing.push('Destination URL')
     if (destinationType === 'event' && !destinationId) missing.push('Event')
+    if (destinationType === 'blog' && !destinationId) missing.push('Blog article')
     if (destinationType === 'internal' && !destinationId) missing.push('Consultancy')
     return missing
   }, [imageUrl, imageInsecure, destinationType, destinationUrl, destinationId])
@@ -151,7 +160,9 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
       ? destinationUrl || 'No URL yet'
       : destinationType === 'event'
         ? eventOptions.find((o) => o.id === destinationId)?.label || 'No event selected yet'
-        : consultancyOptions.find((o) => o.id === destinationId)?.label || 'No consultancy selected yet'
+        : destinationType === 'blog'
+          ? articleOptions.find((o) => o.id === destinationId)?.label || 'No article selected yet'
+          : consultancyOptions.find((o) => o.id === destinationId)?.label || 'No consultancy selected yet'
 
   function handleNext() {
     if (!step1Valid) {
@@ -290,6 +301,7 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
             >
               <option value="internal">Internal (consultancy)</option>
               <option value="event">Event</option>
+              <option value="blog">Blog article</option>
               <option value="external_url">External URL</option>
             </SelectField>
             {destinationType === 'external_url' && (
@@ -312,6 +324,17 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
                   placeholder={events.isLoading ? 'Loading events…' : 'Search quiz, webinar, or meeting…'}
                 />
               </div>
+            )}
+            {destinationType === 'blog' && (
+              <SearchSelect
+                id="dest-article"
+                label="Blog article"
+                required
+                options={articleOptions}
+                value={destinationId}
+                onChange={setDestinationId}
+                placeholder={articles.isLoading ? 'Loading articles…' : 'Search published articles…'}
+              />
             )}
             {destinationType === 'internal' && (
               <div className="flex flex-col gap-xs">
@@ -409,7 +432,15 @@ const STATUS_BADGE: Record<NonNullable<AdBanner['status']>, { label: string; col
 function adDestinationLabel(ad: AdBanner): string {
   if (ad.destination_type === 'external_url') return 'External URL'
   if (ad.destination_type === 'event') return 'Event'
+  if (ad.destination_type === 'blog') return 'Blog article'
   return 'Consultancy'
+}
+
+// Expired and switched-off ads leave the main list for the collapsed Archived section below it
+// (user, 2026-09-15: "archive closed ads so that we can see the details below but not always
+// visible"). Automatic, from the server's status — switching one back on returns it to the list.
+function isArchivedAd(ad: AdBanner): boolean {
+  return ad.status === 'expired' || ad.status === 'off'
 }
 
 function adDisplayName(ad: AdBanner): string {
@@ -420,9 +451,15 @@ function adDisplayName(ad: AdBanner): string {
 // destination_id/destination_url, so the event/consultancy name has to be resolved client-side
 // against the lists the page already loads for the Add/Edit form's pickers. Shown on every row,
 // not just named ones, since an unlabelled ad benefits from this exactly as much.
-function adOpensSummary(ad: AdBanner, eventNameById: Map<string, string>, consultancyNameById: Map<string, string>): string {
+function adOpensSummary(
+  ad: AdBanner,
+  eventNameById: Map<string, string>,
+  consultancyNameById: Map<string, string>,
+  articleTitleById: Map<string, string>,
+): string {
   if (ad.destination_type === 'external_url') return ad.destination_url || '—'
   if (ad.destination_type === 'event') return eventNameById.get(ad.destination_id ?? '') || 'Unknown event'
+  if (ad.destination_type === 'blog') return articleTitleById.get(ad.destination_id ?? '') || 'Unknown article'
   return consultancyNameById.get(ad.destination_id ?? '') || 'Unknown consultancy'
 }
 
@@ -533,6 +570,13 @@ export function AdsManagerPage() {
     () => new Map((consultancies.data?.items ?? []).map((c) => [c.id!, c.name ?? ''])),
     [consultancies.data],
   )
+  // All statuses, so an ad whose article was hidden later still names it.
+  const articles = useAdminBlogArticles({ status: 'all', limit: 100 })
+  const articleTitleById = useMemo(
+    () => new Map((articles.data?.items ?? []).map((a) => [a.id!, a.title ?? ''])),
+    [articles.data],
+  )
+  const [showArchived, setShowArchived] = useState(false)
 
   const rows = useMemo(() => {
     let items = ads.data ?? []
@@ -541,9 +585,6 @@ export function AdsManagerPage() {
       items = items.filter(
         (a) => adDisplayName(a).toLowerCase().includes(q) || a.destination_type?.toLowerCase().includes(q),
       )
-    }
-    if (statusFilter) {
-      items = items.filter((a) => a.status === statusFilter)
     }
     if (sort) {
       const dir = sort.direction === 'desc' ? -1 : 1
@@ -570,9 +611,13 @@ export function AdsManagerPage() {
       items = [...items].sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
     }
     return items
-  }, [ads.data, search, statusFilter, sort])
+  }, [ads.data, search, sort])
 
-  const editingAd = editingId ? rows.find((a) => a.id === editingId) : undefined
+  const editingAd = editingId ? (ads.data ?? []).find((a) => a.id === editingId) : undefined
+  // Status filter narrows the current list only; the archive always holds every closed ad that
+  // matches the search.
+  const currentRows = rows.filter((a) => !isArchivedAd(a) && (!statusFilter || a.status === statusFilter))
+  const archivedRows = rows.filter(isArchivedAd)
 
   const columns: TableColumn<AdBanner>[] = [
     {
@@ -592,7 +637,7 @@ export function AdsManagerPage() {
                 mismatch (an ad titled "Scholarship Guide" opening an unrelated article) at a
                 glance, which a name-only or type-only label doesn't do. */}
             <p className="truncate text-caption text-text-secondary">
-              Opens: {adOpensSummary(ad, eventNameById, consultancyNameById)}
+              Opens: {adOpensSummary(ad, eventNameById, consultancyNameById, articleTitleById)}
             </p>
             {typeof ad.event_countdown_seconds === 'number' && (
               <Badge color="warning">Starts in {Math.round(ad.event_countdown_seconds / 3600)}h</Badge>
@@ -695,24 +740,53 @@ export function AdsManagerPage() {
 
         <Table
           columns={columns}
-          rows={rows}
+          rows={currentRows}
           rowKey={(ad) => ad.id!}
           loading={ads.isLoading}
           error={ads.isError ? 'Could not load ads.' : undefined}
-          emptyMessage={search || statusFilter ? 'No ads match these filters.' : "No ads yet. Add one to place a banner on the app's Home screen."}
+          emptyMessage={
+            search || statusFilter
+              ? 'No ads match these filters.'
+              : archivedRows.length > 0
+                ? 'No live or scheduled ads. Closed ones are under Archived below.'
+                : "No ads yet. Add one to place a banner on the app's Home screen."
+          }
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search name or destination…' }}
           filters={
             <CompactSelect label="Status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>
-              <option value="">All statuses</option>
+              <option value="">Live and scheduled</option>
               <option value="live">Live</option>
               <option value="scheduled">Scheduled</option>
-              <option value="expired">Expired</option>
-              <option value="off">Off</option>
             </CompactSelect>
           }
         />
+
+        {archivedRows.length > 0 && (
+          <section className="flex flex-col gap-sm">
+            <button
+              type="button"
+              onClick={() => setShowArchived((v) => !v)}
+              aria-expanded={showArchived}
+              className="flex items-center gap-xs self-start rounded-md text-body-sm font-medium text-text-secondary hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+            >
+              <ChevronDown className={`h-4 w-4 transition-transform ${showArchived ? '' : '-rotate-90'}`} />
+              Archived ads ({archivedRows.length})
+              <span className="font-normal">— expired or switched off</span>
+            </button>
+            {showArchived && (
+              <Table
+                columns={columns}
+                rows={archivedRows}
+                rowKey={(ad) => ad.id!}
+                sort={sort}
+                onSortChange={(field, direction) => setSort({ field, direction })}
+                emptyMessage="No archived ads match this search."
+              />
+            )}
+          </section>
+        )}
       </div>
     </AdminShell>
   )
