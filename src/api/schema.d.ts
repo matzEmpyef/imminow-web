@@ -20625,6 +20625,7 @@ export interface components {
             display_currency?: string | null;
             /** @description True once the student has picked `display_currency` themselves (2026-08-22), which pins it: a later change of residence re-derives the currency only while this is false. Set server-side whenever a request carries `display_currency`; clients never send this field, and it is never cleared by a residence edit. Absent/false means the currency is a default that should keep following where the student lives. */
             display_currency_explicit?: boolean;
+            /** @description The ONE country the student wants to study in (2026-09-15). More than one is refused 422; an empty list clears it. Students saved with several keep the first. */
             target_countries?: string[];
             /** @description The student's ONE field of interest (2026-09-15) — a field's `name` from GET /courses/fields. More than one is refused 422; an empty list clears it. */
             fields_of_interest?: string[];
