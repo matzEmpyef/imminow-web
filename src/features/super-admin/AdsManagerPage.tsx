@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { ChevronDown, Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { SelectField } from '@/components/SelectField'
 import { Button } from '@/components/Button'
@@ -436,9 +436,9 @@ function adDestinationLabel(ad: AdBanner): string {
   return 'Consultancy'
 }
 
-// Expired and switched-off ads leave the main list for the collapsed Archived section below it
-// (user, 2026-09-15: "archive closed ads so that we can see the details below but not always
-// visible"). Automatic, from the server's status — switching one back on returns it to the list.
+// Expired and switched-off ads leave the main list for the Archived tab (user, 2026-09-15: "archive
+// closed ads so that we can see the details below but not always visible", then "show as tab").
+// Automatic, from the server's status — switching one back on returns it to the Current tab.
 function isArchivedAd(ad: AdBanner): boolean {
   return ad.status === 'expired' || ad.status === 'off'
 }
@@ -576,7 +576,7 @@ export function AdsManagerPage() {
     () => new Map((articles.data?.items ?? []).map((a) => [a.id!, a.title ?? ''])),
     [articles.data],
   )
-  const [showArchived, setShowArchived] = useState(false)
+  const [view, setView] = useState<'current' | 'archived'>('current')
 
   const rows = useMemo(() => {
     let items = ads.data ?? []
@@ -738,55 +738,59 @@ export function AdsManagerPage() {
           />
         )}
 
+        {/* Same page-level tab bar as Webinars' Upcoming / Past. */}
+        <div role="tablist" aria-label="Ads" className="flex gap-lg border-b border-border">
+          {(
+            [
+              { key: 'current', label: 'Current', count: currentRows.length },
+              { key: 'archived', label: 'Archived', count: archivedRows.length },
+            ] as const
+          ).map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={view === t.key}
+              onClick={() => setView(t.key)}
+              className={`-mb-px border-b-2 py-sm text-body-sm font-medium ${
+                view === t.key ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {t.label} ({t.count})
+            </button>
+          ))}
+        </div>
+
         <Table
           columns={columns}
-          rows={currentRows}
+          rows={view === 'current' ? currentRows : archivedRows}
           rowKey={(ad) => ad.id!}
           loading={ads.isLoading}
           error={ads.isError ? 'Could not load ads.' : undefined}
           emptyMessage={
-            search || statusFilter
-              ? 'No ads match these filters.'
-              : archivedRows.length > 0
-                ? 'No live or scheduled ads. Closed ones are under Archived below.'
-                : "No ads yet. Add one to place a banner on the app's Home screen."
+            view === 'archived'
+              ? search
+                ? 'No archived ads match this search.'
+                : 'No archived ads. Expired and switched-off ads move here.'
+              : search || statusFilter
+                ? 'No ads match these filters.'
+                : archivedRows.length > 0
+                  ? 'No live or scheduled ads. Closed ones are in the Archived tab.'
+                  : "No ads yet. Add one to place a banner on the app's Home screen."
           }
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search name or destination…' }}
           filters={
-            <CompactSelect label="Status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>
-              <option value="">Live and scheduled</option>
-              <option value="live">Live</option>
-              <option value="scheduled">Scheduled</option>
-            </CompactSelect>
+            view === 'current' ? (
+              <CompactSelect label="Status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>
+                <option value="">Live and scheduled</option>
+                <option value="live">Live</option>
+                <option value="scheduled">Scheduled</option>
+              </CompactSelect>
+            ) : undefined
           }
         />
-
-        {archivedRows.length > 0 && (
-          <section className="flex flex-col gap-sm">
-            <button
-              type="button"
-              onClick={() => setShowArchived((v) => !v)}
-              aria-expanded={showArchived}
-              className="flex items-center gap-xs self-start rounded-md text-body-sm font-medium text-text-secondary hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-            >
-              <ChevronDown className={`h-4 w-4 transition-transform ${showArchived ? '' : '-rotate-90'}`} />
-              Archived ads ({archivedRows.length})
-              <span className="font-normal">— expired or switched off</span>
-            </button>
-            {showArchived && (
-              <Table
-                columns={columns}
-                rows={archivedRows}
-                rowKey={(ad) => ad.id!}
-                sort={sort}
-                onSortChange={(field, direction) => setSort({ field, direction })}
-                emptyMessage="No archived ads match this search."
-              />
-            )}
-          </section>
-        )}
       </div>
     </AdminShell>
   )
