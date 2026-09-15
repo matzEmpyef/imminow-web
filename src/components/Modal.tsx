@@ -11,6 +11,9 @@ interface ModalProps {
   // Replaces the plain title text in the pinned header bar with richer content — a logo, badges,
   // actions (Course details, 2026-09-10). `title` still names the dialog for screen readers.
   header?: ReactNode
+  // Pinned under the header, outside the scrolling body — a tab bar (user, 2026-09-15: "stick tab
+  // to bottom under header"). A sticky bar inside the body left a see-through strip above it.
+  subheader?: ReactNode
   /**
    * Lets a click outside the popup, or Escape, close it. OFF by default (user, 2026-09-11: "for all
    * popup in immiNow, if it has some edit or create… don't close it when we click outside… it will
@@ -33,7 +36,7 @@ interface ModalProps {
 // pair) never scrolls out of view. Callers move their trailing Button(s) here instead of leaving
 // them as the last element inside the scrollable `children`; omitting `footer` keeps the old
 // everything-scrolls-together behavior for short forms/read-only popups that don't need it.
-export function Modal({ onClose, title, children, widthRem = 32, footer, header, dismissible = false }: ModalProps) {
+export function Modal({ onClose, title, children, widthRem = 32, footer, header, subheader, dismissible = false }: ModalProps) {
   const dialogRef = useDialogA11y<HTMLDivElement>(onClose, true, { closeOnEscape: dismissible })
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/40 px-md">
@@ -73,6 +76,7 @@ export function Modal({ onClose, title, children, widthRem = 32, footer, header,
             <X className="h-4 w-4" />
           </button>
         </div>
+        {subheader && <div className="shrink-0 border-b border-border px-lg">{subheader}</div>}
         <div className="min-h-0 flex-1 overflow-y-auto px-lg py-md">{children}</div>
         {footer && <div className="flex shrink-0 justify-end gap-sm border-t border-border px-lg py-md">{footer}</div>}
       </div>

@@ -240,68 +240,70 @@ export function CourseFormModal({
           </Button>
         </>
       }
-    >
-      {/* Pinned under the header while the fields scroll (user, 2026-09-11) — the tabs used to
-          scroll away with the Basics fields, so switching tab meant scrolling back up first. */}
-      <div className="sticky top-0 z-10 -mx-lg -mt-md mb-md flex gap-xs border-b border-border bg-surface px-lg pt-sm">
-        {FORM_TABS.map((tab) => {
-          // A dot on the tab that holds a missing capture check (2026-09-11) — the same seven
-          // checks as the Data column, so the gap is findable without opening every tab.
-          const missing =
-            tab === 'Basics'
-              ? !form.language
-                ? 'language of teaching'
-                : !form.durationMonths
-                  ? 'length in months'
-                  : // Description joined the checks on 2026-09-13 (app review H8) and lives in
-                    // this tab's Details section.
-                    !form.description.trim()
-                    ? 'a description'
-                    : null
-              : tab === 'Campuses & Intakes'
-                ? form.campusRequired
-                  ? 'a campus'
-                  : form.intakes.some((m) => form.deadlines[m]?.deadline)
-                    ? null
-                    : 'an application deadline'
-                : tab === 'Fees'
-                  ? form.feeAmount
-                    ? null
-                    : 'tuition fee'
-                  : tab === 'Entry Requirements'
-                    ? form.minScore ||
-                      form.maxBacklogs ||
-                      form.workExpMonths ||
-                      form.background ||
-                      form.english.length ||
-                      form.aptitude.length ||
-                      form.moiAccepted
+      // Tabs sit in the popup's pinned band under the title (user, 2026-09-15: "stick tab to bottom
+      // under header"), so they never scroll and nothing shows through above them.
+      subheader={
+        <div className="flex gap-xs pt-sm">
+          {FORM_TABS.map((tab) => {
+            // A dot on the tab that holds a missing capture check (2026-09-11) — the same seven
+            // checks as the Data column, so the gap is findable without opening every tab.
+            const missing =
+              tab === 'Basics'
+                ? !form.language
+                  ? 'language of teaching'
+                  : !form.durationMonths
+                    ? 'length in months'
+                    : // Description joined the checks on 2026-09-13 (app review H8) and lives in
+                      // this tab's Details section.
+                      !form.description.trim()
+                      ? 'a description'
+                      : null
+                : tab === 'Campuses & Intakes'
+                  ? form.campusRequired
+                    ? 'a campus'
+                    : form.intakes.some((m) => form.deadlines[m]?.deadline)
                       ? null
-                      : 'entry requirements'
-                    : null
-          return (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => form.setActiveTab(tab)}
-              title={missing ? `Missing ${missing}` : undefined}
-              className={`flex items-center gap-xs whitespace-nowrap border-b-2 px-sm py-sm text-body-sm font-medium ${
-                form.activeTab === tab
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-text-secondary hover:text-text-primary'
-              }`}
-            >
-              {tab}
-              {missing && (
-                <>
-                  <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-warning" />
-                  <span className="sr-only">(missing {missing})</span>
-                </>
-              )}
-            </button>
-          )
-        })}
-      </div>
+                      : 'an application deadline'
+                  : tab === 'Fees'
+                    ? form.feeAmount
+                      ? null
+                      : 'tuition fee'
+                    : tab === 'Entry Requirements'
+                      ? form.minScore ||
+                        form.maxBacklogs ||
+                        form.workExpMonths ||
+                        form.background ||
+                        form.english.length ||
+                        form.aptitude.length ||
+                        form.moiAccepted
+                        ? null
+                        : 'entry requirements'
+                      : null
+            return (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => form.setActiveTab(tab)}
+                title={missing ? `Missing ${missing}` : undefined}
+                className={`flex items-center gap-xs whitespace-nowrap border-b-2 px-sm py-sm text-body-sm font-medium ${
+                  form.activeTab === tab
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                {tab}
+                {missing && (
+                  <>
+                    <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-warning" />
+                    <span className="sr-only">(missing {missing})</span>
+                  </>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      }
+    >
       <form id="course-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         {/* All five panels stay mounted and toggle via the hidden class — conditional mounting
             would throw away in-progress state in the other tabs. See CourseFormPanels.tsx. */}

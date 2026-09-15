@@ -926,34 +926,37 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
           </>
         ) : undefined
       }
-    >
-      {/* Pinned under the header while the body scrolls. */}
-      <div className="sticky top-0 z-10 -mx-lg -mt-md mb-lg border-b border-border bg-surface px-lg pt-sm">
-        <div role="tablist" aria-label="Manage sections" className="flex gap-lg">
-          {DETAIL_TABS.map((t) => (
-            <button
-              key={t.value}
-              type="button"
-              role="tab"
-              aria-selected={tab === t.value}
-              onClick={() => setTab(t.value)}
-              className={`-mb-px flex items-center gap-xs border-b-2 py-sm text-body-sm font-medium transition-colors ${
-                tab === t.value
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-text-secondary hover:text-text-primary'
-              }`}
-            >
-              {t.label}
-              {t.value === 'plan' && hasChanges && (
-                <>
-                  <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-warning" />
-                  <span className="sr-only">(unsaved changes)</span>
-                </>
-              )}
-            </button>
-          ))}
+      // Tabs sit in the popup's pinned band under the title (user, 2026-09-15: "stick tab to bottom
+      // under header"), so they never scroll and nothing shows through above them.
+      subheader={
+        <div className="pt-sm">
+          <div role="tablist" aria-label="Manage sections" className="flex gap-lg">
+            {DETAIL_TABS.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.value}
+                onClick={() => setTab(t.value)}
+                className={`-mb-px flex items-center gap-xs border-b-2 py-sm text-body-sm font-medium transition-colors ${
+                  tab === t.value
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                {t.label}
+                {t.value === 'plan' && hasChanges && (
+                  <>
+                    <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-warning" />
+                    <span className="sr-only">(unsaved changes)</span>
+                  </>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      }
+    >
 
       {tab === 'account' && (
         <div className="flex flex-col gap-lg">
