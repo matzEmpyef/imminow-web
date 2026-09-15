@@ -8,6 +8,7 @@ import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { CountrySelect } from '@/components/CountrySelect'
+import { StateSelect } from '@/components/StateSelect'
 import { CompactSelect } from '@/components/CompactSelect'
 import { Toggle } from '@/components/Toggle'
 import { Modal } from '@/components/Modal'
@@ -136,13 +137,26 @@ function CampusFormModal({
           onChange={(e) => setCity(e.target.value)}
           placeholder="e.g. Toronto"
         />
-        <TextField
+        <CountrySelect
+          label="Country"
+          required
+          value={country}
+          onChange={(next) => {
+            setCountry(next)
+            // A province/state belongs to exactly one country's list — switching country drops a
+            // value that no longer validates rather than submitting a State/Province the server
+            // will refuse. Editing and leaving the country as it was is the one case that keeps
+            // the existing value.
+            if (!(isEditing && next === editingCampus?.country)) setProvinceState('')
+          }}
+        />
+        <StateSelect
           label="State/Province"
           required
+          country={country}
           value={provinceState}
-          onChange={(e) => setProvinceState(e.target.value)}
+          onChange={setProvinceState}
         />
-        <CountrySelect label="Country" required value={country} onChange={setCountry} />
       </form>
     </Modal>
   )

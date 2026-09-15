@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
@@ -27,6 +27,132 @@ export function useCountries(options: { includeInactive?: boolean } = {}) {
     enabled: isAuthed,
     staleTime: 30 * 60 * 1000,
   })
+}
+
+// The states/provinces of one country (2026-09-15) — backs StateSelect and the targeting
+// State/Province filter. One managed list per country: a value not on it is refused 422 by every
+// endpoint that stores a state, so this is the only source these pickers should ever read from.
+// `country` is undefined while nothing is chosen yet (e.g. the campus form before Country is
+// picked) — `enabled` below just skips the request rather than asking the server about "".
+export function useStates(country: string | undefined) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['countries', country, 'states'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/countries/{name}/states', {
+        params: { path: { name: country! } },
+      })
+      if (error) throw new ApiError('Could not load the states list.', error)
+      return data
+    },
+    enabled: isAuthed && Boolean(country),
+    staleTime: 30 * 60 * 1000,
+  })
+}
+
+// The union of states across several countries at once (2026-09-15) — Targeting's State/Province
+// filter needs options for however many "Country of residence" values are picked, and a hook
+// cannot be called in a loop. Shares `useStates`'s exact query key, so a country already looked up
+// elsewhere (e.g. the campus form) costs nothing here. Order of `countries` does not matter to the
+// caller; this just returns every name it found, deduplicated.
+export function useStatesForCountries(countries: string[]) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  const results = useQueries({
+    queries: countries.map((country) => ({
+      queryKey: ['countries', country, 'states'],
+      queryFn: async () => {
+        const { data, error } = await api.GET('/countries/{name}/states', {
+          params: { path: { name: country } },
+        })
+        if (error) throw new ApiError('Could not load the states list.', error)
+        return data
+      },
+      enabled: isAuthed,
+      staleTime: 30 * 60 * 1000,
+    })),
+  })
+  const names = new Set<string>()
+  for (const result of results) {
+    for (const state of result.data ?? []) names.add(state.name)
+  }
+  return {
+    data: Array.from(names).sort((a, b) => a.localeCompare(b)),
+    isLoading: results.some((r) => r.isLoading),
+  }
+}
+
+// The Super Admin States & provinces modal's own list (2026-09-15) — unlike `useStates` above,
+// this always asks for `include_inactive` so a switched-off state still shows up (with its toggle
+// off) for an admin to review or turn back on. A distinct queryKey suffix ('managed') keeps this
+// cache entry separate from the picker's — otherwise the picker's shorter, active-only list and
+// this admin list would fight over the same cache slot depending on request order.
+export function useManagedStates(country: string | undefined) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['countries', country, 'states', 'managed'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/countries/{name}/states', {
+        params: { path: { name: country! }, query: { include_inactive: true } },
+      })
+      if (error) throw new ApiError('Could not load the states list.', error)
+      return data
+    },
+    enabled: isAuthed && Boolean(country),
+    staleTime: 30 * 60 * 1000,
+  })
+}
+
+export function useAddState(country: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { name: string; type?: string }) => {
+      const { data, error } = await api.POST('/countries/{name}/states', {
+        params: { path: { name: country } },
+        body,
+      })
+      if (error) throw new ApiError('Could not add this state.', error)
+      return data
+    },
+    onSuccess: () => invalidateStateDependents(queryClient, country),
+  })
+}
+
+export function useUpdateState(country: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      state,
+      ...body
+    }: {
+      state: string
+      name?: string
+      type?: string
+      active?: boolean
+    }) => {
+      const { data, error } = await api.PATCH('/countries/{name}/states/{state}', {
+        params: { path: { name: country, state } },
+        body,
+      })
+      if (error) throw new ApiError('Could not update this state.', error)
+      return data
+    },
+    onSuccess: () => invalidateStateDependents(queryClient, country),
+  })
+}
+
+// A rename or a switch off/on touches more than the states list itself: the picker (useStates /
+// useStatesForCountries share its queryKey prefix, so ['countries', country, 'states'] covers
+// both), and — for a rename specifically — every record the server carried the new name into
+// (student profiles, campuses, institutions, partner locations, saved audiences). Those records'
+// own list screens read from separate query keys that don't nest under 'countries', so they need
+// naming here explicitly rather than falling out of the prefix invalidation above.
+function invalidateStateDependents(queryClient: ReturnType<typeof useQueryClient>, country: string) {
+  queryClient.invalidateQueries({ queryKey: ['countries', country, 'states'] })
+  queryClient.invalidateQueries({ queryKey: ['institutions'] })
+  queryClient.invalidateQueries({ queryKey: ['admin-colleges'] })
+  queryClient.invalidateQueries({ queryKey: ['admin-college'] })
+  queryClient.invalidateQueries({ queryKey: ['partner-colleges'] })
+  queryClient.invalidateQueries({ queryKey: ['redemption-partners'] })
 }
 
 // Super Admin only (user-requested) — manages the list every consultancy reads from above.

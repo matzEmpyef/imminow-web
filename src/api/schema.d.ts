@@ -5165,6 +5165,182 @@ export interface paths {
         };
         trace?: never;
     };
+    "/countries/{name}/states": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The states / provinces of one country (2026-09-15) — the ONE list every state field reads and is checked against: StudentPreferences.state (against resident_country), Campus.province_state, PartnerLocation.state and Institution.state (against India). A value that is not on its country's list is refused 422 `validation_failed`; a listed value in any letter case is stored with its official spelling. First-level ISO 3166-2 subdivisions with Unicode CLDR English names (Indonesia, Ireland and Uganda use the second level, because their first level is a statistical grouping). Sorted by name. A country with no subdivisions (Hong Kong) returns an empty list, and its state fields are not checked. */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Management screens only (immiNow's Countries page). Switched-off states are omitted by default, like switched-off countries. */
+                    include_inactive?: boolean;
+                };
+                header?: never;
+                path: {
+                    /** @description Country name, as in GET /countries. */
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StateProvince"][];
+                    };
+                };
+                /** @description No such country */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Add a state the list is missing (2026-09-15) — platform `catalog_settings` permission. It has no ISO code (`code` is null). A name the country already has, in any letter case, is refused 409 `already_exists`. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["StateProvinceInput"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StateProvince"];
+                    };
+                };
+                /** @description name missing or longer than 100 characters */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such country */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description The country already has a state with this name */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/countries/{name}/states/{state}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Rename, retype or switch off one state (2026-09-15) — platform `catalog_settings` permission. A rename is carried into every record holding the old name: student preferences (resident in this country), campuses in this country, institutions (India), partner locations in this country, and saved audiences (events, ads, broadcasts) whose targeting names this country — or names no country, when no other country has a state with the same name. `records_updated` counts them. Switching off (`active: false`) only hides the state from pickers; records already using it keep working and writes still accept it. There is no delete. */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Country name. */
+                    name: string;
+                    /** @description The state's current name. */
+                    state: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["StateProvinceUpdate"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StateProvinceChange"];
+                    };
+                };
+                /** @description Empty or over-long name, or a non-boolean active */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such country, or no such state in it */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description The country already has another state with the new name */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/exams": {
         parameters: {
             query?: never;
@@ -20170,6 +20346,7 @@ export interface components {
             /** @description Student's own location (user request 7, 2026-08-19 — "yes add to profile"), together with district/state below. Feeds coupon relevance_scope matching (a district-scoped coupon shows only where a partner location shares the student's district) and quiz location targeting. Unknown location always PASSES both — location narrows reach, never blanks a catalog for a student who hasn't filled it in. */
             city?: string | null;
             district?: string | null;
+            /** @description The student's state / province in their resident_country — one of GET /countries/{name}/states for that country (2026-09-15), stored with its official spelling; anything else is refused 422. Changing resident_country without sending state clears a state that is not part of the new country. */
             state?: string | null;
             /**
              * Format: uuid
@@ -21049,6 +21226,40 @@ export interface components {
             /** @description Course Finder's keyword, if any. */
             search?: string | null;
         };
+        StateProvince: {
+            /** @description ISO 3166-2 code, e.g. IN-TN. Null for a state added from immiNow. */
+            code: string | null;
+            /** @description English name — the value every state field stores. */
+            name: string;
+            /** @description What the country calls it — State, Union territory, Province, Region… */
+            type: string;
+            /** @description False once switched off in immiNow — hidden from pickers, still valid on records. */
+            active: boolean;
+        };
+        StateProvinceInput: {
+            name: string;
+            /** @description Defaults to State. */
+            type?: string;
+        };
+        StateProvinceUpdate: {
+            name?: string;
+            type?: string;
+            active?: boolean;
+        };
+        StateProvinceChange: {
+            code: string | null;
+            name: string;
+            type: string;
+            active: boolean;
+            /** @description How many records a rename carried the new name into. All zero when the name did not change. */
+            records_updated: {
+                students: number;
+                campuses: number;
+                institutions: number;
+                partner_locations: number;
+                audiences: number;
+            };
+        };
         ProvinceCount: {
             /** @description The campus province_state value, as filter[province_state] expects it. */
             name: string;
@@ -21244,6 +21455,7 @@ export interface components {
         };
         Campus: {
             id: components["schemas"]["UUID"];
+            /** @description One of GET /countries/{name}/states for this campus's country (2026-09-15); anything else is refused 422. */
             province_state: string;
             city?: string | null;
             country: string;
@@ -21254,6 +21466,7 @@ export interface components {
             readonly course_count?: number;
         };
         CampusInput: {
+            /** @description One of GET /countries/{name}/states for this campus's country (2026-09-15); anything else is refused 422. */
             province_state: string;
             city?: string | null;
             country: string;
@@ -23086,6 +23299,7 @@ export interface components {
             name: string;
             /** @description Half of the identity. "The Choice School" in Kochi and "The Choice School" in Thiruvalla are SEPARATE institutions, so (name, city) is unique and name alone is not. Every picker must therefore SHOW the city, or students pick the wrong row and the data is quietly worthless. */
             city: string;
+            /** @description One of GET /countries/India/states (2026-09-15) — institutions are the student's own school or college in India; anything else is refused 422. */
             state?: string | null;
             /** @enum {string} */
             type: "school" | "college";
@@ -23106,6 +23320,7 @@ export interface components {
         InstitutionInput: {
             name: string;
             city: string;
+            /** @description One of GET /countries/India/states (2026-09-15) — institutions are the student's own school or college in India; anything else is refused 422. */
             state?: string | null;
             /** @enum {string} */
             type: "school" | "college";
@@ -23151,7 +23366,7 @@ export interface components {
         Targeting: {
             /** @description Where the student LIVES — matched against `student_preferences.resident_country`. Use this for anything that only exists somewhere: a walk-in office, a city event, a local offer. Values come from the shared Countries list (see /countries), NOT the served-countries subset — a student can live somewhere no consultancy sells. */
             resident_country?: string[];
-            /** @description Province/state, matched against `student_preferences.state`. Free text on both sides, so values must match what the student's profile holds (e.g. "Kerala"). */
+            /** @description Province/state, matched against `student_preferences.state`. Both sides come from GET /countries/{name}/states since 2026-09-15, so a value picked from that list is spelled exactly as students' profiles store it (e.g. "Kerala"). */
             state?: string[];
             /** @description District/county, matched against `student_preferences.district`. */
             district?: string[];
@@ -23443,6 +23658,7 @@ export interface components {
             id: components["schemas"]["UUID"];
             city: string;
             district?: string | null;
+            /** @description One of GET /countries/{name}/states for this location's country (2026-09-15); anything else is refused 422. */
             state?: string | null;
             country: string;
             /** @description Always system-generated, never admin-typed (build reference 1.8). */
@@ -23458,6 +23674,7 @@ export interface components {
         PartnerLocationInput: {
             city: string;
             district?: string | null;
+            /** @description One of GET /countries/{name}/states for this location's country (2026-09-15); anything else is refused 422. */
             state?: string | null;
             country: string;
         };

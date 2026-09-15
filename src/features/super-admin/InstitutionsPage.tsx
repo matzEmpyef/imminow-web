@@ -6,6 +6,7 @@ import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { SelectField } from '@/components/SelectField'
+import { StateSelect } from '@/components/StateSelect'
 import { CompactSelect } from '@/components/CompactSelect'
 import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
@@ -152,7 +153,7 @@ function InstitutionFormModal({
               if (mutation.isError) mutation.reset()
             }}
           />
-          <TextField label="State/Province" value={state} onChange={(e) => setState(e.target.value)} />
+          <StateSelect label="State/Province" country="India" value={state} onChange={setState} />
         </div>
         <SelectField label="Type" id="institution-type" value={type} onChange={(e) => setType(e.target.value as 'school' | 'college')}>
           <option value="school">School</option>

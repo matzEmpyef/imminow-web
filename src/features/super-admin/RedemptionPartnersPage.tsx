@@ -6,6 +6,7 @@ import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { CountrySelect } from '@/components/CountrySelect'
+import { StateSelect } from '@/components/StateSelect'
 import { Table, type TableColumn } from '@/components/Table'
 import { Modal } from '@/components/Modal'
 import {
@@ -85,8 +86,18 @@ function AddLocationForm({ partnerId, onClose }: { partnerId: string; onClose: (
       <form id="add-location-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <TextField label="City" required value={city} onChange={(e) => setCity(e.target.value)} />
         <TextField label="District/County" value={district} onChange={(e) => setDistrict(e.target.value)} />
-        <TextField label="State/Province" value={state} onChange={(e) => setState(e.target.value)} />
-        <CountrySelect label="Country" required value={country} onChange={setCountry} />
+        <CountrySelect
+          label="Country"
+          required
+          value={country}
+          onChange={(next) => {
+            setCountry(next)
+            // See CollegeDetailPage's campus form — same reasoning: a state belongs to one
+            // country's list, so a country change drops whatever no longer validates.
+            setState('')
+          }}
+        />
+        <StateSelect label="State/Province" country={country} value={state} onChange={setState} />
       </form>
     </Modal>
   )

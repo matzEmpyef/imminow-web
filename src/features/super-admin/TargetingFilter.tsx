@@ -1,5 +1,6 @@
 import type { Targeting } from '@/lib/targeting'
 import { useInstitutions, institutionLabel } from '@/queries/institutions'
+import { useStatesForCountries } from '@/queries/countries'
 import { MultiSelect } from '@/components/MultiSelect'
 import { SelectField } from '@/components/SelectField'
 import { TextField } from '@/components/TextField'
@@ -44,6 +45,10 @@ export function TargetingFilter({ value, onChange, countries, unknownDataPolicy,
   const institutionById = new Map((institutions.data?.items ?? []).map((i) => [i.id, institutionLabel(i)]))
   const studyLevels = useStudyLevels().data ?? []
   const studyLevelLabels = new Map(studyLevels.map((level) => [level.code, level.label]))
+  // State/Province options follow whichever residence countries are picked above — a state
+  // belongs to one country's list, so with nothing picked there is nothing valid to offer.
+  const residentCountries = value.resident_country ?? []
+  const states = useStatesForCountries(residentCountries)
   // Every field is optional in the contract, so a patch merges onto whatever is already set.
   const set = (patch: Partial<Targeting>) => onChange({ ...value, ...patch })
 
@@ -82,10 +87,9 @@ export function TargetingFilter({ value, onChange, countries, unknownDataPolicy,
       <div className="grid grid-cols-3 gap-sm">
         <MultiSelect
           label="State/Province"
-          options={[]}
+          options={states.data}
           selected={value.state ?? []}
           onChange={(next) => set({ state: list(next) })}
-          allowCustom
         />
         <MultiSelect
           label="District/County"
@@ -103,8 +107,11 @@ export function TargetingFilter({ value, onChange, countries, unknownDataPolicy,
         />
       </div>
       <p className="text-caption text-text-secondary">
-        Free text on both sides — these must match what the student typed in their profile, so a spelling that differs
-        matches nobody rather than erroring.
+        {residentCountries.length === 0
+          ? 'Choose a country of residence to pick states. '
+          : ''}
+        State comes from each country&rsquo;s list. District and city are free text on both sides — they must match what
+        the student typed in their profile, so a spelling that differs matches nobody rather than erroring.
       </p>
 
       <div className="flex flex-col gap-xs">

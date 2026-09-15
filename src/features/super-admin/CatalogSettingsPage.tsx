@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { Archive, ArchiveRestore, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react'
+import { Archive, ArchiveRestore, ChevronDown, ChevronUp, MapPin, Pencil, Trash2 } from 'lucide-react'
 import { CompactSelect } from '@/components/CompactSelect'
 import { FilterChip } from '@/components/FilterChip'
 import { CountryFlag } from '@/components/CountryFlag'
@@ -34,6 +34,9 @@ import {
   useDeleteCountry,
   useSetCountryActive,
   useUpdateCountryCurrency,
+  useManagedStates,
+  useAddState,
+  useUpdateState,
 } from '@/queries/countries'
 import {
   useCountryContent,
@@ -44,12 +47,15 @@ import {
 import { formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { ApiError } from '@/api/errors'
+import { useAuthStore } from '@/stores/authStore'
 import type { components } from '@/api/schema'
 
 type Exam = components['schemas']['Exam']
 type ExchangeRate = components['schemas']['ExchangeRate']
 type StudyLevel = components['schemas']['StudyLevel']
 type CountrySetting = components['schemas']['CountrySetting']
+type StateProvince = components['schemas']['StateProvince']
+type StateProvinceChange = components['schemas']['StateProvinceChange']
 
 const TABS = ['Countries', 'Exams', 'Study Levels', 'Fields of Study', 'Exchange Rates', 'Course Popularity'] as const
 
@@ -136,6 +142,7 @@ function CountriesTab() {
   const [unreviewedOnly, setUnreviewedOnly] = useState(false)
   const [adding, setAdding] = useState(false)
   const [editingGuide, setEditingGuide] = useState<string | null>(null)
+  const [managingStates, setManagingStates] = useState<string | null>(null)
 
   // Every country gets a row whether or not anyone has written about it — listing only the
   // written ones would hide the gap the guide half of this tab exists to close. `hasRate` is
@@ -222,6 +229,15 @@ function CountriesTab() {
       align: 'right',
       render: (row) => (
         <StopPropagation className="flex items-center justify-end gap-xs">
+          <button
+            type="button"
+            onClick={() => setManagingStates(row.name)}
+            aria-label={`Manage states for ${row.name}`}
+            title="States & provinces"
+            className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
+          >
+            <MapPin className="h-4 w-4" />
+          </button>
           <button
             type="button"
             onClick={() => setEditingGuide(row.name)}
@@ -363,8 +379,309 @@ function CountriesTab() {
           onClose={() => setEditingGuide(null)}
         />
       )}
+      {managingStates && <StatesModal country={managingStates} onClose={() => setManagingStates(null)} />}
     </div>
   )
+}
+
+// Same gate the route already requires to reach this page at all — PlatformRoute redirects anyone
+// without `catalog_settings` away from /admin/settings before CatalogSettingsPage ever mounts. Kept
+// as an explicit check anyway (same pattern as SupplyDemandPage's CapacityAssumption) so the write
+// controls in the States modal stay correctly gated even if that route guard is ever loosened to
+// `anyPermission` for read access.
+function useCanManageCatalogSettings() {
+  return useAuthStore(
+    (s) =>
+      s.user?.role === 'super_admin' ||
+      Boolean((s.user?.platform_permissions as Record<string, boolean> | undefined)?.catalog_settings),
+  )
+}
+
+/**
+ * States & provinces (2026-09-15) — one country's list, opened from its row rather than a seventh
+ * Countries column: a list of up to a few hundred names doesn't fit a table cell. It is the list
+ * every state picker reads (student profiles, campuses, institutions, partner locations, targeting)
+ * and every state write is checked against, so a rename here is carried into all of those records
+ * server-side — this is the one place that keeps them in sync.
+ */
+function StatesModal({ country, onClose }: { country: string; onClose: () => void }) {
+  const canEdit = useCanManageCatalogSettings()
+  const states = useManagedStates(country)
+  const [search, setSearch] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [renaming, setRenaming] = useState<StateProvince | null>(null)
+  const rows = states.data ?? []
+
+  const needle = search.trim().toLowerCase()
+  const visible = needle ? rows.filter((s) => s.name.toLowerCase().includes(needle)) : rows
+
+  const columns: TableColumn<StateProvince>[] = [
+    {
+      key: 'name',
+      header: 'Name',
+      render: (s) => (
+        <span className={s.active ? 'font-medium text-text-primary' : 'text-text-secondary'}>{s.name}</span>
+      ),
+    },
+    { key: 'type', header: 'Type', render: (s) => <span className="text-text-secondary">{s.type}</span> },
+    {
+      // Null means an admin typed it in here rather than it coming off the ISO 3166-2 seed list —
+      // worth saying plainly rather than leaving the cell blank, which would read as missing data.
+      key: 'code',
+      header: 'ISO code',
+      render: (s) =>
+        s.code ? (
+          <span className="font-mono text-caption text-text-secondary">{s.code}</span>
+        ) : (
+          <span className="text-caption text-text-secondary">Added in immiNow</span>
+        ),
+    },
+    {
+      key: 'active',
+      header: 'Active',
+      render: (s) => <StateActiveToggle country={country} state={s} canEdit={canEdit} />,
+    },
+    {
+      key: 'actions',
+      header: '',
+      align: 'right',
+      render: (s) =>
+        canEdit ? (
+          <button
+            type="button"
+            onClick={() => setRenaming(s)}
+            aria-label={`Rename ${s.name}`}
+            title="Rename"
+            className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        ) : null,
+    },
+  ]
+
+  return (
+    <Modal onClose={onClose} title={`${country} — States & provinces`} widthRem={40} dismissible>
+      <div className="flex flex-col gap-md">
+        <div className="flex items-start justify-between gap-md">
+          {/* flex-1, not max-w-md: in this project max-w-md resolves to the 16px spacing token (see
+              scripts/check-max-w.mjs), which squeezed this note into a one-word column (2026-09-15). */}
+          <p className="min-w-0 flex-1 text-body-sm text-text-secondary">
+            Read by every state picker platform-wide and by the state field on student profiles, campuses,
+            institutions and partner locations. Switching one off only hides it from new picks — records already
+            using it keep working.
+          </p>
+          {canEdit && (
+            <div className="shrink-0">
+              <Button size="sm" onClick={() => setAdding(true)}>
+                Add state
+              </Button>
+            </div>
+          )}
+        </div>
+        <Table
+          bare
+          columns={columns}
+          rows={visible}
+          rowKey={(s) => s.name}
+          loading={states.isLoading}
+          error={states.isError ? 'Could not load states.' : undefined}
+          emptyMessage={
+            rows.length === 0 ? `No states or provinces for ${country}. Add one if the country has them.` : 'No states match.'
+          }
+          search={{ value: search, onChange: setSearch, placeholder: 'Search states…' }}
+        />
+      </div>
+      {adding && <AddStateModal country={country} onClose={() => setAdding(false)} />}
+      {renaming && <RenameStateModal country={country} state={renaming} onClose={() => setRenaming(null)} />}
+    </Modal>
+  )
+}
+
+// On / off, same shape as CountryActiveToggle above — but switching a state off has no `in_use`
+// refusal to catch (the contract is explicit: existing records keep it, always), so this only ever
+// needs the one confirm step before the plain PATCH.
+function StateActiveToggle({
+  country,
+  state,
+  canEdit,
+}: {
+  country: string
+  state: StateProvince
+  canEdit: boolean
+}) {
+  const update = useUpdateState(country)
+  const [confirming, setConfirming] = useState(false)
+
+  return (
+    <div className="flex items-center gap-xs">
+      <Toggle
+        size="sm"
+        checked={state.active}
+        disabled={!canEdit || update.isPending}
+        onChange={(checked) =>
+          checked ? update.mutate({ state: state.name, active: true }) : setConfirming(true)
+        }
+        label={`${state.name} active`}
+      />
+      {update.isError && !confirming && <span className="text-caption text-error">Not saved</span>}
+      {confirming && (
+        <Modal
+          onClose={() => setConfirming(false)}
+          title={`Switch off ${state.name}?`}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setConfirming(false)} disabled={update.isPending}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                loading={update.isPending}
+                onClick={() =>
+                  update.mutate(
+                    { state: state.name, active: false },
+                    { onSuccess: () => setConfirming(false) },
+                  )
+                }
+              >
+                Switch off
+              </Button>
+            </>
+          }
+        >
+          <p className="text-body-sm text-text-primary">
+            Hide {state.name} from every state picker? Records already using it keep it.
+          </p>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function AddStateModal({ country, onClose }: { country: string; onClose: () => void }) {
+  const addState = useAddState(country)
+  const [name, setName] = useState('')
+  const [type, setType] = useState('State')
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    const trimmedName = name.trim()
+    if (!trimmedName) return
+    addState.mutate(
+      { name: trimmedName, type: type.trim() || undefined },
+      {
+        onSuccess: () => {
+          onClose()
+          showToast(`${trimmedName} added to ${country}`)
+        },
+      },
+    )
+  }
+
+  return (
+    <Modal
+      onClose={onClose}
+      title={`Add state to ${country}`}
+      widthRem={26}
+      footer={
+        <>
+          {addState.isError && <p className="mr-auto self-center text-body-sm text-error">{addState.error.message}</p>}
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" form="add-state-form" loading={addState.isPending} disabled={!name.trim()}>
+            Add state
+          </Button>
+        </>
+      }
+    >
+      <form id="add-state-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
+        <TextField label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <TextField
+          label="Type"
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          placeholder="State, Province, Region…"
+        />
+      </form>
+    </Modal>
+  )
+}
+
+// Name only, per the contract's note that a rename fans out into every student profile, campus,
+// institution, partner location and saved audience holding the old value — worth saying before the
+// save, not just after in the toast.
+function RenameStateModal({
+  country,
+  state,
+  onClose,
+}: {
+  country: string
+  state: StateProvince
+  onClose: () => void
+}) {
+  const update = useUpdateState(country)
+  const [name, setName] = useState(state.name)
+  const trimmed = name.trim()
+  const unchanged = trimmed === state.name
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!trimmed || unchanged) return
+    update.mutate(
+      { state: state.name, name: trimmed },
+      {
+        onSuccess: (data) => {
+          onClose()
+          showToast(renameStateToast(state.name, trimmed, data.records_updated))
+        },
+      },
+    )
+  }
+
+  return (
+    <Modal
+      onClose={onClose}
+      title={`Rename ${state.name}`}
+      widthRem={26}
+      footer={
+        <>
+          {update.isError && <p className="mr-auto self-center text-body-sm text-error">{update.error.message}</p>}
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" form="rename-state-form" loading={update.isPending} disabled={!trimmed || unchanged}>
+            Save
+          </Button>
+        </>
+      }
+    >
+      <form id="rename-state-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
+        <TextField label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <p className="text-caption text-text-secondary">
+          Renaming updates every student profile, campus, institution, partner location and saved audience that uses
+          this name.
+        </p>
+      </form>
+    </Modal>
+  )
+}
+
+// "Renamed Kerala to Keralam — updated 7 students, 22 institutions, 1 audience" — zero-count parts
+// are dropped rather than listed (unlike the CountrySetting waits table, there's no fixed shape
+// here worth keeping columns aligned for), falling back to a plain "no records used this name yet"
+// when the rename touched nothing.
+function renameStateToast(oldName: string, newName: string, records: StateProvinceChange['records_updated']) {
+  const parts: string[] = []
+  if (records.students) parts.push(`${records.students} student${records.students === 1 ? '' : 's'}`)
+  if (records.institutions) parts.push(`${records.institutions} institution${records.institutions === 1 ? '' : 's'}`)
+  if (records.campuses) parts.push(`${records.campuses} campus${records.campuses === 1 ? '' : 'es'}`)
+  if (records.partner_locations) {
+    parts.push(`${records.partner_locations} partner location${records.partner_locations === 1 ? '' : 's'}`)
+  }
+  if (records.audiences) parts.push(`${records.audiences} audience${records.audiences === 1 ? '' : 's'}`)
+  const summary = parts.length > 0 ? `updated ${parts.join(', ')}` : 'no records used this name yet'
+  return `Renamed ${oldName} to ${newName} — ${summary}`
 }
 
 function AddCountryModal({ onClose }: { onClose: () => void }) {
