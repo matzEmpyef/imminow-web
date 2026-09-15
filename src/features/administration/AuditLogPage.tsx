@@ -9,7 +9,7 @@ import { useCursorPagination } from '@/lib/pagination'
 import { formatDateTime } from '@/lib/time'
 import { useAccountWords } from '@/lib/accountWords'
 
-const ACTION_COLORS = { create: 'success', update: 'info', delete: 'error' } as const
+const ACTION_COLORS = { create: 'success', update: 'info', delete: 'error', view: 'secondary' } as const
 
 // C1: action_type/entity_type/area are raw snake_case wire values ('kyc_verified',
 // 'commission_entry', 'consultancy_management'…) — this reads them the same way the Action/Area

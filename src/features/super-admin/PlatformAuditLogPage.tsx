@@ -15,7 +15,7 @@ import { useCursorPagination } from '@/lib/pagination'
 import { toCsv, downloadCsv, type CsvColumn } from '@/lib/csv'
 import { formatDateTime, localDateISO } from '@/lib/time'
 
-const ACTION_COLORS = { create: 'success', update: 'info', delete: 'error' } as const
+const ACTION_COLORS = { create: 'success', update: 'info', delete: 'error', view: 'secondary' } as const
 
 // One readable label per wire value, kept in the same order the filter dropdown shows them —
 // covers every value the `area` enum can carry (schema.d.ts), so a newly added area fails to

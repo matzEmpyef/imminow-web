@@ -16338,7 +16338,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Staff-entered merchant code at partner location — atomic balance check + debit + mark used (TRD Section 4). Build reference 1.8: "at the partner location, staff enter their merchant code directly on the student's screen — that single action atomically deducts points and marks the coupon used. No code is ever revealed to the student ahead of time," which is why Coupon Detail/Use renders a code *entry* field and never displays one. `merchant_code` is matched against the coupon's own partner's locations, honouring that partner's `code_mode` (one shared code across all locations, or an independent code per location) — a code belonging to a different partner is rejected even if it is otherwise valid. */
+        /**
+         * Staff-entered merchant code at partner location — atomic balance check + debit + mark used (TRD Section 4). Build reference 1.8: "at the partner location, staff enter their merchant code directly on the student's screen — that single action atomically deducts points and marks the coupon used. No code is ever revealed to the student ahead of time," which is why Coupon Detail/Use renders a code *entry* field and never displays one. `merchant_code` is matched against the coupon's own partner's locations, honouring that partner's `code_mode` (one shared code across all locations, or an independent code per location) — a code belonging to a different partner is rejected even if it is otherwise valid.
+         * @description Digital vouchers (2026-09-15, `partner_kind = online`) take no merchant code: the student redeems in the app, one unissued code is assigned to them, and the response's `issued_code` carries it. The code is assigned before the points are debited, so points are never taken without a code. Every coupon is subject to the per-student limits in GET /coupons/limits.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -16354,7 +16357,8 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        merchant_code: string;
+                        /** @description Required for an in-store coupon; ignored for a digital voucher. */
+                        merchant_code?: string;
                     };
                 };
             };
@@ -16368,7 +16372,7 @@ export interface paths {
                         "application/json": components["schemas"]["Coupon"];
                     };
                 };
-                /** @description merchant_code missing, or doesn't match any location of this coupon's own partner. */
+                /** @description merchant_code missing or not matching this partner (in-store), or `not_available` — a digital voucher outside its brand's countries. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -16382,7 +16386,7 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description Out of stock (stock minus existing redemptions has reached 0) */
+                /** @description `out_of_stock` (no stock, or no unissued codes left), or `limit_reached` — the student has reached the monthly or total limit for this coupon; the message says when it is available again. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -16391,6 +16395,248 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/coupons/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per-student coupon limits (2026-09-15) — readable by anyone signed in. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CouponLimits"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change the per-student coupon limits — platform `points_coupons` permission, audited. Send null to remove a limit. The monthly limit can't be higher than the total. */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CouponLimits"];
+                };
+            };
+            responses: {
+                /** @description The limits now in force. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CouponLimits"];
+                    };
+                };
+                /** @description A value outside 1–100, or monthly above total. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/coupons/{id}/codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A digital voucher's code pool with each code's status (2026-09-15) — platform `points_coupons` permission; every read is audited. 400 `not_digital` for an in-store coupon. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VoucherCodeList"];
+                    };
+                };
+                /** @description Not a digital voucher. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Add codes to a digital voucher's pool (pasted or from a CSV) — platform `points_coupons` permission, audited. Codes are trimmed; blanks, codes over 200 characters, and codes already in any pool are skipped and counted. At most 5000 per request. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["VoucherCodesInput"];
+                };
+            };
+            responses: {
+                /** @description Added. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VoucherCodesAdded"];
+                    };
+                };
+                /** @description Not a digital voucher, or an empty or oversized list. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/coupons/{id}/codes/{codeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a code nobody has been given (e.g. a typo) — platform `points_coupons` permission, audited. An issued code stays: 409 `code_issued`. */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    codeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Removed. */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description No such coupon or code. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Already issued to a student. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/vouchers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The calling student's issued voucher codes, newest first — "My rewards" (2026-09-15). */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IssuedVoucher"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -16532,6 +16778,10 @@ export interface paths {
                         contact_phone?: string;
                         /** @enum {string} */
                         code_mode?: "shared" | "per_location";
+                        /** @description Online brands (2026-09-15) — uploaded through POST /media. */
+                        logo_url?: string | null;
+                        /** @description Online brands only (2026-09-15) — at least one name from GET /countries; 400 on a store. `kind` itself can't change: sending a different kind is refused 400. */
+                        countries?: string[];
                     };
                 };
             };
@@ -23044,7 +23294,8 @@ export interface components {
             student_type: "applicant" | "aspirant";
             /** Format: date-time */
             redeemed_at: string;
-            merchant_code_used?: string;
+            /** @description Null for a digital voucher, which has no merchant code. */
+            merchant_code_used?: string | null;
         };
         EventInput: {
             /** @enum {string} */
@@ -23543,6 +23794,24 @@ export interface components {
             id: components["schemas"]["UUID"];
             partner_id: components["schemas"]["UUID"];
             readonly partner_name?: string;
+            /**
+             * @description `online` makes this a digital voucher (2026-09-15): redeemed in the app with no merchant code, and the redeem response carries the issued code.
+             * @enum {string}
+             */
+            readonly partner_kind?: "store" | "online";
+            readonly partner_logo_url?: string | null;
+            /**
+             * @description For the calling student only (null for staff): which per-student limit (GET /coupons/limits) stops them redeeming this coupon right now.
+             * @enum {string|null}
+             */
+            readonly limit_reached?: "monthly" | "total" | null;
+            /**
+             * Format: date
+             * @description With `limit_reached = monthly`, the first day of next month (UTC).
+             */
+            readonly available_again_on?: string | null;
+            /** @description Only on the POST /coupons/{id}/redeem response for a digital voucher — the one code just issued to the student. Null everywhere else. */
+            readonly issued_code?: components["schemas"]["IssuedCode"] | null;
             point_cost: number;
             /**
              * @description A closed list (build reference 1.19's Coupons Catalog filters by type, which only makes sense against a bounded set — was a free-text field until 2026-08-18).
@@ -23634,6 +23903,56 @@ export interface components {
             /** @description True when EVERY location uses `code_mode: per_location`. False means the breakdown is structurally incomplete, and the console says so rather than presenting a partial split as the full picture. */
             attributable: boolean;
         };
+        IssuedCode: {
+            code: string;
+            /** Format: date-time */
+            issued_at: string;
+        };
+        /** @description Per-student limits applied to EVERY coupon, in-store and digital (2026-09-15). A student may redeem any single coupon at most `per_month` times in a calendar month (UTC) and `total` times ever; different coupons never count against each other. Null means no limit. */
+        CouponLimits: {
+            per_month?: number | null;
+            total?: number | null;
+        };
+        VoucherCode: {
+            id: components["schemas"]["UUID"];
+            code: string;
+            /** @enum {string} */
+            status: "available" | "issued";
+            /** Format: date-time */
+            added_at: string;
+            /** Format: date-time */
+            issued_at?: string | null;
+            /** @description The student's name, once issued. */
+            issued_to?: string | null;
+        };
+        VoucherCodeList: {
+            items: components["schemas"]["VoucherCode"][];
+            available: number;
+            issued: number;
+        };
+        VoucherCodesInput: {
+            codes: string[];
+        };
+        VoucherCodesAdded: {
+            added: number;
+            /** @description Codes already in this or any other coupon's pool. */
+            skipped_duplicates: number;
+            /** @description Blank, or longer than 200 characters. */
+            skipped_invalid: number;
+            available: number;
+        };
+        IssuedVoucher: {
+            coupon_id: components["schemas"]["UUID"];
+            brand_name: string;
+            brand_logo_url?: string | null;
+            amount: string;
+            terms?: string;
+            /** Format: date */
+            expiry_date?: string | null;
+            code: string;
+            /** Format: date-time */
+            issued_at: string;
+        };
         CouponInput: {
             partner_id: components["schemas"]["UUID"];
             point_cost: number;
@@ -23695,6 +24014,15 @@ export interface components {
              * @default true
              */
             active: boolean;
+            /**
+             * @description `online` (2026-09-15) is a brand like Amazon, Swiggy or Zomato: no branches or merchant codes, and its coupons are digital vouchers issued from a code pool. Absent means `store`. Set at creation and never changed.
+             * @enum {string}
+             */
+            kind?: "store" | "online";
+            /** @description Brand logo, uploaded through POST /media. Use a brand's logo only if the voucher supplier or the brand allows it. */
+            logo_url?: string | null;
+            /** @description Online brands only — the countries (names from GET /countries) its vouchers work in; at least one. Students living elsewhere never see its coupons. Empty for a store, whose countries come from its branches. */
+            countries?: string[];
         };
         RedemptionPartnerInput: {
             name: string;
@@ -23703,6 +24031,15 @@ export interface components {
             contact_phone?: string;
             /** @enum {string} */
             code_mode?: "shared" | "per_location";
+            /**
+             * @description `online` (2026-09-15) is a brand like Amazon, Swiggy or Zomato: no branches or merchant codes, and its coupons are digital vouchers issued from a code pool. Set at creation and never changed.
+             * @enum {string}
+             */
+            kind?: "store" | "online";
+            /** @description Brand logo, uploaded through POST /media. Use a brand's logo only if the voucher supplier or the brand allows it. */
+            logo_url?: string | null;
+            /** @description Online brands only — the countries (names from GET /countries) its vouchers work in; at least one. Students living elsewhere never see its coupons. Empty for a store, whose countries come from its branches. */
+            countries?: string[];
         };
         CommissionEntry: {
             id?: components["schemas"]["UUID"];
@@ -24307,7 +24644,7 @@ export interface components {
             /** @description Null for platform-level actions with no single owning consultancy. */
             consultancy_id?: components["schemas"]["UUID"];
             /** @enum {string} */
-            action_type: "create" | "update" | "delete";
+            action_type: "create" | "update" | "delete" | "view";
             /** @description e.g. lead, client, plan, step, employee, designation, branch, tag. */
             entity_type: string;
             entity_id: components["schemas"]["UUID"];

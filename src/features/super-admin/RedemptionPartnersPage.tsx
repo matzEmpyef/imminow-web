@@ -7,6 +7,9 @@ import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { CountrySelect } from '@/components/CountrySelect'
 import { StateSelect } from '@/components/StateSelect'
+import { MultiSelect } from '@/components/MultiSelect'
+import { SegmentedControl } from '@/components/SegmentedControl'
+import { ImageUploadField } from '@/components/ImageUploadField'
 import { Table, type TableColumn } from '@/components/Table'
 import { Modal } from '@/components/Modal'
 import {
@@ -17,11 +20,14 @@ import {
   useUpdateLocation,
   useUpdatePartner,
 } from '@/queries/redemptionPartners'
+import { useCountries } from '@/queries/countries'
 import { showToast } from '@/lib/toast'
+import { mediaUrl } from '@/lib/mediaUrl'
 import type { components } from '@/api/schema'
 
 type RedemptionPartner = components['schemas']['RedemptionPartner']
 type CodeMode = NonNullable<RedemptionPartner['code_mode']>
+type PartnerKind = NonNullable<RedemptionPartner['kind']>
 
 // Custom merchant codes (2026-09-11): at least 6 characters, capital letters/digits/dashes only,
 // and unique across every branch on the server (409 code_taken if it collides) — validated here
@@ -116,6 +122,12 @@ function AddLocationForm({ partnerId, onClose }: { partnerId: string; onClose: (
 function PartnerDetailModal({ partner, onClose }: { partner: RedemptionPartner; onClose: () => void }) {
   const updatePartner = useUpdatePartner(partner.id!)
   const rotateCode = useRotateCode(partner.id!)
+  const countries = useCountries()
+  const isOnline = partner.kind === 'online'
+  // Online-brand fields (2026-09-15) — logo and countries are PATCHable here; `kind` itself never
+  // is (the server 400s a kind change), so there's no control for it on this popup at all.
+  const [logoUrl, setLogoUrl] = useState(partner.logo_url ?? '')
+  const [partnerCountries, setPartnerCountries] = useState<string[]>(partner.countries ?? [])
   const [showAddLocation, setShowAddLocation] = useState(false)
   const [sharedCodeDraft, setSharedCodeDraft] = useState('')
   const [locationCodeDrafts, setLocationCodeDrafts] = useState<Record<string, string>>({})
@@ -189,18 +201,49 @@ function PartnerDetailModal({ partner, onClose }: { partner: RedemptionPartner; 
             </p>
           </Modal>
         )}
-        <SelectField
-          label="Code mode"
-          id={`code-mode-${partner.id}`}
-          value={partner.code_mode}
-          onChange={(e) => {
-            const next = e.target.value as CodeMode
-            if (next !== partner.code_mode) setPendingCodeMode(next)
-          }}
-        >
-          <option value="shared">Shared (one code, all locations)</option>
-          <option value="per_location">Per location (independent codes)</option>
-        </SelectField>
+        {isOnline && (
+          <div className="flex flex-col gap-md">
+            <ImageUploadField label="Logo" value={logoUrl} onChange={setLogoUrl} />
+            <p className="-mt-sm text-caption text-text-secondary">
+              Use a brand&rsquo;s logo only if your voucher supplier or the brand allows it.
+            </p>
+            <MultiSelect
+              label="Countries where the vouchers work"
+              required
+              options={countries.data ?? []}
+              selected={partnerCountries}
+              onChange={setPartnerCountries}
+            />
+            {updatePartner.isError && <p className="text-body-sm text-error">{updatePartner.error.message}</p>}
+            <Button
+              variant="secondary"
+              loading={updatePartner.isPending}
+              disabled={partnerCountries.length === 0}
+              onClick={() =>
+                updatePartner.mutate(
+                  { logo_url: logoUrl || null, countries: partnerCountries },
+                  { onSuccess: () => showToast('Partner updated') },
+                )
+              }
+            >
+              Save Changes
+            </Button>
+          </div>
+        )}
+        {!isOnline && (
+          <SelectField
+            label="Code mode"
+            id={`code-mode-${partner.id}`}
+            value={partner.code_mode}
+            onChange={(e) => {
+              const next = e.target.value as CodeMode
+              if (next !== partner.code_mode) setPendingCodeMode(next)
+            }}
+          >
+            <option value="shared">Shared (one code, all locations)</option>
+            <option value="per_location">Per location (independent codes)</option>
+          </SelectField>
+        )}
         {pendingCodeMode && (
           <Modal
             onClose={() => setPendingCodeMode(null)}
@@ -232,7 +275,7 @@ function PartnerDetailModal({ partner, onClose }: { partner: RedemptionPartner; 
             {updatePartner.isError && <p className="mt-sm text-body-sm text-error">{updatePartner.error.message}</p>}
           </Modal>
         )}
-        {partner.code_mode === 'shared' && (
+        {!isOnline && partner.code_mode === 'shared' && (
           <div className="flex flex-col gap-xs">
             <div className="flex items-end gap-sm">
               <TextField
@@ -260,90 +303,96 @@ function PartnerDetailModal({ partner, onClose }: { partner: RedemptionPartner; 
             )}
           </div>
         )}
-        {rotateCode.isError && <p className="text-body-sm text-error">{rotateCode.error.message}</p>}
+        {!isOnline && rotateCode.isError && <p className="text-body-sm text-error">{rotateCode.error.message}</p>}
 
-        <div className="flex flex-col gap-xs">
-          <p className="text-body-sm font-medium text-text-primary">Locations</p>
-          {partner.locations?.length === 0 && <p className="text-caption text-text-secondary">No locations yet.</p>}
-          {partner.locations?.map((loc) => (
-            <div key={loc.id} className="flex flex-col gap-xs rounded-md border border-border p-sm">
-              <div className="flex items-center gap-sm">
-                <span className="min-w-0 flex-1 text-body-sm text-text-primary">
-                  {loc.city}
-                  {loc.state ? `, ${loc.state}` : ''}, {loc.country}
-                </span>
-                <Badge color="info">{loc.merchant_code}</Badge>
-                {loc.active === false ? (
-                  <>
-                    <Badge color="secondary">Unlisted</Badge>
+        {!isOnline && (
+          <div className="flex flex-col gap-xs">
+            <p className="text-body-sm font-medium text-text-primary">Locations</p>
+            {partner.locations?.length === 0 && <p className="text-caption text-text-secondary">No locations yet.</p>}
+            {partner.locations?.map((loc) => (
+              <div key={loc.id} className="flex flex-col gap-xs rounded-md border border-border p-sm">
+                <div className="flex items-center gap-sm">
+                  <span className="min-w-0 flex-1 text-body-sm text-text-primary">
+                    {loc.city}
+                    {loc.state ? `, ${loc.state}` : ''}, {loc.country}
+                  </span>
+                  <Badge color="info">{loc.merchant_code}</Badge>
+                  {loc.active === false ? (
+                    <>
+                      <Badge color="secondary">Unlisted</Badge>
+                      <button
+                        type="button"
+                        onClick={() => updateLocation.mutate({ locationId: loc.id!, active: true })}
+                        className="text-caption text-primary hover:underline"
+                      >
+                        Reactivate
+                      </button>
+                    </>
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => updateLocation.mutate({ locationId: loc.id!, active: true })}
-                      className="text-caption text-primary hover:underline"
-                    >
-                      Reactivate
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setConfirmRetire({ locationId: loc.id!, label: `${loc.city}${loc.state ? `, ${loc.state}` : ''}, ${loc.country}` })
-                    }
-                    className="text-caption text-error hover:underline"
-                  >
-                    Unlist
-                  </button>
-                )}
-              </div>
-              {partner.code_mode === 'per_location' && (
-                <div className="flex flex-col gap-xs">
-                  <div className="flex items-end gap-sm">
-                    <TextField
-                      label="Custom code"
-                      value={locationCodeDrafts[loc.id!] ?? ''}
-                      onChange={(e) =>
-                        setLocationCodeDrafts((prev) => ({ ...prev, [loc.id!]: e.target.value.toUpperCase() }))
-                      }
-                      className="max-w-[12rem]"
-                    />
-                    <Button
-                      variant="secondary"
-                      loading={rotateCode.isPending}
-                      disabled={
-                        !locationCodeDrafts[loc.id!]?.trim() ||
-                        Boolean(customCodeError((locationCodeDrafts[loc.id!] ?? '').trim()))
-                      }
                       onClick={() =>
-                        rotateCode.mutate(
-                          { locationId: loc.id, code: locationCodeDrafts[loc.id!]!.trim() },
-                          { onSuccess: () => setLocationCodeDrafts((prev) => ({ ...prev, [loc.id!]: '' })) },
-                        )
+                        setConfirmRetire({ locationId: loc.id!, label: `${loc.city}${loc.state ? `, ${loc.state}` : ''}, ${loc.country}` })
                       }
+                      className="text-caption text-error hover:underline"
                     >
-                      Set Code
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      loading={rotateCode.isPending}
-                      onClick={() => rotateCode.mutate({ locationId: loc.id })}
-                    >
-                      Rotate Code
-                    </Button>
-                  </div>
-                  {customCodeError((locationCodeDrafts[loc.id!] ?? '').trim()) && (
-                    <p className="text-caption text-error">{customCodeError((locationCodeDrafts[loc.id!] ?? '').trim())}</p>
+                      Unlist
+                    </button>
                   )}
                 </div>
-              )}
-            </div>
-          ))}
-        </div>
+                {partner.code_mode === 'per_location' && (
+                  <div className="flex flex-col gap-xs">
+                    <div className="flex items-end gap-sm">
+                      <TextField
+                        label="Custom code"
+                        value={locationCodeDrafts[loc.id!] ?? ''}
+                        onChange={(e) =>
+                          setLocationCodeDrafts((prev) => ({ ...prev, [loc.id!]: e.target.value.toUpperCase() }))
+                        }
+                        className="max-w-[12rem]"
+                      />
+                      <Button
+                        variant="secondary"
+                        loading={rotateCode.isPending}
+                        disabled={
+                          !locationCodeDrafts[loc.id!]?.trim() ||
+                          Boolean(customCodeError((locationCodeDrafts[loc.id!] ?? '').trim()))
+                        }
+                        onClick={() =>
+                          rotateCode.mutate(
+                            { locationId: loc.id, code: locationCodeDrafts[loc.id!]!.trim() },
+                            { onSuccess: () => setLocationCodeDrafts((prev) => ({ ...prev, [loc.id!]: '' })) },
+                          )
+                        }
+                      >
+                        Set Code
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        loading={rotateCode.isPending}
+                        onClick={() => rotateCode.mutate({ locationId: loc.id })}
+                      >
+                        Rotate Code
+                      </Button>
+                    </div>
+                    {customCodeError((locationCodeDrafts[loc.id!] ?? '').trim()) && (
+                      <p className="text-caption text-error">{customCodeError((locationCodeDrafts[loc.id!] ?? '').trim())}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
-        <button onClick={() => setShowAddLocation(true)} className="w-fit text-caption text-primary hover:underline">
-          + Add location
-        </button>
-        {showAddLocation && <AddLocationForm partnerId={partner.id!} onClose={() => setShowAddLocation(false)} />}
+        {!isOnline && (
+          <button onClick={() => setShowAddLocation(true)} className="w-fit text-caption text-primary hover:underline">
+            + Add location
+          </button>
+        )}
+        {!isOnline && showAddLocation && (
+          <AddLocationForm partnerId={partner.id!} onClose={() => setShowAddLocation(false)} />
+        )}
       </div>
     </Modal>
   )
@@ -353,18 +402,36 @@ function PartnerDetailModal({ partner, onClose }: { partner: RedemptionPartner; 
 // form." Was an inline Card that expanded below the page header; now a Modal, same fields.
 // `contact_person`/`contact_phone` added (2026-09-11) — RedemptionPartnerInput has always carried
 // them; Add Partner only ever collected name + category.
+// `kind` added (2026-09-15) — a brand like Amazon/Swiggy/Zomato has no branches or merchant
+// codes; it sells digital vouchers from a code pool instead (see CouponsAdminPage's Codes modal).
+// Set once here and never changeable afterwards (server 400s a kind change), so this is the only
+// place it's ever picked. Online brands additionally need a logo and the countries their vouchers
+// work in — both PATCHable later from the Manage popup, unlike kind itself.
 function AddPartnerForm({ onClose, onCreated }: { onClose: () => void; onCreated: (partner: RedemptionPartner) => void }) {
   const createPartner = useCreatePartner()
+  const countries = useCountries()
   const [name, setName] = useState('')
   const [category, setCategory] = useState('')
   const [contactPerson, setContactPerson] = useState('')
   const [contactPhone, setContactPhone] = useState('')
+  const [kind, setKind] = useState<PartnerKind>('store')
+  const [logoUrl, setLogoUrl] = useState('')
+  const [partnerCountries, setPartnerCountries] = useState<string[]>([])
+  const isOnline = kind === 'online'
+  const canSubmit = Boolean(name) && (!isOnline || partnerCountries.length > 0)
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!name) return
+    if (!canSubmit) return
     createPartner.mutate(
-      { name, category, contact_person: contactPerson, contact_phone: contactPhone },
+      {
+        name,
+        category,
+        contact_person: contactPerson,
+        contact_phone: contactPhone,
+        kind,
+        ...(isOnline ? { logo_url: logoUrl || null, countries: partnerCountries } : {}),
+      },
       {
         onSuccess: (created) => {
           showToast(`${name} added`)
@@ -387,7 +454,7 @@ function AddPartnerForm({ onClose, onCreated }: { onClose: () => void; onCreated
           {createPartner.isError && (
             <p className="mr-auto self-center text-body-sm text-error">{createPartner.error.message}</p>
           )}
-          <Button type="submit" form="add-partner-form" loading={createPartner.isPending} disabled={!name}>
+          <Button type="submit" form="add-partner-form" loading={createPartner.isPending} disabled={!canSubmit}>
             Create Partner
           </Button>
         </>
@@ -395,9 +462,33 @@ function AddPartnerForm({ onClose, onCreated }: { onClose: () => void; onCreated
     >
       <form id="add-partner-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <TextField label="Partner name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <SegmentedControl
+          label="Type"
+          value={kind}
+          onChange={setKind}
+          options={[
+            { value: 'store', label: 'Store', description: 'Redeemed at a branch with a merchant code' },
+            { value: 'online', label: 'Online brand', description: 'Digital vouchers with codes' },
+          ]}
+        />
         <TextField label="Category" value={category} onChange={(e) => setCategory(e.target.value)} />
         <TextField label="Contact person" value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} />
         <TextField label="Contact phone" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
+        {isOnline && (
+          <>
+            <ImageUploadField label="Logo" value={logoUrl} onChange={setLogoUrl} />
+            <p className="-mt-sm text-caption text-text-secondary">
+              Use a brand&rsquo;s logo only if your voucher supplier or the brand allows it.
+            </p>
+            <MultiSelect
+              label="Countries where the vouchers work"
+              required
+              options={countries.data ?? []}
+              selected={partnerCountries}
+              onChange={setPartnerCountries}
+            />
+          </>
+        )}
       </form>
     </Modal>
   )
@@ -494,7 +585,11 @@ export function RedemptionPartnersPage() {
       sortable: true,
       render: (p) => (
         <span className="flex items-center gap-xs">
+          {p.kind === 'online' && p.logo_url && (
+            <img src={mediaUrl(p.logo_url)} alt="" className="h-6 w-6 shrink-0 rounded-md bg-background object-cover" />
+          )}
           <span className={p.active === false ? 'font-medium text-text-secondary' : 'font-medium text-text-primary'}>{p.name}</span>
+          {p.kind === 'online' && <Badge color="info">Online</Badge>}
           {p.active === false && <Badge color="secondary">Unlisted</Badge>}
         </span>
       ),
@@ -507,7 +602,14 @@ export function RedemptionPartnersPage() {
     {
       key: 'code_mode',
       header: 'Code Mode',
-      render: (p) => <Badge color="primary">{p.code_mode === 'shared' ? 'Shared code' : 'Per-location codes'}</Badge>,
+      // Online brands have no merchant code at all (digital vouchers instead) — a badge here would
+      // misread as a real code_mode value rather than an inapplicable field.
+      render: (p) =>
+        p.kind === 'online' ? (
+          <span className="text-text-secondary">—</span>
+        ) : (
+          <Badge color="primary">{p.code_mode === 'shared' ? 'Shared code' : 'Per-location codes'}</Badge>
+        ),
     },
     {
       key: 'locations',
@@ -515,6 +617,7 @@ export function RedemptionPartnersPage() {
       sortable: true,
       align: 'right',
       render: (p) => {
+        if (p.kind === 'online') return <span className="text-text-secondary">—</span>
         const total = p.locations?.length ?? 0
         const active = p.locations?.filter((loc) => loc.active !== false).length ?? 0
         return total === 0 ? (

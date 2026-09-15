@@ -5,6 +5,8 @@ import { ApiError } from './auth'
 import type { components } from '@/api/schema'
 
 type CouponInput = components['schemas']['CouponInput']
+type CouponLimits = components['schemas']['CouponLimits']
+type VoucherCodesInput = components['schemas']['VoucherCodesInput']
 
 export function useAdminCoupons() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
@@ -56,5 +58,78 @@ export function useCouponRedemptions(id: string | undefined) {
       return data
     },
     enabled: isAuthed && Boolean(id),
+  })
+}
+
+// Per-student coupon limits (2026-09-15) — one rule for EVERY coupon, store and digital: a
+// student may redeem any single coupon at most `per_month` times a calendar month and `total`
+// times ever. Lives on the Coupons page since it isn't one coupon's own field.
+export function useCouponLimits() {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['coupon-limits'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/coupons/limits')
+      if (error) throw new ApiError('Could not load coupon limits.', error)
+      return data
+    },
+    enabled: isAuthed,
+  })
+}
+
+export function useUpdateCouponLimits() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: CouponLimits) => {
+      const { data, error } = await api.PATCH('/coupons/limits', { body })
+      if (error) throw new ApiError('Could not update these limits.', error)
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['coupon-limits'] }),
+  })
+}
+
+// A digital voucher's code pool (2026-09-15) — lazy like useCouponRedemptions, fetched only once
+// the Codes modal is opened. Every read is recorded in the audit log server-side.
+export function useVoucherCodes(id: string | undefined) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['coupon-codes', id],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/coupons/{id}/codes', { params: { path: { id: id! } } })
+      if (error) throw new ApiError('Could not load codes.', error)
+      return data
+    },
+    enabled: isAuthed && Boolean(id),
+  })
+}
+
+export function useAddVoucherCodes(couponId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: VoucherCodesInput) => {
+      const { data, error } = await api.POST('/coupons/{id}/codes', { params: { path: { id: couponId } }, body })
+      if (error) throw new ApiError('Could not add these codes.', error)
+      return data
+    },
+    // Both lists move: the pool itself, and `remaining_stock`/`status` on the coupons list.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['coupon-codes', couponId] })
+      queryClient.invalidateQueries({ queryKey: ['admin-coupons'] })
+    },
+  })
+}
+
+export function useRemoveVoucherCode(couponId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (codeId: string) => {
+      const { error } = await api.DELETE('/coupons/{id}/codes/{codeId}', { params: { path: { id: couponId, codeId } } })
+      if (error) throw new ApiError('Could not remove this code.', error)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['coupon-codes', couponId] })
+      queryClient.invalidateQueries({ queryKey: ['admin-coupons'] })
+    },
   })
 }
