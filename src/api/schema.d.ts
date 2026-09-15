@@ -9221,6 +9221,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/courses/provinces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** States / provinces that have visible courses in one country (2026-09-15) — backs Sentpo Mobile's State/Province card on Study in Home. Counts only courses the caller could open (active course, active college, the caller's catalogue scope), so every entry returns at least one course. Sorted by name. */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Country name, as used by filter[country]. */
+                    country: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProvinceCount"][];
+                    };
+                };
+                /** @description country is missing */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/courses/languages": {
         parameters: {
             query?: never;
@@ -21002,6 +21048,12 @@ export interface components {
             };
             /** @description Course Finder's keyword, if any. */
             search?: string | null;
+        };
+        ProvinceCount: {
+            /** @description The campus province_state value, as filter[province_state] expects it. */
+            name: string;
+            /** @description Visible courses taught on a campus in this state / province. */
+            course_count: number;
         };
         /** @description Only present when LeadMessage.type = search_share (2026-09-14). A course search shared in chat — by a student from Search Results, or by consultancy staff from Course Finder. The card opens the other side's own search screen with `filters`. Only filters both screens can apply are kept; the rest are named in `left_out` so the card can say what did not come across. Built entirely server-side at send time. */
         SharedSearch: {
