@@ -14,10 +14,10 @@ import { QUIZ_BANNER_ASPECT, QUIZ_CARD_ASPECT } from '@/features/super-admin/qui
 // `Image` stubbed to report whatever natural size a case needs.
 
 const ADS: AspectRequirement = {
-  width: 3,
-  height: 1,
+  width: 5,
+  height: 2,
   tolerance: 0.05,
-  idealLabel: '1200×400',
+  idealLabel: '1200×480',
   minWidth: 600,
   subject: 'Ads',
 }
@@ -33,20 +33,20 @@ const COVER: AspectRequirement = {
 
 describe('validateImageDimensions', () => {
   it('accepts the ideal size and anything inside the tolerance', () => {
-    expect(validateImageDimensions(1200, 400, ADS)).toBeNull()
-    expect(validateImageDimensions(2400, 800, ADS)).toBeNull()
+    expect(validateImageDimensions(1200, 480, ADS)).toBeNull()
+    expect(validateImageDimensions(2400, 960, ADS)).toBeNull()
     // 2.97:1 — off by 0.03, inside the 0.05 allowance.
-    expect(validateImageDimensions(1188, 400, ADS)).toBeNull()
+    expect(validateImageDimensions(1188, 480, ADS)).toBeNull()
     expect(validateImageDimensions(1280, 720, COVER)).toBeNull()
     expect(validateImageDimensions(1920, 1080, COVER)).toBeNull()
   })
 
   it('refuses a wrong ratio with the actual size, the rule and the ideal', () => {
     expect(validateImageDimensions(1200, 900, ADS)).toBe(
-      'This image is 1200×900 (1.33:1). Ads need 3:1 — ideal 1200×400. Crop it and try again.',
+      'This image is 1200×900 (1.33:1). Ads need 5:2 — ideal 1200×480. Crop it and try again.',
     )
     // Just outside the allowance (2.9:1), so the message is still the crop one, not a pass.
-    expect(validateImageDimensions(1160, 400, ADS)).toContain('Crop it and try again.')
+    expect(validateImageDimensions(1160, 480, ADS)).toContain('Crop it and try again.')
     expect(validateImageDimensions(1280, 800, COVER)).toBe(
       'This image is 1280×800 (1.6:1). Event covers need 16:9 — ideal 1280×720. Crop it and try again.',
     )
@@ -74,10 +74,10 @@ describe('validateImageDimensions', () => {
   })
 
   it('refuses an image that is too narrow even when the ratio is right', () => {
-    // 300×100 is exactly 3:1 and still unusable — size is reported before shape so the advice
+    // 300×120 is exactly 2.5:1 and still unusable — size is reported before shape so the advice
     // ("use a larger one") matches what is actually wrong.
-    expect(validateImageDimensions(300, 100, ADS)).toBe(
-      'This image is 300×100 — too small to look sharp. Ads need at least 600px wide — ideal 1200×400. Use a larger one.',
+    expect(validateImageDimensions(300, 120, ADS)).toBe(
+      'This image is 300×120 — too small to look sharp. Ads need at least 600px wide — ideal 1200×480. Use a larger one.',
     )
     expect(validateImageDimensions(640, 360, COVER)).toContain('at least 960px wide')
   })
@@ -90,7 +90,7 @@ vi.mock('@/queries/uploads', () => ({
 }))
 
 // A stand-in for the browser's decoder: whatever `nextSize` holds is what the next Image() reports.
-let nextSize = { width: 1200, height: 400 }
+let nextSize = { width: 1200, height: 480 }
 class StubImage {
   onload: (() => void) | null = null
   onerror: (() => void) | null = null
@@ -119,7 +119,7 @@ describe('ImageUploadField aspect enforcement', () => {
   it('states the requirement in the field itself', () => {
     render(<ImageUploadField label="Image" value="" onChange={vi.fn()} aspect={ADS} />)
     expect(
-      screen.getByText('Must be 3:1 — ideal 1200×400, at least 600px wide. Other sizes are refused.'),
+      screen.getByText('Must be 5:2 — ideal 1200×480, at least 600px wide. Other sizes are refused.'),
     ).toBeInTheDocument()
   })
 
@@ -132,7 +132,7 @@ describe('ImageUploadField aspect enforcement', () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText('This image is 1200×900 (1.33:1). Ads need 3:1 — ideal 1200×400. Crop it and try again.'),
+        screen.getByText('This image is 1200×900 (1.33:1). Ads need 5:2 — ideal 1200×480. Crop it and try again.'),
       ).toBeInTheDocument(),
     )
     expect(uploadMutate).not.toHaveBeenCalled()
@@ -140,7 +140,7 @@ describe('ImageUploadField aspect enforcement', () => {
   })
 
   it('uploads a correctly-shaped file as before', async () => {
-    nextSize = { width: 1200, height: 400 }
+    nextSize = { width: 1200, height: 480 }
     const { container } = render(<ImageUploadField label="Image" value="" onChange={vi.fn()} aspect={ADS} />)
 
     pickFile(container)
@@ -150,7 +150,7 @@ describe('ImageUploadField aspect enforcement', () => {
   })
 
   it('leaves fields with no aspect rule alone — any image still uploads', async () => {
-    nextSize = { width: 10, height: 400 }
+    nextSize = { width: 10, height: 480 }
     const { container } = render(<ImageUploadField label="Logo" value="" onChange={vi.fn()} />)
 
     pickFile(container)

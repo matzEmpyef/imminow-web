@@ -258,7 +258,7 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
               // Enforced, not advised (2026-09-13) — the app draws the banner at the creative's own
               // aspect ratio, so a 4:3 upload is a squashed, half-cropped ad nobody sees until it
               // is live. Refused at pick time instead, with the exact numbers to crop to.
-              aspect={{ width: 3, height: 1, tolerance: 0.05, idealLabel: '1200×400', minWidth: 600, subject: 'Ads' }}
+              aspect={{ width: 5, height: 2, tolerance: 0.05, idealLabel: '1200×480', minWidth: 600, subject: 'Ads' }}
               hint="Wide banner shown full-width on the app's home screen."
               error={imageFieldError}
             />
@@ -268,15 +268,15 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
                 create a new ad instead of replacing the creative.
               </p>
             )}
-            {/* Live preview at the app's real 3:1 aspect ratio (2026-09-11) — the "ideal size
-                1200x400" hint above is a number nobody can picture; this shows what it actually
+            {/* Live preview at the app's real 2.5:1 aspect ratio (2026-09-11; 1200×480 since
+                2026-09-16) — the "ideal size" hint above is a number nobody can picture; this shows what it actually
                 looks like, "Sponsored" label included, so a cropped or stretched creative is
                 visible before it goes live. Padding-bottom percentage rather than an arbitrary
                 `aspect-[3/1]` class — this project's Tailwind v4 setup silently drops arbitrary
                 bracket values (see Toggle.tsx). */}
             <div className="flex flex-col gap-xs">
               <span className="text-body-sm font-medium text-text-primary">Preview</span>
-              <div className="relative w-full overflow-hidden rounded-md bg-background" style={{ paddingBottom: '33.333%' }}>
+              <div className="relative w-full overflow-hidden rounded-md bg-background" style={{ paddingBottom: '40%' }}>
                 {imageUrl ? (
                   <img src={mediaUrl(imageUrl)} alt="" className="absolute inset-0 h-full w-full object-cover" />
                 ) : (
