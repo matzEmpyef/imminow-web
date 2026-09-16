@@ -9361,6 +9361,129 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/courses/trending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Trending Courses — the curated rail on Stage 1 Home (user, 2026-09-16)
+         * @description A short list of courses Sentpo staff pick and order by hand in immiNow (Catalog → Trending Courses). "Trending" is the student-facing name; the list is curated, not computed from view counts — see `POST /admin/trending-courses`.
+         *     **The order is decided here, never by the client.** Courses whose `field_of_study` matches the caller's own field of interest come first, then the rest, each group keeping the admin's order. A student who has set no field, or whose field matches nothing in the list, gets the admin's order exactly. The app renders this array top to bottom and adds no sorting of its own — two clients sorting the same list is how two students compare screens and see different things.
+         *     Courses that have gone away are dropped rather than returned as dead cards: anything inactive, or whose college is hidden, disappears from the rail on its own, with no admin action needed.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Course"][];
+                    };
+                };
+                401: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/trending-courses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The curated list, in the admin's own order (platform staff)
+         * @description What immiNow's Trending Courses page edits. Unlike `GET /courses/trending`, this returns the list exactly as stored — no per-student reordering, and courses that have since been deactivated are still listed, flagged `servable: false`, so an admin can see why a course stopped appearing instead of finding the row silently gone.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items?: components["schemas"]["TrendingCourse"][];
+                            /** @description How many courses the list may hold. */
+                            max_items?: number;
+                        };
+                    };
+                };
+                401: components["responses"]["ErrorResponse"];
+                403: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        /**
+         * Replace the whole list and its order (platform staff, `catalog` permission)
+         * @description Sends the complete ordered list of course ids, not one change at a time. Reordering a rail is a single decision — "this is the order" — and sending it whole means a drag that moves three rows cannot half-save, and two admins editing at once cannot interleave into an order neither of them chose. An empty array clears the rail, which hides the section in the app.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description Course ids in the order they should appear. No duplicates. */
+                        course_ids: components["schemas"]["UUID"][];
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items?: components["schemas"]["TrendingCourse"][];
+                        };
+                    };
+                };
+                400: components["responses"]["ErrorResponse"];
+                401: components["responses"]["ErrorResponse"];
+                403: components["responses"]["ErrorResponse"];
+                422: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/courses/levels": {
         parameters: {
             query?: never;
@@ -21897,6 +22020,18 @@ export interface components {
                  */
                 cooldown_days: number;
             };
+        };
+        /** @description One row of the curated Trending Courses list (2026-09-16). */
+        TrendingCourse: {
+            course_id: components["schemas"]["UUID"];
+            /** @description 1-based place in the admin's order. */
+            position: number;
+            /** @description The course itself, so the admin list needs no second request. */
+            readonly course?: components["schemas"]["Course"] | null;
+            /** @description False when this course would not be shown to students right now — it is inactive, or its college is hidden. The row stays in the list and says so, rather than vanishing. */
+            readonly servable?: boolean;
+            /** Format: date-time */
+            readonly added_at?: string;
         };
         Course: {
             id: components["schemas"]["UUID"];

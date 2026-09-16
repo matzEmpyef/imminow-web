@@ -143,6 +143,9 @@ const CollegeDetailPage = lazy(() =>
 const InstitutionsPage = lazy(() =>
   import('@/features/super-admin/InstitutionsPage').then((m) => ({ default: m.InstitutionsPage })),
 )
+const TrendingCoursesPage = lazy(() =>
+  import('@/features/super-admin/TrendingCoursesPage').then((m) => ({ default: m.TrendingCoursesPage })),
+)
 const CatalogSettingsPage = lazy(() =>
   import('@/features/super-admin/CatalogSettingsPage').then((m) => ({ default: m.CatalogSettingsPage })),
 )
@@ -509,6 +512,7 @@ function App() {
           <Route path="/admin/countries" element={<Navigate to="/admin/settings" replace />} />
           <Route path="/admin/catalog-settings" element={<Navigate to="/admin/settings" replace />} />
           <Route path="/admin/settings" element={<CatalogSettingsPage />} />
+          <Route path="/admin/trending-courses" element={<TrendingCoursesPage />} />
           {/* Country Guides folded into Countries on 2026-09-07 — they were already one record.
               Kept as a redirect rather than deleted: the old path is in people's bookmarks and
               history, and a 404 for a page that still exists under another name is a worse

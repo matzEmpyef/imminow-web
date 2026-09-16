@@ -150,6 +150,13 @@ const SECTIONS: AdminSection[] = [
         icon: School,
         tabs: [{ label: 'Institutions', path: '/admin/institutions', permission: 'catalog' }],
       },
+      // The curated rail on the app's Home (2026-09-16) — in Catalog because what it holds is
+      // courses, and the person choosing them is the person who knows the catalogue.
+      {
+        label: 'Trending Courses',
+        icon: TrendingUp,
+        tabs: [{ label: 'Trending Courses', path: '/admin/trending-courses', permission: 'catalog' }],
+      },
       {
         label: 'Settings',
         icon: SlidersHorizontal,
