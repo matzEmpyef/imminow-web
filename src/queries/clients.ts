@@ -206,7 +206,9 @@ export function useAddApplication(clientId: string) {
     // the server births every row `suggested`, and only the student's own save to Dream Courses
     // turns it into a selected college.
     // `message_student` (Course Finder, 2026-09-10) also posts the course into the client's chat.
-    mutationFn: async (body: { course_id: string; message_student?: boolean }) => {
+    // `campus_id` (2026-09-16): required by the server when the course runs at more than one
+    // campus, assigned by it when there is exactly one.
+    mutationFn: async (body: { course_id: string; campus_id?: string; message_student?: boolean }) => {
       const { data, error } = await api.POST('/clients/{id}/applications', {
         params: { path: { id: clientId } },
         body,

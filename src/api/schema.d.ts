@@ -10794,6 +10794,8 @@ export interface paths {
                 content: {
                     "application/json": {
                         course_id: components["schemas"]["UUID"];
+                        /** @description Which campus of the course this application is for (2026-09-16). Omit when the course has exactly one campus — the server assigns it. **Required when the course has more than one** (422 otherwise), and must be one of that course's own campuses. Adding the same course at the same campus twice is refused 409; at a different campus it is a second, legitimate application. */
+                        campus_id?: components["schemas"]["UUID"];
                         /**
                          * @description Also post the suggestion into the client's chat as a course_share message (2026-09-10; Course Finder sends it). Skipped while the chat is frozen; the row is added either way.
                          * @default false
@@ -14052,6 +14054,8 @@ export interface paths {
                     type?: string;
                     /** @description Time window, for the app's Upcoming / Past tabs (2026-09-02). `upcoming` = not yet ended (includes anything running right now, soonest first); `past` = already ended (most recent first); `live` = started and not yet ended — the shell's Events-tab ring polls this with a tiny limit. An event with no `ends_at` is treated as one hour long. Omitted = every event, the pre-tabs behaviour. */
                     when?: "upcoming" | "live" | "past";
+                    /** @description `true` narrows to events this student actually turned up to — quiz attempts for a quiz, recorded attendance for a webinar or meeting, the same fact `my_attended` reports per event (2026-09-16, for the app's Past tab). Ignored for a non-student caller, who has no attendance of their own. RSVPs do not count: the question is what they did, not what they meant to do. */
+                    attended?: boolean;
                 };
                 header?: never;
                 path?: never;
@@ -21750,6 +21754,8 @@ export interface components {
             id: components["schemas"]["UUID"];
             student_id: components["schemas"]["UUID"];
             course_id: components["schemas"]["UUID"];
+            /** @description The campus the student's own application to this course is for (2026-09-16), so Dream Courses can say which one without a second request. Null when there is no application yet, or when the row predates the field. Shown beside `application_status`, which is the card's other application-only fact. */
+            readonly application_campus?: components["schemas"]["CourseCampus"] | null;
             /**
              * @description THE STUDENT'S ONLY VIEW OF THEIR OWN APPLICATION (2026-09-09). The lifecycle was consultant-only until now: `GET /clients/{id}/applications` answered the owning student, but no Sentpo screen ever called it, so a student learned they had an offer by email from the college. Null until the consultancy marks `applied` — a `considering` row is a saved course, and putting a status on it would make every idle save look like an application in flight. Scoped to the student's LIVE case, so a returning student's closed case never leaks its old statuses onto their new board.
              * @enum {string|null}
@@ -22114,8 +22120,10 @@ export interface components {
             readonly consultancies_count?: number;
             /** @description Read-model convenience — the parent college's logo_url, so course cards can carry the college's identity (COURSES_MODULE_PLAN.md §3.2 card identity, 2026-08-22) without a per-row college fetch. Null when the college has no logo; the client falls back to its initial-letter avatar. */
             readonly college_logo_url?: string | null;
-            /** @description Read-model convenience — the course's first linked campus's `Campus.city`, same resolution rule as `country` above. Null if the course has no campuses or the campus records no city. */
+            /** @description Read-model convenience — the course's first linked campus's `Campus.city`, same resolution rule as `country` above. Null if the course has no campuses or the campus records no city. **Says nothing about how many campuses teach this course** — for that, read `campuses` below. */
             readonly campus_city?: string | null;
+            /** @description Every campus this course actually runs at, resolved from `campus_ids` (2026-09-16). A course can be taught at several campuses of the same college — UBC's Vancouver and Okanagan, say — and before this the read model exposed only the FIRST one, so a student reading a course offered at three campuses saw one city and could not learn the others existed. Ordered as `campus_ids` is. Empty when the course lists no campuses. */
+            readonly campuses?: components["schemas"]["CourseCampus"][];
             /** @description The soonest upcoming intake — earliest `intake_deadlines` entry that is not closed and whose application deadline (if any) hasn't passed. Null when the course publishes no deadline data (no data ≠ closed, plan §0.2) or everything upcoming is closed. Drives the card's next-intake chip and the detail screen's "apply by" line. */
             readonly next_intake?: {
                 /** @description Display month name, e.g. "September". */
@@ -22200,6 +22208,13 @@ export interface components {
                 portfolio_required?: boolean;
                 min_age?: number | null;
             } | null;
+        };
+        /** @description One campus a course is taught at, resolved for display (2026-09-16). */
+        CourseCampus: {
+            id: components["schemas"]["UUID"];
+            city?: string | null;
+            province_state?: string | null;
+            country: string;
         };
         CourseInput: {
             name: string;
@@ -22434,6 +22449,11 @@ export interface components {
         Application: {
             id: components["schemas"]["UUID"];
             course: components["schemas"]["Course"];
+            /**
+             * @description Which campus this application is FOR (2026-09-16). An offer letter names one campus, so an application without one is an incomplete record wherever a course runs at several. **Set automatically when the course has exactly one campus** — there is nothing to choose, and asking would be a field that is always answered the same way. Required from the consultancy when the course has more than one (422 otherwise). Null on applications created before this existed; never back-filled, because nobody can say now which campus those were for.
+             *     Two applications for the same course at DIFFERENT campuses are legitimate — a Canadian student applying to both UBC campuses is ordinary — and are stored as two rows. The same course at the same campus twice is a duplicate and is refused (409).
+             */
+            readonly campus?: components["schemas"]["CourseCampus"] | null;
             /**
              * @description `suggested` (added 2026-08-28) is the birth status of every consultant-added course and means "awaiting the student": the student has not yet taken it into their Dream Courses, so it is not a SELECTED college yet — the consultant's tab lists it only as an awaiting count, and no staff PATCH can advance it. The student's approval is the act of saving it (`POST /shortlist`), which flips it to `considering`.
              * @enum {string}
@@ -23089,7 +23109,7 @@ export interface components {
         /** @description The numbers behind a consultancy's rating, as shown at the top of its reviews. */
         ReviewSummary: {
             /** @description Same value as Consultancy.rating (override or computed). */
-            rating: number | null;
+            rating?: number | null;
             /** @description Star ratings + published reviews — what the average is over. */
             rating_count: number;
             /** @description Published written reviews only. */

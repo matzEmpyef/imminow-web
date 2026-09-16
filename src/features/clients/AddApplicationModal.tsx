@@ -36,18 +36,21 @@ export function AddApplicationModal({
   const courses = useCourses({ limit: 100 })
   const addCollege = useAddApplication(clientId)
   const [confirmCourse, setConfirmCourse] = useState<Course | null>(null)
+  // The course still needs a campus chosen before it can be added (2026-09-16).
+  const [campusCourse, setCampusCourse] = useState<Course | null>(null)
   const [pickedId, setPickedId] = useState('')
 
   const takenSet = new Set(takenCourseIds)
-  const availableCourses = (courses.data?.items ?? []).filter((c) => !takenSet.has(c.id))
+  // A course already on the list is hidden ONLY when it has a single campus. With several, the
+  // same course at a different campus is a second, legitimate application (students do apply to
+  // both UBC campuses), and the server refuses the exact duplicate.
+  const availableCourses = (courses.data?.items ?? []).filter(
+    (c) => !takenSet.has(c.id) || (c.campuses?.length ?? 0) > 1,
+  )
 
-  function selectCourse(course: Course) {
-    if (finalizedCountry && course.country && course.country !== finalizedCountry) {
-      setConfirmCourse(course)
-      return
-    }
+  function add(course: Course, campusId?: string) {
     addCollege.mutate(
-      { course_id: course.id },
+      { course_id: course.id, campus_id: campusId },
       {
         onSuccess: () => {
           showToast(`${course.name} added`)
@@ -57,10 +60,68 @@ export function AddApplicationModal({
     )
   }
 
+  function selectCourse(course: Course) {
+    if (finalizedCountry && course.country && course.country !== finalizedCountry) {
+      setConfirmCourse(course)
+      return
+    }
+    // One campus is assigned by the server; several have to be chosen, because the offer will
+    // name one and an application that does not say which is an incomplete record.
+    if ((course.campuses?.length ?? 0) > 1) {
+      setCampusCourse(course)
+      return
+    }
+    add(course)
+  }
+
   function handlePick(id: string) {
     setPickedId(id)
     const course = availableCourses.find((c) => c.id === id)
     if (course) selectCourse(course)
+  }
+
+  if (campusCourse) {
+    const campuses = campusCourse.campuses ?? []
+    return (
+      <Modal
+        onClose={onClose}
+        title="Which campus?"
+        widthRem={26}
+        footer={
+          <>
+            {addCollege.isError && (
+              <p className="mr-auto self-center text-body-sm text-error">{addCollege.error.message}</p>
+            )}
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setCampusCourse(null)
+                setPickedId('')
+              }}
+            >
+              Back
+            </Button>
+          </>
+        }
+      >
+        <p className="mb-md text-body-sm text-text-secondary">
+          {campusCourse.name} runs at {campuses.length} campuses. The offer will name one, so the
+          application records which.
+        </p>
+        <div className="flex flex-col gap-sm">
+          {campuses.map((campus) => (
+            <Button
+              key={campus.id}
+              variant="secondary"
+              loading={addCollege.isPending}
+              onClick={() => add(campusCourse, campus.id)}
+            >
+              {[campus.city, campus.province_state, campus.country].filter(Boolean).join(', ')}
+            </Button>
+          ))}
+        </div>
+      </Modal>
+    )
   }
 
   if (confirmCourse) {
@@ -83,7 +144,9 @@ export function AddApplicationModal({
             <Button
               loading={addCollege.isPending}
               onClick={() =>
-                addCollege.mutate(
+                (confirmCourse.campuses?.length ?? 0) > 1
+                  ? (setCampusCourse(confirmCourse), setConfirmCourse(null))
+                  : addCollege.mutate(
                   { course_id: confirmCourse.id },
                   {
                     onSuccess: () => {

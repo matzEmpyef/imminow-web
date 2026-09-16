@@ -197,6 +197,17 @@ function ApplicationRow({
           <p className="text-body font-medium text-text-primary">{row.course.name}</p>
           <p className="text-caption text-text-secondary">
             {row.course.college_name}
+            {/* Which campus this application is for (2026-09-16) — named here because the offer
+                will name it, and a consultant scanning ten clients should not have to open a row
+                to see where each one is applying. Absent on rows created before the field. */}
+            {row.campus && (
+              <>
+                {' · '}
+                <span className="font-medium text-text-primary">
+                  {[row.campus.city, row.campus.province_state].filter(Boolean).join(', ') || row.campus.country}
+                </span>
+              </>
+            )}
             {row.course.country && (
               <>
                 {' · '}
