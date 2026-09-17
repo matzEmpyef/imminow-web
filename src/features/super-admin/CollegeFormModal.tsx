@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
+import { TextAreaField } from '@/components/TextAreaField'
 import { SelectField } from '@/components/SelectField'
-import { FieldLabel } from '@/components/FieldLabel'
 import { Modal } from '@/components/Modal'
 import { ImageUploadField } from '@/components/ImageUploadField'
 import { useCreateCollege, useUpdateCollege } from '@/queries/adminColleges'
@@ -10,6 +10,22 @@ import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type College = components['schemas']['College']
+
+// A titled group with its own vertical rhythm, matching CourseFormPanels.tsx's local FormSection
+// (layout pass, 2026-09-11) — kept as its own small copy here rather than importing that one
+// (it's private to that file) or extracting a shared component (this is the only other caller so
+// far; not worth a new src/components/ primitive for one consumer).
+function FormSection({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-md">
+      <div>
+        <h3 className="text-body-sm font-semibold text-text-primary">{title}</h3>
+        {hint && <p className="text-caption text-text-secondary">{hint}</p>}
+      </div>
+      {children}
+    </section>
+  )
+}
 
 // One form for adding and editing a college (2026-09-11). The list page's add/edit form had no
 // rank, type or acceptance fields while the detail page's did, so a college edited from the list
@@ -84,7 +100,7 @@ export function CollegeFormModal({
     <Modal
       onClose={onClose}
       title={isEditing ? 'Edit College' : 'Add College'}
-      widthRem={30}
+      widthRem={34}
       footer={
         <>
           {mutation.isError && <p className="mr-auto self-center text-body-sm text-error">{mutation.error.message}</p>}
@@ -94,63 +110,67 @@ export function CollegeFormModal({
         </>
       }
     >
-      <form id="college-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="College name" required value={name} onChange={(e) => setName(e.target.value)} />
-        <ImageUploadField
-          label="Logo"
-          value={logoUrl ?? ''}
-          onChange={setLogoUrl}
-          hint="Square — shown as a 56×56 circle in the app. Ideal size 200×200px."
-        />
-        <TextField label="Website" value={website ?? ''} onChange={(e) => setWebsite(e.target.value)} />
-        <div className="grid grid-cols-2 gap-sm sm:grid-cols-4">
-          <TextField
-            label="QS rank"
-            type="number"
-            min="1"
-            value={qsRank}
-            onChange={(e) => setQsRank(e.target.value)}
-            error={qsRankValid ? undefined : 'Rank must be 1 or higher.'}
+      <form id="college-form" onSubmit={handleSubmit} className="flex flex-col gap-xl">
+        <FormSection title="Identity">
+          <TextField label="College name" required value={name} onChange={(e) => setName(e.target.value)} />
+          <ImageUploadField
+            label="Logo"
+            value={logoUrl ?? ''}
+            onChange={setLogoUrl}
+            hint="Square — shown as a 56×56 circle in the app. Ideal size 200×200px."
           />
-          <TextField
-            label="THE rank"
-            type="number"
-            min="1"
-            value={theRank}
-            onChange={(e) => setTheRank(e.target.value)}
-            error={theRankValid ? undefined : 'Rank must be 1 or higher.'}
-          />
-          <TextField
-            label="Acceptance %"
-            type="number"
-            min="0"
-            max="100"
-            value={acceptanceRate}
-            onChange={(e) => setAcceptanceRate(e.target.value)}
-          />
-          <SelectField
-            label="Type"
-            id="college-type"
-            value={institutionType ?? ''}
-            onChange={(e) => setInstitutionType(e.target.value)}
-          >
-            <option value="">Not specified</option>
-            <option value="university">University</option>
-            <option value="college">College</option>
-            <option value="institute">Institute</option>
-          </SelectField>
-        </div>
-        {!acceptanceValid && <p className="text-caption text-error">Acceptance rate is a percentage, 0 to 100.</p>}
-        <div className="flex flex-col gap-xs">
-          <FieldLabel htmlFor="college-description">Description</FieldLabel>
-          <textarea
-            id="college-description"
+          <TextField label="Website" value={website ?? ''} onChange={(e) => setWebsite(e.target.value)} />
+        </FormSection>
+
+        <FormSection title="Rankings & profile" hint="Optional — shown on the college's profile when set.">
+          <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
+            <TextField
+              label="QS rank"
+              type="number"
+              min="1"
+              value={qsRank}
+              onChange={(e) => setQsRank(e.target.value)}
+              error={qsRankValid ? undefined : 'Rank must be 1 or higher.'}
+            />
+            <TextField
+              label="THE rank"
+              type="number"
+              min="1"
+              value={theRank}
+              onChange={(e) => setTheRank(e.target.value)}
+              error={theRankValid ? undefined : 'Rank must be 1 or higher.'}
+            />
+            <TextField
+              label="Acceptance %"
+              type="number"
+              min="0"
+              max="100"
+              value={acceptanceRate}
+              onChange={(e) => setAcceptanceRate(e.target.value)}
+              error={acceptanceValid ? undefined : 'Acceptance rate is a percentage, 0 to 100.'}
+            />
+            <SelectField
+              label="Type"
+              id="college-type"
+              value={institutionType ?? ''}
+              onChange={(e) => setInstitutionType(e.target.value)}
+            >
+              <option value="">Not specified</option>
+              <option value="university">University</option>
+              <option value="college">College</option>
+              <option value="institute">Institute</option>
+            </SelectField>
+          </div>
+        </FormSection>
+
+        <FormSection title="About">
+          <TextAreaField
+            label="Description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            className="rounded-md border border-border bg-surface p-sm text-body text-text-primary"
+            rows={4}
           />
-        </div>
+        </FormSection>
       </form>
     </Modal>
   )
