@@ -22219,6 +22219,11 @@ export interface components {
         /** @description Structured entry requirements (COURSES_MODULE_PLAN.md §1.2). EVERY field nullable — absent means "no requirement", never "unknown to us"; the eligibility engine (workstream C) evaluates only rules that exist on the course AND have matching student data, so incomplete data on either side can never fail anyone. The free-text `eligibility` column remains the human-readable note beside this block. Exam references use the admin-managed exams catalog (`GET /exams`), which is what lets one schema serve both Study Abroad (IELTS ≥ 6.5) and Study in India (JEE percentile ≥ 92). */
         CourseRequirements: {
             academic?: {
+                /**
+                 * @description The ONE qualification `min_score` is measured on (2026-09-17) — the same level codes a student's education rows use. The eligibility engine compares the minimum with the student's score at exactly this level; with no score at that level the rule is unknown (never a fail) and the prompt names the level ("add your Bachelor's score to check"). Null on courses not yet curated: the engine then derives the level from `Course.level` as before (masters → bachelors, bachelors → twelfth or diploma, anything else → any row). immiNow pre-fills it from the course level (masters → bachelors, phd → masters, everything else → twelfth).
+                 * @enum {string|null}
+                 */
+                entry_qualification?: "tenth" | "twelfth" | "diploma" | "bachelors" | "masters" | null;
                 min_score?: number;
                 /** @enum {string} */
                 scheme?: "percentage" | "cgpa_10" | "cgpa_4";

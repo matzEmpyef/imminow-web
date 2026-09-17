@@ -1,7 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { components } from '@/api/schema'
 import { useCountrySettings } from '@/queries/countries'
-import { type AptitudeReq, type EnglishReq, type FormTab } from './courseFormShared'
+import {
+  type AptitudeReq,
+  defaultEntryQualification,
+  type EnglishReq,
+  type EntryQualification,
+  type FormTab,
+} from './courseFormShared'
 
 type College = components['schemas']['College']
 type Course = components['schemas']['Course']
@@ -65,6 +71,8 @@ export interface CourseFormValue {
   setScholarshipNote: (v: string) => void
 
   // Entry Requirements
+  entryQualification: EntryQualification
+  setEntryQualification: (v: EntryQualification) => void
   minScore: string
   setMinScore: (v: string) => void
   scheme: string
@@ -126,7 +134,13 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
   // Basics
   const [name, setName] = useState(editingCourse?.name ?? '')
   const [description, setDescription] = useState(editingCourse?.description ?? '')
-  const [level, setLevel] = useState(editingCourse?.level ?? '')
+  const [level, setLevelState] = useState(editingCourse?.level ?? '')
+  // Changing the level carries the entry-qualification pre-fill with it, until the admin has
+  // chosen one themselves (declared below — hoisted setter, read at call time).
+  const setLevel = (v: string) => {
+    setLevelState(v)
+    if (!entryQualificationTouchedRef.current) setEntryQualificationState(defaultEntryQualification(v))
+  }
   const [fieldOfStudy, setFieldOfStudy] = useState(editingCourse?.field_of_study ?? '')
   const [duration, setDuration] = useState(editingCourse?.duration ?? '')
   const [durationMonths, setDurationMonths] = useState(
@@ -190,6 +204,19 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
   // Entry Requirements — every field optional by design: an empty field means "no requirement",
   // never "unknown" (plan §1.2), so a half-filled tab is a perfectly valid save.
   const existingReqs = editingCourse?.requirements
+  // The ONE qualification the minimum score is measured on (user, 2026-09-17: "instead of
+  // assuming, a field with drop down to select the entry requirement"). Pre-filled from the course
+  // level and kept in step with it until the admin picks one by hand — so an ordinary Masters
+  // course needs no extra click, and a PG diploma or a Masters that takes a 3-year diploma is one
+  // change away.
+  const [entryQualification, setEntryQualificationState] = useState<EntryQualification>(
+    existingReqs?.academic?.entry_qualification ?? defaultEntryQualification(editingCourse?.level ?? ''),
+  )
+  const entryQualificationTouchedRef = useRef(existingReqs?.academic?.entry_qualification != null)
+  const setEntryQualification = (v: EntryQualification) => {
+    entryQualificationTouchedRef.current = true
+    setEntryQualificationState(v)
+  }
   const [minScore, setMinScore] = useState(
     existingReqs?.academic?.min_score != null ? String(existingReqs.academic.min_score) : '',
   )
@@ -263,7 +290,7 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
     const academic =
       minScore !== '' || background || maxBacklogs !== ''
         ? {
-            ...(minScore !== '' ? { min_score: Number(minScore), scheme } : {}),
+            ...(minScore !== '' ? { entry_qualification: entryQualification, min_score: Number(minScore), scheme } : {}),
             ...(background ? { required_background: background } : {}),
             ...(maxBacklogs !== '' ? { max_backlogs: Number(maxBacklogs) } : {}),
           }
@@ -369,6 +396,8 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
     scholarshipNote,
     setScholarshipNote,
 
+    entryQualification,
+    setEntryQualification,
     minScore,
     setMinScore,
     scheme,

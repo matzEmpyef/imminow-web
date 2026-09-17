@@ -26,6 +26,7 @@ import { formatCourseFee, formatFeeApprox } from '@/lib/money'
 import { formatDate } from '@/lib/time'
 import type { components } from '@/api/schema'
 import { mediaUrl } from '@/lib/mediaUrl'
+import { ENTRY_QUALIFICATIONS } from '@/features/super-admin/courseFormShared'
 
 type Course = components['schemas']['Course']
 type IconColor = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
@@ -138,9 +139,11 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
       ? `${formatCourseFee(course.fee, course.fee_period)}${course.fee_period === 'total' ? ' (whole programme)' : ''}`
       : null
   const appFee = course.application_fee?.amount != null ? formatCourseFee(course.application_fee, null) : null
+  // "70% minimum in Bachelor's" — the level the score is measured on, when the course names one.
+  const qualification = ENTRY_QUALIFICATIONS.find((q) => q.value === req?.academic?.entry_qualification)?.label
   const academic =
     req?.academic?.min_score != null
-      ? `${req.academic.min_score}${SCHEME_SUFFIX[req.academic.scheme ?? 'percentage'] ?? ''} minimum`
+      ? `${req.academic.min_score}${SCHEME_SUFFIX[req.academic.scheme ?? 'percentage'] ?? ''} minimum${qualification ? ` in ${qualification}` : ''}`
       : null
 
   // Intake rows: every month with deadline data, then any listed intake that has none yet.

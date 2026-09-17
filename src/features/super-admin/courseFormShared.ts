@@ -27,6 +27,27 @@ export type FormTab = (typeof FORM_TABS)[number]
 export type EnglishReq = { exam_id: string; min_overall: string; min_band: string }
 export type AptitudeReq = { exam_id: string; min_score: string; required: boolean }
 
+/** The education level a course's minimum academic score is measured on (2026-09-17). Same codes
+ * as a student's education rows, so the eligibility check compares like with like. */
+export type EntryQualification = 'tenth' | 'twelfth' | 'diploma' | 'bachelors' | 'masters'
+
+export const ENTRY_QUALIFICATIONS: { value: EntryQualification; label: string }[] = [
+  { value: 'tenth', label: '10th' },
+  { value: 'twelfth', label: '12th' },
+  { value: 'diploma', label: 'Diploma' },
+  { value: 'bachelors', label: "Bachelor's" },
+  { value: 'masters', label: "Master's" },
+]
+
+/** What a course at this study level usually asks for — the pre-fill, never a rule: a Masters
+ * reads a Bachelor's, a PhD a Master's, and everything else (Bachelors, Diploma, Certificate…) the
+ * 12th. Admin changes it for the exceptions. */
+export function defaultEntryQualification(level: string): EntryQualification {
+  if (level === 'masters') return 'bachelors'
+  if (level === 'phd') return 'masters'
+  return 'twelfth'
+}
+
 export const TEXTAREA_CLASS = 'rounded-md border border-border bg-surface p-sm text-body text-text-primary'
 export const SELECT_CLASS = 'h-10 rounded-md border border-border bg-surface px-3 text-body'
 

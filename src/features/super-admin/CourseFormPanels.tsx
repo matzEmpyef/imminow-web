@@ -7,7 +7,7 @@ import { SelectField } from '@/components/SelectField'
 import { MultiSelect } from '@/components/MultiSelect'
 import { Toggle } from '@/components/Toggle'
 import type { components } from '@/api/schema'
-import { MONTHS, type AptitudeReq, type EnglishReq } from './courseFormShared'
+import { ENTRY_QUALIFICATIONS, MONTHS, type AptitudeReq, type EnglishReq, type EntryQualification } from './courseFormShared'
 import { useCurrencyCodes } from '@/lib/currencies'
 import type { CourseFormValue } from './useCourseForm'
 import { useStudyLevels } from '@/queries/studyLevels'
@@ -583,6 +583,20 @@ export function CourseRequirementsPanel({
 
       <FormSection title="Academic">
         <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
+          {/* The one qualification the minimum score is measured on (2026-09-17). Pre-filled from the
+              course level; change it for a PG diploma, a PhD, or a Masters that takes a diploma. */}
+          <SelectField
+            label="Minimum qualification"
+            id="req-entry-qualification"
+            value={form.entryQualification}
+            onChange={(e) => form.setEntryQualification(e.target.value as EntryQualification)}
+          >
+            {ENTRY_QUALIFICATIONS.map((q) => (
+              <option key={q.value} value={q.value}>
+                {q.label}
+              </option>
+            ))}
+          </SelectField>
           <TextField
             label="Minimum academic score"
             type="number"
