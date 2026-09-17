@@ -25,6 +25,7 @@ import { useCollegeDetail } from '@/queries/adminColleges'
 import { formatCourseFee, formatFeeApprox } from '@/lib/money'
 import { formatDate } from '@/lib/time'
 import type { components } from '@/api/schema'
+import { mediaUrl } from '@/lib/mediaUrl'
 
 type Course = components['schemas']['Course']
 type IconColor = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
@@ -156,7 +157,7 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
     <div className="flex min-w-0 flex-1 items-start gap-lg">
       <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-lg bg-primary/10">
         {course.college_logo_url ? (
-          <img src={course.college_logo_url} alt="" className="h-16 w-16 rounded-md bg-surface object-contain p-xs" />
+          <img src={mediaUrl(course.college_logo_url)} alt="" className="h-16 w-16 rounded-md bg-surface object-contain p-xs" />
         ) : (
           <span className="text-h1 font-semibold text-primary">{(course.college_name ?? '?').charAt(0).toUpperCase()}</span>
         )}

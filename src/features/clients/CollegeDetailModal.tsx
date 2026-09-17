@@ -7,6 +7,7 @@ import { IconBadge } from '@/components/IconBadge'
 import { SuggestCorrectionButton } from '@/features/clients/SuggestCorrectionButton'
 import { useCourses } from '@/queries/courseSuggestions'
 import type { components } from '@/api/schema'
+import { mediaUrl } from '@/lib/mediaUrl'
 
 type College = components['schemas']['College']
 type IconColor = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
@@ -84,7 +85,7 @@ export function CollegeDetailModal({ college, onClose }: { college: College; onC
     <div className="flex min-w-0 flex-1 items-start gap-lg">
       <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-lg bg-primary/10">
         {college.logo_url ? (
-          <img src={college.logo_url} alt="" className="h-16 w-16 rounded-md bg-surface object-contain p-xs" />
+          <img src={mediaUrl(college.logo_url)} alt="" className="h-16 w-16 rounded-md bg-surface object-contain p-xs" />
         ) : (
           <span className="text-h1 font-semibold text-primary">{(college.name ?? '?').charAt(0).toUpperCase()}</span>
         )}

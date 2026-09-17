@@ -4,6 +4,7 @@ import { AdminShell } from '@/features/auth/AdminShell'
 import { Card } from '@/components/Card'
 import { useMarketingOverview, type MarketingOverview, type MarketingOverviewWindow } from '@/queries/marketingOverview'
 import { formatDateTime } from '@/lib/time'
+import { mediaUrl } from '@/lib/mediaUrl'
 
 const WINDOWS: MarketingOverviewWindow[] = [7, 30, 90]
 
@@ -135,7 +136,7 @@ function OverviewBody({ data }: { data: MarketingOverview }) {
         <ListCard title="Ads live now" to="/admin/ads" empty="No ads are live.">
           {data.ads.top.map((ad) => (
             <li key={ad.id} className="flex items-center gap-sm py-sm">
-              <img src={ad.image_url} alt="" className="h-9 w-[4.5rem] shrink-0 rounded-md object-cover" />
+              <img src={mediaUrl(ad.image_url)} alt="" className="h-9 w-[4.5rem] shrink-0 rounded-md object-cover" />
               <div className="flex min-w-0 flex-col">
                 <span className="truncate text-body-sm font-medium text-text-primary">
                   {ad.name ?? AD_FALLBACK_NAMES[ad.destination_type] ?? 'Ad'}

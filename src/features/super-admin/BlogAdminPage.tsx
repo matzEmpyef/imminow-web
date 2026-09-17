@@ -23,6 +23,7 @@ import { useCursorPagination } from '@/lib/pagination'
 import { formatDate as formatDateShared, relativeTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
+import { mediaUrl } from '@/lib/mediaUrl'
 
 type BlogCategoryMapping = components['schemas']['BlogCategoryMapping']
 type BlogArticle = components['schemas']['BlogArticle']
@@ -124,7 +125,7 @@ function ArticlesTab() {
       render: (a) => (
         <div className="flex items-center gap-sm">
           {a.thumbnail_url ? (
-            <img src={a.thumbnail_url} alt="" className="h-10 w-14 shrink-0 rounded object-cover" />
+            <img src={mediaUrl(a.thumbnail_url)} alt="" className="h-10 w-14 shrink-0 rounded object-cover" />
           ) : (
             <div className="h-10 w-14 shrink-0 rounded bg-border" />
           )}
@@ -488,7 +489,7 @@ function AddArticleModal({ onClose }: { onClose: () => void }) {
           <div className="flex flex-col gap-md rounded-lg border border-border p-md">
             <div className="flex gap-md">
               {preview.thumbnail_url && (
-                <img src={preview.thumbnail_url} alt="" className="h-24 w-32 shrink-0 rounded object-cover" />
+                <img src={mediaUrl(preview.thumbnail_url)} alt="" className="h-24 w-32 shrink-0 rounded object-cover" />
               )}
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-text-primary">{preview.title}</p>

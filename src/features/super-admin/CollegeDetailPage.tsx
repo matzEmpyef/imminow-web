@@ -37,6 +37,7 @@ import { useCourseForm } from './useCourseForm'
 import { CollegeFormModal } from './CollegeFormModal'
 import type { components } from '@/api/schema'
 import { formatCourseFee } from '@/lib/money'
+import { mediaUrl } from '@/lib/mediaUrl'
 
 type College = components['schemas']['College']
 type Campus = components['schemas']['Campus']
@@ -663,7 +664,7 @@ export function CollegeDetailPage() {
         <Card>
           <div className="flex items-start gap-md">
             {record.logo_url ? (
-              <img src={record.logo_url} alt="" className="h-16 w-16 shrink-0 rounded-md object-cover bg-background" />
+              <img src={mediaUrl(record.logo_url)} alt="" className="h-16 w-16 shrink-0 rounded-md object-cover bg-background" />
             ) : (
               <div className="h-16 w-16 shrink-0 rounded-md bg-background" />
             )}

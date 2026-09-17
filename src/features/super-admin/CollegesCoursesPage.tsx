@@ -15,6 +15,7 @@ import { FilterMultiSelect } from '@/components/FilterMultiSelect'
 import { CountryLabel } from '@/components/CountryLabel'
 import { CompactSelect } from '@/components/CompactSelect'
 import { Card } from '@/components/Card'
+import { mediaUrl } from '@/lib/mediaUrl'
 
 type College = components['schemas']['College']
 
@@ -125,7 +126,7 @@ export function CollegesCoursesPage() {
       render: (college) => (
         <div className="flex items-center gap-sm">
           {college.logo_url ? (
-            <img src={college.logo_url} alt="" className="h-8 w-8 shrink-0 rounded-md object-cover bg-background" />
+            <img src={mediaUrl(college.logo_url)} alt="" className="h-8 w-8 shrink-0 rounded-md object-cover bg-background" />
           ) : (
             <div className="h-8 w-8 shrink-0 rounded-md bg-background" />
           )}
