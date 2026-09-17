@@ -98,6 +98,41 @@ export function useUpdateCourse(id: string) {
   })
 }
 
+/**
+ * Set Intake Deadline (2026-09-18, `PATCH /courses/{id}/intake-deadlines`) — a consultancy that
+ * has just talked to the college can set the date itself rather than filing a correction and
+ * waiting on a Platform Admin, UNLESS a person changed that same deadline within the last 15
+ * days: the server then queues an ordinary `CourseSuggestion` instead (202, `applied: false`) so
+ * one consultancy can't silently overwrite another's fresh edit. Same course-shaped result either
+ * way (`IntakeDeadlineUpdateResult`), so the caller branches on `applied` rather than on status
+ * code — `IntakeDeadlineEditor` (features/clients) does exactly that.
+ *
+ * Invalidates the same breadth as `useCreateCourse` (course lists, both catalog-health rollups)
+ * plus `course-suggestions`, since the 202 branch files one of those too — cheaper to invalidate
+ * unconditionally than to special-case the request that actually needed it.
+ */
+export function useSetIntakeDeadline(courseId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { month: string; application_deadline: string | null; status?: 'open' | 'closed' }) => {
+      const { data, error } = await api.PATCH('/courses/{id}/intake-deadlines', {
+        params: { path: { id: courseId } },
+        body,
+      })
+      if (error) throw new ApiError('Could not update this deadline.', error)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['courses'] })
+      queryClient.invalidateQueries({ queryKey: ['course', courseId] })
+      queryClient.invalidateQueries({ queryKey: ['course-finder'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-colleges'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-college'] })
+      queryClient.invalidateQueries({ queryKey: ['course-suggestions'] })
+    },
+  })
+}
+
 export function useCourseSuggestions() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({

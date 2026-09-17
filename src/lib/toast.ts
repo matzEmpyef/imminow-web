@@ -10,7 +10,11 @@ import { create } from 'zustand'
 // For short confirmations of something that just happened. Anything the person must act on, or
 // an error tied to a field, stays inline where the problem is.
 
-export type ToastTone = 'success' | 'error'
+// 'info' added 2026-09-18 for Set Intake Deadline's 202 path — the request neither succeeded
+// (the catalogue is unchanged) nor failed (nothing is wrong), it was queued for immiNow's review
+// because a person touched the same deadline within the last 15 days. Neither 'success' nor
+// 'error' says that truthfully, so this is its own tone rather than a misleading reuse of one.
+export type ToastTone = 'success' | 'error' | 'info'
 
 export interface ToastItem {
   id: number

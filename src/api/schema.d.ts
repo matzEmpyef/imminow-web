@@ -9819,6 +9819,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/courses/{id}/intake-deadlines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Consultancy sets one intake's application deadline (2026-09-17)
+         * @description A consultancy talks to the college and usually hears a changed deadline first, so it sets the date itself instead of queueing a correction — UNLESS a person changed that same deadline within the last 15 days, in which case this becomes an ordinary pending `CourseSuggestion` for immiNow to approve (202, `applied: false`) rather than one consultancy overwriting another's fresh date. Consultancy staff only, and only for a course whose college the caller can see (same catalogue tenancy as suggest-correction).
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description An intake month the course already lists, e.g. "September". */
+                        month: string;
+                        /**
+                         * Format: date
+                         * @description Null for rolling admission.
+                         */
+                        application_deadline?: string | null;
+                        /** @enum {string} */
+                        status?: "open" | "closed";
+                    };
+                };
+            };
+            responses: {
+                /** @description Applied to the catalogue */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IntakeDeadlineUpdateResult"];
+                    };
+                };
+                /** @description Sent to immiNow for approval (changed within the last 15 days) */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IntakeDeadlineUpdateResult"];
+                    };
+                };
+                /** @description Validation failed */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Course not visible to this caller, or no such intake */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        trace?: never;
+    };
     "/courses/{id}/suggest-correction": {
         parameters: {
             query?: never;
@@ -22216,6 +22294,13 @@ export interface components {
              * @enum {string}
              */
             status?: "open" | "closed";
+        };
+        IntakeDeadlineUpdateResult: {
+            /** @description True when the catalogue was changed; false when it went to review instead. */
+            applied: boolean;
+            /** @description The pending correction, when `applied` is false. */
+            suggestion?: components["schemas"]["CourseSuggestion"] | null;
+            course?: components["schemas"]["Course"];
         };
         /** @description Structured entry requirements (COURSES_MODULE_PLAN.md §1.2). EVERY field nullable — absent means "no requirement", never "unknown to us"; the eligibility engine (workstream C) evaluates only rules that exist on the course AND have matching student data, so incomplete data on either side can never fail anyone. The free-text `eligibility` column remains the human-readable note beside this block. Exam references use the admin-managed exams catalog (`GET /exams`), which is what lets one schema serve both Study Abroad (IELTS ≥ 6.5) and Study in India (JEE percentile ≥ 92). */
         CourseRequirements: {

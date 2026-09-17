@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   Award,
   BookOpen,
@@ -20,8 +20,10 @@ import { Badge } from '@/components/Badge'
 import { IconBadge } from '@/components/IconBadge'
 import { Skeleton } from '@/components/QueryState'
 import { SuggestCorrectionButton } from '@/features/clients/SuggestCorrectionButton'
+import { IntakeDeadlineEditor } from '@/features/clients/IntakeDeadlineEditor'
 import { useExams } from '@/queries/catalogSettings'
 import { useCollegeDetail } from '@/queries/adminColleges'
+import { useAuthStore } from '@/stores/authStore'
 import { formatCourseFee, formatFeeApprox } from '@/lib/money'
 import { formatDate } from '@/lib/time'
 import type { components } from '@/api/schema'
@@ -154,6 +156,23 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
       .filter((m) => !deadlines.some((d) => d.month === m))
       .map((month) => ({ month, deadline: undefined })),
   ]
+
+  // Set Intake Deadline (2026-09-17 spec) — consultancy staff only; Platform Admins edit the
+  // course itself in Course Setup instead. Mirrors ConsultancyRoute's own role check (the only
+  // two roles that route ever admits) rather than trusting "this modal is only mounted in the
+  // consultancy area" to stay true forever — ChatPanel and CourseFinderPage both mount this popup
+  // today, but neither is what actually enforces who may set a deadline.
+  const role = useAuthStore((s) => s.user?.role)
+  const canSetIntakeDeadlines = role === 'consultancy_admin' || role === 'consultant'
+
+  // A 200 response applies straight to the catalogue, but `course` here is a frozen snapshot
+  // handed down by the caller (Course Finder's row, a chat's shared-course card) — nothing
+  // re-fetches it just because this popup is open. Without this, "the row shows the new date
+  // immediately" would depend on the caller re-rendering with a fresh `course` prop, which none
+  // of today's callers do. Keyed by month since deadlines are unique per month on one course.
+  const [deadlineOverrides, setDeadlineOverrides] = useState<
+    Record<string, { application_deadline: string | null; status?: 'open' | 'closed' }>
+  >({})
 
   // ---- header ------------------------------------------------------------------------------
   const header = (
@@ -337,30 +356,57 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
                 </td>
               </tr>
             ) : (
-              intakeRows.map(({ month, deadline }) => (
-                <tr key={month} className="border-t border-border">
-                  <td className="px-md py-sm text-text-primary">
-                    <span className="inline-flex items-center gap-xs">
-                      {month}
-                      {course.next_intake?.month === month && <Badge color="primary">Next</Badge>}
-                    </span>
-                  </td>
-                  <td className="px-md py-sm text-text-primary">
-                    {deadline?.application_deadline
-                      ? <Known course={course} value={formatDate(deadline.application_deadline)} field={`intake_deadline.${month}`} label={`${month} application deadline`} />
-                      : gap(`intake_deadline.${month}`, `${month} application deadline`)}
-                  </td>
-                  <td className="px-md py-sm">
-                    {deadline?.status === 'open' ? (
-                      <Badge color="success">Open</Badge>
-                    ) : deadline?.status === 'closed' ? (
-                      <Badge color="secondary">Closed</Badge>
-                    ) : (
-                      <span className="text-text-secondary">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))
+              intakeRows.map(({ month, deadline }) => {
+                // The override, if this row's deadline was set (applied=true) earlier in this
+                // popup's lifetime, layered on top of what the course prop originally carried.
+                const merged = deadline ? { ...deadline, ...deadlineOverrides[month] } : undefined
+                return (
+                  <tr key={month} className="border-t border-border">
+                    <td className="px-md py-sm text-text-primary">
+                      <span className="inline-flex items-center gap-xs">
+                        {month}
+                        {course.next_intake?.month === month && <Badge color="primary">Next</Badge>}
+                      </span>
+                    </td>
+                    <td className="px-md py-sm text-text-primary">
+                      {/* The direct Set Deadline editor only for a row that already has an
+                          IntakeDeadline entry (`merged` truthy) — the endpoint 404s for a month
+                          with none at all — and only for consultancy staff. Everyone else keeps
+                          the older suggest-a-correction pencil, same as every other catalogue fact
+                          on this popup. */}
+                      {merged && canSetIntakeDeadlines ? (
+                        <span className="inline-flex items-center gap-xs">
+                          {merged.application_deadline ? (
+                            formatDate(merged.application_deadline)
+                          ) : (
+                            <span className="italic text-text-secondary">Rolling admission</span>
+                          )}
+                          <IntakeDeadlineEditor
+                            courseId={course.id}
+                            month={month}
+                            currentDeadline={merged.application_deadline ?? null}
+                            currentStatus={merged.status}
+                            onApplied={(next) => setDeadlineOverrides((o) => ({ ...o, [month]: next }))}
+                          />
+                        </span>
+                      ) : merged?.application_deadline ? (
+                        <Known course={course} value={formatDate(merged.application_deadline)} field={`intake_deadline.${month}`} label={`${month} application deadline`} />
+                      ) : (
+                        gap(`intake_deadline.${month}`, `${month} application deadline`)
+                      )}
+                    </td>
+                    <td className="px-md py-sm">
+                      {merged?.status === 'open' ? (
+                        <Badge color="success">Open</Badge>
+                      ) : merged?.status === 'closed' ? (
+                        <Badge color="secondary">Closed</Badge>
+                      ) : (
+                        <span className="text-text-secondary">—</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })
             )}
           </tbody>
         </table>

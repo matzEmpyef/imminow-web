@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { AlertCircle, CheckCircle2, X } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react'
 import { useToastStore, type ToastItem } from '@/lib/toast'
 
 // Where `showToast()` (lib/toast.ts) messages appear — mounted once, in main.tsx.
@@ -15,15 +15,20 @@ function ToastCard({ toast }: { toast: ToastItem }) {
     return () => clearTimeout(timer)
   }, [toast.id, dismiss])
 
-  const Icon = toast.tone === 'error' ? AlertCircle : CheckCircle2
+  const Icon = toast.tone === 'error' ? AlertCircle : toast.tone === 'info' ? Info : CheckCircle2
+  const iconTone = toast.tone === 'error' ? 'text-error' : toast.tone === 'info' ? 'text-info' : 'text-success'
   return (
     <div
       role={toast.tone === 'error' ? 'alert' : 'status'}
       aria-live={toast.tone === 'error' ? 'assertive' : 'polite'}
-      className="flex items-center gap-sm rounded-lg border border-border bg-surface px-md py-sm shadow-card"
+      // `max-w-sm` + `break-words` added alongside the 'info' tone (2026-09-18) — every message
+      // before it was a short confirmation; the first genuinely explanatory one ("sent to immiNow
+      // for approval, changed too recently to apply directly") ran the card off the right edge on
+      // a bottom-right-anchored, unconstrained-width toast.
+      className="flex max-w-sm items-center gap-sm rounded-lg border border-border bg-surface px-md py-sm shadow-card"
     >
-      <Icon className={`h-4 w-4 shrink-0 ${toast.tone === 'error' ? 'text-error' : 'text-success'}`} />
-      <span className="text-body-sm text-text-primary">{toast.message}</span>
+      <Icon className={`h-4 w-4 shrink-0 ${iconTone}`} />
+      <span className="break-words text-body-sm text-text-primary">{toast.message}</span>
       <button
         type="button"
         onClick={() => dismiss(toast.id)}
