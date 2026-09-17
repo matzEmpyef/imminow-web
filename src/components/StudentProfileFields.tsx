@@ -113,7 +113,7 @@ function workLines(prefs: StudentPreferences | null | undefined): Lines {
     <span key={i}>
       {w.title}
       {w.company ? ` at ${w.company}` : ''}
-      {w.years ? ` (${w.years}y)` : ''}
+      {w.months != null ? ` (${w.months} ${w.months === 1 ? 'month' : 'months'})` : ''}
     </span>
   ))
 }

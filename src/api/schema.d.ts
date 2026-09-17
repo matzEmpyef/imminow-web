@@ -20726,7 +20726,8 @@ export interface components {
         WorkExperienceEntry: {
             title: string;
             company?: string | null;
-            years?: number | null;
+            /** @description How long the role lasted, in whole months (2026-09-17 — was `years`; the product owner asked for months throughout, matching a course's `min_work_experience_months`). A row without it is kept but not counted towards eligibility. */
+            months?: number | null;
         };
         /** @description One field of study on the managed list (2026-09-11). `Course.field_of_study` and `StudentPreferences.fields_of_interest` hold the field's `name`; search and filter[field_of_study] on GET /courses also match its `aliases`, so a student typing "CS" or "Computing" finds Computer Science courses. */
         FieldOfStudy: {
@@ -22250,6 +22251,7 @@ export interface components {
                  */
                 required: boolean;
             }[];
+            /** @description Compared with the TOTAL of the student's Profile work-experience rows (`WorkExperienceEntry.months`). A row with no months is not counted; with no countable row the rule is unknown, never a fail. Borderline within 6 months. */
             min_work_experience_months?: number | null;
             /** @description Display-only chips, never auto-evaluated. */
             info_flags?: {

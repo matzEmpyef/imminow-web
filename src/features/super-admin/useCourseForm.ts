@@ -433,7 +433,9 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
 
     activeTab,
     setActiveTab,
-    isValid: Boolean(name && language) && !campusRequired,
+    // Level, field of study and delivery join name and language as required (user, 2026-09-17):
+    // all three are facets students filter by, so a course without them cannot be found.
+    isValid: Boolean(name && language && level && fieldOfStudy && delivery) && !campusRequired,
     campusRequired,
     toPayload,
   }

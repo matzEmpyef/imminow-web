@@ -179,7 +179,10 @@ export function CourseBasicsPanel({ hidden, form }: { hidden: boolean; form: Cou
             codes outside the table, so the picker is not the only guard, just the one that keeps
             an admin from meeting the guard.
           */}
-          <SelectField label="Level" value={form.level} onChange={(e) => form.setLevel(e.target.value)}>
+          {/* Level, Field of study and Delivery are required to save (user, 2026-09-17): each one
+              is a filter students search by, and a course missing any of them is invisible to the
+              search that should have found it. */}
+          <SelectField label="Level" required value={form.level} onChange={(e) => form.setLevel(e.target.value)}>
             <option value="">Not set</option>
             {(studyLevels ?? [])
               .filter((level) => level.active !== false || level.code === form.level)
@@ -198,6 +201,7 @@ export function CourseBasicsPanel({ hidden, form }: { hidden: boolean; form: Cou
               "Computing" and "Computer Science" two different fields in every search. */}
           <SelectField
             label="Field of study"
+            required
             value={form.fieldOfStudy}
             onChange={(e) => form.setFieldOfStudy(e.target.value)}
           >
@@ -266,7 +270,6 @@ export function CourseBasicsPanel({ hidden, form }: { hidden: boolean; form: Cou
           rows={3}
           // A capture check since 2026-09-13 (app review H8) — still optional to save, but the
           // meter counts it, so say what the gap costs a student.
-          hint="Shown as About the course in the app; without it the app shows nothing."
         />
         <TextAreaField label="Benefits" value={form.benefits} onChange={(e) => form.setBenefits(e.target.value)} rows={2} />
       </FormSection>
@@ -734,6 +737,7 @@ export function CourseFlagsPanel({ hidden, form }: { hidden: boolean; form: Cour
           </SelectField>
           <SelectField
             label="Delivery"
+            required
             id="course-delivery"
             value={form.delivery ?? ''}
             onChange={(e) => form.setDelivery(e.target.value)}
