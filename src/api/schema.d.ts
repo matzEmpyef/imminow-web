@@ -16344,12 +16344,24 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Catalog — unaffordable stays visible, greyed out (FR-042). Admin (Coupons, build reference 1.23) sees every coupon including out-of-stock and inactive ones. `filter[active]=true` (Sentpo Mobile Wave 6b's Coupons Catalog) additionally hides admin-disabled coupons — additive and optional, so the admin console's own unfiltered call is unaffected, same shape as `GET /jobs`' own `filter[active]`. Out-of-stock coupons are never hidden by that filter: build reference 1.8 is explicit that stock reaching zero "shows out of stock but stays visible — never auto-deactivates." */
+        /**
+         * Catalog — unaffordable stays visible, greyed out (FR-042). Admin (Coupons, build reference 1.23) sees every coupon including out-of-stock and inactive ones. `filter[active]=true` (Sentpo Mobile Wave 6b's Coupons Catalog) additionally hides admin-disabled coupons — additive and optional, so the admin console's own unfiltered call is unaffected, same shape as `GET /jobs`' own `filter[active]`. Out-of-stock coupons are never hidden by that filter: build reference 1.8 is explicit that stock reaching zero "shows out of stock but stays visible — never auto-deactivates."
+         *
+         *     Cursor-paged since 2026-09-17 (mobile performance review L3), the same `{items, meta}` shape as every other list — it was the one bare-array list left. `filter[type]` takes one coupon type or a comma-separated set; `filter[partner_id]` one partner; `search` matches the partner name, amount and description. `sort` accepts `point_cost` and `created_at`. For a STUDENT caller the server ranks before it sorts, in tiers that no sort direction flips: relevant-and-affordable, then relevant-but-unaffordable, then relevant-but-out-of-stock, then the same three for coupons outside the student's relevance scope — "unaffordable stays visible, greyed out, sorted with what's usable ranked toward the top" (1.8), now applied server-side so a page boundary never splits the ranking. Admin callers get plain `created_at` descending.
+         */
         get: {
             parameters: {
                 query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
                     /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
                     filter?: components["parameters"]["FilterParam"];
+                    /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
+                    search?: components["parameters"]["SearchParam"];
+                    /** @description Sort field. Prefix with - for descending, e.g. sort=-created_at (TRD Section 7). */
+                    sort?: components["parameters"]["SortParam"];
                 };
                 header?: never;
                 path?: never;
@@ -16363,7 +16375,10 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Coupon"][];
+                        "application/json": {
+                            items: components["schemas"]["Coupon"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
                     };
                 };
             };
@@ -16407,7 +16422,36 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** One coupon, with the same per-caller `affordable` / `remaining_stock` decoration the list carries (added 2026-09-17 with list paging: Coupon Detail used to find its row in the whole catalog, which stops working once the catalog is paged). A student gets 404 for a coupon the catalog would not show them — inactive, expired, a retired partner, or one with no shopfront in their country; admin can read any. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Coupon"];
+                    };
+                };
+                /** @description Not found, or not visible to this caller */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         put?: never;
         post?: never;
         delete?: never;

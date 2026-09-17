@@ -8,14 +8,28 @@ type CouponInput = components['schemas']['CouponInput']
 type CouponLimits = components['schemas']['CouponLimits']
 type VoucherCodesInput = components['schemas']['VoucherCodesInput']
 
+type Coupon = components['schemas']['Coupon']
+
+/// The whole catalog, every page of it. `GET /coupons` is cursor-paged since 2026-09-17 (the
+/// student app loads it a page at a time); this console searches, filters and sorts the catalog
+/// in the browser, which only works over the complete list — so the pages are walked here, at the
+/// maximum page size, and joined. A curated catalog is a few dozen rows at most, so this is one
+/// or two requests; a catalog that ever outgrows it is the day this page gets server-side paging
+/// like the job listings.
 export function useAdminCoupons() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['admin-coupons'],
     queryFn: async () => {
-      const { data, error } = await api.GET('/coupons')
-      if (error) throw new ApiError('Could not load coupons.', error)
-      return data
+      const all: Coupon[] = []
+      let cursor: string | undefined
+      do {
+        const { data, error } = await api.GET('/coupons', { params: { query: { limit: 100, cursor } } })
+        if (error) throw new ApiError('Could not load coupons.', error)
+        all.push(...data.items)
+        cursor = data.meta.next_cursor ?? undefined
+      } while (cursor)
+      return all
     },
     enabled: isAuthed,
   })
