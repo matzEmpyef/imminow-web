@@ -12,11 +12,33 @@ import { ApiError } from './auth'
 export interface CourseFinderFilters {
   personId: string
   search?: string
-  country?: string
+  // Multi-country (2026-09-18, parity with the Sentpo app's own filter — widened so a search
+  // shared from the app survives the trip instead of arriving with everything past the first
+  // country named as "Not carried over"). Comma-joined onto the wire, the same idiom
+  // filter[field_of_study] already uses.
+  countries?: string[]
   level?: string
   // Multi-field (user decision, 2026-08-30) — empty/omitted = any field; comma-joined onto the
   // wire as one filter[field_of_study] value, the same idiom filter[country] already uses.
   fieldOfStudy?: string[]
+  // The remaining facets Sentpo Mobile's course filter sheet offers (2026-09-18) — see
+  // courseFilterableFields in the mock server for each one's exact matching rule.
+  provinceState?: string
+  city?: string
+  /** 'first_half' | 'second_half'. */
+  intake?: string
+  /** 'full_time' | 'part_time'. */
+  studyMode?: string
+  /** 'on_campus' | 'hybrid' | 'online'. */
+  delivery?: string
+  language?: string
+  // "true only when set" perk flags — never sent as `false`, matching GET /courses' own flag
+  // semantics (a present-but-false filter would still be a filter; omitting it means "any").
+  scholarship?: boolean
+  coop?: boolean
+  psw?: boolean
+  appFeeWaived?: boolean
+  openNow?: boolean
   // In `feeCurrency` — the consultancy's own currency (2026-09-10). The server converts each
   // course's fee into it, with a small margin for courses priced in another currency.
   feeMax?: number
@@ -93,9 +115,20 @@ export function useCourseFinder(filters: CourseFinderFilters, hasFilters: boolea
     queryKey: ['course-finder', filters],
     queryFn: async () => {
       const filter: Record<string, string> = { visible: 'true' }
-      if (filters.country) filter.country = filters.country
+      if (filters.countries?.length) filter.country = filters.countries.join(',')
       if (filters.level) filter.level = filters.level
       if (filters.fieldOfStudy?.length) filter.field_of_study = filters.fieldOfStudy.join(',')
+      if (filters.provinceState) filter.province_state = filters.provinceState
+      if (filters.city) filter.city = filters.city
+      if (filters.intake) filter.intake = filters.intake
+      if (filters.studyMode) filter.study_mode = filters.studyMode
+      if (filters.delivery) filter.delivery = filters.delivery
+      if (filters.language) filter.language = filters.language
+      if (filters.scholarship) filter.scholarship = 'true'
+      if (filters.coop) filter.coop = 'true'
+      if (filters.psw) filter.psw = 'true'
+      if (filters.appFeeWaived) filter.app_fee_waived = 'true'
+      if (filters.openNow) filter.open_now = 'true'
       if (filters.feeMax) {
         filter.fee_max = String(filters.feeMax)
         filter.fee_currency = filters.feeCurrency ?? 'INR'
@@ -109,24 +142,38 @@ export function useCourseFinder(filters: CourseFinderFilters, hasFilters: boolea
       // count only.
       //
       // Platform Pulse enrichment (2026-08-31, same session) — add the chosen FILTER VALUES, but
-      // ENUM-SAFE ONLY (recorded PII rule): never `filters.search` (free text). `country` comes
-      // from CountrySelect, `level` from a fixed SelectField, `fieldOfStudy` from a MultiSelect
-      // over the real catalog fields list — all three are closed vocabularies here, unlike
-      // mobile's field-of-study filter (which mixes chips with free text and is excluded there).
+      // ENUM-SAFE ONLY (recorded PII rule): never `filters.search`, `filters.provinceState` or
+      // `filters.city` (free text). `country` comes from MultiSelect over the countries list,
+      // `level` from a fixed SelectField, `fieldOfStudy` from a MultiSelect over the real catalog
+      // fields list — all three are closed vocabularies here, unlike mobile's field-of-study
+      // filter (which mixes chips with free text and is excluded there). Widened 2026-09-18 with
+      // the rest of the facets in the filter_count tally (still no new enum properties beyond
+      // country/level/field — those three are what Platform Pulse's dashboards already key on).
       track('search_performed', {
         properties: {
           has_query: Boolean(filters.search),
           filter_count: [
-            filters.country,
+            filters.countries?.length ? filters.countries : undefined,
             filters.level,
             filters.fieldOfStudy?.length ? filters.fieldOfStudy : undefined,
+            filters.provinceState,
+            filters.city,
+            filters.intake,
+            filters.studyMode,
+            filters.delivery,
+            filters.language,
+            filters.scholarship,
+            filters.coop,
+            filters.psw,
+            filters.appFeeWaived,
+            filters.openNow,
             filters.feeMax,
             // One facet even though a bucket can carry both bounds — same convention mobile's
             // own `_activeFacetCount` uses for the identical filter.
             filters.durationMinMonths ?? filters.durationMaxMonths,
             filters.sort,
           ].filter((v) => v !== undefined && v !== '').length,
-          ...(filters.country ? { country: filters.country } : {}),
+          ...(filters.countries?.length ? { country: filters.countries } : {}),
           ...(filters.level ? { study_level: filters.level } : {}),
           ...(filters.fieldOfStudy?.length ? { field_of_study: filters.fieldOfStudy } : {}),
         },

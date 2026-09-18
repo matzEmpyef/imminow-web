@@ -24,11 +24,29 @@ export interface FinderState {
   personId: string
   personKind: 'client' | 'lead'
   search: string
-  country: string
+  // Multi-country (2026-09-18) — widened to parity with the Sentpo app's own Study Abroad filter
+  // (COURSES_MODULE_PLAN.md's shared-search work: a search sent from the app used to arrive
+  // gutted, "Not carried over: Other countries (...)", because Course Finder could only ever hold
+  // one). Empty = any country. '' as a single value used to mean the same thing before this.
+  countries: string[]
   level: string
   // Multi-field (user decision, 2026-08-30) — empty = any field, same convention '' carried as a
   // string before this.
   fieldOfStudy: string[]
+  // Text, not a picker (2026-09-18) — `GET /courses/provinces` only ever answers for ONE country,
+  // and Country here can now hold several at once, so there is no single list to source a select
+  // from without guessing which country's provinces to show. Same free-text shape as `city` below.
+  provinceState: string
+  city: string
+  // 'first_half' | 'second_half' | '' (any) — the same half-year buckets the Sentpo app's Intake
+  // segmented control offers (course_filter_sheet.dart), not a raw month.
+  intake: string
+  // 'full_time' | 'part_time' | '' (any).
+  studyMode: string
+  // 'on_campus' | 'hybrid' | 'online' | '' (any).
+  delivery: string
+  // A language of teaching from GET /courses/languages, or '' for any.
+  language: string
   // A plain amount in the consultancy's own currency (2026-09-10) — was ₹ lakh for everyone.
   feeMax: string
   // Duration-range bucket key (2026-08-31, UAT item 3), same buckets Sentpo Mobile's filter
@@ -36,6 +54,14 @@ export interface FinderState {
   // has a single value to bind to; DURATION_BUCKETS below is the one place that maps a key to
   // its (min, max) month bounds, shared with the query builder in CourseFinderPage.
   durationBucket: string
+  // The five "true only when set" perk flags mobile's filter sheet offers under Highlights /
+  // Applications open (2026-09-18) — each sent as filter[...]=true only when checked, never
+  // filter[...]=false, matching GET /courses' own "true flag" semantics.
+  scholarship: boolean
+  coop: boolean
+  psw: boolean
+  appFeeWaived: boolean
+  openNow: boolean
   sort: string
   eligibleOnly: boolean
 }
@@ -44,11 +70,22 @@ export const DEFAULT_STATE: FinderState = {
   personId: '',
   personKind: 'client',
   search: '',
-  country: '',
+  countries: [],
   level: '',
   fieldOfStudy: [],
+  provinceState: '',
+  city: '',
+  intake: '',
+  studyMode: '',
+  delivery: '',
+  language: '',
   feeMax: '',
   durationBucket: '',
+  scholarship: false,
+  coop: false,
+  psw: false,
+  appFeeWaived: false,
+  openNow: false,
   sort: '',
   eligibleOnly: true,
 }
@@ -64,20 +101,60 @@ export const DURATION_BUCKETS: Record<string, { label: string; min?: number; max
   gt_36: { label: '3+ years', min: 37 },
 }
 
+// The Intake half-year options, worded exactly as the Sentpo app's own segmented control
+// (course_filter_sheet.dart: 'Jan – Jun' / 'Jul – Dec') rather than the generic "first/second
+// half" the wire value implies — a consultant reading this filter should see the same words a
+// student picking it in the app does.
+export const INTAKE_OPTIONS: Record<string, string> = {
+  first_half: 'Jan – Jun',
+  second_half: 'Jul – Dec',
+}
+
+// Study mode / Delivery wire values → labels, matching mobile's `studyModeLabels` /
+// `deliveryLabels` (course_filter_sheet.dart) exactly.
+export const STUDY_MODE_OPTIONS: Record<string, string> = {
+  full_time: 'Full-time',
+  part_time: 'Part-time',
+}
+export const DELIVERY_OPTIONS: Record<string, string> = {
+  on_campus: 'On campus',
+  hybrid: 'Hybrid',
+  online: 'Online',
+}
+
 function loadPersonState(personId: string, personKind: 'client' | 'lead'): FinderState | null {
   try {
     const raw = localStorage.getItem(stateKey(personId))
     if (!raw) return null
-    const parsed = JSON.parse(raw) as Partial<FinderState> & { fieldOfStudy?: string | string[] }
+    const parsed = JSON.parse(raw) as Record<string, unknown>
     // Pre-2026-08-30 caches stored fieldOfStudy as a single string ('' = any); migrate in place
     // so an existing consultant's cache doesn't crash the multi-select on the next load.
-    const fieldOfStudy =
-      typeof parsed.fieldOfStudy === 'string'
-        ? parsed.fieldOfStudy
-          ? [parsed.fieldOfStudy]
-          : []
-        : (parsed.fieldOfStudy ?? DEFAULT_STATE.fieldOfStudy)
-    return { ...DEFAULT_STATE, ...parsed, fieldOfStudy, personId, personKind }
+    const fieldOfStudy = Array.isArray(parsed.fieldOfStudy)
+      ? (parsed.fieldOfStudy as string[])
+      : typeof parsed.fieldOfStudy === 'string' && parsed.fieldOfStudy
+        ? [parsed.fieldOfStudy]
+        : DEFAULT_STATE.fieldOfStudy
+    // Pre-2026-09-18 caches stored `country` as a single string (Course Finder's old single-select).
+    // Migrated to `countries: string[]` here rather than crashing the new multi-select or silently
+    // dropping the consultant's cached filter — a cache written by THIS build already has
+    // `countries` as an array, so that shape wins when present.
+    const countries = Array.isArray(parsed.countries)
+      ? (parsed.countries as string[])
+      : typeof parsed.country === 'string' && parsed.country
+        ? [parsed.country]
+        : DEFAULT_STATE.countries
+    // Drop the legacy `country` key explicitly rather than let it ride through the spread below —
+    // otherwise it survives as a stray property on every subsequent save (it is not part of
+    // FinderState, so nothing ever overwrites or clears it again).
+    const { country: _legacyCountry, ...parsedRest } = parsed
+    return {
+      ...DEFAULT_STATE,
+      ...(parsedRest as Partial<FinderState>),
+      fieldOfStudy,
+      countries,
+      personId,
+      personKind,
+    }
   } catch {
     return null
   }
@@ -185,20 +262,22 @@ export function useCourseFinderState(
       // applicant's free-text filters into the new applicant's cache).
       if (kind === 'client') {
         const client = clientRows.find((c) => c.id === personId)
+        const country = client?.finalized_country ?? client?.study_preferences?.target_countries?.[0] ?? ''
         setState({
           ...DEFAULT_STATE,
           personId,
           personKind: 'client',
-          country: client?.finalized_country ?? client?.study_preferences?.target_countries?.[0] ?? '',
+          countries: country ? [country] : [],
           level: client?.study_preferences?.study_level ?? '',
         })
       } else {
         const lead = leadRows.find((l) => l.id === personId)
+        const country = lead?.preferences?.target_countries?.[0] ?? ''
         setState({
           ...DEFAULT_STATE,
           personId,
           personKind: 'lead',
-          country: lead?.preferences?.target_countries?.[0] ?? '',
+          countries: country ? [country] : [],
           level: lead?.preferences?.study_level ?? '',
         })
       }
@@ -230,20 +309,49 @@ export function useCourseFinderState(
 // A search card in chat carries GET /courses filter keys. These three helpers turn that into a
 // Course Finder link, read the link back into state, and turn state into what "Send this search"
 // posts — so the round trip uses one vocabulary end to end.
+//
+// Widened 2026-09-18 (COURSES_MODULE_PLAN.md's shared-search follow-up) alongside Course Finder's
+// own filters: every URL/outgoing key below is the literal `filter[...]` wire name, so this stays
+// a pure pass-through as the server's own carried-over set grows — no key here needs to change
+// again just because the server starts copying one more facet into `SharedSearch.filters`.
 
 export function durationBucketKeyFor(min: number | null, max: number | null): string {
   const hit = Object.entries(DURATION_BUCKETS).find(([, b]) => (b.min ?? null) === min && (b.max ?? null) === max)
   return hit ? hit[0] : ''
 }
 
+// The full set of plain string/enum filter keys a shared search can carry in EITHER direction —
+// same literal spelling as the `filter[...]` key, so URLSearchParams round-trips them with no
+// per-key translation. `country`, `fee_max` and `duration_*` are handled separately below (country
+// because it is a list; fee and duration because they need currency/bucket-key handling).
+const SHARED_SEARCH_PLAIN_KEYS = [
+  'level',
+  'field_of_study',
+  'search',
+  'province_state',
+  'city',
+  'intake',
+  'study_mode',
+  'delivery',
+  'language',
+] as const
+const SHARED_SEARCH_FLAG_KEYS = ['scholarship', 'coop', 'psw', 'app_fee_waived', 'open_now'] as const
+
 export function courseFinderUrlForSharedSearch(
   person: { id: string; kind: 'client' | 'lead' },
   filters: Record<string, string>,
 ): string {
   const params = new URLSearchParams({ person: person.id, kind: person.kind })
-  for (const key of ['country', 'level', 'field_of_study', 'fee_max', 'search']) {
+  // Comma-joined either way — a legacy single-country link (`country=USA`) and a wide one
+  // (`country=USA,Canada`) both come back out the same way in finderStateFromUrl's split.
+  if (filters.country) params.set('country', filters.country)
+  for (const key of SHARED_SEARCH_PLAIN_KEYS) {
     if (filters[key]) params.set(key, filters[key])
   }
+  for (const key of SHARED_SEARCH_FLAG_KEYS) {
+    if (filters[key] === 'true') params.set(key, 'true')
+  }
+  if (filters.fee_max) params.set('fee_max', filters.fee_max)
   const bucket = durationBucketKeyFor(
     filters.duration_min_months ? Number(filters.duration_min_months) : null,
     filters.duration_max_months ? Number(filters.duration_max_months) : null,
@@ -258,20 +366,39 @@ export function finderStateFromUrl(): FinderState | null {
     const personId = params.get('person')
     if (!personId) return null
     const duration = params.get('duration') ?? ''
+    const intake = params.get('intake') ?? ''
+    const studyMode = params.get('study_mode') ?? ''
+    const delivery = params.get('delivery') ?? ''
     return {
       ...DEFAULT_STATE,
       personId,
       personKind: params.get('kind') === 'lead' ? 'lead' : 'client',
       search: params.get('search') ?? '',
-      country: params.get('country') ?? '',
+      // Handles both a legacy single-value link (`country=USA`, no comma) and a new multi-value
+      // one (`country=USA,Canada`) with the same split — old shared-search links keep working.
+      countries: (params.get('country') ?? '')
+        .split(',')
+        .map((c) => c.trim())
+        .filter(Boolean),
       // The catalogue's levels are lowercase keys (`masters`); a link may carry either case.
       level: (params.get('level') ?? '').toLowerCase(),
       fieldOfStudy: (params.get('field_of_study') ?? '')
         .split(',')
         .map((f) => f.trim())
         .filter(Boolean),
+      provinceState: params.get('province_state') ?? '',
+      city: params.get('city') ?? '',
+      intake: INTAKE_OPTIONS[intake] ? intake : '',
+      studyMode: STUDY_MODE_OPTIONS[studyMode] ? studyMode : '',
+      delivery: DELIVERY_OPTIONS[delivery] ? delivery : '',
+      language: params.get('language') ?? '',
       feeMax: params.get('fee_max') ?? '',
       durationBucket: DURATION_BUCKETS[duration] ? duration : '',
+      scholarship: params.get('scholarship') === 'true',
+      coop: params.get('coop') === 'true',
+      psw: params.get('psw') === 'true',
+      appFeeWaived: params.get('app_fee_waived') === 'true',
+      openNow: params.get('open_now') === 'true',
     }
   } catch {
     return null
@@ -283,9 +410,20 @@ export function sharedSearchFiltersFrom(
   feeCurrency: string,
 ): { filters: Record<string, string>; search?: string } {
   const filters: Record<string, string> = {}
-  if (state.country) filters.country = state.country
+  if (state.countries.length) filters.country = state.countries.join(',')
   if (state.level) filters.level = state.level
   if (state.fieldOfStudy.length) filters.field_of_study = state.fieldOfStudy.join(',')
+  if (state.provinceState) filters.province_state = state.provinceState
+  if (state.city) filters.city = state.city
+  if (state.intake) filters.intake = state.intake
+  if (state.studyMode) filters.study_mode = state.studyMode
+  if (state.delivery) filters.delivery = state.delivery
+  if (state.language) filters.language = state.language
+  if (state.scholarship) filters.scholarship = 'true'
+  if (state.coop) filters.coop = 'true'
+  if (state.psw) filters.psw = 'true'
+  if (state.appFeeWaived) filters.app_fee_waived = 'true'
+  if (state.openNow) filters.open_now = 'true'
   if (state.feeMax && Number(state.feeMax) > 0) {
     filters.fee_max = state.feeMax
     filters.fee_currency = feeCurrency

@@ -7,7 +7,7 @@ import { Modal } from '@/components/Modal'
 import { showToast } from '@/lib/toast'
 import { useShareSearch } from '@/queries/searchShare'
 import { Table } from '@/components/Table'
-import { CountryLabel } from '@/components/CountryLabel'
+import { CountryLabelList } from '@/components/CountryLabel'
 import { CollegeDetailModal } from './CollegeDetailModal'
 import { CourseDetailModal } from './CourseDetailModal'
 import { ClientDetailModal } from './ClientDetailModal'
@@ -91,19 +91,41 @@ export function CourseFinderPage() {
   const hasFilters = Boolean(
     state.personId ||
     state.search ||
-    state.country ||
+    state.countries.length ||
     state.level ||
     state.fieldOfStudy.length ||
     state.feeMax ||
-    state.durationBucket,
+    state.durationBucket ||
+    state.provinceState ||
+    state.city ||
+    state.intake ||
+    state.studyMode ||
+    state.delivery ||
+    state.language ||
+    state.scholarship ||
+    state.coop ||
+    state.psw ||
+    state.appFeeWaived ||
+    state.openNow,
   )
   const courses = useCourseFinder(
     {
       personId: state.personId,
       search: state.search || undefined,
-      country: state.country || undefined,
+      countries: state.countries.length ? state.countries : undefined,
       level: state.level || undefined,
       fieldOfStudy: state.fieldOfStudy.length ? state.fieldOfStudy : undefined,
+      provinceState: state.provinceState || undefined,
+      city: state.city || undefined,
+      intake: state.intake || undefined,
+      studyMode: state.studyMode || undefined,
+      delivery: state.delivery || undefined,
+      language: state.language || undefined,
+      scholarship: state.scholarship || undefined,
+      coop: state.coop || undefined,
+      psw: state.psw || undefined,
+      appFeeWaived: state.appFeeWaived || undefined,
+      openNow: state.openNow || undefined,
       feeMax: feeMax != null && Number.isFinite(feeMax) ? feeMax : undefined,
       feeCurrency,
       durationMinMonths: durationBucket?.min,
@@ -255,14 +277,15 @@ export function CourseFinderPage() {
             emptyMessage={
               !hasFilters ? (
                 'Pick an applicant or search to browse the catalog.'
-              ) : state.country ? (
+              ) : state.countries.length > 0 ? (
                 // Names the gap instead of blaming the filters (console review M18, 2026-09-13):
                 // an empty result for a country we simply have no courses in is a catalogue gap,
                 // and the one thing the consultant can do about it is tell us. Only when a
                 // COUNTRY was picked — without one the result really is "these filters", and
-                // claiming a coverage gap would be a guess.
+                // claiming a coverage gap would be a guess. `countries` can now hold several
+                // (2026-09-18); CountryLabelList reads the same either way.
                 <span>
-                  No courses match. We have no courses in <CountryLabel name={state.country} />
+                  No courses match. We have no courses in <CountryLabelList names={state.countries} />
                   {state.fieldOfStudy.length > 0 ? ` for ${state.fieldOfStudy.join(', ')}` : ''} yet — try another
                   country, or suggest one.{' '}
                   <Link to="/administration/course-suggestions" className="text-primary hover:underline">
