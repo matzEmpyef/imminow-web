@@ -21777,9 +21777,13 @@ export interface components {
             /** @description Visible courses taught on a campus in this state / province. */
             course_count: number;
         };
-        /** @description Only present when LeadMessage.type = search_share (2026-09-14). A course search shared in chat — by a student from Search Results, or by consultancy staff from Course Finder. The card opens the other side's own search screen with `filters`. Only filters both screens can apply are kept; the rest are named in `left_out` so the card can say what did not come across. Built entirely server-side at send time. */
+        /**
+         * @description Only present when LeadMessage.type = search_share (2026-09-14). A course search shared in chat — by a student from Search Results, or by consultancy staff from Course Finder. The card opens the other side's own search screen with `filters`. Only filters both screens can apply are kept; the rest are named in `left_out` so the card can say what did not come across. Built entirely server-side at send time.
+         *
+         *     Since 2026-09-18 nearly everything travels — every country (not just the first), province or state, city, intake half, study mode, delivery, language, and the scholarship / co-op / post-study-work / fee-waived / open-now flags — because Course Finder gained the same facets the app has. `left_out` is now usually empty.
+         */
         SharedSearch: {
-            /** @description GET /courses `filter[...]` keys, as strings — any of country (comma-separated), level, field_of_study (comma-separated), fee_max with fee_currency, duration_min_months, duration_max_months — plus `search`, a keyword that only ever travels to Course Finder. A fee sent to a consultancy is converted into the consultancy's own currency. */
+            /** @description GET /courses `filter[...]` keys, as strings — country (comma-separated), level, field_of_study (comma-separated), fee_max with fee_currency, duration_min_months, duration_max_months, province_state, city, intake, study_mode, delivery, language, and the boolean flags scholarship / coop / psw / app_fee_waived / open_now (present only when true) — plus `search`, a keyword that only ever travels to Course Finder. A fee sent to a consultancy is converted into the consultancy's own currency. */
             filters: {
                 [key: string]: string;
             };
@@ -21787,6 +21791,8 @@ export interface components {
             summary: string;
             /** @description How many courses matched these filters in the sender's catalogue when it was shared. */
             match_count: number;
+            /** @description How many matched the search the SENDER was looking at, before anything in `left_out` was removed (2026-09-18). Equal to `match_count` whenever everything travelled; when they differ the card can say so, instead of showing a bare "0 matched" under a search that did find courses. */
+            sender_match_count: number;
             /** @description Human-readable names of filters the sender had set that could not be carried across. */
             left_out: string[];
         };
@@ -22230,6 +22236,12 @@ export interface components {
                 /** @description False only when the course is already priced in the student's currency. True whenever a rate was applied, which the app must surface (a leading "≈") rather than presenting a converted figure as exact. */
                 approximate?: boolean;
             } | null;
+            /** @description The APPLICATION fee in the viewer's own currency (2026-09-18), decorated exactly like `fee_display` and shown the same way: the college's native amount as the headline, this as the "≈" companion. It is the fee a student actually pays first, so it carries the same right to be legible. */
+            readonly application_fee_display?: {
+                amount?: number;
+                currency?: string;
+                approximate?: boolean;
+            } | null;
             application_fee?: components["schemas"]["Money"] | null;
             application_fee_waived?: boolean;
             scholarship_available?: boolean;
@@ -22290,6 +22302,10 @@ export interface components {
                 result: "pass" | "borderline" | "fail" | "unknown";
                 /** @description True for retakeable gaps (English/aptitude tests, work experience accruing), false for fixed history (past marks, backlogs). */
                 improvable?: boolean;
+                /** @description True when this rule is waiting on the STUDENT's own data — no score at that level, no test recorded, no months on a work-experience row. Every "Add …" prompt in the app is driven by this, so a screen never has to read a sentence to work out whether there is something for the student to do (2026-09-18). Note the Medium-of-Instruction case sets it while the rule is only `borderline`: the verdict does not need the score, but the student may still want to add it. */
+                awaiting_student_data?: boolean;
+                /** @description What to add, in the words the app puts after "Add " — "your Bachelor's score", "an English test score", "your IELTS score". Null when nothing is awaited. */
+                add_label?: string | null;
                 note?: string | null;
             }[];
         };

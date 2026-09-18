@@ -318,9 +318,12 @@ export function ChatPanel({
                         <Search className="h-4 w-4 shrink-0 text-primary" />
                         {m.sharedSearch.summary}
                       </span>
+                      {/* Both counts when a filter could not travel (2026-09-18): a bare "0 matched"
+                          under a search the sender could see results for reads as a broken share. */}
                       <span className="text-caption text-text-secondary">
-                        {m.sharedSearch.match_count} course{m.sharedSearch.match_count === 1 ? '' : 's'} matched when
-                        shared
+                        {m.sharedSearch.sender_match_count !== m.sharedSearch.match_count
+                          ? `${m.sharedSearch.sender_match_count} matched the search, ${m.sharedSearch.match_count} after the filters below`
+                          : `${m.sharedSearch.match_count} course${m.sharedSearch.match_count === 1 ? '' : 's'} matched when shared`}
                       </span>
                       {m.sharedSearch.left_out.length > 0 && (
                         <span className="text-caption text-warning">
