@@ -900,7 +900,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
               {consultancy.tier}
             </Badge>
             {!consultancy.kyc_verified && <Badge color="warning">KYC pending</Badge>}
-            {SUBSCRIPTION_NEEDS_ATTENTION.includes(subscriptionStatus) && (
+            {consultancy.active !== false && SUBSCRIPTION_NEEDS_ATTENTION.includes(subscriptionStatus) && (
               <Badge color={subscriptionBadge.color}>Subscription {subscriptionBadge.label.toLowerCase()}</Badge>
             )}
             {summary.length > 0 && <span className="text-caption text-text-secondary">{summary.join(' · ')}</span>}
@@ -1226,11 +1226,24 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
 // column), so flagging it here too would say the same thing twice.
 function SubscriptionCell({ consultancy: c }: { consultancy: Consultancy }) {
   const expires = c.subscription_expires_at
+  // A SUSPENDED account raises no subscription alarm at all (user, 2026-09-18: "if the consultancy
+  // is suspended then no need to show if the subscription is lapsed or ending or anything else, no
+  // need to consider it") — the Status column already says why nothing is happening here, and the
+  // server leaves these accounts out of the Needs attention counts and the renewal reminders for
+  // the same reason. The term itself still shows, flat, because it is a fact about the account.
+  if (c.active === false) {
+    return expires ? (
+      <span className="whitespace-nowrap text-text-secondary">Term to {formatDate(expires)}</span>
+    ) : (
+      <span className="text-text-secondary">No term</span>
+    )
+  }
   if (!expires || c.subscription_status === 'none') {
     return (
       <span className="flex items-center gap-xs">
         <span className="text-text-secondary">No term</span>
-        {c.active !== false && <Badge color="warning">Never billed</Badge>}
+        {/* Suspended accounts already returned above, so anything reaching here is active. */}
+        <Badge color="warning">Never billed</Badge>
       </span>
     )
   }

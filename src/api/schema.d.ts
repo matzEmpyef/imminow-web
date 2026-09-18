@@ -20125,6 +20125,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             items: components["schemas"]["AttentionItem"][];
+                            /** @description Items waiting across the viewer's queues, excluding `low` severity ones (2026-09-18) — this is the number the sidebar badge shows. */
                             open_count: number;
                         };
                     };
@@ -21487,10 +21488,10 @@ export interface components {
             /** @description Console route where this queue is worked. */
             link: string;
             /**
-             * @description `urgent` for queues where a person is blocked or money or access is at stake (disputes, complaints, lapsed subscriptions, payments to confirm, applicants waiting); `normal` otherwise.
+             * @description `urgent` for queues where a person is blocked or money or access is at stake (disputes, complaints, lapsed subscriptions, payments to confirm, applicants waiting); `normal` otherwise. `low` (2026-09-18) is a queue that may legitimately never reach zero — it is listed on Needs attention but left out of `open_count`, so it never drives the sidebar counter.
              * @enum {string}
              */
-            severity: "urgent" | "normal";
+            severity: "urgent" | "normal" | "low";
         };
         /** @description Super Admin Dashboard (build reference 1.23). */
         AdminDashboardSummary: {

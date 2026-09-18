@@ -37,16 +37,37 @@ function linkFor(item: AttentionItem): string {
   return LINK_OVERRIDES[item.key] ?? item.link
 }
 
+// A snooze is "I have seen these N and I am on them", not "hide this queue" (user question,
+// 2026-09-18: "if I snooze for 7 days and a new item in same card comes up after 1 day, will I
+// get to see it?"). So it remembers the count it was taken at: the card stays away while the
+// queue holds that many or fewer, and comes straight back the moment new work lands — new work
+// nobody has looked at must never be hidden by a decision made about older work.
+interface SnoozeEntry {
+  until: string // ISO expiry
+  count: number // what the queue held when it was snoozed
+}
+
 interface SnoozeMap {
-  [key: string]: string // ISO expiry
+  [key: string]: SnoozeEntry
 }
 
 function readSnoozed(): SnoozeMap {
   try {
     const raw = window.localStorage.getItem(SNOOZE_KEY)
     if (!raw) return {}
-    const parsed = JSON.parse(raw) as SnoozeMap
-    return typeof parsed === 'object' && parsed !== null ? parsed : {}
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    if (typeof parsed !== 'object' || parsed === null) return {}
+    const map: SnoozeMap = {}
+    for (const [key, value] of Object.entries(parsed)) {
+      // Entries written before snoozes carried a count (v1 was a bare ISO string) are read as
+      // "snoozed at 0", so they expire on their own date and any open work brings them back.
+      if (typeof value === 'string') map[key] = { until: value, count: 0 }
+      else if (value && typeof value === 'object' && typeof (value as SnoozeEntry).until === 'string') {
+        const entry = value as SnoozeEntry
+        map[key] = { until: entry.until, count: Number.isFinite(entry.count) ? entry.count : 0 }
+      }
+    }
+    return map
   } catch {
     return {}
   }
@@ -75,14 +96,15 @@ export function NeedsAttentionPage() {
   const [showSnoozed, setShowSnoozed] = useState(false)
   const now = Date.now()
 
-  const isSnoozed = (key: string) => {
-    const until = snoozed[key]
-    return Boolean(until && new Date(until).getTime() > now)
+  const isSnoozed = (item: AttentionItem) => {
+    const entry = snoozed[item.key]
+    if (!entry || new Date(entry.until).getTime() <= now) return false
+    return item.count <= entry.count
   }
 
-  function snoozeItem(key: string) {
+  function snoozeItem(item: AttentionItem) {
     const until = new Date(now + SNOOZE_DAYS * 86_400_000).toISOString()
-    const next = { ...snoozed, [key]: until }
+    const next = { ...snoozed, [item.key]: { until, count: item.count } }
     setSnoozed(next)
     writeSnoozed(next)
   }
@@ -110,14 +132,19 @@ export function NeedsAttentionPage() {
   }
 
   const items = attention.data.items
-  const open = items.filter((item) => item.count > 0)
-  const rank = (item: AttentionItem) => (item.count > 0 ? (item.severity === 'urgent' ? 0 : 1) : 2)
+  // `low` queues (2026-09-18) are ones that may legitimately never empty — a course whose college
+  // publishes no entry requirements sits there for good. They stay on the board, in the quiet
+  // style and last among the open ones, but they are not in `open_count` and so never put a
+  // number on the sidebar.
+  const open = items.filter((item) => item.count > 0 && item.severity !== 'low')
+  const rank = (item: AttentionItem) =>
+    item.count === 0 ? 3 : item.severity === 'urgent' ? 0 : item.severity === 'low' ? 2 : 1
   const sorted = [...items].sort((a, b) => rank(a) - rank(b) || b.count - a.count)
   const total = attention.data.open_count
 
   // A handful of queues at most — no need to memoize a filter over them.
-  const snoozedCount = sorted.filter((item) => isSnoozed(item.key)).length
-  const visible = sorted.filter((item) => showSnoozed || !isSnoozed(item.key))
+  const snoozedCount = sorted.filter((item) => isSnoozed(item)).length
+  const visible = sorted.filter((item) => showSnoozed || !isSnoozed(item))
 
   return (
     <AdminShell>
@@ -151,10 +178,11 @@ export function NeedsAttentionPage() {
 
         <div className="grid grid-cols-1 gap-sm sm:grid-cols-2 lg:grid-cols-3">
           {visible.map((item) => {
-            const hot = item.count > 0
+            const low = item.severity === 'low'
+            const hot = item.count > 0 && !low
             const urgent = hot && item.severity === 'urgent'
-            const snoozedUntil = snoozed[item.key]
-            const cardSnoozed = isSnoozed(item.key)
+            const snoozedUntil = snoozed[item.key]?.until
+            const cardSnoozed = isSnoozed(item)
             return (
               <div
                 key={item.key}
@@ -186,6 +214,11 @@ export function NeedsAttentionPage() {
                     </span>
                   </span>
                   {item.hint && <span className="text-caption text-text-secondary">{item.hint}</span>}
+                  {low && item.count > 0 && (
+                    <span className="text-caption text-text-secondary">
+                      Low priority — worked when there is time, so it is left out of the sidebar count.
+                    </span>
+                  )}
                 </button>
                 <StopPropagation className="flex w-full items-center justify-between gap-sm pt-xs">
                   {cardSnoozed ? (
@@ -204,7 +237,7 @@ export function NeedsAttentionPage() {
                   ) : (
                     <button
                       type="button"
-                      onClick={() => snoozeItem(item.key)}
+                      onClick={() => snoozeItem(item)}
                       className="text-caption text-text-secondary hover:text-text-primary hover:underline"
                     >
                       Snooze for 7 days
