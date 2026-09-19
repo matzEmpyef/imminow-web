@@ -9,10 +9,6 @@ import { showToast } from '@/lib/toast'
 
 const MIN_REASON_LENGTH = 3
 
-function inr(n: number | null | undefined): string {
-  return n == null ? '—' : `₹${n.toLocaleString('en-IN')}`
-}
-
 /**
  * The declared → confirmed step (2026-09-11 rebuild, single-payment path — see BulkConfirmModal
  * for the multi-select one, which always confirms the declared amount as-is). "Amount received"
@@ -41,15 +37,19 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
   // /commission/payments/{id}/confirm has no allow_overpayment flag (unlike /commission-
   // entries/{id}/receive — review C5, 2026-09-12) — a "received more than what's still owed" case
   // here is only ever a corrected figure, already gated by the reason field above. This is an
-  // informational heads-up, not a second gate: the case's own outstanding is tracked in INR while
-  // the amount received is entered in its own currency, so a non-INR figure is converted at the
-  // same rate `amount_inr` was fixed at (approximate, same "≈" convention as approxInr above).
-  const declaredRateToInr = currency !== 'INR' && declaredAmount > 0 ? (payment.amount_inr ?? 0) / declaredAmount : 1
-  const receivedInr = isValidNumber ? parsed * declaredRateToInr : null
-  const overpaymentInr =
-    receivedInr != null && payment.entry_outstanding_inr != null && receivedInr > payment.entry_outstanding_inr
-      ? receivedInr - payment.entry_outstanding_inr
-      : 0
+  // informational heads-up, not a second gate.
+  //
+  // Compared like with like against the server's `entry_outstanding`, which is in THIS payment's
+  // own currency (assumptions audit H14, approved 2026-09-19). The client used to derive an FX
+  // rate as `amount_inr / declared` and compare rupees: with `amount_inr` missing the rate came
+  // out 0, so CAD 8,000 confirmed against CAD 500 owed warned about nothing at all. No rate is
+  // computed here any more — when the server cannot say what is outstanding, the screen says so
+  // rather than staying quiet.
+  const outstanding = payment.entry_outstanding
+  const outstandingAmount =
+    outstanding?.amount != null && (outstanding.currency ?? currency) === currency ? outstanding.amount : null
+  const overpayment =
+    isValidNumber && outstandingAmount != null && parsed > outstandingAmount ? parsed - outstandingAmount : 0
 
   return (
     <Modal
@@ -99,7 +99,16 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
           </div>
           <div className="flex items-center justify-between">
             <span className="text-caption text-text-secondary">Case still owes</span>
-            <span className="text-body-sm text-text-primary">{inr(payment.entry_outstanding_inr)}</span>
+            <span className="flex flex-col items-end">
+              <span className="text-body-sm text-text-primary">
+                {outstandingAmount != null ? money({ amount: outstandingAmount, currency }) : 'Not known'}
+              </span>
+              {approxInr(payment.entry_outstanding_inr ?? undefined, currency) && (
+                <span className="text-caption text-text-secondary">
+                  {approxInr(payment.entry_outstanding_inr ?? undefined, currency)}
+                </span>
+              )}
+            </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-caption text-text-secondary">Consultancy</span>
@@ -120,10 +129,15 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
           onChange={(e) => setReceivedAmount(e.target.value)}
         />
 
-        {overpaymentInr > 0 && (
+        {overpayment > 0 && (
           <p className="text-body-sm text-warning">
-            That&rsquo;s {currency === 'INR' ? '' : '~'}
-            {inr(overpaymentInr)} more than this case still owes.
+            That&rsquo;s {money({ amount: overpayment, currency })} more than this case still owes.
+          </p>
+        )}
+        {outstandingAmount == null && (
+          <p className="text-body-sm text-text-secondary">
+            This case&rsquo;s outstanding amount is unknown, so nothing here can tell you whether this is more than is
+            owed — check the case before confirming.
           </p>
         )}
 

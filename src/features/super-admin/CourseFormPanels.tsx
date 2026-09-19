@@ -8,6 +8,7 @@ import { MultiSelect } from '@/components/MultiSelect'
 import type { components } from '@/api/schema'
 import {
   ENTRY_QUALIFICATIONS,
+  FEE_PERIODS,
   INTAKE_STATUSES,
   MONTHS,
   ROLLED_DEADLINE_NOTE,
@@ -15,6 +16,7 @@ import {
   type AptitudeReq,
   type EnglishReq,
   type EntryQualificationValue,
+  type FeePeriodValue,
   type IntakeStatus,
   type ScoreSchemeValue,
 } from './courseFormShared'
@@ -433,14 +435,22 @@ export function CourseFeesPanel({
               </option>
             ))}
           </SelectField>
+          {/* No "Per year" default (assumptions audit H16, approved 2026-09-19) — a college
+              quoting a whole-programme figure used to be saved as that much every year. */}
           <SelectField
-            label="Covers"
+            label="Fee period"
             id="course-fee-period"
+            required={form.feeAmount !== ''}
             value={form.feePeriod}
-            onChange={(e) => form.setFeePeriod(e.target.value as 'per_year' | 'total')}
+            onChange={(e) => form.setFeePeriod(e.target.value as FeePeriodValue)}
+            error={form.feePeriodError}
           >
-            <option value="per_year">Per year</option>
-            <option value="total">Total programme</option>
+            <option value="">Not set</option>
+            {FEE_PERIODS.map((period) => (
+              <option key={period.value} value={period.value}>
+                {period.label}
+              </option>
+            ))}
           </SelectField>
         </div>
         {currencyMismatch && (

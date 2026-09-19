@@ -6303,6 +6303,51 @@ export interface paths {
         };
         trace?: never;
     };
+    "/consultancies/{id}/visit-slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bookable visit slots for the next 14 days, computed from the consultancy's own `visiting_schedule` and timezone (assumptions audit H12, 2026-09-19) — the app renders these instead of a hard-coded Mon–Sat 10–17 grid on the device clock. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Days with their hourly slots, in the office's zone. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            timezone: string;
+                            days: {
+                                /** Format: date */
+                                date: string;
+                                slots: string[];
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/consultancies/{id}/suspend": {
         parameters: {
             query?: never;
@@ -20598,6 +20643,8 @@ export interface components {
             next_cursor?: string | null;
             /** @description Included where cheap to compute. */
             total?: number | null;
+            /** @description GET /courses only (assumptions audit H17, 2026-09-19): how many courses in the WHOLE result the caller's fit verdict is `below` for — the number a console "hidden" line must show, rather than counting the page it happened to receive. */
+            below_count?: number | null;
         };
         /**
          * Format: uuid
@@ -20810,9 +20857,16 @@ export interface components {
             score?: string | null;
             /**
              * Format: date
-             * @description Test date — past for completed attempts, planned/booked date otherwise.
+             * @description Test date — past for completed attempts, planned/booked date otherwise. REQUIRED when `status` is `completed` (2026-09-19, assumptions audit H5): an undated attempt never expired, so a 2019 IELTS counted as current.
              */
             date?: string | null;
+            /** @description Section scores where the exam has them (IELTS/PTE/TOEFL: listening, reading, writing, speaking) — assumptions audit H4, 2026-09-19. A course's `min_band` is checked against these; with none on file that rule reads `unknown`, never pass on the overall alone. */
+            bands?: {
+                listening?: number | null;
+                reading?: number | null;
+                writing?: number | null;
+                speaking?: number | null;
+            } | null;
         };
         IntakeDeadlineUpdateResult: {
             /** @description True when the catalogue was changed; false when it went to review instead. */
@@ -21312,12 +21366,29 @@ export interface components {
             rating_override_reason?: string | null;
             /** Format: date-time */
             rating_override_at?: string | null;
+            /** @description Listed in Platform Settings' `featured_consultancies` (2026-09-19); the app shows "Featured". */
+            readonly featured?: boolean;
+            /** @description No rating yet AND onboarded within the last 90 days (owner, 2026-09-19: "cap new at 90 days"). After that an unrated account reads "No ratings yet", not "New". */
+            readonly is_new?: boolean;
             /** @description Published written reviews (2026-09-12). rating_count also includes star-only ratings. */
             readonly review_count?: number;
             /** @description Street address shown on the app's consultancy page (app review H2, 2026-09-13). Editable by the consultancy and the platform team. */
             address?: string | null;
-            /** @description Free text in the consultancy's own words, e.g. "Mon–Sat, 10:00–17:00" (app review H2). The visit form's booking window is the platform's rule, not this. */
+            /** @description Free text in the consultancy's own words, e.g. "Mon–Sat, 10:00–17:00" (app review H2). Shown to students; `visiting_schedule` is what bookings are checked against. */
             visiting_hours?: string | null;
+            /** @description When the office actually takes visits, in ITS OWN timezone (assumptions audit H12, 2026-09-19). Replaces the platform-wide Mon–Sat 10–17 rule that ignored this field and had no timezone at all. Absent means the platform default applies. */
+            visiting_schedule?: {
+                /** @description IANA zone, e.g. Asia/Kolkata. */
+                timezone?: string;
+                days?: {
+                    /** @description 0 = Sunday … 6 = Saturday. */
+                    weekday: number;
+                    /** @description HH:MM, 24-hour. */
+                    open: string;
+                    /** @description HH:MM, 24-hour, after `open`. */
+                    close: string;
+                }[];
+            } | null;
             /** @description Median hours between a student's message and the consultancy's next reply over the last 90 days of lead chats (app review H2, 2026-09-13). Null under three samples. */
             readonly typical_reply_hours?: number | null;
             /** @enum {string} */
@@ -21421,6 +21492,16 @@ export interface components {
             admin_user_id?: components["schemas"]["UUID"];
             /** @description User-requested (2026-08-15) — 3 uppercase letters. If omitted, derived server-side from the first 3 letters of `name`. See `Consultancy.file_number_prefix`. */
             file_number_prefix?: string | null;
+            /**
+             * Format: date
+             * @description The account's first term end (assumptions audit H9, 2026-09-19). Omitted → a 30-day trial from today; an account never starts without a term any more.
+             */
+            subscription_expires_at?: string | null;
+            /**
+             * @description Whether the account takes freelancer-sourced cases from day one (assumptions audit H8, 2026-09-19). Only a literal `true` opens the channel.
+             * @default false
+             */
+            freelancer_enabled: boolean;
         };
         /** @description Manage Consultancies' admin-only edits (build reference 1.23) — distinct from PATCH /consultancies/{id}, which is the consultancy's own profile self-edit. Adjusting seat_limit or entitlement_overrides is the "features/limits" action. */
         ConsultancyAdminPatchInput: {
@@ -22145,6 +22226,8 @@ export interface components {
                 cgpa_10?: components["schemas"]["ScoreSchemeConversion"];
                 cgpa_4?: components["schemas"]["ScoreSchemeConversion"];
             };
+            /** @description The platform admin's pick for Home's Top Consultancies rail (owner, 2026-09-19: "home page is a prime real estate… the top 3 should be platform admin's choice"). Ordered, up to three, `kind: consultancy` only. The app labels the section "Featured", shows the featured ones that serve the student's destination first, then fills any empty slot with the ordinary ranking (rating → response time → rotation). Discovery's full list is never affected — the honest ranking stays one tap away. */
+            featured_consultancies?: components["schemas"]["UUID"][];
             /** @description The ordered, hand-picked institutes on Sentpo Home's Top Institutes rail (INSTITUTE_ACCOUNT_PLAN D15, 2026-09-10) — a merchandising decision about the student app rather than a property of any one account, which is why it lives here beside the other platform-wide levers. Order is the ranking; up to three, matching the sibling Top Consultancies section. Validated on write, not filtered on read: an id that is not a `kind: institute` account, a duplicate, or a fourth entry is refused 400, so a Super Admin is never left looking at a saved selection the app quietly declines to show. Empty by default — read it with `GET /consultancies?filter[featured]=true`, and hide the section when that is empty. */
             featured_institutes?: components["schemas"]["UUID"][];
         };
@@ -22309,7 +22392,7 @@ export interface components {
              * @description Null when zero rules could be evaluated (all unknown) — the client shows the "Add your scores to check eligibility" CTA instead of a badge. `meets_so_far` (2026-09-19, assumptions audit C4): every rule the student has data for passes, but at least one rule is still unknown — the badge must say "N of M checked", never "Meets requirements", which is reserved for a course where every rule was evaluated. Dream Courses' "you now meet" counts only full `meets`.
              * @enum {string|null}
              */
-            verdict?: "meets" | "meets_so_far" | "borderline" | "below" | null;
+            verdict?: "meets" | "meets_so_far" | "below" | null;
             /** @description True when the academic rule was evaluated on a pursuing row's current_aggregate — badge reads "Provisionally meets" (the conditional-offer model). */
             provisional?: boolean;
             checks_evaluated: number;
@@ -22322,8 +22405,13 @@ export interface components {
                 label: string;
                 requirement?: string | null;
                 yours?: string | null;
-                /** @enum {string} */
-                result: "pass" | "borderline" | "fail" | "unknown";
+                /**
+                 * @description `borderline` was removed on 2026-09-19 (owner: "drop borderline, show shortfall"). A band we invented — 5 points, 0.5 IELTS, 6 months — pretended to know what a college would accept. A failed rule now says exactly how far short in `shortfall`, and whether that gap is worth an application is the consultant's call.
+                 * @enum {string}
+                 */
+                result: "pass" | "fail" | "unknown";
+                /** @description For a `fail`: the gap in the rule's own unit, e.g. "2 points below", "0.5 below on IELTS", "6 months short". Null for pass/unknown. */
+                shortfall?: string | null;
                 /** @description True for retakeable gaps (English/aptitude tests, work experience accruing), false for fixed history (past marks, backlogs). */
                 improvable?: boolean;
                 /** @description True when this rule is waiting on the STUDENT's own data — no score at that level, no test recorded, no months on a work-experience row. Every "Add …" prompt in the app is driven by this, so a screen never has to read a sentence to work out whether there is something for the student to do (2026-09-18). Note the Medium-of-Instruction case sets it while the rule is only `borderline`: the verdict does not need the score, but the student may still want to add it. */
@@ -23887,6 +23975,8 @@ export interface components {
             name: string;
             /** @description Half of the identity. "The Choice School" in Kochi and "The Choice School" in Thiruvalla are SEPARATE institutions, so (name, city) is unique and name alone is not. Every picker must therefore SHOW the city, or students pick the wrong row and the data is quietly worthless. */
             city: string;
+            /** @description The country the school or college is in (assumptions audit H11, 2026-09-19). Rows from before this carry India. Sentpo's pickers default to the student's own residence. */
+            country?: string;
             /** @description One of GET /countries/India/states (2026-09-15) — institutions are the student's own school or college in India; anything else is refused 422. */
             state?: string | null;
             /** @enum {string} */
@@ -23908,7 +23998,12 @@ export interface components {
         InstitutionInput: {
             name: string;
             city: string;
-            /** @description One of GET /countries/India/states (2026-09-15) — institutions are the student's own school or college in India; anything else is refused 422. */
+            /**
+             * @description The school's own country (assumptions audit H11, 2026-09-19). Omitted → India. A `state` is validated against GET /countries/{country}/states when that country has a list, and stored as typed when it has none.
+             * @default India
+             */
+            country: string;
+            /** @description A state or province of `country` (2026-09-15, widened 2026-09-19) — refused 422 when the country has a list and this is not on it. */
             state?: string | null;
             /** @enum {string} */
             type: "school" | "college";
@@ -24946,6 +25041,8 @@ export interface components {
             readonly reject_reason?: string | null;
             /** @description What the linked case still owes the platform after confirmed payments. Null for legacy pooled payments. */
             readonly entry_outstanding_inr?: number | null;
+            /** @description The same outstanding, in the PAYMENT's currency (assumptions audit H14, 2026-09-19), so the confirm screen compares like with like instead of deriving a rate from amount_inr / declared amount — which was 0 whenever amount_inr was missing. */
+            readonly entry_outstanding?: components["schemas"]["Money"] | null;
             id: components["schemas"]["UUID"];
             /**
              * Format: uuid
@@ -25569,6 +25666,8 @@ export interface components {
         };
     };
     parameters: {
+        /** @description Any write the app might retry after a lost response (quiz submit, shortlist save, chat message, visit request, review) carries a client-generated key (assumptions audit H21, 2026-09-19). A second request with the same key and caller replays the first response instead of creating a second record. Keys are kept for 24 hours. */
+        IdempotencyKey: string;
         /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
         CursorParam: string;
         /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */

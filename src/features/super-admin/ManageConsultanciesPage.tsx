@@ -604,9 +604,15 @@ function suggestedEnd(from: string | null | undefined, cycle: 'monthly' | 'annua
 
 function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consultancy; onClose: () => void }) {
   const renew = useRenewSubscription(consultancy.id!)
-  const initialCycle = consultancy.billing_cycle ?? 'annual'
-  const [cycle, setCycle] = useState<'monthly' | 'annual'>(initialCycle)
-  const [expires, setExpires] = useState(suggestedEnd(consultancy.subscription_expires_at, initialCycle))
+  // No pre-selected cycle on an account that has never had one, and no end date until the cycle
+  // is answered (assumptions audit H19, approved 2026-09-19): "Annual" pre-filled a year out meant
+  // a monthly deal saved without the select ever being touched granted 12 months for one month's
+  // fee. An account that already bills on a cycle keeps it — that one is a fact, not a guess.
+  const initialCycle = consultancy.billing_cycle ?? ''
+  const [cycle, setCycle] = useState<'' | 'monthly' | 'annual'>(initialCycle)
+  const [expires, setExpires] = useState(
+    initialCycle ? suggestedEnd(consultancy.subscription_expires_at, initialCycle) : '',
+  )
   const [amount, setAmount] = useState(consultancy.subscription_amount != null ? String(consultancy.subscription_amount) : '')
   // Blank when the account has never been billed (assumptions audit C5, approved 2026-09-19) —
   // an INR default recorded a Dubai renewal in rupees, and the amount only means anything once
@@ -625,21 +631,25 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
   const [noCharge, setNoCharge] = useState(false)
   const parsedAmount = Number(amount)
   const amountValid = noCharge || (amount.trim() !== '' && Number.isFinite(parsedAmount) && parsedAmount > 0)
+  const cycleValid = cycle !== ''
   const expiresValid = Boolean(expires)
   // A charged term needs to say which money it is in (C5). A no-charge term does not — there is
   // no amount to denominate.
   const currencyValid = noCharge || currency !== ''
+  const cycleError = attempted && !cycleValid ? 'Pick the billing cycle this term is on.' : undefined
   const expiresError = attempted && !expiresValid ? 'Pick the new end date.' : undefined
   const amountError = attempted && !amountValid ? 'Enter an amount greater than 0, or check "No charge for this term".' : undefined
   const currencyError = attempted && !currencyValid ? 'Pick the currency this term is billed in.' : undefined
 
-  function handleCycle(next: 'monthly' | 'annual') {
+  function handleCycle(next: '' | 'monthly' | 'annual') {
     setCycle(next)
-    setExpires(suggestedEnd(consultancy.subscription_expires_at, next))
+    // The end date follows the cycle, including back to empty — a date left over from a cycle the
+    // admin then cleared is exactly the unasked-for term H19 is about.
+    setExpires(next ? suggestedEnd(consultancy.subscription_expires_at, next) : '')
   }
 
   function handleRenew() {
-    if (!expiresValid || !amountValid || !currencyValid) {
+    if (!cycleValid || !expiresValid || !amountValid || !currencyValid) {
       setAttempted(true)
       return
     }
@@ -647,7 +657,7 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
       {
         subscription_expires_at: expires,
         subscription_started_at: startsOn,
-        billing_cycle: cycle,
+        billing_cycle: cycle as 'monthly' | 'annual',
         // Omitted rather than sent blank on a no-charge term — there is no amount to denominate,
         // and an empty string is not a currency (C5).
         ...(currency ? { billing_currency: currency } : {}),
@@ -687,9 +697,12 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
         <SelectField
           label="Billing cycle"
           id={`renew-cycle-${consultancy.id}`}
+          required
           value={cycle}
-          onChange={(e) => handleCycle(e.target.value as 'monthly' | 'annual')}
+          onChange={(e) => handleCycle(e.target.value as '' | 'monthly' | 'annual')}
+          error={cycleError}
         >
+          <option value="">Select…</option>
           <option value="annual">Annual</option>
           <option value="monthly">Monthly</option>
         </SelectField>
@@ -697,10 +710,16 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
           label="New end date"
           type="date"
           required
+          disabled={!cycleValid}
           value={expires}
           onChange={(e) => setExpires(e.target.value)}
           error={expiresError}
         />
+        {!cycleValid && (
+          <p className="-mt-xs text-caption text-text-secondary">
+            Pick the cycle first and the end date fills itself in — you can still change it.
+          </p>
+        )}
         {inPast && (
           <p className="text-caption text-warning">
             This date has already passed — use it only to correct a record. The consultancy will stay expired.
@@ -1360,6 +1379,10 @@ export function ManageConsultanciesPage() {
         <span className="flex items-center gap-sm">
           <span className="font-medium text-text-primary">{c.name}</span>
           {c.kind === 'institute' && <Badge color="info">Institute</Badge>}
+          {/* Picked for Home's Featured rail in App Config (approved 2026-09-19) — shown here
+              because Manage Consultancies is where an admin asks "why is this account getting
+              leads", and the answer is otherwise on a different screen. */}
+          {c.featured && <Badge color="primary">Featured</Badge>}
         </span>
       ),
     },
@@ -1406,7 +1429,13 @@ export function ManageConsultanciesPage() {
       hideBelow: 'lg',
       render: (c) =>
         c.rating == null ? (
-          <span className="text-text-secondary">Not rated</span>
+          // `is_new` is the server's own 90-day window (2026-09-19), not a date computed here —
+          // after it an unrated account reads "Not rated", which is a different statement.
+          c.is_new ? (
+            <Badge color="info">New</Badge>
+          ) : (
+            <span className="text-text-secondary">Not rated</span>
+          )
         ) : (
           <span className="flex items-center gap-xs">
             <span className="font-medium text-text-primary">{c.rating.toFixed(1)}</span>

@@ -102,9 +102,12 @@ export function useQuizForm(editingEvent?: Event): QuizFormValue {
 
   // TIME RULES (assumptions audit C16, approved 2026-09-19), mirroring the server's own.
   //
-  // The end time is REQUIRED once any position prize carries points: settlement waits on
+  // The end time is REQUIRED once the quiz has ANY position prize — a points prize or a named
+  // one like "Bluetooth speaker" (C16 follow-up, 2026-09-19: the server refuses the save on
+  // `position_prizes.length > 0 && ends_at == null`, so checking only the points ones let a
+  // label-only quiz reach a 400 the form had already said was fine). Settlement waits on
   // `ends_at` while display assumed a one-hour window, so a quiz created without one showed
-  // "ended" with a winner after an hour and the advertised points were never paid — silently.
+  // "ended" with a winner after an hour and the advertised prize was never given — silently.
   // A quiz with no prizes still needs no end; its window is genuinely open-ended.
   const nowInZone = nowWallClock(timezone)
   const started = Boolean(editingEvent?.starts_at && Date.parse(editingEvent.starts_at) <= Date.now())
@@ -112,8 +115,9 @@ export function useQuizForm(editingEvent?: Event): QuizFormValue {
   const startInPast = !isEditing && Boolean(startsAt) && startsAt < nowInZone
   const endBeforeStart = Boolean(startsAt && endsAt && endsAt <= startsAt)
   const endInPast = Boolean(endsAt) && endsAt < nowInZone
-  const hasPrizePoints = prizes.some((p) => p.points)
-  const endRequired = hasPrizePoints && endsAt === ''
+  // Every row counts, empty ones included: `toPayload` sends `position_prizes` as-is, so an
+  // untouched row is a prize as far as the server is concerned.
+  const endRequired = prizes.length > 0 && endsAt === ''
   const startError = startInPast ? 'The start cannot be in the past.' : undefined
   const endError = endRequired
     ? 'A quiz with position prizes needs an end time — that is when the prizes are paid.'

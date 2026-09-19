@@ -123,6 +123,13 @@ export function useUpdatePlatformSettings() {
     mutationFn: async (body: {
       show_course_view_counts?: boolean
       featured_institutes?: string[]
+      /**
+       * Home's Featured consultancies rail (approved 2026-09-19) — the same shape and the same
+       * server-side validation as `featured_institutes`: ordered, at most three, `kind:
+       * consultancy` only, refused 400 otherwise. Unlike the institutes rail the app never hides
+       * this section; unpicked slots fall back to the ordinary ranking.
+       */
+      featured_consultancies?: string[]
       /** Open cases one staff member can handle — Coverage by Country's capacity assumption. */
       cases_per_staff?: number
       /**

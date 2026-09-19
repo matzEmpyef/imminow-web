@@ -153,7 +153,9 @@ export function QuizSettingsModal({
           <TextField
             label="Ends at"
             type="datetime-local"
-            required={prizes.some((p) => p.points)}
+            // Any prize row at all, not only the ones carrying points — the server refuses the
+            // save either way (C16 follow-up, 2026-09-19).
+            required={prizes.length > 0}
             min={nowInZone}
             value={endsAt}
             onChange={(e) => setEndsAt(e.target.value)}
@@ -232,7 +234,8 @@ export function QuizSettingsModal({
           <p className="text-body-sm font-medium text-text-primary">Position prizes</p>
           <p className="text-caption text-text-secondary">
             Add a prize, bonus points, or both for specific leaderboard positions. Leave empty if this quiz is
-            participation-points-only.
+            participation-points-only. Adding one means the quiz needs an end time — that is when prizes are
+            settled.
           </p>
           {prizes.map((p, i) => (
             <PrizeEditor key={i} prize={p} onChange={(np) => updatePrize(i, np)} onRemove={() => removePrize(i)} />

@@ -6,7 +6,7 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { Modal } from '@/components/Modal'
 import { useAppConfig, useUpdateAppConfig } from '@/queries/appConfig'
-import { FeaturedInstitutesCard } from './FeaturedInstitutesCard'
+import { FeaturedConsultanciesCard, FeaturedInstitutesCard } from './FeaturedAccountsCard'
 import type { components } from '@/api/schema'
 import { showToast } from '@/lib/toast'
 
@@ -275,6 +275,7 @@ export function AppConfigPage() {
 
         <VersionAndRatingCard />
         <FeaturedInstitutesCard />
+        <FeaturedConsultanciesCard />
       </div>
     </AdminShell>
   )

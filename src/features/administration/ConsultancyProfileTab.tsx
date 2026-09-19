@@ -18,6 +18,9 @@ import { useAccountWords } from '@/lib/accountWords'
 import type { components } from '@/api/schema'
 import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
 import { showToast } from '@/lib/toast'
+import { ApiError } from '@/api/errors'
+import { VisitingHoursEditor } from './VisitingHoursEditor'
+import { visitingHoursStateFrom, visitingScheduleFrom, type VisitingHoursState } from './visitingHoursState'
 
 // User-requested — Description is the short factual blurb shown in the student-facing browse
 // list and near the top of Consultancy Detail, so it needs to stay scannable.
@@ -41,6 +44,10 @@ export function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnTyp
   // hours, so "visit us" was an invitation with no directions attached.
   const [address, setAddress] = useState('')
   const [visitingHours, setVisitingHours] = useState('')
+  // What bookings are actually checked against (assumptions audit H12, approved 2026-09-19) — the
+  // free-text line above is only how the hours read to a student. Every consultancy was assumed
+  // Mon–Sat 10–17 in no timezone at all until this could be set.
+  const [visiting, setVisiting] = useState<VisitingHoursState>(() => visitingHoursStateFrom(null))
   const countryOptions = useCountries()
 
   useEffect(() => {
@@ -54,8 +61,16 @@ export function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnTyp
     setPublicPhone(consultancy.public_phone ?? '')
     setAddress(consultancy.address ?? '')
     setVisitingHours(consultancy.visiting_hours ?? '')
+    setVisiting(visitingHoursStateFrom(consultancy.visiting_schedule))
   }, [consultancy])
 
+  // The schedule is the only field on this form the server can still refuse — everything else is
+  // checked here first — so a `validation_failed` is shown beside the day rows rather than in the
+  // footer, where it would read as "something, somewhere, was wrong" (assumptions audit H12).
+  const scheduleError =
+    updateProfile.error instanceof ApiError && updateProfile.error.code === 'validation_failed'
+      ? updateProfile.error.message
+      : undefined
   const publicEmailError = publicEmail && !isValidEmail(publicEmail) ? EMAIL_ERROR : undefined
   const publicPhoneError = publicPhone && !isValidPhone(publicPhone) ? PHONE_ERROR : undefined
   const descriptionWords = wordCount(description)
@@ -79,6 +94,7 @@ export function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnTyp
         public_phone: publicPhone || null,
         address: address || null,
         visiting_hours: visitingHours || null,
+        visiting_schedule: visitingScheduleFrom(visiting),
       },
       { onSuccess: () => showToast('Profile updated') },
     )
@@ -128,9 +144,14 @@ export function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnTyp
               placeholder="Mon–Sat, 10:00–17:00"
             />
             <span className="pl-lg text-caption text-text-secondary">
-              Shown on your page in the app. The visit-booking window (Mon–Sat 10–17) is separate.
+              How it appears to students, in your own words. Bookable times come from Visiting hours below.
             </span>
           </div>
+          <VisitingHoursEditor
+            value={visiting}
+            onChange={setVisiting}
+            error={scheduleError}
+          />
           <div className="flex flex-col gap-xs lg:col-span-2">
             <FieldLabel htmlFor="consultancy-description">Description</FieldLabel>
             <textarea
@@ -176,7 +197,10 @@ export function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnTyp
             error={publicPhoneError}
           />
           <div className="flex items-center justify-end gap-md lg:col-span-2">
-            {updateProfile.isError && <p className="text-body-sm text-error">{updateProfile.error.message}</p>}
+            {/* Not repeated here when it is already shown against the day rows above. */}
+            {updateProfile.isError && !scheduleError && (
+              <p className="text-body-sm text-error">{updateProfile.error.message}</p>
+            )}
             <Button
               type="submit"
               loading={updateProfile.isPending}

@@ -178,7 +178,14 @@ export function CourseFinderPage() {
   // because it's an explicit, visible toggle the consultant controls, never a silent filter.
   // Unknown/incomplete fits stay visible either way; only a hard `below` verdict is hidden.
   const rows = state.eligibleOnly ? allRows.filter((c) => c.fit?.verdict !== 'below') : allRows
-  const hiddenCount = allRows.length - rows.length
+  // Counted by the SERVER over the whole result, never by subtracting this page's rows
+  // (assumptions audit H17, approved 2026-09-19): 400 matches with 50 returned used to read as
+  // "12 hidden" beside 38 rows, so the consultant believed the catalogue held 38 courses. `total`
+  // is what "of Y" means; `below_count` is how many of those Y the toggle is holding back.
+  const meta = courses.data?.meta
+  const totalCount = meta?.total ?? null
+  const hiddenCount = state.eligibleOnly ? (meta?.below_count ?? 0) : 0
+  const shownCount = totalCount != null ? Math.max(totalCount - hiddenCount, 0) : null
   // Grade Match only exists relative to a PERSON WITH A PROFILE. An imported lead has no linked
   // student account and the server sends no `fit` at all for one (see useCourseFinder) — showing
   // the column anyway would print "No requirements published" on every row, which is the WRONG
@@ -262,16 +269,22 @@ export function CourseFinderPage() {
             profile too". Without an applicant this is simply a catalog search; picking one
             layers Grade Match, notes and Suggest on top. */}
         <div className="flex flex-col gap-sm">
-          {hiddenCount > 0 && (
+          {(shownCount != null || hiddenCount > 0) && rows.length > 0 && (
             <p className="text-body-sm text-text-secondary">
-              {hiddenCount} course{hiddenCount === 1 ? '' : 's'} below requirements hidden —{' '}
-              <button
-                type="button"
-                className="text-primary hover:underline"
-                onClick={() => setState((s) => ({ ...s, eligibleOnly: false }))}
-              >
-                show anyway
-              </button>
+              {shownCount != null && `Showing ${rows.length} of ${shownCount} matching courses`}
+              {shownCount != null && hiddenCount > 0 && ' · '}
+              {hiddenCount > 0 && (
+                <>
+                  {hiddenCount} below requirements hidden —{' '}
+                  <button
+                    type="button"
+                    className="text-primary hover:underline"
+                    onClick={() => setState((s) => ({ ...s, eligibleOnly: false }))}
+                  >
+                    show anyway
+                  </button>
+                </>
+              )}
             </p>
           )}
           <Table

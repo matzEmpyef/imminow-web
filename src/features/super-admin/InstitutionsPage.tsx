@@ -7,6 +7,7 @@ import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { SelectField } from '@/components/SelectField'
 import { StateSelect } from '@/components/StateSelect'
+import { CountrySelect } from '@/components/CountrySelect'
 import { CompactSelect } from '@/components/CompactSelect'
 import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
@@ -26,6 +27,10 @@ import {
   type InstitutionSuggestionGroup,
 } from '@/queries/institutions'
 import { showToast } from '@/lib/toast'
+
+// Where nearly every student's school actually is. A default, not a rule (assumptions audit H11,
+// approved 2026-09-19) — the form asks, and any country on the shared list is accepted.
+const DEFAULT_INSTITUTION_COUNTRY = 'India'
 
 /**
  * Platform staff surface for the institution a student comes FROM.
@@ -94,6 +99,13 @@ function InstitutionFormModal({
   const mutation = isEditing ? update : create
   const [name, setName] = useState(institution ? baseName(institution) : (initialName ?? ''))
   const [city, setCity] = useState(institution?.city ?? initialCity ?? '')
+  // The school's own country (assumptions audit H11, approved 2026-09-19). Every institution used
+  // to be assumed Indian, so a Nepali or Nigerian student's college could not be created at all:
+  // the state field only ever offered states of India and the server refused anything else. India
+  // stays the default because that is where almost every row is, but it is now an answer on the
+  // form rather than a rule in the code. Existing rows show what they were created with; the
+  // country is fixed after creation, which is why it is read-only when editing.
+  const [country, setCountry] = useState(institution?.country ?? DEFAULT_INSTITUTION_COUNTRY)
   const [state, setState] = useState(institution?.state ?? '')
   const [type, setType] = useState<'school' | 'college'>(institution?.type ?? guessType(initialName ?? ''))
   const composed = name.trim() && city.trim() ? `${name.trim()} - ${city.trim()}` : 'Name - City'
@@ -110,7 +122,8 @@ function InstitutionFormModal({
       },
     }
     if (institution) update.mutate({ id: institution.id, ...body }, done)
-    else create.mutate(body, done)
+    // `country` is create-only: the server reads it on POST but its PATCH has no country to change.
+    else create.mutate({ ...body, country }, done)
   }
 
   return (
@@ -153,7 +166,23 @@ function InstitutionFormModal({
               if (mutation.isError) mutation.reset()
             }}
           />
-          <StateSelect label="State/Province" country="India" value={state} onChange={setState} />
+          {isEditing ? (
+            <TextField label="Country" value={country} disabled readOnly />
+          ) : (
+            <CountrySelect
+              label="Country"
+              required
+              value={country}
+              onChange={(next) => {
+                setCountry(next)
+                // A state of the old country is not a state of the new one.
+                setState('')
+              }}
+            />
+          )}
+          {/* Follows the country, and becomes a free text field for a country with no published
+              state list at all (StateSelect handles both) — H11. */}
+          <StateSelect label="State/Province" country={country} value={state} onChange={setState} />
         </div>
         <SelectField label="Type" id="institution-type" value={type} onChange={(e) => setType(e.target.value as 'school' | 'college')}>
           <option value="school">School</option>
@@ -599,6 +628,15 @@ function AllInstitutionsView() {
     },
     { key: 'city', header: 'City', hideBelow: 'md', render: (i) => i.city },
     { key: 'state', header: 'State/Province', hideBelow: 'lg', render: (i) => i.state ?? '—' },
+    // Institutions are no longer all Indian (assumptions audit H11, approved 2026-09-19), so the
+    // list has to say which country a row is in — two "St. Xavier's - Kathmandu" rows are
+    // otherwise indistinguishable from a duplicate.
+    {
+      key: 'country',
+      header: 'Country',
+      hideBelow: 'lg',
+      render: (i) => i.country ?? DEFAULT_INSTITUTION_COUNTRY,
+    },
     {
       key: 'type',
       header: 'Type',

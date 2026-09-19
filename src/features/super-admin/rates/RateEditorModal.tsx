@@ -4,6 +4,7 @@ import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { SelectField } from '@/components/SelectField'
+import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useAdminConsultancy } from '@/queries/adminConsultancies'
 import { useCommissionRates, useSaveCommissionRateRows } from '@/queries/commissionRates'
 import { useCountries } from '@/queries/countries'
@@ -109,8 +110,13 @@ export function RateEditorModal({
   const saveRows = useSaveCommissionRateRows()
 
   const consultancyName = consultancy.data?.name ?? defaultConsultancyName
+  // The account's answer is only known once the detail fetch lands. An in-flight fetch used to
+  // read as `freelancer_enabled: false` — the Freelancer % inputs were hidden and a save made in
+  // that window silently persisted freelancer = direct on an account that has the channel on
+  // (assumptions audit H15, approved 2026-09-19). So: no matrix at all until the query settles.
+  const consultancyPending = Boolean(consultancyId) && consultancy.isPending
   const freelancerEnabled = consultancy.data?.freelancer_enabled ?? false
-  const freelancerDisabled = Boolean(consultancyId) && !freelancerEnabled
+  const freelancerDisabled = Boolean(consultancyId) && !consultancyPending && !freelancerEnabled
   const servedCountries = useMemo(() => [...(consultancy.data?.countries_served ?? [])].sort(), [consultancy.data])
   const countryOptions = showAllCountries || servedCountries.length === 0 ? (allCountries.data ?? []) : servedCountries
 
@@ -162,7 +168,7 @@ export function RateEditorModal({
     return rowErrors
   }, [matrix, freelancerDisabled, filledKeys])
 
-  const canSubmit = Boolean(consultancyId) && Boolean(country)
+  const canSubmit = Boolean(consultancyId) && Boolean(country) && !consultancyPending && !consultancy.isError
   const noRowsFilledError = attempted && filledKeys.length === 0 ? 'Fill in at least one payer group before saving.' : undefined
 
   function handleSubmit(e: FormEvent) {
@@ -267,6 +273,16 @@ export function RateEditorModal({
           </div>
         )}
 
+        {consultancyPending ? (
+          <div className="flex flex-col gap-md rounded-md bg-background p-md">
+            <p className="text-caption text-text-secondary">Loading this account&rsquo;s settings…</p>
+            {RATE_GROUPS.map(({ key }) => (
+              <Skeleton key={key} className="h-16 rounded-md" />
+            ))}
+          </div>
+        ) : consultancy.isError ? (
+          <ErrorState message="Could not load this account&rsquo;s settings, so the rates cannot be edited safely." onRetry={() => consultancy.refetch()} />
+        ) : (
         <div className="flex flex-col gap-md rounded-md bg-background p-md">
           {RATE_GROUPS.map(({ key, label }) => (
             <div key={key} className="flex flex-col gap-xs border-b border-border pb-md last:border-0 last:pb-0">
@@ -313,6 +329,7 @@ export function RateEditorModal({
             </p>
           )}
         </div>
+        )}
       </form>
     </Modal>
   )

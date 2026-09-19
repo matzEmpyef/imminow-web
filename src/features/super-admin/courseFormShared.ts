@@ -56,6 +56,16 @@ export const SCORE_SCHEMES: { value: Exclude<ScoreSchemeValue, ''>; label: strin
   { value: 'cgpa_4', label: 'CGPA (out of 4)' },
 ]
 
+/** What a tuition figure covers. `''` is "not chosen yet" (assumptions audit H16, approved
+ * 2026-09-19): Per year used to be pre-selected, so a college quoting "45,000 for the programme"
+ * was saved as 45,000 A YEAR and every two-year comparison doubled it. The admin picks. */
+export type FeePeriodValue = '' | 'per_year' | 'total'
+
+export const FEE_PERIODS: { value: Exclude<FeePeriodValue, ''>; label: string }[] = [
+  { value: 'per_year', label: 'Per year' },
+  { value: 'total', label: 'Total programme' },
+]
+
 /** An intake month is Open, Closed, or nobody has said (assumptions audit C10, approved
  * 2026-09-19). Ticking nine months used to advertise nine OPEN intakes; `unknown` saves the
  * absence of an answer instead of inventing one. */

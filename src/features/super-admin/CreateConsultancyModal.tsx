@@ -13,10 +13,21 @@ import { useAdminColleges } from '@/queries/adminColleges'
 import { useUserSearch } from '@/queries/supportTools'
 import { EMAIL_ERROR, isValidEmail } from '@/lib/validation'
 import { showToast } from '@/lib/toast'
+import { formatDate, localDateISO } from '@/lib/time'
 import type { components } from '@/api/schema'
 
 type AccountKind = NonNullable<components['schemas']['Consultancy']['kind']>
 type AdminMode = 'invite' | 'attach'
+
+// Matches the server's own TRIAL_TERM_DAYS. A new account gets this much unless a real term end
+// is set here (assumptions audit H9, approved 2026-09-19).
+const TRIAL_TERM_DAYS = 30
+
+function trialEndISO(): string {
+  const end = new Date()
+  end.setDate(end.getDate() + TRIAL_TERM_DAYS)
+  return localDateISO(end)
+}
 
 /**
  * Create Consultancy, as a popup on Manage Consultancies (user-requested, 2026-08-27).
@@ -73,6 +84,17 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
   const [adminUser, setAdminUser] = useState<{ id: string; name: string; email: string } | null>(null)
   const [filePrefix, setFilePrefix] = useState('')
   const [filePrefixTouched, setFilePrefixTouched] = useState(false)
+  // Every account now ends somewhere (assumptions audit H9, approved 2026-09-19): an account
+  // created with no term kept unlimited leads, clients and marketplace visibility forever, and
+  // showed up only as a number on a card nobody had to clear. Blank means the 30-day trial below;
+  // a date here is the term that was actually sold.
+  const [termEnd, setTermEnd] = useState('')
+  const [trialEnd] = useState(trialEndISO)
+  // Asked, not assumed (assumptions audit H8, approved 2026-09-19). A record created without an
+  // answer made "missing" mean three different things across the platform, and the rate editor
+  // read it as "off" — saving the direct rate as the freelancer one on an account that takes
+  // freelancer cases. No is the default because most accounts do not use the channel.
+  const [freelancerEnabled, setFreelancerEnabled] = useState(false)
 
   const isInstitute = kind === 'institute'
   // The same catalogue Colleges & Courses manages — an institute account never invents a college,
@@ -142,6 +164,10 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
           ? { admin_first_name: adminFirstName, admin_last_name: adminLastName, admin_email: adminEmail }
           : { admin_user_id: adminUser!.id }),
         file_number_prefix: effectivePrefix || undefined,
+        // Omitted rather than sent blank: no date here means "give it the trial", which is the
+        // server's own default, not "no term at all".
+        ...(termEnd ? { subscription_expires_at: termEnd } : {}),
+        freelancer_enabled: freelancerEnabled,
         idempotencyKey,
       },
       // Already on Manage Consultancies, and the list invalidates itself — closing is enough.
@@ -281,6 +307,45 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         )}
+
+        <div className="flex flex-col gap-md border-t border-border pt-md">
+          <p className="text-body-sm font-medium text-text-primary">Subscription</p>
+          <div className="flex flex-col gap-xs">
+            <TextField
+              label="Term ends"
+              type="date"
+              min={localDateISO()}
+              value={termEnd}
+              onChange={(e) => setTermEnd(e.target.value)}
+              placeholder={trialEnd}
+            />
+            <p className="text-caption text-text-secondary">
+              Leave this empty and the account gets a {TRIAL_TERM_DAYS}-day trial &mdash; trial ends{' '}
+              <strong>{formatDate(trialEnd)}</strong>. Set a date instead if a term has already been agreed. Either
+              way it can be renewed or changed later from this list.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-md border-t border-border pt-md">
+          <p className="text-body-sm font-medium text-text-primary">Freelancer channel</p>
+          <div className="flex flex-col gap-xs">
+            <SelectField
+              label="Takes freelancer-sourced cases"
+              id="freelancer-enabled"
+              required
+              value={freelancerEnabled ? 'yes' : 'no'}
+              onChange={(e) => setFreelancerEnabled(e.target.value === 'yes')}
+            >
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </SelectField>
+            <p className="text-caption text-text-secondary">
+              Yes means freelancers can bring this account students, and its commission rates need a separate
+              freelancer %. It can be changed later, and the rates it affects are then asked for again.
+            </p>
+          </div>
+        </div>
 
         <div className="flex flex-col gap-md border-t border-border pt-md">
           <p className="text-body-sm font-medium text-text-primary">Primary Office Address</p>

@@ -37,6 +37,11 @@ type ConsultancyProfileEdits = Partial<
     // hours to show, so a student who wanted to walk in had nothing to go on.
     | 'address'
     | 'visiting_hours'
+    // When the office actually takes visits, per weekday and in its own timezone (assumptions
+    // audit H12, approved 2026-09-19). `visiting_hours` stays the sentence students read; this is
+    // what a booking is checked against. Null means "no hours of our own — use the platform
+    // default", which is also what the server reads an empty day list as (it refuses one).
+    | 'visiting_schedule'
   >
 >
 

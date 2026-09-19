@@ -5,6 +5,7 @@ import {
   type AptitudeReq,
   type EnglishReq,
   type EntryQualificationValue,
+  type FeePeriodValue,
   type FormTab,
   type IntakeStatus,
   type ScoreSchemeValue,
@@ -60,8 +61,8 @@ export interface CourseFormValue {
   setFeeAmount: (v: string) => void
   feeCurrency: string
   setFeeCurrency: (v: string) => void
-  feePeriod: 'per_year' | 'total'
-  setFeePeriod: (v: 'per_year' | 'total') => void
+  feePeriod: FeePeriodValue
+  setFeePeriod: (v: FeePeriodValue) => void
   appFeeAmount: string
   setAppFeeAmount: (v: string) => void
   effectiveAppFeeCurrency: string
@@ -126,6 +127,7 @@ export interface CourseFormValue {
   entryQualificationError?: string
   schemeError?: string
   feeCurrencyError?: string
+  feePeriodError?: string
   appFeeCurrencyError?: string
   toPayload: () => Omit<CourseInput, 'college_id' | 'active'>
 }
@@ -219,7 +221,10 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
     Boolean(editingCourse?.application_fee?.currency),
   )
   const effectiveAppFeeCurrency = appFeeCurrencyTouched ? appFeeCurrency : feeCurrency
-  const [feePeriod, setFeePeriod] = useState<'per_year' | 'total'>(editingCourse?.fee_period ?? 'per_year')
+  // No pre-selection (assumptions audit H16, approved 2026-09-19) — see FeePeriodValue. An
+  // existing course keeps whatever was saved; a course saved before this field existed comes back
+  // blank and has to be answered the next time the fee is touched.
+  const [feePeriod, setFeePeriod] = useState<FeePeriodValue>(editingCourse?.fee_period ?? '')
   const [appFeeAmount, setAppFeeAmount] = useState(
     editingCourse?.application_fee?.amount != null ? String(editingCourse.application_fee.amount) : '',
   )
@@ -308,6 +313,12 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
       : undefined
   const feeCurrencyError =
     feeAmount !== '' && feeCurrency === '' ? 'Pick the currency this fee is in.' : undefined
+  // Asked only alongside an amount, like the currency above: with no tuition figure there is
+  // nothing for a period to describe (assumptions audit H16, approved 2026-09-19).
+  const feePeriodError =
+    feeAmount !== '' && feePeriod === ''
+      ? 'Say what this fee covers — a per-programme figure read as per-year doubles a two-year course.'
+      : undefined
   const appFeeCurrencyError =
     appFeeAmount !== '' && !appFeeWaived && effectiveAppFeeCurrency === ''
       ? 'Pick the currency this application fee is in.'
@@ -363,7 +374,7 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
       duration,
       duration_months: durationMonths === '' ? null : Number(durationMonths),
       fee: feeAmount ? { amount: Number(feeAmount), currency: feeCurrency } : null,
-      fee_period: feePeriod,
+      fee_period: feePeriod || null,
       application_fee: appFeeAmount ? { amount: Number(appFeeAmount), currency: effectiveAppFeeCurrency } : null,
       application_fee_waived: appFeeWaived,
       scholarship_available: scholarship,
@@ -492,11 +503,13 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
       !entryQualificationError &&
       !schemeError &&
       !feeCurrencyError &&
+      !feePeriodError &&
       !appFeeCurrencyError,
     campusRequired,
     entryQualificationError,
     schemeError,
     feeCurrencyError,
+    feePeriodError,
     appFeeCurrencyError,
     toPayload,
   }

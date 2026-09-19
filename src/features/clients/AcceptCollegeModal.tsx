@@ -80,7 +80,11 @@ export function AcceptCollegeModal({
   // with a January deadline is May of deadline-year + 1, while a September intake with that same
   // January deadline is September of deadline-year itself). Falls back to the old now-based
   // heuristic when the course has no deadline data at all.
-  const defaultMonth = course.next_intake?.month ?? course.intakes?.[0] ?? 'September'
+  //
+  // With NO intake data at all the field starts empty and must be answered (assumptions audit
+  // H18, approved 2026-09-19): the old 'September' fallback recorded a January starter as a
+  // September one, and every due date on the case was then eight months out.
+  const defaultMonth = course.next_intake?.month ?? course.intakes?.[0] ?? ''
   const now = new Date()
   const nextIntakeDeadline = course.next_intake?.application_deadline
   let defaultYear: number
@@ -92,6 +96,9 @@ export function AcceptCollegeModal({
     const deadlineMonthIndex = deadlineDate.getUTCMonth()
     const intakeMonthIndex = MONTHS.indexOf(defaultMonth)
     defaultYear = deadlineYear + (intakeMonthIndex < deadlineMonthIndex ? 1 : 0)
+  } else if (defaultMonth === '') {
+    // Nothing to reason from — this year, alongside the empty month the consultant has to pick.
+    defaultYear = now.getFullYear()
   } else {
     defaultYear = MONTHS.indexOf(defaultMonth) < now.getMonth() ? now.getFullYear() + 1 : now.getFullYear()
   }
@@ -127,7 +134,8 @@ export function AcceptCollegeModal({
 
   const collegeOk = !needsCollege || (Number(collegeAmount) > 0 && feeCurrency !== '')
   const studentOk = !needsStudent || (Number(studentAmount) > 0 && studentCurrency !== '')
-  const canSubmit = payerMethod != null && !missingCommissionPercent && collegeOk && studentOk && !updateStatus.isPending
+  const canSubmit =
+    payerMethod != null && !missingCommissionPercent && collegeOk && studentOk && startMonth !== '' && !updateStatus.isPending
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -270,7 +278,15 @@ export function AcceptCollegeModal({
               </div>
             )}
             <div className="grid grid-cols-2 gap-sm">
-              <SelectField label="Course starts" value={startMonth} onChange={(e) => setStartMonth(e.target.value)}>
+              {/* Empty and required when the course lists no intakes (assumptions audit H18,
+                  approved 2026-09-19) — see `defaultMonth` above. */}
+              <SelectField
+                label="Course starts"
+                required
+                value={startMonth}
+                onChange={(e) => setStartMonth(e.target.value)}
+              >
+                <option value="">Select…</option>
                 {MONTHS.map((m) => (
                   <option key={m} value={m}>
                     {m}
@@ -285,6 +301,12 @@ export function AcceptCollegeModal({
                 ))}
               </SelectField>
             </div>
+            {defaultMonth === '' && (
+              <p className="-mt-xs text-caption text-text-secondary">
+                This course lists no intake months, so say when this student actually starts — the case&rsquo;s due
+                dates are counted from it.
+              </p>
+            )}
             <p className="text-caption text-text-secondary">
               Accepting is final for this case — one accepted college per student. A mistake can be undone with
               &ldquo;Change acceptance&rdquo;, which records a reason in the audit log.
