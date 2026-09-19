@@ -28,7 +28,7 @@ import { formatCourseFee, formatFeeApprox } from '@/lib/money'
 import { formatDate } from '@/lib/time'
 import type { components } from '@/api/schema'
 import { mediaUrl } from '@/lib/mediaUrl'
-import { ENTRY_QUALIFICATIONS } from '@/features/super-admin/courseFormShared'
+import { ENTRY_QUALIFICATIONS, ROLLED_DEADLINE_NOTE } from '@/features/super-admin/courseFormShared'
 
 type Course = components['schemas']['Course']
 type IconColor = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
@@ -171,7 +171,7 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
   // immediately" would depend on the caller re-rendering with a fresh `course` prop, which none
   // of today's callers do. Keyed by month since deadlines are unique per month on one course.
   const [deadlineOverrides, setDeadlineOverrides] = useState<
-    Record<string, { application_deadline: string | null; status?: 'open' | 'closed' }>
+    Record<string, { application_deadline: string | null; status?: 'open' | 'closed' | 'unknown' }>
   >({})
 
   // ---- header ------------------------------------------------------------------------------
@@ -381,16 +381,29 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
                           ) : (
                             <span className="italic text-text-secondary">Rolling admission</span>
                           )}
+                          {/* An estimate the server rolled forward, never the college's own date
+                              (assumptions audit C10, approved 2026-09-19). */}
+                          {merged.rolled && (
+                            <span className="text-caption text-text-secondary">{ROLLED_DEADLINE_NOTE}</span>
+                          )}
                           <IntakeDeadlineEditor
                             courseId={course.id}
                             month={month}
                             currentDeadline={merged.application_deadline ?? null}
                             currentStatus={merged.status}
-                            onApplied={(next) => setDeadlineOverrides((o) => ({ ...o, [month]: next }))}
+                            rolled={Boolean(merged.rolled)}
+                            onApplied={(next) =>
+                              setDeadlineOverrides((o) => ({ ...o, [month]: { ...o[month], ...next } }))
+                            }
                           />
                         </span>
                       ) : merged?.application_deadline ? (
-                        <Known course={course} value={formatDate(merged.application_deadline)} field={`intake_deadline.${month}`} label={`${month} application deadline`} />
+                        <span className="inline-flex flex-col">
+                          <Known course={course} value={formatDate(merged.application_deadline)} field={`intake_deadline.${month}`} label={`${month} application deadline`} />
+                          {merged.rolled && (
+                            <span className="text-caption text-text-secondary">{ROLLED_DEADLINE_NOTE}</span>
+                          )}
+                        </span>
                       ) : (
                         gap(`intake_deadline.${month}`, `${month} application deadline`)
                       )}

@@ -9857,8 +9857,11 @@ export interface paths {
                          * @description Null for rolling admission.
                          */
                         application_deadline?: string | null;
-                        /** @enum {string} */
-                        status?: "open" | "closed";
+                        /**
+                         * @description Three-valued, matching `IntakeDeadline.status` (2026-09-19, assumptions audit C10). OMIT it unless the person actually changed it: this endpoint's job is the deadline, and posting a status every time is how staff recording a date they were told over the phone flipped an unknown — or an admin-set `closed` — intake to Open on the shared catalogue.
+                         * @enum {string}
+                         */
+                        status?: "open" | "closed" | "unknown";
                     };
                 };
             };
@@ -10398,6 +10401,11 @@ export interface paths {
                         last_name: string;
                         /** Format: email */
                         email: string;
+                        /**
+                         * Format: date
+                         * @description Required (2026-09-19, assumptions audit C9): this was the one way a student account came into being without a date of birth, and an account without one was treated as an adult by every age rule. Same 16+ floor as signup (422 `below_minimum_age`).
+                         */
+                        date_of_birth: string;
                         phone?: string | null;
                         address?: string | null;
                         /** @enum {string} */
@@ -11195,6 +11203,8 @@ export interface paths {
                     "application/json": {
                         /** @description Free text for the audit trail. Always required. */
                         reason: string;
+                        /** @description "Did the student join the college?" (2026-09-19, assumptions audit C6). Required — 422 `student_joined_required` — whenever the case has an accepted application (or, for a PR case, a recorded contribution). `true` closes as a success and recognises the commission; `false` closes as a failure and reverses it, whatever the sub_reason says. Before this the outcome was inferred from the sub_reason list, and "other" — the catch-all — was billed as a success. */
+                        student_joined?: boolean | null;
                         /**
                          * @description Required (422 `sub_reason_required`) whenever the derived outcome is a failure. Every value is a FACT about the case, never a verdict on the student: "the consultancy says the student would not cooperate" is an accusation and does not close a case — it opens a dispute through POST /clients/{id}/raise-issue. The three marked below say the student never actually went, so an acceptance plus one of them is a failure and reverses the commission; colleges do not pay for a student who does not arrive.
                          * @enum {string|null}
@@ -11213,7 +11223,7 @@ export interface paths {
                         "application/json": components["schemas"]["Client"];
                     };
                 };
-                /** @description `sub_reason_required` — a case closing without an accepted college needs one. */
+                /** @description `sub_reason_required` — a case closing without an accepted college needs one; `student_joined_required` — a case with an acceptance must say whether the student joined. */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -18196,7 +18206,7 @@ export interface paths {
                         /** Format: email */
                         email: string;
                         phone?: string;
-                        rate?: number;
+                        rate: number;
                     };
                 };
             };
@@ -21214,6 +21224,8 @@ export interface components {
             mode: "manual" | "round_robin";
             /** @description Meaningful only when mode=round_robin. */
             participating_employee_ids: components["schemas"]["UUID"][];
+            /** @description The ceiling on how much work one participating consultant can be auto-allocated (2026-09-19, assumptions audit C11). Load counts active leads AND open cases — before this, round-robin looked at leads alone with no ceiling at all, so a consultant with 40 open cases and 0 leads took every new lead. Null (the default) means the platform figure, `PlatformSettings.cases_per_staff`. A consultant already at capacity is skipped; when nobody has room the lead waits in Lead Pool with a notice, rather than being forced onto someone. Whole number 1–500, matching `cases_per_staff`'s own range; anything else is refused 400. */
+            capacity_per_consultant?: number | null;
         };
         /** @description What a tier change would cost, computed from the CURRENT roster. Served read-only by /consultancies/{id}/tier-impact so the console can warn before confirming, and returned again on the tier PATCH describing what actually happened. Both come from the same function, so the warning and the action can never disagree. */
         TierDowngradeImpact: {
@@ -22116,12 +22128,23 @@ export interface components {
             excluded_course_ids?: components["schemas"]["UUID"][];
             active?: boolean;
         };
+        ScoreSchemeConversion: {
+            /** Format: double */
+            multiplier: number;
+            /** Format: double */
+            offset: number;
+        };
         /** @description Platform-wide display switches. A map rather than a bare flag so the next one does not need a new endpoint. */
         PlatformSettings: {
             /** @description Whether students see course view counts and the most-viewed tag. Views are always counted regardless; this governs visibility only. Platform staff always see the numbers, since they are what the decision is being made about. */
             show_course_view_counts?: boolean;
             /** @description Open cases one active staff member can handle (2026-09-11, default 20) — the capacity assumption behind Supply & Demand's Coverage by Country. Editable by Super Admin / `catalog_settings`; every change is audited. */
             cases_per_staff?: number;
+            /** @description How a CGPA is read as a percentage for eligibility (2026-09-19, assumptions audit C3): percentage = (score - offset) x multiplier. Defaults are the CBSE x9.5 for a 10-point CGPA and x25 for a 4-point GPA; boards that publish a different formula (Anna University (CGPA - 0.5) x 10, VTU (CGPA - 0.75) x 10) are set here rather than hard-coded. Where a transcript states a percentage, that is stored as `percentage` and never converted. */
+            score_scheme_conversions?: {
+                cgpa_10?: components["schemas"]["ScoreSchemeConversion"];
+                cgpa_4?: components["schemas"]["ScoreSchemeConversion"];
+            };
             /** @description The ordered, hand-picked institutes on Sentpo Home's Top Institutes rail (INSTITUTE_ACCOUNT_PLAN D15, 2026-09-10) — a merchandising decision about the student app rather than a property of any one account, which is why it lives here beside the other platform-wide levers. Order is the ranking; up to three, matching the sibling Top Consultancies section. Validated on write, not filtered on read: an id that is not a `kind: institute` account, a duplicate, or a fourth entry is refused 400, so a Super Admin is never left looking at a saved selection the app quietly declines to show. Empty by default — read it with `GET /consultancies?filter[featured]=true`, and hide the section when that is empty. */
             featured_institutes?: components["schemas"]["UUID"][];
         };
@@ -22283,10 +22306,10 @@ export interface components {
         /** @description The eligibility engine's verdict for (caller, course) — COURSES_MODULE_PLAN.md §2, workstream C (2026-08-21). Server-computed ONLY; the client renders, never re-derives. FACT-WORDING ONLY (plan §0.3): verdicts state requirements met/not met, never admission chances. Rules the student lacks data for are `unknown` — unknown never fails anyone and never affects ranking. `rules` doubles as the Your Fit panel: requirement / yours / result per row, with `improvable` distinguishing retakeable gaps (tests) from fixed ones (past marks) so the UI can guide instead of dead-ending (plan §3.3). Every evaluation is appended to the prediction log (plan §8). */
         CourseEligibility: {
             /**
-             * @description Null when zero rules could be evaluated (all unknown) — the client shows the "Add your scores to check eligibility" CTA instead of a badge.
+             * @description Null when zero rules could be evaluated (all unknown) — the client shows the "Add your scores to check eligibility" CTA instead of a badge. `meets_so_far` (2026-09-19, assumptions audit C4): every rule the student has data for passes, but at least one rule is still unknown — the badge must say "N of M checked", never "Meets requirements", which is reserved for a course where every rule was evaluated. Dream Courses' "you now meet" counts only full `meets`.
              * @enum {string|null}
              */
-            verdict?: "meets" | "borderline" | "below" | null;
+            verdict?: "meets" | "meets_so_far" | "borderline" | "below" | null;
             /** @description True when the academic rule was evaluated on a pursuing row's current_aggregate — badge reads "Provisionally meets" (the conditional-offer model). */
             provisional?: boolean;
             checks_evaluated: number;
@@ -22316,10 +22339,12 @@ export interface components {
             /** Format: date */
             application_deadline?: string | null;
             /**
-             * @description Treated as open when absent.
+             * @description `unknown` (2026-09-19, assumptions audit C10) is the honest state for an intake nobody has confirmed — it was previously read as open, so ticking nine intake months advertised nine open intakes. Absent is read as `unknown`, never as open. The app shows all three: Open with its deadline, Closed and Unknown both with "ask your consultant to confirm".
              * @enum {string}
              */
-            status?: "open" | "closed";
+            status?: "open" | "closed" | "unknown";
+            /** @description True when the server moved this deadline forward a year because the intake passed (2026-09-17 rule) and no person has confirmed the new date yet. The app labels it "estimated"; immiNow lists it in the "Rolled deadlines to confirm" queue. Cleared the next time a person saves the deadline. */
+            rolled?: boolean;
         };
         /** @description Structured entry requirements (COURSES_MODULE_PLAN.md §1.2). EVERY field nullable — absent means "no requirement", never "unknown to us"; the eligibility engine (workstream C) evaluates only rules that exist on the course AND have matching student data, so incomplete data on either side can never fail anyone. The free-text `eligibility` column remains the human-readable note beside this block. Exam references use the admin-managed exams catalog (`GET /exams`), which is what lets one schema serve both Study Abroad (IELTS ≥ 6.5) and Study in India (JEE percentile ≥ 92). */
         CourseRequirements: {
@@ -24388,6 +24413,8 @@ export interface components {
             rate_percent?: number;
             /** @enum {string} */
             rate_source?: "configured" | "fallback_default";
+            /** @description Days after a part falls due within which it is payable — snapshotted from the platform defaults at acceptance (2026-09-19, assumptions audit C12), exactly as `rate_percent` is. Before this the live default was read at render time, so shortening the terms moved every existing case's due dates backwards and fired overdue signals on money that was not late the day before. */
+            payment_terms_days?: number;
             /** Format: date-time */
             recognized_at: string;
         };

@@ -19,7 +19,7 @@ import { useAdminEvents, useCreateEvent, useUpdateEvent } from '@/queries/events
 import { useCursorPagination } from '@/lib/pagination'
 import { formatEventDateTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
-import { EVENT_TIMEZONES, browserTimezone, utcIsoToWallClock, wallClockToUtcIso } from '@/lib/eventTimezones'
+import { EVENT_TIMEZONES, browserTimezone, nowWallClock, utcIsoToWallClock, wallClockToUtcIso } from '@/lib/eventTimezones'
 import { TargetingFilter } from '@/features/super-admin/TargetingFilter'
 import { hasAnyTargeting, type Targeting } from '@/lib/targeting'
 import { useCountries } from '@/queries/countries'
@@ -94,7 +94,24 @@ function WebinarFormModal({
   const mutation = isEditing ? updateEvent : createEvent
   const meetingUrlValid = MEETING_URL_PATTERN.test(meetingUrl.trim())
   const endBeforeStart = Boolean(startsAt && endsAt && endsAt <= startsAt)
-  const canSubmit = Boolean(title) && Boolean(startsAt) && Boolean(endsAt) && !endBeforeStart && meetingUrlValid
+  // TIME RULES (assumptions audit C16, approved 2026-09-19), the same three the server enforces
+  // and the same three the Physical Meeting form applies: nothing is created in the past; once a
+  // webinar has started its start is fixed and its end can only be extended. Compared as wall
+  // clocks in the zone these fields are typed on, not the browser's.
+  const nowInZone = nowWallClock(timezone)
+  const webinarStarted = Boolean(
+    isEditing && editingEvent?.starts_at && Date.parse(editingEvent.starts_at) <= Date.now(),
+  )
+  const startInPast = !isEditing && Boolean(startsAt) && startsAt < nowInZone
+  const endInPast = Boolean(endsAt) && endsAt < nowInZone
+  const canSubmit =
+    Boolean(title) &&
+    Boolean(startsAt) &&
+    Boolean(endsAt) &&
+    !endBeforeStart &&
+    !startInPast &&
+    !endInPast &&
+    meetingUrlValid
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -176,20 +193,35 @@ function WebinarFormModal({
           hint={EVENT_COVER_HINT}
         />
         <div className="grid grid-cols-2 gap-sm">
-          <TextField
-            label="Starts at"
-            type="datetime-local"
-            required
-            value={startsAt}
-            onChange={(e) => setStartsAt(e.target.value)}
-          />
+          <div className="flex flex-col gap-xs">
+            <TextField
+              label="Starts at"
+              type="datetime-local"
+              required
+              min={isEditing ? undefined : nowInZone}
+              disabled={webinarStarted}
+              value={startsAt}
+              onChange={(e) => setStartsAt(e.target.value)}
+              error={startInPast ? 'The start cannot be in the past.' : undefined}
+            />
+            {webinarStarted && (
+              <p className="pl-lg text-caption text-text-secondary">Started — the start can&apos;t be changed</p>
+            )}
+          </div>
           <TextField
             label="Ends at"
             type="datetime-local"
             required
+            min={nowInZone}
             value={endsAt}
             onChange={(e) => setEndsAt(e.target.value)}
-            error={endBeforeStart ? 'The end must be after the start.' : undefined}
+            error={
+              endBeforeStart
+                ? 'The end must be after the start.'
+                : endInPast
+                  ? 'The end cannot be in the past — it can be extended, not brought forward.'
+                  : undefined
+            }
           />
         </div>
         <SelectField label="Time zone" value={timezone} onChange={(e) => setTimezone(e.target.value)}>

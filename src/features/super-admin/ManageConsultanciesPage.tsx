@@ -608,7 +608,10 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
   const [cycle, setCycle] = useState<'monthly' | 'annual'>(initialCycle)
   const [expires, setExpires] = useState(suggestedEnd(consultancy.subscription_expires_at, initialCycle))
   const [amount, setAmount] = useState(consultancy.subscription_amount != null ? String(consultancy.subscription_amount) : '')
-  const [currency, setCurrency] = useState(consultancy.billing_currency ?? 'INR')
+  // Blank when the account has never been billed (assumptions audit C5, approved 2026-09-19) —
+  // an INR default recorded a Dubai renewal in rupees, and the amount only means anything once
+  // someone says which money it is in. An account that already has a billing currency keeps it.
+  const [currency, setCurrency] = useState(consultancy.billing_currency ?? '')
   const currencyCodes = useCurrencyCodes(currency)
   const inPast = Boolean(expires) && Date.parse(`${expires}T00:00:00Z`) <= Date.now()
   // The new term starts where the old one ended, or today if it had already run out.
@@ -623,8 +626,12 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
   const parsedAmount = Number(amount)
   const amountValid = noCharge || (amount.trim() !== '' && Number.isFinite(parsedAmount) && parsedAmount > 0)
   const expiresValid = Boolean(expires)
+  // A charged term needs to say which money it is in (C5). A no-charge term does not — there is
+  // no amount to denominate.
+  const currencyValid = noCharge || currency !== ''
   const expiresError = attempted && !expiresValid ? 'Pick the new end date.' : undefined
   const amountError = attempted && !amountValid ? 'Enter an amount greater than 0, or check "No charge for this term".' : undefined
+  const currencyError = attempted && !currencyValid ? 'Pick the currency this term is billed in.' : undefined
 
   function handleCycle(next: 'monthly' | 'annual') {
     setCycle(next)
@@ -632,7 +639,7 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
   }
 
   function handleRenew() {
-    if (!expiresValid || !amountValid) {
+    if (!expiresValid || !amountValid || !currencyValid) {
       setAttempted(true)
       return
     }
@@ -641,7 +648,9 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
         subscription_expires_at: expires,
         subscription_started_at: startsOn,
         billing_cycle: cycle,
-        billing_currency: currency,
+        // Omitted rather than sent blank on a no-charge term — there is no amount to denominate,
+        // and an empty string is not a currency (C5).
+        ...(currency ? { billing_currency: currency } : {}),
         subscription_amount: noCharge ? 0 : parsedAmount,
         ...(noCharge ? { no_charge: true } : {}),
       },
@@ -709,7 +718,16 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
             onChange={(e) => setAmount(e.target.value)}
             error={amountError}
           />
-          <SelectField label="Currency" id={`renew-currency-${consultancy.id}`} value={currency} onChange={(e) => setCurrency(e.target.value)}>
+          <SelectField
+            label="Currency"
+            id={`renew-currency-${consultancy.id}`}
+            required={!noCharge}
+            disabled={noCharge}
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+            error={currencyError}
+          >
+            <option value="">Select…</option>
             {currencyCodes.map((code) => (
               <option key={code} value={code}>
                 {code}

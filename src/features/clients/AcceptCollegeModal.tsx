@@ -8,7 +8,6 @@ import { useUpdateApplication, type AcceptCommissionBody } from '@/queries/clien
 import { usePartnerColleges } from '@/queries/partnerColleges'
 import { MONTHS } from '@/features/super-admin/courseFormShared'
 import { useCurrencyCodes } from '@/lib/currencies'
-import { useMyConsultancy } from '@/queries/consultancy'
 import { formatMoney } from '@/lib/money'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
@@ -28,9 +27,11 @@ const PAYER_LABELS: Record<PayerMethod, string> = {
  * entered.
  *
  * Which fields appear follows the payer method: college → the course fee prefilled, editable,
- * LOCKED to the course's own fee currency ("let it be in actual fee currency only"); applicant →
- * free amount + currency, the consultancy's own currency by default (INR until 2026-09-10);
- * split → both. Course start prefills from the course's
+ * LOCKED to the course's own fee currency ("let it be in actual fee currency only") when it has
+ * one, and an ordinary required picker when it does not; applicant → free amount + a currency
+ * with no default at all (assumptions audit C5, approved 2026-09-19 — it defaulted to the
+ * consultancy's own display currency, and to INR before 2026-09-10, so a Dubai agreement was
+ * recorded in rupees by nobody's decision); split → both. Course start prefills from the course's
  * nearest intake and stays editable.
  *
  * Deliberately absent: the platform's rate and cut. The tiered-visibility rule (round 2, same
@@ -59,7 +60,10 @@ export function AcceptCollegeModal({
   const partnerColleges = usePartnerColleges()
 
   const course = row.course
-  const feeCurrency = course.fee?.currency ?? 'INR'
+  // No INR fallback (assumptions audit C5, approved 2026-09-19). When the course fee carries a
+  // currency the college pays in it, read-only as before; when it does not, the field becomes an
+  // ordinary required picker instead of silently recording a UK college's commission in rupees.
+  const courseFeeCurrency = course.fee?.currency ?? ''
 
   // The journey's payer method, or — for a journey that never got the automatic default — the
   // Partner Colleges relation's, resolved the same way the server will at accept time.
@@ -102,9 +106,15 @@ export function AcceptCollegeModal({
   const [collegeAmount, setCollegeAmount] = useState('')
   const [collegeAmountTouched, setCollegeAmountTouched] = useState(false)
   const [studentAmount, setStudentAmount] = useState('')
-  const consultancyCurrency = useMyConsultancy().data?.display_currency ?? 'INR'
-  const [studentCurrency, setStudentCurrency] = useState(consultancyCurrency)
-  const currencyCodes = useCurrencyCodes(studentCurrency)
+  // The college side: locked to the course's own fee currency when it has one, editable and
+  // required when it does not (C5).
+  const [collegeCurrency, setCollegeCurrency] = useState(courseFeeCurrency)
+  const feeCurrency = courseFeeCurrency || collegeCurrency
+  // The student side has NO default at all (C5) — the consultancy's display currency is what the
+  // consultant reads figures in, not what this particular student agreed to pay in, and a Dubai
+  // agreement recorded in INR is wrong money on an invoice.
+  const [studentCurrency, setStudentCurrency] = useState('')
+  const currencyCodes = useCurrencyCodes(studentCurrency, courseFeeCurrency)
   const [startMonth, setStartMonth] = useState(defaultMonth)
   const [startYear, setStartYear] = useState(defaultYear)
 
@@ -115,8 +125,8 @@ export function AcceptCollegeModal({
     setCollegeAmount(String(Math.round((course.fee.amount * commissionPercent) / 100)))
   }, [collegeAmountTouched, needsCollege, commissionPercent, course.fee?.amount])
 
-  const collegeOk = !needsCollege || Number(collegeAmount) > 0
-  const studentOk = !needsStudent || Number(studentAmount) > 0
+  const collegeOk = !needsCollege || (Number(collegeAmount) > 0 && feeCurrency !== '')
+  const studentOk = !needsStudent || (Number(studentAmount) > 0 && studentCurrency !== '')
   const canSubmit = payerMethod != null && !missingCommissionPercent && collegeOk && studentOk && !updateStatus.isPending
 
   function handleSubmit(e: FormEvent) {
@@ -197,12 +207,36 @@ export function AcceptCollegeModal({
                     setCollegeAmount(e.target.value)
                   }}
                 />
-                {/* Locked on purpose — the college pays in the course's own fee currency. */}
-                <TextField label="Currency" value={feeCurrency} disabled readOnly />
-                {course.fee?.amount != null && (
+                {/* Locked on purpose when the course has a fee currency — the college pays in
+                    it. With no course currency there is nothing to lock to, so this is an
+                    ordinary required picker rather than a read-only INR (C5). */}
+                {courseFeeCurrency ? (
+                  <TextField label="Currency" value={courseFeeCurrency} disabled readOnly />
+                ) : (
+                  <SelectField
+                    label="Currency"
+                    required
+                    value={collegeCurrency}
+                    onChange={(e) => setCollegeCurrency(e.target.value)}
+                  >
+                    <option value="">Select…</option>
+                    {currencyCodes.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </SelectField>
+                )}
+                {!courseFeeCurrency && (
                   <p className="col-span-3 -mt-xs text-caption text-text-secondary">
-                    {commissionPercent}% of the {formatMoney(feeCurrency, course.fee.amount)} tuition — edit if the
-                    agreed figure differs.
+                    This course has no fee currency on record, so say which currency the college
+                    agreed to pay in.
+                  </p>
+                )}
+                {course.fee?.amount != null && courseFeeCurrency && (
+                  <p className="col-span-3 -mt-xs text-caption text-text-secondary">
+                    {commissionPercent}% of the {formatMoney(courseFeeCurrency, course.fee.amount)} tuition — edit if
+                    the agreed figure differs.
                   </p>
                 )}
               </div>
@@ -218,7 +252,15 @@ export function AcceptCollegeModal({
                   value={studentAmount}
                   onChange={(e) => setStudentAmount(e.target.value)}
                 />
-                <SelectField label="Currency" value={studentCurrency} onChange={(e) => setStudentCurrency(e.target.value)}>
+                {/* Blank until chosen (C5) — what the applicant agreed to pay in is a fact about
+                    this agreement, not a property of the consultancy's own display currency. */}
+                <SelectField
+                  label="Currency"
+                  required
+                  value={studentCurrency}
+                  onChange={(e) => setStudentCurrency(e.target.value)}
+                >
+                  <option value="">Select…</option>
                   {currencyCodes.map((c) => (
                     <option key={c} value={c}>
                       {c}

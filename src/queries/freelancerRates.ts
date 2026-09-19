@@ -30,7 +30,9 @@ export interface InviteFreelancerInput {
   email: string
   referral_code: string
   phone?: string
-  rate?: number
+  // Required at invite (assumptions audit C7, approved 2026-09-19) — a freelancer with no rate
+  // row earned nothing, and the payouts page showed a settled case as 0 with nothing flagging it.
+  rate: number
 }
 
 /**

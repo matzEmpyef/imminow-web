@@ -129,9 +129,14 @@ export function useCourseFinder(filters: CourseFinderFilters, hasFilters: boolea
       if (filters.psw) filter.psw = 'true'
       if (filters.appFeeWaived) filter.app_fee_waived = 'true'
       if (filters.openNow) filter.open_now = 'true'
-      if (filters.feeMax) {
+      // Never `?? 'INR'` (assumptions audit C5, approved 2026-09-19): a student's ₹20,00,000 cap
+      // re-run before the consultancy's display currency had loaded became a CAD 2,000,000 cap,
+      // and the server now refuses a fee bound with no currency (400). The query below does not
+      // run at all while a cap is set and the currency is still unresolved, so this pair either
+      // travels complete or does not travel.
+      if (filters.feeMax && filters.feeCurrency) {
         filter.fee_max = String(filters.feeMax)
-        filter.fee_currency = filters.feeCurrency ?? 'INR'
+        filter.fee_currency = filters.feeCurrency
       }
       if (filters.durationMinMonths != null) filter.duration_min_months = String(filters.durationMinMonths)
       if (filters.durationMaxMonths != null) filter.duration_max_months = String(filters.durationMaxMonths)
@@ -198,6 +203,11 @@ export function useCourseFinder(filters: CourseFinderFilters, hasFilters: boolea
     // and demanding one to browse courses would mean either inventing a record or not searching.
     // `eligibility_for` is already optional; without it the server simply returns no fit data.
     // `hasFilters` on top of that (H12) is the "don't fetch on bare page load" gate.
-    enabled: isAuthed && hasFilters,
+    //
+    // The third clause is C5: with a fee cap set but the display currency not yet resolved,
+    // searching anyway would silently return the catalogue WITHOUT the cap — more courses than
+    // the consultant asked for, with the chip still on screen saying they were filtered. Waiting
+    // one tick for the currency is the honest answer.
+    enabled: isAuthed && hasFilters && !(Boolean(filters.feeMax) && !filters.feeCurrency),
   })
 }

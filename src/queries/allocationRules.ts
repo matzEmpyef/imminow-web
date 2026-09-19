@@ -19,7 +19,14 @@ export function useAllocationRule() {
 export function useUpdateAllocationRule() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (body: { mode: 'manual' | 'round_robin'; participating_employee_ids: string[] }) => {
+    // `capacity_per_consultant` — null means "the platform figure" (assumptions audit C11,
+    // approved 2026-09-19). Sent on every save, including as null, so clearing the field actually
+    // clears the ceiling rather than leaving the last one in place.
+    mutationFn: async (body: {
+      mode: 'manual' | 'round_robin'
+      participating_employee_ids: string[]
+      capacity_per_consultant?: number | null
+    }) => {
       const { data, error } = await api.PATCH('/lead-allocation-rules', { body })
       if (error) throw new ApiError('Could not update the allocation rule.', error)
       return data

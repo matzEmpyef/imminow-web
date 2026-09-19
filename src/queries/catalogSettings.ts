@@ -125,6 +125,13 @@ export function useUpdatePlatformSettings() {
       featured_institutes?: string[]
       /** Open cases one staff member can handle — Coverage by Country's capacity assumption. */
       cases_per_staff?: number
+      /**
+       * How a CGPA is read as a percentage (assumptions audit C3, approved 2026-09-19):
+       * `percentage = (score − offset) × multiplier`, one formula per scheme. ×9.5 was CBSE's and
+       * applied to everybody; Anna University publishes (CGPA − 0.5) × 10 and VTU
+       * (CGPA − 0.75) × 10, so the formula belongs to an admin rather than to the code.
+       */
+      score_scheme_conversions?: Record<string, { multiplier: number; offset: number }>
     }) => {
       const { data, error } = await api.PATCH('/platform/settings', { body })
       if (error) throw new ApiError('Could not save this setting.', error)

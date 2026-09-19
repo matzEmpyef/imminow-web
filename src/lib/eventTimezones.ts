@@ -68,6 +68,14 @@ export function wallClockToUtcIso(wallClock: string, timeZone: string): string {
   return new Date(asIfUtc.getTime() - offsetMs).toISOString()
 }
 
+/// "Now" as a wall clock in the event's own zone — the `min` a datetime-local field needs
+/// (assumptions audit C16, approved 2026-09-19: nothing is created in the past, and an end can
+/// only ever be extended). It has to be in the EVENT's zone, not the browser's, because that is
+/// the clock the field's own value is read on.
+export function nowWallClock(timeZone: string): string {
+  return utcIsoToWallClock(new Date().toISOString(), timeZone)
+}
+
 /// The inverse, for populating the form when editing: the stored instant as a wall clock in the
 /// event's own zone, so an admin editing a Mumbai meeting sees Mumbai's time rather than theirs.
 export function utcIsoToWallClock(iso: string, timeZone: string): string {

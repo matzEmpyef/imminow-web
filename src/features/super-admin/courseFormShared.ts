@@ -31,6 +31,12 @@ export type AptitudeReq = { exam_id: string; min_score: string; required: boolea
  * as a student's education rows, so the eligibility check compares like with like. */
 export type EntryQualification = 'tenth' | 'twelfth' | 'diploma' | 'bachelors' | 'masters'
 
+/** `''` is the form's "Not set" — a real answer, not a missing one (assumptions audit C1,
+ * approved 2026-09-19). The pre-fill from the course level is gone: it was a guess ("anything
+ * that isn't a Masters or a PhD reads the 12th") that got persisted as fact, and a Diploma course
+ * saved without the dropdown being looked at then measured every applicant against a 12th score. */
+export type EntryQualificationValue = EntryQualification | ''
+
 export const ENTRY_QUALIFICATIONS: { value: EntryQualification; label: string }[] = [
   { value: 'tenth', label: '10th' },
   { value: 'twelfth', label: '12th' },
@@ -39,14 +45,31 @@ export const ENTRY_QUALIFICATIONS: { value: EntryQualification; label: string }[
   { value: 'masters', label: "Master's" },
 ]
 
-/** What a course at this study level usually asks for — the pre-fill, never a rule: a Masters
- * reads a Bachelor's, a PhD a Master's, and everything else (Bachelors, Diploma, Certificate…) the
- * 12th. Admin changes it for the exceptions. */
-export function defaultEntryQualification(level: string): EntryQualification {
-  if (level === 'masters') return 'bachelors'
-  if (level === 'phd') return 'masters'
-  return 'twelfth'
-}
+/** How a minimum academic score is read. `''` is "Not set" for the same reason the qualification
+ * has one (assumptions audit C3, approved 2026-09-19) — Percentage used to be pre-selected, so an
+ * admin typing `3.5` from a 4-point GPA saved a 3.5 % floor that everybody clears. */
+export type ScoreSchemeValue = '' | 'percentage' | 'cgpa_10' | 'cgpa_4'
+
+export const SCORE_SCHEMES: { value: Exclude<ScoreSchemeValue, ''>; label: string }[] = [
+  { value: 'percentage', label: 'Percentage' },
+  { value: 'cgpa_10', label: 'CGPA (out of 10)' },
+  { value: 'cgpa_4', label: 'CGPA (out of 4)' },
+]
+
+/** An intake month is Open, Closed, or nobody has said (assumptions audit C10, approved
+ * 2026-09-19). Ticking nine months used to advertise nine OPEN intakes; `unknown` saves the
+ * absence of an answer instead of inventing one. */
+export type IntakeStatus = 'open' | 'closed' | 'unknown'
+
+export const INTAKE_STATUSES: { value: IntakeStatus; label: string }[] = [
+  { value: 'unknown', label: 'Not set' },
+  { value: 'open', label: 'Open' },
+  { value: 'closed', label: 'Closed' },
+]
+
+/** Beside a date the server rolled forward a year rather than one a college confirmed — shown in
+ * both deadline editors so an estimate never reads as the college's own date (C10). */
+export const ROLLED_DEADLINE_NOTE = 'Estimated — rolled from last year'
 
 export const TEXTAREA_CLASS = 'rounded-md border border-border bg-surface p-sm text-body text-text-primary'
 export const SELECT_CLASS = 'h-10 rounded-md border border-border bg-surface px-3 text-body'

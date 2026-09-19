@@ -67,7 +67,7 @@ export function QuizSettingsModal({
     title, setTitle, description, setDescription, timezone, setTimezone, startsAt, setStartsAt,
     endsAt, setEndsAt, questionsPerAttempt, setQuestionsPerAttempt, timeLimitMinutes, setTimeLimitMinutes,
     participationPoints, setParticipationPoints, prizes, updatePrize, removePrize, addPrize,
-    targeting, setTargeting, isValid, toPayload,
+    targeting, setTargeting, isValid, nowInZone, started, startError, endError, toPayload,
   } = useQuizForm(seed)
   const countries = useCountries()
 
@@ -131,15 +131,34 @@ export function QuizSettingsModal({
             className="rounded-md border border-border bg-surface p-sm text-body text-text-primary"
           />
         </div>
+        {/* Time rules (assumptions audit C16, approved 2026-09-19) — no start in the past, the
+            start locked once the quiz is running, the end only ever extendable, and an end
+            required whenever a position prize carries points, because that is when it is paid. */}
         <div className="grid grid-cols-2 gap-sm">
+          <div className="flex flex-col gap-xs">
+            <TextField
+              label="Starts at"
+              type="datetime-local"
+              required
+              min={isEditing ? undefined : nowInZone}
+              disabled={started}
+              value={startsAt}
+              onChange={(e) => setStartsAt(e.target.value)}
+              error={startError}
+            />
+            {started && (
+              <p className="pl-lg text-caption text-text-secondary">Started — the start can&apos;t be changed</p>
+            )}
+          </div>
           <TextField
-            label="Starts at"
+            label="Ends at"
             type="datetime-local"
-            required
-            value={startsAt}
-            onChange={(e) => setStartsAt(e.target.value)}
+            required={prizes.some((p) => p.points)}
+            min={nowInZone}
+            value={endsAt}
+            onChange={(e) => setEndsAt(e.target.value)}
+            error={endError}
           />
-          <TextField label="Ends at" type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
         </div>
         <SelectField label="Time zone" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
           {(EVENT_TIMEZONES as readonly string[]).includes(timezone) ? null : (

@@ -49,6 +49,12 @@ export interface FinderState {
   language: string
   // A plain amount in the consultancy's own currency (2026-09-10) — was ₹ lakh for everyone.
   feeMax: string
+  // Which currency `feeMax` is in, when the state came from a SHARED SEARCH link — '' means "the
+  // viewer's own display currency", the normal case. Round-tripped through the URL since the
+  // assumptions audit (C5, approved 2026-09-19): the cap used to travel without its currency, so
+  // a student's ₹20,00,000 budget re-opened by a Canadian consultant became a CAD 2,000,000 cap
+  // and every course passed it.
+  feeCurrency: string
   // Duration-range bucket key (2026-08-31, UAT item 3), same buckets Sentpo Mobile's filter
   // sheet offers — '' = any. Kept as a bucket KEY rather than raw min/max here so the SelectField
   // has a single value to bind to; DURATION_BUCKETS below is the one place that maps a key to
@@ -80,6 +86,7 @@ export const DEFAULT_STATE: FinderState = {
   delivery: '',
   language: '',
   feeMax: '',
+  feeCurrency: '',
   durationBucket: '',
   scholarship: false,
   coop: false,
@@ -351,7 +358,13 @@ export function courseFinderUrlForSharedSearch(
   for (const key of SHARED_SEARCH_FLAG_KEYS) {
     if (filters[key] === 'true') params.set(key, 'true')
   }
-  if (filters.fee_max) params.set('fee_max', filters.fee_max)
+  // The cap and the currency it is in travel together or not at all (assumptions audit C5,
+  // approved 2026-09-19) — a bare `fee_max` was re-read in whatever currency the receiving
+  // consultant happened to display in, turning ₹20,00,000 into CAD 2,000,000.
+  if (filters.fee_max && filters.fee_currency) {
+    params.set('fee_max', filters.fee_max)
+    params.set('fee_currency', filters.fee_currency)
+  }
   const bucket = durationBucketKeyFor(
     filters.duration_min_months ? Number(filters.duration_min_months) : null,
     filters.duration_max_months ? Number(filters.duration_max_months) : null,
@@ -393,6 +406,9 @@ export function finderStateFromUrl(): FinderState | null {
       delivery: DELIVERY_OPTIONS[delivery] ? delivery : '',
       language: params.get('language') ?? '',
       feeMax: params.get('fee_max') ?? '',
+      // The sender's currency travels with the cap (C5) — without it the receiving consultant
+      // re-ran the same number in their own money.
+      feeCurrency: params.get('fee_currency') ?? '',
       durationBucket: DURATION_BUCKETS[duration] ? duration : '',
       scholarship: params.get('scholarship') === 'true',
       coop: params.get('coop') === 'true',

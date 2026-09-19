@@ -26,6 +26,13 @@ const STATUS_LABEL: Record<string, string> = {
   waived: 'Closed by immiNow',
 }
 
+// A rate nobody has set is not 0 % (assumptions audit, approved 2026-09-19) — "Tuition — 0 % of
+// CAD 32,000" read to a consultancy as an agreement priced at nothing, when the truth is that the
+// rate is still missing. Same money area as C5, so it goes in with it.
+function rateShare(ratePercent: number | null | undefined): string {
+  return ratePercent == null ? 'rate not set' : `${ratePercent}% share`
+}
+
 function partLabel(
   part: CommissionDuePart,
   ratePercent: number | null | undefined,
@@ -35,7 +42,7 @@ function partLabel(
   if (part.kind === 'added') return `Added — ${part.reason ?? 'no reason given'}`
   switch (part.source) {
     case 'student':
-      return `Student's fee — ${ratePercent ?? 0}% share`
+      return `Student's fee — ${rateShare(ratePercent)}`
     case 'student_instalment':
       return `Student payment of ${money(part.instalment_amount)} received ${
         part.instalment_received_on ? formatDate(part.instalment_received_on) : '—'
@@ -50,8 +57,8 @@ function partLabel(
       return 'College money not received yet'
     case 'tuition':
       return tuitionFee?.amount != null
-        ? `Tuition — ${ratePercent ?? 0}% of ${money({ amount: tuitionFee.amount, currency: tuitionFee.currency ?? 'INR' })}`
-        : `Tuition — ${ratePercent ?? 0}% share`
+        ? `Tuition — ${rateShare(ratePercent)} of ${money({ amount: tuitionFee.amount, currency: tuitionFee.currency ?? 'INR' })}`
+        : `Tuition — ${rateShare(ratePercent)}`
     default:
       return 'Due'
   }

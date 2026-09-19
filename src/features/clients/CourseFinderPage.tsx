@@ -79,7 +79,11 @@ export function CourseFinderPage() {
 
   // Typed in the consultancy's own currency (2026-09-10) and converted server-side, with a small
   // margin for courses priced in another currency — rates are set by hand, not live.
-  const feeCurrency = useMyConsultancy().data?.display_currency ?? 'INR'
+  // Empty, never INR, until the consultancy's own currency has actually resolved (assumptions
+  // audit C5, approved 2026-09-19) — a fee cap sent under the wrong currency is a filter the
+  // consultant never set. `useCourseFinder` holds the search back while this is empty and a cap
+  // is on.
+  const feeCurrency = useMyConsultancy().data?.display_currency ?? ''
   // H4 (2026-09-13): a college's catalogue is its own courses in its own country, so a country
   // picker narrows nothing and the cross-currency note describes a conversion that never happens.
   const { isInstitute } = useAccountWords()
@@ -127,7 +131,9 @@ export function CourseFinderPage() {
       appFeeWaived: state.appFeeWaived || undefined,
       openNow: state.openNow || undefined,
       feeMax: feeMax != null && Number.isFinite(feeMax) ? feeMax : undefined,
-      feeCurrency,
+      // A cap that arrived from a shared-search link keeps the SENDER's currency (C5); everything
+      // else is read in this consultancy's own.
+      feeCurrency: state.feeCurrency || feeCurrency,
       durationMinMonths: durationBucket?.min,
       durationMaxMonths: durationBucket?.max,
       sort: state.sort || undefined,
@@ -334,7 +340,7 @@ export function CourseFinderPage() {
                 <Button
                   loading={shareSearch.isPending}
                   onClick={() =>
-                    shareSearch.mutate(sharedSearchFiltersFrom(state, feeCurrency), {
+                    shareSearch.mutate(sharedSearchFiltersFrom(state, state.feeCurrency || feeCurrency), {
                       onSuccess: () => {
                         setConfirmSendSearch(false)
                         showToast(`Search sent to ${personFirstName}'s chat`)

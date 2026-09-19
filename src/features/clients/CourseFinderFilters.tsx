@@ -56,7 +56,13 @@ export function CourseFinderFilters({
   const countries = useCountries()
   // The consultancy's own currency (2026-09-10) — the same one CourseFinderPage sends as
   // filter[fee_currency]; a cached read, so the second call costs nothing.
-  const feeCurrency = useMyConsultancy().data?.display_currency ?? 'INR'
+  // Blank until the consultancy's own currency has loaded (assumptions audit C5, approved
+  // 2026-09-19) — the label used to read "Max fee (INR)" before anyone knew it was INR, which is
+  // the same guess the query itself was making.
+  const ownCurrency = useMyConsultancy().data?.display_currency ?? ''
+  // A cap that arrived from a shared-search link is in the SENDER's currency and the label has to
+  // say so, rather than relabelling their number with this consultancy's money (C5).
+  const feeCurrency = state.feeCurrency || ownCurrency
 
   // "More filters" disclosure (2026-09-18) — Country/Fee/Duration plus the eight facets below
   // (province/state, city, intake, study mode, delivery, language, five perk flags) would no
@@ -162,7 +168,7 @@ export function CourseFinderFilters({
         )}
         <div className="flex flex-col gap-xs">
           <TextField
-            label={`Max fee (${feeCurrency})`}
+            label={feeCurrency ? `Max fee (${feeCurrency})` : 'Max fee'}
             type="number"
             value={state.feeMax}
             onChange={(e) => onChange({ feeMax: e.target.value })}

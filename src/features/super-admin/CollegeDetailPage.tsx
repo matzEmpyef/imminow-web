@@ -236,6 +236,19 @@ export function CourseFormModal({
               Pick at least one campus (Campuses &amp; Intakes tab).
             </p>
           )}
+          {/* The answers the form no longer guesses (assumptions audit C1/C3/C5, approved
+              2026-09-19). Named with their tab, same as the two above, because the blocked field
+              is usually not the tab the admin is looking at. */}
+          {(form.entryQualificationError || form.schemeError) && (
+            <p className="mr-auto self-center text-body-sm text-error">
+              A minimum score needs its qualification and scale (Entry Requirements tab).
+            </p>
+          )}
+          {(form.feeCurrencyError || form.appFeeCurrencyError) && (
+            <p className="mr-auto self-center text-body-sm text-error">
+              A fee needs its currency (Fees tab).
+            </p>
+          )}
           <Button type="submit" form="course-form" loading={mutation.isPending} disabled={!form.isValid}>
             {isEditing ? 'Save Changes' : 'Create Course'}
           </Button>

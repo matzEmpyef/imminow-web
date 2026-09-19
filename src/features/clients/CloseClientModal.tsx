@@ -3,11 +3,19 @@ import { Link } from 'react-router-dom'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { CLOSE_SUB_REASONS, useCloseClient, type CloseSubReason } from '@/queries/clients'
+import { ApiError } from '@/api/errors'
 import { showToast } from '@/lib/toast'
 
 // The sub-reasons that mean the student never actually travelled. An acceptance plus one of these
 // is a FAILURE, not a success — colleges don't pay for a student who doesn't arrive — and the
 // commission entry is reversed rather than recognised. Kept in step with the server's own list.
+//
+// Since the assumptions audit (C6, approved 2026-09-19) this list is no longer what DECIDES the
+// outcome; the "Did the student join?" answer below is. It stays because the server still treats
+// these as did-not-go on top of the answer, and because an outcome that flips when the reason is
+// changed should still look consistent on screen. The list was never complete: `other` — where a
+// cancelled programme, a deferred year or a family emergency lands — was not on it, so an
+// accepted case closed as "Something else" was billed as a success.
 const DID_NOT_GO: CloseSubReason[] = ['visa_refused', 'student_withdrew', 'lost_contact']
 
 /**
@@ -46,15 +54,26 @@ export function CloseClientModal({
   const closeClient = useCloseClient()
   const [reason, setReason] = useState('')
   const [subReason, setSubReason] = useState<CloseSubReason | ''>('')
+  // The one question the outcome now turns on (assumptions audit C6, approved 2026-09-19). Null
+  // means unanswered — never `false`, which would pre-load a reversal nobody asked for.
+  const [joined, setJoined] = useState<boolean | null>(null)
 
   const isPr = caseType === 'pr'
   const earned = isPr ? contributionRecorded : hasAcceptedCollege
-  const didNotGo = subReason !== '' && DID_NOT_GO.includes(subReason)
+  // The modal already knows whether there is something to join, from the case summary the profile
+  // page hands it, so the question is asked up front rather than waiting on the server's 422.
+  // `serverAskedJoined` is the belt-and-braces path for a case whose summary disagreed with the
+  // server: on `student_joined_required` the question appears and the consultant resubmits.
+  const serverAskedJoined = closeClient.error instanceof ApiError && closeClient.error.code === 'student_joined_required'
+  const asksJoined = earned || serverAskedJoined
+  const didNotGo =
+    (asksJoined && joined === false) || (subReason !== '' && DID_NOT_GO.includes(subReason))
   const outcome: 'success' | 'failure' = earned && !didNotGo ? 'success' : 'failure'
   // A failure has to say why. A success doesn't need one, and asking for it would invite a
   // consultant to pick something that silently turns their own success into a failure.
-  const subReasonRequired = !earned
-  const canSubmit = Boolean(reason.trim()) && (!subReasonRequired || subReason !== '')
+  const subReasonRequired = outcome === 'failure'
+  const canSubmit =
+    Boolean(reason.trim()) && (!subReasonRequired || subReason !== '') && (!asksJoined || joined !== null)
   // A PR case was never sent to colleges, so "rejected by the colleges" can't be what happened.
   const subReasons = isPr ? CLOSE_SUB_REASONS.filter((r) => r.value !== 'rejected_by_colleges') : CLOSE_SUB_REASONS
   const money = isPr ? 'contribution' : 'commission'
@@ -67,6 +86,7 @@ export function CloseClientModal({
         id: clientId,
         reason: reason.trim(),
         ...(subReason !== '' ? { subReason } : {}),
+        ...(asksJoined && joined !== null ? { studentJoined: joined } : {}),
       },
       {
         onSuccess: () => {
@@ -154,6 +174,40 @@ export function CloseClientModal({
           </div>
         )}
 
+        {/* Asked BEFORE the reason fields, and asked outright (assumptions audit C6, approved
+            2026-09-19): this one answer decides whether immiNow invoices, and it used to be
+            inferred from a sub-reason list that had no entry for "the programme was cancelled".
+            A PR case has no college to join, so it is asked in its own words. */}
+        {asksJoined && (
+          <fieldset className="flex flex-col gap-xs rounded-md border border-border bg-background px-3 py-sm">
+            <legend className="px-xs text-body-sm font-medium text-text-primary">
+              {isPr ? 'Did the PR application go through?' : 'Did the student join the college?'}
+            </legend>
+            <div className="flex gap-lg">
+              {[
+                { value: true, label: 'Yes' },
+                { value: false, label: 'No' },
+              ].map((option) => (
+                <label key={option.label} className="flex items-center gap-xs text-body-sm text-text-primary">
+                  <input
+                    type="radio"
+                    name="close-client-joined"
+                    checked={joined === option.value}
+                    onChange={() => setJoined(option.value)}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  {option.label}
+                </label>
+              ))}
+            </div>
+            <p className="text-caption text-text-secondary">
+              {isPr
+                ? 'Yes closes the case as a success and records the contribution. No reverses the contribution, whatever the reason below.'
+                : 'Yes closes the case as a success and records the commission. No reverses the commission, whatever the reason below.'}
+            </p>
+          </fieldset>
+        )}
+
         <div className="flex flex-col gap-xs">
           <label className="text-body-sm font-medium text-text-primary" htmlFor="close-client-sub-reason">
             What happened{subReasonRequired ? '' : ' (optional)'}
@@ -165,7 +219,9 @@ export function CloseClientModal({
             className="rounded-md border border-border bg-surface px-3 py-sm text-body"
           >
             {earned ? (
-              <option value="">{isPr ? 'Success — the case went through' : 'Success — the student is going'}</option>
+              // The outcome is the answer above, not this list (C6) — so the blank option no
+              // longer claims a verdict of its own.
+              <option value="">{subReasonRequired ? 'Select one…' : 'Nothing to add'}</option>
             ) : (
               <>
                 <option value="">Select one…</option>
@@ -184,9 +240,9 @@ export function CloseClientModal({
           </select>
           {earned && (
             <p className="text-caption text-text-secondary">
-              {isPr ? 'A case with a recorded contribution' : 'An accepted case'} can still fail. If the visa was
-              refused, the {isPr ? 'applicant' : 'student'} withdrew, or you lost contact, choose that here — it closes
-              as a failure and the {money} is reversed.
+              {joined === false
+                ? `Say what happened — the ${money} is reversed either way, this is for the record.`
+                : 'For the record only. The answer above is what decides the outcome.'}
             </p>
           )}
         </div>
@@ -208,7 +264,7 @@ export function CloseClientModal({
               This closes as a <strong>failure</strong>.{' '}
               {isPr
                 ? 'The contribution was recorded but the case didn’t go through, so it is reversed.'
-                : 'The student was accepted but isn’t travelling, so the commission is reversed.'}
+                : 'The student was accepted but didn’t join, so the commission is reversed.'}
             </>
           ) : (
             <>

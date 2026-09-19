@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { components } from '@/api/schema'
 import { useCountrySettings } from '@/queries/countries'
 import {
   type AptitudeReq,
-  defaultEntryQualification,
   type EnglishReq,
-  type EntryQualification,
+  type EntryQualificationValue,
   type FormTab,
+  type IntakeStatus,
+  type ScoreSchemeValue,
 } from './courseFormShared'
 
 type College = components['schemas']['College']
@@ -49,8 +50,10 @@ export interface CourseFormValue {
   onToggleAll: () => void
   intakes: string[]
   setIntakes: (v: string[]) => void
-  deadlines: Record<string, { deadline: string; open: boolean }>
-  onDeadlineChange: (month: string, patch: Partial<{ deadline: string; open: boolean }>) => void
+  deadlines: Record<string, { deadline: string; status: IntakeStatus }>
+  onDeadlineChange: (month: string, patch: Partial<{ deadline: string; status: IntakeStatus }>) => void
+  /** Months whose saved deadline the server rolled forward rather than a college confirming (C10). */
+  rolledMonths: ReadonlySet<string>
 
   // Fees
   feeAmount: string
@@ -71,12 +74,12 @@ export interface CourseFormValue {
   setScholarshipNote: (v: string) => void
 
   // Entry Requirements
-  entryQualification: EntryQualification
-  setEntryQualification: (v: EntryQualification) => void
+  entryQualification: EntryQualificationValue
+  setEntryQualification: (v: EntryQualificationValue) => void
   minScore: string
   setMinScore: (v: string) => void
-  scheme: string
-  setScheme: (v: 'percentage' | 'cgpa_10' | 'cgpa_4') => void
+  scheme: ScoreSchemeValue
+  setScheme: (v: ScoreSchemeValue) => void
   maxBacklogs: string
   setMaxBacklogs: (v: string) => void
   workExpMonths: string
@@ -114,6 +117,16 @@ export interface CourseFormValue {
   // True when the college has an active campus and none is picked — the Campuses & Intakes tab's
   // own inline "Pick at least one campus" error (review C7, 2026-09-12).
   campusRequired: boolean
+  /**
+   * The four answers the form now refuses to guess (assumptions audit C1/C3/C5, approved
+   * 2026-09-19), each as the message its own field shows and `isValid` blocks on. Undefined when
+   * the field is fine. They are errors rather than silent defaults because every one of them
+   * used to be filled in by the code and then saved as though an admin had said it.
+   */
+  entryQualificationError?: string
+  schemeError?: string
+  feeCurrencyError?: string
+  appFeeCurrencyError?: string
   toPayload: () => Omit<CourseInput, 'college_id' | 'active'>
 }
 
@@ -134,13 +147,9 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
   // Basics
   const [name, setName] = useState(editingCourse?.name ?? '')
   const [description, setDescription] = useState(editingCourse?.description ?? '')
-  const [level, setLevelState] = useState(editingCourse?.level ?? '')
-  // Changing the level carries the entry-qualification pre-fill with it, until the admin has
-  // chosen one themselves (declared below — hoisted setter, read at call time).
-  const setLevel = (v: string) => {
-    setLevelState(v)
-    if (!entryQualificationTouchedRef.current) setEntryQualificationState(defaultEntryQualification(v))
-  }
+  // The level no longer carries an entry-qualification pre-fill with it (assumptions audit C1,
+  // approved 2026-09-19) — the qualification is the admin's answer or "Not set", never derived.
+  const [level, setLevel] = useState(editingCourse?.level ?? '')
   const [fieldOfStudy, setFieldOfStudy] = useState(editingCourse?.field_of_study ?? '')
   const [duration, setDuration] = useState(editingCourse?.duration ?? '')
   const [durationMonths, setDurationMonths] = useState(
@@ -161,22 +170,36 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
     editingCourse?.campus_ids ?? (defaultCampusId ? [defaultCampusId] : activeCampuses.length === 1 ? [activeCampuses[0].id!] : []),
   )
   const [intakes, setIntakes] = useState<string[]>(editingCourse?.intakes ?? [])
-  const [deadlines, setDeadlines] = useState<Record<string, { deadline: string; open: boolean }>>(() =>
+  // Three-valued since the assumptions audit (C10, approved 2026-09-19). A saved `open`/`closed`
+  // loads as itself; anything else — `unknown`, or a legacy row with no status at all — loads as
+  // Not set rather than being read as Open, which is how nine ticked months became nine intakes
+  // advertised as taking applications.
+  const [deadlines, setDeadlines] = useState<Record<string, { deadline: string; status: IntakeStatus }>>(() =>
     Object.fromEntries(
       (editingCourse?.intake_deadlines ?? []).map((d) => [
         d.month,
-        { deadline: d.application_deadline ?? '', open: d.status !== 'closed' },
+        {
+          deadline: d.application_deadline ?? '',
+          status: (d.status === 'open' || d.status === 'closed' ? d.status : 'unknown') as IntakeStatus,
+        },
       ]),
     ),
   )
+  // Read-only: the server sets `rolled` when it carried a passed deadline forward a year, and the
+  // table says so beside the date instead of presenting an estimate as the college's own (C10).
+  const rolledMonths = new Set((editingCourse?.intake_deadlines ?? []).filter((d) => d.rolled).map((d) => d.month))
 
   // Fees
   const [feeAmount, setFeeAmount] = useState(editingCourse?.fee?.amount != null ? String(editingCourse.fee.amount) : '')
-  const [feeCurrency, setFeeCurrencyRaw] = useState(editingCourse?.fee?.currency ?? 'INR')
+  // Starts EMPTY, never INR (assumptions audit C5, approved 2026-09-19): a UK course priced
+  // before its campus was picked was saved as INR 28,000 and read as a bargain in every filter.
+  // An amount with no currency now blocks the save instead. The campus-country fill below stays,
+  // but only as a suggestion into an empty field.
+  const [feeCurrency, setFeeCurrencyRaw] = useState(editingCourse?.fee?.currency ?? '')
   // Only a NEW course's currency is auto-set; editing an existing one never overrides what was
   // actually saved. "Touched" also covers picking it manually, so a deliberate choice always wins
   // over the campus-country guess below.
-  const [feeCurrencyTouched, setFeeCurrencyTouched] = useState(Boolean(editingCourse))
+  const [feeCurrencyTouched, setFeeCurrencyTouched] = useState(Boolean(editingCourse?.fee?.currency))
   function setFeeCurrency(v: string) {
     setFeeCurrencyRaw(v)
     setFeeCurrencyTouched(true)
@@ -186,11 +209,14 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
   // because the two almost always match, and tracks it until explicitly overridden so a Canadian
   // college does not need the same answer typed twice.
   const [appFeeCurrency, setAppFeeCurrency] = useState(
-    editingCourse?.application_fee?.currency ?? editingCourse?.fee?.currency ?? 'INR',
+    editingCourse?.application_fee?.currency ?? editingCourse?.fee?.currency ?? '',
   )
+  // Tracking stops the moment a saved course actually HAS an application-fee currency
+  // (assumptions audit C5/H16, approved 2026-09-19). It used to keep tracking whenever the two
+  // matched, so correcting tuition CAD→USD silently rewrote an application fee the college still
+  // charges in CAD. A persisted answer is an answer, even when it happens to equal the tuition's.
   const [appFeeCurrencyTouched, setAppFeeCurrencyTouched] = useState(
-    Boolean(editingCourse?.application_fee?.currency) &&
-      editingCourse?.application_fee?.currency !== editingCourse?.fee?.currency,
+    Boolean(editingCourse?.application_fee?.currency),
   )
   const effectiveAppFeeCurrency = appFeeCurrencyTouched ? appFeeCurrency : feeCurrency
   const [feePeriod, setFeePeriod] = useState<'per_year' | 'total'>(editingCourse?.fee_period ?? 'per_year')
@@ -205,22 +231,19 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
   // never "unknown" (plan §1.2), so a half-filled tab is a perfectly valid save.
   const existingReqs = editingCourse?.requirements
   // The ONE qualification the minimum score is measured on (user, 2026-09-17: "instead of
-  // assuming, a field with drop down to select the entry requirement"). Pre-filled from the course
-  // level and kept in step with it until the admin picks one by hand — so an ordinary Masters
-  // course needs no extra click, and a PG diploma or a Masters that takes a 3-year diploma is one
-  // change away.
-  const [entryQualification, setEntryQualificationState] = useState<EntryQualification>(
-    existingReqs?.academic?.entry_qualification ?? defaultEntryQualification(editingCourse?.level ?? ''),
+  // assuming, a field with drop down to select the entry requirement"). Starts at "Not set" and
+  // is never derived from the course level (assumptions audit C1, approved 2026-09-19): the
+  // pre-fill was saved as though an admin had chosen it, so a Diploma or PhD course measured
+  // everyone against the 12th and a 10th-standard 92 % satisfied a PhD minimum.
+  const [entryQualification, setEntryQualification] = useState<EntryQualificationValue>(
+    existingReqs?.academic?.entry_qualification ?? '',
   )
-  const entryQualificationTouchedRef = useRef(existingReqs?.academic?.entry_qualification != null)
-  const setEntryQualification = (v: EntryQualification) => {
-    entryQualificationTouchedRef.current = true
-    setEntryQualificationState(v)
-  }
   const [minScore, setMinScore] = useState(
     existingReqs?.academic?.min_score != null ? String(existingReqs.academic.min_score) : '',
   )
-  const [scheme, setScheme] = useState(existingReqs?.academic?.scheme ?? 'percentage')
+  // No pre-selected Percentage either (assumptions audit C3): `3.5` typed from a 4-point GPA was
+  // saved as a 3.5 % floor that every applicant clears.
+  const [scheme, setScheme] = useState<ScoreSchemeValue>(existingReqs?.academic?.scheme ?? '')
   const [background, setBackground] = useState(existingReqs?.academic?.required_background ?? '')
   const [maxBacklogs, setMaxBacklogs] = useState(
     existingReqs?.academic?.max_backlogs != null ? String(existingReqs.academic.max_backlogs) : '',
@@ -272,6 +295,24 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
   // convention every other capture check on this form already follows.
   const campusRequired = activeCampuses.length > 0 && campusIds.length === 0
 
+  // The answers the form used to supply for the admin, now refused (assumptions audit C1/C3/C5,
+  // approved 2026-09-19). Each mirrors a check the server makes too, so the gap is caught before
+  // submit rather than only as a 400 back from it — same convention `campusRequired` follows.
+  const entryQualificationError =
+    minScore !== '' && entryQualification === ''
+      ? 'Pick the qualification this score is measured on — a score on its own is checked against the wrong level.'
+      : undefined
+  const schemeError =
+    minScore !== '' && scheme === ''
+      ? 'Say how this score is scored — 8.5 read as a percentage instead of a CGPA fails everyone.'
+      : undefined
+  const feeCurrencyError =
+    feeAmount !== '' && feeCurrency === '' ? 'Pick the currency this fee is in.' : undefined
+  const appFeeCurrencyError =
+    appFeeAmount !== '' && !appFeeWaived && effectiveAppFeeCurrency === ''
+      ? 'Pick the currency this application fee is in.'
+      : undefined
+
   function toggleCampus(id: string) {
     setCampusIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]))
   }
@@ -287,10 +328,16 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
     const aptitudeRows = aptitude
       .filter((a) => a.exam_id && a.min_score !== '')
       .map((a) => ({ exam_id: a.exam_id, min_score: Number(a.min_score), required: a.required }))
+    // `entry_qualification` is written whenever it is SET, not only alongside a score
+    // (assumptions audit C1/H16, approved 2026-09-19) — "Diploma + 2 backlogs, no score" used to
+    // discard the qualification the admin had just chosen, because it only ever travelled inside
+    // the min-score branch. The score and its scheme still travel together: a score without its
+    // scale is the CGPA-as-percentage bug (C3), and the server refuses it.
     const academic =
-      minScore !== '' || background || maxBacklogs !== ''
+      minScore !== '' || background || maxBacklogs !== '' || entryQualification !== ''
         ? {
-            ...(minScore !== '' ? { entry_qualification: entryQualification, min_score: Number(minScore), scheme } : {}),
+            ...(entryQualification !== '' ? { entry_qualification: entryQualification } : {}),
+            ...(minScore !== '' && scheme !== '' ? { min_score: Number(minScore), scheme } : {}),
             ...(background ? { required_background: background } : {}),
             ...(maxBacklogs !== '' ? { max_backlogs: Number(maxBacklogs) } : {}),
           }
@@ -321,10 +368,12 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
       application_fee_waived: appFeeWaived,
       scholarship_available: scholarship,
       scholarship_note: scholarship && scholarshipNote ? scholarshipNote : null,
+      // A month nobody has answered for saves as `unknown`, not `open` (C10) — the app shows no
+      // "applications open" badge for it rather than advertising an intake on a guess.
       intake_deadlines: intakes.map((month) => ({
         month,
         application_deadline: deadlines[month]?.deadline || null,
-        status: (deadlines[month]?.open ?? true) ? ('open' as const) : ('closed' as const),
+        status: deadlines[month]?.status ?? ('unknown' as const),
       })),
       study_mode: (studyMode || null) as CourseInput['study_mode'],
       delivery: (delivery || null) as CourseInput['delivery'],
@@ -370,11 +419,13 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
     intakes,
     setIntakes,
     deadlines,
+    // A month ticked for the first time starts at Not set, never Open (C10).
     onDeadlineChange: (month, patch) =>
       setDeadlines((prev) => ({
         ...prev,
-        [month]: { deadline: prev[month]?.deadline ?? '', open: prev[month]?.open ?? true, ...patch },
+        [month]: { deadline: prev[month]?.deadline ?? '', status: prev[month]?.status ?? 'unknown', ...patch },
       })),
+    rolledMonths,
 
     feeAmount,
     setFeeAmount,
@@ -435,8 +486,18 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
     setActiveTab,
     // Level, field of study and delivery join name and language as required (user, 2026-09-17):
     // all three are facets students filter by, so a course without them cannot be found.
-    isValid: Boolean(name && language && level && fieldOfStudy && delivery) && !campusRequired,
+    isValid:
+      Boolean(name && language && level && fieldOfStudy && delivery) &&
+      !campusRequired &&
+      !entryQualificationError &&
+      !schemeError &&
+      !feeCurrencyError &&
+      !appFeeCurrencyError,
     campusRequired,
+    entryQualificationError,
+    schemeError,
+    feeCurrencyError,
+    appFeeCurrencyError,
     toPayload,
   }
 }

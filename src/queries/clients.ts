@@ -65,10 +65,14 @@ export function useClient(id: string | undefined) {
 export function useCreateApplicant() {
   const queryClient = useQueryClient()
   return useMutation({
+    // `date_of_birth` is required (assumptions audit C9, approved 2026-09-19) — this was the one
+    // door a student record came through with no date of birth, and an account without one was
+    // treated as an adult by every age decision on the platform.
     mutationFn: async (body: {
       first_name: string
       last_name: string
       email: string
+      date_of_birth: string
       phone?: string | null
       address?: string | null
       case_type: 'student' | 'pr'
@@ -461,10 +465,30 @@ export type CloseSubReason = (typeof CLOSE_SUB_REASONS)[number]['value']
 export function useCloseClient() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, reason, subReason }: { id: string; reason: string; subReason?: CloseSubReason }) => {
+    // `studentJoined` is the explicit answer the outcome now derives from when the case has an
+    // acceptance (assumptions audit C6, approved 2026-09-19). Before it, the outcome was inferred
+    // from the sub-reason list, and `other` — the catch-all a cancelled programme or a family
+    // emergency lands in — was NOT on the did-not-go list, so immiNow invoiced commission on a
+    // student who never went. Omitted entirely for a case with nothing to join; the server
+    // answers 422 `student_joined_required` when it is needed and missing.
+    mutationFn: async ({
+      id,
+      reason,
+      subReason,
+      studentJoined,
+    }: {
+      id: string
+      reason: string
+      subReason?: CloseSubReason
+      studentJoined?: boolean
+    }) => {
       const { data, error } = await api.POST('/clients/{id}/close', {
         params: { path: { id } },
-        body: { reason, ...(subReason ? { sub_reason: subReason } : {}) },
+        body: {
+          reason,
+          ...(subReason ? { sub_reason: subReason } : {}),
+          ...(studentJoined === undefined ? {} : { student_joined: studentJoined }),
+        },
       })
       if (error) throw new ApiError('Could not close this client.', error)
       return data

@@ -30,7 +30,13 @@ export function InviteFreelancerModal({
   const [touched, setTouched] = useState(false)
 
   const codeError = touched && code.length > 0 && !CODE_PATTERN.test(code) ? 'Use 4–20 letters, digits or dashes.' : undefined
-  const canSubmit = Boolean(firstName.trim() && lastName.trim() && email.trim() && CODE_PATTERN.test(code))
+  // The rate is required (assumptions audit C7, approved 2026-09-19) — "set it later" meant a
+  // case closed, immiNow collected ₹1,20,000, and the payouts page showed the freelancer ₹0 with
+  // nothing anywhere saying a rate was missing. The server refuses an invite without one too.
+  const parsedRate = Number(rate)
+  const rateValid = rate.trim() !== '' && Number.isFinite(parsedRate) && parsedRate > 0 && parsedRate <= 100
+  const rateError = touched && !rateValid ? 'Enter their share, between 0 and 100%.' : undefined
+  const canSubmit = Boolean(firstName.trim() && lastName.trim() && email.trim() && CODE_PATTERN.test(code)) && rateValid
   const firstNameError = touched && !firstName.trim() ? 'First name is required.' : undefined
   const lastNameError = touched && !lastName.trim() ? 'Last name is required.' : undefined
   const emailError = touched && !email.trim() ? 'Email is required.' : undefined
@@ -47,7 +53,7 @@ export function InviteFreelancerModal({
         email,
         referral_code: code,
         phone: phone || undefined,
-        rate: rate === '' ? undefined : Number(rate),
+        rate: parsedRate,
       },
       {
         onSuccess: () => {
@@ -118,15 +124,20 @@ export function InviteFreelancerModal({
         </div>
         <div className="flex flex-col gap-xs">
           <TextField
-            label="Share %"
+            label="Their share of the commission immiNow collects"
             type="number"
+            required
             min={0}
             max={100}
             value={rate}
             onChange={(e) => setRate(e.target.value)}
+            onBlur={() => setTouched(true)}
+            error={rateError}
           />
           <p className="pl-lg text-caption text-text-secondary">
-            Their share of the commission immiNow collects on the students they bring. Can be set later instead.
+            A percentage of what immiNow collects on the students they bring. Needed now, not
+            later — a freelancer with no share earns nothing on every case they send until one is
+            set, and nothing on screen says so.
           </p>
         </div>
       </form>

@@ -8,8 +8,11 @@ import { ArrowRight, Hand, Shuffle } from 'lucide-react'
 import { Card } from '@/components/Card'
 import { Skeleton } from '@/components/QueryState'
 import { Button } from '@/components/Button'
+import { TextField } from '@/components/TextField'
 import { useEmployees } from '@/queries/staff'
 import { useAllocationRule, useUpdateAllocationRule } from '@/queries/allocationRules'
+import { usePlatformSettings } from '@/queries/catalogSettings'
+import { ApiError } from '@/api/errors'
 import { showToast } from '@/lib/toast'
 
 type Mode = 'manual' | 'round_robin'
@@ -59,11 +62,16 @@ export function AllocationTab({ enabled }: { enabled: boolean }) {
 
   const [mode, setMode] = useState<Mode>('manual')
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  // Blank = the platform default, shown as this field's placeholder (assumptions audit C11,
+  // approved 2026-09-19). Round-robin used to have no ceiling at all, so a consultant with 40
+  // open cases and no leads took every new lead that arrived.
+  const [capacity, setCapacity] = useState('')
 
   useEffect(() => {
     if (!rule.data) return
     setMode(rule.data.mode)
     setSelected(new Set(rule.data.participating_employee_ids))
+    setCapacity(rule.data.capacity_per_consultant != null ? String(rule.data.capacity_per_consultant) : '')
   }, [rule.data])
 
   function toggleEmployee(id: string) {
@@ -77,6 +85,24 @@ export function AllocationTab({ enabled }: { enabled: boolean }) {
 
   const activeEmployees = (employees.data?.items ?? []).filter((e) => e.active !== false)
   const noOneChosen = mode === 'round_robin' && selected.size === 0
+  // The platform's own figure, shown as the placeholder so the admin can see what "blank" means
+  // rather than having to ask (C11).
+  const platformDefault = usePlatformSettings().data?.cases_per_staff
+  const parsedCapacity = Number(capacity)
+  const capacityValid =
+    capacity.trim() === '' || (Number.isInteger(parsedCapacity) && parsedCapacity >= 1 && parsedCapacity <= 500)
+  const capacityError = capacityValid ? undefined : 'Enter a whole number from 1 to 500, or leave it blank.'
+  // Sent only when the admin actually changed it — including as null, so clearing the field
+  // really does hand the ceiling back to the platform figure. Saving the mode alone leaves the
+  // capacity out of the request entirely, the same "don't answer a question nobody asked" rule
+  // the intake-deadline editor follows (C10).
+  const savedCapacity = rule.data?.capacity_per_consultant ?? null
+  const nextCapacity = capacity.trim() === '' ? null : parsedCapacity
+  const capacityChanged = nextCapacity !== savedCapacity
+  // A plan without the feature refuses a round-robin save (server: 403 `feature_locked`, naming
+  // the plan). Shown as the answer to what the admin just tried rather than a generic failure —
+  // before the audit the save appeared to succeed and every lead quietly stayed in Lead Pool.
+  const featureLocked = updateRule.error instanceof ApiError && updateRule.error.code === 'feature_locked'
 
   const explainer = (
     <Card>
@@ -137,7 +163,9 @@ export function AllocationTab({ enabled }: { enabled: boolean }) {
             onSelect={() => setMode('round_robin')}
             icon={<Shuffle className="h-5 w-5" aria-hidden />}
             title="Automatically"
-            body="Each new lead goes straight to one of the consultants you choose below — whoever has the fewest active leads. Equal loads take turns."
+            // Leads AND open cases, since the assumptions audit (C11) — "fewest active leads"
+            // alone is what sent every new lead to the consultant already carrying 40 cases.
+            body="Each new lead goes straight to one of the consultants you choose below — whoever is carrying the least, counting leads and open cases together. Equal loads take turns."
           />
         </div>
 
@@ -174,16 +202,43 @@ export function AllocationTab({ enabled }: { enabled: boolean }) {
                 Choose at least one consultant — until you do, new leads keep waiting in Lead Pool.
               </p>
             )}
+
+            <div className="flex flex-col gap-xs">
+              <TextField
+                label="Capacity per consultant"
+                type="number"
+                min={1}
+                max={500}
+                className="max-w-[16rem]"
+                placeholder={platformDefault != null ? `${platformDefault} (platform default)` : 'Platform default'}
+                value={capacity}
+                onChange={(e) => setCapacity(e.target.value)}
+                error={capacityError}
+              />
+              <p className="pl-lg text-caption text-text-secondary">
+                The most a consultant can be given automatically. Leads waiting for a reply and
+                open cases both count towards it, so someone carrying 40 cases and no leads is no
+                longer first in line. Anyone at capacity is skipped; when nobody has room the lead
+                waits in Lead Pool. Leave it blank to use the platform figure.
+              </p>
+            </div>
           </div>
         )}
 
         <div className="flex items-center justify-end gap-md border-t border-border pt-md">
-          {updateRule.isError && <p className="text-body-sm text-error">{updateRule.error.message}</p>}
+          {updateRule.isError && (
+            <p className={`text-body-sm ${featureLocked ? 'text-warning' : 'text-error'}`}>{updateRule.error.message}</p>
+          )}
           <Button
             loading={updateRule.isPending}
+            disabled={!capacityValid}
             onClick={() =>
               updateRule.mutate(
-                { mode, participating_employee_ids: [...selected] },
+                {
+                  mode,
+                  participating_employee_ids: [...selected],
+                  ...(capacityChanged ? { capacity_per_consultant: nextCapacity } : {}),
+                },
                 { onSuccess: () => showToast('Allocation rule saved') },
               )
             }

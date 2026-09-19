@@ -5,9 +5,19 @@ import { TextField } from '@/components/TextField'
 import { TextAreaField } from '@/components/TextAreaField'
 import { SelectField } from '@/components/SelectField'
 import { MultiSelect } from '@/components/MultiSelect'
-import { Toggle } from '@/components/Toggle'
 import type { components } from '@/api/schema'
-import { ENTRY_QUALIFICATIONS, MONTHS, type AptitudeReq, type EnglishReq, type EntryQualification } from './courseFormShared'
+import {
+  ENTRY_QUALIFICATIONS,
+  INTAKE_STATUSES,
+  MONTHS,
+  ROLLED_DEADLINE_NOTE,
+  SCORE_SCHEMES,
+  type AptitudeReq,
+  type EnglishReq,
+  type EntryQualificationValue,
+  type IntakeStatus,
+  type ScoreSchemeValue,
+} from './courseFormShared'
 import { useCurrencyCodes } from '@/lib/currencies'
 import type { CourseFormValue } from './useCourseForm'
 import { useStudyLevels } from '@/queries/studyLevels'
@@ -328,23 +338,38 @@ export function CourseCampusIntakesPanel({
             <div className="grid grid-cols-3 gap-md bg-background px-md py-xs text-caption font-medium text-text-secondary">
               <span>Intake</span>
               <span>Deadline</span>
-              <span>Open for applications</span>
+              <span>Applications</span>
             </div>
+            {/* Three-valued, defaulting to Not set (assumptions audit C10, approved 2026-09-19).
+                The Open/Closed toggle this replaces had no way to say "nobody has told us", so
+                ticking nine months advertised nine open intakes to students. */}
             {form.intakes.map((month) => (
               <div key={month} className="grid grid-cols-3 items-center gap-md px-md py-sm">
                 <span className="text-body-sm text-text-primary">{month}</span>
-                <input
-                  type="date"
-                  value={form.deadlines[month]?.deadline ?? ''}
-                  onChange={(e) => form.onDeadlineChange(month, { deadline: e.target.value })}
-                  aria-label={`${month} application deadline`}
+                <div className="flex flex-col gap-xs">
+                  <input
+                    type="date"
+                    value={form.deadlines[month]?.deadline ?? ''}
+                    onChange={(e) => form.onDeadlineChange(month, { deadline: e.target.value })}
+                    aria-label={`${month} application deadline`}
+                    className={ROW_CONTROL}
+                  />
+                  {form.rolledMonths.has(month) && (
+                    <span className="text-caption text-text-secondary">{ROLLED_DEADLINE_NOTE}</span>
+                  )}
+                </div>
+                <select
+                  value={form.deadlines[month]?.status ?? 'unknown'}
+                  onChange={(e) => form.onDeadlineChange(month, { status: e.target.value as IntakeStatus })}
+                  aria-label={`${month} intake application status`}
                   className={ROW_CONTROL}
-                />
-                <Toggle
-                  checked={form.deadlines[month]?.open ?? true}
-                  onChange={(open) => form.onDeadlineChange(month, { open })}
-                  label={`${month} intake open for applications`}
-                />
+                >
+                  {INTAKE_STATUSES.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             ))}
           </div>
@@ -391,12 +416,17 @@ export function CourseFeesPanel({
             value={form.feeAmount}
             onChange={(e) => form.setFeeAmount(e.target.value)}
           />
+          {/* No INR default (assumptions audit C5, approved 2026-09-19) — the campus's country
+              fills this while it is empty, and an amount typed without one blocks the save. */}
           <SelectField
             label="Currency"
             id="course-currency"
+            required={form.feeAmount !== ''}
             value={form.feeCurrency}
             onChange={(e) => form.setFeeCurrency(e.target.value)}
+            error={form.feeCurrencyError}
           >
+            <option value="">Not set</option>
             {currencyCodes.map((currency) => (
               <option key={currency} value={currency}>
                 {currency}
@@ -433,10 +463,13 @@ export function CourseFeesPanel({
           <SelectField
             label="Currency"
             id="app-fee-currency"
+            required={form.appFeeAmount !== '' && !form.appFeeWaived}
             value={form.effectiveAppFeeCurrency}
             onChange={(e) => form.onAppFeeCurrencyChange(e.target.value)}
             disabled={form.appFeeWaived}
+            error={form.appFeeCurrencyError}
           >
+            <option value="">Not set</option>
             {currencyCodes.map((currency) => (
               <option key={currency} value={currency}>
                 {currency}
@@ -586,14 +619,19 @@ export function CourseRequirementsPanel({
 
       <FormSection title="Academic">
         <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
-          {/* The one qualification the minimum score is measured on (2026-09-17). Pre-filled from the
-              course level; change it for a PG diploma, a PhD, or a Masters that takes a diploma. */}
+          {/* The one qualification the minimum score is measured on (2026-09-17). Starts at "Not
+              set" and is no longer pre-filled from the course level (assumptions audit C1,
+              approved 2026-09-19) — the guess was saved as fact, so a Diploma or PhD course
+              measured applicants against the 12th. Required once a score is entered. */}
           <SelectField
             label="Minimum qualification"
             id="req-entry-qualification"
+            required={form.minScore !== ''}
             value={form.entryQualification}
-            onChange={(e) => form.setEntryQualification(e.target.value as EntryQualification)}
+            onChange={(e) => form.setEntryQualification(e.target.value as EntryQualificationValue)}
+            error={form.entryQualificationError}
           >
+            <option value="">Not set</option>
             {ENTRY_QUALIFICATIONS.map((q) => (
               <option key={q.value} value={q.value}>
                 {q.label}
@@ -606,15 +644,22 @@ export function CourseRequirementsPanel({
             value={form.minScore}
             onChange={(e) => form.setMinScore(e.target.value)}
           />
+          {/* No pre-selected Percentage either (assumptions audit C3) — a 4-point GPA of 3.5
+              typed into a field already reading "Percentage" saved a 3.5 % floor. */}
           <SelectField
             label="Scored as"
             id="req-scheme"
+            required={form.minScore !== ''}
             value={form.scheme}
-            onChange={(e) => form.setScheme(e.target.value as 'percentage' | 'cgpa_10' | 'cgpa_4')}
+            onChange={(e) => form.setScheme(e.target.value as ScoreSchemeValue)}
+            error={form.schemeError}
           >
-            <option value="percentage">Percentage</option>
-            <option value="cgpa_10">CGPA (out of 10)</option>
-            <option value="cgpa_4">CGPA (out of 4)</option>
+            <option value="">Not set</option>
+            {SCORE_SCHEMES.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
           </SelectField>
           <TextField
             label="Maximum backlogs"

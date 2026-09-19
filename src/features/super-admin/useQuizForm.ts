@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { browserTimezone, utcIsoToWallClock, wallClockToUtcIso } from '@/lib/eventTimezones'
+import { browserTimezone, nowWallClock, utcIsoToWallClock, wallClockToUtcIso } from '@/lib/eventTimezones'
 import { hasAnyTargeting, type Targeting } from '@/lib/targeting'
 import { emptyPrize, type Event, type PositionPrize } from './quizShared'
 
@@ -36,6 +36,15 @@ export interface QuizFormValue {
   setTargeting: (v: Targeting) => void
   // Mirrors the submit gate the modal always had: `if (!title || !startsAt) return`.
   isValid: boolean
+  /**
+   * The three time rules the server enforces (assumptions audit C16, approved 2026-09-19), each
+   * as the message its own control shows. `nowInZone` is the `min` the datetime fields need, on
+   * the quiz's own clock; `started` disables the start, which is fixed once a quiz is running.
+   */
+  nowInZone: string
+  started: boolean
+  startError?: string
+  endError?: string
   toPayload: () => QuizPayload
 }
 
@@ -91,6 +100,29 @@ export function useQuizForm(editingEvent?: Event): QuizFormValue {
     setPrizes((prev) => [...prev, emptyPrize(prev.length + 1)])
   }
 
+  // TIME RULES (assumptions audit C16, approved 2026-09-19), mirroring the server's own.
+  //
+  // The end time is REQUIRED once any position prize carries points: settlement waits on
+  // `ends_at` while display assumed a one-hour window, so a quiz created without one showed
+  // "ended" with a winner after an hour and the advertised points were never paid — silently.
+  // A quiz with no prizes still needs no end; its window is genuinely open-ended.
+  const nowInZone = nowWallClock(timezone)
+  const started = Boolean(editingEvent?.starts_at && Date.parse(editingEvent.starts_at) <= Date.now())
+  const isEditing = Boolean(editingEvent?.id)
+  const startInPast = !isEditing && Boolean(startsAt) && startsAt < nowInZone
+  const endBeforeStart = Boolean(startsAt && endsAt && endsAt <= startsAt)
+  const endInPast = Boolean(endsAt) && endsAt < nowInZone
+  const hasPrizePoints = prizes.some((p) => p.points)
+  const endRequired = hasPrizePoints && endsAt === ''
+  const startError = startInPast ? 'The start cannot be in the past.' : undefined
+  const endError = endRequired
+    ? 'A quiz with position prizes needs an end time — that is when the prizes are paid.'
+    : endBeforeStart
+      ? 'The end must be after the start.'
+      : endInPast
+        ? 'The end cannot be in the past — it can be extended, not brought forward.'
+        : undefined
+
   // Questions per attempt is required, min 1 (server: "whole ≥1"); time limit stays optional —
   // null (blank) or a whole number ≥1, never 0.
   const isValid =
@@ -98,7 +130,9 @@ export function useQuizForm(editingEvent?: Event): QuizFormValue {
     Boolean(startsAt) &&
     questionsPerAttempt != null &&
     questionsPerAttempt >= 1 &&
-    (timeLimitMinutes == null || timeLimitMinutes >= 1)
+    (timeLimitMinutes == null || timeLimitMinutes >= 1) &&
+    !startError &&
+    !endError
 
   function toPayload(): QuizPayload {
     return {
@@ -121,6 +155,6 @@ export function useQuizForm(editingEvent?: Event): QuizFormValue {
     title, setTitle, description, setDescription, timezone, setTimezone, startsAt, setStartsAt,
     endsAt, setEndsAt, questionsPerAttempt, setQuestionsPerAttempt, timeLimitMinutes, setTimeLimitMinutes,
     participationPoints, setParticipationPoints, prizes, updatePrize, removePrize, addPrize,
-    targeting, setTargeting, isValid, toPayload,
+    targeting, setTargeting, isValid, nowInZone, started, startError, endError, toPayload,
   }
 }

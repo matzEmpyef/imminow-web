@@ -33,7 +33,22 @@ function pad(n: number): string {
 
 // Platform-wide date convention (user-requested): every displayed date reads dd/mm/yyyy, not
 // whatever the browser's locale would otherwise produce via toLocaleDateString().
+//
+// A DATE-ONLY string ("2026-03-15" — a deadline, a subscription end, a due date) is a calendar
+// date, not an instant, and is rendered as TEXT (assumptions audit C13, approved 2026-09-19).
+// `new Date("2026-03-15")` is UTC midnight, and reading it back with the local getters below
+// showed 14/03/2026 to anyone west of UTC — every deadline, grace end and due date a day early.
+// Same reasoning and the same parse as `formatEventDateTime`'s `starts_at_local` below: a value
+// that carries no offset must never be routed through Date. Strings that DO carry a time are
+// genuine instants and keep the local rendering, which is what they mean.
 export function formatDate(input: string | Date): string {
+  if (typeof input === 'string') {
+    const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(input.trim())
+    if (dateOnly) {
+      const [, year, month, day] = dateOnly
+      return `${day}/${month}/${year}`
+    }
+  }
   const d = typeof input === 'string' ? new Date(input) : input
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`
 }

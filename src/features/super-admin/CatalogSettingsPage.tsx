@@ -57,7 +57,15 @@ type CountrySetting = components['schemas']['CountrySetting']
 type StateProvince = components['schemas']['StateProvince']
 type StateProvinceChange = components['schemas']['StateProvinceChange']
 
-const TABS = ['Countries', 'Exams', 'Study Levels', 'Fields of Study', 'Exchange Rates', 'Course Popularity'] as const
+const TABS = [
+  'Countries',
+  'Exams',
+  'Study Levels',
+  'Fields of Study',
+  'Exchange Rates',
+  'Score Schemes',
+  'Course Popularity',
+] as const
 
 const SCORE_TYPES = [
   { value: 'band', label: 'Band (e.g. IELTS 0–9)' },
@@ -109,6 +117,8 @@ export function CatalogSettingsPage() {
           <FieldsOfStudyTab />
         ) : activeTab === 'Exchange Rates' ? (
           <ExchangeRatesTab />
+        ) : activeTab === 'Score Schemes' ? (
+          <ScoreSchemeConversionsTab />
         ) : (
           <CoursePopularityTab />
         )}
@@ -1904,6 +1914,148 @@ function RateFormModal({
         />
       </form>
     </Modal>
+  )
+}
+
+/**
+ * Score scheme conversions (assumptions audit C3, approved 2026-09-19) — how a CGPA becomes the
+ * percentage every eligibility check compares against.
+ *
+ * ×9.5 for a 10-point CGPA is CBSE's formula and it was applied to every student in the country.
+ * Anna University publishes (CGPA − 0.5) × 10 and VTU (CGPA − 0.75) × 10, so a VTU student's 8.5
+ * was read as 80.75 % when their own university calls it 77.5 %. Putting the two numbers on a
+ * settings page is the difference between a rule somebody chose and a constant nobody did.
+ *
+ * Both schemes save in one PATCH, because they are one decision about how scores are read, and
+ * saving half of it would leave the pair inconsistent with no way to tell from the screen.
+ */
+type ScoreScheme = 'cgpa_10' | 'cgpa_4'
+
+const SCORE_SCHEME_DEFAULTS: Record<ScoreScheme, { label: string; hint: string; multiplier: number; offset: number }> = {
+  cgpa_10: {
+    label: 'CGPA (out of 10)',
+    hint: 'CBSE publishes ×9.5. Anna University is (CGPA − 0.5) × 10, VTU (CGPA − 0.75) × 10.',
+    multiplier: 9.5,
+    offset: 0,
+  },
+  cgpa_4: { label: 'GPA (out of 4)', hint: 'The common rule of thumb is ×25.', multiplier: 25, offset: 0 },
+}
+
+function ScoreSchemeConversionsTab() {
+  const settings = usePlatformSettings()
+  const update = useUpdatePlatformSettings()
+  const saved = settings.data?.score_scheme_conversions
+  // Keyed by scheme so one draft object covers both rows; seeded from the saved setting, or from
+  // the documented defaults when nothing has been set yet, so the admin always sees the numbers
+  // currently in force rather than empty boxes.
+  const [draft, setDraft] = useState<Record<ScoreScheme, { multiplier: string; offset: string }> | null>(null)
+  const current =
+    draft ??
+    (Object.fromEntries(
+      (Object.keys(SCORE_SCHEME_DEFAULTS) as ScoreScheme[]).map((scheme) => [
+        scheme,
+        {
+          multiplier: String(saved?.[scheme]?.multiplier ?? SCORE_SCHEME_DEFAULTS[scheme].multiplier),
+          offset: String(saved?.[scheme]?.offset ?? SCORE_SCHEME_DEFAULTS[scheme].offset),
+        },
+      ]),
+    ) as Record<ScoreScheme, { multiplier: string; offset: string }>)
+
+  const parsed = (Object.keys(SCORE_SCHEME_DEFAULTS) as ScoreScheme[]).map((scheme) => ({
+    scheme,
+    multiplier: Number(current[scheme].multiplier),
+    offset: Number(current[scheme].offset),
+  }))
+  // Same bounds the server checks: a multiplier above 0, an offset of 0 or more.
+  const invalid = parsed.some(
+    (r) => !Number.isFinite(r.multiplier) || r.multiplier <= 0 || !Number.isFinite(r.offset) || r.offset < 0,
+  )
+
+  function setField(scheme: ScoreScheme, field: 'multiplier' | 'offset', value: string) {
+    setDraft({ ...current, [scheme]: { ...current[scheme], [field]: value } })
+  }
+
+  return (
+    <Card className="flex flex-col gap-md">
+      <div className="flex flex-col gap-xs">
+        <h2 className="text-h3 text-text-primary">Score scheme conversions</h2>
+        <p className="text-body-sm text-text-secondary">
+          A student enters a score and says what it is out of. To check it against a course&rsquo;s minimum, Sentpo
+          converts it to a percentage with this formula:
+        </p>
+        <p className="rounded-md bg-background px-md py-sm text-body-sm text-text-primary">
+          percentage = (score &minus; offset) &times; multiplier
+        </p>
+        <p className="text-body-sm text-text-secondary">
+          A score a university already states as a percentage is stored as it is and never converted.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-md">
+        {(Object.keys(SCORE_SCHEME_DEFAULTS) as ScoreScheme[]).map((scheme) => {
+          const meta = SCORE_SCHEME_DEFAULTS[scheme]
+          const row = current[scheme]
+          const preview = Number(row.multiplier) > 0 ? ((scheme === 'cgpa_10' ? 8.5 : 3.4) - Number(row.offset || 0)) * Number(row.multiplier) : null
+          return (
+            <div key={scheme} className="flex flex-col gap-xs rounded-md border border-border p-md">
+              <p className="text-body-sm font-medium text-text-primary">{meta.label}</p>
+              <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
+                <TextField
+                  label="Multiplier"
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={row.multiplier}
+                  onChange={(e) => setField(scheme, 'multiplier', e.target.value)}
+                />
+                <TextField
+                  label="Offset"
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={row.offset}
+                  onChange={(e) => setField(scheme, 'offset', e.target.value)}
+                />
+              </div>
+              <p className="text-caption text-text-secondary">{meta.hint}</p>
+              {preview != null && (
+                <p className="text-caption text-text-secondary">
+                  {scheme === 'cgpa_10' ? '8.5' : '3.4'} reads as {preview.toFixed(1)}%.
+                </p>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      <SettingsUsedIn places={['Course entry requirements', 'Eligibility badges', 'Sentpo profile scores']} />
+
+      <div className="flex items-center justify-end gap-md border-t border-border pt-md">
+        {update.isError && <p className="text-body-sm text-error">{update.error.message}</p>}
+        {invalid && <p className="text-body-sm text-error">A multiplier must be above 0 and an offset 0 or more.</p>}
+        <Button
+          loading={update.isPending}
+          disabled={invalid || settings.isLoading}
+          onClick={() =>
+            update.mutate(
+              {
+                score_scheme_conversions: Object.fromEntries(
+                  parsed.map((r) => [r.scheme, { multiplier: r.multiplier, offset: r.offset }]),
+                ),
+              },
+              {
+                onSuccess: () => {
+                  setDraft(null)
+                  showToast('Score scheme conversions saved')
+                },
+              },
+            )
+          }
+        >
+          Save
+        </Button>
+      </div>
+    </Card>
   )
 }
 
