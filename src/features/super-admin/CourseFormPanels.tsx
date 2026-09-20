@@ -7,19 +7,22 @@ import { SelectField } from '@/components/SelectField'
 import { MultiSelect } from '@/components/MultiSelect'
 import type { components } from '@/api/schema'
 import {
+  APTITUDE_REQUIRED_OPTIONS,
   ENTRY_QUALIFICATIONS,
   FEE_PERIODS,
   INTAKE_STATUSES,
+  KNOWN_INTAKE_STATUSES,
   MONTHS,
   ROLLED_DEADLINE_NOTE,
   SCORE_SCHEMES,
   type AptitudeReq,
+  type AptitudeRequiredValue,
   type EnglishReq,
   type EntryQualificationValue,
   type FeePeriodValue,
-  type IntakeStatus,
   type ScoreSchemeValue,
 } from './courseFormShared'
+import { humaniseCode } from '@/lib/humanise'
 import { useCurrencyCodes } from '@/lib/currencies'
 import type { CourseFormValue } from './useCourseForm'
 import { useStudyLevels } from '@/queries/studyLevels'
@@ -362,7 +365,7 @@ export function CourseCampusIntakesPanel({
                 </div>
                 <select
                   value={form.deadlines[month]?.status ?? 'unknown'}
-                  onChange={(e) => form.onDeadlineChange(month, { status: e.target.value as IntakeStatus })}
+                  onChange={(e) => form.onDeadlineChange(month, { status: e.target.value })}
                   aria-label={`${month} intake application status`}
                   className={ROW_CONTROL}
                 >
@@ -371,6 +374,9 @@ export function CourseCampusIntakesPanel({
                       {s.label}
                     </option>
                   ))}
+                  {/* A saved status this build does not list keeps its own option, so saving the
+                      course does not overwrite it (assumptions audit M37). */}
+                  <UnknownOption value={form.deadlines[month]?.status} known={KNOWN_INTAKE_STATUSES} />
                 </select>
               </div>
             ))}
@@ -595,15 +601,21 @@ function AptitudeRequirementRow(p: {
         onChange={(e) => p.onChange({ min_score: e.target.value })}
         className={`${ROW_CONTROL} col-span-2`}
       />
-      <div className="flex justify-center">
-        <input
-          type="checkbox"
-          checked={p.row.required}
-          onChange={(e) => p.onChange({ required: e.target.checked })}
-          aria-label="Required"
-          className="h-4 w-4 accent-primary"
-        />
-      </div>
+      {/* A three-way select, not a checkbox (assumptions audit M37, product owner 2026-09-19).
+          A checkbox has only two states and its unticked one meant "optional", so an exam nobody
+          had ruled on saved as Required. "Not set" is the starting value and blocks the save. */}
+      <select
+        value={p.row.required}
+        onChange={(e) => p.onChange({ required: e.target.value as AptitudeRequiredValue })}
+        aria-label="Required or optional"
+        className={ROW_CONTROL}
+      >
+        {APTITUDE_REQUIRED_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
       <div className="flex justify-end">
         <RemoveRowButton label="Remove this exam" onClick={p.onRemove} />
       </div>
@@ -739,6 +751,7 @@ export function CourseRequirementsPanel({
           </Button>
         }
       >
+        {form.aptitudeRequiredError && <p className="text-caption text-error">{form.aptitudeRequiredError}</p>}
         {form.aptitude.length === 0 ? (
           <p className="text-caption text-text-secondary">No entrance exam required.</p>
         ) : (
@@ -746,7 +759,7 @@ export function CourseRequirementsPanel({
             <div className="grid grid-cols-7 gap-sm bg-background px-md py-xs text-caption font-medium text-text-secondary">
               <span className="col-span-3">Exam</span>
               <span className="col-span-2">Minimum score</span>
-              <span className="text-center">Required</span>
+              <span>Required?</span>
               <span />
             </div>
             {form.aptitude.map((row, i) => (
@@ -775,9 +788,41 @@ export function CourseRequirementsPanel({
   )
 }
 
-export function CourseFlagsPanel({ hidden, form }: { hidden: boolean; form: CourseFormValue }) {
+const STUDY_MODES = ['full_time', 'part_time']
+const DELIVERIES = ['on_campus', 'hybrid', 'online']
+
+// A saved value this build's option list does not carry keeps its OWN option (assumptions audit
+// M34, product owner 2026-09-19). Without one the select showed "Not specified" over a course
+// that had a study mode, and the next save wrote that lie back to the catalogue.
+function UnknownOption({ value, known }: { value: string | null | undefined; known: string[] }) {
+  if (!value || known.includes(value)) return null
+  return <option value={value}>{humaniseCode(value)}</option>
+}
+
+export function CourseFlagsPanel({
+  hidden,
+  form,
+  visibility,
+}: {
+  hidden: boolean
+  form: CourseFormValue
+  /** Only passed while ADDING a course — an existing one is published from its own row toggle. */
+  visibility?: { value: boolean; onChange: (next: boolean) => void }
+}) {
   return (
     <div className={panelClass(hidden)}>
+      {visibility && (
+        <FormSection title="Visibility">
+          {/* Created as a draft unless this is ticked (assumptions audit LOW "Create college /
+              course", product owner 2026-09-19). */}
+          <CheckRow
+            checked={visibility.value}
+            onChange={visibility.onChange}
+            label="Visible to students"
+            hint="Off until you publish — students can't see it yet."
+          />
+        </FormSection>
+      )}
       <FormSection title="Format">
         <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
           <SelectField
@@ -789,6 +834,7 @@ export function CourseFlagsPanel({ hidden, form }: { hidden: boolean; form: Cour
             <option value="">Not specified</option>
             <option value="full_time">Full time</option>
             <option value="part_time">Part time</option>
+            <UnknownOption value={form.studyMode} known={STUDY_MODES} />
           </SelectField>
           <SelectField
             label="Delivery"
@@ -801,6 +847,7 @@ export function CourseFlagsPanel({ hidden, form }: { hidden: boolean; form: Cour
             <option value="on_campus">On campus</option>
             <option value="hybrid">Hybrid</option>
             <option value="online">Online</option>
+            <UnknownOption value={form.delivery} known={DELIVERIES} />
           </SelectField>
         </div>
       </FormSection>

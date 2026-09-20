@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import type { components } from '@/api/schema'
 import { useCountrySettings } from '@/queries/countries'
 import {
+  aptitudeRequiredFromServer,
+  intakeStatusFromServer,
   type AptitudeReq,
   type EnglishReq,
   type EntryQualificationValue,
@@ -51,8 +53,11 @@ export interface CourseFormValue {
   onToggleAll: () => void
   intakes: string[]
   setIntakes: (v: string[]) => void
-  deadlines: Record<string, { deadline: string; status: IntakeStatus }>
-  onDeadlineChange: (month: string, patch: Partial<{ deadline: string; status: IntakeStatus }>) => void
+  // `status` is a plain string, not the three-value union (assumptions audit M37): a status this
+  // build does not know is carried through the form untouched rather than collapsed onto one it
+  // does know.
+  deadlines: Record<string, { deadline: string; status: string }>
+  onDeadlineChange: (month: string, patch: Partial<{ deadline: string; status: string }>) => void
   /** Months whose saved deadline the server rolled forward rather than a college confirming (C10). */
   rolledMonths: ReadonlySet<string>
 
@@ -126,6 +131,7 @@ export interface CourseFormValue {
    */
   entryQualificationError?: string
   schemeError?: string
+  aptitudeRequiredError?: string
   feeCurrencyError?: string
   feePeriodError?: string
   appFeeCurrencyError?: string
@@ -172,18 +178,15 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
     editingCourse?.campus_ids ?? (defaultCampusId ? [defaultCampusId] : activeCampuses.length === 1 ? [activeCampuses[0].id!] : []),
   )
   const [intakes, setIntakes] = useState<string[]>(editingCourse?.intakes ?? [])
-  // Three-valued since the assumptions audit (C10, approved 2026-09-19). A saved `open`/`closed`
-  // loads as itself; anything else — `unknown`, or a legacy row with no status at all — loads as
-  // Not set rather than being read as Open, which is how nine ticked months became nine intakes
-  // advertised as taking applications.
-  const [deadlines, setDeadlines] = useState<Record<string, { deadline: string; status: IntakeStatus }>>(() =>
+  // Three-valued since the assumptions audit (C10, approved 2026-09-19), and now ALSO lossless
+  // (M37, product owner 2026-09-19): `intakeStatusFromServer` maps explicitly and keeps anything
+  // it does not recognise verbatim, so a fourth status invented server-side round-trips instead
+  // of being re-saved as one of the three this build happens to know.
+  const [deadlines, setDeadlines] = useState<Record<string, { deadline: string; status: string }>>(() =>
     Object.fromEntries(
       (editingCourse?.intake_deadlines ?? []).map((d) => [
         d.month,
-        {
-          deadline: d.application_deadline ?? '',
-          status: (d.status === 'open' || d.status === 'closed' ? d.status : 'unknown') as IntakeStatus,
-        },
+        { deadline: d.application_deadline ?? '', status: intakeStatusFromServer(d.status) },
       ]),
     ),
   )
@@ -261,11 +264,13 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
     })),
   )
   const [moiAccepted, setMoiAccepted] = useState(existingReqs?.moi_accepted ?? false)
+  // Tri-state, explicitly mapped (assumptions audit M37, product owner 2026-09-19). `a.required
+  // !== false` read every absent value as a hard requirement.
   const [aptitude, setAptitude] = useState<AptitudeReq[]>(
     (existingReqs?.aptitude ?? []).map((a) => ({
       exam_id: a.exam_id ?? '',
       min_score: String(a.min_score ?? ''),
-      required: a.required !== false,
+      required: aptitudeRequiredFromServer(a.required),
     })),
   )
   const [workExpMonths, setWorkExpMonths] = useState(
@@ -311,6 +316,12 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
     minScore !== '' && scheme === ''
       ? 'Say how this score is scored — 8.5 read as a percentage instead of a CGPA fails everyone.'
       : undefined
+  // An entrance exam that has been given a score but no answer to "required or optional" blocks
+  // the save (assumptions audit M37, product owner 2026-09-19) — the alternative is a default,
+  // and a default here is exactly the bug: an optional GRE saved as a hard requirement.
+  const aptitudeRequiredError = aptitude.some((a) => a.exam_id && a.min_score !== '' && a.required === '')
+    ? 'Say whether each entrance exam is required or optional — neither is assumed.'
+    : undefined
   const feeCurrencyError =
     feeAmount !== '' && feeCurrency === '' ? 'Pick the currency this fee is in.' : undefined
   // Asked only alongside an amount, like the currency above: with no tuition figure there is
@@ -336,9 +347,12 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
         min_overall: Number(e.min_overall),
         min_band: e.min_band === '' ? null : Number(e.min_band),
       }))
+    // `required` is only ever written from an answer the admin actually gave (M37) — `isValid`
+    // below blocks the save while any started row is still at "Not set", so this can never fall
+    // back to a default.
     const aptitudeRows = aptitude
       .filter((a) => a.exam_id && a.min_score !== '')
-      .map((a) => ({ exam_id: a.exam_id, min_score: Number(a.min_score), required: a.required }))
+      .map((a) => ({ exam_id: a.exam_id, min_score: Number(a.min_score), required: a.required === 'required' }))
     // `entry_qualification` is written whenever it is SET, not only alongside a score
     // (assumptions audit C1/H16, approved 2026-09-19) — "Diploma + 2 backlogs, no score" used to
     // discard the qualification the admin had just chosen, because it only ever travelled inside
@@ -384,7 +398,9 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
       intake_deadlines: intakes.map((month) => ({
         month,
         application_deadline: deadlines[month]?.deadline || null,
-        status: deadlines[month]?.status ?? ('unknown' as const),
+        // Cast, not coerce (M37): the generated type is the three codes the contract documents
+        // today, and a status the server itself sent must go back exactly as it came.
+        status: (deadlines[month]?.status ?? 'unknown') as IntakeStatus,
       })),
       study_mode: (studyMode || null) as CourseInput['study_mode'],
       delivery: (delivery || null) as CourseInput['delivery'],
@@ -477,7 +493,8 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
     moiAccepted,
     setMoiAccepted,
     aptitude,
-    onAddAptitude: () => setAptitude((prev) => [...prev, { exam_id: '', min_score: '', required: true }]),
+    // A new row starts at "Not set", never at Required (M37).
+    onAddAptitude: () => setAptitude((prev) => [...prev, { exam_id: '', min_score: '', required: '' }]),
     onChangeAptitude: (index, patch) =>
       setAptitude((prev) => prev.map((r, j) => (j === index ? { ...r, ...patch } : r))),
     onRemoveAptitude: (index) => setAptitude((prev) => prev.filter((_, j) => j !== index)),
@@ -502,12 +519,14 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
       !campusRequired &&
       !entryQualificationError &&
       !schemeError &&
+      !aptitudeRequiredError &&
       !feeCurrencyError &&
       !feePeriodError &&
       !appFeeCurrencyError,
     campusRequired,
     entryQualificationError,
     schemeError,
+    aptitudeRequiredError,
     feeCurrencyError,
     feePeriodError,
     appFeeCurrencyError,

@@ -32,7 +32,7 @@ export function ReceiveDueModal({
   onReceived: (row: FinanceCaseRow) => void
 }) {
   const receiveDue = useReceiveCommissionDue()
-  const currencies = currencyOptions((caseRow.by_currency ?? []).map((c) => c.currency))
+  const currencies = currencyOptions((caseRow.by_currency ?? []).map((c) => c.currency), part?.currency)
   const [amount, setAmount] = useState(part ? String(part.outstanding ?? part.amount ?? '') : '')
   const [currency, setCurrency] = useState(part?.currency ?? currencies[0] ?? 'INR')
   const [receivedOn, setReceivedOn] = useState(localDateISO())

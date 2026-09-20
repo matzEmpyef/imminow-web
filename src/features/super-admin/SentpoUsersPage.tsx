@@ -9,7 +9,7 @@ import { FilterChip } from '@/components/FilterChip'
 import { fetchAllSentpoUserDirectory, isErasedRow, useSentpoUserDirectory } from '@/queries/adminUserDirectories'
 import { useCursorPagination } from '@/lib/pagination'
 import { toCsv, downloadCsv, type CsvColumn } from '@/lib/csv'
-import { formatDate, formatDateTime, localDateISO } from '@/lib/time'
+import { daysSince, formatDate, formatDateTime, localDateISO } from '@/lib/time'
 import { PersonSignInDrawer, type SignInHistoryPerson } from './PersonSignInDrawer'
 
 type Row = NonNullable<ReturnType<typeof useSentpoUserDirectory>['data']>['items'][number]
@@ -70,11 +70,13 @@ function daysAgoIsoDate(days: number): string {
 // uses the app daily has an old last login but is anything but dormant.
 function LastActiveCell({ row, dormantAfterDays }: { row: Row; dormantAfterDays: number }) {
   if (!row.last_active_at) return <span className="text-text-secondary">Never</span>
-  const daysSince = (Date.now() - new Date(row.last_active_at).getTime()) / (1000 * 60 * 60 * 24)
+  // The shared floored rule (assumptions audit M38) — this compared a raw fraction, so a student
+  // 30.4 days idle counted as dormant at a 30-day threshold while the column said "30 days".
+  const idleDays = daysSince(row.last_active_at)
   return (
     <span className="flex items-center gap-xs">
       <span className="text-text-primary">{formatDateTime(row.last_active_at)}</span>
-      {daysSince > dormantAfterDays && <Badge color="warning">Dormant</Badge>}
+      {idleDays > dormantAfterDays && <Badge color="warning">Dormant</Badge>}
     </span>
   )
 }

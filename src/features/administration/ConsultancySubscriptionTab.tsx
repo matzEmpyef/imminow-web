@@ -15,7 +15,8 @@ import {
   useWithdrawUpgrade,
 } from '@/queries/consultancy'
 import { useEmployees } from '@/queries/staff'
-import { formatDate } from '@/lib/time'
+import { humaniseCode } from '@/lib/humanise'
+import { daysUntil, formatDate } from '@/lib/time'
 import { BUSINESS_FEATURES, ULTIMATE_FEATURES, STARTER_CORE_FEATURES, TIER_ORDER, TIER_LABEL } from '@/lib/features'
 import { formatApprox, formatMoney } from '@/lib/money'
 
@@ -177,9 +178,9 @@ function BillingCard({ consultancy }: { consultancy: Consultancy }) {
     subscription_amount_local,
   } = consultancy
 
-  const daysLeft = subscription_expires_at
-    ? Math.ceil((new Date(subscription_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-    : undefined
+  // The shared remaining-days rule (assumptions audit M38) — was an inline ceil here and a
+  // different inline sum on Activity, so the two pages could disagree about "days left".
+  const daysLeft = subscription_expires_at ? daysUntil(subscription_expires_at) : undefined
 
   const rows: { label: string; value: React.ReactNode }[] = [
     { label: 'Plan started', value: subscription_started_at ? formatDate(subscription_started_at) : '—' },
@@ -228,6 +229,10 @@ function BillingCard({ consultancy }: { consultancy: Consultancy }) {
       <Badge color="warning">In grace period</Badge>
     ) : status === 'lapsed' ? (
       <Badge color="error">Lapsed</Badge>
+    ) : status && status !== 'none' ? (
+      // A status this build does not know reads as ITSELF (assumptions audit M34, product owner
+      // 2026-09-19) — never borrowed from a neighbouring state.
+      <Badge color="secondary">{humaniseCode(status)}</Badge>
     ) : null
 
   return (

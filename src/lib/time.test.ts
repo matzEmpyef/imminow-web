@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDate, localDateISO } from './time'
+import { daysSince, daysUntil, formatDate, localDateISO, relativeTime } from './time'
 
 // The bug this helper exists for (2026-09-12): "today" was taken from toISOString(), the UTC
 // date, so in India every date default read as yesterday between midnight and 05:30.
@@ -34,5 +34,34 @@ describe('formatDate', () => {
   it('still treats a value carrying a time as an instant on the local clock', () => {
     expect(formatDate(new Date(2026, 2, 15, 9, 0))).toBe('15/03/2026')
     expect(formatDate(new Date(2026, 2, 15, 9, 0).toISOString())).toBe('15/03/2026')
+  })
+})
+
+// Assumptions audit M38 (product owner, 2026-09-19): the console had four rounding rules for
+// "days" — floor here, round in relativeTime, ceil inline on two pages, a raw fraction on a
+// third — so the same gap read "1 day" in a column and "2d ago" in the cell beside it.
+describe('days', () => {
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3600000).toISOString()
+  const hoursAhead = (h: number) => new Date(Date.now() + h * 3600000).toISOString()
+
+  it('floors elapsed days — a day has passed only once it has', () => {
+    expect(daysSince(hoursAgo(5))).toBe(0)
+    expect(daysSince(hoursAgo(23))).toBe(0)
+    expect(daysSince(hoursAgo(36))).toBe(1)
+    expect(daysSince(hoursAgo(49))).toBe(2)
+  })
+
+  it('never reports a negative elapsed count for a future timestamp', () => {
+    expect(daysSince(hoursAhead(10))).toBe(0)
+  })
+
+  it('ceils remaining days — anything still to come is at least a day away', () => {
+    expect(daysUntil(hoursAhead(4))).toBe(1)
+    expect(daysUntil(hoursAhead(25))).toBe(2)
+  })
+
+  it('agrees with relativeTime, which used to round', () => {
+    expect(relativeTime(hoursAgo(36))).toBe(`${daysSince(hoursAgo(36))}d ago`)
+    expect(relativeTime(hoursAgo(36))).toBe('1d ago')
   })
 })

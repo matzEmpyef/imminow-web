@@ -34,8 +34,15 @@ export function FinanceSummaryTiles({
 
   const overdue = summary.overdue_inr ?? 0
 
+  // Over-collection is SHOWN, not clamped (assumptions audit M38, product owner 2026-09-19).
+  // `Math.min(100, …)` turned 118 % into a full bar reading "100 %", so a case where more was
+  // logged as received than was ever expected — a double-recorded instalment, a rate that moved,
+  // an amount typed into the wrong currency — looked like a month that had simply gone well. The
+  // BAR still stops at the end of its track (there is nowhere further to draw), but the number
+  // beside it is the real one, and above 100 % it is flagged rather than celebrated.
   const collectedPercent =
-    summary.expected_inr > 0 ? Math.min(100, Math.round((summary.collected_inr / summary.expected_inr) * 100)) : 0
+    summary.expected_inr > 0 ? Math.round((summary.collected_inr / summary.expected_inr) * 100) : null
+  const overCollected = collectedPercent != null && collectedPercent > 100
 
   return (
     <div className="flex flex-wrap gap-sm">
@@ -86,10 +93,24 @@ export function FinanceSummaryTiles({
         <span className="text-caption text-text-secondary">Recorded by consultancies</span>
         <span className="text-body-sm tabular-nums text-text-primary">
           {inr(summary.collected_inr)} of {inr(summary.expected_inr)}
+          {collectedPercent != null && (
+            <span className={overCollected ? ' font-medium text-warning' : ' text-text-secondary'}>
+              {' '}
+              · {collectedPercent}%
+            </span>
+          )}
         </span>
         <div className="h-1 w-full overflow-hidden rounded-full bg-border">
-          <div className="h-1 rounded-full bg-primary" style={{ width: `${collectedPercent}%` }} />
+          <div
+            className={`h-1 rounded-full ${overCollected ? 'bg-warning' : 'bg-primary'}`}
+            style={{ width: `${Math.min(100, collectedPercent ?? 0)}%` }}
+          />
         </div>
+        {overCollected && (
+          <span className="text-caption font-medium text-warning">
+            More recorded than expected — worth checking for a double entry or a wrong currency.
+          </span>
+        )}
         <span className="text-caption text-text-secondary">
           Instalments consultancies have logged as received from students and colleges. immiNow&rsquo;s own receipts
           are in Received this month.

@@ -6,6 +6,7 @@ import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
 import { showToast } from '@/lib/toast'
 import { useShareSearch } from '@/queries/searchShare'
+import { DUPLICATE_SHARE_MESSAGE, duplicateShareMessage, isRepeatOfLastShare } from './shareGuards'
 import { Table } from '@/components/Table'
 import { CountryLabelList } from '@/components/CountryLabel'
 import { CollegeDetailModal } from './CollegeDetailModal'
@@ -22,7 +23,7 @@ import {
   sharedSearchFiltersFrom,
   type SelectedPerson,
 } from './courseFinderState'
-import { useApplications, useAddApplication } from '@/queries/clients'
+import { useApplications, useAddApplication, useClientMessages } from '@/queries/clients'
 import { useSuggestCourseToLead, useLeadMessages } from '@/queries/leads'
 import { usePersonPicker } from '@/lib/usePersonPicker'
 import { useCourseFinder } from '@/queries/courseFinder'
@@ -158,7 +159,6 @@ export function CourseFinderPage() {
           .map((m) => m.shared_course?.id)
     ).filter((id): id is string => Boolean(id)),
   )
-
   function suggestCourse(courseId: string) {
     // A client hears about it in their chat as well as in Applications (user, 2026-09-10) —
     // the same thing a lead already gets.
@@ -168,6 +168,29 @@ export function CourseFinderPage() {
   const suggestPending = selectedClient ? addSelected.isPending : suggestToLead.isPending
   const suggestingId = selectedClient ? addSelected.variables?.course_id : suggestToLead.variables
   const shareSearch = useShareSearch(selectedPerson?.kind ?? 'lead', selectedPerson?.id ?? '')
+  // The same search, twice in a row, is what the server now refuses with 409 `duplicate_share`
+  // (chat UX, product owner 2026-09-19). Checked here so "Send this search" is simply not
+  // offered while the last message in the thread already IS this search from this consultancy —
+  // the refusal becomes something only a race can produce. A client's thread needs its own fetch;
+  // a lead's is already loaded above for the "already suggested" check.
+  const clientMessages = useClientMessages(selectedClient?.id)
+  const threadMessages = selectedClient ? clientMessages.data?.items : leadMessages.data?.items
+  const outgoingShare = sharedSearchFiltersFrom(state, state.feeCurrency || feeCurrency)
+  const alreadySentThisSearch = isRepeatOfLastShare(threadMessages, 'consultant', {
+    kind: 'search',
+    filters: outgoingShare.filters,
+  })
+  // A CLIENT's `suggestedCourseIds` above comes from Applications, which can lag the thread by a
+  // poll; the last message in the conversation is the rule the server's 409 `duplicate_share`
+  // actually applies, so the course sitting at the end of it is added to the set too.
+  const lastThreadMessage = threadMessages?.slice(-1)[0]
+  if (
+    lastThreadMessage?.type === 'course_share' &&
+    lastThreadMessage.sender === 'consultant' &&
+    lastThreadMessage.shared_course?.id
+  ) {
+    suggestedCourseIds.add(lastThreadMessage.shared_course.id)
+  }
   const personFirstName = selectedClient?.student.first_name ?? selectedLead?.name ?? ''
   // Somebody with the Sentpo app — a client, or a lead who came through Sentpo. A lead the
   // consultancy imported has no app for a search card to open in.
@@ -227,7 +250,13 @@ export function CourseFinderPage() {
               </Button>
             )}
             {selectedPerson && personHasApp && (
-              <Button variant="secondary" onClick={() => setConfirmSendSearch(true)} className="flex items-center">
+              <Button
+                variant="secondary"
+                disabled={alreadySentThisSearch}
+                title={alreadySentThisSearch ? DUPLICATE_SHARE_MESSAGE : undefined}
+                onClick={() => setConfirmSendSearch(true)}
+                className="flex items-center"
+              >
                 <Send className="mr-xs h-4 w-4" />
                 Send this search
               </Button>
@@ -346,19 +375,24 @@ export function CourseFinderPage() {
             onClose={() => setConfirmSendSearch(false)}
             title="Send this search?"
             footer={
-              <div className="flex justify-end gap-sm">
+              <div className="flex items-center justify-end gap-sm">
+                {/* Inline, where the button that failed is (chat UX, product owner 2026-09-19) —
+                    the server's 409 `duplicate_share` used to flash past as a toast. The modal
+                    stays open, nothing is retried, and the search itself is untouched. */}
+                {shareSearch.isError && (
+                  <p className="mr-auto text-body-sm text-error">{duplicateShareMessage(shareSearch.error)}</p>
+                )}
                 <Button variant="secondary" onClick={() => setConfirmSendSearch(false)}>
                   Cancel
                 </Button>
                 <Button
                   loading={shareSearch.isPending}
                   onClick={() =>
-                    shareSearch.mutate(sharedSearchFiltersFrom(state, state.feeCurrency || feeCurrency), {
+                    shareSearch.mutate(outgoingShare, {
                       onSuccess: () => {
                         setConfirmSendSearch(false)
                         showToast(`Search sent to ${personFirstName}'s chat`)
                       },
-                      onError: (error) => showToast(error.message, 'error'),
                     })
                   }
                 >

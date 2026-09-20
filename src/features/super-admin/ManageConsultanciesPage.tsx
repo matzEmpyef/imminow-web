@@ -38,7 +38,8 @@ import { formatMoney } from '@/lib/money'
 import { useCurrencyCodes } from '@/lib/currencies'
 import { useConsultancyKyc, useVerifyKyc } from '@/queries/kyc'
 import type { components } from '@/api/schema'
-import { BUSINESS_FEATURES, ULTIMATE_FEATURES, STARTER_CORE_FEATURES, TIER_ORDER, type FeatureDef } from '@/lib/features'
+import { BUSINESS_FEATURES, ULTIMATE_FEATURES, STARTER_CORE_FEATURES, TIER_ORDER, FEATURE_KEYS, type FeatureDef } from '@/lib/features'
+import { humaniseCode } from '@/lib/humanise'
 
 type Consultancy = components['schemas']['Consultancy']
 
@@ -591,6 +592,14 @@ const SUBSCRIPTION_BADGE: Record<string, { color: 'success' | 'warning' | 'error
   none: { color: 'secondary', label: 'No term' },
 }
 
+// A status this build has never heard of reads as ITSELF, never as its neighbour (assumptions
+// audit M34, product owner 2026-09-19). The old `?? SUBSCRIPTION_BADGE.none` printed
+// "Subscription · No term" on an account that was paid up — the one rendering the owner asked to
+// have fixed. `none` is now reached only when the server actually says `none`.
+function subscriptionBadge(status: string) {
+  return SUBSCRIPTION_BADGE[status] ?? { color: 'secondary' as const, label: humaniseCode(status) }
+}
+
 /** One billing cycle on from the later of today and the current end date. */
 function suggestedEnd(from: string | null | undefined, cycle: 'monthly' | 'annual'): string {
   // Counted from the admin's own calendar date. The arithmetic runs on that date's UTC midnight,
@@ -772,7 +781,7 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
 function SubscriptionSection({ consultancy }: { consultancy: Consultancy }) {
   const [renewing, setRenewing] = useState(false)
   const status = consultancy.subscription_status ?? 'none'
-  const badge = SUBSCRIPTION_BADGE[status] ?? SUBSCRIPTION_BADGE.none
+  const badge = subscriptionBadge(status)
   const details = [
     consultancy.subscription_expires_at ? `Ends ${formatDate(consultancy.subscription_expires_at)}` : 'No term recorded',
     status === 'grace' && consultancy.grace_ends_at ? `grace until ${formatDate(consultancy.grace_ends_at)}` : null,
@@ -914,7 +923,19 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
 
   const tierChanged = tier !== consultancy.tier
   const subscriptionStatus = consultancy.subscription_status ?? 'none'
-  const subscriptionBadge = SUBSCRIPTION_BADGE[subscriptionStatus] ?? SUBSCRIPTION_BADGE.none
+  const tierBadge = subscriptionBadge(subscriptionStatus)
+  // A flag the SERVER resolved that this build has never heard of is NAMED rather than left out
+  // (assumptions audit M34, product owner 2026-09-19 — the same "an unknown server value must not
+  // render as something false" sweep as the subscription badge). `lib/features.ts` is a hand-kept
+  // mirror of the server's FEATURE_REGISTRY, so the first sign of the two drifting used to be a
+  // Super Admin reading a complete-looking grid that silently omitted a feature the server was
+  // honouring. Named, not offered as a toggle: the server validates `entitlement_overrides` keys
+  // against its own registry and 400s an unrecognised one, so a switch here could not be saved.
+  const unknownFeatureKeys = [
+    ...new Set([...Object.keys(consultancy.features ?? {}), ...Object.keys(consultancy.entitlement_overrides ?? {})]),
+  ]
+    .filter((key) => !FEATURE_KEYS.includes(key))
+    .sort()
   const summary = [
     [consultancy.city, consultancy.country].filter(Boolean).join(', '),
     consultancy.seats_used != null ? `${consultancy.seats_used} / ${consultancy.seat_limit} seats used` : null,
@@ -938,7 +959,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
             </Badge>
             {!consultancy.kyc_verified && <Badge color="warning">KYC pending</Badge>}
             {consultancy.active !== false && SUBSCRIPTION_NEEDS_ATTENTION.includes(subscriptionStatus) && (
-              <Badge color={subscriptionBadge.color}>Subscription {subscriptionBadge.label.toLowerCase()}</Badge>
+              <Badge color={tierBadge.color}>Subscription {tierBadge.label.toLowerCase()}</Badge>
             )}
             {summary.length > 0 && <span className="text-caption text-text-secondary">{summary.join(' · ')}</span>}
           </div>
@@ -1183,6 +1204,14 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
             <p className="text-caption text-text-secondary">
               <span className="font-medium">Included in every plan:</span> {STARTER_CORE_FEATURES.join(' · ')}
             </p>
+            {unknownFeatureKeys.length > 0 && (
+              <p className="text-caption text-warning">
+                <span className="font-medium">Also on this account, newer than this console:</span>{' '}
+                {unknownFeatureKeys
+                  .map((key) => `${humaniseCode(key)} — ${consultancy.features?.[key] ? 'on' : 'off'}`)
+                  .join(' · ')}
+              </p>
+            )}
           </div>
 
           {/* User-requested (2026-08-19) — "at consultancy level we want to enable or disable
@@ -1303,8 +1332,18 @@ function SubscriptionCell({ consultancy: c }: { consultancy: Consultancy }) {
           <span className="text-caption text-text-secondary">{formatDate(expires)}</span>
         </span>
       )
-    default:
+    case 'active':
       return <span className="whitespace-nowrap text-text-primary">Renews {formatDate(expires)}</span>
+    default:
+      // Explicit per status, with the unknown one naming itself (assumptions audit M34, product
+      // owner 2026-09-19). `default` used to swallow anything that wasn't one of the four known
+      // states and print "Renews <date>" over it — a lapsed-in-a-new-way account read as healthy.
+      return (
+        <span className="flex items-center gap-xs">
+          <Badge color="secondary">{humaniseCode(c.subscription_status!)}</Badge>
+          <span className="text-caption text-text-secondary">{formatDate(expires)}</span>
+        </span>
+      )
   }
 }
 

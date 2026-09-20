@@ -6,7 +6,7 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { Toggle } from '@/components/Toggle'
 import { useDisableEmployee, useEmployees, useUpdateEmployee } from '@/queries/staff'
-import { PERMISSION_GROUPS } from '@/lib/permissions'
+import { permissionGroupsFor } from '@/lib/permissions'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
@@ -188,7 +188,7 @@ function AccessModalBody({
 
         <div className="flex flex-col gap-sm">
           <p className="text-body-sm font-medium text-text-primary">Individual permission overrides</p>
-          {PERMISSION_GROUPS.map((group) => (
+          {permissionGroupsFor(baseline, overrides).map((group) => (
             <div key={group.key}>
               <p className="text-caption font-medium text-text-secondary">{group.label}</p>
               <div className="mt-xs flex flex-col gap-xs">

@@ -10,6 +10,7 @@ import { useLeadMessages, useSuggestCourseToLead } from '@/queries/leads'
 import { useAddApplication, useApplications } from '@/queries/clients'
 import { formatCourseFee } from '@/lib/money'
 import { showToast } from '@/lib/toast'
+import { duplicateShareMessage, isRepeatOfLastShare } from './shareGuards'
 import { FitCell } from './FitCell'
 import { SuggestDestination } from './CourseFinderSuggestModal'
 import type { components } from '@/api/schema'
@@ -29,7 +30,19 @@ export interface ChatPerson {
 // Finder's Suggest calls — POST /leads/{id}/suggest-course for a lead, POST
 // /clients/{id}/applications with message_student for a client — with the same confirmation
 // wording. It only saves a trip to Course Finder when the consultant already knows the course.
-export function SuggestCourseInChat({ person }: { person: ChatPerson }) {
+export function SuggestCourseInChat({
+  person,
+  onShareError,
+}: {
+  person: ChatPerson
+  /**
+   * Where a failed suggest is SHOWN (chat UX, product owner 2026-09-19): the conversation page
+   * owns a line above the composer, which is where the consultant is already looking, and is
+   * where the server's new 409 `duplicate_share` lands. A toast was too easy to miss and said
+   * nothing about which message it belonged to.
+   */
+  onShareError?: (message: string) => void
+}) {
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -42,12 +55,22 @@ export function SuggestCourseInChat({ person }: { person: ChatPerson }) {
       >
         <GraduationCap className="h-5 w-5" />
       </button>
-      {open && <SuggestCourseModal person={person} onClose={() => setOpen(false)} />}
+      {open && (
+        <SuggestCourseModal person={person} onShareError={onShareError} onClose={() => setOpen(false)} />
+      )}
     </>
   )
 }
 
-function SuggestCourseModal({ person, onClose }: { person: ChatPerson; onClose: () => void }) {
+function SuggestCourseModal({
+  person,
+  onClose,
+  onShareError,
+}: {
+  person: ChatPerson
+  onClose: () => void
+  onShareError?: (message: string) => void
+}) {
   const [search, setSearch] = useState('')
   const [picked, setPicked] = useState<Course | null>(null)
   const term = search.trim()
@@ -70,6 +93,13 @@ function SuggestCourseModal({ person, onClose }: { person: ChatPerson; onClose: 
       : (applications.data ?? []).map((a) => a.course?.id)
     ).filter((id): id is string => Boolean(id)),
   )
+  // Belt as well as braces (chat UX, product owner 2026-09-19): `suggestedIds` above is the
+  // "already suggested, ever" rule, which for a CLIENT is read from Applications and can lag the
+  // thread. This is the exact rule the server's 409 `duplicate_share` enforces — the previous
+  // message is this same course from this same sender — so the refusal is not something a
+  // consultant meets by clicking a button that looked available.
+  const repeatsLastShare = (courseId: string) =>
+    isRepeatOfLastShare(leadMessages.data?.items, 'consultant', { kind: 'course', id: courseId })
 
   function confirm() {
     if (!picked) return
@@ -80,7 +110,17 @@ function SuggestCourseModal({ person, onClose }: { person: ChatPerson; onClose: 
         showToast(`Suggested ${course.name} to ${person.firstName}`)
         onClose()
       },
-      onError: (error: Error) => showToast(error.message, 'error'),
+      // Inline beside the composer, never a retry, and the picker closes so the message is not
+      // hidden behind it (chat UX, 2026-09-19).
+      onError: (error: Error) => {
+        const message = duplicateShareMessage(error)
+        if (onShareError) {
+          onShareError(message)
+          onClose()
+        } else {
+          showToast(message, 'error')
+        }
+      },
     }
     if (isLead) suggestToLead.mutate(course.id, callbacks)
     else addApplication.mutate({ course_id: course.id, message_student: true }, callbacks)
@@ -131,7 +171,7 @@ function SuggestCourseModal({ person, onClose }: { person: ChatPerson; onClose: 
         ) : (
           <ul className="flex flex-col divide-y divide-border">
             {rows.map((course) => {
-              const already = suggestedIds.has(course.id)
+              const already = suggestedIds.has(course.id) || repeatsLastShare(course.id)
               return (
                 <li key={course.id} className="flex items-start justify-between gap-md py-sm">
                   <div className="flex min-w-0 flex-col gap-xs">

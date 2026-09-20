@@ -83,6 +83,12 @@ export function SubscriptionBanner() {
       </Notice>
     )
   }
+  // Explicit, never a catch-all (assumptions audit M34, product owner 2026-09-19): this used to
+  // be the `else` of the expiring/grace branches, so a status newer than this build told a whole
+  // consultancy its subscription had lapsed. Saying nothing is the only honest fallback here —
+  // the server enforces the real consequence either way, and Manage Consultancies names the
+  // status for whoever can act on it.
+  if (status !== 'lapsed') return null
   return (
     <Notice tone="error">
       Your subscription has lapsed. Only admins can sign in, and new leads and new clients are paused — you can still

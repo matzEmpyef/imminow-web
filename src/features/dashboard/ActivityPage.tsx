@@ -10,6 +10,7 @@ import { Skeleton, ErrorState } from '@/components/QueryState'
 import {
   AWAITING_REVIEW_WARNING_DAYS,
   awaitingReviewLabel,
+  daysUntil,
   daysSince,
   formatDate,
   formatDateTime,
@@ -20,10 +21,6 @@ import { AssignTaskModal } from './AssignTaskModal'
 import type { components } from '@/api/schema'
 
 type ActivityTask = components['schemas']['ActivityTask']
-
-function daysUntil(iso: string): number {
-  return Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000)
-}
 
 // The shared shell every "Needs your action" section uses — title, a count badge, a list of
 // rows. Only ever rendered when `count > 0` (the caller decides that), so there is no empty

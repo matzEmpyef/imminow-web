@@ -34,7 +34,11 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
   const [dateOfBirth, setDateOfBirth] = useState('')
   const [phone, setPhone] = useState('')
   const [address, setAddress] = useState('')
-  const [caseType, setCaseType] = useState<'student' | 'pr'>('student')
+  // No default (assumptions audit M38, product owner 2026-09-19) — `student` used to be
+  // pre-selected, so a PR case created by a consultant who never looked at this group was
+  // commissioned at the student rate and opened an Applications tab it has no use for. The
+  // person chooses; the form does not submit until they have.
+  const [caseType, setCaseType] = useState<'student' | 'pr' | ''>('')
   const [employeeId, setEmployeeId] = useState('')
 
   const phoneError = phone && !isValidPhone(phone) ? PHONE_ERROR : undefined
@@ -47,7 +51,10 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
   const dobTooYoung = Boolean(dateOfBirth) && !isAtLeastMinimumAge(dateOfBirth)
   const dobError = dobTooYoung ? MINIMUM_AGE_ERROR : undefined
   const canSubmit =
-    Boolean(firstName && lastName && email && employeeId && dateOfBirth) && !phoneError && !emailError && !dobError
+    Boolean(firstName && lastName && email && employeeId && dateOfBirth && caseType) &&
+    !phoneError &&
+    !emailError &&
+    !dobError
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -60,7 +67,7 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
         date_of_birth: dateOfBirth,
         phone: phone || null,
         address: address || null,
-        case_type: caseType,
+        case_type: caseType as 'student' | 'pr',
         assigned_employee_id: employeeId,
       },
       { onSuccess: (data) => navigate(`/clients/${data?.id}`) },
@@ -118,6 +125,9 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
             output identical to the plain divs this replaced. */}
         <fieldset className="flex flex-col gap-xs border-0 p-0">
           <legend className="mb-xs p-0 text-body-sm font-medium text-text-primary">Applicant Type</legend>
+          <p className="text-caption text-text-secondary">
+            Pick one — it sets the commission rate and what the case shows. Nothing is assumed.
+          </p>
           <div className="flex gap-md">
             <label className="flex items-center gap-xs text-body-sm">
               <input

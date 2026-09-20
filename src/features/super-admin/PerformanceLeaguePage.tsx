@@ -75,7 +75,12 @@ export function PerformanceLeaguePage() {
     return [...items].sort((a, b) => compareRows(a, b, sort.field) * dir)
   }, [league.data, sort, search])
 
-  const responseHours = t?.slow_response_hours ?? 48
+  // No number unless the SERVER gave one (assumptions audit M36, product owner 2026-09-19). The
+  // header used to read "Replied within 48h" from a client-side fallback whenever `thresholds`
+  // was absent or still loading — a column heading stating a service level nobody had confirmed,
+  // beside percentages a suspension decision is taken on. A heading with no number says less and
+  // claims nothing.
+  const responseHours = t?.slow_response_hours ?? null
 
   const columns: TableColumn<Row>[] = [
     {
@@ -94,7 +99,7 @@ export function PerformanceLeaguePage() {
     { key: 'leads_received', header: 'Sentpo leads', sortable: true, align: 'right', render: (r) => r.leads_received },
     {
       key: 'responded_within_percent',
-      header: `Replied within ${responseHours}h`,
+      header: responseHours != null ? `Replied within ${responseHours}h` : 'Replied on time',
       sortable: true,
       align: 'right',
       render: (r) =>
@@ -103,7 +108,12 @@ export function PerformanceLeaguePage() {
         ) : (
           <span className="flex flex-col items-end">
             <span className="flex items-center gap-xs">
-              {r.flags.slow_response && <Badge color="warning">Below {t?.response_target_percent}%</Badge>}
+              {/* Same rule for the target (M36) — no percentage unless the server sent one. */}
+              {r.flags.slow_response && (
+                <Badge color="warning">
+                  {t?.response_target_percent != null ? `Below ${t.response_target_percent}%` : 'Below target'}
+                </Badge>
+              )}
               <span className="font-medium text-text-primary">{Math.round(r.responded_within_percent)}%</span>
             </span>
             {r.response_time_median_hours != null && (

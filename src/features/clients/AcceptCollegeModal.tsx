@@ -154,7 +154,10 @@ export function AcceptCollegeModal({
     )
   }
 
-  const yearOptions = [now.getFullYear(), now.getFullYear() + 1, now.getFullYear() + 2, now.getFullYear() + 3]
+  // Five years out, not three (assumptions audit M39, product owner 2026-09-19). A deferred
+  // offer or a long programme start four years away could not be recorded at all — the picker
+  // simply had no such year, so the consultant had to enter a start date they knew was wrong.
+  const yearOptions = Array.from({ length: 6 }, (_, i) => now.getFullYear() + i)
 
   return (
     <Modal

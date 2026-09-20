@@ -13,6 +13,7 @@ import { Card } from '@/components/Card'
 import { TextField } from '@/components/TextField'
 import { Toggle } from '@/components/Toggle'
 import { Modal } from '@/components/Modal'
+import { Skeleton } from '@/components/QueryState'
 import { Table, type TableColumn } from '@/components/Table'
 import {
   useCreateExam,
@@ -44,7 +45,7 @@ import {
   useSaveCountryContent,
   type CountryContent,
 } from '@/queries/countryContent'
-import { formatDate } from '@/lib/time'
+import { daysSince, formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { ApiError } from '@/api/errors'
 import { useAuthStore } from '@/stores/authStore'
@@ -155,18 +156,25 @@ function CountriesTab() {
   const [managingStates, setManagingStates] = useState<string | null>(null)
 
   // Every country gets a row whether or not anyone has written about it — listing only the
-  // written ones would hide the gap the guide half of this tab exists to close. `hasRate` is
-  // assumed true until the rates load, so 91 "No rate" chips do not flash in and out.
+  // written ones would hide the gap the guide half of this tab exists to close.
+  //
+  // `hasRate` is THREE-valued (assumptions audit M36, product owner 2026-09-19). It used to be
+  // "assumed true until the rates load", so while the query was in flight every row claimed a
+  // rate it had not checked and the Data gaps card read "No rate: 0" — an admin who looked at
+  // the right moment was told the gap did not exist. `null` means nobody has looked yet, and the
+  // cell shows a skeleton instead of an answer.
   const rows = useMemo(() => {
     const byCountry = new Map((content.data ?? []).map((c) => [c.country, c]))
     const rated = rates.data ? new Set(rates.data.map((r) => r.currency)) : null
     return (countries.data ?? []).map((country) => ({
       ...country,
       guide: byCountry.get(country.name),
-      hasRate: rated ? rated.has(country.default_currency) : true,
+      hasRate: rated ? rated.has(country.default_currency) : null,
       waitsReviewed: country.offer_turnaround_days_reviewed !== false && country.expected_close_days_reviewed !== false,
     }))
   }, [countries.data, content.data, rates.data])
+  // Nothing may be counted or filtered on a rate check that has not happened (M36).
+  const ratesKnown = rates.data != null
 
   const needle = search.trim().toLowerCase()
   const visible = rows.filter((c) => {
@@ -176,13 +184,13 @@ function CountriesTab() {
     if (guideFilter === 'published' && !c.guide?.published) return false
     if (guideFilter === 'draft' && (!c.guide || c.guide.published)) return false
     if (guideFilter === 'none' && c.guide) return false
-    if (noRateOnly && c.hasRate) return false
+    if (noRateOnly && c.hasRate !== false) return false
     if (unreviewedOnly && c.waitsReviewed) return false
     return true
   })
   const offered = rows.filter((r) => r.active !== false).length
   const published = rows.filter((r) => r.guide?.published).length
-  const noRate = rows.filter((r) => !r.hasRate).length
+  const noRate = rows.filter((r) => r.hasRate === false).length
   const unreviewed = rows.filter((r) => !r.waitsReviewed).length
   const filtering = Boolean(needle || offeredFilter || guideFilter || noRateOnly || unreviewedOnly)
 
@@ -289,12 +297,12 @@ function CountriesTab() {
       </div>
       {/* A visible checklist, not just the quick-filter chips below (product review, 2026-09-12) —
           both gaps used to be findable only by an admin who already knew the chip existed. */}
-      {(noRate > 0 || unreviewed > 0) && (
+      {((ratesKnown && noRate > 0) || unreviewed > 0) && (
         <Card>
           <div className="flex flex-col gap-sm">
             <p className="text-body font-medium text-text-primary">Data gaps</p>
             <ul className="flex flex-col divide-y divide-border">
-              {noRate > 0 && (
+              {ratesKnown && noRate > 0 && (
                 <li className="flex items-center justify-between gap-md py-sm">
                   <span className="text-body-sm text-text-primary">
                     {noRate} {noRate === 1 ? 'currency' : 'currencies'} still need{noRate === 1 ? 's' : ''} a rate
@@ -371,7 +379,12 @@ function CountriesTab() {
         }
         quickFilters={
           <>
-            <FilterChip label={`No exchange rate (${noRate})`} active={noRateOnly} onChange={setNoRateOnly} />
+            {/* No count until there is one to give (M36) — "(0)" was a claim, not a blank. */}
+            <FilterChip
+              label={ratesKnown ? `No exchange rate (${noRate})` : 'No exchange rate'}
+              active={noRateOnly}
+              onChange={setNoRateOnly}
+            />
             <FilterChip
               label={`Waits not reviewed (${unreviewed})`}
               active={unreviewedOnly}
@@ -820,7 +833,7 @@ function CountryActiveToggle({ row }: { row: CountrySetting }) {
 // "No rate" (2026-09-11): 91 of 119 countries were seeded with a currency the rate table does not
 // hold, so a student living in one gets no "≈" amount anywhere. Exchange Rates lists them too,
 // ranked by who they affect; this chip is the same fact at the row it applies to.
-function DefaultCurrencyCell({ row, hasRate }: { row: CountrySetting; hasRate: boolean }) {
+function DefaultCurrencyCell({ row, hasRate }: { row: CountrySetting; hasRate: boolean | null }) {
   const update = useUpdateCountryCurrency()
   // Only currencies the Exchange Rates tab holds (2026-09-10, was a fixed list of 33 codes, most
   // without a rate): a default with no rate would give that country's users no "≈" anywhere. A
@@ -843,7 +856,10 @@ function DefaultCurrencyCell({ row, hasRate }: { row: CountrySetting; hasRate: b
           </option>
         ))}
       </CompactSelect>
-      {!hasRate && (
+      {/* A skeleton while the rate table is still loading, never an optimistic "has a rate"
+          (assumptions audit M36, product owner 2026-09-19). */}
+      {hasRate === null && <Skeleton className="h-5 w-16 rounded-full" />}
+      {hasRate === false && (
         <span title={`No ${row.default_currency} exchange rate — students living here see no ≈ amounts`}>
           <Badge color="warning">No rate</Badge>
         </span>
@@ -1680,13 +1696,21 @@ function StudyLevelFormModal({ level, onClose }: { level?: StudyLevel; onClose: 
   )
 }
 
-// Rates are set by hand with no feed, so an old one quietly skews every "≈" amount and every
-// cross-currency fee filter. Past this age a rate is flagged for a check (2026-09-11).
+/**
+ * How old a hand-set exchange rate may get before this tab asks someone to look at it.
+ *
+ * Rates are set by hand with no feed, so an old one quietly skews every "≈" amount and every
+ * cross-currency fee filter. THIRTY DAYS is the decision, kept (assumptions audit M36 — product
+ * owner, 2026-09-19: "keep the 30-day stale threshold but name it once as a constant with
+ * owner+date, no settings UI"). One constant, read by the column, the badge and the summary
+ * line, so the number on screen and the number in the test are the same number.
+ */
 const STALE_RATE_DAYS = 30
 
-function daysSince(iso: string | null | undefined) {
+/** Same floored elapsed-days rule as everywhere else (M38) — null when there is no date at all. */
+function rateAgeDays(iso: string | null | undefined) {
   if (!iso) return null
-  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000))
+  return daysSince(iso)
 }
 
 function agoLabel(days: number) {
@@ -1714,7 +1738,7 @@ function ExchangeRatesTab() {
   const [showAllMissing, setShowAllMissing] = useState(false)
   const missingRows = missing.data ?? []
   const shownMissing = showAllMissing ? missingRows : missingRows.slice(0, 5)
-  const staleCount = (rates.data ?? []).filter((r) => (daysSince(r.updated_at) ?? 0) > STALE_RATE_DAYS).length
+  const staleCount = (rates.data ?? []).filter((r) => (rateAgeDays(r.updated_at) ?? 0) > STALE_RATE_DAYS).length
 
   const columns: TableColumn<ExchangeRate>[] = [
     {
@@ -1732,7 +1756,7 @@ function ExchangeRatesTab() {
       header: 'Last updated',
       hideBelow: 'sm',
       render: (r) => {
-        const days = daysSince(r.updated_at)
+        const days = rateAgeDays(r.updated_at)
         if (days == null) return <span className="text-text-secondary">—</span>
         const stale = days > STALE_RATE_DAYS
         return (

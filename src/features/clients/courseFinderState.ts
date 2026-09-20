@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { usePersonPicker } from '@/lib/usePersonPicker'
 import type { components } from '@/api/schema'
+import { humaniseCode } from '@/lib/humanise'
+import { useCourseLevels } from '@/queries/courseFinder'
 
 type Course = components['schemas']['Course']
 
@@ -218,6 +220,16 @@ export function useCourseFinderState(
     state.personId ? loadShortlist(state.personId) : [],
   )
   const [drawerOpen, setDrawerOpen] = useState(false)
+  // A shared link's `level` is only APPLIED once it has been matched against the levels the
+  // catalogue actually serves (assumptions audit M39, product owner 2026-09-19). An unmatched
+  // one becomes "Any level" here rather than sitting on the search as a code no course carries
+  // and returning nothing; the chat card the consultant came from names it as dropped (M30).
+  const courseLevels = useCourseLevels()
+  useEffect(() => {
+    const resolved = resolveSharedLevel(state.level, courseLevels.data)
+    if (resolved === undefined || resolved === state.level) return
+    setState((s) => ({ ...s, level: resolved ?? '' }))
+  }, [courseLevels.data, state.level])
 
   useEffect(() => {
     try {
@@ -393,8 +405,13 @@ export function finderStateFromUrl(): FinderState | null {
         .split(',')
         .map((c) => c.trim())
         .filter(Boolean),
-      // The catalogue's levels are lowercase keys (`masters`); a link may carry either case.
-      level: (params.get('level') ?? '').toLowerCase(),
+      // Kept VERBATIM here (assumptions audit M39, product owner 2026-09-19). It used to be
+      // lower-cased, which is not validation: `PG_Diploma` became `pg_diploma`, a code the
+      // catalogue does not hold, and the finder returned nothing with the chip still showing.
+      // `resolveSharedLevel` below matches it against the levels the server actually serves
+      // once they have loaded, and `useCourseFinderState` clears it to "Any level" when it
+      // matches none — the chat card says so under the search (M30).
+      level: params.get('level') ?? '',
       fieldOfStudy: (params.get('field_of_study') ?? '')
         .split(',')
         .map((f) => f.trim())
@@ -419,6 +436,72 @@ export function finderStateFromUrl(): FinderState | null {
   } catch {
     return null
   }
+}
+
+/**
+ * A shared `level` matched against the levels the catalogue actually serves.
+ *
+ * Case-insensitive, so a link written `Masters` still opens as `masters` — that much of the old
+ * lower-casing was worth keeping. Anything with no match returns `null`: the filter is dropped
+ * and NAMED rather than applied as a code no course carries (assumptions audit M39, product
+ * owner 2026-09-19). `undefined` levels means "not loaded yet" — nothing is judged until the
+ * list is in.
+ */
+export function resolveSharedLevel(level: string, levels: string[] | undefined): string | null | undefined {
+  if (!level) return ''
+  if (!levels) return undefined
+  return levels.find((l) => l.toLowerCase() === level.toLowerCase()) ?? null
+}
+
+/**
+ * Every filter key on a shared search that THIS console will not carry into Course Finder,
+ * worded for a person (assumptions audit M30 + M39, product owner 2026-09-19).
+ *
+ * The chat card already lists what the SERVER dropped (`SharedSearch.left_out`); this is the
+ * other half of the same honesty — a filter the sender set, that the server kept, and that the
+ * console then quietly discarded on the way to the results. A search opened from chat must not
+ * silently widen: "Masters, Canada, scholarships, Jan intake, Toronto" opening as every Masters
+ * in Canada is the defect, and an unlisted drop is what made it invisible.
+ *
+ * `levels` is the fetched catalogue list; pass `undefined` while it is still loading and the
+ * level is simply not judged yet.
+ */
+export function consoleDroppedFilters(filters: Record<string, string>, levels: string[] | undefined): string[] {
+  const carried = new Set<string>([
+    'country',
+    ...SHARED_SEARCH_PLAIN_KEYS,
+    ...SHARED_SEARCH_FLAG_KEYS,
+    'fee_max',
+    'fee_currency',
+    'duration_min_months',
+    'duration_max_months',
+  ])
+  const dropped: string[] = []
+  for (const [key, value] of Object.entries(filters)) {
+    if (!value) continue
+    if (!carried.has(key)) dropped.push(humaniseCode(key))
+  }
+  if (filters.level && resolveSharedLevel(filters.level, levels) === null) {
+    dropped.push(`Level (${filters.level})`)
+  }
+  if (filters.intake && !INTAKE_OPTIONS[filters.intake]) dropped.push(`Intake (${filters.intake})`)
+  if (filters.study_mode && !STUDY_MODE_OPTIONS[filters.study_mode]) {
+    dropped.push(`Study mode (${filters.study_mode})`)
+  }
+  if (filters.delivery && !DELIVERY_OPTIONS[filters.delivery]) dropped.push(`Delivery (${filters.delivery})`)
+  // The cap and its currency travel together or not at all (C5) — a cap with no currency is
+  // dropped rather than re-read in the viewer's own money.
+  if (filters.fee_max && !filters.fee_currency) dropped.push('Fee cap (no currency was sent with it)')
+  if (
+    (filters.duration_min_months || filters.duration_max_months) &&
+    !durationBucketKeyFor(
+      filters.duration_min_months ? Number(filters.duration_min_months) : null,
+      filters.duration_max_months ? Number(filters.duration_max_months) : null,
+    )
+  ) {
+    dropped.push('Duration (not one of the ranges this search offers)')
+  }
+  return dropped
 }
 
 export function sharedSearchFiltersFrom(

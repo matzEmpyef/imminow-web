@@ -7,6 +7,7 @@ import { SuggestCourseInChat } from './SuggestCourseInChat'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useClient, useClientMessages, useMarkClientRead, useSendClientMessage } from '@/queries/clients'
 import { useChatWindowStore } from '@/stores/chatWindowStore'
+import { duplicateShareMessage } from './shareGuards'
 
 export function ClientConversationPage() {
   const { id = '' } = useParams()
@@ -16,6 +17,10 @@ export function ClientConversationPage() {
   const { mutate: markRead } = useMarkClientRead()
   const openFloating = useChatWindowStore((s) => s.open)
   const [draft, setDraft] = useState('')
+  // One line above the composer for anything that failed to send (chat UX, product owner
+  // 2026-09-19) — an ordinary message, or the server's 409 `duplicate_share` on a course share.
+  // Cleared the moment the consultant types again, never by a retry.
+  const [composerError, setComposerError] = useState<string | null>(null)
 
   // `mutate` is destructured because it is referentially stable in React Query v5, so it can be
   // a real dependency: the rule is satisfied and `id` stays the only trigger (B5, 2026-09-03).
@@ -26,7 +31,12 @@ export function ClientConversationPage() {
   function handleSend(e: FormEvent) {
     e.preventDefault()
     if (!draft.trim()) return
-    sendMessage.mutate(draft, { onSuccess: () => setDraft('') })
+    setComposerError(null)
+    // The draft is cleared on SUCCESS only — a refused send leaves what was typed in place.
+    sendMessage.mutate(draft, {
+      onSuccess: () => setDraft(''),
+      onError: (error) => setComposerError(duplicateShareMessage(error)),
+    })
   }
 
   if (client.isLoading) {
@@ -80,7 +90,11 @@ export function ClientConversationPage() {
           isError={messages.isError}
           onRetryMessages={() => messages.refetch()}
           draft={draft}
-          onDraftChange={setDraft}
+          onDraftChange={(value) => {
+            setDraft(value)
+            if (composerError) setComposerError(null)
+          }}
+          composerError={composerError}
           onSend={handleSend}
           sending={sendMessage.isPending}
           heightClassName="h-full"
@@ -90,6 +104,7 @@ export function ClientConversationPage() {
             client.data.case_type === 'student' ? (
               <SuggestCourseInChat
                 person={{ id, kind: 'client', firstName: client.data.student.first_name, hasApp: true }}
+                onShareError={setComposerError}
               />
             ) : undefined
           }

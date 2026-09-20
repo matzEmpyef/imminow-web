@@ -4,9 +4,11 @@ import { TextField } from '@/components/TextField'
 import { TextAreaField } from '@/components/TextAreaField'
 import { SelectField } from '@/components/SelectField'
 import { Modal } from '@/components/Modal'
+import { Toggle } from '@/components/Toggle'
 import { ImageUploadField } from '@/components/ImageUploadField'
 import { useCreateCollege, useUpdateCollege } from '@/queries/adminColleges'
 import { showToast } from '@/lib/toast'
+import { humaniseCode } from '@/lib/humanise'
 import type { components } from '@/api/schema'
 
 type College = components['schemas']['College']
@@ -55,6 +57,17 @@ export function CollegeFormModal({
     college?.acceptance_rate != null ? String(college.acceptance_rate) : '',
   )
 
+  // New colleges are created as DRAFTS (assumptions audit LOW "Create college / course", product
+  // owner 2026-09-19). `active: true` on create put a college in front of students the moment
+  // its name was typed — before a campus, a course, a description or a single completeness check
+  // existed. Unticked by default; the admin publishes deliberately. Edit paths are untouched:
+  // an existing college keeps the active toggle it already has on its own page.
+  const [visibleToStudents, setVisibleToStudents] = useState(false)
+
+  const INSTITUTION_TYPES = ['university', 'college', 'institute']
+  const unknownInstitutionType =
+    institutionType && !INSTITUTION_TYPES.includes(institutionType) ? institutionType : null
+
   const acceptanceValid =
     acceptanceRate === '' || (Number(acceptanceRate) >= 0 && Number(acceptanceRate) <= 100)
   // Rank 0 or negative isn't a rank (product review, 2026-09-12) — empty still means "not ranked."
@@ -84,7 +97,10 @@ export function CollegeFormModal({
       })
     } else {
       createCollege.mutate(
-        { ...body, active: true },
+        // Sent explicitly either way — the server's own default is changing to false in the
+        // same pass, and a create that relies on a default is a create that changes meaning
+        // under it.
+        { ...body, active: visibleToStudents },
         {
           onSuccess: (created: College) => {
             showToast(`${name.trim()} added`)
@@ -159,9 +175,29 @@ export function CollegeFormModal({
               <option value="university">University</option>
               <option value="college">College</option>
               <option value="institute">Institute</option>
+              {/* A saved type this build does not list keeps its own option (assumptions audit
+                  M34, product owner 2026-09-19). Without it the select fell back to "Not
+                  specified" and the next save quietly erased the college's real type. */}
+              {unknownInstitutionType && (
+                <option value={unknownInstitutionType}>{humaniseCode(unknownInstitutionType)}</option>
+              )}
             </SelectField>
           </div>
         </FormSection>
+
+        {!isEditing && (
+          <FormSection title="Visibility">
+            <div className="flex items-start justify-between gap-md">
+              <div className="min-w-0">
+                <p className="text-body-sm font-medium text-text-primary">Visible to students</p>
+                <p className="text-caption text-text-secondary">
+                  Off until you publish — students can&rsquo;t see it yet.
+                </p>
+              </div>
+              <Toggle checked={visibleToStudents} onChange={setVisibleToStudents} label="Visible to students" />
+            </div>
+          </FormSection>
+        )}
 
         <FormSection title="About">
           <TextAreaField

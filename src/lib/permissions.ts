@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/stores/authStore'
+import { humaniseCode } from '@/lib/humanise'
 import { useEmployees, useDesignations } from '@/queries/staff'
 
 // The six permission areas and their granular sub-permissions, build reference 1.15. Shared
@@ -85,6 +86,34 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
 ]
+
+/**
+ * The six groups above PLUS anything the server is already storing that this build has never
+ * heard of (assumptions audit M34, product owner 2026-09-19 — the "an unknown server value must
+ * not render as something false" sweep).
+ *
+ * `PERMISSION_GROUPS` is a hand-kept copy of the server's own list, so a permission added
+ * server-side simply did not appear in either checklist: a designation that HELD it read as not
+ * holding it, and the next save — which posts the whole map — was the only warning anyone got.
+ * An unrecognised key now gets its own row, labelled with the raw key humanised, because there is
+ * nothing truer to call it. Both checklists (designation baseline and employee overrides) call
+ * this, so the two can never disagree about what exists.
+ */
+export function permissionGroupsFor(...keySources: (Record<string, boolean> | undefined | null)[]): PermissionGroup[] {
+  const known = new Set(PERMISSION_GROUPS.flatMap((g) => g.permissions.map((p) => p.key)))
+  const extra = [...new Set(keySources.flatMap((source) => Object.keys(source ?? {})))]
+    .filter((key) => !known.has(key))
+    .sort()
+  if (extra.length === 0) return PERMISSION_GROUPS
+  return [
+    ...PERMISSION_GROUPS,
+    {
+      key: '__unknown',
+      label: 'Other permissions on this account',
+      permissions: extra.map((key) => ({ key, label: humaniseCode(key) })),
+    },
+  ]
+}
 
 // User-requested (2026-08-15) — the frontend had no way to check "does the logged-in user
 // actually have permission X," so every gated action so far was tier-only (e.g. Transfer

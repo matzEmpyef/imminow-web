@@ -192,6 +192,11 @@ export function CourseFormModal({
 
   const mutation = isEditing ? updateCourse : createCourse
   const activeExams = (examsCatalog.data ?? []).filter((e) => e.active !== false)
+  // New courses are created as DRAFTS (assumptions audit LOW "Create college / course", product
+  // owner 2026-09-19) — `active: true` listed a course to students before its fee, deadlines or
+  // entry requirements had anything in them. Unticked by default; publishing is a decision.
+  // Editing an existing course still goes through its own active toggle on this page.
+  const [visibleToStudents, setVisibleToStudents] = useState(false)
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -206,7 +211,8 @@ export function CourseFormModal({
       })
     } else {
       createCourse.mutate(
-        { ...body, college_id: college.id!, active: true },
+        // Explicit either way — the server default is changing to false in the same pass.
+        { ...body, college_id: college.id!, active: visibleToStudents },
         {
           onSuccess: (created) => {
             showToast(`${form.name || 'Course'} created`)
@@ -334,7 +340,13 @@ export function CourseFormModal({
           activeExams={activeExams}
           form={form}
         />
-        <CourseFlagsPanel hidden={form.activeTab !== 'Flags'} form={form} />
+        <CourseFlagsPanel
+          hidden={form.activeTab !== 'Flags'}
+          form={form}
+          visibility={
+            isEditing ? undefined : { value: visibleToStudents, onChange: setVisibleToStudents }
+          }
+        />
       </form>
     </Modal>
   )

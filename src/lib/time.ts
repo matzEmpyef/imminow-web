@@ -1,9 +1,33 @@
 import { browserTimezoneAbbreviation } from '@/lib/eventTimezones'
 
-// Whole days since a timestamp, floored — so something that happened this morning reads as 0
-// rather than claiming a day has already passed (console review H8, 2026-09-13).
-export function daysSince(iso: string): number {
-  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000))
+const MS_PER_DAY = 86400000
+
+/**
+ * ONE rounding rule for "days", platform-wide (assumptions audit M38, product owner 2026-09-19).
+ *
+ * The console had four. `daysSince` floored, `relativeTime` rounded, two pages ceiled inline and
+ * one compared a raw fraction — so the same 30-hour-old thing read "1 day" in a column and
+ * "2d ago" in the cell beside it.
+ *
+ * The rule, from here on:
+ *   - ELAPSED days FLOOR. A day has passed only once it actually has; something that happened
+ *     this morning reads as 0, never as 1 (the reasoning already recorded for `daysSince` in
+ *     console review H8, 2026-09-13 — kept, because it is the only one of the four with a stated
+ *     reason and it is the right one for "how long has this been sitting there").
+ *   - REMAINING days CEIL. Anything still to come, however little of it is left, is at least
+ *     1 day away — a deadline 4 hours off must never read "0 days left" beside "due today".
+ *
+ * Both live here; nothing computes days from a millisecond difference on its own any more.
+ */
+export function daysSince(iso: string | Date): number {
+  const then = typeof iso === 'string' ? new Date(iso).getTime() : iso.getTime()
+  return Math.max(0, Math.floor((Date.now() - then) / MS_PER_DAY))
+}
+
+/** Whole days until a future instant, ceiled (M38). Negative once the moment has passed. */
+export function daysUntil(iso: string | Date): number {
+  const then = typeof iso === 'string' ? new Date(iso).getTime() : iso.getTime()
+  return Math.ceil((then - Date.now()) / MS_PER_DAY)
 }
 
 /** A week is where an unreviewed submission stops being a queue and starts being a problem. */
@@ -18,13 +42,15 @@ export function awaitingReviewLabel(iso: string): string {
 
 export function relativeTime(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime()
-  const minutes = Math.round(diffMs / 60000)
+  const minutes = Math.floor(diffMs / 60000)
   if (minutes < 1) return 'just now'
   if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.round(minutes / 60)
+  const hours = Math.floor(minutes / 60)
   if (hours < 24) return `${hours}h ago`
-  const days = Math.round(hours / 24)
-  return `${days}d ago`
+  // Floored, and through `daysSince`, so "2d ago" can no longer appear beside a column that
+  // calls the same gap "1 day" (M38). It used to round: 36 hours read as "2d ago" here and
+  // "1 day" everywhere else.
+  return `${daysSince(iso)}d ago`
 }
 
 function pad(n: number): string {

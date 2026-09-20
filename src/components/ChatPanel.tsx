@@ -2,7 +2,8 @@ import { ArrowUp, CalendarClock, Lock, Search, Undo2 } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CourseDetailModal } from '@/features/clients/CourseDetailModal'
-import { courseFinderUrlForSharedSearch } from '@/features/clients/courseFinderState'
+import { consoleDroppedFilters, courseFinderUrlForSharedSearch } from '@/features/clients/courseFinderState'
+import { useCourseLevels } from '@/queries/courseFinder'
 import { Button } from './Button'
 import { Modal } from './Modal'
 import { formatDate, formatDayLabel, formatTime, isSameCalendarDay } from '@/lib/time'
@@ -91,6 +92,104 @@ interface ChatPanelProps {
   person?: { id: string; kind: 'lead' | 'client' }
   // Sits beside the message box — the lead and client chats put Suggest a course here.
   composerAction?: ReactNode
+  /**
+   * Something that went wrong sending, shown just above the composer (chat UX, product owner
+   * 2026-09-19). Added for the server's new 409 `duplicate_share` on course/college/search/
+   * shortlist shares — "You just shared this — it's already in the conversation." — which needs
+   * to land where the consultant is looking rather than as a toast that disappears. Whatever is
+   * typed is left alone; nothing is retried.
+   */
+  composerError?: ReactNode
+}
+
+/**
+ * Short enough that its time stamp belongs on the same line as the words (chat UX, product owner
+ * 2026-09-19).
+ *
+ * Deliberately a character count rather than a measurement: the bubble is intrinsically sized, so
+ * anything this short cannot reach the 70 % ceiling at any panel width the console renders at,
+ * and a float has nothing to wrap onto. A message with a line break is never "short" — its time
+ * belongs after the last line, which is what the float already does.
+ */
+const SHORT_MESSAGE_CHARS = 40
+
+function isShortMessage(content: string): boolean {
+  return content.length <= SHORT_MESSAGE_CHARS && !/[\r\n]/.test(content)
+}
+
+/**
+ * A shared search (2026-09-14), as its own component so it can ask the catalogue what levels
+ * exist — the console's own dropped-filter check needs that list, and a hook cannot live inside
+ * the message loop.
+ *
+ * Opens Course Finder for this person with the same filters; anything that will not survive the
+ * trip is named under the card, never silently lost (assumptions audit M30/M39, product owner
+ * 2026-09-19).
+ */
+function SharedSearchCard({
+  sharedSearch,
+  fromMe,
+  createdAt,
+  person,
+}: {
+  sharedSearch: SharedSearch
+  fromMe: boolean
+  createdAt: string
+  person?: { id: string; kind: 'lead' | 'client' }
+}) {
+  const navigate = useNavigate()
+  // Cached for 30 minutes and shared with Course Finder's own copy, so this costs nothing on a
+  // thread that is open beside the finder.
+  const levels = useCourseLevels()
+  // The SERVER's dropped keys and THIS console's, in one list — they are the same fact to the
+  // consultant reading the card, and splitting them into two lines said it twice.
+  const droppedFilters = [
+    ...sharedSearch.left_out,
+    ...consoleDroppedFilters(sharedSearch.filters, levels.data),
+  ]
+  return (
+    <div
+      style={{ maxWidth: '85%' }}
+      className={`flex flex-col gap-sm rounded-2xl border border-border bg-surface px-md py-sm ${
+        fromMe ? 'self-end' : 'self-start'
+      }`}
+    >
+      <p className="text-caption font-medium text-text-secondary">
+        {fromMe ? 'You sent a search' : 'Shared a search'}
+      </p>
+      <button
+        type="button"
+        disabled={!person}
+        onClick={() => {
+          if (person) navigate(courseFinderUrlForSharedSearch(person, sharedSearch.filters))
+        }}
+        className="flex w-full flex-col items-start gap-xs rounded-md bg-background px-sm py-xs text-left enabled:hover:bg-primary-subtle"
+      >
+        <span className="flex items-center gap-xs text-body-sm font-medium text-text-primary">
+          <Search className="h-4 w-4 shrink-0 text-primary" />
+          {sharedSearch.summary}
+        </span>
+        {/* Both counts when a filter could not travel (2026-09-18): a bare "0 matched" under a
+            search the sender could see results for reads as a broken share. */}
+        <span className="text-caption text-text-secondary">
+          {sharedSearch.sender_match_count !== sharedSearch.match_count
+            ? `${sharedSearch.sender_match_count} matched the search, ${sharedSearch.match_count} after the filters below`
+            : `${sharedSearch.match_count} course${sharedSearch.match_count === 1 ? '' : 's'} matched when shared`}
+        </span>
+        {/* Everything that will not travel, from BOTH ends (M30/M39). `left_out` is what the
+            SERVER could not carry; `consoleDroppedFilters` is what this console will drop on the
+            way into Course Finder — an unknown level, an intake or study mode it has no option
+            for, a fee cap that arrived without its currency. They used to be invisible, so
+            "Masters, Canada, scholarships, Jan intake, Toronto" opened as every Masters in
+            Canada with nothing on screen saying so. */}
+        {droppedFilters.length > 0 && (
+          <span className="text-caption text-warning">Not carried over: {droppedFilters.join(', ')}</span>
+        )}
+        {person && <span className="text-caption font-medium text-primary">Open these results</span>}
+      </button>
+      <span className="self-end text-caption text-text-secondary">{formatTime(createdAt)}</span>
+    </div>
+  )
 }
 
 // Shared conversation UI for Lead (Aspirant), Client (Applicant), and Internal (colleague/Team)
@@ -121,6 +220,7 @@ export function ChatPanel({
   composerLocked,
   person,
   composerAction,
+  composerError,
 }: ChatPanelProps) {
   // Confirm-gated per the platform's standing delete rule; owned here (not per caller) so both
   // the Internal Messaging page and the floating window get one identical implementation.
@@ -130,7 +230,6 @@ export function ChatPanel({
   // Course cards open the same course popup Course Finder uses (2026-09-14) — a card that
   // looks like a course but does nothing when clicked was a dead end.
   const [openCourse, setOpenCourse] = useState<Course | null>(null)
-  const navigate = useNavigate()
 
   // Auto-scroll to the latest message (user, 2026-08-24: "chat auto scroll to last message" — the
   // mobile app already gets this for free from its reversed ListView; web had no scroll behavior
@@ -295,45 +394,12 @@ export function ChatPanel({
                     <span className="self-end text-caption text-text-secondary">{formatTime(m.created_at)}</span>
                   </div>
                 ) : m.sharedSearch ? (
-                  // A shared search (2026-09-14). Opens Course Finder for this person with the same
-                  // filters; anything the other side could not apply is named, never silently lost.
-                  <div
-                    style={{ maxWidth: '85%' }}
-                    className={`flex flex-col gap-sm rounded-2xl border border-border bg-surface px-md py-sm ${
-                      m.fromMe ? 'self-end' : 'self-start'
-                    }`}
-                  >
-                    <p className="text-caption font-medium text-text-secondary">
-                      {m.fromMe ? 'You sent a search' : 'Shared a search'}
-                    </p>
-                    <button
-                      type="button"
-                      disabled={!person}
-                      onClick={() => {
-                        if (person && m.sharedSearch) navigate(courseFinderUrlForSharedSearch(person, m.sharedSearch.filters))
-                      }}
-                      className="flex w-full flex-col items-start gap-xs rounded-md bg-background px-sm py-xs text-left enabled:hover:bg-primary-subtle"
-                    >
-                      <span className="flex items-center gap-xs text-body-sm font-medium text-text-primary">
-                        <Search className="h-4 w-4 shrink-0 text-primary" />
-                        {m.sharedSearch.summary}
-                      </span>
-                      {/* Both counts when a filter could not travel (2026-09-18): a bare "0 matched"
-                          under a search the sender could see results for reads as a broken share. */}
-                      <span className="text-caption text-text-secondary">
-                        {m.sharedSearch.sender_match_count !== m.sharedSearch.match_count
-                          ? `${m.sharedSearch.sender_match_count} matched the search, ${m.sharedSearch.match_count} after the filters below`
-                          : `${m.sharedSearch.match_count} course${m.sharedSearch.match_count === 1 ? '' : 's'} matched when shared`}
-                      </span>
-                      {m.sharedSearch.left_out.length > 0 && (
-                        <span className="text-caption text-warning">
-                          Not carried over: {m.sharedSearch.left_out.join(', ')}
-                        </span>
-                      )}
-                      {person && <span className="text-caption font-medium text-primary">Open these results</span>}
-                    </button>
-                    <span className="self-end text-caption text-text-secondary">{formatTime(m.created_at)}</span>
-                  </div>
+                  <SharedSearchCard
+                    sharedSearch={m.sharedSearch}
+                    fromMe={m.fromMe}
+                    createdAt={m.created_at}
+                    person={person}
+                  />
                 ) : m.sharedCourses ? (
                   // User-requested (2026-08-19) — a shared Shortlist renders as a card of courses,
                   // not a plain text bubble, so the consultant can actually see what was shared.
@@ -367,8 +433,13 @@ export function ChatPanel({
                   // `group` wrapper so the unsend affordance appears on hover of the whole row —
                   // always-visible icons on every own bubble would read as clutter.
                   <div
-                    style={{ maxWidth: '75%' }}
-                    className={`group flex items-center gap-xs ${m.fromMe ? 'self-end' : 'self-start'}`}
+                    // 70 %, and only ever as a CEILING (chat UX, product owner 2026-09-19): the
+                    // bubble itself is intrinsically sized, so "hi" is a bubble the width of
+                    // "hi" and a paragraph is a bubble seven tenths of the panel. Inline style
+                    // rather than `max-w-[70%]` because arbitrary bracket classes generate no
+                    // CSS in this project's Tailwind v4 setup (see GlobalSearch.tsx).
+                    style={{ maxWidth: '70%' }}
+                    className={`group flex items-end gap-xs ${m.fromMe ? 'self-end' : 'self-start'}`}
                   >
                     {m.fromMe && onUnsend && (
                       <button
@@ -384,17 +455,18 @@ export function ChatPanel({
                       </button>
                     )}
                     <div
-                      // Arbitrary bracket classes (`max-w-[75%]`) silently generate zero CSS in this
-                      // project's Tailwind v4 setup — inline style sidesteps it (see GlobalSearch.tsx).
-                      className={`rounded-2xl px-md py-sm text-body-sm ${
+                      className={`min-w-0 rounded-2xl px-md py-sm text-body-sm ${
                         m.fromMe ? 'bg-primary text-text-on-primary' : 'bg-background text-text-primary'
                       }`}
                     >
-                      {m.content}
-                      {/* WhatsApp's trick: a floated, trailing time stamp tucks into the end of the
-                        last line instead of sitting on its own row. */}
+                      <span className="whitespace-pre-wrap break-words">{m.content}</span>
+                      {/* A SHORT message keeps its time on the same line, full stop (chat UX,
+                          product owner 2026-09-19) — a plain inline span, so there is no float
+                          to be pushed onto a row of its own and "ok" can never become two lines
+                          tall. Longer messages keep the WhatsApp float, which tucks the time
+                          into the end of the last line when it fits: unchanged. */}
                       <span
-                        className={`float-right ml-sm mt-0.5 text-caption ${
+                        className={`${isShortMessage(m.content) ? 'ml-sm whitespace-nowrap' : 'float-right ml-sm mt-0.5'} text-caption ${
                           m.fromMe ? 'text-text-on-primary/70' : 'text-text-secondary'
                         }`}
                       >
@@ -441,6 +513,11 @@ export function ChatPanel({
         </div>
       ) : (
         <form onSubmit={onSend} className="flex shrink-0 flex-col gap-xs border-t border-border px-md py-sm">
+          {composerError && (
+            <p role="alert" className="text-caption text-error">
+              {composerError}
+            </p>
+          )}
           <div className="flex items-end gap-sm">
             {composerAction}
             {/* A textarea, not an input (console review M2, 2026-09-13) — Enter sends and

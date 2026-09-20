@@ -6,6 +6,7 @@ import { useChatWindowStore } from '@/stores/chatWindowStore'
 import { useLead, useLeadMessages, useMarkLeadRead, useSendLeadMessage } from '@/queries/leads'
 import { useClient, useClientMessages, useMarkClientRead, useSendClientMessage } from '@/queries/clients'
 import { SuggestCourseInChat, type ChatPerson } from '@/features/clients/SuggestCourseInChat'
+import { duplicateShareMessage } from '@/features/clients/shareGuards'
 import {
   useInternalConversationMessages,
   useMarkInternalConversationRead,
@@ -24,6 +25,8 @@ export function FloatingChatWindow() {
   const { conversation, minimized, close, toggleMinimize } = useChatWindowStore()
   const navigate = useNavigate()
   const [draft, setDraft] = useState('')
+  // Same one-line send error as the full conversation pages (chat UX, product owner 2026-09-19).
+  const [composerError, setComposerError] = useState<string | null>(null)
 
   const rightOffset = '1.5rem'
 
@@ -123,7 +126,11 @@ export function FloatingChatWindow() {
     e.preventDefault()
     if (!draft.trim()) return
     const mutation = isLead ? sendLeadMessage : isClient ? sendClientMessage : sendInternalMessage
-    mutation.mutate(draft, { onSuccess: () => setDraft('') })
+    setComposerError(null)
+    mutation.mutate(draft, {
+      onSuccess: () => setDraft(''),
+      onError: (error: Error) => setComposerError(duplicateShareMessage(error)),
+    })
   }
 
   function openFullConversation() {
@@ -161,16 +168,22 @@ export function FloatingChatWindow() {
         isError={isError}
         onRetryMessages={() => activeMessagesQuery.refetch()}
         draft={draft}
-        onDraftChange={setDraft}
+        onDraftChange={(value) => {
+          setDraft(value)
+          if (composerError) setComposerError(null)
+        }}
         onSend={handleSend}
-          composerLocked={
-            isLead && lead.data && !lead.data.assigned_employee_id
-              ? 'Allocate this lead to a consultant from Lead Pool to reply.'
-              : undefined
-          }
+        composerLocked={
+          isLead && lead.data && !lead.data.assigned_employee_id
+            ? 'Allocate this lead to a consultant from Lead Pool to reply.'
+            : undefined
+        }
         sending={sending}
         person={isLead || isClient ? { id: conversation.id, kind: isLead ? 'lead' : 'client' } : undefined}
-        composerAction={chatPerson ? <SuggestCourseInChat person={chatPerson} /> : undefined}
+        composerError={composerError}
+        composerAction={
+          chatPerson ? <SuggestCourseInChat person={chatPerson} onShareError={setComposerError} /> : undefined
+        }
         onUnsend={isInternal ? (messageId) => unsendInternalMessage.mutateAsync(messageId) : undefined}
         className="shadow-lg"
         headerActions={

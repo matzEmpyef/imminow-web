@@ -13,7 +13,7 @@ import { CompactSelect } from '@/components/CompactSelect'
 import { Modal } from '@/components/Modal'
 import { useAdminJobs, useCreateJob, useUpdateJob } from '@/queries/jobsAdmin'
 import { useCursorPagination } from '@/lib/pagination'
-import { formatDate } from '@/lib/time'
+import { daysSince, formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
@@ -24,7 +24,9 @@ type JobStatus = NonNullable<JobListing['status']>
 
 function postedCaption(postedAt?: string): string | null {
   if (!postedAt) return null
-  const days = Math.max(0, Math.round((Date.now() - new Date(postedAt).getTime()) / 86400000))
+  // Floored, like every other elapsed-days figure in the console (assumptions audit M38) — this
+  // one rounded, so a job posted 14 hours ago read "Posted 1 day ago".
+  const days = daysSince(postedAt)
   if (days === 0) return 'Posted today'
   if (days === 1) return 'Posted 1 day ago'
   return `Posted ${days} days ago`

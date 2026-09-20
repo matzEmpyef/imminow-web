@@ -24,6 +24,8 @@ import { IntakeDeadlineEditor } from '@/features/clients/IntakeDeadlineEditor'
 import { useExams } from '@/queries/catalogSettings'
 import { useCollegeDetail } from '@/queries/adminColleges'
 import { useAuthStore } from '@/stores/authStore'
+import { labelFor } from '@/lib/humanise'
+import { scoreSchemeSuffix } from '@/lib/scoreScheme'
 import { formatCourseFee, formatFeeApprox } from '@/lib/money'
 import { formatDate } from '@/lib/time'
 import type { components } from '@/api/schema'
@@ -33,9 +35,11 @@ import { ENTRY_QUALIFICATIONS, ROLLED_DEADLINE_NOTE } from '@/features/super-adm
 type Course = components['schemas']['Course']
 type IconColor = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
 
-const SCHEME_SUFFIX: Record<string, string> = { percentage: '%', cgpa_10: ' / 10 CGPA', cgpa_4: ' / 4 CGPA' }
 const STUDY_MODE_LABELS: Record<string, string> = { full_time: 'Full time', part_time: 'Part time' }
 const DELIVERY_LABELS: Record<string, string> = { on_campus: 'On campus', hybrid: 'Hybrid', online: 'Online' }
+// A score with no scheme is NOT a percentage (assumptions audit M38, product owner 2026-09-19) —
+// "8.5" and "8.5%" are different requirements, and defaulting to `%` made a CGPA minimum read as
+// a percentage anyone clears. An unrecognised scheme names itself rather than printing no unit.
 
 // A value with its "suggest a correction" pencil (see SuggestCorrectionButton for what counts as
 // correctable). Prose — description, eligibility, benefits — passes `correctable={false}`: a wrong
@@ -145,7 +149,7 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
   const qualification = ENTRY_QUALIFICATIONS.find((q) => q.value === req?.academic?.entry_qualification)?.label
   const academic =
     req?.academic?.min_score != null
-      ? `${req.academic.min_score}${SCHEME_SUFFIX[req.academic.scheme ?? 'percentage'] ?? ''} minimum${qualification ? ` in ${qualification}` : ''}`
+      ? `${req.academic.min_score}${scoreSchemeSuffix(req.academic.scheme)} minimum${qualification ? ` in ${qualification}` : ''}`
       : null
 
   // Intake rows: every month with deadline data, then any listed intake that has none yet.
@@ -261,7 +265,7 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
           {show((course.intakes ?? []).join(', ') || null, 'intakes', 'Intakes')}
         </Fact>
         <Fact icon={<Building2 className="h-5 w-5" />} color="info" label="Delivery">
-          {show(course.delivery ? (DELIVERY_LABELS[course.delivery] ?? course.delivery) : null, 'delivery', 'Delivery')}
+          {show(labelFor(DELIVERY_LABELS, course.delivery) || null, 'delivery', 'Delivery')}
         </Fact>
         <Fact icon={<Clock className="h-5 w-5" />} color="success" label="Duration">
           {/* The display text, plus the normalised months (used by filters) when the text doesn't
@@ -296,7 +300,7 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
         </Fact>
         <Fact icon={<GraduationCap className="h-5 w-5" />} color="primary" label="Study mode">
           {show(
-            course.study_mode ? (STUDY_MODE_LABELS[course.study_mode] ?? course.study_mode) : null,
+            labelFor(STUDY_MODE_LABELS, course.study_mode) || null,
             'study_mode',
             'Study mode',
           )}
@@ -470,7 +474,10 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
             <RequirementRow key={a.exam_id} label={examName(a.exam_id)}>
               <Known
                 course={course}
-                value={`${a.min_score}${a.required === false ? ' · optional' : ' · required'}`}
+                // Tri-state, not "required unless explicitly false" (assumptions audit M37,
+                // product owner 2026-09-19) — an exam nobody has answered for reads as not
+                // stated, never as a hard requirement a student would rule themselves out on.
+                value={`${a.min_score}${a.required == null ? ' · required or optional not stated' : a.required ? ' · required' : ' · optional'}`}
                 field={`requirement.aptitude.${examName(a.exam_id)}`}
                 label={`${examName(a.exam_id)} requirement`}
               />

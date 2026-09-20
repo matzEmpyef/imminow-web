@@ -20,9 +20,17 @@ export function money(m: Money): string {
  */
 export const COMMON_CURRENCIES = ['INR', 'USD', 'CAD', 'GBP', 'AUD', 'EUR', 'NZD', 'SGD', 'AED', 'THB']
 
-/** The case's own currencies first (so the common case needs no scrolling), then any common code not already listed. */
-export function currencyOptions(caseCurrencies: (string | undefined)[]): string[] {
-  const own = [...new Set(caseCurrencies.filter((c): c is string => Boolean(c)))]
+/**
+ * The case's own currencies first (so the common case needs no scrolling), then any common code
+ * not already listed.
+ *
+ * `include` carries whatever the FORM is currently holding — the currency of the due being
+ * received, say (assumptions audit M34, product owner 2026-09-19). Without it a due already
+ * recorded in a currency outside this ten-code list selected nothing at all: the picker read
+ * blank over a real, saved currency, and the first touch of the select rewrote it.
+ */
+export function currencyOptions(caseCurrencies: (string | undefined)[], ...include: (string | null | undefined)[]): string[] {
+  const own = [...new Set([...caseCurrencies, ...include].filter((c): c is string => Boolean(c)))]
   const seen = new Set(own)
   return [...own, ...COMMON_CURRENCIES.filter((c) => !seen.has(c))]
 }

@@ -25,7 +25,31 @@ export type FormTab = (typeof FORM_TABS)[number]
 // Form-shaped (all strings/bools), not API-shaped — these mirror what the inputs hold, and
 // CourseFormModal's buildRequirements() converts them to the API types on submit.
 export type EnglishReq = { exam_id: string; min_overall: string; min_band: string }
-export type AptitudeReq = { exam_id: string; min_score: string; required: boolean }
+
+/**
+ * Whether an entrance exam is required is THREE-valued on the form (assumptions audit M37,
+ * product owner 2026-09-19).
+ *
+ * It used to load as `a.required !== false` and a new row started at `true` — so an exam nobody
+ * had ruled on became a hard requirement, and an optional GRE that arrived without the field
+ * turned into one that fails applicants. `''` is "not stated"; the form will not save until the
+ * admin has said which it is, because the wire contract has no null to carry the difference.
+ */
+export type AptitudeRequiredValue = '' | 'required' | 'optional'
+export type AptitudeReq = { exam_id: string; min_score: string; required: AptitudeRequiredValue }
+
+export const APTITUDE_REQUIRED_OPTIONS: { value: AptitudeRequiredValue; label: string }[] = [
+  { value: '', label: 'Not set' },
+  { value: 'required', label: 'Required' },
+  { value: 'optional', label: 'Optional' },
+]
+
+/** `true`/`false`/absent from the server → the form's three values, explicitly, never defaulted. */
+export function aptitudeRequiredFromServer(required: boolean | null | undefined): AptitudeRequiredValue {
+  if (required === true) return 'required'
+  if (required === false) return 'optional'
+  return ''
+}
 
 /** The education level a course's minimum academic score is measured on (2026-09-17). Same codes
  * as a student's education rows, so the eligibility check compares like with like. */
@@ -76,6 +100,22 @@ export const INTAKE_STATUSES: { value: IntakeStatus; label: string }[] = [
   { value: 'open', label: 'Open' },
   { value: 'closed', label: 'Closed' },
 ]
+
+export const KNOWN_INTAKE_STATUSES: string[] = INTAKE_STATUSES.map((s) => s.value)
+
+/**
+ * What a saved status LOADS as (assumptions audit M37, product owner 2026-09-19).
+ *
+ * Explicit per value, and a value this build has never seen is kept VERBATIM so it survives the
+ * round trip. The original defect was `d.status !== 'closed' ? 'open' : 'closed'` — a third
+ * status was re-saved as `open`, publishing an intake as taking applications. C10 narrowed that
+ * to `unknown`, which no longer lies but still discards whatever the server actually said; this
+ * discards nothing. Missing is `unknown`, which is what the contract says absent means.
+ */
+export function intakeStatusFromServer(status: string | null | undefined): string {
+  if (!status) return 'unknown'
+  return status
+}
 
 /** Beside a date the server rolled forward a year rather than one a college confirmed — shown in
  * both deadline editors so an estimate never reads as the college's own date (C10). */

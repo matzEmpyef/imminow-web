@@ -5,7 +5,7 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { Toggle } from '@/components/Toggle'
 import { useUpdateDesignation } from '@/queries/staff'
-import { PERMISSION_GROUPS } from '@/lib/permissions'
+import { permissionGroupsFor } from '@/lib/permissions'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
@@ -39,6 +39,8 @@ function PermissionsModalBody({ designation, onClose }: { designation: Designati
   const [permissions, setPermissions] = useState<Record<string, boolean>>(designation.permissions ?? {})
   const [reason, setReason] = useState('')
   const dirty = JSON.stringify(permissions) !== JSON.stringify(designation.permissions ?? {})
+  // Includes any key the server already holds that this build's registry lacks (M34).
+  const groups = permissionGroupsFor(designation.permissions)
 
   function toggle(key: string) {
     setPermissions((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -73,7 +75,7 @@ function PermissionsModalBody({ designation, onClose }: { designation: Designati
       }
     >
       <div className="flex flex-col gap-sm">
-        {PERMISSION_GROUPS.map((group) => (
+        {groups.map((group) => (
           <div key={group.key}>
             <p className="text-caption font-medium text-text-secondary">{group.label}</p>
             <div className="mt-xs flex flex-col gap-xs">

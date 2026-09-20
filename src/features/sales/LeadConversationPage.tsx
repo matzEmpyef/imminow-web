@@ -18,6 +18,7 @@ import { ConvertToClientModal } from './ConvertToClientModal'
 import { CloseLeadModal } from './CloseLeadModal'
 import { ReopenLeadModal } from './ReopenLeadModal'
 import { SuggestCourseInChat } from '@/features/clients/SuggestCourseInChat'
+import { duplicateShareMessage } from '@/features/clients/shareGuards'
 import {
   useAddLeadNote,
   useLead,
@@ -298,6 +299,10 @@ export function LeadConversationPage() {
   const requestShortlist = useRequestShortlist(id)
   const openFloating = useChatWindowStore((s) => s.open)
   const [draft, setDraft] = useState('')
+  // One line above the composer for anything that failed to send (chat UX, product owner
+  // 2026-09-19), including the server's 409 `duplicate_share` on a course share. The draft is
+  // never cleared by a failure and nothing is retried.
+  const [composerError, setComposerError] = useState<string | null>(null)
   const [showReminderModal, setShowReminderModal] = useState(false)
   const [showRatingModal, setShowRatingModal] = useState(false)
   const [showConvertModal, setShowConvertModal] = useState(false)
@@ -327,7 +332,11 @@ export function LeadConversationPage() {
   function handleSend(e: FormEvent) {
     e.preventDefault()
     if (!draft.trim()) return
-    sendMessage.mutate(draft, { onSuccess: () => setDraft('') })
+    setComposerError(null)
+    sendMessage.mutate(draft, {
+      onSuccess: () => setDraft(''),
+      onError: (error) => setComposerError(duplicateShareMessage(error)),
+    })
   }
 
   if (lead.isLoading) {
@@ -465,7 +474,11 @@ export function LeadConversationPage() {
               isError={messages.isError}
               onRetryMessages={() => messages.refetch()}
               draft={draft}
-              onDraftChange={setDraft}
+              onDraftChange={(value) => {
+                setDraft(value)
+                if (composerError) setComposerError(null)
+              }}
+              composerError={composerError}
               onSend={handleSend}
               sending={sendMessage.isPending}
               heightClassName="h-full"
@@ -478,6 +491,7 @@ export function LeadConversationPage() {
                     firstName: data.name,
                     hasApp: data.origin === 'sentpo' && Boolean(data.student_id),
                   }}
+                  onShareError={setComposerError}
                 />
               }
               composerLocked={

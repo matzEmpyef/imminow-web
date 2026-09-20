@@ -17,6 +17,8 @@ import {
   User,
   Wallet,
 } from 'lucide-react'
+import { labelFor } from '@/lib/humanise'
+import { formatScore } from '@/lib/scoreScheme'
 import { formatDate, formatIntake } from '@/lib/time'
 import { formatMoney } from '@/lib/money'
 import { STUDY_LEVEL_LABELS } from '@/lib/studyLevels'
@@ -63,14 +65,17 @@ function educationLines(prefs: StudentPreferences | null | undefined): Lines {
     return entries.map((e, i) => (
       <span key={i}>
         {/* "12th", "Bachelor's" — not the stored codes "twelfth", "bachelors" (2026-09-10). */}
-        {EDUCATION_LEVEL_LABELS[e.level] ?? e.level}
+        {labelFor(EDUCATION_LEVEL_LABELS, e.level)}
         {e.stream ? ` — ${e.stream}` : ''}
-        {e.score != null ? `, ${e.score}${e.scheme === 'percentage' ? '%' : ''}` : ''}
+        {/* The SCHEME always prints beside the score (assumptions audit M38, product owner
+            2026-09-19). Only `percentage` used to be marked, so "8.5" could be a CGPA out of 10
+            or out of 4 and a consultant reading the profile could not tell which. */}
+        {formatScore(e.score, e.scheme) ? `, ${formatScore(e.score, e.scheme)}` : ''}
         {e.status === 'pursuing' ? ' (pursuing)' : ''}
       </span>
     ))
   }
-  return prefs?.education_level ? [EDUCATION_LEVEL_LABELS[prefs.education_level] ?? prefs.education_level] : null
+  return prefs?.education_level ? [labelFor(EDUCATION_LEVEL_LABELS, prefs.education_level)] : null
 }
 
 // `exam_status` is the server's per-exam summary ("ielts" -> "booked"). Detailed test_scores win
@@ -166,7 +171,7 @@ function profileFacts(prefs: StudentPreferences | null | undefined, { countryPil
         label: 'Preferred study mode',
         icon: <Clock className="h-5 w-5" />,
         color: 'success' as IconColor,
-        lines: one(prefs?.preferred_study_mode ? STUDY_MODE_LABELS[prefs.preferred_study_mode] : null),
+        lines: one(labelFor(STUDY_MODE_LABELS, prefs?.preferred_study_mode) || null),
       },
       {
         label: 'Intended intake',
