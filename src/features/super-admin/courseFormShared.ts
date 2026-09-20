@@ -53,7 +53,11 @@ export function aptitudeRequiredFromServer(required: boolean | null | undefined)
 
 /** The education level a course's minimum academic score is measured on (2026-09-17). Same codes
  * as a student's education rows, so the eligibility check compares like with like. */
-export type EntryQualification = 'tenth' | 'twelfth' | 'diploma' | 'bachelors' | 'masters'
+// Derived from the contract, not hand-kept (assumptions audit M23): `phd` joined the enum on
+// 2026-09-19 and this copy silently lagged it.
+export type EntryQualification = NonNullable<
+  NonNullable<components['schemas']['CourseRequirements']['academic']>['entry_qualification']
+>
 
 /** `''` is the form's "Not set" — a real answer, not a missing one (assumptions audit C1,
  * approved 2026-09-19). The pre-fill from the course level is gone: it was a guess ("anything

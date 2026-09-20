@@ -8936,6 +8936,8 @@ export interface paths {
                                 college_count: number;
                                 course_count: number;
                                 complete_course_count: number;
+                                /** @description Colleges with no course at all — the third health state (M26, 2026-09-19). */
+                                no_courses_college_count?: number;
                             };
                         };
                     };
@@ -9462,7 +9464,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Search courses directly (Course Suggestions' catalog browser, build reference 2.2; Colleges & Courses admin's per-college Courses table, build reference 1.23; and Sentpo Mobile Wave 5's Study Abroad / Study in [Home Country] Search Results, which are this endpoint's primary student-facing caller) — /colleges nests campuses but not courses, so both a flat course browser and a college detail view need this endpoint. Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, college_name, level, fee and duration. search and filter[field_of_study] also match a field's alternate names from GET /fields-of-study ("CS" finds Computer Science, 2026-09-11); POST/PATCH /courses store the field's name and refuse a field not on that list (422). filter[active] is the course's own switch ("true"/"false"); filter[health] is "needs_details" or "complete" against the five capture checks (2026-09-11).
+         * Search courses directly (Course Suggestions' catalog browser, build reference 2.2; Colleges & Courses admin's per-college Courses table, build reference 1.23; and Sentpo Mobile Wave 5's Study Abroad / Study in [Home Country] Search Results, which are this endpoint's primary student-facing caller) — /colleges nests campuses but not courses, so both a flat course browser and a college detail view need this endpoint. Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, college_name, level, fee and duration. search and filter[field_of_study] also match a field's alternate names from GET /fields-of-study ("CS" finds Computer Science, 2026-09-11); POST/PATCH /courses store the field's name and refuse a field not on that list (422). filter[active] is the course's own switch ("true"/"false"); filter[health] is "needs_details" or "complete" against the capture checks (2026-09-11), or "missing_requirements" — no entry requirements published at all, the Needs-attention card's own definition (2026-09-20).
          *
          *     SEARCH IS RELEVANCE-RANKED (assumptions audit M22, product owner 2026-09-19, approved trimmed). `search` matches name, college_name and field_of_study as before, but the results now come back in four tiers — exact name match, then name prefix, then field of study, then college name — with the existing A–Z sort as the tie-break inside each. It was a substring match sorted A–Z, so "Advanced Diploma in Applied Computing" outranked "MSc Computer Science" for the query "computer" on the strength of the letter A. The ranking applies ONLY when a text query is present; with no keyword every row ties and the caller's own `sort` decides everything, exactly as before.
          *
@@ -15050,6 +15052,8 @@ export interface paths {
                 query?: {
                     /** @description Admin list — live, scheduled, expired, off; comma-separated = any of. */
                     "filter[status]"?: string;
+                    /** @description Opt-in for the featured-first lift on the plain live list (product owner, 2026-09-20: featured jobs are for the Jobs list, not Home). Only the Jobs tab sends it; Home's Top Jobs reads the same list without it and gets the ordinary newest-first order. */
+                    featured_first?: boolean;
                     /** @description `true` returns ONLY the featured jobs, in the admin's order, with no pagination (`next_cursor` null) — the same idiom `GET /consultancies?filter[featured]=true` uses for Home's rails. Any other value is refused 400. A featured job outside its own active window is left out here too, so the set is always openable. */
                     "filter[featured]"?: boolean;
                     /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
@@ -22772,10 +22776,10 @@ export interface components {
         CourseRequirements: {
             academic?: {
                 /**
-                 * @description The ONE qualification `min_score` is measured on (2026-09-17) — the same level codes a student's education rows use. The eligibility engine compares the minimum with the student's score at exactly this level; with no score at that level the rule is unknown (never a fail) and the prompt names the level ("add your Bachelor's score to check"). Null on courses not yet curated: the engine then derives the level from `Course.level` as before (masters → bachelors, bachelors → twelfth or diploma, anything else → any row). immiNow pre-fills it from the course level (masters → bachelors, phd → masters, everything else → twelfth).
+                 * @description `phd` joined on 2026-09-19 (M23) so a programme can require a doctorate. The ONE qualification `min_score` is measured on (2026-09-17) — the same level codes a student's education rows use. The eligibility engine compares the minimum with the student's score at exactly this level; with no score at that level the rule is unknown (never a fail) and the prompt names the level ("add your Bachelor's score to check"). Null on courses not yet curated: the engine then derives the level from `Course.level` as before (masters → bachelors, bachelors → twelfth or diploma, anything else → any row). immiNow pre-fills it from the course level (masters → bachelors, phd → masters, everything else → twelfth).
                  * @enum {string|null}
                  */
-                entry_qualification?: "tenth" | "twelfth" | "diploma" | "bachelors" | "masters" | null;
+                entry_qualification?: "tenth" | "twelfth" | "diploma" | "bachelors" | "masters" | "phd" | null;
                 min_score?: number;
                 /** @enum {string} */
                 scheme?: "percentage" | "cgpa_10" | "cgpa_4";
@@ -24394,7 +24398,11 @@ export interface components {
                 /** Format: date-time */
                 typed_at?: string | null;
             }[];
-            near_matches?: components["schemas"]["Institution"][];
+            /** @description Same rows as `InstitutionSuggestion.near_matches`, with the same `score` and `matched_tokens` (M5). */
+            near_matches?: (components["schemas"]["Institution"] & {
+                readonly score?: number;
+                readonly matched_tokens?: string[];
+            })[];
         };
         /** @description One student waiting to be mapped — the platform-staff work queue this feature creates. Every student at an unlisted school generates one, permanently. */
         InstitutionSuggestion: {
