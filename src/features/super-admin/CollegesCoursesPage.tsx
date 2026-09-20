@@ -7,7 +7,7 @@ import { Badge } from '@/components/Badge'
 import { Table, type TableColumn } from '@/components/Table'
 import { StopPropagation } from '@/components/StopPropagation'
 import { useAdminColleges, useImportColleges, type CollegeHealthFilter } from '@/queries/adminColleges'
-import { useCourses } from '@/queries/courseSuggestions'
+import { type CourseHealthFilter, useCourses } from '@/queries/courseSuggestions'
 import { useLevelLadder } from '@/lib/studyLevels'
 import { CollegeFormModal } from './CollegeFormModal'
 import { useCountries } from '@/queries/countries'
@@ -78,16 +78,17 @@ function ImportResultPanel({ result, onDismiss }: { result: ImportResult; onDism
  * 2026-09-19).
  *
  * Needs attention's "Courses missing entry requirements" card counts COURSES and its server-sent
- * link is `/admin/colleges?tab=courses&health=needs_details`; until this tab existed the console
+ * link is `/admin/colleges?tab=courses&health=missing_requirements` (the card's own definition —
+ * no entry requirements published at all, 2026-09-20); until this tab existed the console
  * had nowhere to land that link, so the page redirected it to a college filter and listed forty
  * colleges under a count of twelve courses. A row opens the course in its own college's form,
  * which is where a missing requirement is actually filled in.
  */
-function CoursesTab({ initialHealth }: { initialHealth: '' | 'needs_details' | 'complete' }) {
+function CoursesTab({ initialHealth }: { initialHealth: '' | CourseHealthFilter }) {
   const navigate = useNavigate()
   const ladder = useLevelLadder()
   const [search, setSearch] = useState('')
-  const [health, setHealth] = useState<'' | 'needs_details' | 'complete'>(initialHealth)
+  const [health, setHealth] = useState<'' | CourseHealthFilter>(initialHealth)
   const [status, setStatus] = useState<'' | 'active' | 'inactive'>('')
   const paging = useCursorPagination()
 
@@ -180,13 +181,14 @@ function CoursesTab({ initialHealth }: { initialHealth: '' | 'needs_details' | '
           <CompactSelect
             value={health}
             onChange={(e) => {
-              setHealth(e.target.value as '' | 'needs_details' | 'complete')
+              setHealth(e.target.value as '' | CourseHealthFilter)
               paging.reset()
             }}
             label="Details"
           >
             <option value="">Any details</option>
             <option value="needs_details">Needs details</option>
+            <option value="missing_requirements">No entry requirements</option>
             <option value="complete">All complete</option>
           </CompactSelect>
         </>
@@ -218,6 +220,13 @@ export function CollegesCoursesPage() {
     const fromUrl = searchParams.get('health')
     return fromUrl === 'needs_details' || fromUrl === 'complete' || fromUrl === 'no_courses' ? fromUrl : ''
   })
+  // The Courses tab reads its OWN health value from the link: `missing_requirements` is a course
+  // state the college filter above has no meaning for, so routing it through that parser dropped
+  // it and the Needs-attention link landed unfiltered (verification finding, 2026-09-20).
+  const courseHealthFromUrl: '' | CourseHealthFilter = (() => {
+    const fromUrl = searchParams.get('health')
+    return fromUrl === 'needs_details' || fromUrl === 'complete' || fromUrl === 'missing_requirements' ? fromUrl : ''
+  })()
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const paging = useCursorPagination()
   // Disabled countries included (review C6, 2026-09-12) — a college can have campuses in a
@@ -464,7 +473,7 @@ export function CollegesCoursesPage() {
         </div>
 
         {activeTab === 'Courses' ? (
-          <CoursesTab initialHealth={healthFilter === 'no_courses' ? '' : healthFilter} />
+          <CoursesTab initialHealth={courseHealthFromUrl} />
         ) : (
         <Table
           columns={columns}

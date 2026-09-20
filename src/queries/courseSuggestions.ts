@@ -6,6 +6,8 @@ import type { components } from '@/api/schema'
 
 type CourseInput = components['schemas']['CourseInput']
 
+export type CourseHealthFilter = 'needs_details' | 'complete' | 'missing_requirements'
+
 interface CourseListFilters {
   search?: string
   collegeId?: string
@@ -14,7 +16,9 @@ interface CourseListFilters {
   level?: string
   fieldOfStudy?: string
   active?: boolean
-  health?: 'needs_details' | 'complete'
+  /** `missing_requirements` = no entry requirements published at all — the Needs-attention
+   * card's own definition, narrower than `needs_details` (2026-09-20). */
+  health?: CourseHealthFilter
   sort?: string
   cursor?: string
   limit?: number
