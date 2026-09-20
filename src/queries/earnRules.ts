@@ -61,6 +61,8 @@ export function useUpdateEarnRule(id: string) {
        * article a student ever reads is worth nothing, forever.
        */
       cap_period?: 'lifetime' | 'day'
+      /** A daily rule's ceiling in points over the student's whole life (2026-09-20). */
+      lifetime_cap?: number | null
       active?: boolean
     }) => {
       const { data, error } = await api.PATCH('/points/earn-rules/{id}', { params: { path: { id } }, body })

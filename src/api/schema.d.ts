@@ -9957,7 +9957,6 @@ export interface paths {
                         duration_months?: number | null;
                         /**
                          * @description The unit `duration_months` was entered in; years are stored as months.
-                         * @default months
                          * @enum {string}
                          */
                         duration_unit?: "months" | "years";
@@ -22862,10 +22861,9 @@ export interface components {
             duration_months?: number | null;
             /**
              * @description The unit `duration_months` was entered in (assumptions audit M24, 2026-09-19). Years are multiplied by 12 and stored as months — one number is the fact, and the free-text label is derived from it. Omitted means months.
-             * @default months
              * @enum {string}
              */
-            duration_unit: "months" | "years";
+            duration_unit?: "months" | "years";
             /** @enum {string|null} */
             study_mode?: "full_time" | "part_time" | null;
             /** @enum {string|null} */
@@ -24157,7 +24155,7 @@ export interface components {
                 selected_option: number;
             }[];
             /** @description Computed on-device (build reference 1.13 — "completion time is computed on-device... to remove any network-speed advantage"), not derived from request timestamps server-side. */
-            completion_time_ms: number;
+            completion_time_ms?: number;
         };
         QuizSubmitResponse: {
             score: number;
@@ -24623,15 +24621,16 @@ export interface components {
             cap?: number | null;
             /** @description A ceiling on how many TIMES this rule may credit one student, counted over `cap_period` — a different question from `cap` above, and the one `daily_login` needed (assumptions audit M14, product owner 2026-09-19). That rule was uncapped for life, so simply opening the app every day for ten years earned 18,250 points: a liability nobody decided to take on, growing with nothing but time. It is capped at **365** lifetime awards, one year of perfect attendance. Null means no award ceiling. Whichever cap bites first stops the rule for that student. */
             award_cap?: number | null;
+            /** @description A DAILY rule's ceiling in POINTS over the student's whole life (product owner, 2026-09-20) — counted over every award the rule ever made to them, whatever `cap_period` says. The last award pays only what is left under it. Only a `day` rule may carry one (400 otherwise): on a `lifetime` rule `cap` already is that number. Null means no lifetime ceiling. Always present on responses. */
+            lifetime_cap?: number | null;
             /**
              * @description WHICH LEDGER ROWS the two caps above are measured over (product owner, 2026-09-20: "article_read and view consultancy points should have daily cap instead of life time").
              *     `lifetime` counts everything this student has ever earned from the rule — the original meaning, and the default, so a rule left alone behaves exactly as before. `day` counts only TODAY's rows, and today is the **student's own calendar day** from `users.timezone` (UTC when unknown), the same day boundary `daily_login` already uses — a UTC one would refresh a Kolkata student's allowance at 05:30 local, which is neither a day they recognise nor one they can plan around.
              *     A daily cap is a pacing rule, not a liability ceiling: reading three articles is worth points every day, reading thirty in one sitting is not worth ten times as much. A lifetime cap on the same trigger says something harsher — that the fiftieth article a student ever reads is worth nothing, forever — which is what `article_read` (now 3 a day) and `consultancy_viewed` (2 a day) used to say.
              *     Per-subject de-duplication is unaffected: the same article never pays twice, on any day. A `day` rule must carry at least one of `cap` / `award_cap` — a daily rule with neither is no cap at all wearing a window, and is refused 400.
-             * @default lifetime
              * @enum {string}
              */
-            cap_period: "lifetime" | "day";
+            cap_period?: "lifetime" | "day";
             active?: boolean;
         };
         Coupon: {

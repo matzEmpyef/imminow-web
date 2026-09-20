@@ -32,6 +32,10 @@ function capLines(rule: EarnRule): { text: string; hint: string }[] {
   const lines: { text: string; hint: string }[] = []
   if (rule.award_cap != null) lines.push({ text: `${rule.award_cap} ${period}`, hint: 'times it can pay one student' })
   if (rule.cap != null) lines.push({ text: `${rule.cap} ${period}`, hint: 'points one student can earn' })
+  // A daily rule's ceiling over the student's whole life (product owner, 2026-09-20) — without
+  // it "3 a day" grows with nothing but time.
+  if (rule.lifetime_cap != null)
+    lines.push({ text: `${rule.lifetime_cap} lifetime`, hint: 'points one student can ever earn from it' })
   return lines
 }
 
@@ -135,6 +139,7 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
   const [cap, setCap] = useState(rule.cap != null ? String(rule.cap) : '')
   const [awardCap, setAwardCap] = useState(rule.award_cap != null ? String(rule.award_cap) : '')
   const [capPeriod, setCapPeriod] = useState<CapPeriod>(rule.cap_period ?? 'lifetime')
+  const [lifetimeCap, setLifetimeCap] = useState(rule.lifetime_cap != null ? String(rule.lifetime_cap) : '')
   const caption = rule.trigger_type ? OVERRIDE_CAPTIONS[rule.trigger_type] : undefined
 
   // A DAILY RULE NEEDS A LIMIT (product owner, 2026-09-20). "Every day, without limit" is no cap
@@ -151,6 +156,9 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
         cap: cap ? Number(cap) : null,
         award_cap: awardCap ? Number(awardCap) : null,
         cap_period: capPeriod,
+        // Only a daily rule takes one (the server refuses it on a lifetime rule, where the
+        // points limit already is the lifetime number) — switching the period clears it.
+        lifetime_cap: capPeriod === 'day' && lifetimeCap ? Number(lifetimeCap) : null,
       },
       {
         onSuccess: () => {
@@ -220,6 +228,22 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
             placeholder="No limit"
           />
         </div>
+        {capPeriod === 'day' && (
+          <TextField
+            label="Lifetime points limit"
+            type="number"
+            min={1}
+            value={lifetimeCap}
+            onChange={(e) => setLifetimeCap(e.target.value)}
+            placeholder="No limit"
+          />
+        )}
+        {capPeriod === 'day' && (
+          <p className="text-caption text-text-secondary">
+            The lifetime limit is the most one student can ever earn from this rule, however many days they come
+            back.
+          </p>
+        )}
         {dailyWithoutLimit && (
           <p className="text-body-sm text-error">
             A daily rule needs a limit — set how many points or how many times it may pay in a day.
