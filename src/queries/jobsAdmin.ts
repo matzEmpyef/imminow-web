@@ -13,6 +13,10 @@ export interface JobListFilters {
   jobType?: string
   workMode?: string
   category?: string
+  /** Canonical country name(s) as `GET /jobs/locations` returns them, comma-separated = any of. */
+  country?: string
+  /** Canonical state / province name(s) within the chosen country, comma-separated = any of. */
+  provinceState?: string
   sort?: string
   cursor?: string
   limit?: number
@@ -30,6 +34,11 @@ export function useAdminJobs(filters: JobListFilters = {}) {
       if (filters.jobType) filter.job_type = filters.jobType
       if (filters.workMode) filter.work_mode = filters.workMode
       if (filters.category) filter.category = filters.category
+      // `filter[country]` / `filter[province_state]` REPLACE the old `filter[location]` (product
+      // owner, 2026-09-20). `location` is a derived string now and is an unknown filter key the
+      // server silently ignores, so sending it would look like a filter and do nothing.
+      if (filters.country) filter.country = filters.country
+      if (filters.provinceState) filter.province_state = filters.provinceState
       const { data, error } = await api.GET('/jobs', {
         params: {
           query: {
@@ -49,6 +58,36 @@ export function useAdminJobs(filters: JobListFilters = {}) {
   })
 }
 
+/**
+ * The places that actually HAVE live listings, with a count each (product owner, 2026-09-20) —
+ * the source for the Jobs list's Country and State/Province filters.
+ *
+ * Deliberately not a distinct-values scan of the loaded page, which is what a free-text location
+ * forced: that only ever knew about the twenty rows currently on screen, so the options changed as
+ * you paged and a country three pages down was unfilterable. It is also the point of the change —
+ * "design a control for the data volume it will really hold": a picker must not offer two hundred
+ * countries when four have jobs.
+ *
+ * One endpoint, two rungs: no `country` answers the countries, a country answers that country's
+ * states / provinces. Rarely changes relative to a browsing session, so it caches like the other
+ * reference lists (`useCountries`).
+ */
+export function useJobLocations(country?: string) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['job-locations', country ?? null],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/jobs/locations', {
+        params: { query: country ? { country } : undefined },
+      })
+      if (error) throw new ApiError('Could not load the job locations list.', error)
+      return data
+    },
+    enabled: isAuthed,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
 export function useCreateJob() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -57,7 +96,7 @@ export function useCreateJob() {
       if (error) throw new ApiError('Could not create this listing.', error)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-jobs'] }),
+    onSuccess: () => invalidateJobLists(queryClient),
   })
 }
 
@@ -69,6 +108,16 @@ export function useUpdateJob(id: string) {
       if (error) throw new ApiError('Could not update this listing.', error)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-jobs'] }),
+    onSuccess: () => invalidateJobLists(queryClient),
   })
+}
+
+// A save can change which places have live listings — the first job in a country adds a filter
+// option, switching the last one off takes it away, and so does an edit that only moves a job from
+// one state to another. The counts move with them. So the locations list is invalidated alongside
+// the list itself rather than being left to its staleTime, which would leave the filter offering a
+// place that no longer has anything in it.
+function invalidateJobLists(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ['admin-jobs'] })
+  queryClient.invalidateQueries({ queryKey: ['job-locations'] })
 }

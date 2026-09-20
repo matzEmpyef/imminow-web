@@ -15040,7 +15040,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Listings — category/location/job_type filters (FR-054). Also `filter[active]=true` (Sentpo Mobile Wave 2, Home's Top Jobs & Internships — live listings only, computed server-side from `active`/`active_from`/`active_to`) + `limit`; both optional, so JobsAdminPage's own unfiltered admin call is unaffected. Since 2026-08-18 this endpoint honours the standard `search`/`sort`/`cursor` trio and returns a real `next_cursor` — `search` matches title, company, category, location and skills, and the default sort is `-posted_at`. Sentpo Mobile's Jobs list is an infinite scroll built on that cursor; filtering is server-side because a client must never pull hundreds of listings just to filter them locally.
+         * Listings — category/country/province_state/job_type filters (FR-054; `location` was the free-text one until 2026-09-20). Also `filter[active]=true` (Sentpo Mobile Wave 2, Home's Top Jobs & Internships — live listings only, computed server-side from `active`/`active_from`/`active_to`) + `limit`; both optional, so JobsAdminPage's own unfiltered admin call is unaffected. Since 2026-08-18 this endpoint honours the standard `search`/`sort`/`cursor` trio and returns a real `next_cursor` — `search` matches title, company, category, the composed `location` string and skills, and the default sort is `-posted_at`. Sentpo Mobile's Jobs list is an infinite scroll built on that cursor; filtering is server-side because a client must never pull hundreds of listings just to filter them locally.
          *
          *     FEATURED FIRST (product owner, 2026-09-20). On the student's plain live list — `filter[active]=true` and nothing else, no search, no sort, no cursor — the jobs named by `PlatformSettings.featured_jobs` are lifted to the front IN THE ADMIN'S ORDER and are never repeated further down. `meta` is unchanged — the same listings come back, in a different order.
          *
@@ -15051,6 +15051,10 @@ export interface paths {
                 query?: {
                     /** @description Admin list — live, scheduled, expired, off; comma-separated = any of. */
                     "filter[status]"?: string;
+                    /** @description Country names, comma-separated = any of (product owner, 2026-09-20). REPLACES `filter[location]`, which matched a whole free-text string exactly: workable against thirty seeded rows, useless against thousands where one city is filed under a dozen spellings and every spelling is its own chip. Values are the canonical names `GET /jobs/locations` returns. A place-less remote listing matches no value here. */
+                    "filter[country]"?: string;
+                    /** @description State / province names within the chosen country, comma-separated = any of (product owner, 2026-09-20). Values are the canonical names `GET /jobs/locations?country=…` returns. */
+                    "filter[province_state]"?: string;
                     /** @description Opt-in for the featured-first lift on the plain live list (product owner, 2026-09-20: featured jobs are for the Jobs list, not Home). Only the Jobs tab sends it; Home's Top Jobs reads the same list without it and gets the ordinary newest-first order. */
                     featured_first?: boolean;
                     /** @description `true` returns ONLY the featured jobs, in the admin's order, with no pagination (`next_cursor` null) — the same idiom `GET /consultancies?filter[featured]=true` uses for Home's rails. Any other value is refused 400. A featured job outside its own active window is left out here too, so the set is always openable. */
@@ -15110,6 +15114,13 @@ export interface paths {
                         "application/json": components["schemas"]["JobListing"];
                     };
                 };
+                /** @description The place is not one we serve (product owner, 2026-09-20). Either `country` is missing on a listing whose `work_mode` is not `remote` — "A job needs the country it is based in, unless its work mode is remote." — or `province_state` is not on that country's list ("Pick a state or province of {country} from the list."), the same refusal the institution, campus and partner-location routes give. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
             };
         };
         delete?: never;
@@ -15168,7 +15179,13 @@ export interface paths {
                     "application/json": {
                         title?: string;
                         company?: string;
-                        location?: string;
+                        /** @description Derived from `city` / `province_state` / `country` since 2026-09-20 (product owner) — **a `location` here is ignored**, and any stale free text still on the row is dropped by this edit. See `JobListing.location`. */
+                        readonly location?: string;
+                        /** @description Required unless the listing's `work_mode` is (or is being set to) `remote` (product owner, 2026-09-20). Checked against the MERGED row, so switching a remote listing to on_site without giving it a country is refused 422 rather than stored. */
+                        country?: string | null;
+                        /** @description One of `GET /countries/{name}/states` for the merged country (product owner, 2026-09-20); anything else is refused 422. Checked whenever either half moves. */
+                        province_state?: string | null;
+                        city?: string | null;
                         category?: string;
                         /** @enum {string} */
                         job_type?: "full_time" | "internship" | "part_time";
@@ -15196,6 +15213,13 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["JobListing"];
                     };
+                };
+                /** @description Same two refusals as POST /jobs, checked against the MERGED row (product owner, 2026-09-20): a missing `country` on a listing that is not remote — including one being switched out of `remote` — or a `province_state` its country does not have. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
                 };
             };
         };
@@ -15231,6 +15255,51 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The places that actually have LIVE jobs, with a count each (product owner, 2026-09-20) — backs the Jobs list's Country and State/Province pickers on both products. A picker must not offer two hundred countries when four have listings, nor thirty-six Indian states when eight have jobs: every chip that returns nothing teaches the student not to trust the filter. Same rule as `GET /courses/levels` (only the rungs the catalogue teaches) and `GET /courses/provinces` (only states with visible courses), and the same response shape as the latter.
+         *
+         *     ONE endpoint for both rungs rather than the courses pair, because they are the same question at two depths and a picker asks them back to back: with no `country` it answers the countries that have live jobs, with one it answers that country's states / provinces.
+         *
+         *     Live is the same window `filter[active]=true` uses (`active` plus `active_from`/`active_to` in India time), so nothing offered here is already expired. Listings with no country — a place-less remote job — appear in neither list. Sorted by name.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Omit for the country list. Give a country name — as this endpoint itself returns it, and as `filter[country]` expects it — for that country's states / provinces. */
+                    country?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JobPlaceCount"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -15358,7 +15427,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Create alert — pushes on new matching listing (FR-054). "A 'Create alert' flow reuses the main [Jobs] list's filter controls" (build reference 2.2) — `filter_criteria` is the same shape `GET /jobs`' own `filter` query param accepts (category, location, job_type). */
+        /** Create alert — pushes on new matching listing (FR-054). "A 'Create alert' flow reuses the main [Jobs] list's filter controls" (build reference 2.2) — `filter_criteria` is the same shape `GET /jobs`' own `filter` query param accepts (category, country, province_state, job_type, work_mode) — `location` was the free-text one until 2026-09-20 (product owner). An alert saved against a key that is no longer a filter falls through as an unknown key — ignored, never a failed match. */
         post: {
             parameters: {
                 query?: never;
@@ -24206,7 +24275,17 @@ export interface components {
              * @description Employer logo shown beside the listing in Sentpo Mobile. Added 2026-08-18; listings created before that have none, so every client must tolerate its absence rather than assume artwork exists.
              */
             company_logo_url?: string;
-            location?: string;
+            /**
+             * @description Where the listing is, in one line, DERIVED from `city`, `province_state` and `country` (product owner, 2026-09-20) — the empty parts are left out, so "Bengaluru, Karnataka, India", or just "India" when only a country is known. The same treatment `Course.duration` got from `duration_months` (assumptions audit M24).
+             *     Free text until that date. Thirty seeded listings hid what that costs: with thousands, every admin spells a place their own way — "Bengaluru", "Bangalore", "Bengaluru, KA" are three values — so the facet built on it offered hundreds of chips, no two of which agreed, and a student picking one silently lost the jobs filed under the others. The same failure that produced the institution free-text suggestions queue. **A `location` in a request body is ignored**, and the stale text on rows written earlier is dropped on their first edit. Filter on `country` / `province_state` instead; `search` still matches this composed string, so a keyword search finds a city.
+             */
+            readonly location?: string;
+            /** @description The country the job is based in, from the shared list at `GET /countries` (product owner, 2026-09-20). **Required unless `work_mode` is `remote`** — a hybrid job has an office some days a week and must say where it is; only a remote job has no office to name. A remote job MAY still carry a country when the employer wants applicants from one, so this is a floor and not a ban. Null only on a place-less remote listing, which appears under no `filter[country]` and in no `GET /jobs/locations` entry. */
+            country?: string | null;
+            /** @description One of `GET /countries/{name}/states` for this listing's country (product owner, 2026-09-20); anything else is refused 422. Stored with its official spelling whatever case was typed. Optional — a country with no managed subdivision list (Hong Kong has none) keeps what was typed, and a listing with no country cannot hold one at all. */
+            province_state?: string | null;
+            /** @description Free text, deliberately (product owner, 2026-09-20): a managed world city list is a rabbit hole nobody asked for, and a city is one rung below what the filters need. Searchable through the composed `location`, but not a filter of its own. */
+            city?: string | null;
             category?: string;
             /** @enum {string} */
             job_type?: "full_time" | "internship" | "part_time";
@@ -24246,7 +24325,17 @@ export interface components {
              * @description Employer logo shown beside the listing in Sentpo Mobile. Added 2026-08-18; listings created before that have none, so every client must tolerate its absence rather than assume artwork exists.
              */
             company_logo_url?: string | null;
-            location?: string;
+            /**
+             * @description Where the listing is, in one line, DERIVED from `city`, `province_state` and `country` (product owner, 2026-09-20) — the empty parts are left out, so "Bengaluru, Karnataka, India", or just "India" when only a country is known. The same treatment `Course.duration` got from `duration_months` (assumptions audit M24).
+             *     Free text until that date. Thirty seeded listings hid what that costs: with thousands, every admin spells a place their own way — "Bengaluru", "Bangalore", "Bengaluru, KA" are three values — so the facet built on it offered hundreds of chips, no two of which agreed, and a student picking one silently lost the jobs filed under the others. The same failure that produced the institution free-text suggestions queue. **A `location` in a request body is ignored**, and the stale text on rows written earlier is dropped on their first edit. Filter on `country` / `province_state` instead; `search` still matches this composed string, so a keyword search finds a city.
+             */
+            readonly location?: string;
+            /** @description The country the job is based in, from the shared list at `GET /countries` (product owner, 2026-09-20). **Required unless `work_mode` is `remote`** — a hybrid job has an office some days a week and must say where it is; only a remote job has no office to name. A remote job MAY still carry a country when the employer wants applicants from one, so this is a floor and not a ban. Null only on a place-less remote listing, which appears under no `filter[country]` and in no `GET /jobs/locations` entry. */
+            country?: string | null;
+            /** @description One of `GET /countries/{name}/states` for this listing's country (product owner, 2026-09-20); anything else is refused 422. Stored with its official spelling whatever case was typed. Optional — a country with no managed subdivision list (Hong Kong has none) keeps what was typed, and a listing with no country cannot hold one at all. */
+            province_state?: string | null;
+            /** @description Free text, deliberately (product owner, 2026-09-20): a managed world city list is a rabbit hole nobody asked for, and a city is one rung below what the filters need. Searchable through the composed `location`, but not a filter of its own. */
+            city?: string | null;
             category?: string;
             /** @enum {string} */
             job_type?: "full_time" | "internship" | "part_time";
@@ -24262,6 +24351,13 @@ export interface components {
             /** Format: date */
             active_to?: string | null;
             active?: boolean;
+        };
+        /** @description One entry of `GET /jobs/locations` (product owner, 2026-09-20) — a country, or a state / province within one, that has at least one live listing. Modelled on `ProvinceCount`, the courses equivalent. */
+        JobPlaceCount: {
+            /** @description The canonical country or province_state value, as filter[country] / filter[province_state] expect it. */
+            name: string;
+            /** @description Live listings in this place — the same window filter[active]=true uses. */
+            job_count: number;
         };
         /** @description erd.md's `job_alerts` table — Sentpo Mobile Wave 6a's Job Alerts screen. */
         JobAlert: {

@@ -15,6 +15,12 @@ interface CountrySelectProps {
   size?: 'pill' | 'compact'
   required?: boolean
   disabled?: boolean
+  /**
+   * Validation message under the control, same contract as TextField/SelectField's (2026-09-20).
+   * Added for the Jobs form, where a country is required unless the work mode is Remote and the
+   * rule has to be sayable ON the field — a required marker alone cannot express "unless".
+   */
+  error?: string
 }
 
 /**
@@ -38,6 +44,7 @@ export function CountrySelect({
   size = 'pill',
   required,
   disabled,
+  error,
 }: CountrySelectProps) {
   const countries = useCountries()
   const selectId = useId()
@@ -67,6 +74,7 @@ export function CountrySelect({
       <SelectField
         label={label}
         required={required}
+        error={error}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
@@ -87,10 +95,19 @@ export function CountrySelect({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className={`h-10 rounded-md border border-border bg-surface px-3 text-body text-text-primary outline-none focus:border-2 focus:border-primary disabled:opacity-60 ${className ?? ''}`}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? `${selectId}-error` : undefined}
+        className={`h-10 rounded-md border bg-surface px-3 text-body text-text-primary outline-none focus:border-2 focus:border-primary disabled:opacity-60 ${
+          error ? 'border-error' : 'border-border'
+        } ${className ?? ''}`}
       >
         {options}
       </select>
+      {error && (
+        <span id={`${selectId}-error`} className="text-caption text-error">
+          {error}
+        </span>
+      )}
     </div>
   )
 }

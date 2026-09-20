@@ -10,8 +10,10 @@ import { Toggle } from '@/components/Toggle'
 import { ImageUploadField } from '@/components/ImageUploadField'
 import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
+import { CountrySelect } from '@/components/CountrySelect'
+import { StateSelect } from '@/components/StateSelect'
 import { Modal } from '@/components/Modal'
-import { useAdminJobs, useCreateJob, useUpdateJob } from '@/queries/jobsAdmin'
+import { useAdminJobs, useCreateJob, useJobLocations, useUpdateJob } from '@/queries/jobsAdmin'
 import { useCursorPagination } from '@/lib/pagination'
 import { daysSince, formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
@@ -40,14 +42,22 @@ function postedCaption(postedAt?: string): string | null {
 // job_type, description, salary_range, work_mode, experience_level, skills, active window)
 // silently had no way to be set. Rewritten as a combined Add/Edit popup (editingJob prop, same
 // pattern as WebinarFormModal) covering the full field set.
-function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing; onClose: () => void }) {
+//
+// Free-text Location replaced by country / state-province / city (product owner, 2026-09-20) —
+// `location` is derived and read-only now, exactly like Course.duration, so there is nothing here
+// to type it into. The place group sits directly under Work mode because work mode is what decides
+// whether a country is required, and a rule reads as a rule only when the field it depends on is
+// beside it rather than four rows away.
+export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing; onClose: () => void }) {
   const isEditing = Boolean(editingJob)
   const createJob = useCreateJob()
   const updateJob = useUpdateJob(editingJob?.id ?? '')
   const [title, setTitle] = useState(editingJob?.title ?? '')
   const [company, setCompany] = useState(editingJob?.company ?? '')
   const [companyLogoUrl, setCompanyLogoUrl] = useState(editingJob?.company_logo_url ?? '')
-  const [location, setLocation] = useState(editingJob?.location ?? '')
+  const [country, setCountry] = useState(editingJob?.country ?? '')
+  const [provinceState, setProvinceState] = useState(editingJob?.province_state ?? '')
+  const [city, setCity] = useState(editingJob?.city ?? '')
   const [category, setCategory] = useState(editingJob?.category ?? '')
   const [jobType, setJobType] = useState<JobType>(editingJob?.job_type ?? 'full_time')
   const [description, setDescription] = useState(editingJob?.description ?? '')
@@ -69,9 +79,24 @@ function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing; onClos
       : !applyUrl.startsWith('https://')
         ? 'Must start with https://'
         : undefined
-  const canSubmit = Boolean(title.trim() && company.trim() && applyUrl.trim() && applyUrl.startsWith('https://'))
+  // The server refuses a country-less non-remote job 422 (product owner, 2026-09-20). Checked here
+  // too, and the Save is blocked on it, so the admin learns the rule while filling the field in
+  // rather than after losing a round trip — the server's message is still surfaced in the footer
+  // if a case this form doesn't know about ever comes back.
+  const countryRequired = workMode !== 'remote'
+  const countryError = attempted && countryRequired && !country ? 'Required unless the work mode is Remote.' : undefined
+  const canSubmit = Boolean(
+    title.trim() && company.trim() && applyUrl.trim() && applyUrl.startsWith('https://') && (!countryRequired || country),
+  )
   const titleError = attempted && !title.trim() ? 'Title is required.' : undefined
   const companyError = attempted && !company.trim() ? 'Company is required.' : undefined
+
+  // A province belongs to the country it was picked under: keeping it across a country change
+  // would carry a value the new country's list has never heard of straight into the server's 422.
+  function changeCountry(next: string) {
+    setCountry(next)
+    if (next !== country) setProvinceState('')
+  }
 
   function addSkill() {
     const trimmed = skillDraft.trim()
@@ -94,7 +119,11 @@ function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing; onClos
       title,
       company,
       company_logo_url: companyLogoUrl || null,
-      location,
+      // No `location` — it is derived server-side from these three and a `location` in a request
+      // body is ignored, so sending one would only read as though this form still set it.
+      country: country || null,
+      province_state: country ? provinceState || null : null,
+      city: city.trim() || null,
       category,
       job_type: jobType,
       description,
@@ -137,7 +166,13 @@ function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing; onClos
         </>
       }
     >
-      <form id="job-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
+      {/* `noValidate` (2026-09-20) — the console's convention since product review L3: inline
+          errors under the field, never the browser's own bubbles. This form was still the odd one
+          out, so every custom message it already carried ("Title is required.", and now the
+          country rule) was unreachable — the native `required` bubble fired first and said
+          "Please select an item in the list", which cannot express "unless the work mode is
+          Remote". The save is still blocked; it is blocked by this form, saying why. */}
+      <form id="job-form" onSubmit={handleSubmit} noValidate className="flex flex-col gap-md">
         <TextField label="Title" required value={title} onChange={(e) => setTitle(e.target.value)} error={titleError} />
         <div className="grid grid-cols-2 gap-sm">
           <TextField
@@ -147,7 +182,7 @@ function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing; onClos
             onChange={(e) => setCompany(e.target.value)}
             error={companyError}
           />
-          <TextField label="Location" value={location} onChange={(e) => setLocation(e.target.value)} />
+          <TextField label="Category" value={category} onChange={(e) => setCategory(e.target.value)} />
         </div>
         {/* Employer logo (added 2026-08-18). Sentpo Mobile shows this beside the listing; without
             it every job card falls back to a generated initial, which is what the student sees
@@ -159,7 +194,6 @@ function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing; onClos
           hint="Square works best — shown at 40×40 in the app. Ideal size 200×200px."
         />
         <div className="grid grid-cols-2 items-end gap-sm">
-          <TextField label="Category" value={category} onChange={(e) => setCategory(e.target.value)} />
           <SelectField
             label="Job type"
             required
@@ -171,7 +205,40 @@ function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing; onClos
             <option value="internship">Internship</option>
             <option value="part_time">Part-time</option>
           </SelectField>
+          <SelectField
+            label="Work mode"
+            required
+            id="work-mode"
+            value={workMode}
+            onChange={(e) => setWorkMode(e.target.value as WorkMode)}
+          >
+            <option value="remote">Remote</option>
+            <option value="hybrid">Hybrid</option>
+            <option value="on_site">On-site</option>
+          </SelectField>
         </div>
+        {/* Where the job is (product owner, 2026-09-20). The same CountrySelect / StateSelect pair
+            the Institutions page uses (assumptions audit H11) — the state picker follows the chosen
+            country and only ever offers values the server will accept, so the console cannot put
+            forward a spelling the API then refuses 422. City stays free text, deliberately: a
+            managed world city list is a rabbit hole, and a city is one rung below what the filters
+            need. */}
+        <div className="grid grid-cols-2 items-start gap-sm">
+          <CountrySelect
+            label="Country"
+            required={countryRequired}
+            value={country}
+            onChange={changeCountry}
+            error={countryError}
+          />
+          <StateSelect label="State / province" country={country} value={provinceState} onChange={setProvinceState} />
+        </div>
+        <TextField label="City" value={city} onChange={(e) => setCity(e.target.value)} />
+        <p className="-mt-sm text-caption text-text-secondary">
+          {countryRequired
+            ? 'A country is required unless the work mode is Remote. Students see these as one line — “Bengaluru, Karnataka, India”.'
+            : 'A remote job can skip the country, or name one if you only want applicants from there.'}
+        </p>
         <div className="flex flex-col gap-xs">
           <FieldLabel htmlFor="job-description">Description</FieldLabel>
           <textarea
@@ -194,23 +261,12 @@ function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing; onClos
         </div>
         <div className="grid grid-cols-2 items-end gap-sm">
           <TextField label="Salary range" value={salaryRange ?? ''} onChange={(e) => setSalaryRange(e.target.value)} />
-          <SelectField
-            label="Work mode"
-            required
-            id="work-mode"
-            value={workMode}
-            onChange={(e) => setWorkMode(e.target.value as WorkMode)}
-          >
-            <option value="remote">Remote</option>
-            <option value="hybrid">Hybrid</option>
-            <option value="on_site">On-site</option>
-          </SelectField>
+          <TextField
+            label="Experience level"
+            value={experienceLevel ?? ''}
+            onChange={(e) => setExperienceLevel(e.target.value)}
+          />
         </div>
-        <TextField
-          label="Experience level"
-          value={experienceLevel ?? ''}
-          onChange={(e) => setExperienceLevel(e.target.value)}
-        />
 
         <div className="flex flex-col gap-xs">
           <p className="text-body-sm font-medium text-text-primary">Skills</p>
@@ -350,6 +406,11 @@ function JobDetailsModal({ job, onClose }: { job: JobListing; onClose: () => voi
           {job.work_mode && <Badge color="secondary">{workModeLabels[job.work_mode]}</Badge>}
           {job.apply_url_healthy === false && <Badge color="error">Broken link</Badge>}
         </div>
+        {/* A place-less remote listing serves an empty `location`, so this reads as the company
+            alone — which is correct here, not broken: the Remote badge is on the line directly
+            above, and repeating "Remote" one line under it would put the same fact in two places,
+            the exact habit this change exists to end. (The LIST is a different matter: a column
+            headed Location has to answer for itself, so it says Remote there.) */}
         <p className="text-body-sm text-text-secondary">
           {job.company}
           {job.location ? ` · ${job.location}` : ''}
@@ -401,6 +462,17 @@ function JobDetailsModal({ job, onClose }: { job: JobListing; onClose: () => voi
   )
 }
 
+// The placeholder carries the state of a dependent picker, the way StateSelect's does: "pick a
+// country first" is the instruction, and a country whose live listings name no state at all gets
+// told so rather than showing an empty dropdown that looks like a failed load.
+function provincePlaceholder(country: string, options: ReturnType<typeof useJobLocations>): string {
+  if (!country) return 'Pick a country first'
+  if (options.isLoading) return 'Loading…'
+  if (options.isError) return 'Couldn’t load the states'
+  if ((options.data ?? []).length === 0) return 'No states with live jobs'
+  return 'Any state / province'
+}
+
 export function JobsAdminPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [editing, setEditing] = useState<JobListing | null>(null)
@@ -410,17 +482,28 @@ export function JobsAdminPage() {
   const [statusFilter, setStatusFilter] = useState<'' | JobStatus>('')
   const [typeFilter, setTypeFilter] = useState<'' | JobType>('')
   const [workModeFilter, setWorkModeFilter] = useState<'' | WorkMode>('')
+  const [countryFilter, setCountryFilter] = useState('')
+  const [provinceFilter, setProvinceFilter] = useState('')
   const paging = useCursorPagination()
 
   function resetPaging() {
     paging.reset()
   }
 
+  // Both rungs of the SAME endpoint: no country asks which countries have live listings, a country
+  // asks which of its states do (product owner, 2026-09-20). Never a distinct-values scan of the
+  // rows on screen — that is what a free-text location forced, and it could only ever see the
+  // twenty rows of the current page.
+  const countryOptions = useJobLocations()
+  const provinceOptions = useJobLocations(countryFilter || undefined)
+
   const jobs = useAdminJobs({
     search: search || undefined,
     status: statusFilter || undefined,
     jobType: typeFilter || undefined,
     workMode: workModeFilter || undefined,
+    country: countryFilter || undefined,
+    provinceState: provinceFilter || undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
     cursor: paging.cursor,
     limit: 20,
@@ -463,7 +546,19 @@ export function JobsAdminPage() {
       header: 'Work Mode',
       render: (j) => (j.work_mode ? <Badge color="secondary">{workModeLabels[j.work_mode]}</Badge> : '—'),
     },
-    { key: 'location', header: 'Location', hideBelow: 'md', render: (j) => j.location || 'Location not set' },
+    {
+      key: 'location',
+      header: 'Location',
+      hideBelow: 'md',
+      // Derived server-side from country/province/city, so it is just displayed (2026-09-20).
+      // A remote listing is allowed to have no place at all and serves an empty string for it —
+      // "Location not set" would read as a half-filled row that somebody ought to go and fix, when
+      // in fact the listing is complete and the honest answer to "where" is "nowhere, it's remote".
+      render: (j) =>
+        j.location || (
+          <span className="text-text-secondary">{j.work_mode === 'remote' ? 'Remote' : 'Location not set'}</span>
+        ),
+    },
     {
       key: 'posted_at',
       header: 'Posted',
@@ -517,7 +612,7 @@ export function JobsAdminPage() {
           loading={jobs.isLoading}
           error={jobs.isError ? 'Could not load job listings.' : undefined}
           emptyMessage={
-            search || statusFilter || typeFilter || workModeFilter
+            search || statusFilter || typeFilter || workModeFilter || countryFilter || provinceFilter
               ? 'No listings match these filters.'
               : "No job listings yet. Add one with Add Listing above; students see it in the app's Jobs tab."
           }
@@ -575,6 +670,52 @@ export function JobsAdminPage() {
                 <option value="remote">Remote</option>
                 <option value="hybrid">Hybrid</option>
                 <option value="on_site">On-site</option>
+              </CompactSelect>
+              {/* Country then state / province, both sourced from GET /jobs/locations, so only
+                  places that actually HAVE live listings are ever offered — with four countries in
+                  the data there are four chips, not two hundred. The counts come with them: a
+                  filter that says what it will return is one nobody has to try first. */}
+              <CompactSelect
+                value={countryFilter}
+                onChange={(e) => {
+                  setCountryFilter(e.target.value)
+                  // The provinces on offer belong to the old country; keeping one would filter on a
+                  // state the newly chosen country does not have and return nothing.
+                  setProvinceFilter('')
+                  resetPaging()
+                }}
+                label="Country"
+              >
+                <option value="">{countryOptions.isError ? 'Countries unavailable' : 'Any country'}</option>
+                {(countryOptions.data ?? []).map((place) => (
+                  <option key={place.name} value={place.name}>
+                    {place.name} ({place.job_count})
+                  </option>
+                ))}
+              </CompactSelect>
+              {/* Disabled until a country is chosen, rather than hidden: the same "Pick a country
+                  first" wording StateSelect already uses everywhere else in the console, so the
+                  dependency is stated instead of being something you discover. A control that
+                  appears and disappears also reflows the whole filter row under the admin's
+                  cursor, which the console does nowhere else. */}
+              <CompactSelect
+                value={provinceFilter}
+                disabled={!countryFilter}
+                onChange={(e) => {
+                  setProvinceFilter(e.target.value)
+                  resetPaging()
+                }}
+                label="State / province"
+              >
+                <option value="">{provincePlaceholder(countryFilter, provinceOptions)}</option>
+                {/* Guarded on `countryFilter`, not just on the data: with no country the endpoint
+                    answers the COUNTRY list (it is one endpoint at two depths), and rendering that
+                    here would stock the province picker with countries. */}
+                {(countryFilter ? (provinceOptions.data ?? []) : []).map((place) => (
+                  <option key={place.name} value={place.name}>
+                    {place.name} ({place.job_count})
+                  </option>
+                ))}
               </CompactSelect>
             </>
           }
