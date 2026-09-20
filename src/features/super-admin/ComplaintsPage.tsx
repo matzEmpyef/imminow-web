@@ -110,6 +110,8 @@ export function ComplaintsPage() {
       ),
     },
     {
+      // The consultancy the STUDENT named (assumptions audit M6, product owner 2026-09-19) — not
+      // whichever one their current case happens to be with, which is what this used to show.
       key: 'consultancy',
       header: 'Consultancy',
       hideBelow: 'md',

@@ -61,13 +61,11 @@ export type EntryQualification = 'tenth' | 'twelfth' | 'diploma' | 'bachelors' |
  * saved without the dropdown being looked at then measured every applicant against a 12th score. */
 export type EntryQualificationValue = EntryQualification | ''
 
-export const ENTRY_QUALIFICATIONS: { value: EntryQualification; label: string }[] = [
-  { value: 'tenth', label: '10th' },
-  { value: 'twelfth', label: '12th' },
-  { value: 'diploma', label: 'Diploma' },
-  { value: 'bachelors', label: "Bachelor's" },
-  { value: 'masters', label: "Master's" },
-]
+// The OPTIONS came off a hand-kept list here until 2026-09-19. They are built from the served
+// ladder now (assumptions audit M23, product owner) — `useLevelLadder().entryQualifications` in
+// lib/studyLevels — because this was one of four copies of one ladder, in two vocabularies, and
+// the copy that offered these five had no `phd` at all: a PhD programme could not state a
+// Master's-and-above entry requirement, and a `phd` row rendered as the raw code.
 
 /** How a minimum academic score is read. `''` is "Not set" for the same reason the qualification
  * has one (assumptions audit C3, approved 2026-09-19) — Percentage used to be pre-selected, so an

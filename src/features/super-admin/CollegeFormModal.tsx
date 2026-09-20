@@ -51,7 +51,14 @@ export function CollegeFormModal({
   const [website, setWebsite] = useState(college?.website ?? '')
   const [description, setDescription] = useState(college?.description ?? '')
   const [qsRank, setQsRank] = useState(college?.qs_rank != null ? String(college.qs_rank) : '')
+  // A RANK IS A SNAPSHOT OF ONE YEAR'S TABLE (assumptions audit M25, product owner 2026-09-19).
+  // Without the year "QS 42" reads as current forever and nobody can tell a 2019 figure from this
+  // morning's. Required whenever the rank beside it is given — the server refuses it 400 — and
+  // deliberately not pre-filled with the current year: that would be the code answering for the
+  // admin about which table they are reading from.
+  const [qsRankYear, setQsRankYear] = useState(college?.qs_rank_year != null ? String(college.qs_rank_year) : '')
   const [theRank, setTheRank] = useState(college?.the_rank != null ? String(college.the_rank) : '')
+  const [theRankYear, setTheRankYear] = useState(college?.the_rank_year != null ? String(college.the_rank_year) : '')
   const [institutionType, setInstitutionType] = useState(college?.institution_type ?? '')
   const [acceptanceRate, setAcceptanceRate] = useState(
     college?.acceptance_rate != null ? String(college.acceptance_rate) : '',
@@ -68,12 +75,21 @@ export function CollegeFormModal({
   const unknownInstitutionType =
     institutionType && !INSTITUTION_TYPES.includes(institutionType) ? institutionType : null
 
+  // A PERCENTAGE, 0–100 (assumptions audit M25, product owner 2026-09-19) — "85" typed for 8.5
+  // was stored verbatim and shown as an 85 % acceptance rate at a school that takes fewer than one
+  // in ten. Same check the server now makes, run here so it is caught before the submit.
   const acceptanceValid =
     acceptanceRate === '' || (Number(acceptanceRate) >= 0 && Number(acceptanceRate) <= 100)
   // Rank 0 or negative isn't a rank (product review, 2026-09-12) — empty still means "not ranked."
   const qsRankValid = qsRank === '' || Number(qsRank) >= 1
   const theRankValid = theRank === '' || Number(theRank) >= 1
-  const canSave = Boolean(name.trim()) && acceptanceValid && qsRankValid && theRankValid
+  // The year is required with the rank, and meaningless without it (M25).
+  const qsYearError =
+    qsRank !== '' && qsRankYear === '' ? 'Say which year’s QS table this rank is from.' : undefined
+  const theYearError =
+    theRank !== '' && theRankYear === '' ? 'Say which year’s THE table this rank is from.' : undefined
+  const canSave =
+    Boolean(name.trim()) && acceptanceValid && qsRankValid && theRankValid && !qsYearError && !theYearError
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -84,7 +100,11 @@ export function CollegeFormModal({
       website: website || null,
       description,
       qs_rank: qsRank === '' ? null : Number(qsRank),
+      // The year travels with its rank or not at all (M25) — a year on its own describes nothing,
+      // and clearing the rank has to clear the year with it.
+      qs_rank_year: qsRank === '' || qsRankYear === '' ? null : Number(qsRankYear),
       the_rank: theRank === '' ? null : Number(theRank),
+      the_rank_year: theRank === '' || theRankYear === '' ? null : Number(theRankYear),
       institution_type: (institutionType || null) as College['institution_type'],
       acceptance_rate: acceptanceRate === '' ? null : Number(acceptanceRate),
     }
@@ -138,8 +158,13 @@ export function CollegeFormModal({
           <TextField label="Website" value={website ?? ''} onChange={(e) => setWebsite(e.target.value)} />
         </FormSection>
 
-        <FormSection title="Rankings & profile" hint="Optional — shown on the college's profile when set.">
+        <FormSection
+          title="Rankings & profile"
+          hint="Optional — shown on the college's profile when set. A rank needs the year of the table it came from."
+        >
           <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
+            {/* The year sits BESIDE its rank (assumptions audit M25, product owner 2026-09-19),
+                so the pair is visibly one answer rather than two unrelated boxes. */}
             <TextField
               label="QS rank"
               type="number"
@@ -149,12 +174,30 @@ export function CollegeFormModal({
               error={qsRankValid ? undefined : 'Rank must be 1 or higher.'}
             />
             <TextField
+              label="QS table year"
+              type="number"
+              min="1900"
+              value={qsRankYear}
+              onChange={(e) => setQsRankYear(e.target.value)}
+              error={qsYearError}
+              placeholder="e.g. 2026"
+            />
+            <TextField
               label="THE rank"
               type="number"
               min="1"
               value={theRank}
               onChange={(e) => setTheRank(e.target.value)}
               error={theRankValid ? undefined : 'Rank must be 1 or higher.'}
+            />
+            <TextField
+              label="THE table year"
+              type="number"
+              min="1900"
+              value={theRankYear}
+              onChange={(e) => setTheRankYear(e.target.value)}
+              error={theYearError}
+              placeholder="e.g. 2026"
             />
             <TextField
               label="Acceptance %"

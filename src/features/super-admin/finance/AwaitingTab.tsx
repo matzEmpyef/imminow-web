@@ -5,7 +5,7 @@ import { StopPropagation } from '@/components/StopPropagation'
 import { Table, type TableColumn } from '@/components/Table'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate, relativeTime } from '@/lib/time'
-import { money } from './money'
+import { paymentInrNote, paymentMoney } from './money'
 import { useFinancePayments } from '@/queries/financeDashboard'
 import type { CommissionPayment } from '@/queries/commission'
 import { ConfirmPaymentModal } from './ConfirmPaymentModal'
@@ -17,10 +17,6 @@ function inr(n: number | null | undefined): string {
   return n == null ? '—' : `₹${n.toLocaleString('en-IN')}`
 }
 
-function approxInr(amountInr: number | undefined, currency: string | undefined): string | null {
-  if (!currency || currency === 'INR' || amountInr == null) return null
-  return `≈ ₹${amountInr.toLocaleString('en-IN')}`
-}
 
 function daysWaiting(iso: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000))
@@ -48,11 +44,15 @@ export function AwaitingTab() {
     {
       key: 'amount',
       header: 'Amount',
+      // Minor units, and the STORED rate beside the ₹ figure (assumptions audit M15, product
+      // owner 2026-09-19) — "≈ ₹1,03,168 at 83.20, rate of 12 Sep". The rupee figure used to be
+      // a live conversion, so which part of a due a payment settled moved whenever an admin
+      // edited the rate table.
       render: (p) => (
         <div className="flex flex-col">
-          <span className="whitespace-nowrap font-medium tabular-nums text-text-primary">{money(p.amount)}</span>
-          {approxInr(p.amount_inr, p.amount.currency) && (
-            <span className="whitespace-nowrap text-caption text-text-secondary">{approxInr(p.amount_inr, p.amount.currency)}</span>
+          <span className="whitespace-nowrap font-medium tabular-nums text-text-primary">{paymentMoney(p)}</span>
+          {paymentInrNote(p) && (
+            <span className="whitespace-nowrap text-caption text-text-secondary">{paymentInrNote(p)}</span>
           )}
         </div>
       ),

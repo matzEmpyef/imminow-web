@@ -4,6 +4,7 @@ import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { SearchSelect } from '@/components/SearchSelect'
 import { useAdminConsultancies } from '@/queries/adminConsultancies'
+import { useAdminJobs } from '@/queries/jobsAdmin'
 import { usePlatformSettings, useUpdatePlatformSettings } from '@/queries/catalogSettings'
 import { showToast } from '@/lib/toast'
 
@@ -13,11 +14,19 @@ import { showToast } from '@/lib/toast'
 // outright, so this cap is a courtesy rather than the enforcement.
 const MAX_FEATURED = 3
 
-type SettingKey = 'featured_institutes' | 'featured_consultancies'
+type SettingKey = 'featured_institutes' | 'featured_consultancies' | 'featured_jobs'
+
+/** One thing that can be picked — an account or a listing. */
+interface FeaturedOption {
+  id: string
+  label: string
+  sublabel?: string
+}
 
 /**
- * One hand-picked, ordered rail on Sentpo Home — the shared body behind both
- * {@link FeaturedInstitutesCard} and {@link FeaturedConsultanciesCard}.
+ * One hand-picked, ordered selection the student app renders in the order chosen here — the
+ * shared body behind {@link FeaturedInstitutesCard}, {@link FeaturedConsultanciesCard} and
+ * {@link FeaturedJobsCard}.
  *
  * It lives on App Config rather than in Manage Consultancies because it is a merchandising
  * decision about the student app, not a property of any one account — the same reason it is a
@@ -33,12 +42,17 @@ type SettingKey = 'featured_institutes' | 'featured_consultancies'
  * screen.
  *
  * Generalised from the institutes-only original when Featured consultancies joined it
- * (assumptions audit, Featured consultancies item, approved 2026-09-19) — one control, two
- * settings, rather than a second copy of the same 150 lines drifting away from the first.
+ * (assumptions audit, Featured consultancies item, approved 2026-09-19), and generalised AGAIN
+ * for Featured jobs (product owner, 2026-09-20: "platform admin should be able to select few jobs
+ * as featured jobs, it should appear in Job list view first card space"). What a caller supplies
+ * now is a list of options and its copy — one control, three settings, rather than a third copy
+ * of the same 150 lines drifting away from the first two.
  */
-function FeaturedAccountsCard({
+function FeaturedPickerCard({
   settingKey,
-  kind,
+  options: allOptions,
+  loading,
+  error,
   heading,
   intro,
   emptyState,
@@ -48,12 +62,15 @@ function FeaturedAccountsCard({
   savedToast,
 }: {
   settingKey: SettingKey
-  kind: 'consultancy' | 'institute'
+  /** Everything that may be picked, already narrowed to what is eligible. */
+  options: FeaturedOption[]
+  loading: boolean
+  error: boolean
   heading: string
   intro: ReactNode
   /** Shown in place of the list when nothing is picked — says what the app does with none. */
   emptyState: string
-  /** Shown when there is no account of this kind to pick at all. */
+  /** Shown when there is nothing eligible to pick at all. */
   noneExist: string
   addLabel: string
   addPlaceholder: string
@@ -61,9 +78,6 @@ function FeaturedAccountsCard({
 }) {
   const settings = usePlatformSettings()
   const update = useUpdatePlatformSettings()
-  // Every account of this kind, not a page of them — the picker is a choice among a manageable
-  // list, and `kind` is the server-side filter D10 added to this same list endpoint.
-  const accounts = useAdminConsultancies({ kind, limit: 100 })
 
   const [selected, setSelected] = useState<string[] | null>(null)
 
@@ -75,14 +89,12 @@ function FeaturedAccountsCard({
 
   const saved = settings.data?.[settingKey] ?? []
   const current = selected ?? saved
-  const byId = new Map((accounts.data?.items ?? []).map((c) => [c.id!, c]))
-  const options = (accounts.data?.items ?? [])
-    .filter((c) => !current.includes(c.id!))
-    .map((c) => ({ id: c.id!, label: c.name!, sublabel: c.city ?? undefined }))
+  const byId = new Map(allOptions.map((o) => [o.id, o]))
+  const options = allOptions.filter((o) => !current.includes(o.id))
 
   const dirty = JSON.stringify(current) !== JSON.stringify(saved)
   const atCap = current.length >= MAX_FEATURED
-  const noneAvailable = (accounts.data?.items ?? []).length === 0
+  const noneAvailable = allOptions.length === 0
 
   function move(index: number, delta: number) {
     const target = index + delta
@@ -95,7 +107,7 @@ function FeaturedAccountsCard({
   }
 
   function label(id: string) {
-    return byId.get(id)?.name ?? id
+    return byId.get(id)?.label ?? id
   }
 
   return (
@@ -105,9 +117,9 @@ function FeaturedAccountsCard({
         <p className="text-body-sm text-text-secondary">{intro}</p>
       </div>
 
-      {settings.isError || accounts.isError ? (
+      {settings.isError || error ? (
         <p className="text-body-sm text-error">Could not load the featured selection.</p>
-      ) : settings.isLoading || accounts.isLoading ? (
+      ) : settings.isLoading || loading ? (
         <p className="text-body-sm text-text-secondary">Loading…</p>
       ) : (
         <>
@@ -193,12 +205,29 @@ function FeaturedAccountsCard({
   )
 }
 
+/**
+ * The account pickers' shared option source — every account of one kind, not a page of them: the
+ * picker is a choice among a manageable list, and `kind` is the server-side filter D10 added to
+ * this same list endpoint.
+ */
+function useAccountOptions(kind: 'consultancy' | 'institute') {
+  const accounts = useAdminConsultancies({ kind, limit: 100 })
+  return {
+    options: (accounts.data?.items ?? []).map((c) => ({ id: c.id!, label: c.name!, sublabel: c.city ?? undefined })),
+    loading: accounts.isLoading,
+    error: accounts.isError,
+  }
+}
+
 /** Top Institutes on Sentpo Home (INSTITUTE_ACCOUNT_PLAN D15, 2026-09-10). */
 export function FeaturedInstitutesCard() {
+  const { options, loading, error } = useAccountOptions('institute')
   return (
-    <FeaturedAccountsCard
+    <FeaturedPickerCard
       settingKey="featured_institutes"
-      kind="institute"
+      options={options}
+      loading={loading}
+      error={error}
       heading="Featured institutes — Sentpo Home"
       intro={
         <>
@@ -223,10 +252,13 @@ export function FeaturedInstitutesCard() {
  * copy here says that rather than implying the section disappears.
  */
 export function FeaturedConsultanciesCard() {
+  const { options, loading, error } = useAccountOptions('consultancy')
   return (
-    <FeaturedAccountsCard
+    <FeaturedPickerCard
       settingKey="featured_consultancies"
-      kind="consultancy"
+      options={options}
+      loading={loading}
+      error={error}
       heading="Featured consultancies on Home"
       intro={
         <>
@@ -239,6 +271,51 @@ export function FeaturedConsultanciesCard() {
       addLabel="Add a consultancy"
       addPlaceholder="Search consultancies…"
       savedToast="Featured consultancies saved"
+    />
+  )
+}
+
+/**
+ * The first cards in the app's Jobs list (product owner, 2026-09-20: "platform admin should be
+ * able to select few jobs as featured jobs, it should appear in Job list view first card space").
+ *
+ * ONLY JOBS THAT ARE LIVE RIGHT NOW are offered. A listing that is switched off, not yet started
+ * or past its end date would be promoted to the first card and then open on nothing — the server
+ * refuses one 400 at the moment of picking, and this picker does not offer it in the first place,
+ * which is the version of that rule an admin never has to meet.
+ *
+ * The reverse is deliberately not enforced anywhere: a job that LATER leaves its window simply
+ * stops appearing as featured, and the selection is left alone, so a campaign that pauses over a
+ * weekend comes back by itself rather than needing to be re-picked.
+ */
+export function FeaturedJobsCard() {
+  const jobs = useAdminJobs({ status: 'live', limit: 100 })
+  const options = (jobs.data?.items ?? []).map((j) => ({
+    id: j.id,
+    label: j.title,
+    // The company, because two listings routinely share a title and nothing else would tell them
+    // apart in the picker.
+    sublabel: [j.company, j.location].filter(Boolean).join(' \u00b7 ') || undefined,
+  }))
+  return (
+    <FeaturedPickerCard
+      settingKey="featured_jobs"
+      options={options}
+      loading={jobs.isLoading}
+      error={jobs.isError}
+      heading="Featured jobs"
+      intro={
+        <>
+          Up to {MAX_FEATURED}, in the order students see them. The app shows these first in the Jobs list, marked
+          &ldquo;Featured&rdquo;, and never repeats them further down. Pick none and the list is simply in its ordinary
+          order.
+        </>
+      }
+      emptyState="Nothing featured. The Jobs list opens in its ordinary order, newest first."
+      noneExist="No job listing is live right now — only a live listing can be featured."
+      addLabel="Add a job"
+      addPlaceholder="Search live listings\u2026"
+      savedToast="Featured jobs saved"
     />
   )
 }

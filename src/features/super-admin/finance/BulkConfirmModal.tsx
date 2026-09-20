@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
-import { money } from './money'
+import { money, paymentInrNote, paymentMoney } from './money'
 import { useConfirmCommissionPayment, type CommissionPayment } from '@/queries/commission'
 
 const MIN_REASON_LENGTH = 3
@@ -12,10 +12,6 @@ interface Result {
   failed: number
 }
 
-function approxInr(amountInr: number | undefined, currency: string | undefined): string | null {
-  if (!currency || currency === 'INR' || amountInr == null) return null
-  return `≈ ₹${amountInr.toLocaleString('en-IN')}`
-}
 
 /**
  * Confirms a batch of declared payments (2026-09-11 Awaiting Confirmation bulk bar). Each row gets
@@ -118,7 +114,8 @@ export function BulkConfirmModal({
               {payments.map((p) => {
                 const currency = p.amount.currency ?? 'INR'
                 const differs = changedAmount(p)
-                const approx = approxInr(p.amount_inr, currency)
+                // The rate the row was valued at, frozen when it was declared (M15).
+                const approx = paymentInrNote(p)
                 return (
                   <div key={p.id} className="flex flex-col gap-xs rounded-md border border-border px-sm py-sm">
                     <div className="flex items-center justify-between gap-sm">
@@ -127,7 +124,7 @@ export function BulkConfirmModal({
                         <p className="text-caption text-text-secondary">{p.applicant_name ?? 'General'}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-body-sm tabular-nums text-text-primary">Declared {money(p.amount)}</p>
+                        <p className="text-body-sm tabular-nums text-text-primary">Declared {paymentMoney(p)}</p>
                         {approx && <p className="text-caption text-text-secondary">{approx}</p>}
                       </div>
                     </div>

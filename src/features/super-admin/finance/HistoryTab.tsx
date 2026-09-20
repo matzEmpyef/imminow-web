@@ -6,7 +6,7 @@ import { StopPropagation } from '@/components/StopPropagation'
 import { Table, type TableColumn } from '@/components/Table'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate, localDateISO } from '@/lib/time'
-import { money } from './money'
+import { money, paymentInrNote, paymentMoney } from './money'
 import { fetchAllFinancePayments, useFinancePayments } from '@/queries/financeDashboard'
 import type { CommissionPayment } from '@/queries/commission'
 import { ConsultancySearchSelect } from './ConsultancySearchSelect'
@@ -15,10 +15,6 @@ import { CorrectPaymentModal } from './CorrectPaymentModal'
 
 type StatusFilter = '' | 'confirmed' | 'rejected'
 
-function approxInr(amountInr: number | undefined, currency: string | undefined): string | null {
-  if (!currency || currency === 'INR' || amountInr == null) return null
-  return `≈ ₹${amountInr.toLocaleString('en-IN')}`
-}
 
 function csvCell(value: string): string {
   // Quote any field that could otherwise break a column boundary or start a new row.
@@ -112,7 +108,7 @@ export function HistoryTab() {
       render: (p) => (
         <div className="flex flex-col">
           <span className="flex items-center gap-xs whitespace-nowrap font-medium tabular-nums text-text-primary">
-            {money(p.amount)}
+            {paymentMoney(p)}
             {(p.corrections?.length ?? 0) > 0 && <Badge color="info">Corrected</Badge>}
             {/* Recorded directly by Finance, no declaration from the consultancy (2026-09-11). */}
             {p.recorded_by_finance && <Badge color="secondary">Recorded by Finance</Badge>}
@@ -125,8 +121,11 @@ export function HistoryTab() {
           {p.recorded_by_finance && p.received_on && (
             <span className="whitespace-nowrap text-caption text-text-secondary">Received {formatDate(p.received_on)}</span>
           )}
-          {approxInr(p.amount_inr, p.amount.currency) && (
-            <span className="whitespace-nowrap text-caption text-text-secondary">{approxInr(p.amount_inr, p.amount.currency)}</span>
+          {/* The rate this settlement was valued at, stored on the row (assumptions audit M15,
+              product owner 2026-09-19) — it used to be converted live, so a historical figure
+              moved whenever the rate table was edited. */}
+          {paymentInrNote(p) && (
+            <span className="whitespace-nowrap text-caption text-text-secondary">{paymentInrNote(p)}</span>
           )}
         </div>
       ),

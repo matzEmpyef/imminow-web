@@ -30,7 +30,8 @@ import { formatCourseFee, formatFeeApprox } from '@/lib/money'
 import { formatDate } from '@/lib/time'
 import type { components } from '@/api/schema'
 import { mediaUrl } from '@/lib/mediaUrl'
-import { ENTRY_QUALIFICATIONS, ROLLED_DEADLINE_NOTE } from '@/features/super-admin/courseFormShared'
+import { ROLLED_DEADLINE_NOTE } from '@/features/super-admin/courseFormShared'
+import { useLevelLadder } from '@/lib/studyLevels'
 
 type Course = components['schemas']['Course']
 type IconColor = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
@@ -115,6 +116,8 @@ function RequirementRow({ label, children }: { label: string; children: ReactNod
 export function CourseDetailModal({ course, onClose }: { course: Course; onClose: () => void }) {
   const exams = useExams()
   const examName = (examId: string) => exams.data?.find((e) => e.id === examId)?.name ?? examId
+  // One served education ladder (assumptions audit M23, product owner 2026-09-19).
+  const ladder = useLevelLadder()
   // The college, for a collected fact the Course row can't show alone (user, 2026-09-10: "I told
   // you to display all the details collected"): WHICH campuses offer the course — the row only
   // carries campus_ids.
@@ -146,7 +149,9 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
       : null
   const appFee = course.application_fee?.amount != null ? formatCourseFee(course.application_fee, null) : null
   // "70% minimum in Bachelor's" — the level the score is measured on, when the course names one.
-  const qualification = ENTRY_QUALIFICATIONS.find((q) => q.value === req?.academic?.entry_qualification)?.label
+  // From the served ladder (assumptions audit M23, product owner 2026-09-19) — the hand-kept
+  // five this read had no `phd`, so a course requiring one showed no level at all.
+  const qualification = req?.academic?.entry_qualification ? ladder.label(req.academic.entry_qualification) : undefined
   const academic =
     req?.academic?.min_score != null
       ? `${req.academic.min_score}${scoreSchemeSuffix(req.academic.scheme)} minimum${qualification ? ` in ${qualification}` : ''}`

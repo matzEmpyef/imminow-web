@@ -79,7 +79,12 @@ export function ComplaintDrawer({
           </div>
         </div>
 
-        {/* 2. Case */}
+        {/* 2. Case — and WHICH CONSULTANCY THE STUDENT NAMED (assumptions audit M6, product owner
+            2026-09-19). The consultancy shown here used to be derived from the student's current
+            case, falling back to a completed one, so a complaint about an agency they had LEFT
+            was filed against the one they are with now — and a consultancy-change request moved
+            them away from the wrong agency. The student answers the question now, and the answer
+            is stored on the complaint, so a case closing or being reassigned never rewrites it. */}
         <div className="flex flex-col gap-sm">
           <p className="text-caption font-medium text-text-secondary">Case</p>
           <div className="flex flex-wrap items-center justify-between gap-sm">
@@ -91,7 +96,7 @@ export function ComplaintDrawer({
                 {complaint.consultancy_name}
               </Link>
             ) : (
-              <span className="text-body-sm text-text-primary">— (no active case)</span>
+              <span className="text-body-sm text-text-primary">— (no consultancy named)</span>
             )}
             {complaint.journey_id && (
               <Link to={`/admin/applicants/${complaint.journey_id}`} className={LINK_BUTTON}>
@@ -134,8 +139,16 @@ export function ComplaintDrawer({
           pickedUpAt={complaint.picked_up_at}
           pending={update.isPending}
           readOnly={resolved}
+          // BOTH FIELDS, DELIBERATELY (assumptions audit M7, product owner 2026-09-19). This sent
+          // `status: 'in_review'` alone and relied on the server treating any edit as a claim —
+          // which is exactly the behaviour the audit removed, so on its own it would now move the
+          // complaint into review and leave it unowned. Picking something up is two things at
+          // once; the request says so rather than depending on a side effect.
           onPickUp={() =>
-            update.mutate({ status: 'in_review' }, { onSuccess: (updated) => updated && onUpdated(updated) })
+            update.mutate(
+              { assign_to_me: true, status: 'in_review' },
+              { onSuccess: (updated) => updated && onUpdated(updated) },
+            )
           }
           onTakeOver={() => setConfirmingTakeOver(true)}
         />

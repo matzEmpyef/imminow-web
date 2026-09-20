@@ -8,7 +8,6 @@ import { MultiSelect } from '@/components/MultiSelect'
 import type { components } from '@/api/schema'
 import {
   APTITUDE_REQUIRED_OPTIONS,
-  ENTRY_QUALIFICATIONS,
   FEE_PERIODS,
   INTAKE_STATUSES,
   KNOWN_INTAKE_STATUSES,
@@ -24,11 +23,11 @@ import {
 } from './courseFormShared'
 import { humaniseCode } from '@/lib/humanise'
 import { useCurrencyCodes } from '@/lib/currencies'
+import { useLevelLadder } from '@/lib/studyLevels'
 import type { CourseFormValue } from './useCourseForm'
 import { useStudyLevels } from '@/queries/studyLevels'
 import { useFieldsOfStudy } from '@/queries/fieldsOfStudy'
 import { useCourseLanguages } from '@/queries/courseFinder'
-import { useCourses } from '@/queries/courseSuggestions'
 
 type College = components['schemas']['College']
 type Exam = components['schemas']['Exam']
@@ -250,23 +249,37 @@ export function CourseBasicsPanel({ hidden, form }: { hidden: boolean; form: Cou
         </div>
       </FormSection>
 
-      <FormSection title="Duration" hint="Students read the text; the number of months drives the duration filter.">
+      {/* ONE NUMBER AND ITS UNIT (assumptions audit M24, product owner 2026-09-19). The free-text
+          "Shown to students" box that stood beside the number is gone: the two were independent,
+          so "18 months" typed there with the number left blank passed every duration filter and
+          sorted last, and "2 years" beside a stored 18 showed one thing and filtered another.
+          The words are derived from the number now, and shown back read-only once saved. */}
+      <FormSection title="Duration" hint="One length, entered once — students read the words this makes.">
         <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
           <TextField
-            label="Shown to students"
-            value={form.duration}
-            onChange={(e) => form.setDuration(e.target.value)}
-            placeholder="e.g. 2 years"
-          />
-          <TextField
-            label="Length in months"
+            label="Length"
             type="number"
             min="0"
-            value={form.durationMonths}
-            onChange={(e) => form.setDurationMonths(e.target.value)}
-            placeholder="e.g. 24"
+            value={form.durationValue}
+            onChange={(e) => form.setDurationValue(e.target.value)}
+            placeholder="e.g. 2"
           />
+          <SelectField
+            id="course-duration-unit"
+            label="Unit"
+            value={form.durationUnit}
+            onChange={(e) => form.setDurationUnit(e.target.value as typeof form.durationUnit)}
+          >
+            <option value="months">Months</option>
+            <option value="years">Years</option>
+          </SelectField>
         </div>
+        {form.durationLabel && (
+          <p className="text-caption text-text-secondary">
+            Students see <span className="font-medium text-text-primary">{form.durationLabel}</span> — worded by the
+            catalogue from the number above, not typed.
+          </p>
+        )}
       </FormSection>
 
       <FormSection title="Details">
@@ -390,28 +403,21 @@ export function CourseCampusIntakesPanel({
 export function CourseFeesPanel({
   hidden,
   form,
-  collegeId,
-  excludeCourseId,
 }: {
   hidden: boolean
   form: CourseFormValue
-  collegeId: string
-  excludeCourseId?: string
 }) {
   // A fee can be entered in any currency the rate table holds (2026-09-10) — a fixed six meant a
   // Thai college's fee could not be entered in baht even after THB was added.
   const currencyCodes = useCurrencyCodes(form.feeCurrency, form.effectiveAppFeeCurrency)
 
-  // Soft warning when this course's currency doesn't match the college's other courses (product
-  // review, 2026-09-12) — colleges very rarely price different courses in different currencies, so
-  // a mismatch is usually a typo, not a decision. Never blocks saving.
-  const siblingCourses = useCourses({ collegeId, active: true, limit: 100 })
-  const siblingCurrencies = new Set(
-    (siblingCourses.data?.items ?? [])
-      .filter((c) => c.id !== excludeCourseId && c.fee?.currency)
-      .map((c) => c.fee!.currency),
-  )
-  const currencyMismatch = form.feeAmount !== '' && siblingCurrencies.size > 0 && !siblingCurrencies.has(form.feeCurrency)
+  // THE SIBLING-CURRENCY CHECK IS THE SERVER'S NOW (assumptions audit M39, product owner
+  // 2026-09-19). It used to run here over `useCourses({ collegeId, limit: 100 })` — the first
+  // hundred rows of a paginated list — so past row 100 it warned about the wrong currencies or
+  // about none at all, and a college with 300 courses got a confident warning built on a third
+  // of them. `POST`/`PATCH /courses` returns `warnings[]` over EVERY course at the college; the
+  // form renders those after the save (see CourseFormModal). Still never a block: a college that
+  // genuinely prices one programme in another currency is a real case.
 
   return (
     <div className={panelClass(hidden)}>
@@ -459,11 +465,6 @@ export function CourseFeesPanel({
             ))}
           </SelectField>
         </div>
-        {currencyMismatch && (
-          <p className="text-caption text-warning">
-            This college&rsquo;s other courses are priced in {[...siblingCurrencies].join(', ')} — double-check {form.feeCurrency} is right.
-          </p>
-        )}
       </FormSection>
 
       <FormSection title="Application fee">
@@ -632,6 +633,7 @@ export function CourseRequirementsPanel({
   activeExams: Exam[]
   form: CourseFormValue
 }) {
+  const ladder = useLevelLadder()
   return (
     <div className={panelClass(hidden)}>
       <p className="rounded-md bg-background px-md py-sm text-caption text-text-secondary">
@@ -654,7 +656,10 @@ export function CourseRequirementsPanel({
             error={form.entryQualificationError}
           >
             <option value="">Not set</option>
-            {ENTRY_QUALIFICATIONS.map((q) => (
+            {/* Every rung a course may require, from the served ladder (assumptions audit M23,
+                product owner 2026-09-19) — including `phd`, which the hand-kept five did not
+                carry. */}
+            {ladder.entryQualifications.map((q) => (
               <option key={q.value} value={q.value}>
                 {q.label}
               </option>

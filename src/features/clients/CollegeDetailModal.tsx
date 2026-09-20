@@ -161,10 +161,24 @@ export function CollegeDetailModal({ college, onClose }: { college: College; onC
     <Section title="Key Details">
       <div className="grid grid-cols-2 gap-x-lg gap-y-md md:grid-cols-3">
         <Fact icon={<Trophy className="h-5 w-5" />} color="warning" label="QS World Ranking">
-          {show(college.qs_rank != null ? `#${college.qs_rank}` : null, 'qs_rank', 'QS rank')}
+          {/* The year of the table the rank came from rides with it (assumptions audit M25,
+              product owner 2026-09-19) — "#42" alone is presented as current forever. */}
+          {show(
+            college.qs_rank != null
+              ? `#${college.qs_rank}${college.qs_rank_year ? ` (${college.qs_rank_year})` : ''}`
+              : null,
+            'qs_rank',
+            'QS rank',
+          )}
         </Fact>
         <Fact icon={<Medal className="h-5 w-5" />} color="secondary" label="THE Ranking">
-          {show(college.the_rank != null ? `#${college.the_rank}` : null, 'the_rank', 'THE rank')}
+          {show(
+            college.the_rank != null
+              ? `#${college.the_rank}${college.the_rank_year ? ` (${college.the_rank_year})` : ''}`
+              : null,
+            'the_rank',
+            'THE rank',
+          )}
         </Fact>
         <Fact icon={<Percent className="h-5 w-5" />} color="success" label="Acceptance rate">
           {show(college.acceptance_rate != null ? `${college.acceptance_rate}%` : null, 'acceptance_rate', 'Acceptance rate')}

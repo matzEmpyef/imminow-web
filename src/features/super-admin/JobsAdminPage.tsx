@@ -442,6 +442,11 @@ export function JobsAdminPage() {
             >
               {j.title}
             </button>
+            {/* Straight off the row (product owner, 2026-09-20) — `featured` is sent on EVERY
+                listing, true only while the job is in App Config's picked set AND inside its own
+                active window, so a picked job that has expired stops reading as featured here
+                without anyone editing the setting. */}
+            {j.featured && <Badge color="primary">Featured</Badge>}
             {j.apply_url_healthy === false && <Badge color="error">Broken link</Badge>}
           </div>
           <p className="text-caption text-text-secondary">{j.company}</p>

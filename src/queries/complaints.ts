@@ -53,11 +53,19 @@ export function useComplaints(filters: ComplaintsFilters = {}) {
 }
 
 export interface UpdateComplaintInput {
-  /** 'in_review' = Pick up (caller becomes owner, student is notified). */
+  /**
+   * The status alone — and NOTHING ELSE (assumptions audit M7, product owner 2026-09-19).
+   *
+   * Setting a status used to claim ownership server-side: a staffer moving a complaint to
+   * "in review" in passing became its owner, and on one somebody else already held, the
+   * take-over notification fired at them for an action they never took. Only `assign_to_me`
+   * assigns now. "Pick up" therefore sends BOTH fields, because picking something up is both
+   * things at once and says so.
+   */
   status?: 'in_review' | 'resolved'
   /** Required when status is 'resolved' — the student sees this note in the app. */
   resolution_note?: string
-  /** Take the complaint over from whoever holds it. */
+  /** The ONE thing that changes who owns a complaint (M7). */
   assign_to_me?: boolean
 }
 

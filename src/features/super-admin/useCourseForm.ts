@@ -17,6 +17,9 @@ type College = components['schemas']['College']
 type Course = components['schemas']['Course']
 type CourseInput = components['schemas']['CourseInput']
 
+/** months | years — required on write since the assumptions audit (M24, 2026-09-19). */
+export type DurationUnit = NonNullable<CourseInput['duration_unit']>
+
 // Everything CourseFormModal's five tab panels need — state and the handlers that mutate it —
 // as ONE typed object, replacing the 18-prop bag (name/setName, description/setDescription, ...)
 // each panel used to take individually (audit item 6, 2026-09-01, "the same treatment CourseFinder
@@ -33,10 +36,18 @@ export interface CourseFormValue {
   setLevel: (v: string) => void
   fieldOfStudy: string
   setFieldOfStudy: (v: string) => void
-  duration: string
-  setDuration: (v: string) => void
-  durationMonths: string
-  setDurationMonths: (v: string) => void
+  /**
+   * ONE NUMBER AND ITS UNIT (assumptions audit M24, product owner 2026-09-19). The free-text
+   * `duration` box that used to sit beside this is gone from the form: it was independent of the
+   * stored months, so "18 months" typed with the number left blank passed every duration filter
+   * and sorted last, and "2 years" beside a stored 18 displayed one thing and filtered another.
+   */
+  durationValue: string
+  setDurationValue: (v: string) => void
+  durationUnit: DurationUnit
+  setDurationUnit: (v: DurationUnit) => void
+  /** The label the server derives from the number — read-only, shown so the admin sees the result. */
+  durationLabel: string
   credentials: string
   setCredentials: (v: string) => void
   courseUrl: string
@@ -159,9 +170,14 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
   // approved 2026-09-19) — the qualification is the admin's answer or "Not set", never derived.
   const [level, setLevel] = useState(editingCourse?.level ?? '')
   const [fieldOfStudy, setFieldOfStudy] = useState(editingCourse?.field_of_study ?? '')
-  const [duration, setDuration] = useState(editingCourse?.duration ?? '')
-  const [durationMonths, setDurationMonths] = useState(
-    editingCourse?.duration_months != null ? String(editingCourse.duration_months) : '',
+  // A saved course stores MONTHS. Reading it back as whole years when it divides evenly is the
+  // same reading the server's own derived label takes ("2 years" for 24), so the form opens on
+  // the words the catalogue already shows rather than on 24 months (M24).
+  const savedMonths = editingCourse?.duration_months ?? null
+  const savedInYears = savedMonths != null && savedMonths >= 12 && savedMonths % 12 === 0
+  const [durationUnit, setDurationUnit] = useState<DurationUnit>(savedInYears ? 'years' : 'months')
+  const [durationValue, setDurationValue] = useState(
+    savedMonths == null ? '' : String(savedInYears ? savedMonths / 12 : savedMonths),
   )
   const [credentials, setCredentials] = useState(editingCourse?.credentials ?? '')
   const [courseUrl, setCourseUrl] = useState(editingCourse?.course_url ?? '')
@@ -385,8 +401,11 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
       description,
       level,
       field_of_study: fieldOfStudy,
-      duration,
-      duration_months: durationMonths === '' ? null : Number(durationMonths),
+      // `duration` is DERIVED and read-only (M24) — a value sent here is ignored by the server,
+      // so the form stops sending one at all. `duration_months` carries the NUMBER as typed and
+      // `duration_unit` says what it was typed in; years are multiplied by 12 server-side.
+      duration_months: durationValue === '' ? null : Number(durationValue),
+      duration_unit: durationUnit,
       fee: feeAmount ? { amount: Number(feeAmount), currency: feeCurrency } : null,
       fee_period: feePeriod || null,
       application_fee: appFeeAmount ? { amount: Number(appFeeAmount), currency: effectiveAppFeeCurrency } : null,
@@ -426,10 +445,11 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
     setLevel,
     fieldOfStudy,
     setFieldOfStudy,
-    duration,
-    setDuration,
-    durationMonths,
-    setDurationMonths,
+    durationValue,
+    setDurationValue,
+    durationUnit,
+    setDurationUnit,
+    durationLabel: editingCourse?.duration ?? '',
     credentials,
     setCredentials,
     courseUrl,

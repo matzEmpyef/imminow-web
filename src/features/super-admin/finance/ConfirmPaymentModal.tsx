@@ -3,7 +3,7 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { TextAreaField } from '@/components/TextAreaField'
-import { money } from './money'
+import { money, paymentInrNote, paymentMoney } from './money'
 import { useConfirmCommissionPayment, type CommissionPayment } from '@/queries/commission'
 import { showToast } from '@/lib/toast'
 
@@ -15,6 +15,11 @@ const MIN_REASON_LENGTH = 3
  * is prefilled with what the consultancy declared but editable: Finance can record a different
  * figure right here instead of confirming the wrong amount and correcting it after the fact. A
  * difference needs a reason — the consultancy is shown it, same as a rejection reason.
+ */
+/**
+ * The ≈ ₹ figure for a due's OUTSTANDING balance — a running total, not a settled payment, so it
+ * carries no frozen rate of its own. A payment's own ≈ figure comes from `paymentInrNote`, which
+ * shows the rate it was valued at (assumptions audit M15, product owner 2026-09-19).
  */
 function approxInr(amountInr: number | undefined, currency: string | undefined): string | null {
   if (!currency || currency === 'INR' || amountInr == null) return null
@@ -91,9 +96,10 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
           <div className="flex items-center justify-between">
             <span className="text-caption text-text-secondary">Declared amount</span>
             <span className="flex flex-col items-end">
-              <span className="text-body font-medium text-text-primary">{money(payment.amount)}</span>
-              {approxInr(payment.amount_inr, currency) && (
-                <span className="text-caption text-text-secondary">{approxInr(payment.amount_inr, currency)}</span>
+              <span className="text-body font-medium text-text-primary">{paymentMoney(payment)}</span>
+              {/* The rate this was VALUED at, stored on the row (assumptions audit M15). */}
+              {paymentInrNote(payment) && (
+                <span className="text-caption text-text-secondary">{paymentInrNote(payment)}</span>
               )}
             </span>
           </div>

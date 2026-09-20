@@ -27,7 +27,12 @@ export interface BlogArticleListFilters {
   status?: 'published' | 'hidden' | 'all'
   /** app_tag, comma-separated = any of. */
   tag?: string
-  sort?: string
+  /**
+   * The two values `GET /blog` declares (2026-09-20). It accepted these all along — the list sits
+   * on the shared pagination helper — but the parameter was undeclared, so the console could send
+   * anything and get the default back with nothing saying so. Narrowed to the contract.
+   */
+  sort?: 'published' | '-published'
   cursor?: string
   limit?: number
 }

@@ -64,8 +64,21 @@ describe('consoleDroppedFilters', () => {
 
   it('drops nothing when every filter can travel', () => {
     expect(
-      consoleDroppedFilters({ country: 'Canada', level: 'masters', intake: 'first_half', scholarship: 'true' }, levels),
+      consoleDroppedFilters({ country: 'Canada', level: 'masters', intake: 'September', scholarship: 'true' }, levels),
     ).toEqual([])
+  })
+
+  // Assumptions audit M9 (product owner, 2026-09-19): intake names a MONTH now. A link minted
+  // before that carries a calendar half, and it is folded onto the group the sender meant — the
+  // same fold the server applies to a student's own stored intake — rather than being dropped.
+  it('folds a pre-M9 calendar half onto its month group instead of dropping it', () => {
+    expect(consoleDroppedFilters({ intake: 'first_half' }, levels)).toEqual([])
+    expect(consoleDroppedFilters({ intake: 'second_half' }, levels)).toEqual([])
+  })
+
+  it('takes a month by name in any case, or by number', () => {
+    expect(consoleDroppedFilters({ intake: 'september' }, levels)).toEqual([])
+    expect(consoleDroppedFilters({ intake: '9' }, levels)).toEqual([])
   })
 
   it('accepts a level in any case, because a link may carry either', () => {
@@ -81,8 +94,8 @@ describe('consoleDroppedFilters', () => {
   })
 
   it('names an enum value it has no option for', () => {
-    expect(consoleDroppedFilters({ intake: 'may', study_mode: 'block', delivery: 'blended' }, levels)).toEqual([
-      'Intake (may)',
+    expect(consoleDroppedFilters({ intake: 'monsoon', study_mode: 'block', delivery: 'blended' }, levels)).toEqual([
+      'Intake (monsoon)',
       'Study mode (block)',
       'Delivery (blended)',
     ])

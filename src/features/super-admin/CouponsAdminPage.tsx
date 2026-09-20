@@ -94,7 +94,15 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
   const [thumbnailUrl, setThumbnailUrl] = useState(editingCoupon?.thumbnail_url ?? '')
   const [stock, setStock] = useState(editingCoupon?.stock ?? 50)
   const [expiryDate, setExpiryDate] = useState(editingCoupon?.expiry_date ?? '')
-  const [relevanceScope, setRelevanceScope] = useState<RelevanceScope>(editingCoupon?.relevance_scope ?? 'district')
+  // BOTH START UNANSWERED (assumptions audit M14, product owner 2026-09-19). Relevance used to
+  // open on District and the per-student limit did not exist at all, so a national offer created
+  // without a thought about either reached one district and could be claimed fifty times by one
+  // person. The server refuses a create that omits either (400); the form refuses to submit
+  // first, so the admin is asked rather than told off.
+  const [relevanceScope, setRelevanceScope] = useState<RelevanceScope | ''>(editingCoupon?.relevance_scope ?? '')
+  const [perStudentLimit, setPerStudentLimit] = useState(
+    editingCoupon?.per_student_limit != null ? String(editingCoupon.per_student_limit) : '',
+  )
 
   // Digital vouchers (2026-09-15) — stock comes from the code pool (see the Codes modal) and
   // relevance is always country, so both fields are pointless here; the server ignores them if
@@ -105,9 +113,20 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
 
   const mutation = isEditing ? updateCoupon : createCoupon
 
+  // A digital voucher is always offered across its brand's countries — the server sets that
+  // itself — so the admin is told the answer rather than asked for one it would overwrite. It is
+  // still SENT on create, because the create refuses a body with no `relevance_scope` at all.
+  const effectiveScope: RelevanceScope | '' = isOnlinePartner ? 'country' : relevanceScope
+  const limitValue = Number(perStudentLimit)
+  const limitAnswered = perStudentLimit.trim() !== '' && Number.isInteger(limitValue) && limitValue >= 1
+  // Only a CREATE is blocked: the two fields are required on `POST /coupons`, while a PATCH
+  // carrying neither is a perfectly ordinary edit (a rename, a new thumbnail).
+  const missingRequired = !isEditing && (!effectiveScope || !limitAnswered)
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!isEditing && !partnerId) return
+    if (missingRequired) return
     const body = {
       point_cost: pointCost,
       type,
@@ -116,7 +135,8 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
       terms,
       thumbnail_url: thumbnailUrl || null,
       expiry_date: expiryDate || null,
-      ...(isOnlinePartner ? {} : { stock, relevance_scope: relevanceScope }),
+      ...(limitAnswered ? { per_student_limit: limitValue } : {}),
+      ...(isOnlinePartner ? {} : { stock, ...(relevanceScope ? { relevance_scope: relevanceScope } : {}) }),
     }
     if (isEditing) {
       updateCoupon.mutate(body, {
@@ -127,7 +147,9 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
       })
     } else {
       createCoupon.mutate(
-        { partner_id: partnerId, ...body, active: true },
+        // `relevance_scope` travels on every create, including a digital voucher's, because the
+        // server requires the field before it applies its own `country` rule (M14).
+        { partner_id: partnerId, ...body, relevance_scope: effectiveScope as RelevanceScope, per_student_limit: limitValue, active: true },
         {
           onSuccess: () => {
             showToast('Coupon created')
@@ -149,7 +171,12 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
               range, expiry can't be in the past on create, etc. ApiError already surfaces the
               server's own readable error.message here; no need to duplicate its checks client-side. */}
           {mutation.isError && <p className="mr-auto self-center text-body-sm text-error">{mutation.error.message}</p>}
-          <Button type="submit" form="coupon-form" loading={mutation.isPending} disabled={!isEditing && !partnerId}>
+          <Button
+            type="submit"
+            form="coupon-form"
+            loading={mutation.isPending}
+            disabled={(!isEditing && !partnerId) || missingRequired}
+          >
             {isEditing ? 'Save Changes' : 'Create Coupon'}
           </Button>
         </>
@@ -253,6 +280,29 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
             How many can be claimed in all. Can&rsquo;t go below what&rsquo;s already claimed.
           </p>
         )}
+        {/* HOW MANY TIMES ONE STUDENT MAY CLAIM IT (assumptions audit M14, product owner
+            2026-09-19). Required on create, with nothing pre-filled — a suggestion is offered as
+            help text below and never as a value, because a number the form typed for the admin is
+            exactly the unconsidered answer this field exists to stop. */}
+        <TextField
+          label="Claims per student"
+          type="number"
+          required
+          min={1}
+          value={perStudentLimit}
+          onChange={(e) => setPerStudentLimit(e.target.value)}
+          placeholder="How many times one student may claim this"
+        />
+        <p className="text-caption text-text-secondary">
+          Counted over the coupon&rsquo;s whole life, per student. The platform-wide rule below still applies — whichever
+          is tighter wins. 1 a month is typical.
+        </p>
+        {isOnlinePartner && (
+          <p className="text-caption text-text-secondary">
+            Offered across the brand&rsquo;s countries — a digital voucher is not tied to a branch, so relevance is set
+            to Country for you.
+          </p>
+        )}
         {!isOnlinePartner && (
           <>
             <SelectField
@@ -260,8 +310,11 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
               required
               id="coupon-relevance"
               value={relevanceScope}
-              onChange={(e) => setRelevanceScope(e.target.value as RelevanceScope)}
+              onChange={(e) => setRelevanceScope(e.target.value as RelevanceScope | '')}
             >
+              {/* No pre-selection (M14): it opened on District, so a national offer became a
+                  hyper-local one without anyone choosing that. */}
+              <option value="">Choose how widely this is offered…</option>
               <option value="city">City</option>
               <option value="district">District/County</option>
               <option value="state">State/Province</option>
@@ -816,6 +869,21 @@ export function CouponsAdminPage() {
         </span>
       ),
       render: (c) => (c.relevance_scope ? relevanceScopeLabels[c.relevance_scope] : '—'),
+    },
+    {
+      // Visible in the list (assumptions audit M14, product owner 2026-09-19) — a limit nobody
+      // can see is a limit nobody checks. A coupon created before the field existed carries none
+      // and is governed by the platform-wide rule alone, which is what "Platform rule" says.
+      key: 'per_student_limit',
+      header: 'Per student',
+      align: 'right',
+      hideBelow: 'md',
+      render: (c) =>
+        c.per_student_limit != null ? (
+          <span className="tabular-nums">{c.per_student_limit}</span>
+        ) : (
+          <span className="text-text-secondary">Platform rule</span>
+        ),
     },
     { key: 'active', header: 'Active', render: (c) => <CouponToggle coupon={c} /> },
     {

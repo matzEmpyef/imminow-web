@@ -7,10 +7,33 @@ import { Toggle } from '@/components/Toggle'
 import { Table, type TableColumn } from '@/components/Table'
 import { Modal } from '@/components/Modal'
 import { showToast } from '@/lib/toast'
-import { useEarnRules, useUpdateEarnRule } from '@/queries/earnRules'
+import { SelectField } from '@/components/SelectField'
+import { useEarnRules, useProfileMilestones, useUpdateEarnRule } from '@/queries/earnRules'
 import type { components } from '@/api/schema'
 
 type EarnRule = components['schemas']['EarnRule']
+type CapPeriod = EarnRule['cap_period']
+type ProfileMilestone = components['schemas']['PointsBalance']['profile_milestones'][number]
+
+/**
+ * HOW A CAP READS (product owner, 2026-09-20: "article_read and view consultancy points should
+ * have daily cap instead of life time").
+ *
+ * Two different ceilings can sit on one rule: `award_cap` is how many TIMES it may pay, `cap` is
+ * how many POINTS it may pay, and `cap_period` says whether either is counted over a day or over
+ * the student's whole life. "3 a day" is a pacing rule; "50 lifetime" says the fiftieth article a
+ * student ever reads is worth nothing, forever — a much harsher thing to say, and worth being
+ * able to tell apart at a glance.
+ */
+const periodWord = (period: CapPeriod) => (period === 'day' ? 'a day' : 'lifetime')
+
+function capLines(rule: EarnRule): { text: string; hint: string }[] {
+  const period = periodWord(rule.cap_period)
+  const lines: { text: string; hint: string }[] = []
+  if (rule.award_cap != null) lines.push({ text: `${rule.award_cap} ${period}`, hint: 'times it can pay one student' })
+  if (rule.cap != null) lines.push({ text: `${rule.cap} ${period}`, hint: 'points one student can earn' })
+  return lines
+}
 
 // Plain-English label for each developer-instrumented trigger code (user-requested, 2026-09-11 —
 // admins were reading raw codes like `profile_30_percent` with no translation). The code itself
@@ -19,6 +42,9 @@ type EarnRule = components['schemas']['EarnRule']
 // to showing the code as the label.
 const TRIGGER_LABELS: Partial<Record<string, string>> = {
   welcome_signup: 'Signs up',
+  // The three `profile_*` rows are labelled from the SERVED milestones (assumptions audit M31,
+  // product owner 2026-09-19) — see `milestoneLabel` below. These entries are the fallback for a
+  // build that cannot reach `GET /points/balance`, not the source of the numbers.
   profile_30_percent: 'Profile 30% complete',
   profile_70_percent: 'Profile 70% complete',
   profile_completed: 'Profile 100% complete',
@@ -34,6 +60,30 @@ const TRIGGER_LABELS: Partial<Record<string, string>> = {
 function triggerLabel(code?: string): string {
   if (!code) return ''
   return TRIGGER_LABELS[code] ?? code
+}
+
+/**
+ * THE MILESTONE PERCENTAGES COME FROM THE SERVER (assumptions audit M31, product owner
+ * 2026-09-19).
+ *
+ * 30 / 70 / 100 were written into three labels here and three more in the app's completion meter.
+ * Move one and this page describes a threshold that no longer earns anything, while a student's
+ * bar promises points that have already been paid. `GET /points/balance` carries them beside the
+ * rules that pay them, which is the only place they can never disagree.
+ */
+function milestoneLabel(code: string | undefined, milestones: ProfileMilestone[] | undefined): string {
+  const milestone = milestones?.find((m) => m.trigger === code)
+  if (!milestone) return triggerLabel(code)
+  return `Profile ${milestone.threshold}% complete`
+}
+
+function milestoneCaption(code: string | undefined, milestones: ProfileMilestone[] | undefined): string | undefined {
+  const milestone = milestones?.find((m) => m.trigger === code)
+  if (!milestone) return undefined
+  const others = (milestones ?? []).filter((m) => m.trigger !== code).map((m) => `${m.threshold}%`)
+  return `Awarded automatically the moment the student’s profile crosses ${milestone.threshold}% complete${
+    others.length > 0 ? ` — the other milestones are ${others.join(' and ')}.` : '.'
+  }`
 }
 
 // Rows are grouped under these headings (user-requested, 2026-09-11) rather than sorted into one
@@ -83,12 +133,25 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
   const updateRule = useUpdateEarnRule(rule.id!)
   const [pointsValue, setPointsValue] = useState(rule.points_value ?? 0)
   const [cap, setCap] = useState(rule.cap != null ? String(rule.cap) : '')
+  const [awardCap, setAwardCap] = useState(rule.award_cap != null ? String(rule.award_cap) : '')
+  const [capPeriod, setCapPeriod] = useState<CapPeriod>(rule.cap_period ?? 'lifetime')
   const caption = rule.trigger_type ? OVERRIDE_CAPTIONS[rule.trigger_type] : undefined
+
+  // A DAILY RULE NEEDS A LIMIT (product owner, 2026-09-20). "Every day, without limit" is no cap
+  // at all wearing a window, and it reads on this page as a restriction that is not one. The
+  // server refuses it 400; the form refuses first, in the same words.
+  const dailyWithoutLimit = capPeriod === 'day' && cap === '' && awardCap === ''
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
+    if (dailyWithoutLimit) return
     updateRule.mutate(
-      { points_value: pointsValue, cap: cap ? Number(cap) : null },
+      {
+        points_value: pointsValue,
+        cap: cap ? Number(cap) : null,
+        award_cap: awardCap ? Number(awardCap) : null,
+        cap_period: capPeriod,
+      },
       {
         onSuccess: () => {
           onClose()
@@ -110,7 +173,7 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
           {updateRule.isError && (
             <p className="mr-auto self-center text-body-sm text-error">{updateRule.error.message}</p>
           )}
-          <Button type="submit" form="rule-form" loading={updateRule.isPending}>
+          <Button type="submit" form="rule-form" loading={updateRule.isPending} disabled={dailyWithoutLimit}>
             Save Changes
           </Button>
         </>
@@ -126,10 +189,45 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
             value={pointsValue}
             onChange={(e) => setPointsValue(Number(e.target.value))}
           />
-          <TextField label="Cap" type="number" value={cap} onChange={(e) => setCap(e.target.value)} />
+          {/* Daily or lifetime (product owner, 2026-09-20) — every rule counted over a whole
+              lifetime before this, which is the right shape for a referral bonus and the wrong
+              one for reading an article. */}
+          <SelectField
+            label="Counted over"
+            id="rule-cap-period"
+            value={capPeriod}
+            onChange={(e) => setCapPeriod(e.target.value as CapPeriod)}
+          >
+            <option value="lifetime">Their whole time on Sentpo</option>
+            <option value="day">Each day</option>
+          </SelectField>
         </div>
+        <div className="grid grid-cols-2 gap-sm">
+          <TextField
+            label="Times limit"
+            type="number"
+            min={1}
+            value={awardCap}
+            onChange={(e) => setAwardCap(e.target.value)}
+            placeholder="No limit"
+          />
+          <TextField
+            label="Points limit"
+            type="number"
+            min={1}
+            value={cap}
+            onChange={(e) => setCap(e.target.value)}
+            placeholder="No limit"
+          />
+        </div>
+        {dailyWithoutLimit && (
+          <p className="text-body-sm text-error">
+            A daily rule needs a limit — set how many points or how many times it may pay in a day.
+          </p>
+        )}
         <p className="text-caption text-text-secondary">
-          Cap is per user, lifetime — the most this trigger can ever award any single user, not a platform-wide pool.
+          Both limits are per student, not a platform-wide pool, and whichever one runs out first stops the rule for
+          that student. A daily limit is read against the student&rsquo;s own calendar day.
         </p>
       </form>
     </Modal>
@@ -164,6 +262,9 @@ function RuleToggle({ rule }: { rule: EarnRule }) {
 // points value, cap, active toggle — no create flow.
 export function EarnRulesPage() {
   const rules = useEarnRules()
+  // The thresholds behind the three `profile_*` rules, served (assumptions audit M31) — this page
+  // was the console's own hardcoded copy of 30 / 70 / 100.
+  const milestones = useProfileMilestones()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
@@ -183,10 +284,11 @@ export function EarnRulesPage() {
       key: 'trigger_type',
       header: 'Trigger',
       render: (r) => {
-        const caption = r.trigger_type ? OVERRIDE_CAPTIONS[r.trigger_type] : undefined
+        const served = milestoneCaption(r.trigger_type, milestones.data)
+        const caption = served ?? (r.trigger_type ? OVERRIDE_CAPTIONS[r.trigger_type] : undefined)
         return (
           <div>
-            <span className="font-medium text-text-primary">{triggerLabel(r.trigger_type)}</span>
+            <span className="font-medium text-text-primary">{milestoneLabel(r.trigger_type, milestones.data)}</span>
             <p className="font-mono text-caption text-text-secondary">{r.trigger_type}</p>
             {caption && <p className="text-caption text-text-secondary">{caption}</p>}
           </div>
@@ -202,22 +304,30 @@ export function EarnRulesPage() {
     },
     {
       key: 'cap',
-      width: '10rem',
+      width: '12rem',
       header: 'Cap',
       align: 'right',
-      render: (r) => (
-        <div>
-          <span>{r.cap != null ? r.cap : 'No cap'}</span>
-          {/* User-requested (2026-08-18) — "referral_signup, is the cap per sentpo user? Be
-              clear and add that as muted text." Per user, lifetime — build reference 3.6
-              documents cap-checking as locked against "the same per-user ledger" a coupon
-              redemption's balance check uses, i.e. this is a ceiling on how many total points
-              that one user can ever earn from this trigger, not a platform-wide pool shared
-              across every user. Shown for every capped rule, not just referral_signup, since
-              quiz_completed's existing cap is exactly as ambiguous without this. */}
-          {r.cap != null && <p className="text-caption text-text-secondary">Per user, lifetime</p>}
-        </div>
-      ),
+      // "3 a day" / "50 lifetime" (product owner, 2026-09-20). The window used to be assumed
+      // rather than shown — the caption simply read "Per user, lifetime" under every capped rule,
+      // which stopped being true the moment a rule could be counted over a day.
+      //
+      // User-requested (2026-08-18) — "referral_signup, is the cap per sentpo user? Be clear and
+      // add that as muted text." Still per user, never a platform-wide pool, and the hint under
+      // each line says which of the two ceilings it is.
+      render: (r) => {
+        const lines = capLines(r)
+        if (lines.length === 0) return <span className="text-text-secondary">No cap</span>
+        return (
+          <div className="flex flex-col items-end">
+            {lines.map((line) => (
+              <span key={line.hint}>
+                {line.text}
+                <span className="block text-caption text-text-secondary">{line.hint}</span>
+              </span>
+            ))}
+          </div>
+        )
+      },
     },
     { key: 'active', header: 'Status', width: '6rem', render: (r) => <RuleToggle rule={r} /> },
     {

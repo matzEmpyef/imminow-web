@@ -6,7 +6,9 @@ import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { Table, type TableColumn } from '@/components/Table'
 import { StopPropagation } from '@/components/StopPropagation'
-import { useAdminColleges, useImportColleges } from '@/queries/adminColleges'
+import { useAdminColleges, useImportColleges, type CollegeHealthFilter } from '@/queries/adminColleges'
+import { useCourses } from '@/queries/courseSuggestions'
+import { useLevelLadder } from '@/lib/studyLevels'
 import { CollegeFormModal } from './CollegeFormModal'
 import { useCountries } from '@/queries/countries'
 import { useCursorPagination } from '@/lib/pagination'
@@ -18,6 +20,10 @@ import { Card } from '@/components/Card'
 import { mediaUrl } from '@/lib/mediaUrl'
 
 type College = components['schemas']['College']
+type Course = components['schemas']['Course']
+
+const TABS = ['Colleges', 'Courses'] as const
+type Tab = (typeof TABS)[number]
 
 // User-requested (2026-08-18) — "expand and collapse is not a good method, as there could be
 // thousands of colleges and campus... remember there will be min 10K colleges or more." The old
@@ -67,17 +73,150 @@ function ImportResultPanel({ result, onDismiss }: { result: ImportResult; onDism
   )
 }
 
+/**
+ * Every course in the catalogue, across colleges (assumptions audit M35, product owner
+ * 2026-09-19).
+ *
+ * Needs attention's "Courses missing entry requirements" card counts COURSES and its server-sent
+ * link is `/admin/colleges?tab=courses&health=needs_details`; until this tab existed the console
+ * had nowhere to land that link, so the page redirected it to a college filter and listed forty
+ * colleges under a count of twelve courses. A row opens the course in its own college's form,
+ * which is where a missing requirement is actually filled in.
+ */
+function CoursesTab({ initialHealth }: { initialHealth: '' | 'needs_details' | 'complete' }) {
+  const navigate = useNavigate()
+  const ladder = useLevelLadder()
+  const [search, setSearch] = useState('')
+  const [health, setHealth] = useState<'' | 'needs_details' | 'complete'>(initialHealth)
+  const [status, setStatus] = useState<'' | 'active' | 'inactive'>('')
+  const paging = useCursorPagination()
+
+  const courses = useCourses({
+    search: search || undefined,
+    health: health || undefined,
+    active: status ? status === 'active' : undefined,
+    cursor: paging.cursor,
+    limit: 20,
+  })
+
+  const columns: TableColumn<Course>[] = [
+    {
+      key: 'name',
+      header: 'Course',
+      render: (course) => (
+        <div>
+          <p className="flex items-center gap-xs font-medium text-text-primary">
+            {course.name}
+            {course.active === false && <Badge color="secondary">Off</Badge>}
+          </p>
+          <p className="text-caption text-text-secondary">
+            {[ladder.label(course.level), course.field_of_study].filter(Boolean).join(' · ') || 'No level or field yet'}
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: 'college',
+      header: 'College',
+      hideBelow: 'sm',
+      render: (course) => <span className="text-text-secondary">{course.college_name ?? '—'}</span>,
+    },
+    {
+      // The gap this tab is usually opened for — an eligibility check cannot run without it.
+      key: 'requirements',
+      header: 'Entry requirements',
+      hideBelow: 'md',
+      render: (course) =>
+        course.requirements ? (
+          <Badge color="success">Published</Badge>
+        ) : (
+          <Badge color="warning">Not published</Badge>
+        ),
+    },
+    {
+      key: 'duration',
+      header: 'Duration',
+      align: 'right',
+      hideBelow: 'lg',
+      // DERIVED from the stored months (assumptions audit M24) — never a free-text field that can
+      // disagree with the number every filter reads.
+      render: (course) => <span className="whitespace-nowrap text-text-secondary">{course.duration || '—'}</span>,
+    },
+  ]
+
+  return (
+    <Table
+      columns={columns}
+      rows={courses.data?.items ?? []}
+      rowKey={(course) => course.id!}
+      loading={courses.isLoading}
+      error={courses.isError ? 'Could not load courses.' : undefined}
+      emptyMessage={
+        search || health || status ? 'No courses match these filters.' : 'No courses yet — add them from a college.'
+      }
+      onRowClick={(course) => navigate(`/admin/colleges/${course.college_id}?edit=${course.id}`)}
+      search={{
+        value: search,
+        onChange: (value) => {
+          setSearch(value)
+          paging.reset()
+        },
+        placeholder: 'Search course or college…',
+      }}
+      filters={
+        <>
+          <CompactSelect
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value as '' | 'active' | 'inactive')
+              paging.reset()
+            }}
+            label="Status"
+          >
+            <option value="">Any status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </CompactSelect>
+          <CompactSelect
+            value={health}
+            onChange={(e) => {
+              setHealth(e.target.value as '' | 'needs_details' | 'complete')
+              paging.reset()
+            }}
+            label="Details"
+          >
+            <option value="">Any details</option>
+            <option value="needs_details">Needs details</option>
+            <option value="complete">All complete</option>
+          </CompactSelect>
+        </>
+      }
+      pagination={{
+        hasNext: Boolean(courses.data?.meta.next_cursor),
+        hasPrevious: paging.hasPrevious,
+        onNext: () => courses.data?.meta.next_cursor && paging.next(courses.data.meta.next_cursor),
+        onPrevious: paging.previous,
+        total: courses.data?.meta.total,
+      }}
+    />
+  )
+}
+
 export function CollegesCoursesPage() {
   const navigate = useNavigate()
   // Read once on mount so a deep link — Needs attention's "Courses missing entry requirements"
   // card — lands pre-filtered to Needs details, same one-way convention Finance Dashboard uses.
   const [searchParams] = useSearchParams()
+  // `?tab=courses` lands on the Courses tab (assumptions audit M35, product owner 2026-09-19).
+  // Needs attention's "Courses missing entry requirements" card sends exactly that, and the card
+  // used to open a COLLEGE filter instead — twelve courses counted, forty colleges listed.
+  const [activeTab, setActiveTab] = useState<Tab>(() => (searchParams.get('tab') === 'courses' ? 'Courses' : 'Colleges'))
   const [search, setSearch] = useState('')
   const [countryFilter, setCountryFilter] = useState<string[]>([])
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('')
-  const [healthFilter, setHealthFilter] = useState<'' | 'needs_details' | 'complete'>(() => {
+  const [healthFilter, setHealthFilter] = useState<'' | CollegeHealthFilter>(() => {
     const fromUrl = searchParams.get('health')
-    return fromUrl === 'needs_details' || fromUrl === 'complete' ? fromUrl : ''
+    return fromUrl === 'needs_details' || fromUrl === 'complete' || fromUrl === 'no_courses' ? fromUrl : ''
   })
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const paging = useCursorPagination()
@@ -86,7 +225,7 @@ export function CollegesCoursesPage() {
   const countries = useCountries({ includeInactive: true })
 
   const colleges = useAdminColleges({
-    search: search || undefined,
+    search: activeTab === 'Colleges' ? search || undefined : undefined,
     country: countryFilter.length ? countryFilter : undefined,
     active: statusFilter ? statusFilter === 'active' : undefined,
     health: healthFilter || undefined,
@@ -100,6 +239,9 @@ export function CollegesCoursesPage() {
   const [showAddCollege, setShowAddCollege] = useState(false)
   const [editingCollege, setEditingCollege] = useState<College | null>(null)
   const summary = colleges.data?.summary
+  // The third state's own count, straight off the response (M26) — the console cannot compute it,
+  // because it only ever holds one page of colleges.
+  const noCourseColleges = summary?.no_courses_college_count
   const completePercent =
     summary && summary.course_count > 0 ? Math.round((summary.complete_course_count / summary.course_count) * 100) : null
 
@@ -254,10 +396,29 @@ export function CollegesCoursesPage() {
         </div>
 
         {/* Over the whole catalogue, so it does not shift as the list is filtered (2026-09-11). */}
-        <div className="grid grid-cols-1 gap-md sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-md sm:grid-cols-4">
           <Card>
             <p className="text-caption text-text-secondary">Colleges</p>
             <p className="mt-xs text-h1 text-text-primary">{summary?.college_count ?? '…'}</p>
+          </Card>
+          {/* The queue the old two-state filter could not show (assumptions audit M26, product
+              owner 2026-09-19) — a college with no courses is the one most worth capturing. */}
+          <Card>
+            <p className="text-caption text-text-secondary">No courses yet</p>
+            <p className="mt-xs text-h1 text-text-primary">{noCourseColleges ?? '—'}</p>
+            {noCourseColleges != null && noCourseColleges > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('Colleges')
+                  setHealthFilter('no_courses')
+                  resetPaging()
+                }}
+                className="mt-xs text-caption font-medium text-primary hover:underline"
+              >
+                Show them
+              </button>
+            )}
           </Card>
           <Card>
             <p className="text-caption text-text-secondary">Courses</p>
@@ -287,6 +448,24 @@ export function CollegesCoursesPage() {
         )}
         {editingCollege && <CollegeFormModal college={editingCollege} onClose={() => setEditingCollege(null)} />}
 
+        <div className="flex gap-xs overflow-x-auto border-b border-border">
+          {TABS.map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`shrink-0 border-b-2 px-md py-sm text-body-sm ${
+                activeTab === tab ? 'border-primary font-medium text-primary' : 'border-transparent text-text-secondary'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'Courses' ? (
+          <CoursesTab initialHealth={healthFilter === 'no_courses' ? '' : healthFilter} />
+        ) : (
         <Table
           columns={columns}
           rows={colleges.data?.items ?? []}
@@ -332,10 +511,13 @@ export function CollegesCoursesPage() {
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
               </CompactSelect>
+              {/* Three states (assumptions audit M26, product owner 2026-09-19). A college with
+                  no courses at all matched NEITHER of the two that used to be here — so the
+                  college most in need of capture was the one nobody could filter for. */}
               <CompactSelect
                 value={healthFilter}
                 onChange={(e) => {
-                  setHealthFilter(e.target.value as '' | 'needs_details' | 'complete')
+                  setHealthFilter(e.target.value as '' | CollegeHealthFilter)
                   resetPaging()
                 }}
                 label="Details"
@@ -343,6 +525,9 @@ export function CollegesCoursesPage() {
                 <option value="">Any details</option>
                 <option value="needs_details">Needs details</option>
                 <option value="complete">All complete</option>
+                <option value="no_courses">
+                  No courses yet{noCourseColleges != null ? ` (${noCourseColleges})` : ''}
+                </option>
               </CompactSelect>
             </>
           }
@@ -354,6 +539,7 @@ export function CollegesCoursesPage() {
             total: colleges.data?.meta.total,
           }}
         />
+        )}
       </div>
     </AdminShell>
   )

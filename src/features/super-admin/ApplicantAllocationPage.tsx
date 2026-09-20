@@ -32,6 +32,11 @@ const BLOCKED_LABELS: Record<string, string> = {
   no_active_staff: 'No active staff',
   subscription_lapsed: 'Subscription lapsed',
   freelancer_disabled: 'Freelancer channel off',
+  // Assumptions audit M12 (product owner, 2026-09-19): an account at its seat limit cannot hire
+  // the consultant who would serve this student — the invite endpoint already refuses that hire —
+  // so allocating to them was allocating into a queue nobody could ever be assigned to. Said in
+  // plain words, because "seat_limit_reached" is not a reason anyone can act on.
+  seat_limit_reached: 'No seat left to staff the case',
 }
 
 // Past this, a row gets an Overdue badge — somebody has been waiting on us for most of a working week.
@@ -57,9 +62,15 @@ function titleCase(value: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1)
 }
 
-/** "Canada, UK" plus "Computer Science · Masters", or null when the student has set nothing. */
+/**
+ * "Canada" plus "Computer Science · Masters", or null when the student has set nothing.
+ *
+ * ONE destination (assumptions audit M8, product owner 2026-09-19) — the array this read is
+ * derived from the scalar now and never holds more than one element, and joining it made the
+ * picker look as though a student had ranked several countries.
+ */
 function lookingFor(e: QueueEntry): { countries: string; detail: string } | null {
-  const countries = (e.target_countries ?? []).join(', ')
+  const countries = e.target_country ?? ''
   const detail = [(e.fields_of_interest ?? []).join(', '), e.study_level ? titleCase(e.study_level) : null]
     .filter(Boolean)
     .join(' · ')
@@ -167,7 +178,14 @@ function AllocateAction({ entry }: { entry: QueueEntry }) {
     label: c.name,
     sublabel: [
       c.serves_countries.length ? `Serves ${c.serves_countries.join(', ')}` : null,
-      `${c.active_applicants} active applicant${c.active_applicants === 1 ? '' : 's'}`,
+      // CASES PER SEAT is what the ranking reads (assumptions audit M12, product owner
+      // 2026-09-19), so it is what the row shows. Raw `active_applicants` made a two-person
+      // agency with 4 cases look lighter than a twenty-person firm with 15 — it measured the size
+      // of the business, not how busy its people are. Null when no seats are recorded, and the
+      // raw count is shown alone rather than inventing a ratio.
+      c.active_applicants_per_seat != null
+        ? `${c.active_applicants_per_seat.toFixed(1)} cases per seat (${c.active_applicants} open)`
+        : `${c.active_applicants} active applicant${c.active_applicants === 1 ? '' : 's'}`,
       `${c.seats_used} / ${c.seat_limit} seats`,
     ]
       .filter(Boolean)

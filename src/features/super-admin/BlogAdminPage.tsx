@@ -92,13 +92,20 @@ function ArticlesTab() {
   // Newest first by default (user, 2026-08-23) — an editorial list is read in publication order.
   // `published` is the server's sort field name for `published_at` (see mock-server's
   // `sortableFields` for GET /blog).
-  const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({
+  // `published` is the only sortable field the contract declares for this list (2026-09-20), so
+  // the state is narrowed to it rather than to any string — the Table's own sort callback hands
+  // back a column key, and a key that is not sortable server-side would have gone out silently.
+  const [sort, setSort] = useState<{ field: 'published'; direction: 'asc' | 'desc' }>({
     field: 'published',
     direction: 'desc',
   })
   const paging = useCursorPagination()
   const mappings = useBlogCategoryMappings()
+  // An active mapping always HAS an `app_tag` — the server refuses to activate one without
+  // (assumptions audit M4, product owner 2026-09-19) — but the field is nullable on the wire, so
+  // the filter narrows on it rather than putting `value={null}` on an option.
   const activeMappings = useMemo(() => (mappings.data ?? []).filter((m) => m.active !== false), [mappings.data])
+  const taggedMappings = useMemo(() => activeMappings.filter((m) => Boolean(m.app_tag)), [activeMappings])
 
   function resetPaging() {
     paging.reset()
@@ -111,7 +118,7 @@ function ArticlesTab() {
     search: search || undefined,
     status: statusFilter,
     tag: tagFilter || undefined,
-    sort: sort.direction === 'desc' ? `-${sort.field}` : sort.field,
+    sort: sort.direction === 'desc' ? ('-published' as const) : ('published' as const),
     cursor: paging.cursor,
     limit: 20,
   })
@@ -244,8 +251,8 @@ function ArticlesTab() {
               label="Tag"
             >
               <option value="">Any tag</option>
-              {activeMappings.map((m) => (
-                <option key={m.id} value={m.app_tag}>
+              {taggedMappings.map((m) => (
+                <option key={m.id} value={m.app_tag!}>
                   {m.label ?? m.wp_category}
                 </option>
               ))}
@@ -254,6 +261,7 @@ function ArticlesTab() {
         }
         sort={sort}
         onSortChange={(field, direction) => {
+          if (field !== 'published') return
           setSort({ field, direction })
           resetPaging()
         }}
@@ -552,7 +560,12 @@ function CategoryMappingTab() {
     if (newOnly) items = items.filter((m) => m.auto_added && !m.active)
     if (!search) return items
     const q = search.toLowerCase()
-    return items.filter((m) => m.wp_category?.toLowerCase().includes(q) || m.app_tag?.toLowerCase().includes(q))
+    return items.filter(
+      (m) =>
+        m.wp_category?.toLowerCase().includes(q) ||
+        m.app_tag?.toLowerCase().includes(q) ||
+        m.suggested_app_tag?.toLowerCase().includes(q),
+    )
   }, [mappings.data, search, newOnly])
   const newCount = useMemo(() => (mappings.data ?? []).filter((m) => m.auto_added && !m.active).length, [mappings.data])
 
@@ -573,6 +586,22 @@ function CategoryMappingTab() {
       render: (m) => <span className="font-medium text-text-primary">{m.label ?? m.wp_category}</span>,
     },
     {
+      // THE ADMIN'S ANSWER, not the website's slug (assumptions audit M4, product owner
+      // 2026-09-19). It used to be taken from WordPress, so renaming a category on the marketing
+      // site minted a NEW tag and every student following the old one silently stopped matching
+      // anything. Shown in the list because it is what `blog_topics` are stored as — a tag nobody
+      // can see is a tag nobody notices going wrong.
+      key: 'app_tag',
+      header: 'Tag students follow',
+      hideBelow: 'md',
+      render: (m) =>
+        m.app_tag ? (
+          <code className="text-body-sm text-text-secondary">{m.app_tag}</code>
+        ) : (
+          <span className="text-body-sm text-text-secondary">Not set yet</span>
+        ),
+    },
+    {
       key: 'article_count',
       header: 'Articles',
       align: 'right',
@@ -586,7 +615,7 @@ function CategoryMappingTab() {
       render: (m) => (
         <div className="flex items-center justify-end gap-sm">
           <Button variant="secondary" onClick={() => setEditing(m)}>
-            Rename
+            Edit
           </Button>
           <MappingToggle mapping={m} />
         </div>
@@ -618,40 +647,62 @@ function CategoryMappingTab() {
   )
 }
 
+/**
+ * The message the server sends when an activation carries no tag, said client-side first
+ * (assumptions audit M4, product owner 2026-09-19). Worded identically on purpose: an admin who
+ * meets it in both places should not have to work out whether they are two different rules.
+ */
+const NO_TAG_MESSAGE = 'Give this category an in-app tag before switching it on — it is what students follow.'
+
+/** What the website would have called it — a SUGGESTION, never the stored answer (M4). */
+const suggestedTagFor = (mapping: BlogCategoryMapping) => mapping.suggested_app_tag ?? ''
+
 function RenameMappingModal({ mapping, onClose }: { mapping: BlogCategoryMapping; onClose: () => void }) {
   const updateMapping = useUpdateMapping(mapping.id!)
   const [label, setLabel] = useState(mapping.label ?? mapping.wp_category ?? '')
+  // The tag is only editable while it has never been set. Once students follow it, changing it
+  // orphans every one of them — the contract says as much — so after that it is shown, not edited.
+  const [appTag, setAppTag] = useState(mapping.app_tag ?? suggestedTagFor(mapping))
+  const tagLocked = Boolean(mapping.app_tag)
   const count = mapping.article_count ?? 0
 
   return (
     <Modal
       onClose={onClose}
-      title="Rename Tag"
-      widthRem={26}
+      title="Edit Tag"
+      widthRem={28}
       footer={
         <>
           {updateMapping.isError && (
-            <p className="mr-auto self-center text-body-sm text-error">Could not rename this tag.</p>
+            <p className="mr-auto self-center text-body-sm text-error">{updateMapping.error.message}</p>
           )}
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
             loading={updateMapping.isPending}
-            disabled={!label.trim() || label === mapping.label}
+            disabled={
+              !label.trim() ||
+              (label.trim() === (mapping.label ?? '') && (tagLocked || appTag.trim() === (mapping.app_tag ?? '')))
+            }
             onClick={() =>
               updateMapping.mutate(
-                { label: label.trim() },
+                {
+                  label: label.trim(),
+                  // Only ever sent while the tag has never been set (M4) — an edit here would
+                  // orphan every student already following it.
+                  ...(tagLocked || !appTag.trim() ? {} : { app_tag: appTag.trim() }),
+                },
                 {
                   onSuccess: () => {
                     onClose()
-                    showToast(`Renamed to "${label.trim()}"`)
+                    showToast(`Saved \u201C${label.trim()}\u201D`)
                   },
                 },
               )
             }
           >
-            Rename
+            Save
           </Button>
         </>
       }
@@ -662,6 +713,98 @@ function RenameMappingModal({ mapping, onClose }: { mapping: BlogCategoryMapping
           {count === 0
             ? 'No articles carry this tag yet.'
             : `${count} article${count === 1 ? '' : 's'} will show the new name straight away.`}
+        </p>
+        {tagLocked ? (
+          <div className="flex flex-col gap-xs rounded-md border border-border bg-background p-sm">
+            <p className="text-caption text-text-secondary">Tag students follow</p>
+            <code className="text-body-sm text-text-primary">{mapping.app_tag}</code>
+            <p className="text-caption text-text-secondary">
+              Fixed once set — students&rsquo; followed topics are stored as this exact value, so changing it would
+              silently unsubscribe every one of them. Rename the display name above instead.
+            </p>
+          </div>
+        ) : (
+          <>
+            <TextField
+              label="Tag students follow"
+              value={appTag}
+              onChange={(e) => setAppTag(e.target.value)}
+              placeholder="e.g. study-abroad"
+            />
+            <p className="text-caption text-text-secondary">
+              {suggestedTagFor(mapping)
+                ? `The website calls this \u201C${suggestedTagFor(mapping)}\u201D — a suggestion only. `
+                : ''}
+              Set once and then fixed: it is the value students&rsquo; followed topics are stored as, so a later change
+              would unsubscribe everyone following it.
+            </p>
+          </>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * Activation asks for the tag (assumptions audit M4, product owner 2026-09-19).
+ *
+ * The server refuses `{ active: true }` on a mapping with no `app_tag` — activating one would
+ * publish articles under a topic nobody can subscribe to — so rather than letting the admin meet
+ * that 400, the switch opens this and asks. The WordPress slug is offered as a starting point and
+ * nothing more; it is never re-applied when the website renames the category, which is the defect
+ * the audit caught.
+ */
+function ActivateMappingModal({ mapping, onClose }: { mapping: BlogCategoryMapping; onClose: () => void }) {
+  const updateMapping = useUpdateMapping(mapping.id!)
+  const [appTag, setAppTag] = useState(suggestedTagFor(mapping))
+  const suggestion = suggestedTagFor(mapping)
+  const label = mapping.label ?? mapping.wp_category
+
+  return (
+    <Modal
+      onClose={onClose}
+      title="Turn On This Tag"
+      widthRem={28}
+      footer={
+        <>
+          {updateMapping.isError && (
+            <p className="mr-auto self-center text-body-sm text-error">{updateMapping.error.message}</p>
+          )}
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            loading={updateMapping.isPending}
+            disabled={!appTag.trim()}
+            onClick={() =>
+              updateMapping.mutate(
+                { app_tag: appTag.trim(), active: true },
+                {
+                  onSuccess: () => {
+                    onClose()
+                    showToast(`${label} tag turned on`)
+                  },
+                },
+              )
+            }
+          >
+            Turn On
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-md">
+        <p className="text-body-sm text-text-secondary">{NO_TAG_MESSAGE}</p>
+        <TextField
+          label="Tag students follow"
+          value={appTag}
+          onChange={(e) => setAppTag(e.target.value)}
+          placeholder="e.g. study-abroad"
+        />
+        <p className="text-caption text-text-secondary">
+          {suggestion
+            ? `The website calls this \u201C${suggestion}\u201D. That is a suggestion — it is not kept in step, and a rename on the website never changes what you set here.`
+            : 'The website has no slug for this category, so there is nothing to suggest.'}
         </p>
       </div>
     </Modal>
@@ -675,6 +818,9 @@ function RenameMappingModal({ mapping, onClose }: { mapping: BlogCategoryMapping
 function MappingToggle({ mapping }: { mapping: BlogCategoryMapping }) {
   const updateMapping = useUpdateMapping(mapping.id!)
   const [confirming, setConfirming] = useState(false)
+  // Turning one ON with no tag yet asks for the tag first (assumptions audit M4, product owner
+  // 2026-09-19) rather than sending a request the server refuses 400.
+  const [naming, setNaming] = useState(false)
   const count = mapping.article_count ?? 0
   const label = mapping.label ?? mapping.wp_category
 
@@ -688,10 +834,15 @@ function MappingToggle({ mapping }: { mapping: BlogCategoryMapping }) {
             setConfirming(true)
             return
           }
+          if (!mapping.app_tag) {
+            setNaming(true)
+            return
+          }
           updateMapping.mutate({ active: true })
         }}
         label={`${mapping.wp_category} mapping active`}
       />
+      {naming && <ActivateMappingModal mapping={mapping} onClose={() => setNaming(false)} />}
       {confirming && (
         <Modal
           onClose={() => setConfirming(false)}

@@ -13,7 +13,7 @@ import { useMyConsultancy } from '@/queries/consultancy'
 import { useCourseLevels } from '@/queries/courseFinder'
 import { formatDate } from '@/lib/time'
 import { formatMoney } from '@/lib/money'
-import { COURSE_LEVEL_LABELS, courseLevelLabel } from '@/lib/studyLevels'
+import { useLevelLadder, type LevelLadder } from '@/lib/studyLevels'
 import { showToast } from '@/lib/toast'
 
 const STATUS_COLOR = { pending: 'warning', approved: 'success', rejected: 'error' } as const
@@ -43,13 +43,13 @@ interface SuggestionLine {
   arrow?: boolean
 }
 
-function suggestionLines(s: Suggestion): SuggestionLine[] {
+function suggestionLines(s: Suggestion, ladder: LevelLadder): SuggestionLine[] {
   const payload = s.payload as Record<string, unknown>
   if (s.type === 'new') {
     return (
       [
         { label: 'College', value: asText(payload.college_name) },
-        { label: 'Level', value: courseLevelLabel(asText(payload.level)) },
+        { label: 'Level', value: ladder.label(asText(payload.level)) },
         { label: 'Field of study', value: asText(payload.field_of_study) },
       ] satisfies SuggestionLine[]
     ).filter((line) => line.value)
@@ -103,7 +103,9 @@ function formatLegacyValue(v: unknown): string {
 }
 
 function SuggestionSummary({ suggestion }: { suggestion: Suggestion }) {
-  const lines = suggestionLines(suggestion)
+  // Labels off the served ladder (assumptions audit M23, product owner 2026-09-19).
+  const ladder = useLevelLadder()
+  const lines = suggestionLines(suggestion, ladder)
   if (lines.length === 0) return <span className="text-text-secondary">—</span>
   return (
     <div className="flex flex-col">
@@ -142,6 +144,11 @@ function SuggestNewCourseModal({ onClose }: { onClose: () => void }) {
   const [collegeId, setCollegeId] = useState('')
   const [level, setLevel] = useState('')
   const { data: courseLevels } = useCourseLevels()
+  // The whole served ladder, plus whatever codes the catalogue already carries (assumptions audit
+  // M23, product owner 2026-09-19). The hand-kept four this used to union in are gone; the served
+  // table carries no "a course may be TAUGHT at this rung" flag, only "a course may REQUIRE it",
+  // so every active rung is offered and the server is the one that validates the code.
+  const ladder = useLevelLadder()
   const [fieldOfStudy, setFieldOfStudy] = useState('')
 
   // An institute has exactly one relation and it is itself, so there is nothing to pick.
@@ -233,9 +240,9 @@ function SuggestNewCourseModal({ onClose }: { onClose: () => void }) {
           {/* A NEW course may sit on a rung nothing in the catalogue uses yet (a first PhD), so this
               dialog offers the higher-education ladder plus whatever the catalogue already has —
               never the school grades. */}
-          {[...new Set([...Object.keys(COURSE_LEVEL_LABELS), ...(courseLevels ?? [])])].map((code) => (
+          {[...new Set([...ladder.options.map((l) => l.code), ...(courseLevels ?? [])])].map((code) => (
             <option key={code} value={code}>
-              {courseLevelLabel(code)}
+              {ladder.label(code)}
             </option>
           ))}
         </SelectField>

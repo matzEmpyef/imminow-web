@@ -7,9 +7,17 @@ import type { components } from '@/api/schema'
 type CollegeInput = components['schemas']['CollegeInput']
 type CampusInput = components['schemas']['CampusInput']
 
+/**
+ * Catalog health, THREE-valued since 2026-09-19 (assumptions audit M26, product owner).
+ *
+ * "Needs details" means the college has courses and at least one fails a capture check;
+ * "complete" means every course passes. A college with NO COURSES AT ALL matched neither, so the
+ * college most in need of capture was the one college invisible to both filters.
+ */
+export type CollegeHealthFilter = 'needs_details' | 'complete' | 'no_courses'
+
 interface CollegeListFilters {
-  // "Needs details" / "Complete" (2026-09-11).
-  health?: 'needs_details' | 'complete'
+  health?: CollegeHealthFilter
   search?: string
   country?: string[]
   active?: boolean
@@ -44,7 +52,12 @@ export function useAdminColleges(filters: CollegeListFilters = {}) {
         },
       })
       if (error) throw new ApiError('Could not load colleges.', error)
-      return data
+      // `no_courses_college_count` rides on the same summary object (M26) so the third filter can
+      // carry its own number. The contract's inline summary schema has not been widened to name
+      // it, so it is read through this narrow type rather than by loosening the whole response.
+      return data as typeof data & {
+        summary?: (NonNullable<typeof data.summary> & { no_courses_college_count?: number }) | undefined
+      }
     },
     enabled: isAuthed,
   })

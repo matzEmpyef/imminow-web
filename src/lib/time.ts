@@ -171,23 +171,8 @@ export function formatDayLabel(input: string | Date): string {
   return formatDate(d)
 }
 
-// Renders `student_preferences.intended_intake` (a `first_half`/`second_half` slug) against its
-// paired `intended_year` — "Jan – Jun 2027".
-//
-// Lives here rather than in the one page that currently shows it because the slug is meaningless
-// on screen: any surface that displays a student's intake has to translate it, and a second
-// hand-rolled copy is how the two drift apart. The mobile app has the mirror of this in
-// profile_screen.dart's `_intakeLabel`.
-//
-// The wording is deliberately not what's stored — only the slug is persisted, so this label can
-// change without a data migration.
-export function formatIntake(
-  intake: 'first_half' | 'second_half' | null | undefined,
-  year: number | null | undefined,
-): string {
-  if (!intake) return '—'
-  const range = intake === 'first_half' ? 'Jan – Jun' : 'Jul – Dec'
-  // Year is separately nullable: a student can pick a half before committing to a year, and a
-  // range alone beats inventing one.
-  return year ? `${range} ${year}` : range
-}
+// `formatIntake` lived here until 2026-09-19. It rendered `intended_intake`, the
+// `first_half`/`second_half` calendar halves, and those are gone from every response
+// (assumptions audit M9, product owner). A student's intake is a month and a year now, worded by
+// the server as `intake_label` so the console and the app cannot disagree; the picker vocabulary
+// and the local fallback wording live in `lib/intake.ts`.

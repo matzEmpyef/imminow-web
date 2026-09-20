@@ -21,9 +21,13 @@ import {
   useInstitutions,
   useInstitutionSuggestions,
   useMergeInstitution,
+  useUnmapInstitution,
   useUpdateInstitution,
   institutionLabel,
+  nearMatchesOf,
+  INSTITUTION_CONFIDENT_SCORE,
   type Institution,
+  type InstitutionNearMatch,
   type InstitutionSuggestionGroup,
 } from '@/queries/institutions'
 import { showToast } from '@/lib/toast'
@@ -207,6 +211,7 @@ function PickInstitutionModal({
   pending,
   error,
   detail,
+  guesses,
   onPick,
   onClose,
 }: {
@@ -217,6 +222,13 @@ function PickInstitutionModal({
   pending: boolean
   error?: string
   detail?: (picked: Institution) => ReactNode
+  /**
+   * The server's own ranked guesses, WITH the score and the words behind each one (assumptions
+   * audit M5, product owner 2026-09-19). The ranking runs on seven undocumented weights and one
+   * admin's reading of it is applied to everyone who typed that string, so the reasoning is shown
+   * rather than implied. Omitted where there is nothing to guess from (picking a merge target).
+   */
+  guesses?: InstitutionNearMatch[]
   onPick: (picked: Institution) => void
   onClose: () => void
 }) {
@@ -244,6 +256,31 @@ function PickInstitutionModal({
     >
       <div className="flex flex-col gap-md">
         <p className="text-body-sm text-text-secondary">{intro}</p>
+        {guesses && guesses.length > 0 && (
+          <div className="flex flex-col gap-xs">
+            <p className="text-caption text-text-secondary">
+              Best guesses, and why each one matched — a score under {INSTITUTION_CONFIDENT_SCORE} is a weak match.
+            </p>
+            <div className="flex flex-col divide-y divide-border overflow-hidden rounded-md border border-border">
+              {guesses.map((i) => (
+                <button
+                  key={i.id}
+                  type="button"
+                  onClick={() => setPicked(i)}
+                  className={`flex flex-col items-start gap-0.5 px-md py-sm text-left text-body-sm ${
+                    picked?.id === i.id ? 'bg-primary/10 text-primary' : 'text-text-primary hover:bg-background'
+                  }`}
+                >
+                  <span className="flex w-full items-center justify-between gap-sm">
+                    <span>{institutionLabel(i)}</span>
+                    <MatchScore score={i.score} />
+                  </span>
+                  <MatchReason tokens={i.matched_tokens} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <TextField label="Search by name or city" value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. choice thiruvalla" />
         <div className="flex max-h-72 flex-col divide-y divide-border overflow-y-auto rounded-md border border-border">
           {results.isLoading && <p className="p-sm text-caption text-text-secondary">Searching…</p>}
@@ -271,7 +308,45 @@ function PickInstitutionModal({
   )
 }
 
+/**
+ * HOW SURE THE MACHINE IS, in words (assumptions audit M5, product owner 2026-09-19).
+ *
+ * 30 is the floor to be offered at all — one shared meaningful word. 60 or more is a containment
+ * match, two shared words, or one shared word in the same city; below it a bulk resolve has to be
+ * confirmed. The number is shown beside the wording because it is the number the server's own
+ * threshold is about.
+ */
+function MatchScore({ score }: { score?: number }) {
+  if (score == null) return null
+  const weak = score < INSTITUTION_CONFIDENT_SCORE
+  return (
+    <Badge color={weak ? 'warning' : 'success'}>
+      {weak ? 'Weak' : 'Close'} match · {score}
+    </Badge>
+  )
+}
+
+/** The words the two names share — the reasoning behind the score, in the admin's vocabulary (M5). */
+function MatchReason({ tokens }: { tokens?: string[] }) {
+  if (!tokens || tokens.length === 0) return null
+  return <span className="text-caption text-text-secondary">Shares: {tokens.join(', ')}</span>
+}
+
 type QueueAction = { kind: 'pick' | 'create' | 'dismiss'; group: InstitutionSuggestionGroup }
+
+/** A resolve the admin may still want back — what the Undo banner needs (M5). */
+type MappedBatch = { userIds: string[]; institutionName: string; typed: string }
+
+/** The 409 the server sends when the top score is under 60, held until the admin answers it (M5). */
+type WeakMatch = {
+  userIds: string[]
+  institutionId: string
+  institutionName: string
+  /** What the group typed, carried so the Undo banner can name it after a confirmed retry. */
+  typed: string
+  message: string
+  score?: number
+}
 
 function studentsLabel(g: InstitutionSuggestionGroup): string {
   const names = g.students.map((s) => s.user_name)
@@ -282,11 +357,56 @@ function QueueView() {
   const suggestions = useInstitutionSuggestions()
   const resolve = useBulkResolveInstitutionSuggestions()
   const dismiss = useBulkDismissInstitutionSuggestions()
+  const unmap = useUnmapInstitution()
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<'oldest' | 'students'>('oldest')
   const [page, setPage] = useState(0)
   const [action, setAction] = useState<QueueAction | null>(null)
   const [note, setNote] = useState('')
+  // The last resolve, kept so it can be taken back (assumptions audit M5, product owner
+  // 2026-09-19). A bulk resolve is the one action on this page that can be wrong about fifty
+  // people at once, and until `DELETE /institutions/suggestions/{user_id}` existed it could only
+  // be corrected by asking every one of them to type their school again.
+  const [mapped, setMapped] = useState<MappedBatch | null>(null)
+  // A 409 `confirm_required` held until the admin answers it, rather than shown as a failure (M5).
+  const [weak, setWeak] = useState<WeakMatch | null>(null)
+
+  /**
+   * One path for every resolve on this page, so the weak-match confirm and the Undo banner apply
+   * to the best-match button, the Pick modal and Create alike (M5).
+   */
+  function runResolve(
+    group: InstitutionSuggestionGroup,
+    institution: { id: string; name: string },
+    options: { confirm?: boolean; onDone?: () => void } = {},
+  ) {
+    const userIds = group.students.map((sItem) => sItem.user_id)
+    resolve.mutate(
+      { userIds, institutionId: institution.id, ...(options.confirm ? { confirm: true } : {}) },
+      {
+        onSuccess: () => {
+          setWeak(null)
+          setMapped({ userIds, institutionName: institution.name, typed: group.institution_raw })
+          showToast(`Mapped to ${institution.name}`)
+          options.onDone?.()
+        },
+        onError: (e) => {
+          // Not a failure — a question. The server refuses a BULK resolve whose top score is
+          // under 60 unless it is sent again with `confirm: true`.
+          if (e.code === 'confirm_required') {
+            setWeak({
+              userIds,
+              institutionId: institution.id,
+              institutionName: institution.name,
+              typed: group.institution_raw,
+              message: e.message,
+              score: typeof e.details?.score === 'number' ? e.details.score : undefined,
+            })
+          }
+        },
+      },
+    )
+  }
 
   const groups = useMemo(() => suggestions.data?.groups ?? [], [suggestions.data])
   const filtered = useMemo(() => {
@@ -344,7 +464,8 @@ function QueueView() {
       key: 'match',
       header: 'Best match',
       render: (g) => {
-        const best = g.near_matches?.[0]
+        const guesses = nearMatchesOf(g)
+        const best = guesses[0]
         if (!best) return <span className="text-caption text-text-secondary">No close match</span>
         return (
           <div className="flex flex-col items-start gap-xs">
@@ -352,13 +473,21 @@ function QueueView() {
               size="sm"
               variant="secondary"
               loading={resolve.isPending && resolve.variables?.institutionId === best.id}
-              onClick={() => resolve.mutate({ userIds: userIds(g), institutionId: best.id })}
+              onClick={() => runResolve(g, best)}
             >
               Match to {best.name}
             </Button>
-            {(g.near_matches?.length ?? 0) > 1 && (
+            {/* WHY it matched, and how sure (assumptions audit M5, product owner 2026-09-19).
+                One shared token plus the same city clears the floor, and this row maps everyone
+                who typed that string in a single click — so the reasoning is on screen before
+                the click, not implied by the ordering. */}
+            <div className="flex flex-col items-start gap-0.5">
+              <MatchScore score={best.score} />
+              <MatchReason tokens={best.matched_tokens} />
+            </div>
+            {guesses.length > 1 && (
               <span className="text-caption text-text-secondary">
-                {plural((g.near_matches?.length ?? 1) - 1, 'other guess')} in Pick
+                {plural(guesses.length - 1, 'other guess')} in Pick
               </span>
             )}
           </div>
@@ -401,7 +530,44 @@ function QueueView() {
         broadcasts and audience counts alike, with no error anywhere to say so. Everyone who typed the same name and
         city is one row, so one decision maps them all.
       </p>
-      {resolve.isError && <p className="text-body-sm text-error">{resolve.error.message}</p>}
+      {/* A failed resolve says so — except the weak-match 409, which is a question the dialog
+          below asks rather than an error (M5). */}
+      {resolve.isError && resolve.error.code !== 'confirm_required' && (
+        <p className="text-body-sm text-error">{resolve.error.message}</p>
+      )}
+      {mapped && (
+        <div className="flex flex-wrap items-center justify-between gap-sm rounded-md border border-border bg-background px-md py-sm">
+          <p className="text-body-sm text-text-primary">
+            Mapped {plural(mapped.userIds.length, 'student')} who typed &ldquo;{mapped.typed}&rdquo; to{' '}
+            <span className="font-medium">{mapped.institutionName}</span>.
+          </p>
+          <div className="flex items-center gap-sm">
+            {unmap.isError && <span className="text-body-sm text-error">{unmap.error.message}</span>}
+            {/* UNMAP (M5) — restores what each student typed and puts them back in the queue. */}
+            <Button
+              size="sm"
+              variant="secondary"
+              loading={unmap.isPending}
+              onClick={() =>
+                unmap.mutate(
+                  { userIds: mapped.userIds, note: `Unmapped from ${mapped.institutionName}` },
+                  {
+                    onSuccess: () => {
+                      setMapped(null)
+                      showToast('Back in the queue')
+                    },
+                  },
+                )
+              }
+            >
+              Unmap
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setMapped(null)}>
+              Dismiss
+            </Button>
+          </div>
+        </div>
+      )}
       <Table
         columns={columns}
         rows={rows}
@@ -445,19 +611,10 @@ function QueueView() {
           intro={`Choose the school or college this refers to. ${who} will be mapped to it.`}
           actionLabel={current.student_count === 1 ? 'Map student' : `Map ${current.student_count} students`}
           pending={resolve.isPending}
-          error={resolve.isError ? resolve.error.message : undefined}
+          error={resolve.isError && resolve.error.code !== 'confirm_required' ? resolve.error.message : undefined}
+          guesses={nearMatchesOf(current)}
           onClose={() => setAction(null)}
-          onPick={(picked) =>
-            resolve.mutate(
-              { userIds: userIds(current), institutionId: picked.id },
-              {
-                onSuccess: () => {
-                  showToast(`Mapped to ${picked.name}`)
-                  setAction(null)
-                },
-              },
-            )
-          }
+          onPick={(picked) => runResolve(current, picked, { onDone: () => setAction(null) })}
         />
       )}
       {action?.kind === 'create' && current && (
@@ -465,7 +622,7 @@ function QueueView() {
           initialName={current.institution_raw}
           initialCity={current.institution_raw_city ?? ''}
           onClose={() => setAction(null)}
-          onSaved={(created) => resolve.mutate({ userIds: userIds(current), institutionId: created.id })}
+          onSaved={(created) => runResolve(current, created)}
         />
       )}
       {action?.kind === 'dismiss' && current && (
@@ -497,6 +654,66 @@ function QueueView() {
               institution is created or matched. They can enter their school again.
             </p>
             <TextField label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Recorded in the audit log." />
+          </div>
+        </Modal>
+      )}
+
+      {/* A WEAK MATCH IS ASKED ABOUT, NOT REFUSED (assumptions audit M5, product owner
+          2026-09-19). The server answers 409 `confirm_required` when the best score in the batch
+          is under 60 — one shared word, or one shared word and the same city, which is exactly
+          how a whole group got mapped to the wrong school on a single click. The admin sees the
+          server's own wording and, if they still mean it, the same request goes again with
+          `confirm: true`. */}
+      {weak && (
+        <Modal
+          onClose={() => setWeak(null)}
+          title="Check this match"
+          widthRem={28}
+          footer={
+            <>
+              {resolve.isError && resolve.error.code !== 'confirm_required' && (
+                <p className="mr-auto self-center text-body-sm text-error">{resolve.error.message}</p>
+              )}
+              <Button variant="secondary" onClick={() => setWeak(null)}>
+                Cancel
+              </Button>
+              <Button
+                loading={resolve.isPending}
+                onClick={() =>
+                  resolve.mutate(
+                    { userIds: weak.userIds, institutionId: weak.institutionId, confirm: true },
+                    {
+                      onSuccess: () => {
+                        // The group's own typed text, carried on the held 409 (M5) — reading it
+                        // off `action` was empty whenever the weak match came from the row's
+                        // best-match button rather than from the Pick dialog.
+                        setMapped({
+                          userIds: weak.userIds,
+                          institutionName: weak.institutionName,
+                          typed: weak.typed,
+                        })
+                        setWeak(null)
+                        setAction(null)
+                        showToast(`Mapped to ${weak.institutionName}`)
+                      },
+                    },
+                  )
+                }
+              >
+                Map them anyway
+              </Button>
+            </>
+          }
+        >
+          <div className="flex flex-col gap-md">
+            <p className="text-body-sm text-text-primary">{weak.message}</p>
+            {weak.score != null && (
+              <p className="text-caption text-text-secondary">
+                Match score {weak.score} out of a confident {INSTITUTION_CONFIDENT_SCORE}. If this is the wrong school,
+                pick another from the list or create a new one — and if you map them and change your mind, Unmap puts
+                them straight back in the queue.
+              </p>
+            )}
           </div>
         </Modal>
       )}

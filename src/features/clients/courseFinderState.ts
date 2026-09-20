@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { usePersonPicker } from '@/lib/usePersonPicker'
 import type { components } from '@/api/schema'
 import { humaniseCode } from '@/lib/humanise'
+import { INTAKE_GROUPS, INTAKE_MONTHS } from '@/lib/intake'
 import { useCourseLevels } from '@/queries/courseFinder'
 
 type Course = components['schemas']['Course']
@@ -40,8 +41,10 @@ export interface FinderState {
   // from without guessing which country's provinces to show. Same free-text shape as `city` below.
   provinceState: string
   city: string
-  // 'first_half' | 'second_half' | '' (any) — the same half-year buckets the Sentpo app's Intake
-  // segmented control offers (course_filter_sheet.dart), not a raw month.
+  // A MONTH NAME, or a group code (`aug_dec` / `jan_jul`), or '' for any (assumptions audit M9,
+  // product owner 2026-09-19). `filter[intake]` names a month now and is matched against the
+  // course's own `intakes`; the half-year buckets this used to hold — `first_half` /
+  // `second_half` — match nothing at all on the current contract.
   intake: string
   // 'full_time' | 'part_time' | '' (any).
   studyMode: string
@@ -110,13 +113,38 @@ export const DURATION_BUCKETS: Record<string, { label: string; min?: number; max
   gt_36: { label: '3+ years', min: 37 },
 }
 
-// The Intake half-year options, worded exactly as the Sentpo app's own segmented control
-// (course_filter_sheet.dart: 'Jan – Jun' / 'Jul – Dec') rather than the generic "first/second
-// half" the wire value implies — a consultant reading this filter should see the same words a
-// student picking it in the app does.
+// Intake options — A MONTH, or every month in one group (assumptions audit M9, product owner
+// 2026-09-19). The two half-year buckets that used to live here (`first_half` / `second_half`)
+// are not values the catalogue can match any more: `filter[intake]` compares against a course's
+// own intake MONTHS, and `filter[intake_any_in_group]` is what widens one month to its group.
+// Never "Fall"/"Spring" — an Australian February intake is not a "Spring" one.
 export const INTAKE_OPTIONS: Record<string, string> = {
-  first_half: 'Jan – Jun',
-  second_half: 'Jul – Dec',
+  ...Object.fromEntries(INTAKE_GROUPS.map((g) => [g.code, `Any month ${g.label}`])),
+  ...Object.fromEntries(INTAKE_MONTHS.map((m) => [m.name, m.name])),
+}
+
+// The group codes, so a caller can tell a whole-group pick from a single month without a second
+// list. `filter[intake]` takes the group's anchor month and `filter[intake_any_in_group]` widens
+// it — see `useCourseFinder`.
+export const INTAKE_GROUP_CODES = new Set<string>(INTAKE_GROUPS.map((g) => g.code))
+
+// Links minted before 2026-09-19 carry the old halves. The server folds them the same way for a
+// student's own intake — `first_half` is the Jan–Jul group, `second_half` the Aug–Dec one — so
+// an old shared search opens on the group the sender meant rather than being dropped.
+const LEGACY_INTAKE_HALVES: Record<string, string> = {
+  first_half: 'jan_jul',
+  second_half: 'aug_dec',
+}
+
+/** A shared link's `intake` value as this console will use it, or '' when it names nothing. */
+export function resolveSharedIntake(raw: string): string {
+  const value = LEGACY_INTAKE_HALVES[raw] ?? raw
+  if (INTAKE_OPTIONS[value]) return value
+  // A month name in any casing, or a bare 1–12, both of which the contract accepts.
+  const byName = INTAKE_MONTHS.find((m) => m.name.toLowerCase() === value.trim().toLowerCase())
+  if (byName) return byName.name
+  const byNumber = INTAKE_MONTHS.find((m) => String(m.value) === value.trim())
+  return byNumber ? byNumber.name : ''
 }
 
 // Study mode / Delivery wire values → labels, matching mobile's `studyModeLabels` /
@@ -281,6 +309,9 @@ export function useCourseFinderState(
       // applicant's free-text filters into the new applicant's cache).
       if (kind === 'client') {
         const client = clientRows.find((c) => c.id === personId)
+        // `study_preferences` is the JOURNEY's own case data the consultancy captured, not the
+        // student's preference store, and it still carries an array (assumptions audit M8 changed
+        // the student's own field, not this one). The finalized country wins where there is one.
         const country = client?.finalized_country ?? client?.study_preferences?.target_countries?.[0] ?? ''
         setState({
           ...DEFAULT_STATE,
@@ -291,7 +322,9 @@ export function useCourseFinderState(
         })
       } else {
         const lead = leadRows.find((l) => l.id === personId)
-        const country = lead?.preferences?.target_countries?.[0] ?? ''
+        // ONE destination (assumptions audit M8, product owner 2026-09-19) — `[0]` of the derived
+        // array was array position standing in for a decision nobody made.
+        const country = lead?.preferences?.target_country ?? ''
         setState({
           ...DEFAULT_STATE,
           personId,
@@ -418,7 +451,7 @@ export function finderStateFromUrl(): FinderState | null {
         .filter(Boolean),
       provinceState: params.get('province_state') ?? '',
       city: params.get('city') ?? '',
-      intake: INTAKE_OPTIONS[intake] ? intake : '',
+      intake: resolveSharedIntake(intake),
       studyMode: STUDY_MODE_OPTIONS[studyMode] ? studyMode : '',
       delivery: DELIVERY_OPTIONS[delivery] ? delivery : '',
       language: params.get('language') ?? '',
@@ -484,7 +517,7 @@ export function consoleDroppedFilters(filters: Record<string, string>, levels: s
   if (filters.level && resolveSharedLevel(filters.level, levels) === null) {
     dropped.push(`Level (${filters.level})`)
   }
-  if (filters.intake && !INTAKE_OPTIONS[filters.intake]) dropped.push(`Intake (${filters.intake})`)
+  if (filters.intake && !resolveSharedIntake(filters.intake)) dropped.push(`Intake (${filters.intake})`)
   if (filters.study_mode && !STUDY_MODE_OPTIONS[filters.study_mode]) {
     dropped.push(`Study mode (${filters.study_mode})`)
   }

@@ -13,29 +13,11 @@ type AttentionItem = components['schemas']['AttentionItem']
 const SNOOZE_KEY = 'sentpo-needs-attention-snoozed'
 const SNOOZE_DAYS = 7
 
-// Some queues' server-sent `link` is the bare list page — the filter that matches what this card
-// counted lives only on the client. Keyed by item.key so a card always opens pre-filtered to the
-// same rows it counted, not the page's unfiltered default. Queues whose target page is owned by
-// another agent this session (Manage Consultancies, Sentpo Users) are left off this list — their
-// server link is used as-is; `stuck_onboarding` and `never_billed` already carry their own filter
-// from the server, so they need no entry here either.
-const LINK_OVERRIDES: Record<string, string> = {
-  courses_missing_requirements: '/admin/colleges?health=needs_details',
-  institutions_unmapped: '/admin/institutions?tab=queue',
-  disputes_open: '/admin/disputes?status=open',
-  complaints_open: '/admin/complaints?status=unresolved',
-  visit_requests: '/admin/visit-requests?status=pending',
-  // case_followups / service_followups need no override: both pages already default to hiding
-  // snoozed rows, the same "not snoozed" rule the count itself uses.
-  payments_to_confirm: '/admin/finance-dashboard?tab=awaiting',
-  default_rate_cases: '/admin/commission-rates?focus=default_rate',
-  freelancer_payouts: '/admin/freelancer-payouts?tab=owed',
-  blog_categories: '/admin/blog?tab=mappings&filter=new',
-}
-
-function linkFor(item: AttentionItem): string {
-  return LINK_OVERRIDES[item.key] ?? item.link
-}
+// THE SERVER SENDS EACH QUEUE'S OWN PRE-FILTERED LINK (assumptions audit M35, product owner
+// 2026-09-19). A `LINK_OVERRIDES` table lived here, mapping a count to whatever filter the author
+// believed matched it — which is how "Courses missing entry requirements: 12" opened a COLLEGE
+// filter listing 40 colleges. A link the page guesses can disagree with a count the server
+// computed, and there is nothing on screen to say which is right; `item.link` cannot.
 
 // A snooze is "I have seen these N and I am on them", not "hide this queue" (user question,
 // 2026-09-18: "if I snooze for 7 days and a new item in same card comes up after 1 day, will I
@@ -134,9 +116,14 @@ export function NeedsAttentionPage() {
   const items = attention.data.items
   // `low` queues (2026-09-18) are ones that may legitimately never empty — a course whose college
   // publishes no entry requirements sits there for good. They stay on the board, in the quiet
-  // style and last among the open ones, but they are not in `open_count` and so never put a
+  // style and last among the open ones, but their `open_count` is always 0, so they never put a
   // number on the sidebar.
-  const open = items.filter((item) => item.count > 0 && item.severity !== 'low')
+  //
+  // The header's two numbers now come from the SAME field (assumptions audit M35, product owner
+  // 2026-09-19): it used to pair the server's total with a count this page re-derived from
+  // `count` and its own reading of `severity`, so a queue the server had excluded could still be
+  // counted here as a queue with work.
+  const open = items.filter((item) => item.open_count > 0)
   const rank = (item: AttentionItem) =>
     item.count === 0 ? 3 : item.severity === 'urgent' ? 0 : item.severity === 'low' ? 2 : 1
   const sorted = [...items].sort((a, b) => rank(a) - rank(b) || b.count - a.count)
@@ -198,7 +185,7 @@ export function NeedsAttentionPage() {
               >
                 <button
                   type="button"
-                  onClick={() => navigate(linkFor(item))}
+                  onClick={() => navigate(item.link)}
                   className="flex w-full flex-col items-start gap-xs text-left hover:opacity-80"
                 >
                   <span className="flex w-full items-start justify-between gap-sm">

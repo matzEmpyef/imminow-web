@@ -280,11 +280,12 @@ export function ClientsListPage() {
       : [
           {
             key: 'preferred_destination',
-            header: 'Preferred Destination',
-            render: (client: Client) => {
-              const targets = client.preferences?.target_countries ?? []
-              return <span className="text-text-secondary">{targets.length > 0 ? targets.join(', ') : '—'}</span>
-            },
+            // Singular (assumptions audit M8, product owner 2026-09-19) — a student names ONE
+            // destination, so the column reads the scalar rather than joining a derived array.
+            header: 'Destination',
+            render: (client: Client) => (
+              <span className="text-text-secondary">{client.preferences?.target_country || '—'}</span>
+            ),
           } satisfies TableColumn<Client>,
         ]),
     {
@@ -407,7 +408,7 @@ export function ClientsListPage() {
               />
               {!isInstitute && (
                 <FilterMultiSelect
-                  label="Preferred destination"
+                  label="Destination"
                   options={countries.data ?? []}
                   selected={destinationFilter}
                   onChange={(next) => {

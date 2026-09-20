@@ -27,14 +27,14 @@ import { FollowupHistoryDrawer } from './followups/FollowupHistoryDrawer'
 import { LogCallModal, type LogCallInput } from './followups/LogCallModal'
 import { OUTCOME_LABELS, SERVICE_OUTCOME_OPTIONS, SERVICE_SIGNAL_LABELS } from './followups/labels'
 
-// "1st half 2026" / "2nd half 2026" — this page's own short form of intended_intake +
-// intended_year. Deliberately not lib/time's formatIntake ("Jan – Jun 2026"), which is the
-// platform-wide convention for showing the field elsewhere; this page's spec calls for the
-// ordinal form specifically, so it stays local rather than changing a shared helper for one page.
+// THE SERVER WORDS THE INTAKE (assumptions audit M9, product owner 2026-09-19). This page used
+// to render its own "1st half 2026" from `intended_intake` + `intended_year`; those calendar
+// halves are gone — a September start was filed as "second half" and measured from 1 July, three
+// months early, which is exactly what this page's `no_consultancy_yet` signal counts days
+// against. `intake_label` is "September 2027" or "Any month August–December 2027", decided once
+// server-side so the console and the app can never word the same intake differently.
 function intakeLabel(row: ServiceFollowupRow): string {
-  if (!row.intended_intake) return '—'
-  const half = row.intended_intake === 'first_half' ? '1st half' : '2nd half'
-  return row.intended_year ? `${half} ${row.intended_year}` : half
+  return row.intake_label || '—'
 }
 
 // The row's most urgent signal decides which pitch a nudge opens with (2026-09-11 build spec).

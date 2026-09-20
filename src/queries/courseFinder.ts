@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { track } from '@/lib/analytics'
+import { INTAKE_GROUPS, intakeMonthName } from '@/lib/intake'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 
@@ -25,7 +26,7 @@ export interface CourseFinderFilters {
   // courseFilterableFields in the mock server for each one's exact matching rule.
   provinceState?: string
   city?: string
-  /** 'first_half' | 'second_half'. */
+  /** A month name, or an `INTAKE_GROUPS` code for every month in one group (M9, 2026-09-19). */
   intake?: string
   /** 'full_time' | 'part_time'. */
   studyMode?: string
@@ -120,7 +121,19 @@ export function useCourseFinder(filters: CourseFinderFilters, hasFilters: boolea
       if (filters.fieldOfStudy?.length) filter.field_of_study = filters.fieldOfStudy.join(',')
       if (filters.provinceState) filter.province_state = filters.provinceState
       if (filters.city) filter.city = filters.city
-      if (filters.intake) filter.intake = filters.intake
+      // A MONTH, or every month in its group (assumptions audit M9, product owner 2026-09-19).
+      // `filter[intake]` names a month and is matched against the course's own intake months;
+      // a whole-group pick sends the group's anchor month plus `intake_any_in_group`, which is
+      // how "any month August–December" is expressed without inventing a second vocabulary.
+      if (filters.intake) {
+        const group = INTAKE_GROUPS.find((g) => g.code === filters.intake)
+        if (group) {
+          filter.intake = intakeMonthName(group.anchor)
+          filter.intake_any_in_group = 'true'
+        } else {
+          filter.intake = filters.intake
+        }
+      }
       if (filters.studyMode) filter.study_mode = filters.studyMode
       if (filters.delivery) filter.delivery = filters.delivery
       if (filters.language) filter.language = filters.language

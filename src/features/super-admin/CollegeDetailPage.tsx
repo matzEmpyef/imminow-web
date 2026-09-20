@@ -42,6 +42,8 @@ import { mediaUrl } from '@/lib/mediaUrl'
 type College = components['schemas']['College']
 type Campus = components['schemas']['Campus']
 type Course = components['schemas']['Course']
+/** One thing the server noticed about a course it just wrote (assumptions audit M39, 2026-09-19). */
+type CourseWarning = NonNullable<components['schemas']['CourseWriteResponse']['warnings']>[number]
 
 // The seven capture checks, as people read them (courseCompleteness returns keys). Same order and
 // same labels as the server's COURSE_CAPTURE_CHECKS — Description joined on 2026-09-13 (app
@@ -197,6 +199,23 @@ export function CourseFormModal({
   // entry requirements had anything in them. Unticked by default; publishing is a decision.
   // Editing an existing course still goes through its own active toggle on this page.
   const [visibleToStudents, setVisibleToStudents] = useState(false)
+  /**
+   * THINGS WORTH A SECOND LOOK, from the server (assumptions audit M39, product owner
+   * 2026-09-19).
+   *
+   * The write has already happened — a warning is never a refusal — so the modal stays open on
+   * them rather than closing over a toast nobody reads. Today the one check is fee currency
+   * against EVERY course at the college; the console used to sample the first 100 rows of a
+   * paginated list and warn on whatever it happened to have loaded.
+   */
+  const [warnings, setWarnings] = useState<CourseWarning[]>([])
+
+  function finish(saved: { warnings?: readonly CourseWarning[] } | undefined, message: string) {
+    showToast(message)
+    const list = [...(saved?.warnings ?? [])]
+    if (list.length > 0) setWarnings(list)
+    else onClose()
+  }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -204,10 +223,7 @@ export function CourseFormModal({
     const body = form.toPayload()
     if (isEditing) {
       updateCourse.mutate(body, {
-        onSuccess: () => {
-          showToast(`${form.name || 'Course'} saved`)
-          onClose()
-        },
+        onSuccess: (saved) => finish(saved, `${form.name || 'Course'} saved`),
       })
     } else {
       createCourse.mutate(
@@ -215,13 +231,37 @@ export function CourseFormModal({
         { ...body, college_id: college.id!, active: visibleToStudents },
         {
           onSuccess: (created) => {
-            showToast(`${form.name || 'Course'} created`)
             onCreated?.(created as Course)
-            onClose()
+            finish(created, `${form.name || 'Course'} created`)
           },
         },
       )
     }
+  }
+
+  if (warnings.length > 0) {
+    return (
+      <Modal
+        onClose={onClose}
+        title="Saved — worth a second look"
+        widthRem={30}
+        footer={<Button onClick={onClose}>Done</Button>}
+      >
+        <div className="flex flex-col gap-md">
+          <p className="text-body-sm text-text-secondary">
+            {form.name || 'This course'} is saved. The catalogue noticed {warnings.length === 1 ? 'this' : 'these'} —
+            nothing is blocked, and it may well be correct.
+          </p>
+          <ul className="flex flex-col gap-sm">
+            {warnings.map((w, i) => (
+              <li key={`${w.code}-${i}`} className="rounded-md border border-warning bg-warning/5 p-sm text-body-sm text-text-primary">
+                {w.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </Modal>
+    )
   }
 
   return (
@@ -271,8 +311,8 @@ export function CourseFormModal({
               tab === 'Basics'
                 ? !form.language
                   ? 'language of teaching'
-                  : !form.durationMonths
-                    ? 'length in months'
+                  : !form.durationValue
+                    ? 'the course length'
                     : // Description joined the checks on 2026-09-13 (app review H8) and lives in
                       // this tab's Details section.
                       !form.description.trim()
@@ -329,12 +369,7 @@ export function CourseFormModal({
             would throw away in-progress state in the other tabs. See CourseFormPanels.tsx. */}
         <CourseBasicsPanel hidden={form.activeTab !== 'Basics'} form={form} />
         <CourseCampusIntakesPanel hidden={form.activeTab !== 'Campuses & Intakes'} college={college} form={form} />
-        <CourseFeesPanel
-          hidden={form.activeTab !== 'Fees'}
-          form={form}
-          collegeId={college.id!}
-          excludeCourseId={editingCourse?.id}
-        />
+        <CourseFeesPanel hidden={form.activeTab !== 'Fees'} form={form} />
         <CourseRequirementsPanel
           hidden={form.activeTab !== 'Entry Requirements'}
           activeExams={activeExams}
@@ -581,8 +616,10 @@ export function CollegeDetailPage() {
     code ? (studyLevels.data?.find((l) => l.code === code)?.label ?? titleCase(code)) : null
   const facts = [
     record.institution_type ? titleCase(record.institution_type) : null,
-    record.qs_rank != null ? `QS #${record.qs_rank}` : null,
-    record.the_rank != null ? `THE #${record.the_rank}` : null,
+    // "QS 42 (2026)" — the rank with the year of the table it came from (assumptions audit M25,
+    // product owner 2026-09-19). Without it the figure reads as current forever.
+    record.qs_rank != null ? `QS #${record.qs_rank}${record.qs_rank_year ? ` (${record.qs_rank_year})` : ''}` : null,
+    record.the_rank != null ? `THE #${record.the_rank}${record.the_rank_year ? ` (${record.the_rank_year})` : ''}` : null,
     record.acceptance_rate != null ? `${record.acceptance_rate}% acceptance` : null,
   ].filter(Boolean)
   const partners = record.partner_consultancies ?? []

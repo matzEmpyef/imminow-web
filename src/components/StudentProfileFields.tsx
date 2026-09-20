@@ -19,9 +19,10 @@ import {
 } from 'lucide-react'
 import { labelFor } from '@/lib/humanise'
 import { formatScore } from '@/lib/scoreScheme'
-import { formatDate, formatIntake } from '@/lib/time'
+import { formatDate } from '@/lib/time'
+import { intakeLabelFor } from '@/lib/intake'
 import { formatMoney } from '@/lib/money'
-import { STUDY_LEVEL_LABELS } from '@/lib/studyLevels'
+import { EMPTY_LADDER, useLevelLadder, type LevelLadder } from '@/lib/studyLevels'
 import { genderLabel } from '@/lib/genders'
 import { CountryLabel, CountryLabelList } from './CountryLabel'
 import { IconBadge } from './IconBadge'
@@ -31,21 +32,13 @@ type StudentPreferences = components['schemas']['StudentPreferences']
 type IconColor = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
 
 // C1: funding_source is a closed wire enum (self/loan/scholarship_dependent) — labeled here rather
-// than shown raw. Study level labels live in @/lib/studyLevels, shared with the Lead Pool table.
+// than shown raw. Every EDUCATION LEVEL label now comes off the served ladder in
+// @/lib/studyLevels (assumptions audit M23, product owner 2026-09-19); the copy that used to sit
+// here was one of the four the audit counted.
 const FUNDING_SOURCE_LABELS: Record<string, string> = {
   self: 'Self-funded',
   loan: 'Loan',
   scholarship_dependent: 'Scholarship-dependent',
-}
-
-// `education_level` is server-derived from the education entries; shown only when there are no
-// entries to show instead.
-const EDUCATION_LEVEL_LABELS: Record<string, string> = {
-  tenth: '10th',
-  twelfth: '12th',
-  diploma: 'Diploma',
-  bachelors: "Bachelor's",
-  masters: "Master's",
 }
 
 const STUDY_MODE_LABELS: Record<string, string> = {
@@ -59,13 +52,14 @@ const STUDY_MODE_LABELS: Record<string, string> = {
 
 type Lines = ReactNode[] | null
 
-function educationLines(prefs: StudentPreferences | null | undefined): Lines {
+function educationLines(prefs: StudentPreferences | null | undefined, ladder: LevelLadder): Lines {
   const entries = prefs?.education
   if (entries && entries.length > 0) {
     return entries.map((e, i) => (
       <span key={i}>
-        {/* "12th", "Bachelor's" — not the stored codes "twelfth", "bachelors" (2026-09-10). */}
-        {labelFor(EDUCATION_LEVEL_LABELS, e.level)}
+        {/* "12th", "Bachelor's" — not the stored codes "twelfth", "bachelors" (2026-09-10). The
+            ladder resolves either spelling of a rung's code (assumptions audit M23). */}
+        {ladder.label(e.level)}
         {e.stream ? ` — ${e.stream}` : ''}
         {/* The SCHEME always prints beside the score (assumptions audit M38, product owner
             2026-09-19). Only `percentage` used to be marked, so "8.5" could be a CGPA out of 10
@@ -75,7 +69,7 @@ function educationLines(prefs: StudentPreferences | null | undefined): Lines {
       </span>
     ))
   }
-  return prefs?.education_level ? [labelFor(EDUCATION_LEVEL_LABELS, prefs.education_level)] : null
+  return prefs?.education_level ? [ladder.label(prefs.education_level)] : null
 }
 
 // `exam_status` is the server's per-exam summary ("ielts" -> "booked"). Detailed test_scores win
@@ -139,7 +133,7 @@ function institutionText(prefs: StudentPreferences | null | undefined): string |
   return city ? `${name}, ${city}` : name
 }
 
-// Target countries as plain flag + name text for the popup panels (user, 2026-09-10: "no need to
+// The destination as plain flag + name text for the popup panels (user, 2026-09-10: "no need to
 // show it in pill"), spaced apart rather than comma-separated — the flag already separates them,
 // and a comma after the label's own trailing space read as "Canada , Ireland". The plain list
 // keeps its chips.
@@ -154,17 +148,27 @@ function plainCountries(names: string[]): ReactNode {
 }
 
 /** Every profile fact, in display order, with the one icon and colour each one uses. */
-function profileFacts(prefs: StudentPreferences | null | undefined, { countryPills = true } = {}) {
-  // Keyed, because `lines` renders as a list and an element here (the target-countries label)
-  // would otherwise trip React's missing-key warning.
+function profileFacts(
+  prefs: StudentPreferences | null | undefined,
+  { countryPills = true, ladder = EMPTY_LADDER }: { countryPills?: boolean; ladder?: LevelLadder } = {},
+) {
+  // Keyed, because `lines` renders as a list and an element here (the destination label) would
+  // otherwise trip React's missing-key warning.
   const one = (v: ReactNode | null | undefined): Lines => (v == null || v === '' ? null : [<Fragment key="v">{v}</Fragment>])
+  // ONE destination (assumptions audit M8, product owner 2026-09-19). The array is DERIVED from
+  // the scalar and holds zero or one element, never more, so falling back to it is reading the
+  // same single answer — not the array position the audit caught. It is here because responses
+  // built from a lead's or a case's own stored preferences still carry only the array.
+  const destination = prefs?.target_country || prefs?.target_countries?.[0] || ''
   return {
     studyPlan: [
       {
+        // Labelled from the served ladder (assumptions audit M23, product owner 2026-09-19) — the
+        // hand-kept map this used to read had no `phd`, so a PhD student's level read `phd`.
         label: 'Study level',
         icon: <GraduationCap className="h-5 w-5" />,
         color: 'primary' as IconColor,
-        lines: one(prefs?.study_level ? (STUDY_LEVEL_LABELS[prefs.study_level] ?? prefs.study_level) : null),
+        lines: one(prefs?.study_level ? ladder.label(prefs.study_level) : null),
       },
       {
         // "Preferred" — it is what the student would like, not a mode anyone has fixed (2026-09-10).
@@ -174,10 +178,19 @@ function profileFacts(prefs: StudentPreferences | null | undefined, { countryPil
         lines: one(labelFor(STUDY_MODE_LABELS, prefs?.preferred_study_mode) || null),
       },
       {
-        label: 'Intended intake',
+        // A MONTH AND A YEAR, worded by the server (assumptions audit M9, product owner
+        // 2026-09-19). The `first_half`/`second_half` halves this used to render are gone from
+        // every response: a September start was filed as "second half" and therefore measured
+        // from 1 July. `intake_label` is read rather than re-worded here so the console and the
+        // app can never say the same intake two different ways.
+        label: 'Intake',
         icon: <CalendarDays className="h-5 w-5" />,
         color: 'info' as IconColor,
-        lines: one(prefs?.intended_intake ? formatIntake(prefs.intended_intake, prefs.intended_year) : null),
+        // The year alone is the fallback where a response carries `intended_year` but no
+        // `intake_label` — true, and built only from fields the contract still declares. The old
+        // half ("2nd half 2027") is deliberately NOT reconstructed: it is the wrong answer, which
+        // is why it was removed.
+        lines: one(prefs?.intake_label || intakeLabelFor({ month: null, year: prefs?.intended_year }) || null),
       },
       {
         label: 'Field(s) of interest',
@@ -186,14 +199,17 @@ function profileFacts(prefs: StudentPreferences | null | undefined, { countryPil
         lines: one(prefs?.fields_of_interest?.length ? prefs.fields_of_interest.join(', ') : null),
       },
       {
-        label: 'Target countries',
+        // ONE destination, singular (assumptions audit M8, product owner 2026-09-19). The array
+        // is still served for older builds but derives from this scalar, and reading `[0]` of it
+        // was array position standing in for a decision nobody made.
+        label: 'Destination',
         icon: <Globe className="h-5 w-5" />,
         color: 'secondary' as IconColor,
         lines: one(
-          prefs?.target_countries?.length
+          destination
             ? countryPills
-              ? <CountryLabelList names={prefs.target_countries} />
-              : plainCountries(prefs.target_countries)
+              ? <CountryLabelList names={[destination]} />
+              : plainCountries([destination])
             : null,
         ),
       },
@@ -221,7 +237,7 @@ function profileFacts(prefs: StudentPreferences | null | undefined, { countryPil
       },
     ],
     background: [
-      { label: 'Education', icon: <School className="h-5 w-5" />, color: 'primary' as IconColor, lines: educationLines(prefs) },
+      { label: 'Education', icon: <School className="h-5 w-5" />, color: 'primary' as IconColor, lines: educationLines(prefs, ladder) },
       { label: 'Test scores', icon: <FileCheck2 className="h-5 w-5" />, color: 'info' as IconColor, lines: testLines(prefs) },
       { label: 'Work experience', icon: <Briefcase className="h-5 w-5" />, color: 'warning' as IconColor, lines: workLines(prefs) },
       { label: 'Visa refusals', icon: <ShieldAlert className="h-5 w-5" />, color: 'error' as IconColor, lines: visaLines(prefs) },
@@ -245,6 +261,22 @@ function profileFacts(prefs: StudentPreferences | null | undefined, { countryPil
         icon: <Building2 className="h-5 w-5" />,
         color: 'primary' as IconColor,
         lines: one(institutionText(prefs)),
+      },
+      {
+        // THE EFFECTIVE currency, never the raw pick (assumptions audit M2, product owner
+        // 2026-09-19). `display_currency` is null until the student chooses one; what their
+        // money is actually priced in is their pick, else their residence's default, else USD —
+        // and that is `display_currency_effective`, derived per request so a residence change is
+        // in force on the next call. Shown here because a consultant quoting a fee needs to know
+        // which currency the student is reading it in.
+        //
+        // `derived` keeps it OUT of the completeness count: the bar measures what the student has
+        // filled in, and this value exists whether they have answered anything or not.
+        label: 'Sees money in',
+        icon: <Wallet className="h-5 w-5" />,
+        color: 'info' as IconColor,
+        derived: true,
+        lines: one(prefs?.display_currency_effective || null),
       },
     ],
   }
@@ -281,10 +313,12 @@ function ProfileRow({ label, lines }: { label: string; lines: Lines }) {
  *
  * EVERY field the profile carries (user, 2026-09-10: "I need all info in View study preference"),
  * grouped study plan, then background, then about the student. Settings that aren't about the
- * student (display currency, blog topics) are deliberately left out.
+ * student (blog topics) are deliberately left out; the currency they read money in is not one of
+ * those — a consultant quoting a fee needs it (assumptions audit M2, 2026-09-19).
  */
 export function StudentProfileFields({ prefs }: { prefs: StudentPreferences | null | undefined }) {
-  const facts = profileFacts(prefs)
+  const ladder = useLevelLadder()
+  const facts = profileFacts(prefs, { ladder })
   return (
     <dl className="flex flex-col gap-xs text-body-sm">
       {[...facts.studyPlan, ...facts.background, ...facts.about].map((f) => (
@@ -352,7 +386,8 @@ export function StudentProfilePanels({
    */
   note?: string
 }) {
-  const full = profileFacts(prefs, { countryPills: false })
+  const ladder = useLevelLadder()
+  const full = profileFacts(prefs, { countryPills: false, ladder })
   const keep = <T extends { label: string }>(list: T[]) => list.filter((f) => !omit.includes(f.label))
   const facts = { studyPlan: keep(full.studyPlan), background: keep(full.background), about: keep(full.about) }
   const studyPlan = [...extraStudyFacts, ...facts.studyPlan]
@@ -361,7 +396,11 @@ export function StudentProfilePanels({
   // not counted, or an applicant would read "of 16" against a lead's "of 15" for the same profile.
   // An omitted fact IS still counted (user, 2026-09-10): a page only omits a fact it already shows
   // elsewhere — Overview's contact card carries "Lives in" — so the profile is still 15 items there.
-  const all = [...full.studyPlan, ...full.background, ...full.about]
+  // A `derived` fact is shown but never counted (assumptions audit M2, 2026-09-19): the effective
+  // display currency is always present, so counting it would hand every profile a free point.
+  const all = [...full.studyPlan, ...full.background, ...full.about].filter(
+    (f) => !('derived' in f && f.derived),
+  )
   const added = all.filter((f) => f.lines).length
   const pct = Math.round((added / all.length) * 100)
 

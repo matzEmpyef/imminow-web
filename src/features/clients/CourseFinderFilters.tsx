@@ -11,11 +11,11 @@ import { CompactSelect } from '@/components/CompactSelect'
 import { useCourseFields, useCourseLevels, useCourseLanguages } from '@/queries/courseFinder'
 import { useCountries } from '@/queries/countries'
 import { useMyConsultancy } from '@/queries/consultancy'
-import { courseLevelLabel } from '@/lib/studyLevels'
+import { useLevelLadder } from '@/lib/studyLevels'
+import { INTAKE_GROUPS, intakeMonthName } from '@/lib/intake'
 import type { usePersonPicker } from '@/lib/usePersonPicker'
 import {
   DURATION_BUCKETS,
-  INTAKE_OPTIONS,
   STUDY_MODE_OPTIONS,
   DELIVERY_OPTIONS,
   type FinderState,
@@ -60,6 +60,9 @@ export function CourseFinderFilters({
   // 2026-09-19) — the label used to read "Max fee (INR)" before anyone knew it was INR, which is
   // the same guess the query itself was making.
   const ownCurrency = useMyConsultancy().data?.display_currency ?? ''
+  // Level LABELS come off the served ladder (assumptions audit M23, product owner 2026-09-19);
+  // the options themselves stay `GET /courses/levels`, which is the subset the catalogue holds.
+  const ladder = useLevelLadder()
   // A cap that arrived from a shared-search link is in the SENDER's currency and the label has to
   // say so, rather than relabelling their number with this consultancy's money (C5).
   const feeCurrency = state.feeCurrency || ownCurrency
@@ -119,7 +122,7 @@ export function CourseFinderFilters({
           <option value="">Any level</option>
           {(levels ?? []).map((level) => (
             <option key={level} value={level}>
-              {courseLevelLabel(level)}
+              {ladder.label(level)}
             </option>
           ))}
         </SelectField>
@@ -224,6 +227,11 @@ export function CourseFinderFilters({
               placeholder="Any"
             />
             <TextField label="City" value={state.city} onChange={(e) => onChange({ city: e.target.value })} placeholder="Any" />
+            {/* A MONTH, grouped Aug–Dec / Jan–Jul, with "any month in this group" as the first
+                row of each group (assumptions audit M9, product owner 2026-09-19). The two
+                half-year buckets this offered — "Jan – Jun" / "Jul – Dec" — are not values the
+                catalogue can match any more. Never "Fall"/"Spring": those are northern-hemisphere
+                words and an Australian February intake is not a "Spring" one. */}
             <SelectField
               id="cf-intake"
               label="Intake"
@@ -231,10 +239,15 @@ export function CourseFinderFilters({
               onChange={(e) => onChange({ intake: e.target.value })}
             >
               <option value="">Any intake</option>
-              {Object.entries(INTAKE_OPTIONS).map(([key, label]) => (
-                <option key={key} value={key}>
-                  {label}
-                </option>
+              {INTAKE_GROUPS.map((group) => (
+                <optgroup key={group.code} label={group.label}>
+                  <option value={group.code}>Any month in {group.label}</option>
+                  {group.months.map((month) => (
+                    <option key={month} value={intakeMonthName(month)}>
+                      {intakeMonthName(month)}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </SelectField>
             <SelectField

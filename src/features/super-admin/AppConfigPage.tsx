@@ -6,7 +6,7 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { Modal } from '@/components/Modal'
 import { useAppConfig, useUpdateAppConfig } from '@/queries/appConfig'
-import { FeaturedConsultanciesCard, FeaturedInstitutesCard } from './FeaturedAccountsCard'
+import { FeaturedConsultanciesCard, FeaturedInstitutesCard, FeaturedJobsCard } from './FeaturedAccountsCard'
 import type { components } from '@/api/schema'
 import { showToast } from '@/lib/toast'
 
@@ -276,6 +276,9 @@ export function AppConfigPage() {
         <VersionAndRatingCard />
         <FeaturedInstitutesCard />
         <FeaturedConsultanciesCard />
+        {/* Beside the other two hand-picked rails (product owner, 2026-09-20) — the same kind of
+            merchandising decision about the student app, so the same control and the same place. */}
+        <FeaturedJobsCard />
       </div>
     </AdminShell>
   )

@@ -3110,7 +3110,9 @@ export interface paths {
                          * @enum {string}
                          */
                         preferred_contact_mode?: "call" | "email";
-                        /** @description The student is asking to be moved to a different consultancy. Raises a consultancy_change row on the Applicant Allocation queue carrying this complaint's id. Ignored for an aspirant, who has no consultancy to leave — their complaint is still recorded normally. */
+                        /** @description Which consultancy this is about, from `GET /complaints/consultancies` (assumptions audit M6, product owner 2026-09-19). Refused 422 when it is not one of the student's own cases, current or past. Required whenever the student has worked with more than one; a student with exactly one has it filled in for them, and one with none (an aspirant) sends nothing. */
+                        consultancy_id?: components["schemas"]["UUID"] | null;
+                        /** @description The student is asking to be moved to a different consultancy. Raises a consultancy_change row on the Applicant Allocation queue carrying this complaint's id, against the consultancy named above. Ignored for an aspirant, who has no consultancy to leave — their complaint is still recorded normally. */
                         request_consultancy_change?: boolean;
                     };
                 };
@@ -3127,6 +3129,57 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/complaints/consultancies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Which consultancies this student can complain about
+         * @description The picker behind "Which consultancy is this about?" (assumptions audit M6, product owner 2026-09-19) — every consultancy the student has ever had a case with, newest first, current and past. A student between cases still has past ones to complain about, which is exactly when a complaint is most likely.
+         *     Its own route rather than a field on `GET /complaints`: the form needs the list before there is a complaint to read, and a student with no complaints yet still needs it. Students only — 403 for anyone else.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                consultancy_id: components["schemas"]["UUID"];
+                                consultancy_name: string;
+                                journey_id: components["schemas"]["UUID"];
+                                /** @description The case is still open — the app labels it "Current". */
+                                is_current: boolean;
+                                /** Format: date-time */
+                                closed_at?: string | null;
+                            }[];
+                        };
+                    };
+                };
+                default: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4435,7 +4488,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Map several waiting students onto one institution (platform staff) */
+        /**
+         * Map several waiting students onto one institution (platform staff)
+         * @description A WEAK MATCH HAS TO BE CONFIRMED (assumptions audit M5, product owner 2026-09-19). One shared word and the same city clears the suggestion floor, and this action then maps every student who typed that string to the same school in one click, with no undo. When the best score this institution reaches against anything in the batch is under 60, the call is refused **409 `confirm_required`** with a plain-language message naming the school and how many students it would move; sending it again with `confirm: true` goes ahead and the audit row records that a weak match was confirmed.
+         *     The mapping can now be undone — `DELETE /institutions/suggestions/{user_id}` puts a student back in the queue with what they originally typed.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -4449,6 +4506,11 @@ export interface paths {
                         user_ids: string[];
                         /** Format: uuid */
                         institution_id: string;
+                        /**
+                         * @description Required (`true`) when the best match score is under 60 — see the 409 below. Ignored when the match is already confident.
+                         * @default false
+                         */
+                        confirm?: boolean;
                     };
                 };
             };
@@ -4461,8 +4523,17 @@ export interface paths {
                     content: {
                         "application/json": {
                             mapped?: number;
+                            /** @description The best score this institution reached against the batch. */
+                            score?: number;
                         };
                     };
+                };
+                /** @description `confirm_required` — the typed text is not a close match for the chosen institution (score under 60). `details` carries `score`, `student_count` and `institution_name`. Send again with `confirm: true` to go ahead. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
                 };
                 default: components["responses"]["ErrorResponse"];
             };
@@ -4562,6 +4633,56 @@ export interface paths {
             };
         };
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/institutions/suggestions/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Undo a mapping — put the student back in the queue (platform staff)
+         * @description UNDO (assumptions audit M5, product owner 2026-09-19). Until this existed a resolve — and especially a BULK resolve — was final: the typed text was cleared in the same move that set the institution, so a wrong mapping could only be corrected by asking every student to type their school again.
+         *     Clears `institution_id` and restores `institution_raw` / `institution_raw_city` from what the student originally typed, so they reappear in `GET /institutions/suggestions`. A student who PICKED their school from the type-ahead has no typed text to restore, so unmapping them simply leaves the field empty — the honest result. 404 when the student is not mapped to an institution at all.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    user_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @description Why it was unmapped; recorded on the audit row. */
+                        note?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StudentPreferences"];
+                    };
+                };
+                default: components["responses"]["ErrorResponse"];
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -5892,7 +6013,7 @@ export interface paths {
                     "filter[country]"?: string;
                     /** @description Home's curated Top Institutes rail (INSTITUTE_ACCOUNT_PLAN D15, 2026-09-10). Returns the institutes named by `PlatformSettings.featured_institutes`, IN THAT ORDER — the stored order is the whole content of the decision, so this answer is not sorted or paginated and ignores `sort`. The section looks like Top Consultancies but is selected differently: that one is algorithmic (`sort=-rating` narrowed by target countries), this one is hand-picked by the platform. An EMPTY result is the normal state, not an edge case — there are no institutes at launch — and clients MUST hide the whole section rather than render a half-empty rail. */
                     "filter[featured]"?: boolean;
-                    /** @description Home's Top Consultancies personalization (user-requested 2026-08-21; ranking rule 2026-09-15 — "if there are 3 consultancies and only 1 matches the target destination, still show 3"). When true, RANKS consultancies serving ANY of the caller's own StudentPreferences.target_countries ahead of all others; nothing is removed. Each group keeps the requested sort, so with sort=-rating the matching consultancies come first by rating, then the rest by rating. No effect when the caller has no target countries. */
+                    /** @description Home's Top Consultancies personalization (user-requested 2026-08-21; ranking rule 2026-09-15 — "if there are 3 consultancies and only 1 matches the target destination, still show 3"). When true, RANKS consultancies serving the caller's own StudentPreferences.target_country ahead of all others; nothing is removed. Each group keeps the requested sort, so with sort=-rating the matching consultancies come first by rating, then the rest by rating. No effect when the caller has no destination set. */
                     "filter[preferred]"?: boolean;
                 };
                 header?: never;
@@ -7053,7 +7174,11 @@ export interface paths {
                         "application/json": components["schemas"]["LeadMessage"];
                     };
                 };
-                /** @description lead_not_allocated (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
+                /**
+                 * @description `lead_not_allocated` (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused.
+                 *
+                 *     `duplicate_share` (product owner, 2026-09-19) — the sender's OWN immediately previous message in this conversation is the same kind of share with the same payload: the same course id, the same college id, the same shortlist snapshot, or the same search filters once normalised. The message reads "You just shared this — it's already in the conversation." Any message in between, from either side, resets it; text messages are never refused.
+                 */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -7643,7 +7768,11 @@ export interface paths {
                         "application/json": components["schemas"]["LeadMessage"];
                     };
                 };
-                /** @description lead_not_allocated (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
+                /**
+                 * @description `lead_not_allocated` (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused.
+                 *
+                 *     `duplicate_share` (product owner, 2026-09-19) — the sender's OWN immediately previous message in this conversation is the same kind of share with the same payload: the same course id, the same college id, the same shortlist snapshot, or the same search filters once normalised. The message reads "You just shared this — it's already in the conversation." Any message in between, from either side, resets it; text messages are never refused.
+                 */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -7694,7 +7823,11 @@ export interface paths {
                         "application/json": components["schemas"]["LeadMessage"];
                     };
                 };
-                /** @description lead_not_allocated (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
+                /**
+                 * @description `lead_not_allocated` (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused.
+                 *
+                 *     `duplicate_share` (product owner, 2026-09-19) — the sender's OWN immediately previous message in this conversation is the same kind of share with the same payload: the same course id, the same college id, the same shortlist snapshot, or the same search filters once normalised. The message reads "You just shared this — it's already in the conversation." Any message in between, from either side, resets it; text messages are never refused.
+                 */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -7738,6 +7871,17 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["LeadMessage"];
                     };
+                };
+                /**
+                 * @description `duplicate_share` (product owner, 2026-09-19) — the sender's OWN immediately previous message in this conversation is the same kind of share with the same payload: the same course id, the same college id, the same shortlist snapshot, or the same search filters once normalised. The message reads "You just shared this — it's already in the conversation."
+                 *
+                 *     It applies to BOTH senders and to all four share types. Any message in between, from either side, resets it. TEXT messages are never refused — a person repeating themselves in words is a person insisting, and the server has no business deciding they did not mean it.
+                 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
                 };
             };
         };
@@ -7790,7 +7934,11 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description lead_not_allocated (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
+                /**
+                 * @description `lead_not_allocated` (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused.
+                 *
+                 *     `duplicate_share` (product owner, 2026-09-19) — the sender's OWN immediately previous message in this conversation is the same kind of share with the same payload: the same course id, the same college id, the same shortlist snapshot, or the same search filters once normalised. The message reads "You just shared this — it's already in the conversation." Any message in between, from either side, resets it; text messages are never refused.
+                 */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -7843,6 +7991,17 @@ export interface paths {
                 };
                 /** @description Client or college not found */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /**
+                 * @description `duplicate_share` (product owner, 2026-09-19) — the sender's OWN immediately previous message in this conversation is the same kind of share with the same payload: the same course id, the same college id, the same shortlist snapshot, or the same search filters once normalised. The message reads "You just shared this — it's already in the conversation."
+                 *
+                 *     It applies to BOTH senders and to all four share types. Any message in between, from either side, resets it. TEXT messages are never refused — a person repeating themselves in words is a person insisting, and the server has no business deciding they did not mean it.
+                 */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -7906,7 +8065,11 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description lead_not_allocated (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
+                /**
+                 * @description `lead_not_allocated` (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused.
+                 *
+                 *     `duplicate_share` (product owner, 2026-09-19) — the sender's OWN immediately previous message in this conversation is the same kind of share with the same payload: the same course id, the same college id, the same shortlist snapshot, or the same search filters once normalised. The message reads "You just shared this — it's already in the conversation." Any message in between, from either side, resets it; text messages are never refused.
+                 */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -8046,7 +8209,11 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description The journey is paused while Sentpo reviews it */
+                /**
+                 * @description The journey is paused while Sentpo reviews it.
+                 *
+                 *     `duplicate_share` (product owner, 2026-09-19) — the sender's OWN immediately previous message in this conversation is the same kind of share with the same payload: the same course id, the same college id, the same shortlist snapshot, or the same search filters once normalised. The message reads "You just shared this — it's already in the conversation." Any message in between, from either side, resets it; text messages are never refused.
+                 */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -8104,7 +8271,11 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description lead_not_allocated (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
+                /**
+                 * @description `lead_not_allocated` (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused.
+                 *
+                 *     `duplicate_share` (product owner, 2026-09-19) — the sender's OWN immediately previous message in this conversation is the same kind of share with the same payload: the same course id, the same college id, the same shortlist snapshot, or the same search filters once normalised. The message reads "You just shared this — it's already in the conversation." Any message in between, from either side, resets it; text messages are never refused.
+                 */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -8157,6 +8328,13 @@ export interface paths {
                 };
                 /** @description Client or course not found */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description `duplicate_share` (product owner, 2026-09-19) — the sender's OWN immediately previous message in this conversation is the same kind of share with the same payload. The message reads "You just shared this — it's already in the conversation." Any message in between, from either side, resets it; text messages are never refused. */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -8216,7 +8394,11 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description lead_not_allocated (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
+                /**
+                 * @description `lead_not_allocated` (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused.
+                 *
+                 *     `duplicate_share` (product owner, 2026-09-19) — the sender's OWN immediately previous message in this conversation is the same kind of share with the same payload: the same course id, the same college id, the same shortlist snapshot, or the same search filters once normalised. The message reads "You just shared this — it's already in the conversation." Any message in between, from either side, resets it; text messages are never refused.
+                 */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -8324,7 +8506,11 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description lead_not_allocated (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
+                /**
+                 * @description `lead_not_allocated` (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused.
+                 *
+                 *     `duplicate_share` (product owner, 2026-09-19) — the sender's OWN immediately previous message in this conversation is the same kind of share with the same payload: the same course id, the same college id, the same shortlist snapshot, or the same search filters once normalised. The message reads "You just shared this — it's already in the conversation." Any message in between, from either side, resets it; text messages are never refused.
+                 */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -9276,8 +9462,16 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Search courses directly (Course Suggestions' catalog browser, build reference 2.2; Colleges & Courses admin's per-college Courses table, build reference 1.23; and Sentpo Mobile Wave 5's Study Abroad / Study in [Home Country] Search Results, which are this endpoint's primary student-facing caller) — /colleges nests campuses but not courses, so both a flat course browser and a college detail view need this endpoint. Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, college_name, level, fee and duration. search and filter[field_of_study] also match a field's alternate names from GET /fields-of-study ("CS" finds Computer Science, 2026-09-11); POST/PATCH /courses store the field's name and refuse a field not on that list (422). filter[active] is the course's own switch ("true"/"false"); filter[health] is "needs_details" or "complete" against the five capture checks (2026-09-11). search matches name, college_name, and field_of_study. filter[college_id] narrows to one college's courses (Colleges & Courses admin) — note that for a `kind=institute` caller the college is FORCE-APPLIED server-side from the account's own `college_id` before this or any other filter runs (INSTITUTE_ACCOUNT_PLAN D7, 2026-09-10), so filter[college_id] can only narrow further and never widens the scope; an institute not yet linked to a college sees no courses at all. The same scope applies to GET /courses/{id} (404 outside it), /courses/fields, /courses/fee-range, /courses/{id}/consultancies, POST /courses/{id}/suggest-correction, POST /leads/{id}/suggest-course and POST /clients/{id}/applications. filter[country] matches any of the course's linked campuses; filter[level] matches the course's own level directly; filter[province_state] matches any of the course's linked campuses' province_state — build reference 1.11's full "country, campus province/state, study level, field of study, course" search filter set.
-         *     filter[field_of_study] (multi-value since user decision 2026-08-30, same comma-separated idiom as filter[country]) matches a course whose field_of_study is ANY of the listed values — the union, since a course only ever carries one field_of_study. A single value is simply a one-element list, so existing single-value callers are unaffected. Backs the Field of Study choosers on both immiNow's Course Finder (a multi-select) and Sentpo Mobile's Search Root (the student's field of interest, preselected; one field at a time since 2026-09-15) — both fed by GET /courses/fields' full catalog list rather than a hardcoded subset. filter[intake] is "first_half"|"second_half" (added 2026-08-19, user request 17) — the half expands to its six month names and matches any of the course's intake months; Sentpo Mobile defaults it from the student's own intended_intake preference. filter[visible] is "true"/"false", same computed active-AND-parent-college-active meaning as Course.visible — Sentpo Mobile's own search screens always pass filter[visible]=true explicitly (this endpoint doesn't filter out inactive/hidden courses by default, same reasoning as Wave 3's GET /consultancies fix — Colleges & Courses admin needs to see hidden courses too).
+         * Search courses directly (Course Suggestions' catalog browser, build reference 2.2; Colleges & Courses admin's per-college Courses table, build reference 1.23; and Sentpo Mobile Wave 5's Study Abroad / Study in [Home Country] Search Results, which are this endpoint's primary student-facing caller) — /colleges nests campuses but not courses, so both a flat course browser and a college detail view need this endpoint. Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, college_name, level, fee and duration. search and filter[field_of_study] also match a field's alternate names from GET /fields-of-study ("CS" finds Computer Science, 2026-09-11); POST/PATCH /courses store the field's name and refuse a field not on that list (422). filter[active] is the course's own switch ("true"/"false"); filter[health] is "needs_details" or "complete" against the five capture checks (2026-09-11).
+         *
+         *     SEARCH IS RELEVANCE-RANKED (assumptions audit M22, product owner 2026-09-19, approved trimmed). `search` matches name, college_name and field_of_study as before, but the results now come back in four tiers — exact name match, then name prefix, then field of study, then college name — with the existing A–Z sort as the tie-break inside each. It was a substring match sorted A–Z, so "Advanced Diploma in Applied Computing" outranked "MSc Computer Science" for the query "computer" on the strength of the letter A. The ranking applies ONLY when a text query is present; with no keyword every row ties and the caller's own `sort` decides everything, exactly as before.
+         *
+         *     AN UNKNOWN filter KEY IS IGNORED — it does not error and it does not drop rows. This is deliberate and was re-confirmed on 2026-09-19 (assumptions audit M22) — a 400 would break every app build in the field the moment the server retires a filter. What a caller gets instead is the filter named in `left_out` when a search is SHARED into chat, so the card says what did not travel rather than quietly showing a wider result. filter[college_id] narrows to one college's courses (Colleges & Courses admin) — note that for a `kind=institute` caller the college is FORCE-APPLIED server-side from the account's own `college_id` before this or any other filter runs (INSTITUTE_ACCOUNT_PLAN D7, 2026-09-10), so filter[college_id] can only narrow further and never widens the scope; an institute not yet linked to a college sees no courses at all. The same scope applies to GET /courses/{id} (404 outside it), /courses/fields, /courses/fee-range, /courses/{id}/consultancies, POST /courses/{id}/suggest-correction, POST /leads/{id}/suggest-course and POST /clients/{id}/applications. filter[country] matches any of the course's linked campuses; filter[level] matches the course's own level directly; filter[province_state] matches any of the course's linked campuses' province_state — build reference 1.11's full "country, campus province/state, study level, field of study, course" search filter set.
+         *     filter[field_of_study] (multi-value since user decision 2026-08-30, same comma-separated idiom as filter[country]) matches a course whose field_of_study is ANY of the listed values — the union, since a course only ever carries one field_of_study. A single value is simply a one-element list, so existing single-value callers are unaffected. Backs the Field of Study choosers on both immiNow's Course Finder (a multi-select) and Sentpo Mobile's Search Root (the student's field of interest, preselected; one field at a time since 2026-09-15) — both fed by GET /courses/fields' full catalog list rather than a hardcoded subset. filter[intake] NAMES A MONTH (assumptions audit M9, product owner 2026-09-19) — a month name ("September") or a number 1–12, matched against the course's own `intakes`. filter[intake_any_in_group]="true" widens it to every month in that month's group, Aug–Dec or Jan–Jul; the group codes `aug_dec` / `jan_jul` are also accepted directly as the value. Sentpo Mobile defaults both from the student's own `intake` preference.
+         *
+         *     It took "first_half"|"second_half" before — calendar halves beginning 1 January and 1 July, so a September start was filtered as though it began on 1 July. Those two values are still accepted and map to the group each half became, because app builds already in students' hands send them. A value that names no month at all matches nothing, rather than widening the search to everything.
+         *
+         *     filter[level] MATCHES BY RANK, not by string (assumptions audit M23, 2026-09-19) — the value resolves to a rung on `GET /study-levels` — by `code`, by `entry_qualification_code` or by `label`, case-insensitively — and every course at a rung with the SAME `rank` matches. Two rungs may share a rank, which is how a new rung can be added beside an existing one without splitting every search that names its neighbour. A value that resolves to no rung falls back to the old exact-string compare. filter[visible] is "true"/"false", same computed active-AND-parent-college-active meaning as Course.visible — Sentpo Mobile's own search screens always pass filter[visible]=true explicitly (this endpoint doesn't filter out inactive/hidden courses by default, same reasoning as Wave 3's GET /consultancies fix — Colleges & Courses admin needs to see hidden courses too).
          *     Courses-module filters (COURSES_MODULE_PLAN.md §3.1, 2026-08-21) — filter[country] accepts a comma-separated list (multi-country was single before); filter[fee_max] / filter[fee_min] compare against fee_normalized_inr (INR); filter[study_mode], filter[delivery], filter[language] exact-match; filter[coop], filter[psw], filter[scholarship], filter[app_fee_waived] are "true" flags; filter[open_now]="true" keeps courses with at least one intake whose deadline is today or later and status open; filter[duration_max_months] / filter[duration_min_months] numeric (the min counterpart added 2026-08-31, same pairing convention as fee_min/fee_max, to back Sentpo Mobile's and immiNow Course Finder's duration-range filter chips); filter[city] matches linked campuses' city. sort= additionally accepts fee (normalized INR asc), duration (duration_months asc), and intake (earliest upcoming open intake first). Missing data NEVER excludes — a course without fee_normalized_inr passes fee filters, one without duration_months passes duration filters — filters narrow on known facts, they don't punish catalog gaps (plan §0.2).
          *     filter[fee_currency] (2026-08-22) names the currency filter[fee_max] / filter[fee_min] are expressed in, defaulting to INR for older callers. The server converts each course's fee into that currency before comparing, so the app never multiplies by a rate itself — that would be business logic on the client, and would drift the moment a rate changed. It is not a filter in its own right and narrows nothing on its own.
          *     Since 2026-09-10 a course priced in a DIFFERENT currency from the bound is compared with a 5% margin (fee_max widened up, fee_min widened down), because the exchange-rate table is set by hand rather than live; a course priced in the bound's own currency is compared exactly. A course whose fee cannot be converted passes, like any missing data.
@@ -9352,7 +9546,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Course"];
+                        "application/json": components["schemas"]["CourseWriteResponse"];
                     };
                 };
                 409: components["responses"]["ErrorResponse"];
@@ -9416,7 +9610,7 @@ export interface paths {
         /**
          * Trending Courses — the curated rail on Stage 1 Home (user, 2026-09-16)
          * @description A short list of courses Sentpo staff pick and order by hand in immiNow (Catalog → Trending Courses). "Trending" is the student-facing name; the list is curated, not computed from view counts — see `POST /admin/trending-courses`.
-         *     **The order is decided here, never by the client.** Courses whose `field_of_study` matches the caller's own field of interest come first, then the rest, each group keeping the admin's order. A student who has set no field, or whose field matches nothing in the list, gets the admin's order exactly. The app renders this array top to bottom and adds no sorting of its own — two clients sorting the same list is how two students compare screens and see different things.
+         *     **The order is decided here, never by the client.** Courses whose `field_of_study` matches ANY of the caller's fields of interest come first, then the rest, each group keeping the admin's order. Any, not the first one on the list (assumptions audit M20, product owner 2026-09-19): one field is the rule since 2026-09-15, but a row saved before that still carries two, and the second was being silently ignored while this description promised otherwise. A student who has set no field, or whose field matches nothing in the list, gets the admin's order exactly. The app renders this array top to bottom and adds no sorting of its own — two clients sorting the same list is how two students compare screens and see different things.
          *     Courses that have gone away are dropped rather than returned as dead cards: anything inactive, or whose college is hidden, disappears from the rail on its own, with no admin action needed.
          */
         get: {
@@ -9659,6 +9853,7 @@ export interface paths {
          * @description The range the Sentpo app's fee slider spans, expressed in the caller's `display_currency` (Phase D, 2026-08-22).
          *     It replaces a hardcoded fifty-lakh-rupee ceiling in the app, which is a meaningful number to an Indian student and gibberish to a German one — and which the client cannot convert itself without doing currency arithmetic. Derived from the CATALOG (the most expensive visible course) rather than a constant, so the track always spans real courses and the priciest one is always reachable rather than sitting past the end of the slider.
          *     `max_amount` is rounded UP to `step` so the top of the track reads as a round number. Falls back to INR for a caller with no display currency. Staff may call it; they simply get the INR view.
+         *     `step` IS 1% OF THE MAXIMUM, rounded to a readable number — 1, 2 or 5 times a power of ten (assumptions audit M26, product owner 2026-09-19). It was three fixed thresholds, which gave an IDR slider tens of thousands of ticks a thumb cannot land on and, on a catalogue with nothing priced, a 1,000 step over a 1,000 ceiling — a slider whose only position excluded everything. 1% is roughly 100 ticks whatever the currency.
          */
         get: {
             parameters: {
@@ -9756,7 +9951,14 @@ export interface paths {
                         description?: string;
                         level?: string;
                         field_of_study?: string;
-                        duration?: string;
+                        /** @description The course length as a number (assumptions audit M24, 2026-09-19). A free-text `duration` in the body is IGNORED — the label is derived from this. */
+                        duration_months?: number | null;
+                        /**
+                         * @description The unit `duration_months` was entered in; years are stored as months.
+                         * @default months
+                         * @enum {string}
+                         */
+                        duration_unit?: "months" | "years";
                         fee?: components["schemas"]["Money"] | null;
                         benefits?: string;
                         eligibility?: string;
@@ -9775,7 +9977,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Course"];
+                        "application/json": components["schemas"]["CourseWriteResponse"];
                     };
                 };
                 409: components["responses"]["ErrorResponse"];
@@ -11503,7 +11705,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The student's own locker. Returns their documents AND the catalog, because this screen is a checklist and a checklist needs its unticked rows. */
+        /**
+         * The student's own locker. Returns their documents AND the catalog, because this screen is a checklist and a checklist needs its unticked rows.
+         *
+         *     `types` is the platform-wide list PLUS the student's ACTIVE CASE's consultancy's own types (assumptions audit M42, product owner 2026-09-19). It asked for the global list only, so a consultancy's private document type — the very thing they will chase the student for — never appeared in the student's checklist. A student with no case gets the global list, which is all there is.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -14832,12 +15038,20 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Listings — category/location/job_type filters (FR-054). Also `filter[active]=true` (Sentpo Mobile Wave 2, Home's Top Jobs & Internships — live listings only, computed server-side from `active`/`active_from`/`active_to`) + `limit`; both optional, so JobsAdminPage's own unfiltered admin call is unaffected. Since 2026-08-18 this endpoint honours the standard `search`/`sort`/`cursor` trio and returns a real `next_cursor` — `search` matches title, company, category, location and skills, and the default sort is `-posted_at`. Sentpo Mobile's Jobs list is an infinite scroll built on that cursor; filtering is server-side because a client must never pull hundreds of listings just to filter them locally. */
+        /**
+         * Listings — category/location/job_type filters (FR-054). Also `filter[active]=true` (Sentpo Mobile Wave 2, Home's Top Jobs & Internships — live listings only, computed server-side from `active`/`active_from`/`active_to`) + `limit`; both optional, so JobsAdminPage's own unfiltered admin call is unaffected. Since 2026-08-18 this endpoint honours the standard `search`/`sort`/`cursor` trio and returns a real `next_cursor` — `search` matches title, company, category, location and skills, and the default sort is `-posted_at`. Sentpo Mobile's Jobs list is an infinite scroll built on that cursor; filtering is server-side because a client must never pull hundreds of listings just to filter them locally.
+         *
+         *     FEATURED FIRST (product owner, 2026-09-20). On the student's plain live list — `filter[active]=true` and nothing else, no search, no sort, no cursor — the jobs named by `PlatformSettings.featured_jobs` are lifted to the front IN THE ADMIN'S ORDER and are never repeated further down. `meta` is unchanged — the same listings come back, in a different order.
+         *
+         *     The lift applies only to that one unqualified ask, deliberately. The moment a student searches, ticks a facet or chooses a sort, the list is an answer to THEIR question, and promoting three unrelated jobs into it would be a worse answer rather than a more valuable one.
+         */
         get: {
             parameters: {
                 query?: {
                     /** @description Admin list — live, scheduled, expired, off; comma-separated = any of. */
                     "filter[status]"?: string;
+                    /** @description `true` returns ONLY the featured jobs, in the admin's order, with no pagination (`next_cursor` null) — the same idiom `GET /consultancies?filter[featured]=true` uses for Home's rails. Any other value is refused 400. A featured job outside its own active window is left out here too, so the set is always openable. */
+                    "filter[featured]"?: boolean;
                     /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
                     cursor?: components["parameters"]["CursorParam"];
                     /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
@@ -15231,6 +15445,10 @@ export interface paths {
                 query?: {
                     /** @description Blog staff only — published (default), hidden, or all. Anyone else always gets published articles. */
                     "filter[status]"?: "published" | "hidden" | "all";
+                    /** @description `published` or `-published` (2026-09-20 — accepted since this list moved onto the shared pagination helper, but undeclared until now). Newest first is the default and is what every student-facing caller wants; the Blog admin sorts the other way to find the oldest cached copy. Any other value falls back to the default rather than erroring. */
+                    sort?: "published" | "-published";
+                    /** @description Matches the article TITLE (2026-09-20 — accepted since this list moved onto the shared pagination helper, but undeclared until now). Deliberately not the body: the cached `content` is not carried on list rows, so searching it here would find articles this response cannot show a reason for. */
+                    search?: string;
                     /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
                     cursor?: components["parameters"]["CursorParam"];
                     /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
@@ -20298,7 +20516,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description Erased accounts are left out unless true (review M9, 2026-09-12). */
+                    /** @description Erased accounts are left out unless true (review M9, 2026-09-12). Detected by `erased_at`, the stamp erasure writes since 2026-09-19 (assumptions audit M17, product owner) — it used to be an email regex against `@deleted.example`, so a phone-only account, which erasure leaves with no email at all, stayed in the list among live students, and any real address ending that way would have been hidden. */
                     include_erased?: boolean;
                     /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
                     cursor?: components["parameters"]["CursorParam"];
@@ -20898,8 +21116,17 @@ export interface components {
             code: string;
             /** @description What people see. Editable, because wording changes and meaning does not. */
             label: string;
-            /** @description Display order. Explicit because the ladder is not alphabetical — bachelors before masters before phd is the only order that reads as a ladder. */
+            /** @description Display order. Explicit because the ladder is not alphabetical — bachelors before masters before phd is the only order that reads as a ladder. Always distinct; it answers "where does this appear in the picker", which `rank` below does not. */
             sort_order?: number;
+            /**
+             * @description The rung's LEVEL OF EDUCATION, and what `GET /courses?filter[level]` compares (assumptions audit M23, product owner 2026-09-19). Seeded from `sort_order` so the existing ladder keeps exactly the order it had.
+             *     Two rungs may deliberately SHARE a rank. That is how "Advanced Diploma" can be added beside "Diploma" without splitting every Diploma search in two — which an exact-string level filter could not avoid, and which is why adding a level used to fragment search. A PhD rung also finally ranks above Master's instead of −1.
+             */
+            rank?: number;
+            /** @description THE SAME RUNG'S CODE IN THE EDUCATION VOCABULARY (assumptions audit M23, 2026-09-19). A student's education rows and a course's `requirements.academic.entry_qualification` speak `tenth`/`twelfth`; this table speaks `10th`/`12th`. Two spellings of one ladder is what let the console keep four hand-maintained copies of it, one of them missing `phd` entirely. Rather than migrate every stored row on one day, the table carries the other spelling — so every ladder a client renders is built from this one list. */
+            readonly entry_qualification_code?: string;
+            /** @description Whether a course may require this rung as its minimum qualification. `phd` became one on 2026-09-19 (M23): a PhD programme could not state a Master's-and-above entry requirement before, because the rung did not exist in that list. */
+            readonly entry_qualification?: boolean;
             /**
              * @description Retired rungs stay in the table so historical rows still resolve to a label; they simply stop being offered. There is no delete: see `DELETE` absence on `/study-levels/{code}`.
              * @default true
@@ -20907,6 +21134,45 @@ export interface components {
             active: boolean;
             /** @description How many visible courses currently teach at this rung. The Sentpo app pre-fills its course-search level filter from the student's own target level; this is what keeps that pre-fill from opening the screen on a guaranteed-empty result. A student aiming at `12th` has said something true about themselves, but if the catalogue holds nothing at `12th`, seeding it would show them zero courses and no reason why. The client cannot compute this — it would need the whole catalogue — so the server says it. */
             readonly course_count?: number;
+        };
+        /** @description A course as written, plus anything the server noticed about it (assumptions audit M39, product owner 2026-09-19). Returned by `POST /courses` and `PATCH /courses/{id}`. */
+        CourseWriteResponse: components["schemas"]["Course"] & {
+            /**
+             * @description Things worth a second look, never a refusal — the write already happened.
+             *     Today the one check is fee currency — CHECKED SERVER-SIDE, over every course at the college (assumptions audit M39, product owner 2026-09-19). The console was sampling the first 100 sibling courses of a paginated list and warning on whatever it happened to have loaded, so past row 100 it warned about the wrong thing or not at all. Never a block- a college that genuinely prices one programme in another currency is a real case, and the admin is the one who can tell the difference.
+             */
+            readonly warnings?: {
+                /** @enum {string} */
+                code: "fee_currency_differs";
+                /** @description The field the warning is about, e.g. `fee.currency`. */
+                field?: string | null;
+                /** @description Plain language, for the admin filling the form. */
+                message: string;
+            }[];
+        };
+        /**
+         * @description WHEN A STUDENT WANTS TO START: a month, a year, and whether any month in that month's GROUP would do (assumptions audit M9, product owner 2026-09-19).
+         *     The two groups are **Aug–Dec** and **Jan–Jul** — the spans the admissions year actually splits into for the destinations served. They exist so the picker can offer "any month in this group" as one tap. They are NEVER called "Fall" or "Spring" (product owner): those are northern-hemisphere marketing words, and an Australian February intake is not a "Spring" one.
+         */
+        Intake: {
+            /** @description The month the student named, 1–12. Null when they have given a year only. Outside 1–12 is refused 422. */
+            month: number | null;
+            /** @description The calendar year. Bounded to this year through this year + 10 — a student may plan several intakes ahead, but 1850 is a typo, not a plan. Outside that is refused 422. */
+            year: number | null;
+            /**
+             * @description True when any month in `month`'s group will do — the picker's whole-group tap, which sends the group's first month as the anchor. **Requires a `month`**: "any month in this group" with no month cannot say which group, and is refused 422 rather than quietly stored as no month at all.
+             * @default false
+             */
+            any_in_group: boolean;
+            /** @description The month's English name, matching the month names `Course.intakes` stores. */
+            readonly month_name?: string | null;
+            /**
+             * @description Derived from `month` — which half of the admissions year it falls in.
+             * @enum {string|null}
+             */
+            readonly group?: "aug_dec" | "jan_jul" | null;
+            /** @description "August–December" / "January–July". */
+            readonly group_label?: string | null;
         };
         /** @description FR-022 — the flexible, none-mandatory preference pool. */
         StudentPreferences: {
@@ -20942,15 +21208,28 @@ export interface components {
              */
             resident_country?: string | null;
             /**
-             * @description ISO-4217 code the student sees money in (fees, budget, the "≈" companion figure). DERIVED server-side from `resident_country` and re-derived on every residence change, unless the student has explicitly chosen a currency from the fee section of the search Filters drawer — deliberately not a Profile row (user, 2026-08-22: "i don't want too much thin[g]s in profile"). Stored server-side rather than on-device so it follows the student across devices.
-             *     The derived-vs-chosen distinction is carried by `display_currency_explicit`, not inferred from this value: a code alone cannot say who picked it. Deriving only into a blank would strand a student who moves — India → Germany would keep showing INR they never asked for.
-             *     Falls back to USD when the resident country has no mapped currency, and display degrades to the native fee alone when no exchange rate exists for it — an approximate figure is only ever shown when there is a real rate behind it.
+             * @description ISO-4217 code the student has CHOSEN to see money in — and nothing else (assumptions audit M1/M2, product owner 2026-09-19). Null until they pick one, which is what lets the app ask the question exactly once instead of never: the server used to stamp a residence-derived value here on the first save that carried a country, so every student already had a currency on file and none of them had chosen it.
+             *     Sent by any picker; the one that sets it also sets `display_currency_explicit`. Sending `null` hands the question back and the value goes derived again. Stored server-side rather than on-device so it follows the student across devices.
+             *     What to RENDER is `display_currency_effective` below, never this field.
              */
             display_currency?: string | null;
-            /** @description True once the student has picked `display_currency` themselves (2026-08-22), which pins it: a later change of residence re-derives the currency only while this is false. Set server-side whenever a request carries `display_currency`; clients never send this field, and it is never cleared by a residence edit. Absent/false means the currency is a default that should keep following where the student lives. */
-            display_currency_explicit?: boolean;
-            /** @description The ONE country the student wants to study in (2026-09-15). More than one is refused 422; an empty list clears it. Students saved with several keep the first. */
-            target_countries?: string[];
+            /**
+             * @description The currency this student's money is actually priced in (assumptions audit M1, 2026-09-19): their own pick, else their `resident_country`'s default from the Countries list, else null. Derived per request, never stored — so a residence change, or an admin editing a country's default currency, is in force on the very next call.
+             *     A country the currency map does not cover falls back to **USD** (product owner's recorded decision; the code fell back to INR until 2026-09-19, so a student in Vietnam or Chile read every fee on the platform in rupees). Null — no pick and no residence — means "show the native amount alone", never a silent INR.
+             */
+            readonly display_currency_effective?: string | null;
+            /** @description True once the student has picked `display_currency` themselves, which pins it: while it is false the effective currency keeps following where they live (assumptions audit M2, 2026-09-19 — it was documented as "the search Filters drawer set it", so a currency picked anywhere else was overwritten by the next unrelated save). Set server-side by ANY request carrying `display_currency`, and cleared by one carrying `display_currency: null`. Clients never send this field. */
+            readonly display_currency_explicit?: boolean;
+            /**
+             * @description The ONE country the student wants to study in (assumptions audit M8, product owner 2026-09-19). A scalar, because it is one answer: the dashboard's "New students by destination", Supply & Demand and the allocation picker all used to read `target_countries[0]` and call it a first choice, which is array position standing in for a decision nobody made.
+             *     Writing more than one destination is refused **422 `Pick one destination country`**.
+             */
+            target_country?: string | null;
+            /**
+             * @description DERIVED from `target_country` — zero or one element, never more (assumptions audit M8, 2026-09-19). Kept in responses so app and console builds that still read the array keep working while they are updated; read `target_country` in new code.
+             *     A request carrying this array is still accepted and folded into the scalar (older app builds are in the field); more than one element is refused 422.
+             */
+            readonly target_countries?: string[];
             /** @description The student's ONE field of interest (2026-09-15) — a field's `name` from GET /courses/fields. More than one is refused 422; an empty list clears it. */
             fields_of_interest?: string[];
             /** @description Blog tags the student follows — `blog_category_mappings.app_tag` values, picked in Profile from the same admin-managed list that drives the Blog filter chips (added 2026-08-19). This is what Home's "Topics You Picked" section filters by; until it existed, no per-student topic subscription did, so every student permanently sat in the spec's "no preference set" fallback and the section's name promised a choice nobody could make. Distinct from `fields_of_interest`, which is a study-field taxonomy (Computer Science, Business…), not editorial topics. */
@@ -20961,16 +21240,27 @@ export interface components {
              */
             readonly blog_topics_chosen?: boolean;
             /**
-             * @description Which half of `intended_year` the student is aiming for — `first_half` is January–June, `second_half` is July–December. **A closed enum since 2026-08-19; it was free text before**, which made it unusable for anything but display — a student typed "Fall 2027" and nothing could filter, match or segment on it.
-             *
-             *     Deliberately halves rather than a specific month (user, 2026-08-19 — "I don't think the student will know which month they will able to go"). An aspirant browsing options genuinely doesn't know September from January yet, and asking for precision they don't have yields a guess, not data. Halves still join to the catalog cleanly — expand to the six member months and intersect with `courses.intakes`, which stores month names. The split also separates the two dominant intakes — January falls in `first_half`, September in `second_half`.
-             *
-             *     Stored as the slug, never a display label like "Jan – Jun" — the client renders the range against the chosen year, so wording can change without touching stored data.
-             * @enum {string|null}
+             * @description When the student wants to start (assumptions audit M9, product owner 2026-09-19).
+             *     **Replaces `intended_intake`**, the `first_half`/`second_half` calendar halves that began 1 January and 1 July. Those were wrong twice over: a September start was filed as "second half" and therefore measured from 1 July, three months early, and six-month calendar blocks match no admissions cycle anyone on this platform runs. The halves no longer appear in any response.
+             *     A request may still send `intended_intake` + `intended_year` — app builds already in students' hands do — and they are folded into this shape: `first_half` becomes the **Jan–Jul** group anchored on January, `second_half` the **Aug–Dec** group anchored on August, both with `any_in_group: true`. Writing the intake deletes the old fields from the row for good.
              */
-            intended_intake?: "first_half" | "second_half" | null;
-            /** @description Calendar year the intake falls in, paired with `intended_intake`. **No Sentpo Mobile screen wrote this before 2026-08-19** — the column existed and fixtures set it, but Profile offered a single free-text box bound only to `intended_intake`, so a student typing "Fall 2027" put the year inside the string and left this untouched. */
-            intended_year?: number | null;
+            intake?: components["schemas"]["Intake"] | null;
+            /** @description The intake in words, decided server-side so the app and the console can never word it differently: "September 2027", or "Any month August–December 2027". */
+            readonly intake_label?: string | null;
+            /**
+             * Format: date-time
+             * @description WHEN the student set this intake, stamped only when the answer changes (assumptions audit M9/M10, 2026-09-19). It is what the "Intake set, no consultancy yet" service queue measures its 90 days from — that queue's label said intake while its code measured from sign-up. Rows that predate the stamp were backfilled from the account's creation date, the only evidence there was.
+             */
+            readonly intake_set_at?: string | null;
+            /** @description DERIVED from `intake.year` (assumptions audit M9, 2026-09-19), kept because the console's client and lead panels still read a bare year. A request carrying it is accepted and folded into `intake.year`. */
+            readonly intended_year?: number | null;
+            /**
+             * @description How many times the student has dismissed each deferrable prompt, keyed by the prompt's own key (assumptions audit M28, product owner 2026-09-19). The app kept these on the DEVICE: two siblings sharing a phone meant the second was never asked, and the same student on a new phone was asked from zero. A dismissal is something a PERSON did, so it belongs to their account — the same reasoning as `POST /preferences/prompt-seen`.
+             *     PATCHable, and **merged rather than replaced**: send only the prompt just dismissed. A value that is not a whole number of 0 or more is refused 422. Always present in a response, `{}` when nothing has been dismissed.
+             */
+            prompt_dismissals?: {
+                [key: string]: number;
+            };
             /** @description SERVER-DERIVED from test_scores since 2026-08-19 (exam name → its most advanced attempt status) — kept because profile completion and quiz targeting already read it. Clients send test_scores; anything sent here is ignored. */
             readonly exam_status?: {
                 [key: string]: unknown;
@@ -21514,7 +21804,7 @@ export interface components {
             active?: boolean;
             freelancer_enabled?: boolean;
         };
-        /** @description One active consultancy, as a destination for one queue row (2026-09-11). Institutes are never listed. Rows that can take the applicant come first, then those serving the applicant's target countries, then lighter workload. POST .../allocate accepts exactly the rows with `blocked_reason: null`. */
+        /** @description One active consultancy, as a destination for one queue row (2026-09-11). Institutes are never listed. Rows that can take the applicant come first, then those serving the applicant's target country, then the lightest workload PER SEAT. POST .../allocate accepts exactly the rows with `blocked_reason: null`. */
         AllocationCandidate: {
             consultancy_id: components["schemas"]["UUID"];
             name: string;
@@ -21523,13 +21813,15 @@ export interface components {
             /** @description The applicant's target countries this consultancy serves. */
             serves_countries: string[];
             active_applicants: number;
+            /** @description Open cases divided by `seat_limit`, and what the ranking reads (assumptions audit M12, product owner 2026-09-19). Raw `active_applicants` made a two-person agency with 4 cases look lighter than a twenty-person firm with 15 — it measured the size of the business, not how busy its people are. Null when no seats are recorded, which sorts last rather than dividing by zero. */
+            readonly active_applicants_per_seat?: number | null;
             seats_used: number;
             seat_limit: number;
             /**
-             * @description Why this consultancy cannot take the applicant; null when it can.
+             * @description Why this consultancy cannot take the applicant; null when it can. `seat_limit_reached` (assumptions audit M12, 2026-09-19) is an account with no seat left to hire the consultant who would serve this student — `POST /consultancies/{id}/invites` already refuses that hire, so allocating to them was allocating into a queue nobody could be assigned to.
              * @enum {string|null}
              */
-            blocked_reason: "current_consultancy" | "no_active_staff" | "subscription_lapsed" | "freelancer_disabled" | null;
+            blocked_reason: "current_consultancy" | "no_active_staff" | "subscription_lapsed" | "freelancer_disabled" | "seat_limit_reached" | null;
         };
         /** @description Applicant Allocation queue (build reference 1.19, 1.23) — a read model over erd.md's `applicant_allocation_queue`, joined with the applicant's name for display, plus the referenced journey's own contact/case fields (email, phone, case_type) — needed so `POST .../allocate` (below) has enough to create the real client record once a consultancy is chosen, without a second round-trip back to the journey. */
         ApplicantAllocationEntry: {
@@ -21563,7 +21855,9 @@ export interface components {
             readonly dispute_id?: components["schemas"]["UUID"] | null;
             /** @description The student's own account. Allocation opens the new case on it. */
             readonly student_user_id?: components["schemas"]["UUID"] | null;
-            /** @description From the student's own preferences; empty when they have set none. */
+            /** @description The ONE destination from the student's own preferences (assumptions audit M8, product owner 2026-09-19); null when they have set none. */
+            readonly target_country?: string | null;
+            /** @description Derived from `target_country` — zero or one element. Kept so the console's existing renderer keeps working; read the scalar in new code (assumptions audit M8). */
             readonly target_countries?: string[];
             readonly fields_of_interest?: string[];
             readonly study_level?: string | null;
@@ -21572,13 +21866,19 @@ export interface components {
             /** @description Who the student is with today, i.e. who they are asking to leave. */
             readonly current_consultancy_name?: string | null;
         };
-        /** @description One work queue that needs the platform team (2026-09-10, user: "anything that needs platform team attention will be alerted — they should be able to identify"). `link` is the console page where the queue is worked. */
+        /**
+         * @description One work queue that needs the platform team (2026-09-10, user: "anything that needs platform team attention will be alerted — they should be able to identify").
+         *     The server owns BOTH the count and where it opens (assumptions audit M35, product owner 2026-09-19). The console used to keep its own map of "a count linked to a filter the author believes matches", and it drifted: "Courses missing entry requirements: 12" opened a college filter listing 40 colleges. The count and its destination are one decision, made where the count is computed. The page renders `link` and `open_count` and derives neither.
+         */
         AttentionItem: {
             key: string;
             label: string;
+            /** @description How many rows are in the queue. */
             count: number;
+            /** @description What the sidebar counter and the card both read (assumptions audit M35, 2026-09-19). Equal to `count`, except on a `low` queue where it is always 0 — a queue that may legitimately never reach zero must not drive a badge that then never clears. */
+            readonly open_count: number;
             hint?: string | null;
-            /** @description Console route where this queue is worked. */
+            /** @description The PRE-FILTERED console route for this queue — path and query — so the page it opens lists exactly the rows that were counted (assumptions audit M35, 2026-09-19). */
             link: string;
             /**
              * @description `urgent` for queues where a person is blocked or money or access is at stake (disputes, complaints, lapsed subscriptions, payments to confirm, applicants waiting); `normal` otherwise. `low` (2026-09-18) is a queue that may legitimately never reach zero — it is listed on Needs attention but left out of `open_count`, so it never drives the sidebar counter.
@@ -21874,7 +22174,9 @@ export interface components {
         /**
          * @description Only present when LeadMessage.type = search_share (2026-09-14). A course search shared in chat — by a student from Search Results, or by consultancy staff from Course Finder. The card opens the other side's own search screen with `filters`. Only filters both screens can apply are kept; the rest are named in `left_out` so the card can say what did not come across. Built entirely server-side at send time.
          *
-         *     Since 2026-09-18 nearly everything travels — every country (not just the first), province or state, city, intake half, study mode, delivery, language, and the scholarship / co-op / post-study-work / fee-waived / open-now flags — because Course Finder gained the same facets the app has. `left_out` is now usually empty.
+         *     Since 2026-09-18 nearly everything travels — every country (not just the first), province or state, city, the intake month AND its "any month in this group" modifier, study mode, delivery, language, and the scholarship / co-op / post-study-work / fee-waived / open-now flags — because Course Finder gained the same facets the app has. `left_out` is now usually empty.
+         *
+         *     COURSE LENGTH TRAVELS EXACTLY (assumptions audit LOW · shared search, product owner 2026-09-19). `duration_min_months` / `duration_max_months` carry the real numbers, and the bucket label ("1–2 years") is only how the card DESCRIBES them. A range outside the four buckets used to be dropped and named under "Course length", so "18–30 months" arrived as no length filter at all; it now arrives intact and is described as "18–30 months".
          */
         SharedSearch: {
             /** @description GET /courses `filter[...]` keys, as strings — country (comma-separated), level, field_of_study (comma-separated), fee_max with fee_currency, duration_min_months, duration_max_months, province_state, city, intake, study_mode, delivery, language, and the boolean flags scholarship / coop / psw / app_fee_waived / open_now (present only when true) — plus `search`, a keyword that only ever travels to Course Finder. A fee sent to a consultancy is converted into the consultancy's own currency. */
@@ -21887,7 +22189,11 @@ export interface components {
             match_count: number;
             /** @description How many matched the search the SENDER was looking at, before anything in `left_out` was removed (2026-09-18). Equal to `match_count` whenever everything travelled; when they differ the card can say so, instead of showing a bare "0 matched" under a search that did find courses. */
             sender_match_count: number;
-            /** @description Human-readable names of filters the sender had set that could not be carried across. */
+            /**
+             * @description Human-readable names of filters the sender had set that could not be carried across, so the card can say "Not carried over: …" rather than quietly showing a wider search.
+             *     EVERY unrecognised key is named here (console live check, 2026-09-20). A key the route has no entry for used to be dropped without a word — `accreditation=aacsb` simply vanished, and once it is gone the card cannot say it is gone. A key with no friendly label is named from the key itself ("Accreditation").
+             *     Two kinds of key are deliberately absent, because neither is a filter the sender chose: the app's own housekeeping (`visible`, `country_not`, `college_id`, `active`, `health`, `fee_min`), and the keys this route converts rather than drops (country, level, field of study, the fee bound, the course-length range and the keyword) — those appear here only when their own conversion fails.
+             */
             left_out: string[];
         };
         /** @description The queryable side-record of a `visit_request` chat message (2026-08-24) — Support Tools' cross-consultancy list reads this, not the per-conversation message stores, since a platform admin has no reason to scan every lead/client's chat on the platform to find these. One row per request, created alongside its chat message and never mutated afterward (no status field — see `responded` below for why one wasn't needed). */
@@ -22039,10 +22345,14 @@ export interface components {
                 name: string;
             }[];
             qs_rank?: number | null;
+            /** @description The year of the QS table this rank is from (assumptions audit M25, product owner 2026-09-19). **Required whenever `qs_rank` is given** — 400 otherwise. A rank is a snapshot of one year's table; without the year "QS 42" reads as current forever and nobody can tell a 2019 figure from this morning's. The app renders "QS 42 (2026)". */
+            qs_rank_year?: number | null;
             the_rank?: number | null;
+            /** @description As `qs_rank_year`, for the THE table. Required whenever `the_rank` is given. */
+            the_rank_year?: number | null;
             /** @enum {string|null} */
             institution_type?: "university" | "college" | "institute" | null;
-            /** @description Institution-level published fact (0–100), shown as college info — NEVER presented as a personal admission probability (COURSES_MODULE_PLAN.md §0.3/§9). */
+            /** @description Institution-level published fact, a PERCENTAGE — NEVER presented as a personal admission probability (COURSES_MODULE_PLAN.md §0.3/§9). **Validated 0–100 since 2026-09-19** (assumptions audit M25): "85" typed for 8.5 was stored verbatim and shown as an 85% acceptance rate at a school that takes fewer than one in ten. */
             acceptance_rate?: number | null;
         };
         CollegeInput: {
@@ -22050,12 +22360,21 @@ export interface components {
             logo_url?: string | null;
             website?: string | null;
             qs_rank?: number | null;
+            /** @description Required whenever `qs_rank` is given — 400 otherwise (assumptions audit M25). */
+            qs_rank_year?: number | null;
             the_rank?: number | null;
+            /** @description Required whenever `the_rank` is given — 400 otherwise (assumptions audit M25). */
+            the_rank_year?: number | null;
             /** @enum {string|null} */
             institution_type?: "university" | "college" | "institute" | null;
+            /** @description A percentage; outside 0–100 is refused 400 (assumptions audit M25). */
             acceptance_rate?: number | null;
             description?: string;
-            active?: boolean;
+            /**
+             * @description DRAFT BY DEFAULT on create (assumptions audit LOW · Create college/course, product owner 2026-09-19) — a college used to be live to students before anyone had entered a campus, a logo or a single programme. `PATCH { active: true }` publishes it, and that is also what announces it to consultancies.
+             * @default false
+             */
+            active: boolean;
         };
         /** @description What switching a college or course off would touch (2026-09-11), shown in the confirm before it happens. Nothing here is cancelled by the switch — applications in progress carry on. */
         DeactivationImpact: {
@@ -22228,6 +22547,12 @@ export interface components {
             };
             /** @description The platform admin's pick for Home's Top Consultancies rail (owner, 2026-09-19: "home page is a prime real estate… the top 3 should be platform admin's choice"). Ordered, up to three, `kind: consultancy` only. The app labels the section "Featured", shows the featured ones that serve the student's destination first, then fills any empty slot with the ordinary ranking (rating → response time → rotation). Discovery's full list is never affected — the honest ranking stays one tap away. */
             featured_consultancies?: components["schemas"]["UUID"][];
+            /**
+             * @description The platform admin's pick for the top of the Jobs list (product owner, 2026-09-20: "platform admin should be able to select few jobs as featured jobs, it should appear in Job list view first card space"). Ordered, up to three — the same number as the two rails above, and for the same reason: a "featured" band that fills the screen is not a feature, it is the list in a different order.
+             *     Every id is VALIDATED AGAINST THE LISTING'S WINDOW when it is picked, not only against existence: a job that is switched off, not started, or past its end date would be promoted to the first card and then open on nothing, so it is refused 400 at the moment of picking, where an admin can still do something about it.
+             *     The reverse is deliberately NOT enforced. A job that LATER leaves its window simply stops appearing as featured and this setting is left alone, so a campaign that pauses over a weekend comes back by itself rather than needing to be re-picked.
+             */
+            featured_jobs?: components["schemas"]["UUID"][];
             /** @description The ordered, hand-picked institutes on Sentpo Home's Top Institutes rail (INSTITUTE_ACCOUNT_PLAN D15, 2026-09-10) — a merchandising decision about the student app rather than a property of any one account, which is why it lives here beside the other platform-wide levers. Order is the ranking; up to three, matching the sibling Top Consultancies section. Validated on write, not filtered on read: an id that is not a `kind: institute` account, a duplicate, or a fourth entry is refused 400, so a Super Admin is never left looking at a saved selection the app quietly declines to show. Empty by default — read it with `GET /consultancies?filter[featured]=true`, and hide the section when that is empty. */
             featured_institutes?: components["schemas"]["UUID"][];
         };
@@ -22296,7 +22621,11 @@ export interface components {
             /** @description The level this course teaches at — a `StudyLevel.code` from `GET /study-levels`, the same table `StudentPreferences.study_level` draws from, because search matches one against the other. Free text until 2026-09-07, when immiNow's plain text box (with the placeholder "e.g. masters") was found able to store `Masters`, `MSc` or `PG` while the student-side filter offered a hardcoded, title-cased four. */
             level?: string;
             field_of_study?: string;
-            duration?: string;
+            /**
+             * @description The course length in words, DERIVED from `duration_months` (assumptions audit M24, product owner 2026-09-19). "2 years" for a whole number of years, "18 months" otherwise.
+             *     Free text until that date, and independent of `duration_months`: "18 months" typed here with the number left null passed every duration filter and sorted last, and "2 years" beside a stored 18 displayed one thing and filtered another. **A `duration` in a request body is ignored**, and the stale text on rows written earlier is cleared on their first edit.
+             */
+            readonly duration?: string;
             fee?: components["schemas"]["Money"];
             benefits?: string;
             eligibility?: string;
@@ -22355,7 +22684,7 @@ export interface components {
             scholarship_note?: string | null;
             /** @description Per intake month — application deadline + open/closed, plus `updated_at` (when a PERSON last set it). Powers "applications open now" filtering, earliest-intake sort, and closing-soon badges. */
             intake_deadlines?: components["schemas"]["IntakeDeadline"][];
-            /** @description Normalized for filtering/sorting; `duration` stays the display string. */
+            /** @description THE course length, and the only one stored (assumptions audit M24, 2026-09-19). Every filter, sort and label reads it; `duration` above is derived from it. A form that collects years sends `duration_unit: years` and the server stores the months. */
             duration_months?: number | null;
             /** @enum {string|null} */
             study_mode?: "full_time" | "part_time" | null;
@@ -22403,6 +22732,11 @@ export interface components {
             intake_note?: string | null;
             rules?: {
                 label: string;
+                /**
+                 * @description WHICH PROFILE SECTION ANSWERS THIS RULE (assumptions audit M27, product owner 2026-09-19). The app's "Add …" links used to pick a section by substring-matching the rule's LABEL, and only ever looked at the first one — so renaming a rule sent the student to Exams, and a second gap was never routed anywhere. The server names the section; the app routes on it and derives nothing. Academic score and backlogs are `education`, English and aptitude exams are `exams`, work experience is `work`.
+                 * @enum {string}
+                 */
+                section: "education" | "exams" | "work";
                 requirement?: string | null;
                 yours?: string | null;
                 /**
@@ -22491,7 +22825,11 @@ export interface components {
             /** @description The level this course teaches at — a `StudyLevel.code` from `GET /study-levels`, the same table `StudentPreferences.study_level` draws from, because search matches one against the other. Free text until 2026-09-07, when immiNow's plain text box (with the placeholder "e.g. masters") was found able to store `Masters`, `MSc` or `PG` while the student-side filter offered a hardcoded, title-cased four. */
             level?: string;
             field_of_study?: string;
-            duration?: string;
+            /**
+             * @description The course length in words, DERIVED from `duration_months` (assumptions audit M24, product owner 2026-09-19). "2 years" for a whole number of years, "18 months" otherwise.
+             *     Free text until that date, and independent of `duration_months`: "18 months" typed here with the number left null passed every duration filter and sorted last, and "2 years" beside a stored 18 displayed one thing and filtered another. **A `duration` in a request body is ignored**, and the stale text on rows written earlier is cleared on their first edit.
+             */
+            readonly duration?: string;
             fee?: components["schemas"]["Money"] | null;
             benefits?: string;
             eligibility?: string;
@@ -22504,7 +22842,11 @@ export interface components {
             course_url?: string | null;
             language?: string;
             campus_ids?: components["schemas"]["UUID"][];
-            active?: boolean;
+            /**
+             * @description DRAFT BY DEFAULT on create (assumptions audit LOW · Create college/course, product owner 2026-09-19). A new course used to go live to students the moment it was created — before its fee, requirements or intakes had anything in them — so the capture meter was measuring rows students could already see and act on. Publishing is now an explicit `active: true`, on create or on a later PATCH.
+             * @default false
+             */
+            active: boolean;
             /** @enum {string|null} */
             fee_period?: "per_year" | "total" | null;
             application_fee?: components["schemas"]["Money"] | null;
@@ -22512,7 +22854,14 @@ export interface components {
             scholarship_available?: boolean;
             scholarship_note?: string | null;
             intake_deadlines?: components["schemas"]["IntakeDeadline"][];
+            /** @description The course length as a NUMBER, with `duration_unit` beside it (assumptions audit M24, 2026-09-19). Stored as months whichever unit is sent. */
             duration_months?: number | null;
+            /**
+             * @description The unit `duration_months` was entered in (assumptions audit M24, 2026-09-19). Years are multiplied by 12 and stored as months — one number is the fact, and the free-text label is derived from it. Omitted means months.
+             * @default months
+             * @enum {string}
+             */
+            duration_unit: "months" | "years";
             /** @enum {string|null} */
             study_mode?: "full_time" | "part_time" | null;
             /** @enum {string|null} */
@@ -22568,9 +22917,10 @@ export interface components {
             consultancy_id?: components["schemas"]["UUID"];
             /**
              * @description How this person came to the platform: A = Sentpo direct, B = consultancy-sourced (Create Applicant, or a consultancy's own imported lead converted), C = freelancer referral. Stamped when the case is created and never changes; a consultancy switch keeps the original channel. Recorded by the server since 2026-09-10 (every case read as A before; older cases are derived the same way).
-             * @enum {string}
+             *     NULL means unknown (assumptions audit M17, product owner 2026-09-19). An unstamped case whose student account is gone used to be derived as B — "no account row" read as proof a consultancy created it — so a student exercising their right to be forgotten silently rewrote how they had been acquired, months later, on a chart used to judge which channel is working. Unknown is the honest answer, and it is counted in no channel rather than in the wrong one.
+             * @enum {string|null}
              */
-            acquisition_source: "A" | "B" | "C";
+            acquisition_source: "A" | "B" | "C" | null;
             /**
              * @description 1 = exploring (or awaiting a match), 2 = the case, 3 = post-arrival (2026-09-14): a case closed as a success stays the student's case as `closed_completed` — the same Home without the plan card or the consultancy chat, both of which ended with the case. The one-time review is offered there. POST /journeys/me/explore-again leaves Stage 3 for Stage 1 by the student's own choice. Vendor chat for post-arrival services is later work; Stage 3 carries nothing of its own yet.
              * @enum {integer}
@@ -23005,9 +23355,15 @@ export interface components {
             email?: string;
             phone?: string | null;
             profile_completion_percent?: number;
-            /** @enum {string|null} */
-            intended_intake?: "first_half" | "second_half" | null;
-            intended_year?: number | null;
+            /** @description The student's intake, month + year (assumptions audit M9, 2026-09-19). Replaces the `intended_intake` half this row used to carry. */
+            intake?: components["schemas"]["Intake"] | null;
+            /** @description "September 2027" / "Any month August–December 2027". */
+            intake_label?: string | null;
+            /**
+             * Format: date-time
+             * @description When the student set it. The "Intake set, no consultancy yet" signal counts its 90 days from HERE, not from sign-up (assumptions audit M10, product owner 2026-09-19) — the queue's own label said intake while its code measured from the account's creation, so a student who signed up two years ago and named an intake yesterday appeared as a two-year-old failure to serve.
+             */
+            intake_set_at?: string | null;
             /**
              * Format: uuid
              * @description The student's open case, when they have one.
@@ -23137,7 +23493,10 @@ export interface components {
             /** Format: date-time */
             resolved_at?: string | null;
         };
-        /** @description What a consultancy may ask a student for (2026-09-09). TWO TIERS on purpose: "we will include every possible document" is a promise nobody can keep — documents are country × visa-type × college × year specific and change when a government changes its rules on a Tuesday. A platform-global type (`consultancy_id` null) is the shared vocabulary every consultancy draws on; a private one belongs to the consultancy that created it, is invisible to students and to other consultancies, and exists so a consultancy blocked on a visa deadline is never waiting on a platform callback. */
+        /**
+         * @description What a consultancy may ask a student for (2026-09-09). TWO TIERS on purpose: "we will include every possible document" is a promise nobody can keep — documents are country × visa-type × college × year specific and change when a government changes its rules on a Tuesday. A platform-global type (`consultancy_id` null) is the shared vocabulary every consultancy draws on; a private one belongs to the consultancy that created it, is invisible to other consultancies, and exists so a consultancy blocked on a visa deadline is never waiting on a platform callback.
+         *     A private type IS shown to the students that consultancy is working with — on their own locker checklist, through `GET /me/documents` (assumptions audit M42, product owner 2026-09-19). It used to be hidden from them too, so the document a consultancy would actually chase them for never appeared on the list of what they might be asked for. A student with no case sees the platform-global list only, and no student ever sees another consultancy's private types.
+         */
         DocumentType: {
             id: components["schemas"]["UUID"];
             /** @description Null means platform-global. Set means private to that consultancy. */
@@ -23436,7 +23795,11 @@ export interface components {
         };
         /** @description A dispute/problem report raised by a student from the Sentpo app (user-approved 2026-08-20 — "We also want an option to report complain to Admin Team from Sentpo app, incase there is any dispute from the app. Do not make it so prominent"). Entry point is deliberately low-key (a "Report a problem" row inside Privacy & Data Controls). Lands in the Platform Admin Complaints queue (support permission) and pings the admin in-app feed. The consultancy being complained about never sees it. */
         Complaint: {
-            readonly consultancy_id?: components["schemas"]["UUID"] | null;
+            /**
+             * @description WHICH CONSULTANCY THIS IS ABOUT — chosen by the STUDENT (assumptions audit M6, product owner 2026-09-19). It used to be derived from their CURRENT case, falling back to a completed one, so a complaint about a consultancy they had LEFT was filed against the one they are with now — and a consultancy-change request moved them away from the wrong agency.
+             *     Sent on create, validated against the student's own cases current or past (`GET /complaints/consultancies`): anything else is refused **422**. A student who has worked with more than one and sends none is refused 422 as well — it is a question to ask, not one the server may answer for them. Stored on the complaint itself, so a case closing or being reassigned never rewrites who it was about.
+             */
+            consultancy_id?: components["schemas"]["UUID"] | null;
             /** @description The student's current phone, from their profile. Support queue only. */
             readonly phone?: string | null;
             /** @description Who on the support team picked this up (2026-09-11). Support queue only — omitted for the student. */
@@ -23831,6 +24194,8 @@ export interface components {
              * @enum {string}
              */
             readonly status?: "live" | "scheduled" | "expired" | "off";
+            /** @description This listing is one of `PlatformSettings.featured_jobs` and is inside its own active window (product owner, 2026-09-20). Present on EVERY row, not only the featured ones, so a card renders its badge from the row it already has rather than cross-referencing a separate list. A picked job that has left its window reads `false` here and drops out of the featured ordering, with the setting untouched. */
+            readonly featured?: boolean;
             id: components["schemas"]["UUID"];
             title: string;
             company: string;
@@ -23947,8 +24312,13 @@ export interface components {
             wp_category_id?: number;
             /** @description The category name as it stands in WordPress. Informational — shown to the admin so they can see what they're mapping from. */
             wp_category: string;
-            /** @description Stable slug used in `filter[tag]` on `GET /blog`. Changing it invalidates saved client-side filter selections, so prefer editing `label`. */
-            app_tag: string;
+            /**
+             * @description Stable slug used in `filter[tag]` on `GET /blog`, and the value students' followed topics are stored as. Changing it invalidates saved client-side filter selections and orphans everyone following the old one, so prefer editing `label`.
+             *     **The ADMIN sets it, on activation (assumptions audit M4, product owner 2026-09-19.)** Null on an auto-discovered row until they do. It used to be taken from the WordPress slug, which meant renaming a category on the marketing site minted a NEW tag and every student following the old one silently stopped matching anything. Nothing on the website rewrites it any more.
+             */
+            app_tag?: string | null;
+            /** @description What the website would have called this tag — the WordPress slug (assumptions audit M4, 2026-09-19). A SUGGESTION the activation form pre-fills, never the stored answer, and never re-applied on a later rename. */
+            readonly suggested_app_tag?: string | null;
             /** @description What students see on the filter chip. Free to differ from `wp_category` — the live site's "Abroadstudies" reads badly as a chip and is labelled "Study Abroad". */
             label: string;
             /** @description Read-only. How many published articles carry this tag, so an admin can see what a rename or deactivation will affect before doing it. */
@@ -23961,6 +24331,7 @@ export interface components {
         BlogCategoryMappingInput: {
             wp_category: string;
             wp_category_id?: number;
+            /** @description Required when an admin creates a mapping by hand. On PATCH it is required to ACTIVATE one: `{ active: true }` on a mapping with no tag is refused **400** — the tag is what students follow, so activating without one would publish articles nobody can subscribe to (assumptions audit M4, product owner 2026-09-19). */
             app_tag: string;
             label?: string;
             active?: boolean;
@@ -24037,8 +24408,16 @@ export interface components {
              * @description When the student typed it. Null on entries from before this was recorded.
              */
             typed_at?: string | null;
-            /** @description Existing institutions resembling what the student typed, best first. Surfaced so the queue makes MATCHING the easy path: students will type "The Choice School", "Choice School Kochi" and "choice school" for one place, and a queue where "create" is easier than "match" produces three rows for it within a week. */
-            near_matches?: components["schemas"]["Institution"][];
+            /**
+             * @description Existing institutions resembling what the student typed, best first. Surfaced so the queue makes MATCHING the easy path: students will type "The Choice School", "Choice School Kochi" and "choice school" for one place, and a queue where "create" is easier than "match" produces three rows for it within a week.
+             *     Each row carries its `score` and the `matched_tokens` behind it (assumptions audit M5, product owner 2026-09-19): the ranking runs on seven undocumented weights, and bulk-resolve applies one admin's reading of it to everyone who typed that string. Showing the reasoning is what makes that decision reviewable.
+             */
+            near_matches?: (components["schemas"]["Institution"] & {
+                /** @description How strongly this institution matches what the student typed. 30 is the floor to be offered at all — one shared meaningful word. 60 or more is a containment match, two shared words, or one shared word in the same city; below it, `POST /institutions/suggestions/bulk-resolve` requires `confirm: true`. */
+                readonly score?: number;
+                /** @description The words the two names share, plus the literal `city` when the city agreed. The reasoning behind `score`, in the admin's own vocabulary. */
+                readonly matched_tokens?: string[];
+            })[];
         };
         /**
          * @description THE targeting shape. Ads, quizzes and broadcasts all share this one schema (unified 2026-08-27, user-requested: "We need the same filter in all the targeting part").
@@ -24055,7 +24434,7 @@ export interface components {
             district?: string[];
             /** @description Matched against `student_preferences.city`. */
             city?: string[];
-            /** @description Where the student wants to STUDY — matched against any of `student_preferences.target_countries`. Not to be confused with `resident_country` above; the two are different questions and the names are the only thing that says so. */
+            /** @description Where the student wants to STUDY — matched against the student's own `target_country`, which is a single value since 2026-09-19 (assumptions audit M8). Not to be confused with `resident_country` above; the two are different questions and the names are the only thing that says so. */
             target_country?: string[];
             /** @description Matches if the student's own study_level is any of these. `StudyLevel.code` values from `GET /study-levels`, validated server-side on every targeting write — same source as StudentPreferences.study_level, which is the point. */
             study_level?: string[];
@@ -24193,6 +24572,24 @@ export interface components {
         PointsBalance: {
             balance: number;
             earn_rules: components["schemas"]["EarnRule"][];
+            /** @description The caller's own profile completion, so the meter and the milestones below arrive together rather than from two calls that can disagree by a save. */
+            readonly profile_completion_percent?: number;
+            /**
+             * @description THE PROFILE-COMPLETION MILESTONES, SERVED (assumptions audit M31, product owner 2026-09-19). 30 / 70 / 100 were hardcoded in the app's completion meter, so moving one here would have left the bar promising points already paid — or promising points at a percentage that no longer earns any. One source, and it is the one that writes the ledger row.
+             *     Every item on the completion checklist is weighted EQUALLY, recorded as the decision rather than left as an accident; the duplicated exam check that gave exams double weight by accident was removed in the same pass.
+             */
+            readonly profile_milestones: {
+                /** @enum {string} */
+                trigger: "profile_30_percent" | "profile_70_percent" | "profile_completed";
+                /** @description The completion percentage that awards it. */
+                threshold: number;
+                /** @description Human copy for the celebration overlay, e.g. "Profile 70% complete". */
+                reason: string;
+                /** @description What the matching earn rule pays; 0 when that rule is inactive. */
+                points_value: number;
+                /** @description Whether THIS caller has already been credited for it. */
+                earned: boolean;
+            }[];
         };
         /** @description One row per ledger movement (build reference 3.6) — balance is `SUM(delta)`, never a stored mutable column (erd.md's `points_ledger` note). Earns are positive `delta`, spends negative (`coupon_redeemed`). Surfaced to consultants via `GET /clients/{id}/points` and, as of Sentpo Mobile Wave 6b, to the student themselves via `GET /points/ledger` (Points Dashboard). */
         PointsLedgerEntry: {
@@ -24214,7 +24611,19 @@ export interface components {
              */
             trigger_type: "profile_completed" | "webinar_attended" | "physical_meeting_attended" | "quiz_completed" | "referral_signup" | "welcome_signup" | "profile_30_percent" | "profile_70_percent" | "article_read" | "consultancy_viewed" | "daily_login";
             points_value: number;
+            /** @description A ceiling on the POINTS one student may earn from this rule, counted over `cap_period`. Null means no points ceiling. */
             cap?: number | null;
+            /** @description A ceiling on how many TIMES this rule may credit one student, counted over `cap_period` — a different question from `cap` above, and the one `daily_login` needed (assumptions audit M14, product owner 2026-09-19). That rule was uncapped for life, so simply opening the app every day for ten years earned 18,250 points: a liability nobody decided to take on, growing with nothing but time. It is capped at **365** lifetime awards, one year of perfect attendance. Null means no award ceiling. Whichever cap bites first stops the rule for that student. */
+            award_cap?: number | null;
+            /**
+             * @description WHICH LEDGER ROWS the two caps above are measured over (product owner, 2026-09-20: "article_read and view consultancy points should have daily cap instead of life time").
+             *     `lifetime` counts everything this student has ever earned from the rule — the original meaning, and the default, so a rule left alone behaves exactly as before. `day` counts only TODAY's rows, and today is the **student's own calendar day** from `users.timezone` (UTC when unknown), the same day boundary `daily_login` already uses — a UTC one would refresh a Kolkata student's allowance at 05:30 local, which is neither a day they recognise nor one they can plan around.
+             *     A daily cap is a pacing rule, not a liability ceiling: reading three articles is worth points every day, reading thirty in one sitting is not worth ten times as much. A lifetime cap on the same trigger says something harsher — that the fiftieth article a student ever reads is worth nothing, forever — which is what `article_read` (now 3 a day) and `consultancy_viewed` (2 a day) used to say.
+             *     Per-subject de-duplication is unaffected: the same article never pays twice, on any day. A `day` rule must carry at least one of `cap` / `award_cap` — a daily rule with neither is no cap at all wearing a window, and is refused 400.
+             * @default lifetime
+             * @enum {string}
+             */
+            cap_period: "lifetime" | "day";
             active?: boolean;
         };
         Coupon: {
@@ -24232,8 +24641,10 @@ export interface components {
              */
             readonly partner_kind?: "store" | "online";
             readonly partner_logo_url?: string | null;
+            /** @description How many times one student may claim this coupon, ever (assumptions audit M14, product owner 2026-09-19). Required on create; null only on a coupon created before that date, which is governed by the platform-wide rule alone. */
+            per_student_limit?: number | null;
             /**
-             * @description For the calling student only (null for staff): which per-student limit (GET /coupons/limits) stops them redeeming this coupon right now.
+             * @description For the calling student only (null for staff): which per-student limit stops them redeeming this coupon right now — this coupon's own `per_student_limit` or the platform-wide rule at `GET /coupons/limits`, whichever is tighter.
              * @enum {string|null}
              */
             readonly limit_reached?: "monthly" | "total" | null;
@@ -24401,8 +24812,16 @@ export interface components {
             stock?: number;
             /** Format: date */
             expiry_date?: string | null;
-            /** @enum {string} */
-            relevance_scope?: "city" | "district" | "state" | "country";
+            /**
+             * @description How widely this coupon is offered. **REQUIRED on create, no default** (assumptions audit M14, product owner 2026-09-19) — it defaulted to `district`, so a national offer created without a thought about it reached almost nobody it was meant for. 400 when omitted.
+             * @enum {string}
+             */
+            relevance_scope: "city" | "district" | "state" | "country";
+            /**
+             * @description How many times ONE student may claim this coupon, ever. **REQUIRED on create, no default** (assumptions audit M14, product owner 2026-09-19) — it was unlimited, so a coupon created without a thought about it could be claimed fifty times by one person, the partner's loss taken in Sentpo's name. 400 when omitted, or when it is not a whole number of at least 1.
+             *     Enforced alongside the platform-wide rule at `GET /coupons/limits`; the TIGHTER of the two applies. A coupon created before 2026-09-19 has none of its own and is governed by the platform rule alone.
+             */
+            per_student_limit: number;
             active?: boolean;
         };
         PartnerLocation: {
@@ -25016,7 +25435,18 @@ export interface components {
             readonly received_on?: string | null;
             /** @description The part key this payment was recorded against; it settles that part first. */
             readonly applies_to?: string | null;
-            /** @description The payment's INR value, fixed when it was declared and again when confirmed or corrected. Revenue counts this. */
+            /** @description The amount in MINOR UNITS — the stored fact (assumptions audit M15, product owner 2026-09-19). A received amount used to be `Math.round`ed to whole units, so CAD 1,240.60 was recorded as 1,241 and CAD 1,240.40 as 1,240; over a year of settlements that is real money, and it was invisible because the number looked exact. `amount` above is derived from this. A client totalling or comparing received money works from here, never from the floating-point major-unit figure. */
+            readonly amount_minor?: number;
+            /** @description ISO 4217 minor-unit exponent for `currency` — 2 for most, 0 for JPY/KRW/VND and the other zero-decimal currencies, 3 for the Gulf dinars. `amount = amount_minor / 10^n`. */
+            readonly currency_exponent?: number;
+            /** @description The INR-per-unit rate this settlement was valued at, FROZEN onto the row when the payment was declared (assumptions audit M15, product owner 2026-09-19). Cross-currency settlement used to convert at today's rate on every read, so which part of a due a payment settled changed retroactively whenever an admin edited the rate table. Null only on a row written before 2026-09-19. */
+            readonly rate_used?: number | null;
+            /**
+             * Format: date-time
+             * @description When the rate in `rate_used` was set — so a disputed ₹ figure can be explained rather than argued about.
+             */
+            readonly rate_as_of?: string | null;
+            /** @description The payment's INR value at `rate_used`, fixed when it was DECLARED (assumptions audit M15, product owner 2026-09-19 — it used to be re-fixed at confirm, which put revenue on whichever day Finance ticked the box). Recomputed only when the AMOUNT changes, and always at the frozen rate. Revenue and freelancer shares count this. */
             readonly amount_inr?: number;
             /** @description What the consultancy declared, when Finance recorded a different amount received (2026-09-11). `amount` is always what actually arrived; every total counts that. */
             readonly declared_amount?: components["schemas"]["Money"] | null;
@@ -25330,7 +25760,7 @@ export interface components {
                 count: number;
             }[];
         };
-        /** @description Platform-wide market intelligence (docs/PROGRESS.md §4 Step 4). Demand is read from student_preferences (target_countries/fields_of_interest); supply is read from consultancies.countries_served plus seat usage. `mismatch` is the actionable table: countries with real student demand and little or no consultancy coverage. */
+        /** @description Platform-wide market intelligence (docs/PROGRESS.md §4 Step 4). Demand is read from student_preferences (target_country/fields_of_interest, one of each per student since 2026-09-19 — assumptions audit M8, so a student is counted once); supply is read from consultancies.countries_served plus seat usage. `mismatch` is the actionable table: countries with real student demand and little or no consultancy coverage. */
         SupplyDemandResponse: {
             /** @description Supply at a glance (2026-09-10): how many countries have `coverage: none` in `coverage_by_country` (students want it or are heading there, and no organisation that can take new students serves it), and seat usage across ACTIVE consultancies and institutes (active employees vs summed seat limits; `pct` null when no seats). */
             supply_summary: {

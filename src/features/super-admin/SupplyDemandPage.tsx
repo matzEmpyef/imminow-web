@@ -272,31 +272,34 @@ export function SupplyDemandPage() {
         </div>
 
         {/* Where students want to study (user, 2026-09-02; revised 2026-09-10). Distinct students
-            — the six add up to every account — where the per-country chart below counts a student
-            once per target country. "Home" is each student's own resident country. Not onboarded
-            is the same rule and number as Needs attention's "Students stuck at onboarding". */}
+            — the six add up to every account. ONE DESTINATION PER STUDENT since 2026-09-19
+            (assumptions audit M8, product owner), so the per-country chart below counts each
+            student once, full stop; it used to count them once per target country and call the
+            first array element a first choice. "Home" is each student's own resident country. Not
+            onboarded is the same rule and number as Needs attention's "Students stuck at
+            onboarding". */}
         <section className="flex flex-col gap-sm">
           <h2 className="text-h3 text-text-primary">Where students want to study</h2>
           <div className="grid grid-cols-2 gap-md md:grid-cols-3">
             {(
               [
-                ['Study Abroad only', data.destination_split.abroad_only, 'Every target country is outside where they live.'],
-                ['Study at Home only', data.destination_split.home_only, 'Only their own country of residence.'],
-                ['Both', data.destination_split.both, 'Targeting home and at least one country abroad.'],
+                ['Study Abroad only', data.destination_split.abroad_only, 'Their destination is outside where they live.'],
+                ['Study at Home only', data.destination_split.home_only, 'Their destination is their own country of residence.'],
+                ['Both', data.destination_split.both, 'Counted here only on legacy rows that still carry two destinations.'],
                 [
                   'Residence not set',
                   data.destination_split.residence_not_set,
-                  'Chose target countries but not where they live, so home vs abroad is unknown.',
+                  'Chose a destination but not where they live, so home vs abroad is unknown.',
                 ],
                 [
-                  'No target country',
+                  'No destination',
                   data.destination_split.no_target_country,
                   'Onboarded (for example, has a case) but never chose a destination.',
                 ],
                 [
                   'Not onboarded',
                   data.destination_split.not_onboarded,
-                  'Signed up but never set a study level or target country — as on Needs attention.',
+                  'Signed up but never set a study level or a destination — as on Needs attention.',
                 ],
               ] as const
             ).map(([label, value, hint]) => (
@@ -407,9 +410,12 @@ export function SupplyDemandPage() {
             New Registrations by Month; this is where those new students want to go. */}
         <Card>
           <h2 className="text-h3 text-text-primary">New Students by Destination</h2>
+          {/* "Their destination", not "their first-choice country" (assumptions audit M8, product
+              owner 2026-09-19) — a student names ONE, so there is no first choice to speak of and
+              nothing is being read off array position any more. */}
           <p className="text-caption text-text-secondary">
-            Students who signed up each month, by their first-choice country. Placed by sign-up month — when a student
-            chose their countries is not recorded.
+            Students who signed up each month, by the destination they chose. Placed by sign-up month — when a student
+            chose their destination is not recorded.
           </p>
           <div className="mt-sm">
             <MonthlyBarChart

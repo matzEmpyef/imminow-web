@@ -4,16 +4,12 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { TextAreaField } from '@/components/TextAreaField'
 import { formatDateTime } from '@/lib/time'
-import { money } from './money'
+import { money, paymentInrNote, paymentMoney } from './money'
 import { useCorrectCommissionPayment, type CommissionPayment } from '@/queries/commission'
 import { showToast } from '@/lib/toast'
 
 const MIN_REASON_LENGTH = 3
 
-function approxInr(amountInr: number | undefined, currency: string | undefined): string | null {
-  if (!currency || currency === 'INR' || amountInr == null) return null
-  return `≈ ₹${amountInr.toLocaleString('en-IN')}`
-}
 
 /**
  * Corrects the amount received on an already-confirmed payment (2026-09-11) — money that bounced,
@@ -98,9 +94,9 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
           <div className="flex items-center justify-between">
             <span className="text-caption text-text-secondary">Currently received</span>
             <span className="flex flex-col items-end">
-              <span className="text-body font-medium text-text-primary">{money(payment.amount)}</span>
-              {approxInr(payment.amount_inr, currency) && (
-                <span className="text-caption text-text-secondary">{approxInr(payment.amount_inr, currency)}</span>
+              <span className="text-body font-medium text-text-primary">{paymentMoney(payment)}</span>
+              {paymentInrNote(payment) && (
+                <span className="text-caption text-text-secondary">{paymentInrNote(payment)}</span>
               )}
             </span>
           </div>
