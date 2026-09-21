@@ -28,6 +28,12 @@ interface BranchPlaceFieldsProps {
   labelPrefix?: string
   /** Shown inside the city box when leaving it empty still fills it in server-side. */
   cityPlaceholder?: string
+  /**
+   * Create Consultancy no longer asks for the account's city separately — the head office IS the
+   * headquarters, so its city is the account's (product owner, 2026-09-21) and cannot be blank.
+   * The branch form leaves this off: an office may legitimately have no place at all yet.
+   */
+  cityRequired?: boolean
   /** The sentence under the group — why the place matters on THIS form. */
   caption: ReactNode
 }
@@ -54,6 +60,7 @@ export function BranchPlaceFields({
   showErrors,
   labelPrefix,
   cityPlaceholder,
+  cityRequired,
   caption,
 }: BranchPlaceFieldsProps) {
   const errors = branchLocationErrors(value)
@@ -97,10 +104,11 @@ export function BranchPlaceFields({
         {/* City stays free text, the same call the job form made: there is no managed world city
             list, and a city is one rung below what the managed lists cover. */}
         <TextField
-          label={label('City')}
+          label={cityRequired ? `${label('City')} *` : label('City')}
           value={value.city}
           placeholder={cityPlaceholder}
           onChange={(e) => onChange({ ...value, city: e.target.value })}
+          error={showErrors && cityRequired && !value.city.trim() ? 'The head office needs its city.' : undefined}
         />
       </div>
       <p className="text-caption text-text-secondary">{caption}</p>

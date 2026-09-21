@@ -65,7 +65,7 @@ beforeEach(() => {
 /** Everything the form needs apart from the place, so only the place rule is left under test. */
 function fillTheRest(dialog: HTMLElement) {
   fireEvent.change(within(dialog).getByLabelText(/^Consultancy name/), { target: { value: 'Blue Ocean' } })
-  fireEvent.change(within(dialog).getByLabelText(/^City/), { target: { value: 'Kochi' } })
+  fireEvent.change(within(dialog).getByLabelText(/^Office city/), { target: { value: 'Kochi' } })
   fireEvent.change(within(dialog).getByLabelText(/^Street address/), { target: { value: '2nd Floor, MG Road' } })
   fireEvent.change(within(dialog).getByLabelText(/^First name/), { target: { value: 'Laila' } })
   fireEvent.change(within(dialog).getByLabelText(/^Last name/), { target: { value: 'Nair' } })
@@ -115,7 +115,6 @@ describe("the head office's place is all or nothing", () => {
     fireEvent.change(within(dialog).getByLabelText(/^Office country/), { target: { value: 'India' } })
     fireEvent.change(within(dialog).getByLabelText(/^Office state/), { target: { value: 'Kerala' } })
     fireEvent.change(within(dialog).getByLabelText(/^Office district/), { target: { value: 'Ernakulam' } })
-    fireEvent.change(within(dialog).getByLabelText(/^Office city/), { target: { value: 'Kochi' } })
 
     submit()
 
@@ -146,30 +145,29 @@ describe("the head office's place is all or nothing", () => {
 })
 
 describe('an account onboarded in a hurry', () => {
-  it('is created with no place at all, and mentions no branch_* place field', () => {
+  it('is created with the city alone, naming no other place field', () => {
     openForm()
 
     submit()
 
     expect(createMutate).toHaveBeenCalledTimes(1)
     const body = createMutate.mock.calls[0][0]
-    expect(body).toMatchObject({ name: 'Blue Ocean', branch_address: '2nd Floor, MG Road' })
-    for (const field of ['branch_country', 'branch_state', 'branch_district', 'branch_city']) {
+    // The head office's city IS the account's city (product owner, 2026-09-21), so it is always
+    // sent. Country, state and district stay optional, and the office reads as unfilled on its own
+    // Branches page until someone completes it.
+    expect(body).toMatchObject({ name: 'Blue Ocean', city: 'Kochi', branch_address: '2nd Floor, MG Road' })
+    for (const field of ['branch_country', 'branch_state', 'branch_district']) {
       expect(body).not.toHaveProperty(field)
     }
   })
 
-  it('omits an empty office city rather than nulling it, so the server fills it from the account', () => {
+  it("refuses to submit with no office city, because that is the account's city too", () => {
     const dialog = openForm()
-    fireEvent.change(within(dialog).getByLabelText(/^Office country/), { target: { value: 'Canada' } })
-    fireEvent.change(within(dialog).getByLabelText(/^Office state/), { target: { value: 'Ontario' } })
+    fireEvent.change(within(dialog).getByLabelText(/^Office city/), { target: { value: '' } })
 
     submit()
 
-    const body = createMutate.mock.calls[0][0]
-    expect(body).toMatchObject({ branch_country: 'Canada', branch_state: 'Ontario' })
-    // `branch_city: null` would mean "no city at all"; absent means "use the account's own city",
-    // which is the one place fact this form was definitely told.
-    expect(body).not.toHaveProperty('branch_city')
+    expect(createMutate).not.toHaveBeenCalled()
+    expect(within(dialog).getByText(/head office needs its city/i)).toBeInTheDocument()
   })
 })

@@ -78,7 +78,6 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
   const [kind, setKind] = useState<AccountKind>('consultancy')
   const [adminMode, setAdminMode] = useState<AdminMode>('invite')
   const [name, setName] = useState('')
-  const [city, setCity] = useState('')
   // Where the account itself is based (review M6, 2026-09-12) — it was shown and searched
   // elsewhere on the platform but never actually captured at creation. Optional, matching the
   // server's ConsultancyCreateInput.country.
@@ -142,13 +141,18 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
       ? Boolean(adminFirstName && adminLastName && adminEmail && !adminEmailError)
       : Boolean(adminUser)
   const headOfficeErrors = branchLocationErrors(headOffice)
+  // The account's own city drives Manage Consultancies' column and its search (review M6). It is
+  // the HEAD OFFICE's city: asking both on one form was the same fact twice, and two answers to
+  // one question is how they come to disagree (product owner, 2026-09-21). Still sent as `city`,
+  // so nothing that reads the account's city has to change.
+  const city = headOffice.city.trim()
   const canSubmit = Boolean(name && city && branchAddress && adminReady) && branchLocationIsValid(headOffice)
   // A click on an incomplete form says what is missing (review H1, 2026-09-12) instead of a
   // disabled button that explains nothing.
   const [attempted, setAttempted] = useState(false)
   const missing = [
     !name && 'name',
-    !city && 'city',
+    !city && "the head office's city",
     !branchAddress && 'address',
     // Named in the summary as well as marked on the field: the place sits several sections above
     // the button, and "Create" doing nothing with no explanation is the failure this list exists
@@ -281,7 +285,6 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-          <TextField label="City" value={city} onChange={(e) => setCity(e.target.value)} />
           <CountrySelect label="Country" value={country} onChange={setCountry} />
           <div className="flex flex-col gap-xs">
             <TextField
@@ -382,16 +385,6 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
 
         <div className="flex flex-col gap-md border-t border-border pt-md">
           <p className="text-body-sm font-medium text-text-primary">Head Office</p>
-          <div className="flex flex-col gap-xs">
-            <TextField
-              label="Street address"
-              value={branchAddress}
-              onChange={(e) => setBranchAddress(e.target.value)}
-            />
-            <p className="text-caption text-text-secondary">
-              Door number, building and road only &mdash; the city, district, state and country are the fields below.
-            </p>
-          </div>
           {/* The same four pickers, the same cascade and the same rules as the branch form — one
               definition of a branch's place, because the server validates both with one function. */}
           <BranchPlaceFields
@@ -400,7 +393,7 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
             value={headOffice}
             onChange={setHeadOffice}
             showErrors={attempted}
-            cityPlaceholder={city || 'Same as the city above'}
+            cityRequired
             caption={
               <>
                 Students find a {kindNoun.toLowerCase()} by how near its office is &mdash; same city first, then
@@ -412,6 +405,16 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
               </>
             }
           />
+          <div className="flex flex-col gap-xs">
+            <TextField
+              label="Street address"
+              value={branchAddress}
+              onChange={(e) => setBranchAddress(e.target.value)}
+            />
+            <p className="text-caption text-text-secondary">
+              Door number, building and road only &mdash; the place it sits in is the group above.
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-col gap-md border-t border-border pt-md">
