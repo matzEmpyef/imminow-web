@@ -469,8 +469,25 @@ function provincePlaceholder(country: string, options: ReturnType<typeof useJobL
   if (!country) return 'Pick a country first'
   if (options.isLoading) return 'Loading…'
   if (options.isError) return 'Couldn’t load the states'
-  if ((options.data ?? []).length === 0) return 'No states with live jobs'
+  // No longer "with LIVE jobs" (2026-09-21): this list now counts every status the ticked chip
+  // covers, so an empty answer means there are no matching listings at all in that country.
+  if ((options.data ?? []).length === 0) return 'No states with matching listings'
   return 'Any state / province'
+}
+
+/**
+ * The place a filter is SET to but the current options no longer contain — which the status chip
+ * can now cause: narrow to Live while the country filter is on a country whose listings have all
+ * expired and it drops out of the list under the cursor.
+ *
+ * Kept as an option rather than cleared, the same "(not on the list)" convention StateSelect and
+ * DistrictSelect already use for a stored value that has left its list. Clearing it would silently
+ * widen the results the admin is looking at; showing an empty-looking picker over a list that is
+ * still filtered would be worse again. The count is deliberately absent — it is zero for these
+ * chips by definition, and "Germany (0)" reads as a broken number rather than a live filter.
+ */
+function unlistedPlace(value: string, places: { name: string }[]): string | null {
+  return value && !places.some((place) => place.name === value) ? value : null
 }
 
 export function JobsAdminPage() {
@@ -490,12 +507,28 @@ export function JobsAdminPage() {
     paging.reset()
   }
 
-  // Both rungs of the SAME endpoint: no country asks which countries have live listings, a country
-  // asks which of its states do (product owner, 2026-09-20). Never a distinct-values scan of the
-  // rows on screen — that is what a free-text location forced, and it could only ever see the
-  // twenty rows of the current page.
-  const countryOptions = useJobLocations()
-  const provinceOptions = useJobLocations(countryFilter || undefined)
+  // Both rungs of the SAME endpoint: no country asks which countries have listings, a country asks
+  // which of its states do (product owner, 2026-09-20). Never a distinct-values scan of the rows on
+  // screen — that is what a free-text location forced, and it could only ever see the twenty rows
+  // of the current page.
+  //
+  // `scope: 'all'` (product owner, 2026-09-21) because THIS list is not the student's. It shows
+  // every status, so feeding its pickers the live-only answer left a country whose listings had all
+  // expired out of the filter entirely — the rows were on screen and there was no way to narrow to
+  // them — and let a province's count disagree with the rows that same chip returned.
+  //
+  // The ticked status goes with it, so the number on a chip is the number of rows clicking it
+  // gives. WITH NO STATUS TICKED the parameter is omitted rather than sent as the full
+  // `live,scheduled,expired,off`: the two are the same set today, but "Any status" means "do not
+  // filter", and spelling out today's four values would quietly turn into a filter that excludes
+  // any status added later — the counts would then disagree with the rows again, which is the bug
+  // being fixed. Omitted, the server's own unfiltered answer moves with the vocabulary.
+  const countryOptions = useJobLocations({ scope: 'all', status: statusFilter || undefined })
+  const provinceOptions = useJobLocations({
+    country: countryFilter || undefined,
+    scope: 'all',
+    status: statusFilter || undefined,
+  })
 
   const jobs = useAdminJobs({
     search: search || undefined,
@@ -510,6 +543,12 @@ export function JobsAdminPage() {
   })
 
   const rows = jobs.data?.items ?? []
+  // A filter can outlive its option now that the options follow the status chip — see
+  // `unlistedPlace`. Only ever while a list has loaded: mid-load the data is empty and every chip
+  // would momentarily read "none match the status".
+  const unlistedCountry = countryOptions.data ? unlistedPlace(countryFilter, countryOptions.data) : null
+  const unlistedProvince =
+    countryFilter && provinceOptions.data ? unlistedPlace(provinceFilter, provinceOptions.data) : null
 
   const columns: TableColumn<JobListing>[] = [
     {
@@ -672,9 +711,11 @@ export function JobsAdminPage() {
                 <option value="on_site">On-site</option>
               </CompactSelect>
               {/* Country then state / province, both sourced from GET /jobs/locations, so only
-                  places that actually HAVE live listings are ever offered — with four countries in
-                  the data there are four chips, not two hundred. The counts come with them: a
-                  filter that says what it will return is one nobody has to try first. */}
+                  places that actually HAVE listings are ever offered — with four countries in the
+                  data there are four chips, not two hundred. The counts come with them, taken at
+                  the same scope and status as the rows: a filter that says what it will return is
+                  one nobody has to try first, and a number that does not survive being clicked is
+                  worse than no number at all. */}
               <CompactSelect
                 value={countryFilter}
                 onChange={(e) => {
@@ -687,6 +728,9 @@ export function JobsAdminPage() {
                 label="Country"
               >
                 <option value="">{countryOptions.isError ? 'Countries unavailable' : 'Any country'}</option>
+                {unlistedCountry && (
+                  <option value={unlistedCountry}>{unlistedCountry} (none match the status)</option>
+                )}
                 {(countryOptions.data ?? []).map((place) => (
                   <option key={place.name} value={place.name}>
                     {place.name} ({place.job_count})
@@ -708,6 +752,9 @@ export function JobsAdminPage() {
                 label="State / province"
               >
                 <option value="">{provincePlaceholder(countryFilter, provinceOptions)}</option>
+                {unlistedProvince && (
+                  <option value={unlistedProvince}>{unlistedProvince} (none match the status)</option>
+                )}
                 {/* Guarded on `countryFilter`, not just on the data: with no country the endpoint
                     answers the COUNTRY list (it is one endpoint at two depths), and rendering that
                     here would stock the province picker with countries. */}

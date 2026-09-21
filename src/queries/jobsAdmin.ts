@@ -58,9 +58,25 @@ export function useAdminJobs(filters: JobListFilters = {}) {
   })
 }
 
+export interface JobLocationsQuery {
+  /** Omitted for the country rung; a country name for that country's states / provinces. */
+  country?: string
+  /**
+   * Which listings are counted (product owner, 2026-09-21). `live` — the default the server
+   * applies when this is absent — is the student-facing answer. `all` counts every listing whatever
+   * its status and needs the `jobs` platform permission.
+   */
+  scope?: 'live' | 'all'
+  /**
+   * Narrows `scope: 'all'` to the same comma-separated vocabulary `filter[status]` takes on the
+   * list itself — `live,scheduled,expired,off`. Ignored without `scope: 'all'`; see below.
+   */
+  status?: string
+}
+
 /**
- * The places that actually HAVE live listings, with a count each (product owner, 2026-09-20) —
- * the source for the Jobs list's Country and State/Province filters.
+ * The places that actually HAVE listings, with a count each (product owner, 2026-09-20) — the
+ * source for the Jobs list's Country and State/Province filters.
  *
  * Deliberately not a distinct-values scan of the loaded page, which is what a free-text location
  * forced: that only ever knew about the twenty rows currently on screen, so the options changed as
@@ -71,14 +87,30 @@ export function useAdminJobs(filters: JobListFilters = {}) {
  * One endpoint, two rungs: no `country` answers the countries, a country answers that country's
  * states / provinces. Rarely changes relative to a browsing session, so it caches like the other
  * reference lists (`useCountries`).
+ *
+ * `scope` AND `status` (product owner, 2026-09-21) are what make it usable by the people who
+ * MAINTAIN the listings rather than only by the students who read them. The endpoint counted live
+ * listings only, so a country whose listings had all expired appeared in no filter option at all
+ * and the admin could not filter to rows that were plainly on the screen, while a province count
+ * could disagree with what its own chip returned.
+ *
+ * `status` IS DROPPED unless `scope` is `all`, rather than passed through and refused. The server
+ * answers 400 for the pair, correctly — a caller narrowing by status is asking about listings that
+ * are not live, and answering the live-only question anyway would be a confident wrong number. But
+ * that is a contract violation the console should not be able to commit by leaving one argument
+ * behind during a refactor, so the impossible combination is not representable past this line.
  */
-export function useJobLocations(country?: string) {
+export function useJobLocations({ country, scope, status }: JobLocationsQuery = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  const wantedStatus = scope === 'all' ? status || undefined : undefined
   return useQuery({
-    queryKey: ['job-locations', country ?? null],
+    queryKey: ['job-locations', country ?? null, scope ?? null, wantedStatus ?? null],
     queryFn: async () => {
+      const query = { country: country || undefined, scope, status: wantedStatus }
       const { data, error } = await api.GET('/jobs/locations', {
-        params: { query: country ? { country } : undefined },
+        // Every key undefined is the same request the student's console makes — no `scope` at all,
+        // which the server reads as `live`.
+        params: { query: Object.values(query).some(Boolean) ? query : undefined },
       })
       if (error) throw new ApiError('Could not load the job locations list.', error)
       return data

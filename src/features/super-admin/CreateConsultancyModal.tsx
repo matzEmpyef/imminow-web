@@ -7,6 +7,14 @@ import { TextField } from '@/components/TextField'
 import { SearchSelect } from '@/components/SearchSelect'
 import { CountrySelect } from '@/components/CountrySelect'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { BranchPlaceFields } from '@/features/administration/BranchPlaceFields'
+import {
+  branchLocationErrors,
+  branchLocationIsValid,
+  emptyBranchLocation,
+  headOfficeBranchFields,
+  type BranchLocationDraft,
+} from '@/features/administration/branchLocation'
 import { useAuthStore } from '@/stores/authStore'
 import { useCreateConsultancy } from '@/queries/adminConsultancies'
 import { useAdminColleges } from '@/queries/adminColleges'
@@ -77,6 +85,17 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
   const [country, setCountry] = useState('')
   const [tier, setTier] = useState<'starter' | 'business' | 'ultimate'>('starter')
   const [branchAddress, setBranchAddress] = useState('')
+  // THE HEAD OFFICE'S PLACE (product owner, 2026-09-21). `POST /consultancies` really creates the
+  // primary branch now, where before it only claimed to — so every account onboarded through this
+  // form since the branch-location feature shipped landed with a head office that had no country,
+  // state, district or city. It could never rank on nearness and never appear in a place filter
+  // until somebody edited it by hand, which defeated the feature for exactly the accounts the
+  // platform is onboarding.
+  //
+  // Optional as a whole and ALL-OR-NOTHING once started, which is the server's own rule: a country
+  // makes the state required and an Indian state makes the district required, so a place can never
+  // be half filled. Validated here by the SAME `branchLocationErrors` the branch form uses.
+  const [headOffice, setHeadOffice] = useState<BranchLocationDraft>(emptyBranchLocation)
   const [collegeId, setCollegeId] = useState('')
   const [adminFirstName, setAdminFirstName] = useState('')
   const [adminLastName, setAdminLastName] = useState('')
@@ -122,7 +141,8 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
     adminMode === 'invite'
       ? Boolean(adminFirstName && adminLastName && adminEmail && !adminEmailError)
       : Boolean(adminUser)
-  const canSubmit = Boolean(name && city && branchAddress && adminReady)
+  const headOfficeErrors = branchLocationErrors(headOffice)
+  const canSubmit = Boolean(name && city && branchAddress && adminReady) && branchLocationIsValid(headOffice)
   // A click on an incomplete form says what is missing (review H1, 2026-09-12) instead of a
   // disabled button that explains nothing.
   const [attempted, setAttempted] = useState(false)
@@ -130,6 +150,11 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
     !name && 'name',
     !city && 'city',
     !branchAddress && 'address',
+    // Named in the summary as well as marked on the field: the place sits several sections above
+    // the button, and "Create" doing nothing with no explanation is the failure this list exists
+    // to prevent.
+    headOfficeErrors.state && "the head office's state",
+    headOfficeErrors.district && "the head office's district",
     adminMode === 'invite'
       ? (!adminFirstName || !adminLastName) && "the first admin's name"
       : !adminUser && 'the person to attach',
@@ -158,6 +183,9 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
         // unlinked institute too: `college_id: ''` is not "no college", it is an unknown one.
         ...(isInstitute && collegeId ? { college_id: collegeId } : {}),
         branch_address: branchAddress,
+        // Absent, not null, when it was left empty — the server reads a missing `branch_city` as
+        // "use the account's own city" and an explicit null as "no city at all".
+        ...headOfficeBranchFields(headOffice),
         // Exactly one form. Empty strings would still read as "the invite form was used" to the
         // server's `Boolean(admin_first_name || ...)` check, so the unused half is omitted whole.
         ...(adminMode === 'invite'
@@ -210,7 +238,12 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
           ? 'One submission creates the institute account, its primary branch, and its first admin. Institutes are verified offline before onboarding, so the account is created already verified.'
           : "One submission creates the consultancy, its primary branch, and the Consultancy Admin's invite."}
       </p>
-      <form id="create-consultancy-form" onSubmit={handleSubmit} className="flex flex-col gap-lg">
+      {/* `noValidate` — the console's convention since product review L3: inline errors under the
+          field and one summary by the button, never the browser's own bubbles, which cannot say
+          "in India". It matters from the moment the head office's State became conditionally
+          `required`: without it the native bubble fires first and `handleSubmit` never runs, so the
+          summary next to Create would never appear. */}
+      <form id="create-consultancy-form" onSubmit={handleSubmit} noValidate className="flex flex-col gap-lg">
         {isSuperAdmin && (
         <SegmentedControl<AccountKind>
           label="Account type"
@@ -348,8 +381,37 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="flex flex-col gap-md border-t border-border pt-md">
-          <p className="text-body-sm font-medium text-text-primary">Primary Office Address</p>
-          <TextField label="Branch address" value={branchAddress} onChange={(e) => setBranchAddress(e.target.value)} />
+          <p className="text-body-sm font-medium text-text-primary">Head Office</p>
+          <div className="flex flex-col gap-xs">
+            <TextField
+              label="Street address"
+              value={branchAddress}
+              onChange={(e) => setBranchAddress(e.target.value)}
+            />
+            <p className="text-caption text-text-secondary">
+              Door number, building and road only &mdash; the city, district, state and country are the fields below.
+            </p>
+          </div>
+          {/* The same four pickers, the same cascade and the same rules as the branch form — one
+              definition of a branch's place, because the server validates both with one function. */}
+          <BranchPlaceFields
+            heading="Where the head office is"
+            labelPrefix="Office"
+            value={headOffice}
+            onChange={setHeadOffice}
+            showErrors={attempted}
+            cityPlaceholder={city || 'Same as the city above'}
+            caption={
+              <>
+                Students find a {kindNoun.toLowerCase()} by how near its office is &mdash; same city first, then
+                district, then state, then country &mdash; so an office with no place here is never offered that way,
+                and never appears in a location filter. Optional: leave it empty to get the account onboarded now, and
+                the head office shows as unfilled on its own Branches page until someone completes it. Fill it in and{' '}
+                <strong>all of it</strong> is needed &mdash; a country needs its state, and an Indian state needs its
+                district.
+              </>
+            }
+          />
         </div>
 
         <div className="flex flex-col gap-md border-t border-border pt-md">

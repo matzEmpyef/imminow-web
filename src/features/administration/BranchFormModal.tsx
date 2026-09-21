@@ -2,14 +2,11 @@ import { useState, type FormEvent } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
-import { CountrySelect } from '@/components/CountrySelect'
-import { StateSelect } from '@/components/StateSelect'
-import { DistrictSelect } from '@/components/DistrictSelect'
 import { useCreateBranch, useUpdateBranch } from '@/queries/staff'
 import { showToast } from '@/lib/toast'
+import { BranchPlaceFields } from './BranchPlaceFields'
 import {
   branchLocationBody,
-  branchLocationErrors,
   branchLocationIsValid,
   branchLocationOf,
   emptyBranchLocation,
@@ -46,20 +43,8 @@ export function BranchFormModal({ branch, onClose }: { branch?: Branch; onClose:
   const [location, setLocation] = useState<BranchLocationDraft>(storedLocation)
   const [attempted, setAttempted] = useState(false)
 
-  const locationErrors = branchLocationErrors(location)
   const showErrors = attempted
   const canSubmit = Boolean(name.trim() && address.trim()) && branchLocationIsValid(location)
-
-  // Each level belongs to the one above it: keeping a state across a country change, or a district
-  // across a state change, would carry a value the new list has never heard of straight into the
-  // server's 422.
-  function changeCountry(next: string) {
-    setLocation((prev) => (next === prev.country ? prev : { ...prev, country: next, state: '', district: '' }))
-  }
-
-  function changeState(next: string) {
-    setLocation((prev) => (next === prev.state ? prev : { ...prev, state: next, district: '' }))
-  }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -124,45 +109,19 @@ export function BranchFormModal({ branch, onClose }: { branch?: Branch; onClose:
           </p>
         </div>
 
-        <div className="flex flex-col gap-sm">
-          <p className="text-body-sm font-medium text-text-primary">Where this branch is</p>
-          <div className="grid grid-cols-2 items-start gap-sm">
-            <CountrySelect label="Country" value={location.country} onChange={changeCountry} />
-            <StateSelect
-              label="State"
-              country={location.country}
-              value={location.state}
-              onChange={changeState}
-              required={Boolean(location.country)}
-            />
-          </div>
-          {showErrors && locationErrors.state && (
-            <p className="text-caption text-error">{locationErrors.state}</p>
-          )}
-          <div className="grid grid-cols-2 items-start gap-sm">
-            <DistrictSelect
-              label="District"
-              country={location.country}
-              state={location.state}
-              value={location.district}
-              onChange={(district) => setLocation((prev) => ({ ...prev, district }))}
-              required={location.country === 'India'}
-              error={showErrors ? locationErrors.district : undefined}
-            />
-            {/* City stays free text, the same call the job form made: there is no managed world
-                city list, and a city is one rung below what the managed lists cover. */}
-            <TextField
-              label="City"
-              value={location.city}
-              onChange={(e) => setLocation((prev) => ({ ...prev, city: e.target.value }))}
-            />
-          </div>
-          <p className="text-caption text-text-secondary">
-            Students see your branches ordered by how near one is to them &mdash; same city first, then district, then
-            state, then country. A branch with no location is never offered that way. You can save one without a
-            location and come back to it.
-          </p>
-        </div>
+        <BranchPlaceFields
+          heading="Where this branch is"
+          value={location}
+          onChange={setLocation}
+          showErrors={showErrors}
+          caption={
+            <>
+              Students see your branches ordered by how near one is to them &mdash; same city first, then district,
+              then state, then country. A branch with no location is never offered that way. You can save one without
+              a location and come back to it.
+            </>
+          }
+        />
       </form>
     </Modal>
   )

@@ -37,12 +37,23 @@ const mockedLocations = vi.mocked(useJobLocations)
 const mockedCountries = vi.mocked(useCountries)
 const mockedStates = vi.mocked(useStates)
 
-const COUNTRIES_WITH_JOBS = [
+// `GET /jobs/locations` answers differently by scope and status now (product owner, 2026-09-21),
+// so the stub does too. GERMANY IS THE CASE THE CHANGE EXISTS FOR: its only listing has expired, so
+// it is absent from the live-only answer students get and present in the admin's `scope=all` one.
+// Before the fix the admin picker was fed the live list, so there was no way to filter to a German
+// row that was plainly on the screen.
+const ALL_COUNTRIES = [
   { name: 'Canada', job_count: 3 },
+  { name: 'Germany', job_count: 1 },
   { name: 'India', job_count: 24 },
   { name: 'Ireland', job_count: 1 },
   { name: 'United Kingdom', job_count: 1 },
 ]
+const LIVE_COUNTRIES = ALL_COUNTRIES.filter((c) => c.name !== 'Germany')
+const COUNTRIES_BY_STATUS: Record<string, { name: string; job_count: number }[]> = {
+  live: LIVE_COUNTRIES,
+  expired: [{ name: 'Germany', job_count: 1 }],
+}
 const INDIAN_PROVINCES_WITH_JOBS = [
   { name: 'Karnataka', job_count: 9 },
   { name: 'Maharashtra', job_count: 6 },
@@ -106,13 +117,21 @@ function fillTheRest(dialog: HTMLElement) {
 beforeEach(() => {
   createMutate.mockClear()
   updateMutate.mockClear()
+  // Cleared, not just re-stubbed: the tests below read back the ARGUMENTS this hook was called
+  // with, and calls left over from the previous test would answer for the wrong render.
+  mockedLocations.mockClear()
   mockedJobs.mockReturnValue(query({ items: ROWS, meta: { total: ROWS.length } }))
   mockedCreate.mockReturnValue(mutation(createMutate))
   mockedUpdate.mockReturnValue(mutation(updateMutate))
-  mockedLocations.mockImplementation((country?: string) => {
-    if (!country) return query(COUNTRIES_WITH_JOBS)
-    if (country === 'India') return query(INDIAN_PROVINCES_WITH_JOBS)
-    return query([])
+  mockedLocations.mockImplementation(({ country, scope, status } = {}) => {
+    if (country) {
+      if (country !== 'India') return query([])
+      // India's listings are all live, so narrowing to Expired empties its province rung — which is
+      // the counts-match-the-rows property under test, one rung down.
+      return query(status === 'expired' ? [] : INDIAN_PROVINCES_WITH_JOBS)
+    }
+    if (scope !== 'all') return query(LIVE_COUNTRIES)
+    return query(status ? (COUNTRIES_BY_STATUS[status] ?? []) : ALL_COUNTRIES)
   })
   mockedCountries.mockReturnValue(query(['Canada', 'India', 'Ireland', 'United Kingdom']))
   mockedStates.mockImplementation((country: string | undefined) =>
@@ -192,12 +211,59 @@ describe('the jobs list filters', () => {
     expect(within(countryFilter).getAllByRole('option').map((o) => o.textContent)).toEqual([
       'Any country',
       'Canada (3)',
+      'Germany (1)',
       'India (24)',
       'Ireland (1)',
       'United Kingdom (1)',
     ])
     // The loaded page has a job in Iceland; the endpoint does not list it, so neither does this.
     expect(within(countryFilter).queryByText(/Iceland/)).not.toBeInTheDocument()
+  })
+
+  // `scope` / `status` on GET /jobs/locations (product owner, 2026-09-21). Two properties, and
+  // neither is visible in a screenshot: the admin's pickers must describe EVERY listing rather than
+  // the live ones a student sees, and their counts must be the counts of the rows the same screen
+  // is showing.
+  it('asks for the whole picture, not the live-only answer students get', () => {
+    renderPage()
+    // Germany's only listing has expired. Fed the student-facing list, this picker would not
+    // mention Germany at all and its rows would be unreachable by filter.
+    expect(within(screen.getByLabelText('Country')).getByText('Germany (1)')).toBeInTheDocument()
+    for (const call of mockedLocations.mock.calls) expect(call[0]).toMatchObject({ scope: 'all' })
+  })
+
+  it('sends the ticked status through, so the counts are the counts of the rows on screen', () => {
+    renderPage()
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'expired' } })
+
+    expect(mockedLocations).toHaveBeenCalledWith({ scope: 'all', status: 'expired' })
+    expect(mockedLocations).toHaveBeenCalledWith({ country: undefined, scope: 'all', status: 'expired' })
+    // And the picker narrows with it: Expired is Germany's one listing and nobody else's.
+    expect(within(screen.getByLabelText('Country')).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'Any country',
+      'Germany (1)',
+    ])
+  })
+
+  it('sends NO status at all when no chip is ticked, rather than spelling out every value', () => {
+    renderPage()
+    // "Any status" means "do not filter". Sending today's four values instead would silently become
+    // a filter that excludes any status added later — the counts would disagree with the rows
+    // again, which is the bug this whole change is fixing.
+    for (const call of mockedLocations.mock.calls) expect(call[0]!.status).toBeUndefined()
+  })
+
+  it('keeps a country that the status chip has just filtered out of its own picker', () => {
+    renderPage()
+    fireEvent.change(screen.getByLabelText('Country'), { target: { value: 'Germany' } })
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'live' } })
+
+    // Germany has no live listings, so it is no longer one of the options — but the list IS still
+    // filtered to it. Dropping the option would leave a picker reading "Any country" over rows that
+    // are anything but, and clearing the filter would silently widen what the admin is looking at.
+    expect(screen.getByLabelText('Country')).toHaveValue('Germany')
+    expect(within(screen.getByLabelText('Country')).getByText('Germany (none match the status)')).toBeInTheDocument()
+    expect(mockedJobs.mock.calls.at(-1)![0]).toMatchObject({ country: 'Germany', status: 'live' })
   })
 
   it('keeps the province picker disabled until a country is chosen, then fills it from the endpoint', () => {

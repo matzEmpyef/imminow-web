@@ -88,6 +88,43 @@ export function branchLocationBody(draft: BranchLocationDraft): {
   }
 }
 
+/**
+ * The same place as `POST /consultancies` wants the HEAD OFFICE's (2026-09-21) — `branch_`
+ * prefixed, and every level OMITTED rather than sent null when it is empty.
+ *
+ * That is the one real difference from {@link branchLocationBody}, and it is load-bearing twice
+ * over. `branch_city` DEFAULTS server-side to the account's own required `city`, and the server
+ * reads "the field is absent" as "use the default" — `branch_city: null` is a different request
+ * that means "no city at all", which would throw away the one fact we were definitely told.
+ * `branch_country: null` on an endpoint that has no existing record to clear is likewise noise: a
+ * create either names a place or does not mention one.
+ *
+ * A state or district with no country is dropped rather than sent: it cannot be checked against
+ * any list, and the server refuses it. The cascade in `BranchPlaceFields` already clears both when
+ * the country changes, so this only matters if a caller ever hands over a draft it did not build.
+ */
+export function headOfficeBranchFields(draft: BranchLocationDraft): {
+  branch_country?: string
+  branch_state?: string
+  branch_district?: string
+  branch_city?: string
+} {
+  const fields: {
+    branch_country?: string
+    branch_state?: string
+    branch_district?: string
+    branch_city?: string
+  } = {}
+  if (draft.country) {
+    fields.branch_country = draft.country
+    if (draft.state) fields.branch_state = draft.state
+    if (draft.district) fields.branch_district = draft.district
+  }
+  const city = draft.city.trim()
+  if (city) fields.branch_city = city
+  return fields
+}
+
 /** True once a branch carries enough for the student-facing nearness ranking to place it. */
 export function branchHasLocation(branch: Pick<Branch, 'country' | 'state' | 'district' | 'city'>): boolean {
   return Boolean(branch.country && branch.state)
