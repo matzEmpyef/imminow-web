@@ -21,11 +21,18 @@ function ToastCard({ toast }: { toast: ToastItem }) {
     <div
       role={toast.tone === 'error' ? 'alert' : 'status'}
       aria-live={toast.tone === 'error' ? 'assertive' : 'polite'}
-      // `max-w-sm` + `break-words` added alongside the 'info' tone (2026-09-18) — every message
+      // A cap plus `break-words`, added alongside the 'info' tone (2026-09-18) — every message
       // before it was a short confirmation; the first genuinely explanatory one ("sent to immiNow
       // for approval, changed too recently to apply directly") ran the card off the right edge on
       // a bottom-right-anchored, unconstrained-width toast.
-      className="flex max-w-sm items-center gap-sm rounded-lg border border-border bg-surface px-md py-sm shadow-card"
+      //
+      // `max-w-[24rem]`, NOT `max-w-sm`: this project's spacing scale reuses the key names of
+      // Tailwind's named max-width scale, so `max-w-sm` resolves to the 8px SPACING token (see
+      // styles/tailwind.config.ts, which calls `max-w-{xs,sm,md,lg,xl}` unusable here). It did
+      // exactly that from 2026-09-18 until 2026-09-21: every toast in the console rendered as a
+      // 34px-wide sliver with one character per line, on every page, because this is the one
+      // shared toast. Arbitrary values bypass the broken scale.
+      className="flex max-w-[24rem] items-center gap-sm rounded-lg border border-border bg-surface px-md py-sm shadow-card"
     >
       <Icon className={`h-4 w-4 shrink-0 ${iconTone}`} />
       <span className="break-words text-body-sm text-text-primary">{toast.message}</span>

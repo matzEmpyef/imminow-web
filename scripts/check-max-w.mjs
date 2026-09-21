@@ -43,6 +43,14 @@ const files = findFiles(SRC_DIR)
 const CLASS_ATTR = /className\s*=\s*(["'])((?:(?!\1).)*)\1/g
 const MAX_W_TOKEN = /^(.*:)?max-w-\S+$/
 
+// The keys our `spacing` scale reuses (tailwind.config.ts). ANY of these, even alone and
+// unambiguous, silently resolves to a spacing token: `max-w-sm` is 8px, not 24rem. This is the
+// landmine the header above describes, and until 2026-09-21 the guard did not look for it —
+// it only compared TWO max-w utilities against each other, so the single `max-w-sm` that made
+// every toast in the console a 34px sliver passed for three days. `2xl` and up are safe: they
+// are not in the spacing scale.
+const COLLIDING_SCALE = /^(.*:)?max-w-(xs|sm|md|lg|xl)$/
+
 /** The prefix chain before `max-w-` (e.g. `md:hover:` from `md:hover:max-w-lg`), '' for none. */
 function variantOf(token) {
   const match = MAX_W_TOKEN.exec(token)
@@ -59,6 +67,13 @@ for (const relPath of files) {
     const classString = match[2]
     const tokens = classString.split(/\s+/).filter(Boolean)
     const maxWTokens = tokens.filter((t) => MAX_W_TOKEN.test(t))
+    for (const token of maxWTokens.filter((t) => COLLIDING_SCALE.test(t))) {
+      const line = content.slice(0, match.index).split('\n').length
+      failures.push(
+        `${relPath}:${line} — ${token} resolves from this project's spacing scale, not the max-width ` +
+          `one (a few pixels wide). Use an arbitrary value such as max-w-[24rem].`,
+      )
+    }
     if (maxWTokens.length < 2) continue
 
     const byVariant = new Map()
@@ -86,7 +101,9 @@ if (failures.length > 0) {
   for (const failure of failures) process.stderr.write(`  ${failure}\n`)
   process.stderr.write(
     '\nTwo max-w-* utilities at the same variant silently collide (last-defined-in-the-stylesheet wins, not\n' +
-      'last-in-the-class-list) — pick one, or use an inline style={{ maxWidth }} the way GlobalSearch.tsx does.\n',
+      'last-in-the-class-list) — pick one, or use an inline style={{ maxWidth }} the way GlobalSearch.tsx does.\n' +
+      'A single max-w-{xs,sm,md,lg,xl} is the other half of the same trap: it resolves from our spacing scale,\n' +
+      'so the element ends up a few pixels wide. Use max-w-[Nrem].\n',
   )
   process.exit(1)
 }
