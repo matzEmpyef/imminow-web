@@ -21801,7 +21801,7 @@ export interface components {
             /** @description 2026-08-29 addition — pending `ConversionProposal`s (lapsed ones excluded, same `lapseIfExpired` rule the leads endpoints already apply) on the caller's own leads. */
             pending_proposals: {
                 lead_id: components["schemas"]["UUID"];
-                lead_name: string | null;
+                lead_name?: string | null;
                 /** Format: date-time */
                 expires_at: string;
             }[];
@@ -22268,7 +22268,7 @@ export interface components {
                 stage: "signed_up" | "onboarded" | "aspirant" | "applicant" | "enrolled";
                 label: string;
                 count: number;
-                pct_of_previous: number | null;
+                pct_of_previous?: number | null;
             }[];
             /** @description Every closed case, all time (2026-09-10): successful (= Enrolled) vs not, and the close sub_reason of each unsuccessful one, most frequent first. */
             case_outcomes?: {
@@ -23463,9 +23463,9 @@ export interface components {
         /** @description Client Profile's Commissions tab, `clients.view_commissions` only. Reworked 2026-08-28 — driven by the journey's active commission entry (created when a college is Accepted, or directly for PR cases) rather than derived from invoices. DELIBERATELY carries no platform cut, rate, or platform payment status — that tier of information is visible only on the Commission Details page (`GET /commission`, `billing.view_commission_details`), per the tiered-visibility rule. */
         CommissionSummary: {
             /** @enum {string|null} */
-            payer_method: "college" | "applicant" | "split" | null;
+            payer_method?: "college" | "applicant" | "split" | null;
             /** @description Null until a college is Accepted (or a PR contribution is recorded). */
-            entry: components["schemas"]["CommissionEntryDetail"] | null;
+            entry?: components["schemas"]["CommissionEntryDetail"] | null;
             /** @description Money actually received against the entry, in the order recorded. */
             installments: components["schemas"]["CommissionInstallment"][];
             /** @description This journey's platform invoices — linked documents, optional (a consultancy may invoice externally; recording installments never requires one). */
@@ -26354,8 +26354,8 @@ export interface components {
             /** @enum {string} */
             outcome: "success" | "wrong_password" | "unknown_account" | "wrong_code" | "code_expired" | "too_many_attempts" | "rate_limited" | "account_disabled" | "subscription_lapsed";
             /** @enum {string|null} */
-            platform: "android" | "ios" | "web" | null;
-            app_version: string | null;
+            platform?: "android" | "ios" | "web" | null;
+            app_version?: string | null;
             ip: string | null;
         };
         /** @description Sign-in health over the window (2026-09-10), from login_events — one row per sign-in ATTEMPT (password, email code or phone code; reopening the app on a saved session is not a sign-in). Aggregate operational figures only; an under-18 account's attempts are left out of these figures, the same line analytics_events draws, though the rows are kept as a security record. */
