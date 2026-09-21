@@ -5438,7 +5438,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The districts of one state (2026-09-21) — the ONE list a branch's `district` is picked from and checked against, so what can be picked is exactly what the writes accept. Added for the branch-location feature: students choose which branch of a consultancy to talk to and the list is ordered by nearness — same city, then district, then state, then country. ONLY INDIA HAS DISTRICTS. The ranking is for the Indian market and no other country's second level is modelled, so a state anywhere else returns an EMPTY LIST and a 200, not an error — "this country does not model districts" is not a mistake the caller made. A district is therefore required on a branch in India and optional (and unchecked) elsewhere. Sorted by name. A value that is not on its state's list is refused 422 `validation_failed`; a listed value in any letter case is stored with its official spelling. Source and confidence: the list is Indian government / encyclopedic reference data compiled 2026-09-21 and IS EXPECTED TO DRIFT — Indian district boundaries change every year. See `mock-server/data/districts.SOURCE.md`. */
+        /**
+         * The districts of one state (2026-09-21) — the ONE list a branch's `district` is picked from and checked against, so what can be picked is exactly what the writes accept. Added for the branch-location feature: students choose which branch of a consultancy to talk to and the list is ordered by nearness — same city, then district, then state, then country. ONLY INDIA HAS DISTRICTS. The ranking is for the Indian market and no other country's second level is modelled, so a state anywhere else returns an EMPTY LIST and a 200, not an error — "this country does not model districts" is not a mistake the caller made. A district is therefore required on a branch in India and optional (and unchecked) elsewhere. Sorted by name. A value that is not on its state's list is refused 422 `validation_failed`; a listed value in any letter case is stored with its official spelling. Source and confidence: the list is Indian government / encyclopedic reference data compiled 2026-09-21 and IS EXPECTED TO DRIFT — Indian district boundaries change every year. See `mock-server/data/districts.SOURCE.md`.
+         *
+         *     CONTRACT FIX 2026-09-21: `District.code` left `required`. It is null on every row this endpoint serves, and while it was declared required a generated client cast it as a non-null string and threw on every row — which empties a district picker in the way that looks exactly like "this state has no districts". Regenerate both SDKs. See `District.code`.
+         */
         get: {
             parameters: {
                 query?: {
@@ -6876,6 +6880,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/consultancies/{id}/branches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The offices of one consultancy a student can choose to talk to (product owner, 2026-09-21: "when student selects a consultancy they can choose which branch they want to communicate with"). ADDED 2026-09-21 because the picker behind `preferred_branch_id` on POST /consultancies/{id}/leads had no list behind it: `GET /staff/branches` is scoped to the consultancy's own staff and answers a student with an empty array, and `Consultancy` carries only `nearest_branch`, which is one office out of however many.
+         *
+         *     ACTIVE BRANCHES OF THIS ONE ACCOUNT, and nothing else — the same set the nearness ranking, `GET /consultancies/locations` and the `preferred_branch_id` validation are computed over, so a branch this endpoint offers is never one the lead write then refuses with a 422.
+         *
+         *     WHAT A ROW CARRIES is decided by what a student chooses an office on: the branch name, its four picked place levels, and its street line. `address` IS included — it is the street line only since 2026-09-21 (see `Branch.address`), the consultancy already publishes its own address on the detail card, and two offices in one city cannot be told apart, let alone reached, from a city name. `employee_count` and every other operational field on `Branch` are NOT: how many consultants staff an office is the account's own business, and nothing a student decides on.
+         *
+         *     ANY SIGNED-IN CALLER, not staff-gated. Same visibility rule as `GET /consultancies/{id}`: a suspended or missing consultancy is a 404, never a 403, so this cannot be used to probe which accounts exist. A consultancy with no branches is an empty array and a 200, the same answer GET /countries/{name}/states/{state}/districts gives a state with no districts.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK — empty for a consultancy with no active branch. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ConsultancyBranchOption"][];
+                    };
+                };
+                /** @description No such consultancy, or one suspended/hidden from this caller. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/consultancies/{id}/leads": {
         parameters: {
             query?: never;
@@ -6902,7 +6961,7 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        /** @description A branch of THIS consultancy that is currently active. A preference only — allocation is unchanged and nothing reads it as a routing input. Stored on `Lead.preferred_branch_id`, never on `Lead.branch_id`. */
+                        /** @description A branch of THIS consultancy that is currently active — one of the ids `GET /consultancies/{id}/branches` returns, which since 2026-09-21 is the list a student picks from (until then the field had no readable list behind it at all). Anything else is refused 422, including another consultancy's branch, which the refusal never identifies as such. A preference only — allocation is unchanged and nothing reads it as a routing input. Stored on `Lead.preferred_branch_id`, never on `Lead.branch_id`. */
                         preferred_branch_id?: components["schemas"]["UUID"];
                     };
                 };
@@ -22425,8 +22484,11 @@ export interface components {
             search?: string | null;
         };
         StateProvince: {
-            /** @description ISO 3166-2 code, e.g. IN-TN. Null for a state added from immiNow. */
-            code: string | null;
+            /**
+             * @description ISO 3166-2 code, e.g. IN-TN. Null for a state added from immiNow — POST /countries/{name}/states stores `code: null`, so this is a live null, not a hypothetical one.
+             *     NOT IN `required` SINCE 2026-09-21, and that is the fix for a real client defect, not tidying. This is an OpenAPI 3.1 document, where `nullable` is not a schema keyword at all — generators ignore it — so `required` was the only part of this declaration they read, and they emitted a NON-NULLABLE field. The Dart model cast `code` with `v as String` and threw `CheckedFromJsonException` on a row carrying the null this description has always promised. Dropping the field from `required` is what every generator here already turns into a nullable field (see any optional property), and it costs a client nothing: the server still sends the key on every row, and a client that reads a missing key as null lands on the same value. `nullable: true` is kept as documentation and for any 3.0 downconversion.
+             */
+            code?: string | null;
             /** @description English name — the value every state field stores. */
             name: string;
             /** @description What the country calls it — State, Union territory, Province, Region… */
@@ -22436,8 +22498,11 @@ export interface components {
         };
         /** @description The second level of the same managed place hierarchy (2026-09-21), shaped like StateProvince so a picker can render either. ONLY INDIA HAS DISTRICTS — see GET /countries/{name}/states/{state}/districts. */
         District: {
-            /** @description Null on every row today. Neither source behind the list carries a district code that is real and stable (the 2011 census code is absent for every district created since), and an invented code would look official. Served anyway so real codes arriving later are data rather than a contract change. */
-            code: string | null;
+            /**
+             * @description Null on EVERY row today. Neither source behind the list carries a district code that is real and stable (the 2011 census code is absent for every district created since), and an invented code would look official. Served anyway so real codes arriving later are data rather than a contract change.
+             *     NOT IN `required` SINCE 2026-09-21, and that is the fix for a real client defect, not tidying. This is an OpenAPI 3.1 document, where `nullable` is not a schema keyword at all — generators ignore it — so `required` was the only part of this declaration they read, and they emitted a NON-NULLABLE field. The Dart model cast `code` with `v as String` and threw `CheckedFromJsonException` on a row carrying the null this description has always promised. Dropping the field from `required` is what every generator here already turns into a nullable field (see any optional property), and it costs a client nothing: the server still sends the key on every row, and a client that reads a missing key as null lands on the same value. `nullable: true` is kept as documentation and for any 3.0 downconversion.
+             */
+            code?: string | null;
             /** @description English name — the value a branch's `district` stores. */
             name: string;
             /** @description Reserved, true on every row today — mirrors StateProvince.active. */
@@ -22454,7 +22519,8 @@ export interface components {
             active?: boolean;
         };
         StateProvinceChange: {
-            code: string | null;
+            /** @description The renamed state's code — null for one immiNow added itself, so this response inherits `StateProvince.code`'s nullability and, since 2026-09-21, its absence from `required`. Same defect, same fix: see `StateProvince.code`. */
+            code?: string | null;
             name: string;
             type: string;
             active: boolean;
@@ -24601,6 +24667,27 @@ export interface components {
             name: string;
             /** @description How many ACCOUNTS have an active branch here — not how many branches. Two offices of one account in the same state count once, so the number always equals what the matching filter returns. */
             consultancy_count: number;
+        };
+        /**
+         * @description One office in `GET /consultancies/{id}/branches` (product owner, 2026-09-21) — the branch picker a student chooses `preferred_branch_id` from. A DELIBERATE SUBSET of `Branch`, not `Branch` itself: everything a student picks an office on, and no operational field. Sorted by `name` (id breaks a tie), so the order is the same on every reload and for every caller.
+         *
+         *     ONLY THE THREE NEVER-NULL FIELDS ARE `required`. The four place levels and `address` are served on every row but may each be null — a branch is storable with no place at all, by design — and in this 3.1 document `nullable` is a comment, not a constraint, so listing a nullable field as required is what makes a generated client throw on a real row. Same rule `District.code` was fixed under on 2026-09-21.
+         */
+        ConsultancyBranchOption: {
+            /** @description Pass this as `preferred_branch_id` when starting the chat. */
+            id: components["schemas"]["UUID"];
+            /** @description The office's own name, as its consultancy set it. */
+            name: string;
+            /** @description The street line only — door number, building, road (`Branch.address`, narrowed to that on 2026-09-21). Served to students deliberately: it is a published shop front, and two offices in the same city are otherwise indistinguishable and unreachable. */
+            address?: string | null;
+            /** @description Null on a branch whose consultancy has not filled its place in yet. */
+            city?: string | null;
+            /** @description India only — no other country's districts are modelled. See GET /countries/{name}/states/{state}/districts. */
+            district?: string | null;
+            state?: string | null;
+            country?: string | null;
+            /** @description True on the ONE office this consultancy would be ranked by for the calling student — the same branch `Consultancy.nearest_branch` names, computed the same way over the same set, so the two can never disagree. A FLAG rather than a repeated `nearest_branch` object on purpose (2026-09-21): the list and the detail card already carry that object, and a client that opened this picker on its own can still preselect from a boolean without recomputing nearness. False on every row for a caller who has named no location of their own, exactly as `nearest_branch` is null for them, and for a consultancy none of whose offices match even on country. */
+            is_nearest: boolean;
         };
         /** @description erd.md's `job_alerts` table — Sentpo Mobile Wave 6a's Job Alerts screen. */
         JobAlert: {
