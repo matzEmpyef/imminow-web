@@ -5,8 +5,8 @@ import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
-import { AddBranchModal } from './AddBranchModal'
-import { EditBranchModal } from './EditBranchModal'
+import { BranchFormModal } from './BranchFormModal'
+import { branchHasLocation, formatBranchLocation } from './branchLocation'
 import { useBranches, useUpdateBranch } from '@/queries/staff'
 import type { components } from '@/api/schema'
 
@@ -105,7 +105,14 @@ export function BranchesPage() {
     let items = branches.data ?? []
     if (search) {
       const q = search.toLowerCase()
-      items = items.filter((b) => b.name.toLowerCase().includes(q) || b.address.toLowerCase().includes(q))
+      items = items.filter(
+        (b) =>
+          b.name.toLowerCase().includes(q) ||
+          b.address.toLowerCase().includes(q) ||
+          // The city/district/state/country moved OUT of `address` on 2026-09-21, so a search that
+          // only read the street line stopped finding "Delhi" the day the location was filled in.
+          formatBranchLocation(b).toLowerCase().includes(q),
+      )
     }
     if (sort) {
       const dir = sort.direction === 'desc' ? -1 : 1
@@ -130,7 +137,20 @@ export function BranchesPage() {
         </div>
       ),
     },
-    { key: 'address', header: 'Address', render: (branch) => branch.address },
+    { key: 'address', header: 'Street address', render: (branch) => branch.address },
+    {
+      key: 'location',
+      header: 'Location',
+      // The four picked levels, narrowest first. A branch without them is not a broken row — it is
+      // simply one students can never be offered by nearness, which is a different and fixable
+      // thing, so it says that rather than showing an em dash.
+      render: (branch) =>
+        branchHasLocation(branch) ? (
+          <span className="text-text-secondary">{formatBranchLocation(branch)}</span>
+        ) : (
+          <Badge color="warning">Location not set</Badge>
+        ),
+    },
     {
       key: 'employee_count',
       header: 'Staff',
@@ -150,13 +170,19 @@ export function BranchesPage() {
   return (
     <AppShell>
       <div className="flex flex-col gap-lg">
-        <div className="flex items-center justify-between">
-          <h1 className="text-h1 text-text-primary">Branches</h1>
+        <div className="flex items-start justify-between gap-md">
+          <div>
+            <h1 className="text-h1 text-text-primary">Branches</h1>
+            <p className="text-body-sm text-text-secondary">
+              Students choose which of your branches to talk to, and see the nearest one first. A branch needs its
+              country, state, district and city filled in before it can be offered that way.
+            </p>
+          </div>
           <Button onClick={() => setShowAddModal(true)}>Add Branch</Button>
         </div>
 
-        {showAddModal && <AddBranchModal onClose={() => setShowAddModal(false)} />}
-        {editingBranch && <EditBranchModal branch={editingBranch} onClose={() => setEditingId(null)} />}
+        {showAddModal && <BranchFormModal onClose={() => setShowAddModal(false)} />}
+        {editingBranch && <BranchFormModal branch={editingBranch} onClose={() => setEditingId(null)} />}
 
         <Table
           columns={columns}

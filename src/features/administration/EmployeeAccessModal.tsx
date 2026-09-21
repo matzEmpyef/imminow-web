@@ -6,6 +6,8 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { Toggle } from '@/components/Toggle'
 import { useDisableEmployee, useEmployees, useUpdateEmployee } from '@/queries/staff'
+import { BranchAccessPicker } from './BranchAccessPicker'
+import { branchAccessChanged, primaryBranchError, type BranchAccess } from './branchAccess'
 import { permissionGroupsFor } from '@/lib/permissions'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
@@ -21,11 +23,13 @@ export function EmployeeAccessModal({
   designations,
   branches,
   hasMultiBranch,
+  hasDesignations,
 }: {
   employee: Employee
   designations: Designation[]
   branches: Branch[]
   hasMultiBranch: boolean
+  hasDesignations: boolean
 }) {
   const [open, setOpen] = useState(false)
 
@@ -46,6 +50,7 @@ export function EmployeeAccessModal({
           designations={designations}
           branches={branches}
           hasMultiBranch={hasMultiBranch}
+          hasDesignations={hasDesignations}
           onClose={() => setOpen(false)}
         />
       )}
@@ -58,18 +63,27 @@ function AccessModalBody({
   designations,
   branches,
   hasMultiBranch,
+  hasDesignations,
   onClose,
 }: {
   employee: Employee
   designations: Designation[]
   branches: Branch[]
   hasMultiBranch: boolean
+  hasDesignations: boolean
   onClose: () => void
 }) {
   const updateEmployee = useUpdateEmployee(employee.id!)
   const disableEmployee = useDisableEmployee()
   const [designationId, setDesignationId] = useState(employee.designation_id ?? '')
-  const [branchIds, setBranchIds] = useState<Set<string>>(new Set(employee.branch_ids ?? []))
+  // The stored primary, or the fallback the server itself applies when none was ever chosen —
+  // `branch_ids[0]`. Starting from the fallback rather than from blank is what keeps a
+  // single-branch consultancy seeing no change: the radio is already on the only branch there is.
+  const storedAccess: BranchAccess = {
+    branchIds: employee.branch_ids ?? [],
+    primaryId: employee.primary_branch_id ?? employee.branch_ids?.[0] ?? '',
+  }
+  const [access, setAccess] = useState<BranchAccess>(storedAccess)
   const [overrides, setOverrides] = useState<Record<string, boolean>>(employee.permission_overrides ?? {})
   const [reason, setReason] = useState('')
   const [confirmingDisable, setConfirmingDisable] = useState(false)
@@ -83,30 +97,37 @@ function AccessModalBody({
 
   const designation = designations.find((d) => d.id === designationId)
   const baseline = designation?.permissions ?? {}
+  // `dirty` means SENSITIVE change — it is what makes the reason mandatory (build reference 1.24),
+  // so branch coverage and the primary branch are deliberately not part of it.
   const dirty =
     designationId !== employee.designation_id ||
     JSON.stringify(overrides) !== JSON.stringify(employee.permission_overrides ?? {})
+  // …but they ARE changes, and Save was gated on `dirty` alone, which meant a branch-only edit
+  // left the button disabled and could not be saved at all. Found while making the primary branch
+  // a control (2026-09-21): a control nobody can submit is not a control.
+  const branchesChanged = branchAccessChanged(access, storedAccess)
+  const primaryError = primaryBranchError(access)
+  const canSave = (dirty || branchesChanged) && (!dirty || Boolean(reason)) && !primaryError
 
   function togglePermission(key: string) {
     const effective = key in overrides ? overrides[key] : (baseline[key] ?? false)
     setOverrides((prev) => ({ ...prev, [key]: !effective }))
   }
 
-  function toggleBranch(id: string) {
-    setBranchIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
   function handleSave() {
     updateEmployee.mutate(
       {
-        branch_ids: [...branchIds],
-        designation_id: designationId,
-        permission_overrides: overrides,
+        branch_ids: access.branchIds,
+        // Omitted rather than sent empty when they cover no branch: the server leaves the stored
+        // value alone on an omission, and '' is not a branch id.
+        primary_branch_id: access.primaryId || undefined,
+        // ONLY WHEN THEY ACTUALLY CHANGED. The server treats the mere PRESENCE of either field as
+        // a permission change and refuses the call 400 without a `reason` — so re-sending the
+        // stored values unchanged, which this used to do, made every branch-only save demand an
+        // audit reason for a permission nobody touched (caught live, 2026-09-21). It also covers
+        // the account that has no `designations` entitlement: nothing about designations is on
+        // screen there, so nothing about them is sent.
+        ...(hasDesignations && dirty ? { designation_id: designationId, permission_overrides: overrides } : {}),
         reason: dirty ? reason : undefined,
       },
       {
@@ -129,7 +150,7 @@ function AccessModalBody({
             <p className="mr-auto self-center text-body-sm text-error">{updateEmployee.error.message}</p>
           )}
           <div className="flex gap-sm">
-            <Button loading={updateEmployee.isPending} disabled={!dirty || (dirty && !reason)} onClick={handleSave}>
+            <Button loading={updateEmployee.isPending} disabled={!canSave} onClick={handleSave}>
               Save Changes
             </Button>
             {!employee.is_consultancy_admin && employee.active && (
@@ -145,47 +166,45 @@ function AccessModalBody({
       }
     >
       <div className="flex flex-col gap-md">
-        <SelectField
-          label="Access Rights"
-          id={`designation-${employee.id}`}
-          value={designationId}
-          onChange={(e) => setDesignationId(e.target.value)}
-        >
-          {designations.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </SelectField>
+        {hasDesignations && (
+          <SelectField
+            label="Access Rights"
+            id={`designation-${employee.id}`}
+            value={designationId}
+            onChange={(e) => setDesignationId(e.target.value)}
+          >
+            {designations.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </SelectField>
+        )}
 
         {hasMultiBranch && branches.length > 1 && (
           <div className="flex flex-col gap-xs">
-            <p className="text-body-sm font-medium text-text-primary">Branches</p>
             {employee.is_consultancy_admin ? (
-              <p className="text-body-sm text-text-secondary">
-                Consultancy admins have access to every branch automatically — this list doesn't apply to them.
-              </p>
+              <>
+                <p className="text-body-sm font-medium text-text-primary">Branches</p>
+                <p className="text-body-sm text-text-secondary">
+                  Consultancy admins have access to every branch automatically — this list doesn't apply to them.
+                </p>
+              </>
             ) : (
-              <div className="flex flex-wrap gap-md">
-                {branches.map((b) => (
-                  <label key={b.id} className="flex items-center gap-xs text-body-sm">
-                    <input
-                      type="checkbox"
-                      checked={branchIds.has(b.id!)}
-                      onChange={() => toggleBranch(b.id!)}
-                      className="h-4 w-4"
-                    />
-                    {b.name}
-                    {employee.primary_branch_id === b.id && (
-                      <span className="text-caption text-text-secondary">(primary)</span>
-                    )}
-                  </label>
-                ))}
-              </div>
+              <>
+                <BranchAccessPicker
+                  branches={branches}
+                  value={access}
+                  onChange={setAccess}
+                  personLabel={`${employee.user!.first_name} ${employee.user!.last_name}`}
+                />
+                {primaryError && <p className="text-caption text-error">{primaryError}</p>}
+              </>
             )}
           </div>
         )}
 
+        {hasDesignations && (
         <div className="flex flex-col gap-sm">
           <p className="text-body-sm font-medium text-text-primary">Individual permission overrides</p>
           {permissionGroupsFor(baseline, overrides).map((group) => (
@@ -209,6 +228,7 @@ function AccessModalBody({
             </div>
           ))}
         </div>
+        )}
 
         {dirty && (
           <TextField

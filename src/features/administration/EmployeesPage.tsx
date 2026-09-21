@@ -82,16 +82,23 @@ export function EmployeesPage() {
       header: 'Designation',
       render: (employee) => <span className="text-text-secondary">{employee.user!.designation ?? '—'}</span>,
     },
-    ...(hasDesignations
+    // The branch half of this column is only worth a column when there is more than one branch to
+    // be in — same test the Manage Access trigger below uses, so the column and the control that
+    // edits it appear together.
+    ...(hasDesignations || (hasMultiBranch && (branches.data?.length ?? 0) > 1)
       ? [
           {
             key: 'access',
-            header: 'Access Rights / Branch',
+            header: hasDesignations ? 'Access Rights / Branch' : 'Branch',
             render: (employee: Employee) => {
               const designation = designations.data?.find((d) => d.id === employee.designation_id)
+              // The primary is named as such (2026-09-21) — it is a chosen fact now, not a
+              // position in a list, and it decides which branch this person's cases are filed
+              // under. Falls back the way the server does when none was ever picked.
+              const primaryId = employee.primary_branch_id ?? employee.branch_ids?.[0]
               const branchNames = (branches.data ?? [])
                 .filter((b) => employee.branch_ids?.includes(b.id!))
-                .map((b) => b.name)
+                .map((b) => (b.id === primaryId ? `${b.name} (primary)` : b.name))
               return (
                 <span className="text-text-secondary">
                   {/* The owner carries every permission by definition — `usePermissionChecker`
@@ -100,10 +107,17 @@ export function EmployeesPage() {
                       its owner as having "No access rights" (console review M3, 2026-09-13), and
                       a consultancy showed the protected "Owner/Admin" designation, repeating the
                       badge already on the Name cell. One honest answer for both. */}
-                  {employee.is_consultancy_admin
-                    ? 'Full access (owner)'
-                    : (designation?.name ?? 'No access rights')}
-                  {branchNames.length > 0 ? ` · ${branchNames.join(', ')}` : ''}
+                  {hasDesignations
+                    ? employee.is_consultancy_admin
+                      ? 'Full access (owner)'
+                      : (designation?.name ?? 'No access rights')
+                    : ''}
+                  {branchNames.length > 0 ? `${hasDesignations ? ' · ' : ''}${branchNames.join(', ')}` : ''}
+                  {!hasDesignations && branchNames.length === 0
+                    ? employee.is_consultancy_admin
+                      ? 'Every branch (owner)'
+                      : '—'
+                    : ''}
                 </span>
               )
             },
@@ -116,14 +130,20 @@ export function EmployeesPage() {
       render: (employee) => (
         <div className="flex justify-end">
           <EditEmployeeModal employee={employee} designations={designations.data ?? []} />
-          {hasDesignations && !employee.is_consultancy_admin && (
-            <EmployeeAccessModal
-              employee={employee}
-              designations={designations.data ?? []}
-              branches={branches.data ?? []}
-              hasMultiBranch={hasMultiBranch}
-            />
-          )}
+          {/* Branches moved to Starter on 2026-09-21, which left this modal — the ONLY place an
+              employee's branches can be changed — behind the `designations` entitlement. An account
+              could then have branches, a branch picker on every lead, and no way to put anybody in
+              one. It now opens for either half, and each half renders only if its own feature is on. */}
+          {(hasDesignations || (hasMultiBranch && (branches.data?.length ?? 0) > 1)) &&
+            !employee.is_consultancy_admin && (
+              <EmployeeAccessModal
+                employee={employee}
+                designations={designations.data ?? []}
+                branches={branches.data ?? []}
+                hasMultiBranch={hasMultiBranch}
+                hasDesignations={hasDesignations}
+              />
+            )}
         </div>
       ),
     },
@@ -148,6 +168,8 @@ export function EmployeesPage() {
           <InviteEmployeeModal
             hasDesignations={hasDesignations}
             designations={designations.data ?? []}
+            branches={branches.data ?? []}
+            hasMultiBranch={hasMultiBranch}
             onClose={() => setShowInviteModal(false)}
           />
         )}

@@ -9,6 +9,7 @@ import { Badge } from '@/components/Badge'
 import { TagEditorMenu } from '@/components/TagEditorMenu'
 import { AssignPlanModal } from '@/features/clients/AssignPlanModal'
 import { AssignBranchMenu } from '@/components/AssignBranchMenu'
+import { RequestedBranchBadge } from '@/components/RequestedBranch'
 import { StudentProfilePanels } from '@/components/StudentProfileFields'
 import { CountryLabel } from '@/components/CountryLabel'
 import { useClient, useSetClientBranch, useSetClientTags, useSetFinalizedCountry } from '@/queries/clients'
@@ -272,8 +273,27 @@ export function OverviewTab({
               <dt className="text-caption text-text-secondary">Consultant</dt>
               <dd className="text-text-primary">{data.assigned_employee_name ?? 'Unassigned'}</dd>
             </div>
+            {/* The branch the student asked for back when they were a lead, carried across the
+                conversion (2026-09-21). Deliberately ABOVE the servicing branch and labelled
+                differently: one is what they wanted, the other is where the case — and its
+                revenue — is actually filed. Absent entirely for a client who never asked, and for
+                one converted from an imported lead, which has no student account behind it. */}
+            {data.preferred_branch_name && (
+              <div>
+                <dt className="text-caption text-text-secondary">Branch the student asked for</dt>
+                <dd className="flex flex-col items-start gap-xs">
+                  <RequestedBranchBadge name={data.preferred_branch_name} />
+                  <span className="text-caption text-text-secondary">
+                    A preference from their first chat &mdash; it does not decide the branch below.
+                  </span>
+                </dd>
+              </div>
+            )}
             <div>
-              <dt className="text-caption text-text-secondary">Branch</dt>
+              {/* Only renamed when the other one is on screen to be told apart from. */}
+              <dt className="text-caption text-text-secondary">
+                {data.preferred_branch_name ? 'Branch handling this case' : 'Branch'}
+              </dt>
               <dd className="flex items-center gap-xs text-text-primary">
                 {branches.data?.find((b) => b.id === data.branch_id)?.name ?? 'Unassigned'}
                 {employeeBranches.length > 1 && (

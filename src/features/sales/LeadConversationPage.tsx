@@ -9,6 +9,7 @@ import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
 import { ChatPanel } from '@/components/ChatPanel'
 import { AssignBranchMenu } from '@/components/AssignBranchMenu'
+import { RequestedBranchBadge } from '@/components/RequestedBranch'
 import { StudentProfileFields } from '@/components/StudentProfileFields'
 import { useChatWindowStore } from '@/stores/chatWindowStore'
 import { showToast } from '@/lib/toast'
@@ -198,6 +199,22 @@ function DetailsCard({ lead }: { lead: NonNullable<ReturnType<typeof useLead>['d
           <div className="flex justify-between">
             <dt className="text-text-secondary">Assigned to</dt>
             <dd className="text-text-primary">{lead.assigned_employee_name}</dd>
+          </div>
+        )}
+        {/* The student's own wish, directly above the servicing branch it must not be confused
+            with (2026-09-21). Servicing branch is stamped from whoever holds the lead and carries
+            the revenue; this is what they asked for and routes nothing. Shown even on a
+            single-branch consultancy IF one was asked for, because here it is a fact about this
+            one student rather than a table column that would be identical on every row. */}
+        {lead.preferred_branch_name && (
+          <div className="flex items-start justify-between gap-md">
+            <dt className="shrink-0 text-text-secondary">Requested branch</dt>
+            <dd className="flex flex-col items-end gap-xs">
+              <RequestedBranchBadge name={lead.preferred_branch_name} />
+              <span className="text-right text-caption text-text-secondary">
+                What the student asked for &mdash; a preference, not a routing rule.
+              </span>
+            </dd>
           </div>
         )}
         {multiBranch && (

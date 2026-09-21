@@ -4,8 +4,9 @@ import { Button } from '@/components/Button'
 import { Table, type TableColumn } from '@/components/Table'
 import { AssignConsultantMenu } from '@/features/sales/AssignConsultantMenu'
 import { AddLeadModal, ImportLeadsModal } from './ImportLeadsModal'
+import { RequestedBranchBadge, RequestedBranchNote } from '@/components/RequestedBranch'
 import { useFeature } from '@/lib/features'
-import { useEmployees } from '@/queries/staff'
+import { useBranches, useEmployees } from '@/queries/staff'
 import { useAllocateLead, useBulkAllocateLeads, useLeads } from '@/queries/leads'
 import { useCursorPagination } from '@/lib/pagination'
 import { usePermissionChecker } from '@/lib/permissions'
@@ -56,6 +57,10 @@ export function LeadPoolPage() {
     limit: 20,
   })
   const employees = useEmployees()
+  // Only worth a column when there is more than one branch to have asked for — on a single-branch
+  // consultancy every answer is the same branch, which is no information at all.
+  const branches = useBranches()
+  const multiBranch = (branches.data?.length ?? 0) > 1
   const allocate = useAllocateLead()
   const bulkAllocate = useBulkAllocateLeads()
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -160,6 +165,18 @@ export function LeadPoolPage() {
       render: (lead) =>
         lead.origin === 'imported' ? (lead.source ? (SOURCE_LABELS[lead.source] ?? lead.source) : '—') : 'Sentpo',
     },
+    ...(multiBranch
+      ? [
+          {
+            key: 'preferred_branch',
+            header: 'Requested branch',
+            // Sits immediately before Allocate, because it is an input to that decision and nothing
+            // else. Always null on an imported lead — there is no student account behind that row
+            // to have asked for anything.
+            render: (lead: Lead) => <RequestedBranchBadge name={lead.preferred_branch_name} />,
+          } satisfies TableColumn<Lead>,
+        ]
+      : []),
     {
       key: 'created_at',
       header: 'Added',
@@ -234,6 +251,8 @@ export function LeadPoolPage() {
             </div>
           )}
         </div>
+
+        {multiBranch && <RequestedBranchNote />}
 
         {showAddLeadModal && <AddLeadModal onClose={() => setShowAddLeadModal(false)} />}
         {showImportModal && <ImportLeadsModal onClose={() => setShowImportModal(false)} />}

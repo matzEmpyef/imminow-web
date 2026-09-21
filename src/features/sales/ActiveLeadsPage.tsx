@@ -7,6 +7,7 @@ import { Table, type TableColumn } from '@/components/Table'
 import { TagEditorMenu } from '@/components/TagEditorMenu'
 import { AssignConsultantMenu } from '@/features/sales/AssignConsultantMenu'
 import { StopPropagation } from '@/components/StopPropagation'
+import { RequestedBranchBadge, RequestedBranchNote } from '@/components/RequestedBranch'
 import { ReopenLeadModal } from './ReopenLeadModal'
 import { useBranches, useEmployees } from '@/queries/staff'
 import { useAllocateLead, useLeads, useSetLeadTags } from '@/queries/leads'
@@ -88,6 +89,7 @@ export function ActiveLeadsPage() {
   const myBranchNames = me?.is_consultancy_admin
     ? []
     : (branches.data ?? []).filter((b) => me?.branch_ids?.includes(b.id!)).map((b) => b.name)
+  const multiBranch = (branches.data?.length ?? 0) > 1
   const tags = useTags()
   const createTag = useCreateTag()
   const setLeadTags = useSetLeadTags()
@@ -134,6 +136,18 @@ export function ActiveLeadsPage() {
       sortable: true,
       render: (lead) => lead.assigned_employee_name ?? 'Unassigned',
     },
+    // The student's own wish, beside who actually has them (2026-09-21) — a reassignment made from
+    // this row is the moment it can still be honoured. Only shown when there is more than one
+    // branch to have asked for.
+    ...(multiBranch
+      ? [
+          {
+            key: 'preferred_branch',
+            header: 'Requested branch',
+            render: (lead: Lead) => <RequestedBranchBadge name={lead.preferred_branch_name} />,
+          } satisfies TableColumn<Lead>,
+        ]
+      : []),
     {
       key: 'tags',
       header: 'Tags',
@@ -190,6 +204,8 @@ export function ActiveLeadsPage() {
             Showing leads in your branches: {myBranchNames.join(', ')}.
           </p>
         )}
+
+        {multiBranch && <RequestedBranchNote />}
 
         <Table
           columns={columns}

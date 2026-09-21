@@ -17,7 +17,7 @@ import {
 import { useEmployees } from '@/queries/staff'
 import { humaniseCode } from '@/lib/humanise'
 import { daysUntil, formatDate } from '@/lib/time'
-import { BUSINESS_FEATURES, ULTIMATE_FEATURES, STARTER_CORE_FEATURES, TIER_ORDER, TIER_LABEL } from '@/lib/features'
+import { FEATURE_REGISTRY, STARTER_CORE_FEATURES, TIER_ORDER, TIER_LABEL } from '@/lib/features'
 import { formatApprox, formatMoney } from '@/lib/money'
 
 type Consultancy = NonNullable<ReturnType<typeof useMyConsultancy>['data']>
@@ -46,7 +46,10 @@ export function SubscriptionTab({ consultancy }: { consultancy: Consultancy }) {
   // The ACTUAL effective feature set — resolved preset ⊕ Super Admin override, off
   // `consultancy.features`, rather than a static per-tier list, so it always matches what's
   // actually reachable.
-  const enabledFeatures = [...BUSINESS_FEATURES, ...ULTIMATE_FEATURES].filter((f) => consultancy.features?.[f.key])
+  // The WHOLE registry, not just the Business and Ultimate halves (2026-09-21): Starter gained its
+  // first flag when branches moved down to it, and a pair of hardcoded bundles would have dropped
+  // it off this list entirely — an account would have branches and no line saying so.
+  const enabledFeatures = FEATURE_REGISTRY.filter((f) => consultancy.features?.[f.key])
   const included = [...STARTER_CORE_FEATURES, ...enabledFeatures.map((f) => f.label)]
 
   // Reflects the RECORDED request (persisted server-side), not local-only mutation state.

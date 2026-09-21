@@ -4,21 +4,28 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useInviteEmployee } from '@/queries/staff'
+import { BranchAccessPicker } from './BranchAccessPicker'
+import { primaryBranchError, type BranchAccess } from './branchAccess'
 import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
 type Designation = components['schemas']['Designation']
+type Branch = components['schemas']['Branch']
 
 // User-requested — was an inline Card+form toggled below the page header, same move already
 // made for Create Applicant/Add Lead elsewhere this session.
 export function InviteEmployeeModal({
   hasDesignations,
   designations,
+  branches,
+  hasMultiBranch,
   onClose,
 }: {
   hasDesignations: boolean
   designations: Designation[]
+  branches: Branch[]
+  hasMultiBranch: boolean
   onClose: () => void
 }) {
   const inviteEmployee = useInviteEmployee()
@@ -33,12 +40,20 @@ export function InviteEmployeeModal({
   // still sent as the title, so the Employees table's Designation column keeps reading the same
   // way and the server's payload shape is unchanged.
   const [designationId, setDesignationId] = useState('')
+  // Branch coverage and the primary branch are asked for AT INVITE TIME since 2026-09-21 (product
+  // owner) — the primary decides which branch this person's leads and clients are filed under, and
+  // it used to be inferred from whatever order `branch_ids` happened to be in. It starts empty:
+  // with nothing ticked the whole group is omitted from the request, so the server's own default
+  // stands and a single-branch consultancy sees exactly what it saw before.
+  const [access, setAccess] = useState<BranchAccess>({ branchIds: [], primaryId: '' })
+  const showBranches = hasMultiBranch && branches.length > 1
 
   const selectedDesignation = designations.find((d) => d.id === designationId)
 
   const emailError = email && !isValidEmail(email) ? EMAIL_ERROR : undefined
   const phoneError = phone && !isValidPhone(phone) ? PHONE_ERROR : undefined
-  const canInvite = Boolean(firstName && lastName && email) && !emailError && !phoneError
+  const primaryError = showBranches ? primaryBranchError(access) : undefined
+  const canInvite = Boolean(firstName && lastName && email) && !emailError && !phoneError && !primaryError
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -51,6 +66,9 @@ export function InviteEmployeeModal({
         phone: phone || undefined,
         designation: selectedDesignation?.name || undefined,
         designation_id: hasDesignations ? designationId || undefined : undefined,
+        ...(showBranches && access.branchIds.length > 0
+          ? { branch_ids: access.branchIds, primary_branch_id: access.primaryId || undefined }
+          : {}),
       },
       {
         onSuccess: () => {
@@ -114,6 +132,17 @@ export function InviteEmployeeModal({
             The designation also sets this employee&rsquo;s access rights. Adjust individual permissions afterwards from
             Manage Access.
           </p>
+        )}
+        {showBranches && (
+          <>
+            <BranchAccessPicker
+              branches={branches}
+              value={access}
+              onChange={setAccess}
+              personLabel={`${firstName} ${lastName}`.trim() || 'this employee'}
+            />
+            {primaryError && <p className="text-caption text-error">{primaryError}</p>}
+          </>
         )}
       </form>
     </Modal>

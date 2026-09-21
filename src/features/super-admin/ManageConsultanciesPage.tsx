@@ -38,7 +38,7 @@ import { formatMoney } from '@/lib/money'
 import { useCurrencyCodes } from '@/lib/currencies'
 import { useConsultancyKyc, useVerifyKyc } from '@/queries/kyc'
 import type { components } from '@/api/schema'
-import { BUSINESS_FEATURES, ULTIMATE_FEATURES, STARTER_CORE_FEATURES, TIER_ORDER, FEATURE_KEYS, type FeatureDef } from '@/lib/features'
+import { BUSINESS_FEATURES, ULTIMATE_FEATURES, STARTER_FEATURES, STARTER_CORE_FEATURES, TIER_ORDER, FEATURE_KEYS, type FeatureDef } from '@/lib/features'
 import { humaniseCode } from '@/lib/humanise'
 
 type Consultancy = components['schemas']['Consultancy']
@@ -819,6 +819,10 @@ const DETAIL_TABS: { value: DetailTab; label: string }[] = [
   { value: 'plan', label: 'Plan & features' },
 ]
 const FEATURE_GROUPS: { title: string; flags: FeatureDef[] }[] = [
+  // Starter gained its first flag on 2026-09-21 (branches). It is ON for every tier, so it would
+  // never have appeared under either heading below — and a flag a Super Admin cannot see is a flag
+  // they cannot switch off for the one tenant who needs it off.
+  { title: 'On every plan', flags: STARTER_FEATURES },
   { title: 'Business plan features', flags: BUSINESS_FEATURES },
   { title: 'Ultimate plan features', flags: ULTIMATE_FEATURES },
 ]
@@ -1155,7 +1159,14 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
               ) : null}
               {impact.data.branches_to_deactivate?.length ? (
                 <p className="mt-xs text-body-sm text-text-secondary">
-                  {tier === 'ultimate' ? '' : 'This tier allows one branch, so '}
+                  {/* Was `tier === 'ultimate' ? '' : 'This tier allows one branch, so '` — the
+                      console's own second copy of "branches are an upper-tier feature", which went
+                      wrong the moment branches moved to Starter (2026-09-21) and told an admin
+                      downgrading to Business that the tier allows one branch when it allows all of
+                      them. The impact object reports `multi_branch` for the tier being moved to,
+                      computed from the same registry the server gates on, so the sentence now
+                      follows the fact rather than re-deriving it here. */}
+                  {impact.data.multi_branch === false ? 'The plan you are moving to allows one branch, so ' : ''}
                   {impact.data.branches_to_deactivate.map((b) => b.name).join(', ')} will be deactivated.
                 </p>
               ) : null}

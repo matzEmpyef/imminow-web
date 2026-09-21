@@ -45,6 +45,24 @@ export function FeatureGate({ feature, children }: { feature: FeatureDef; childr
   }
 
   if (!features[feature.key]) {
+    // A STARTER flag is on for every plan, so it can only be off because a Super Admin switched it
+    // off for this one account (2026-09-21, when branches moved down to Starter). "Upgrade to the
+    // Starter plan" would be nonsense on a Starter account and worse on an Ultimate one — there is
+    // nothing to upgrade to, and upgrading would not turn it back on.
+    if (feature.tier === 'starter') {
+      return (
+        <AppShell>
+          <Card>
+            <p className="text-body text-error">{feature.label} is switched off for your account.</p>
+            <p className="mt-xs text-body-sm text-text-secondary">
+              It is part of every plan, so this was turned off for your {org} specifically. Contact Sentpo support to
+              have it switched back on.
+            </p>
+          </Card>
+        </AppShell>
+      )
+    }
+
     return (
       <AppShell>
         <Card>

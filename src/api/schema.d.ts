@@ -1846,6 +1846,13 @@ export interface paths {
                         "application/json": components["schemas"]["Employee"];
                     };
                 };
+                /** @description `primary_branch_id` is not one of this request's own `branch_ids` (2026-09-21) — `validation_failed`, in plain language. See EmployeeInput.primary_branch_id. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
             };
         };
         delete?: never;
@@ -1933,6 +1940,13 @@ export interface paths {
                     };
                 };
                 400: components["responses"]["ErrorResponse"];
+                /** @description `primary_branch_id` is not one of the employee's branches as this request leaves them (2026-09-21) — `validation_failed`, in plain language, and nothing is written. See EmployeePatchInput.primary_branch_id. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
             };
         };
         trace?: never;
@@ -2220,7 +2234,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List branches (Ultimate tier only, FR-078) */
+        /** List the caller's own branches (FR-078). NOT gated on `multi_branch`: several screens resolve a branch label regardless of plan. Reachable on EVERY tier since 2026-09-21 in any case — see the writes below. */
         get: {
             parameters: {
                 query?: never;
@@ -2242,7 +2256,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Create branch */
+        /** Create a branch. `staff.manage_branches` permission plus the `multi_branch` entitlement — which every tier has by default since 2026-09-21 (product owner: "branches are marketplace presence and every account has one anyway"), so the 403 now only fires for a tenant whose flag a Super Admin has explicitly switched off. */
         post: {
             parameters: {
                 query?: never;
@@ -2263,6 +2277,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Branch"];
+                    };
+                };
+                /** @description The structured location does not check out (2026-09-21) — an unlisted country, state or district, a state or district with no country behind it, a country with no state, or a branch in India with no district. See BranchInput. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -2286,7 +2309,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Edit branch (name, address, active toggle) */
+        /** Edit a branch of the CALLER'S OWN consultancy — name, street address, structured location, active toggle. Same entitlement note as the create above. The location is re-validated against the MERGED record whenever any part of it is sent, and left alone entirely when none of it is. */
         patch: {
             parameters: {
                 query?: never;
@@ -2309,6 +2332,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Branch"];
+                    };
+                };
+                /** @description No such branch, or not one of the caller's own (2026-09-21). This resolved the id against every branch on the platform and edited whatever came back, so an admin holding a branch id could rename another consultancy's branch, switch it off, or move the structured location students are matched against; it is now scoped to the caller's own consultancy, the way the list above already was. Deliberately a 404 and not a 403 — the `/clients/{id}` idiom — because a 403 would confirm the id names a real branch and turn a refused write into a way to map another consultancy's branches one guess at a time. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description The merged structured location does not check out (2026-09-21) — see BranchInput. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -5390,6 +5431,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/countries/{name}/states/{state}/districts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The districts of one state (2026-09-21) — the ONE list a branch's `district` is picked from and checked against, so what can be picked is exactly what the writes accept. Added for the branch-location feature: students choose which branch of a consultancy to talk to and the list is ordered by nearness — same city, then district, then state, then country. ONLY INDIA HAS DISTRICTS. The ranking is for the Indian market and no other country's second level is modelled, so a state anywhere else returns an EMPTY LIST and a 200, not an error — "this country does not model districts" is not a mistake the caller made. A district is therefore required on a branch in India and optional (and unchecked) elsewhere. Sorted by name. A value that is not on its state's list is refused 422 `validation_failed`; a listed value in any letter case is stored with its official spelling. Source and confidence: the list is Indian government / encyclopedic reference data compiled 2026-09-21 and IS EXPECTED TO DRIFT — Indian district boundaries change every year. See `mock-server/data/districts.SOURCE.md`. */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Management screens only, mirroring the states endpoint. No district is switched off today. */
+                    include_inactive?: boolean;
+                };
+                header?: never;
+                path: {
+                    /** @description Country name, as in GET /countries. */
+                    name: string;
+                    /** @description State name, as in GET /countries/{name}/states. */
+                    state: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK — empty for any state outside India. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["District"][];
+                    };
+                };
+                /** @description No such country, or no such state in it — a list that does not exist, as against a state that exists and simply has no districts, which is a 200 and an empty array. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/countries/{name}/states/{state}": {
         parameters: {
             query?: never;
@@ -5403,7 +5497,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Rename, retype or switch off one state (2026-09-15) — platform `catalog_settings` permission. A rename is carried into every record holding the old name: student preferences (resident in this country), campuses in this country, institutions (India), partner locations in this country, and saved audiences (events, ads, broadcasts) whose targeting names this country — or names no country, when no other country has a state with the same name. `records_updated` counts them. Switching off (`active: false`) only hides the state from pickers; records already using it keep working and writes still accept it. There is no delete. */
+        /** Rename, retype or switch off one state (2026-09-15) — platform `catalog_settings` permission. A rename is carried into every record holding the old name: student preferences (resident in this country), campuses in this country, institutions (India), partner locations in this country, saved audiences (events, ads, broadcasts) whose targeting names this country — or names no country, when no other country has a state with the same name — and, since 2026-09-21, that state's own districts and every branch in it. `records_updated` counts them. Switching off (`active: false`) only hides the state from pickers; records already using it keep working and writes still accept it. There is no delete. */
         patch: {
             parameters: {
                 query?: never;
@@ -5989,7 +6083,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Discovery list (Stage 1, filter by country, sort by rating/match score, FR-028) — also Manage Consultancies' searchable list (build reference 1.23), via the search/tier/ active params below. Open to any authenticated user, not just Super Admin (Sentpo Mobile Wave 3 — this was the one gap between this doc's own dual-purpose summary and its mock-server implementation, which had been Super-Admin-gated). Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, city, country, seat_limit, tier, rating, subscription (soonest expiry first, no term last), seats_used and active_applicants (platform team only), and match (build reference 1.5's rule-based overlap score between the caller's own `StudentPreferences` and each consultancy's countries_served — students only, silently falls back to rating for any other caller; study level deliberately does NOT score, since a consultancy serves every course level in a college — user, 2026-08-20; `fields_served` was removed from the schema entirely, 2026-08-30, since no web or mobile UI ever displayed or edited it). filter[country]= narrows to consultancies serving that country. District filtering from the build reference's own Discovery List description isn't implemented — no schema anywhere (`Consultancy`, `User`, `StudentPreferences`) has a district/location field, the same pre-existing gap flagged for Wave 2's "Study in [Home Country]" tab. Discovery List's own caller passes active=true explicitly (this endpoint doesn't filter out retired consultancies by default — Manage Consultancies needs to see them too). */
+        /**
+         * Discovery list (Stage 1, filter by country, sort by rating/match score, FR-028) — also Manage Consultancies' searchable list (build reference 1.23), via the search/tier/ active params below. Open to any authenticated user, not just Super Admin (Sentpo Mobile Wave 3 — this was the one gap between this doc's own dual-purpose summary and its mock-server implementation, which had been Super-Admin-gated). Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, city, country, seat_limit, tier, rating, subscription (soonest expiry first, no term last), seats_used and active_applicants (platform team only), and match (build reference 1.5's rule-based overlap score between the caller's own `StudentPreferences` and each consultancy's countries_served — students only, silently falls back to rating for any other caller; study level deliberately does NOT score, since a consultancy serves every course level in a college — user, 2026-08-20; `fields_served` was removed from the schema entirely, 2026-08-30, since no web or mobile UI ever displayed or edited it). filter[country]= narrows to consultancies serving that country. District filtering from the build reference's own Discovery List description isn't implemented — no schema anywhere (`Consultancy`, `User`, `StudentPreferences`) has a district/location field, the same pre-existing gap flagged for Wave 2's "Study in [Home Country]" tab. Discovery List's own caller passes active=true explicitly (this endpoint doesn't filter out retired consultancies by default — Manage Consultancies needs to see them too).
+         *
+         *     RANKED BY NEARNESS since 2026-09-21 (product owner) — "featured first, then nearest, then rating, then the existing rotation tie-break." Nearness is each account's NEAREST BRANCH — same city, then district, then state, then country, then no match — reported per row as `nearest_branch` / `nearest_branch_match` so a card can name the office and the order never reads as arbitrary. It goes in as a priority tier ahead of whatever `sort=` asks for, the way `filter[preferred]` already does, so it survives paging with the keyset cursor. THE WHOLE TIER IS SKIPPED for a caller who has named no location of their own — a student with no `city`/`district`/`state`/`resident_country` gets exactly the ordering they got before this shipped, which is also why `featured` leads here rather than everywhere — Manage Consultancies' alphabetical admin list is not a discovery ranking, and Home's featured rail is a separate call to `filter[featured]=true`.
+         *
+         *     DISTRICT FILTERING now exists (2026-09-21) — the gap this summary used to record. A branch carries a structured country / state / district / city, and `filter[branch_country]`, `filter[branch_state]` and `filter[branch_district]` below narrow on it, backed by `GET /consultancies/locations`.
+         */
         get: {
             parameters: {
                 query?: {
@@ -6009,8 +6109,14 @@ export interface paths {
                     /** @description Manage Consultancies' status filter (2026-09-11). `active` and `suspended` are the account switch, `kyc_pending` is KYC not yet verified, and `expiring`, `grace` and `lapsed` match `subscription_status`. An unknown value is a 400. */
                     status?: "active" | "suspended" | "kyc_pending" | "expiring" | "grace" | "lapsed";
                     active?: boolean;
-                    /** @description Discovery List's country filter — matches against countries_served. */
+                    /** @description Discovery List's DESTINATION filter — matches against countries_served, i.e. the country a student wants to study in. Unchanged by 2026-09-21's branch filters below, deliberately: one key cannot also mean "has an office there", and re-pointing this one would have silently changed every caller already sending it. */
                     "filter[country]"?: string;
+                    /** @description WHERE THE ACCOUNT ACTUALLY IS (product owner, 2026-09-21) — narrows to accounts with at least one ACTIVE branch in this country. Values are the canonical names `GET /consultancies/locations` returns. Compared trimmed and case-insensitively. */
+                    "filter[branch_country]"?: string;
+                    /** @description Narrows to accounts with an active branch in this state / province (2026-09-21). Values are what `GET /consultancies/locations?country=…` returns. */
+                    "filter[branch_state]"?: string;
+                    /** @description Narrows to accounts with an active branch in this district (2026-09-21). Values are what `GET /consultancies/locations?country=…&state=…` returns. India is the only country whose districts are modelled, so this is an Indian-market filter in practice. THE THREE LEVELS ARE MATCHED AGAINST ONE BRANCH, not against the account as a whole: an account with a Kerala office and a Maharashtra office does not answer "Kerala / Pune". M22 stands throughout — a filter key this endpoint has no meaning for is IGNORED, never a 400. */
+                    "filter[branch_district]"?: string;
                     /** @description Home's curated Top Institutes rail (INSTITUTE_ACCOUNT_PLAN D15, 2026-09-10). Returns the institutes named by `PlatformSettings.featured_institutes`, IN THAT ORDER — the stored order is the whole content of the decision, so this answer is not sorted or paginated and ignores `sort`. The section looks like Top Consultancies but is selected differently: that one is algorithmic (`sort=-rating` narrowed by target countries), this one is hand-picked by the platform. An EMPTY result is the normal state, not an edge case — there are no institutes at launch — and clients MUST hide the whole section rather than render a half-empty rail. */
                     "filter[featured]"?: boolean;
                     /** @description Home's Top Consultancies personalization (user-requested 2026-08-21; ranking rule 2026-09-15 — "if there are 3 consultancies and only 1 matches the target destination, still show 3"). When true, RANKS consultancies serving the caller's own StudentPreferences.target_country ahead of all others; nothing is removed. Each group keeps the requested sort, so with sort=-rating the matching consultancies come first by rating, then the rest by rating. No effect when the caller has no destination set. */
@@ -6723,6 +6829,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/consultancies/locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The places that actually HAVE branches, with a count each (product owner, 2026-09-21) — backs the consultancy list's Country / State / District filters. Modelled on `GET /jobs/locations` rather than inventing a second idiom for the same question: one endpoint for every rung, a bare array of `{ name, consultancy_count }` sorted by name, and only places with something behind them, because every chip that returns nothing teaches a student not to trust the filter.
+         *
+         *     THREE rungs rather than the jobs pair, because a branch's place has three picked levels: with no query it answers the countries, `?country=India` that country's states, and `?country=India&state=Kerala` that state's districts.
+         *
+         *     COUNTED IN CONSULTANCIES, not branches — the list this filters is a list of consultancies, so a chip saying 3 has to mean three rows come back, not three offices belonging to two accounts. Only ACTIVE branches count, and only accounts the caller can actually see (the same visibility rule `GET /consultancies` applies), so the facet and the list can never disagree about what exists.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Omit for the country list. Give a country name — as this endpoint itself returns it, and as `filter[branch_country]` expects it — for that country's states / provinces. */
+                    country?: string;
+                    /** @description With `country`, asks for that state's districts instead of the country's states. Ignored without a `country`, since a state cannot be resolved without the country it belongs to. */
+                    state?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BranchPlaceCount"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/consultancies/{id}/leads": {
         parameters: {
             query?: never;
@@ -6732,7 +6885,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Start a chat with this consultancy (Stage 1, Sentpo Mobile Wave 3 — Consultancy Detail's "Start Chat" button) — creates a new Sentpo-sourced lead for the caller, or returns their existing active one with this consultancy if they already have it (never a duplicate). Max 15 concurrent active leads per student (raised from 5 on 2026-09-07), application-enforced — see `leads` in erd.md. Exceeding it is a 409 `lead_limit_reached` whose message names the number, so a client can surface the refusal without hardcoding it. */
+        /**
+         * Start a chat with this consultancy (Stage 1, Sentpo Mobile Wave 3 — Consultancy Detail's "Start Chat" button) — creates a new Sentpo-sourced lead for the caller, or returns their existing active one with this consultancy if they already have it (never a duplicate). Max 15 concurrent active leads per student (raised from 5 on 2026-09-07), application-enforced — see `leads` in erd.md. Exceeding it is a 409 `lead_limit_reached` whose message names the number, so a client can surface the refusal without hardcoding it.
+         *
+         *     Takes an optional `preferred_branch_id` since 2026-09-21 (product owner) — which branch of this consultancy the student would like to talk to. Because the endpoint REUSES an open conversation rather than ever creating a second, sending it again is also how a student changes their mind; omitting it leaves any stored preference alone.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -6742,7 +6899,14 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @description A branch of THIS consultancy that is currently active. A preference only — allocation is unchanged and nothing reads it as a routing input. Stored on `Lead.preferred_branch_id`, never on `Lead.branch_id`. */
+                        preferred_branch_id?: components["schemas"]["UUID"];
+                    };
+                };
+            };
             responses: {
                 /** @description Reused an existing active lead with this consultancy. */
                 200: {
@@ -6763,6 +6927,13 @@ export interface paths {
                     };
                 };
                 409: components["responses"]["ErrorResponse"];
+                /** @description `preferred_branch_id` does not name a branch of this consultancy that is currently active (2026-09-21) — `validation_failed`, in plain language. Another consultancy's branch id is refused by this same test and the message says no more than that, so it never confirms whose branch it is. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
             };
         };
         delete?: never;
@@ -21379,8 +21550,8 @@ export interface components {
             user: components["schemas"]["User"];
             consultancy_id: components["schemas"]["UUID"];
             branch_ids?: components["schemas"]["UUID"][];
-            /** @description User-requested (2026-08-15) — auto-set to the employee's first covered branch when `branch_ids` is first assigned, stable afterward (only re-derived if the current primary is ever removed from `branch_ids`). Server-derived, not client-settable — used to attribute a newly-assigned lead/client's own `branch_id` when this employee covers more than one branch. See build reference 1.15's "Branch scoping" note. */
-            readonly primary_branch_id?: components["schemas"]["UUID"];
+            /** @description CHOSEN, not inferred, since 2026-09-21 (product owner: the invite and the edit both take it explicitly, "to avoid the confusion of it being decided by tick order"). It decides which branch every one of this consultant's leads and clients is filed under — and therefore which branch their revenue is attributed to — which was never safe to read off the order someone ticked boxes in. No longer readOnly: see `EmployeeInput.primary_branch_id` and `EmployeePatchInput.primary_branch_id`. Omitted on create it still falls back to the first entry of `branch_ids` (user-requested 2026-08-15), so a single-branch consultancy sees no change, and the older fallback also stands: if the chosen primary is ever removed from `branch_ids` it is re-derived to that list's first entry rather than left dangling. CHANGING IT RE-STAMPS ONLY FUTURE ASSIGNMENTS (2026-09-21). Leads and clients already filed under a branch keep it — an employee edit never re-files live cases, because that would move branch revenue attribution nobody asked to move. See build reference 1.15's "Branch scoping" note. */
+            primary_branch_id?: components["schemas"]["UUID"];
             designation_id?: components["schemas"]["UUID"];
             /** @description Sparse map of individual permission keys → boolean, layered on top of the designation's baseline (build reference 1.15's "individual permission toggles"). */
             permission_overrides?: {
@@ -21401,6 +21572,8 @@ export interface components {
             /** @description User-requested (2026-08-15) — free-text job title (e.g. "Senior Consultant"), display only. Independent of `designation_id` below (the permission bundle, labeled "Access Rights" in the UI) — the two are set separately. Build reference 1.15. */
             designation?: string | null;
             branch_ids?: components["schemas"]["UUID"][];
+            /** @description Which of this employee's own branches is their primary one (product owner, 2026-09-21). It decides which branch every lead and client assigned to them is filed under, so the invite asks for it rather than inferring it from the order `branch_ids` happens to be in. OPTIONAL. Omitted (or null), it falls back to `branch_ids[0]` — exactly the behaviour before 2026-09-21 — so a single-branch consultancy and any client not yet sending the field notice nothing. A value that is not in this same request's `branch_ids` is a 422 `validation_failed` with a plain-language message. */
+            primary_branch_id?: components["schemas"]["UUID"];
             designation_id?: components["schemas"]["UUID"];
             permission_overrides?: {
                 [key: string]: boolean;
@@ -21414,6 +21587,8 @@ export interface components {
             /** @description User-requested (2026-08-15) — see EmployeeInput.designation. Independent of designation_id below. */
             designation?: string | null;
             branch_ids?: components["schemas"]["UUID"][];
+            /** @description Change which of this employee's branches is their primary one (product owner, 2026-09-21) — see `EmployeeInput.primary_branch_id`. CHECKED AGAINST THE MERGED ROW: one call may add a branch and name it primary, and a value outside the employee's branches (as this request leaves them) is a 422 `validation_failed` that writes nothing at all rather than half-applying the edit. Omitted, the stored value stands, except for the pre-existing fallback: a `branch_ids` that no longer contains the current primary re-derives it to `branch_ids[0]`. EXISTING LEADS AND CLIENTS ARE NOT RE-FILED. The new primary is stamped onto assignments made from here on — allocate, assign, reassign-on-deactivate, downgrade-reassign — and live cases keep the branch they are already filed under. */
+            primary_branch_id?: components["schemas"]["UUID"];
             designation_id?: components["schemas"]["UUID"];
             permission_overrides?: {
                 [key: string]: boolean;
@@ -21441,16 +21616,43 @@ export interface components {
             /** @description Mandatory (enforced client-side) when editing an existing designation's permissions — a sensitive action, build reference 1.24. Not required on create. */
             reason?: string;
         };
+        /** @description A consultancy's office. Carries a STRUCTURED location since 2026-09-21 (product owner): students choose which branch of a consultancy to talk to, and the consultancy list is ordered by how near a branch is to them — same city, then district, then state, then country. No coordinates and no distance are involved, so every level has to be a value picked from the same managed list the student's filter reads. `address` keeps its original job — the street line — because a free-text address cannot be filtered, which is the failure already named on job locations. All four location fields are NULLABLE and a branch may carry none of them: accounts have branches nobody has filled in yet, and refusing to store one would only move the gap somewhere the platform team cannot see. Those branches are counted on the Super Admin's Needs attention page instead (`branches_missing_location`). */
         Branch: {
             id: components["schemas"]["UUID"];
             name: string;
+            /** @description The STREET LINE only since 2026-09-21 — door number, building, road. The city, district, state and country are the structured fields below and are not repeated here. */
             address: string;
+            /** @description One of GET /countries (2026-09-21), stored with its official spelling. */
+            country?: string | null;
+            /** @description One of GET /countries/{country}/states for this branch's country (2026-09-21), stored with its official spelling. */
+            state?: string | null;
+            /** @description One of GET /countries/{country}/states/{state}/districts (2026-09-21), stored with its official spelling. REQUIRED for a branch in India and null everywhere else, because India is the only country whose districts are modelled — see the districts endpoint. */
+            district?: string | null;
+            /** @description Free text — there is no managed city list. */
+            city?: string | null;
             active?: boolean;
             readonly employee_count?: number;
         };
+        /**
+         * @description Create and edit take the same body; on PATCH every field is optional and what is not sent is left as stored. The four location fields are validated TOGETHER against the merged record, so moving a branch to another state without naming a district of it is refused rather than stored (2026-09-21). Every refusal below is 422 `validation_failed` with a plain-language message:
+         *       - a country that is not in GET /countries;
+         *       - a state that country's list does not have;
+         *       - a district that state's list does not have;
+         *       - a state or district sent with no country behind it — it cannot be checked against any
+         *         list and is not a fact on its own;
+         *       - a country with no state;
+         *       - country India with no district ("the consultancy picks from a dropdown so the filter
+         *         stays clean" — product owner, 2026-09-21).
+         *     A PATCH that does not mention the location at all never trips these: a branch half-filled before the feature shipped stays editable, so switching it off is not blocked by a district nobody has picked yet. Sending `country: null` clears the whole location, because a state and district with no country cannot be checked.
+         */
         BranchInput: {
             name: string;
+            /** @description Street line only — door number, building, road (2026-09-21). */
             address: string;
+            country?: string | null;
+            state?: string | null;
+            district?: string | null;
+            city?: string | null;
             active?: boolean;
         };
         /** @description External contacts directory — vendors, support services (build reference 2.2). Business & Ultimate tiers only. */
@@ -21647,7 +21849,7 @@ export interface components {
         TierDowngradeImpact: {
             tier?: string;
             seat_limit?: number;
-            /** @description Multi-branch is Ultimate-only; other tiers keep a single default branch. */
+            /** @description True on every tier since 2026-09-21 (product owner: branches moved to Starter), so a downgrade no longer deactivates branches and `branches_to_deactivate` is always empty. Still computed rather than hardcoded: it reads the same feature registry `requireEntitlement` does, so a tier registered without the flag would start deactivating again. */
             multi_branch?: boolean;
             active_seats?: number;
             /** @description Beyond the new cap, oldest-employee-first. Auto-disabled, never deleted — their leads and clients move to the primary consultant. The Owner/Admin is never in this list. */
@@ -21674,7 +21876,22 @@ export interface components {
             /** @description Mandatory — recorded on the audit entry (build reference 1.24, sensitive action). */
             reason: string;
         };
+        /** @description Carries its NEAREST BRANCH to the calling student since 2026-09-21 — see `nearest_branch` / `nearest_branch_match` below, and the ordering rule on GET /consultancies. */
         Consultancy: {
+            /** @description WHICH OF THIS ACCOUNT'S BRANCHES IS NEAREST to the calling student (product owner, 2026-09-21), so a card can name the office rather than leave the list's order looking arbitrary. Nearness is a four-step match and nothing else — same city, then same district, then same state, then same country — with no coordinates and no distance involved. Only the account's ACTIVE branches are considered: a switched-off office is not somewhere anyone can walk into. Null when the caller has named no location of their own (`StudentPreferences.city` / `district` / `state` / `resident_country` are all empty), and null when no branch of this account matches even on country. Present and null on every read that has no student caller to speak of, so a client never has to tell "no nearby branch" apart from "this response does not carry the fact". */
+            readonly nearest_branch?: {
+                id?: components["schemas"]["UUID"];
+                name?: string;
+                city?: string | null;
+                district?: string | null;
+                state?: string | null;
+                country?: string | null;
+            } | null;
+            /**
+             * @description WHICH STEP `nearest_branch` matched on (2026-09-21) — the label a card shows beside the office ("same city", "same district"). Null exactly when `nearest_branch` is null. The student's `city` and `district` are free text they typed, so both are compared trimmed and case-folded; a typed value matching nothing simply degrades to the coarser step, costing precision and never the ranking.
+             * @enum {string|null}
+             */
+            readonly nearest_branch_match?: "city" | "district" | "state" | "country" | null;
             id: components["schemas"]["UUID"];
             /**
              * Format: date-time
@@ -21797,7 +22014,7 @@ export interface components {
             active?: boolean;
             /** @description User-requested (2026-08-19) — Super-Admin-set, gates two things at once — a Freelancer Commission Table row's `freelancer_sourced_rate` only actually applies when this is true (build reference 1.17), and Applicant Allocation only offers this consultancy as a target for `freelancer_sourced` queue entries when true (build reference 1.19). Has no bearing on the Direct rate or on consultancy-change allocations, which are unaffected either way. */
             freelancer_enabled?: boolean;
-            /** @description The RESOLVED feature map (build reference 1.16 made real, 2026-08-29) — tier preset merged with `entitlement_overrides`, one boolean per registry flag: `own_leads`, `create_applicant`, `designations`, `tags`, `allocation_rule`, `phonebook`, `document_library`, `case_reopening`, `audit_log` (Business-tier preset), and `activity_queue`, `internal_messaging`, `multi_branch`, `applicant_transfer` (Ultimate-tier preset). Other Starter-core capabilities (Lead Pool, Active Leads, Clients, Partner Colleges, commissions, Invoices, Receipts, Forms, Course Finder, Plan Templates, Course Suggestions, Employees simple mode, single branch, Consultancy Management) have no flag — they are always reachable on every tier and never appear here. For `kind: institute` (INSTITUTE_ACCOUNT_PLAN D11, 2026-09-10) exactly ONE flag is forced false regardless of tier or override — `applicant_transfer`, which has nowhere to transfer an applicant to when the tenant is the college itself. This is a FLOOR applied after the override merge, not another override: a Super Admin cannot switch on a feature the account type has no meaning for. Partner Colleges is restricted for an institute just as hard (D13) but deliberately carries NO flag: registering one would make it a valid `entitlement_overrides` key, handing a Super Admin a switch that turns Partner Colleges off for an ORDINARY consultancy — the screen where their commission terms are set. A console rendering that panel read-only reads `kind`; the restriction is enforced by the 403 `not_applicable_for_institute` on `/consultancy-colleges`, which refuses add, edit and remove alike. Every server endpoint gated on one of these flags returns 403 `feature_locked` (naming the plan that includes it) when the caller's consultancy lacks it. Clients MUST gate on this map, never on the raw `tier` enum, since a Super Admin override can grant or withhold an individual flag independent of tier. */
+            /** @description The RESOLVED feature map (build reference 1.16 made real, 2026-08-29) — tier preset merged with `entitlement_overrides`, one boolean per registry flag: `own_leads`, `create_applicant`, `designations`, `tags`, `allocation_rule`, `phonebook`, `document_library`, `case_reopening`, `audit_log` (Business-tier preset), `activity_queue`, `internal_messaging`, `applicant_transfer` (Ultimate-tier preset), and `multi_branch` (STARTER-tier preset since 2026-09-21 — product owner: "branches are marketplace presence and every account has one anyway; Ultimate gets new features later". It stays a registered flag rather than joining the unflagged core so a Super Admin can still switch branches off for one tenant). Other Starter-core capabilities (Lead Pool, Active Leads, Clients, Partner Colleges, commissions, Invoices, Receipts, Forms, Course Finder, Plan Templates, Course Suggestions, Employees simple mode, Consultancy Management) have no flag — they are always reachable on every tier and never appear here. For `kind: institute` (INSTITUTE_ACCOUNT_PLAN D11, 2026-09-10) exactly ONE flag is forced false regardless of tier or override — `applicant_transfer`, which has nowhere to transfer an applicant to when the tenant is the college itself. This is a FLOOR applied after the override merge, not another override: a Super Admin cannot switch on a feature the account type has no meaning for. Partner Colleges is restricted for an institute just as hard (D13) but deliberately carries NO flag: registering one would make it a valid `entitlement_overrides` key, handing a Super Admin a switch that turns Partner Colleges off for an ORDINARY consultancy — the screen where their commission terms are set. A console rendering that panel read-only reads `kind`; the restriction is enforced by the 403 `not_applicable_for_institute` on `/consultancy-colleges`, which refuses add, edit and remove alike. Every server endpoint gated on one of these flags returns 403 `feature_locked` (naming the plan that includes it) when the caller's consultancy lacks it. Clients MUST gate on this map, never on the raw `tier` enum, since a Super Admin override can grant or withhold an individual flag independent of tier. */
             readonly features?: {
                 [key: string]: boolean;
             };
@@ -22062,6 +22279,10 @@ export interface components {
             branch_id?: components["schemas"]["UUID"];
             /** @description True once someone has explicitly set `branch_id` via `PATCH /leads/{id}/branch` — from then on, reassigning this lead to a different consultant no longer overwrites `branch_id`. */
             branch_manually_set?: boolean;
+            /** @description WHICH BRANCH THE STUDENT ASKED TO TALK TO (product owner, 2026-09-21), set when they start the conversation — see `POST /consultancies/{id}/leads`. A PREFERENCE, NOT A ROUTING RULE. Nothing in allocation reads it: a lead carrying one is assigned exactly as a lead without one, and it is deliberately a SEPARATE field from `branch_id` above, which means the SERVICING branch and is stamped from whoever the lead is assigned to. Writing a student's wish into `branch_id` would file the case, and its revenue, against an office nobody at the consultancy chose. Always null on `origin: imported` — that row has no student account behind it to have asked. Surfaced on the consultancy-side lead reads (Lead Pool, Active Leads) so the consultant allocating can honour it. */
+            preferred_branch_id?: components["schemas"]["UUID"];
+            /** @description Denormalized for display (2026-09-21), the same idiom as assigned_employee_name — null when no branch was asked for. */
+            readonly preferred_branch_name?: string | null;
             /** @description Always populated — from the linked `users` row when origin=sentpo, stored directly when origin=imported. */
             name: string;
             phone?: string | null;
@@ -22150,7 +22371,7 @@ export interface components {
                 month: string;
                 count: number;
             }[];
-            /** @description Multi-branch (Ultimate) only — null otherwise (build reference 1.16). */
+            /** @description Present when the caller's consultancy has the `multi_branch` flag AND more than one branch; null otherwise. Read the FLAG since 2026-09-21, not the tier — it used to test `tier == ultimate`, so a Starter or Business account with two real branches saw no branch tab once branches moved to Starter (build reference 1.16, user 2026-08-19 for the "only one branch, no tab" half). */
             branch_breakdown?: {
                 branch_id: components["schemas"]["UUID"];
                 branch_name: string;
@@ -22213,6 +22434,15 @@ export interface components {
             /** @description False once switched off in immiNow — hidden from pickers, still valid on records. */
             active: boolean;
         };
+        /** @description The second level of the same managed place hierarchy (2026-09-21), shaped like StateProvince so a picker can render either. ONLY INDIA HAS DISTRICTS — see GET /countries/{name}/states/{state}/districts. */
+        District: {
+            /** @description Null on every row today. Neither source behind the list carries a district code that is real and stable (the 2011 census code is absent for every district created since), and an invented code would look official. Served anyway so real codes arriving later are data rather than a contract change. */
+            code: string | null;
+            /** @description English name — the value a branch's `district` stores. */
+            name: string;
+            /** @description Reserved, true on every row today — mirrors StateProvince.active. */
+            active: boolean;
+        };
         StateProvinceInput: {
             name: string;
             /** @description Defaults to State. */
@@ -22228,13 +22458,15 @@ export interface components {
             name: string;
             type: string;
             active: boolean;
-            /** @description How many records a rename carried the new name into. All zero when the name did not change. */
+            /** @description How many records a rename carried the new name into. All zero when the name did not change. `districts` and `branches` joined 2026-09-21 with the branch-location feature: the district list is keyed by its state's name, so a rename that skipped it would leave the districts endpoint answering the new name with an empty list, and every branch in that state would be holding a state name the list no longer has. */
             records_updated: {
                 students: number;
                 campuses: number;
                 institutions: number;
                 partner_locations: number;
                 audiences: number;
+                districts: number;
+                branches: number;
             };
         };
         ProvinceCount: {
@@ -23079,6 +23311,10 @@ export interface components {
             branch_id?: components["schemas"]["UUID"];
             /** @description True once someone has explicitly set `branch_id` via `PATCH /clients/{id}/branch`. */
             branch_manually_set?: boolean;
+            /** @description The branch this student asked for back when they were a lead (2026-09-21), carried across the conversion — see `Lead.preferred_branch_id`. CARRIED, because the conversion already carries every other thing the student stated (their tags, their address, their preferences) and this is the one record of which office they asked for, at exactly the moment the consultancy starts charging them. Dropping it at the door would destroy it silently. Read-only context for the consultant and nothing more: no rule reads it, and `branch_id` above is still stamped from the assigned consultant alone. Null for a client who never asked, and for one converted from an imported lead. */
+            readonly preferred_branch_id?: components["schemas"]["UUID"];
+            /** @description Denormalized for display (2026-09-21) — null when no branch was asked for. */
+            readonly preferred_branch_name?: string | null;
             /**
              * @description The Stage-2 subset of Journey.status — Stage-1-only values (exploring, awaiting_match, commit_confirm, closed_switched) can't appear on a Client. `closed` (user-requested, 2026-08-15) is a generic manual close, mirroring `Lead.status`'s own `closed` — set via `POST /clients/{id}/close`, reversed via `POST /clients/{id}/reopen-case`. Distinct from `closed_completed` (a fully wound-down completed case) and from `plan_complete` (the plan finished; not itself closed).
              * @enum {string}
@@ -24358,6 +24594,13 @@ export interface components {
             name: string;
             /** @description Live listings in this place — the same window filter[active]=true uses. */
             job_count: number;
+        };
+        /** @description One entry of `GET /consultancies/locations` (product owner, 2026-09-21) — a country, a state within one, or a district within one, that at least one visible account has an active branch in. Modelled on `JobPlaceCount`, the jobs equivalent. */
+        BranchPlaceCount: {
+            /** @description The canonical place name, as filter[branch_country] / filter[branch_state] / filter[branch_district] expect it. */
+            name: string;
+            /** @description How many ACCOUNTS have an active branch here — not how many branches. Two offices of one account in the same state count once, so the number always equals what the matching filter returns. */
+            consultancy_count: number;
         };
         /** @description erd.md's `job_alerts` table — Sentpo Mobile Wave 6a's Job Alerts screen. */
         JobAlert: {

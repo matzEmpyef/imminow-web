@@ -50,6 +50,34 @@ export function useStates(country: string | undefined) {
   })
 }
 
+// The districts of one state (2026-09-21) — the ONE list a branch's `district` is picked from and
+// checked against, so what a picker can offer is exactly what the write will accept.
+//
+// ONLY INDIA HAS DISTRICTS. Every other country's state answers 200 with an EMPTY ARRAY, which is
+// a fact about that country and not a failure, so this hook must never dress an empty list up as
+// an error — the caller distinguishes "loading", "failed" and "this country has no districts" and
+// renders each differently.
+//
+// The key nests under `['countries', country, 'states']` deliberately: renaming or switching off a
+// state already invalidates that prefix (see `invalidateStateDependents`), and the district list is
+// keyed by its state's NAME, so a rename that left this cached would keep answering with the old
+// state's districts.
+export function useDistricts(country: string | undefined, state: string | undefined) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['countries', country, 'states', state, 'districts'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/countries/{name}/states/{state}/districts', {
+        params: { path: { name: country!, state: state! } },
+      })
+      if (error) throw new ApiError('Could not load the districts list.', error)
+      return data
+    },
+    enabled: isAuthed && Boolean(country) && Boolean(state),
+    staleTime: 30 * 60 * 1000,
+  })
+}
+
 // The union of states across several countries at once (2026-09-15) — Targeting's State/Province
 // filter needs options for however many "Country of residence" values are picked, and a hook
 // cannot be called in a loop. Shares `useStates`'s exact query key, so a country already looked up
