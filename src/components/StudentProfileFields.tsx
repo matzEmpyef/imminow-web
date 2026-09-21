@@ -262,22 +262,6 @@ function profileFacts(
         color: 'primary' as IconColor,
         lines: one(institutionText(prefs)),
       },
-      {
-        // THE EFFECTIVE currency, never the raw pick (assumptions audit M2, product owner
-        // 2026-09-19). `display_currency` is null until the student chooses one; what their
-        // money is actually priced in is their pick, else their residence's default, else USD —
-        // and that is `display_currency_effective`, derived per request so a residence change is
-        // in force on the next call. Shown here because a consultant quoting a fee needs to know
-        // which currency the student is reading it in.
-        //
-        // `derived` keeps it OUT of the completeness count: the bar measures what the student has
-        // filled in, and this value exists whether they have answered anything or not.
-        label: 'Sees money in',
-        icon: <Wallet className="h-5 w-5" />,
-        color: 'info' as IconColor,
-        derived: true,
-        lines: one(prefs?.display_currency_effective || null),
-      },
     ],
   }
 }
