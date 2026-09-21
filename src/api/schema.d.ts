@@ -15504,12 +15504,30 @@ export interface paths {
          *     ONE endpoint for both rungs rather than the courses pair, because they are the same question at two depths and a picker asks them back to back: with no `country` it answers the countries that have live jobs, with one it answers that country's states / provinces.
          *
          *     Live is the same window `filter[active]=true` uses (`active` plus `active_from`/`active_to` in India time), so nothing offered here is already expired. Listings with no country — a place-less remote job — appear in neither list. Sorted by name.
+         *
+         *     ...WHICH IS THE WRONG ANSWER FOR THE PEOPLE WHO MAINTAIN THE LISTINGS (product owner, 2026-09-21). The admin Jobs list shows every status, but its Country and Province pickers were fed from here — so a country whose listings had ALL expired appeared in no filter option at all and staff could not filter to it, and a province count could disagree with the rows its own chip returned. `scope=all` is the fix; students keep today's answer exactly, byte for byte, and never send the parameter.
          */
         get: {
             parameters: {
                 query?: {
                     /** @description Omit for the country list. Give a country name — as this endpoint itself returns it, and as `filter[country]` expects it — for that country's states / provinces. */
                     country?: string;
+                    /**
+                     * @description WHICH LISTINGS ARE COUNTED (product owner, 2026-09-21). Omitted or `live` is the student-facing answer this endpoint has always given. `all` counts every listing whatever its status — live, scheduled, expired or switched off — which is what the admin Jobs list itself shows when no status chip is ticked.
+                     *
+                     *     A QUERY PARAMETER RATHER THAN A SECOND /admin ROUTE, the same judgement `GET /dashboard`'s own `scope` makes: the question is identical and only its population differs, and a second copy of the country-then-province rung logic is how a facet starts disagreeing with its filter.
+                     *
+                     *     NOT INFERRED FROM THE CALLER'S ROLE, deliberately — platform staff read the student-facing list too (it is how they check what a student sees), and silently widening it for them would leave no way to ask for either answer on purpose.
+                     *
+                     *     GATED on the `jobs` platform permission, the same flag the admin list's writes use. Any other caller, student or staff, is refused 403 `permission_denied`. A value that is neither `live` nor `all` is refused 400 `validation_failed`.
+                     */
+                    scope?: "live" | "all";
+                    /**
+                     * @description NARROWS `scope=all` to the same comma-separated vocabulary `filter[status]` takes on `GET /jobs` — `live`, `scheduled`, `expired`, `off`; several values mean any of them (2026-09-21). Pass whatever status chips the console has ticked and the counts here MATCH the rows that list returns, exactly; omit it and they match its default, unfiltered view. That pairing is the point: a facet whose number does not survive being clicked is worse than no facet at all.
+                     *
+                     *     Only meaningful with `scope=all`. Sent without it the request is refused 400 rather than answered live-only, which would hand the caller a confident wrong number. An unrecognised value is refused 400.
+                     */
+                    status?: string;
                 };
                 header?: never;
                 path?: never;
@@ -21545,13 +21563,25 @@ export interface components {
              * @description When the student wants to start (assumptions audit M9, product owner 2026-09-19).
              *     **Replaces `intended_intake`**, the `first_half`/`second_half` calendar halves that began 1 January and 1 July. Those were wrong twice over: a September start was filed as "second half" and therefore measured from 1 July, three months early, and six-month calendar blocks match no admissions cycle anyone on this platform runs. The halves no longer appear in any response.
              *     A request may still send `intended_intake` + `intended_year` — app builds already in students' hands do — and they are folded into this shape: `first_half` becomes the **Jan–Jul** group anchored on January, `second_half` the **Aug–Dec** group anchored on August, both with `any_in_group: true`. Writing the intake deletes the old fields from the row for good.
+             *
+             *     NULL NO LONGER MEANS ONE THING (product owner, 2026-09-21). It means "no intake", and `intake_undecided` says whether that is an ANSWER ("I haven't decided yet") or a GAP (never asked, never answered). This field itself is unchanged for every client in the field: a student who declared themselves undecided still reads `intake: null`, so nothing that tests `if (prefs.intake)` starts behaving differently. Sending a non-null intake together with `intake_undecided: true` is refused 422 — a student who has named a month has decided.
              */
             intake?: components["schemas"]["Intake"] | null;
-            /** @description The intake in words, decided server-side so the app and the console can never word it differently: "September 2027", or "Any month August–December 2027". */
+            /**
+             * @description THE STUDENT ANSWERED, AND THE ANSWER IS "NOT YET" (product owner, 2026-09-21).
+             *     Until this existed, clearing an intake with `{"intake": null}` stored something byte-identical to a student who had never been asked. A consultant could not tell an answer from a gap, so somebody who had already said "I haven't decided" kept turning up in whatever chases a missing intake, and the app drew "Any" as a selected chip for a student who had never touched the question.
+             *     A COMPANION FLAG rather than a state inside `intake`, because this table already answers the same question the same way twice — `display_currency` + `display_currency_explicit`, `blog_topics` + `blog_topics_chosen` — and because a month-less `intake` OBJECT would read as a real intake to every build already in the field.
+             *     THE TWO STATES CANNOT BE HELD AT ONCE. Stating an intake clears this flag; setting it true clears `intake` and `intake_set_at` (there is no intake, so there is no moment one was set). A request carrying both is refused 422 rather than resolved. Anything other than a literal `true`/`false` is refused 422.
+             *     A BARE `{"intake": null}` DOES NOT CLEAR IT, deliberately: clients re-send the whole preferences body on unrelated edits, and a null riding one of those saves would silently delete the answer. Going back to "never answered" is an explicit `intake_undecided: false`.
+             *     Render "Undecided" when this is true; render the question as unanswered when `intake` is null and this is false.
+             */
+            intake_undecided?: boolean;
+            /** @description The intake in words, decided server-side so the app and the console can never word it differently: "September 2027", or "Any month August–December 2027". Since 2026-09-21 it is `"Not decided yet"` for a student who answered `intake_undecided`, and null only for a student who has not answered at all — the same three states `intake` + `intake_undecided` carry, in the copy every surface shows. */
             readonly intake_label?: string | null;
             /**
              * Format: date-time
              * @description WHEN the student set this intake, stamped only when the answer changes (assumptions audit M9/M10, 2026-09-19). It is what the "Intake set, no consultancy yet" service queue measures its 90 days from — that queue's label said intake while its code measured from sign-up. Rows that predate the stamp were backfilled from the account's creation date, the only evidence there was.
+             *     CLEARED WHENEVER THERE IS NO INTAKE (2026-09-21): declaring `intake_undecided` clears it, and so does `{"intake": null}` on a row whose only intake was a legacy `intended_intake` half — that case used to leave the stamp standing beside no answer at all, which is exactly the ambiguity `intake_undecided` exists to remove.
              */
             readonly intake_set_at?: string | null;
             /** @description DERIVED from `intake.year` (assumptions audit M9, 2026-09-19), kept because the console's client and lead panels still read a bare year. A request carrying it is accepted and folded into `intake.year`. */
@@ -22104,7 +22134,10 @@ export interface components {
             title?: string | null;
             caption?: string | null;
         };
-        /** @description Create Consultancy's guided flow (build reference 1.15, 1.23) — one submission creates the consultancy, its primary branch, and the Consultancy Admin employee, then fires their invite email (all mocked server-side, same simplification as POST /staff/employees). Also creates an INSTITUTE account (INSTITUTE_ACCOUNT_PLAN D6/D8, 2026-09-10) via `kind` and `college_id`. The admin is given in exactly ONE of two mutually exclusive forms, and a request carrying both or neither is refused 400: the `admin_first_name`/`admin_last_name`/`admin_email` trio INVITES a new login, while `admin_user_id` ATTACHES an existing one. The second is the common institute case — the college has been in the catalogue with its campuses and courses since long before anyone from it had an account, so what is new is the person, not the college (D8). Unlike the invite form, `admin_user_id` really does create the Consultancy Admin employee row, because there is an account to attach and a tenant nobody can log into is not an onboarded tenant. */
+        /**
+         * @description Create Consultancy's guided flow (build reference 1.15, 1.23) — one submission creates the consultancy, its primary branch, and the Consultancy Admin employee, then fires their invite email (all mocked server-side, same simplification as POST /staff/employees). Also creates an INSTITUTE account (INSTITUTE_ACCOUNT_PLAN D6/D8, 2026-09-10) via `kind` and `college_id`.
+         *     THE PRIMARY BRANCH IS NOW REALLY CREATED (product owner, 2026-09-21), where before this description said so and the server did not. It had to become true: `branches` is a platform-wide table and three separate reads answer from it for every account — the nearness ranking on the consultancies list, `GET /consultancies/locations`, and the `filter[branch_*]` chips — so an account with no branch row is invisible to all three. The new `branch_country` / `branch_state` / `branch_district` / `branch_city` fields give that head office the structured place those reads need; `branch_address` stays the street line it always was. The admin is given in exactly ONE of two mutually exclusive forms, and a request carrying both or neither is refused 400: the `admin_first_name`/`admin_last_name`/`admin_email` trio INVITES a new login, while `admin_user_id` ATTACHES an existing one. The second is the common institute case — the college has been in the catalogue with its campuses and courses since long before anyone from it had an account, so what is new is the person, not the college (D8). Unlike the invite form, `admin_user_id` really does create the Consultancy Admin employee row, because there is an account to attach and a tenant nobody can log into is not an onboarded tenant.
+         */
         ConsultancyCreateInput: {
             name: string;
             city: string;
@@ -22120,7 +22153,33 @@ export interface components {
             kind?: "consultancy" | "institute";
             /** @description The college an institute account speaks for. Optional even for `kind: institute` — omitting it creates the account unlinked (D8's create-the-login-first direction) and `PATCH /consultancies/{id}` attaches the college later. An unlinked institute is scoped to NO catalogue at all in the meantime, which is the fail-closed reading: "not linked yet" must never resolve to "sees everything". A college that already has an institute account is refused 409 `college_already_linked`. */
             college_id?: components["schemas"]["UUID"];
+            /** @description The head office's STREET LINE — door number, building, road (2026-09-21). It is stored as `Branch.address` and is not part of the structured place below; see `BranchPlaceInput`. */
             branch_address: string;
+            /**
+             * @description THE HEAD OFFICE'S PLACE (product owner, 2026-09-21). Before this, every account onboarded after the branch-location feature shipped landed with a head office that had no country, state, district or city: it could never rank on nearness and never appear in a place filter until someone edited it by hand, which defeated the feature for exactly the accounts the platform is onboarding.
+             *
+             *     VALIDATED BY THE SAME RULES A BRANCH EDIT USES — `BranchPlaceInput` / `PATCH /staff/branches`, India district rule included. One definition of a branch's place; a second would drift from it. Every refusal is 422 `validation_failed` with a plain-language message.
+             *
+             *     NOT REQUIRED, and that is a decision rather than an omission. `BranchPlaceInput`'s own recorded rule (product owner, same date) is that a branch may carry no place at all, because real offices go unfilled and refusing them only pushes the gap somewhere nobody can see it — making creation stricter than the edit that owns the rule would be two definitions of one thing. And this is an existing endpoint with a live caller that cannot ship the same day the server does; a 422 on a body that worked yesterday takes consultancy onboarding offline in between.
+             *
+             *     ALL OR NOTHING ONCE STARTED, which is what stops a HALF-filled place: naming a country makes the state required, and an Indian state makes the district required. The form can send a whole place or none, never a fragment.
+             *
+             *     DISTINCT FROM THE TOP-LEVEL `country`/`city`, which are the ACCOUNT's and are read by the consultancies list's own column and search (review M6). Those are unchanged and still stored as typed.
+             * @example India
+             */
+            branch_country?: string | null;
+            /**
+             * @description One of `GET /countries/{country}/states` for `branch_country`, stored with its official spelling whatever letter case was typed. Required once `branch_country` is given — a country alone cannot rank an office against a student.
+             * @example Odisha
+             */
+            branch_state?: string | null;
+            /**
+             * @description One of `GET /countries/{country}/states/{state}/districts`. REQUIRED for a branch in India, the level students rank on after city; elsewhere optional and kept as typed, there being no list to check it against.
+             * @example Cuttack
+             */
+            branch_district?: string | null;
+            /** @description The head office's city. DEFAULTS to the account's own required `city` when omitted — we are told where the business is, so the office it names is not a guess. Free text, like every other city on this server. */
+            branch_city?: string | null;
             /** @description With admin_last_name and admin_email — the INVITE form. Mutually exclusive with `admin_user_id`; the three are required together. */
             admin_first_name?: string;
             admin_last_name?: string;
@@ -23730,8 +23789,10 @@ export interface components {
             profile_completion_percent?: number;
             /** @description The student's intake, month + year (assumptions audit M9, 2026-09-19). Replaces the `intended_intake` half this row used to carry. */
             intake?: components["schemas"]["Intake"] | null;
-            /** @description "September 2027" / "Any month August–December 2027". */
+            /** @description '"September 2027" / "Any month August–December 2027"', or "Not decided yet" since 2026-09-21, or null when the student has not answered at all. */
             intake_label?: string | null;
+            /** @description The student told us they have not decided yet (product owner, 2026-09-21) — see `StudentPreferences.intake_undecided`. This queue is a call list, and a staffer needs to know the difference between a student who has answered "not yet" and one nobody has asked. An undecided student can never carry the `no_consultancy_yet` signal: that signal is keyed on an intake they NAMED, and they have named none. */
+            intake_undecided?: boolean;
             /**
              * Format: date-time
              * @description When the student set it. The "Intake set, no consultancy yet" signal counts its 90 days from HERE, not from sign-up (assumptions audit M10, product owner 2026-09-19) — the queue's own label said intake while its code measured from the account's creation, so a student who signed up two years ago and named an intake yesterday appeared as a two-year-old failure to serve.
