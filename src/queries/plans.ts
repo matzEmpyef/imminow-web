@@ -76,25 +76,6 @@ export function useAssignPlan(clientId: string) {
   })
 }
 
-// A name a consultant cannot correct is a name they will not write.
-export function useRenamePlan(clientId: string) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ planId, name }: { planId: string; name: string }) => {
-      const { data, error } = await api.PATCH('/plans/{planId}', {
-        params: { path: { planId } },
-        body: { name },
-      })
-      if (error) throw new ApiError('Could not rename this plan.', error)
-      return data
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plans'] })
-      queryClient.invalidateQueries({ queryKey: ['clients'] })
-    },
-  })
-}
-
 export function useCreatePlanTemplate() {
   const queryClient = useQueryClient()
   return useMutation({

@@ -15,13 +15,12 @@ import { SIGN_IN_METHOD_LABELS, SIGN_IN_OUTCOME_LABELS, SIGN_IN_PLATFORM_LABELS 
 /**
  * Sign-in history plus two record-management actions (review M9, 2026-09-12).
  *
- * A near-duplicate of `SignInHistoryDrawer.tsx` on purpose rather than an edit to it: this session
- * was scoped to a fixed file list that doesn't include that shared component (another agent owns
- * the rest of the console concurrently), so extending it here — the same "create new files next to
- * the ones you own" allowance the task gave for exports — is what stays inside that boundary. The
- * history body/attempt rendering (`HistoryBody`/`AttemptRow` below) is copied rather than imported
- * for the same reason: the original doesn't export them. If `SignInHistoryDrawer.tsx` becomes
- * editable in a later session, the two should be folded back into one.
+ * Was a near-duplicate of `SignInHistoryDrawer.tsx`, built alongside it rather than as an edit to
+ * it because a concurrent session owned that file at the time. That original was never wired into
+ * any page and picked up no consumers of its own; removed as dead code (2026-09-23) once this one
+ * — with the extra `kind`/`consultancyName`/`hasCase` fields and the sign-out-everywhere action —
+ * was confirmed as the only one actually in use. `HistoryBody`/`AttemptRow` below stay local to
+ * this file rather than extracted, since there is no longer a second consumer to share them with.
  */
 export interface SignInHistoryPerson {
   id: string
