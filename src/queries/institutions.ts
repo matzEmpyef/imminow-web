@@ -141,36 +141,6 @@ export function useMergeInstitution() {
   })
 }
 
-export function useResolveInstitutionSuggestion() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ userId, institutionId }: { userId: string; institutionId: string }) => {
-      const { data, error } = await api.POST('/institutions/suggestions/{user_id}/resolve', {
-        params: { path: { user_id: userId } },
-        body: { institution_id: institutionId },
-      })
-      if (error) throw new ApiError(error.error?.message ?? 'Could not map this student.')
-      return data
-    },
-    onSuccess: () => invalidateInstitutions(queryClient),
-  })
-}
-
-export function useDismissInstitutionSuggestion() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ userId, note }: { userId: string; note?: string }) => {
-      const { data, error } = await api.POST('/institutions/suggestions/{user_id}/dismiss', {
-        params: { path: { user_id: userId } },
-        body: note ? { note } : {},
-      })
-      if (error) throw new ApiError(error.error?.message ?? 'Could not clear this entry.')
-      return data
-    },
-    onSuccess: () => invalidateInstitutions(queryClient),
-  })
-}
-
 // One decision for a whole group of students who typed the same school (2026-09-11).
 export function useBulkResolveInstitutionSuggestions() {
   const queryClient = useQueryClient()

@@ -23,10 +23,6 @@ export function duplicateShareMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Could not send this.'
 }
 
-export function isDuplicateShareError(error: unknown): boolean {
-  return error instanceof ApiError && error.code === 'duplicate_share'
-}
-
 /** The shape every chat message list here shares, narrowed to what the guard reads. */
 interface ShareableMessage {
   type?: string
