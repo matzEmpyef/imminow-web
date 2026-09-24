@@ -14,6 +14,7 @@ import {
   useUnsendInternalMessage,
 } from '@/queries/internalMessages'
 import { CHAT_TYPE_LABELS } from './chatTypeLabels'
+import { CASE_MOVED_COMPOSER_NOTE, isCaseMoved } from '@/lib/clientStatus'
 
 // Facebook-style floating chat popup — opened from the conversation pages' pop-out buttons and
 // stays available while browsing the rest of the app. One window at a time (see
@@ -175,7 +176,12 @@ export function FloatingChatWindow() {
         composerLocked={
           isLead && lead.data && !lead.data.assigned_employee_id
             ? 'Allocate this lead to a consultant from Lead Pool to reply.'
-            : undefined
+            : // Case moved to another consultancy (product owner 2026-09-24) — mirrors the full
+              // Client Conversation page's own composerLocked so the floating window can't send
+              // where the inline page wouldn't either.
+              isClient && isCaseMoved(client.data?.status)
+              ? CASE_MOVED_COMPOSER_NOTE
+              : undefined
         }
         sending={sending}
         person={isLead || isClient ? { id: conversation.id, kind: isLead ? 'lead' : 'client' } : undefined}

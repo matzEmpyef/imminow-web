@@ -16,6 +16,7 @@ import { formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { ShareFromLibraryModal } from './ShareFromLibraryModal'
 import { UploadStudentDocumentModal } from './UploadStudentDocumentModal'
+import { CASE_MOVED_ACTION_REASON } from '@/lib/clientStatus'
 
 /** A file-type icon from the name (and type, when known). */
 function FileIcon({ filename, mimeType }: { filename?: string | null; mimeType?: string | null }) {
@@ -87,7 +88,7 @@ function EmptyState({ children }: { children: ReactNode }) {
  *   checklist, an offer letter. It stays with the case; the student sees it in the Sentpo app under
  *   My documents → From your consultancy, and is notified when one is shared (2026-09-10).
  */
-export function DocumentsTab({ clientId }: { clientId: string }) {
+export function DocumentsTab({ clientId, readOnly = false }: { clientId: string; readOnly?: boolean }) {
   const uploads = useUploads(clientId)
   const studentDocs = useStudentDocuments(clientId)
   const uploadFile = useUploadFile(clientId)
@@ -158,6 +159,8 @@ export function DocumentsTab({ clientId }: { clientId: string }) {
                 variant="secondary"
                 size="sm"
                 onClick={() => setShowUploadForStudent(true)}
+                disabled={readOnly}
+                title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
                 className="inline-flex items-center gap-xs"
               >
                 <Upload className="h-3.5 w-3.5" aria-hidden />
@@ -195,6 +198,7 @@ export function DocumentsTab({ clientId }: { clientId: string }) {
                   className="hidden"
                   id="doc-upload"
                   aria-label="Choose a document to send"
+                  disabled={readOnly}
                   onChange={(e) => {
                     const file = e.target.files?.[0]
                     if (file) uploadFile.mutate({ file }, { onSuccess: () => showToast('Document sent') })
@@ -206,6 +210,8 @@ export function DocumentsTab({ clientId }: { clientId: string }) {
                   size="sm"
                   onClick={() => document.getElementById('doc-upload')?.click()}
                   loading={uploadFile.isPending}
+                  disabled={readOnly}
+                  title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
                   className="inline-flex items-center gap-xs"
                 >
                   <Send className="h-3.5 w-3.5" aria-hidden />
@@ -217,6 +223,8 @@ export function DocumentsTab({ clientId }: { clientId: string }) {
                   variant="secondary"
                   size="sm"
                   onClick={() => setShowLibraryPicker(true)}
+                  disabled={readOnly}
+                  title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
                   className="inline-flex items-center gap-xs"
                 >
                   <Library className="h-3.5 w-3.5" aria-hidden />

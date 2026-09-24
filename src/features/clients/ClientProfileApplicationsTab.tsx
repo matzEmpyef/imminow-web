@@ -12,6 +12,7 @@ import { formatFeeApprox, formatMoney } from '@/lib/money'
 import { AddApplicationModal } from './AddApplicationModal'
 import { AcceptCollegeModal } from './AcceptCollegeModal'
 import { RevertAcceptanceModal } from './RevertAcceptanceModal'
+import { CASE_MOVED_ACTION_REASON } from '@/lib/clientStatus'
 
 type ApplicationRowData = import('@/api/schema').components['schemas']['Application']
 
@@ -42,7 +43,7 @@ const COLLEGE_NEXT_STEPS: Record<CollegeStatus, CollegeStatus[]> = {
   rejected: [],
 }
 
-export function ApplicationsTab({ clientId }: { clientId: string }) {
+export function ApplicationsTab({ clientId, readOnly = false }: { clientId: string; readOnly?: boolean }) {
   const client = useClient(clientId)
   const colleges = useApplications(clientId)
   const updateStatus = useUpdateApplication(clientId)
@@ -54,7 +55,12 @@ export function ApplicationsTab({ clientId }: { clientId: string }) {
 
   const addCollegeButton = (
     <div className="flex justify-end">
-      <Button variant="secondary" onClick={() => setShowAddCollege(true)}>
+      <Button
+        variant="secondary"
+        onClick={() => setShowAddCollege(true)}
+        disabled={readOnly}
+        title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
+      >
         Add College
       </Button>
     </div>
@@ -136,22 +142,27 @@ export function ApplicationsTab({ clientId }: { clientId: string }) {
           </p>
         </Card>
       )}
-      <div className="flex flex-col gap-xs">
-        {selected.map((sc) => (
-          <ApplicationRow
-            key={sc.id}
-            clientId={clientId}
-            row={sc}
-            acceptedElsewhere={selected.find((o) => o.status === 'accepted' && o.id !== sc.id)?.course.name ?? null}
-            journeyPayerMethod={client.data?.payer_method ?? null}
-            onAdvance={(status) => updateStatus.mutate({ applicationId: sc.id, status })}
-            advanceError={
-              updateStatus.variables?.applicationId === sc.id && updateStatus.isError ? updateStatus.error.message : null
-            }
-            advancing={updateStatus.variables?.applicationId === sc.id && updateStatus.isPending}
-          />
-        ))}
-      </div>
+      {/* One fieldset for every row's Mark Applied/Offer Received/Accept/Reject/Change acceptance
+          buttons, rather than threading `readOnly` into each (2026-09-24) — same reasoning as the
+          Plan tab's builder wrapper. Rows stay visible and readable either way. */}
+      <fieldset disabled={readOnly} className={`m-0 min-w-0 border-0 p-0 ${readOnly ? 'opacity-75' : ''}`}>
+        <div className="flex flex-col gap-xs">
+          {selected.map((sc) => (
+            <ApplicationRow
+              key={sc.id}
+              clientId={clientId}
+              row={sc}
+              acceptedElsewhere={selected.find((o) => o.status === 'accepted' && o.id !== sc.id)?.course.name ?? null}
+              journeyPayerMethod={client.data?.payer_method ?? null}
+              onAdvance={(status) => updateStatus.mutate({ applicationId: sc.id, status })}
+              advanceError={
+                updateStatus.variables?.applicationId === sc.id && updateStatus.isError ? updateStatus.error.message : null
+              }
+              advancing={updateStatus.variables?.applicationId === sc.id && updateStatus.isPending}
+            />
+          ))}
+        </div>
+      </fieldset>
       {addCollegeModal}
     </div>
   )

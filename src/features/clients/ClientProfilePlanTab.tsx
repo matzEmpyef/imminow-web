@@ -20,6 +20,7 @@ import { PlanStepBuilder } from '@/features/clients/PlanStepBuilder'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { usePlans } from '@/queries/plans'
 import { usePermission } from '@/lib/permissions'
+import { CASE_MOVED_ACTION_REASON } from '@/lib/clientStatus'
 import type { components } from '@/api/schema'
 
 type Plan = components['schemas']['Plan']
@@ -99,12 +100,17 @@ export function PlanTab({
   clientId,
   initialStepId,
   initialPlanId,
+  readOnly = false,
 }: {
   clientId: string
   initialStepId?: string
   // The plan a consultant clicked on Overview. Without it, clicking the third plan there opened
   // the Plan tab on the first one, which reads as the click having done nothing.
   initialPlanId?: string
+  // Case moved to another consultancy (product owner 2026-09-24) — plan assignment and every step
+  // action below now 409 `case_moved` server-side, so the builder is wrapped read-only rather than
+  // left to fail one click at a time.
+  readOnly?: boolean
 }) {
   const plans = usePlans(clientId)
   const [showAddPlan, setShowAddPlan] = useState(false)
@@ -153,7 +159,12 @@ export function PlanTab({
         {/* No combined "x/y steps done overall" (user, 2026-09-10: "make no sense to show
             combined") — plans run side by side, so each card carries its own progress instead. */}
         {canAssignTemplate && items.length > 0 && (
-          <Button variant="secondary" onClick={() => setShowAddPlan(true)}>
+          <Button
+            variant="secondary"
+            onClick={() => setShowAddPlan(true)}
+            disabled={readOnly}
+            title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
+          >
             Add a plan
           </Button>
         )}
@@ -168,7 +179,15 @@ export function PlanTab({
               works through them in parallel rather than one queue.
             </p>
           </div>
-          {canAssignTemplate && <Button onClick={() => setShowAddPlan(true)}>Add a plan</Button>}
+          {canAssignTemplate && (
+            <Button
+              onClick={() => setShowAddPlan(true)}
+              disabled={readOnly}
+              title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
+            >
+              Add a plan
+            </Button>
+          )}
         </Card>
       ) : (
         <>
@@ -198,6 +217,12 @@ export function PlanTab({
                   <span className="text-body-sm tabular-nums text-text-secondary">{selectedPlan.progress} steps done</span>
                 )}
               </div>
+              {/* `readOnly` threads straight into the builder (2026-09-24) rather than a blanket
+                  `<fieldset disabled>` wrapper — a first attempt at that wrapper here also caught
+                  Preview mode's step-selection rows, which are real `<button>`s for keyboard/AT
+                  support and only ever READ a step, never write to it. PlanStepBuilder folds
+                  `readOnly` into its own edit-mode/review-permission gates so selecting and
+                  reading a step stays live and only the actual writes disable. */}
               {/* Keyed by plan: the builder picks its selected step once, on mount, so switching
                   plans must start it afresh rather than keep the previous plan's step selected. */}
               <PlanStepBuilder
@@ -205,6 +230,7 @@ export function PlanTab({
                 clientId={clientId}
                 plan={selectedPlan}
                 initialStepId={deepLinkedPlan?.id === selectedPlan.id ? initialStepId : undefined}
+                readOnly={readOnly}
               />
             </section>
           )}

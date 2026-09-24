@@ -147,9 +147,14 @@ export function useTransferApplicant(clientId: string) {
         params: { path: { id: clientId } },
         body: { new_consultancy_id: input.newConsultancyId, reason: input.reason, transfer_code: input.transferCode },
       })
+      // The server's own message is what a consultant needs to read here — e.g. 409
+      // `case_has_accepted_college` ("close the case or raise a dispute instead") or `case_moved`
+      // on a stale tab. This used to drop the response body entirely and always show the generic
+      // transfer-code fallback below, whatever actually went wrong (2026-09-24 fix).
       if (error)
         throw new ApiError(
           'Could not transfer this applicant. Check the transfer code — it must be issued by the receiving consultancy for this exact student.',
+          error,
         )
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),

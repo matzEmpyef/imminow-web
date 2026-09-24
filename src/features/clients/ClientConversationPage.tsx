@@ -8,6 +8,7 @@ import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useClient, useClientMessages, useMarkClientRead, useSendClientMessage } from '@/queries/clients'
 import { useChatWindowStore } from '@/stores/chatWindowStore'
 import { duplicateShareMessage } from './shareGuards'
+import { CASE_MOVED_COMPOSER_NOTE, isCaseMoved } from '@/lib/clientStatus'
 
 export function ClientConversationPage() {
   const { id = '' } = useParams()
@@ -99,6 +100,10 @@ export function ClientConversationPage() {
           sending={sendMessage.isPending}
           heightClassName="h-full"
           person={{ id, kind: 'client' }}
+          // Case moved to another consultancy (product owner 2026-09-24) — the server 409s
+          // `case_moved` on a send here, same idiom Lead Pool's unallocated-lead lock already
+          // uses for `composerLocked`: say why up front rather than let the send fail.
+          composerLocked={isCaseMoved(client.data.status) ? CASE_MOVED_COMPOSER_NOTE : undefined}
           composerAction={
             // Courses only mean something on a study case; a PR case has no Applications tab.
             client.data.case_type === 'student' ? (

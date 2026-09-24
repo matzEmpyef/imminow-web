@@ -21,7 +21,14 @@ import { usePermission } from '@/lib/permissions'
 import { usePlans, useLinkedFormResponses } from '@/queries/plans'
 import { Skeleton } from '@/components/QueryState'
 import { TransferApplicantModal } from './TransferApplicantModal'
-import { CLIENT_STATUS_LABELS, clientStatusColor, clientStatusLabel, type ClientStatusColor } from '@/lib/clientStatus'
+import {
+  CASE_HAS_ACCEPTED_COLLEGE_REASON,
+  CASE_MOVED_ACTION_REASON,
+  CLIENT_STATUS_LABELS,
+  clientStatusColor,
+  clientStatusLabel,
+  type ClientStatusColor,
+} from '@/lib/clientStatus'
 
 // Labels and colours come from one shared map (2026-09-14) — this tab, the detail modal and the
 // profile header each used to label the same status differently ("Closed" here for a completed
@@ -39,11 +46,16 @@ const STATUS_INFO: Record<string, { label: string; color: ClientStatusColor }> =
 export function OverviewTab({
   clientId,
   onViewPlan,
+  readOnly = false,
 }: {
   clientId: string
   // Takes the plan to open, so the Plan tab lands on the one that was clicked rather than
   // whichever happens to be first (2026-09-09).
   onViewPlan: (planId?: string) => void
+  // Case moved to another consultancy (product owner 2026-09-24) — every write here now 409s
+  // `case_moved` server-side, so the country/tags/branch/plan controls below are disabled with the
+  // reason rather than left to fail on click.
+  readOnly?: boolean
 }) {
   const client = useClient(clientId)
   const tags = useTags()
@@ -100,6 +112,13 @@ export function OverviewTab({
   const employeeBranches = assignedEmployee?.is_consultancy_admin
     ? (branches.data ?? [])
     : (branches.data ?? []).filter((b) => assignedEmployee?.branch_ids?.includes(b.id!))
+  // Transfer's own 409 `case_has_accepted_college` (product owner 2026-09-24) — a college already
+  // accepted (or, for a PR case, a contribution already recorded, its counterpart since a PR case
+  // has no colleges) means there is money on the case now, so it closes or disputes instead of
+  // moving. Same `case_summary` fields CloseClientModal already reads for `hasAcceptedCollege`.
+  const hasAcceptedCollegeOrCommission =
+    data.case_type === 'pr' ? (data.case_summary?.contribution_recorded ?? false) : (data.case_summary?.accepted ?? 0) > 0
+  const transferDisabledReason = hasAcceptedCollegeOrCommission ? CASE_HAS_ACCEPTED_COLLEGE_REASON : null
 
   return (
     <div className="grid grid-cols-3 gap-md">
@@ -161,7 +180,8 @@ export function OverviewTab({
           <CompactSelect
             value={data.finalized_country ?? ''}
             onChange={(e) => setFinalizedCountry.mutate({ id: clientId, country: e.target.value || null })}
-            disabled={setFinalizedCountry.isPending}
+            disabled={readOnly || setFinalizedCountry.isPending}
+            title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
             label="Country finalized to apply"
           >
             <option value="">Not decided yet</option>
@@ -203,7 +223,13 @@ export function OverviewTab({
             <>
               <p className="text-body-sm text-text-secondary">No plan assigned yet.</p>
               {canAssignTemplate && (
-                <Button variant="secondary" className="w-fit" onClick={() => setShowAssignPlan(true)}>
+                <Button
+                  variant="secondary"
+                  className="w-fit"
+                  onClick={() => setShowAssignPlan(true)}
+                  disabled={readOnly}
+                  title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
+                >
                   Assign a Plan
                 </Button>
               )}
@@ -238,7 +264,13 @@ export function OverviewTab({
             )
           })}
           {planItems.length > 0 && canAssignTemplate && (
-            <Button variant="secondary" className="w-fit" onClick={() => setShowAssignPlan(true)}>
+            <Button
+              variant="secondary"
+              className="w-fit"
+              onClick={() => setShowAssignPlan(true)}
+              disabled={readOnly}
+              title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
+            >
               Add a plan
             </Button>
           )}
@@ -301,9 +333,12 @@ export function OverviewTab({
                     branches={employeeBranches.map((b) => ({ id: b.id!, name: b.name }))}
                     currentBranchId={data.branch_id}
                     onSelect={(branchId) => setClientBranch.mutate({ id: clientId, branchId })}
-                    label={`Set branch for ${data.student.first_name} ${data.student.last_name}`}
+                    label={
+                      readOnly ? CASE_MOVED_ACTION_REASON : `Set branch for ${data.student.first_name} ${data.student.last_name}`
+                    }
                     description="Choose which of your branches this client should be mapped to."
                     iconOnly={false}
+                    disabled={readOnly}
                   />
                 )}
               </dd>
@@ -327,17 +362,25 @@ export function OverviewTab({
               onSave={(next) => setClientTags.mutate({ id: clientId, tags: next })}
               saving={setClientTags.isPending}
               label={`Edit tags for ${data.student.first_name} ${data.student.last_name}`}
+              disabled={readOnly}
+              disabledReason={CASE_MOVED_ACTION_REASON}
             />
           </div>
         </Card>
       </div>
 
-      {canTransferApplicant && (
+      {/* Hidden outright once the case has moved (2026-09-24) — like Raise an Issue/Close Case in
+          the header, there is nothing left here to press. Disabled-with-reason is for the case
+          that is still live but can't transfer YET (an accepted college/recorded contribution) —
+          that's actionable information, not a dead end. */}
+      {canTransferApplicant && !readOnly && (
         <div className="col-span-3 flex justify-end">
           <button
             type="button"
             onClick={() => setShowTransfer(true)}
-            className="text-caption text-text-secondary hover:text-error hover:underline"
+            disabled={Boolean(transferDisabledReason)}
+            title={transferDisabledReason ?? undefined}
+            className="text-caption text-text-secondary hover:text-error hover:underline disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:text-text-secondary disabled:hover:no-underline"
           >
             Transfer applicant to another consultancy
           </button>

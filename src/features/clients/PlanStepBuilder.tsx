@@ -73,14 +73,17 @@ function SubmissionPreview({ submission }: { submission: Record<string, unknown>
 // Approve/Send Back for a step awaiting review (status active + submitted_at set) — moved here
 // from the retired standalone Step Approvals page, since that page no longer exists and this is
 // the step's own detail panel, the natural place for its own pending-review actions to live.
-function StepApprovalActions({ step, clientId }: { step: Step; clientId: string }) {
+function StepApprovalActions({ step, clientId, readOnly }: { step: Step; clientId: string; readOnly?: boolean }) {
   const approve = useApproveStep(clientId)
   const reject = useRejectStep(clientId)
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
   // Server enforces step_review.confirm_send_back on POST /steps/:id/approve and /reject —
-  // without this gate a denied consultant sees the buttons and gets a 403 on click.
-  const canReview = usePermission('step_review.confirm_send_back')
+  // without this gate a denied consultant sees the buttons and gets a 403 on click. Case moved to
+  // another consultancy (product owner 2026-09-24) folds into the same gate — approve/reject would
+  // 409 `case_moved` same as any other write — so a moved case just shows the submission, not the
+  // buttons, same as a consultant with no review permission does today.
+  const canReview = usePermission('step_review.confirm_send_back') && !readOnly
 
   return (
     <div className="flex flex-col gap-md rounded-md border border-warning bg-warning-subtle p-md">
@@ -428,10 +431,17 @@ export function PlanStepBuilder({
   clientId,
   plan,
   initialStepId,
+  readOnly = false,
 }: {
   clientId: string
   plan: Plan
   initialStepId?: string
+  // Case moved to another consultancy (product owner 2026-09-24) — every step write here now
+  // 409s `case_moved`. Folded into `canEditPlan` below rather than a blanket disabled wrapper
+  // around the whole component: viewing and SELECTING a step to read it must stay live (it's a
+  // read, not a write), and a `<fieldset disabled>` around the step list would have taken that
+  // away too, since Preview mode's step rows are real `<button>`s for keyboard/AT support.
+  readOnly?: boolean
 }) {
   const addStep = useAddStep(clientId, plan.id)
   const updateStep = useUpdateStep(clientId)
@@ -453,8 +463,11 @@ export function PlanStepBuilder({
   const [editingComponent, setEditingComponent] = useState<ComponentInput | null>(null)
   // Every edit affordance (Add Step, delete, drag reorder, component editing) keys off
   // mode === 'edit', so gating the toggle gates the whole edit surface in one place. Mirrors
-  // the clients.edit_plan enforcement on the server's plan-mutation routes.
-  const canEditPlan = usePermission('clients.edit_plan')
+  // the clients.edit_plan enforcement on the server's plan-mutation routes. `!readOnly` (2026-09-24)
+  // hides the toggle entirely on a moved case, which pins `mode` at its `preview` default for the
+  // life of the mount — the safe, selection-only step list renders, and nothing below that reads
+  // `mode === 'edit'` can ever see one.
+  const canEditPlan = usePermission('clients.edit_plan') && !readOnly
 
   const steps = [...plan.steps].sort((a, b) => a.position - b.position)
   const selectedStep = steps.find((s) => s.id === selectedStepId) ?? null
@@ -636,7 +649,7 @@ export function PlanStepBuilder({
                   a plan-structure edit. Deep-linked here directly from Activity's Step Approvals
                   row (user-requested, 2026-08-19). */}
               {selectedStep.status === 'active' && selectedStep.submitted_at && (
-                <StepApprovalActions step={selectedStep} clientId={clientId} />
+                <StepApprovalActions step={selectedStep} clientId={clientId} readOnly={readOnly} />
               )}
               {/* A step sent back keeps its reason visible here until the applicant resubmits and
                   it's approved again (cleared server-side on approve) — previously stored but
@@ -692,7 +705,7 @@ export function PlanStepBuilder({
                       component={component}
                       step={selectedStep}
                       clientId={clientId}
-                      disabled={selectedStep.status !== 'active'}
+                      disabled={selectedStep.status !== 'active' || readOnly}
                     />
                   ))}
                 </div>

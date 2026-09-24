@@ -70,6 +70,7 @@ export function AssignBranchMenu({
           onClick={openMenu}
           disabled={disabled}
           aria-label={label}
+          title={disabled ? label : undefined}
           className="text-body-sm text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-40"
         >
           Change

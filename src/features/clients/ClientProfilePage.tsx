@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Lock } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
@@ -22,7 +22,7 @@ import { DocumentsTab } from './ClientProfileDocumentsTab'
 import { InternalNotesTab } from './ClientProfileInternalNotesTab'
 import { ActivityTab } from './ClientProfileActivityTab'
 import { FormsTab } from './ClientProfileFormsTab'
-import { clientStatusLabel } from '@/lib/clientStatus'
+import { caseMovedBannerMessage, clientStatusLabel, isCaseMoved } from '@/lib/clientStatus'
 
 const TABS = [
   'Overview',
@@ -104,6 +104,12 @@ export function ClientProfilePage() {
   }
 
   const data = client.data
+  // Read-only precedent (product owner 2026-09-24): a `closed_switched` case moved to another
+  // consultancy and every write here now 409s `case_moved` server-side (internal notes excepted).
+  // Mirrors how `in_dispute` already stops the header actions below, but a moved case is terminal
+  // — there is no "wait it out", so the tabs stay gated for good rather than until a mediator acts.
+  const caseMoved = isCaseMoved(data.status)
+  const movedBanner = caseMovedBannerMessage(data)
   // Was a raw role === 'consultancy_admin' check — swapped to the permission key so an employee
   // whose designation grants clients.view_commissions actually gets the tab (admins still pass
   // via the is_consultancy_admin bypass inside the checker).
@@ -172,7 +178,12 @@ export function ClientProfilePage() {
                 Reopen Plan
               </Button>
             )}
-            {data.status === 'closed' ? (
+            {caseMoved ? (
+              // Nothing here is this consultancy's to press any more — the banner below already
+              // says where the case went. Unlike a closed case, there is no Reopen Case: it isn't
+              // this consultancy's to reopen once it belongs to another one.
+              null
+            ) : data.status === 'closed' ? (
               hasCaseReopening && (
                 <Button variant="secondary" onClick={() => setShowReopenCase(true)}>
                   Reopen Case
@@ -252,6 +263,19 @@ export function ClientProfilePage() {
           </Card>
         )}
 
+        {/* The one thing every tab below needs the consultant to know before they start clicking
+            around (2026-09-24) — reads once here rather than being re-explained by every disabled
+            button underneath it. */}
+        {movedBanner && (
+          <div
+            role="status"
+            className="flex items-start gap-sm rounded-md border border-border bg-surface-muted px-md py-sm text-body-sm text-text-primary"
+          >
+            <Lock className="mt-0.5 h-4 w-4 shrink-0 text-text-secondary" aria-hidden />
+            <p>{movedBanner}</p>
+          </div>
+        )}
+
         <div className="flex gap-xs overflow-x-auto border-b border-border">
           {visibleTabs.map((tab) => (
             <button
@@ -267,15 +291,20 @@ export function ClientProfilePage() {
         </div>
 
         {activeTab === 'Overview' && (
-          <OverviewTab clientId={id} onViewPlan={(planId) => setActiveTab('Plan', planId)} />
+          <OverviewTab clientId={id} onViewPlan={(planId) => setActiveTab('Plan', planId)} readOnly={caseMoved} />
         )}
         {activeTab === 'Plan' && (
-          <PlanTab clientId={id} initialStepId={initialStepId} initialPlanId={initialPlanId} />
+          <PlanTab
+            clientId={id}
+            initialStepId={initialStepId}
+            initialPlanId={initialPlanId}
+            readOnly={caseMoved}
+          />
         )}
         {activeTab === 'Forms' && hasLinkedForms && <FormsTab clientId={id} />}
         {activeTab === 'Commissions' && canSeeCommissions && <CommissionsTab clientId={id} />}
-        {activeTab === 'Applications' && <ApplicationsTab clientId={id} />}
-        {activeTab === 'Documents' && <DocumentsTab clientId={id} />}
+        {activeTab === 'Applications' && <ApplicationsTab clientId={id} readOnly={caseMoved} />}
+        {activeTab === 'Documents' && <DocumentsTab clientId={id} readOnly={caseMoved} />}
         {activeTab === 'Internal Notes' && <InternalNotesTab clientId={id} />}
         {activeTab === 'Activity' && <ActivityTab clientId={id} />}
       </div>

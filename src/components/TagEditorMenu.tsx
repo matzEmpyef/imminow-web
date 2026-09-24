@@ -17,6 +17,11 @@ interface TagEditorMenuProps {
   onCreateTag: (name: string) => Promise<unknown>
   label: string
   saving?: boolean
+  // A case this console can no longer write to — e.g. `closed_switched` (2026-09-24). The trigger
+  // stays visible (tags are still worth reading) but opens nothing, and `disabledReason` replaces
+  // `label` as the tooltip so the button says WHY instead of just going dead.
+  disabled?: boolean
+  disabledReason?: string
 }
 
 // Shared "edit this record's tags" popup — a centered Modal (not an inline dropdown, matching
@@ -25,7 +30,16 @@ interface TagEditorMenuProps {
 // created in the catalog on the fly, same "+ Add" idiom AddPhonebookContactModal's category
 // field already uses), and an explicit Save that commits the whole array in one PATCH rather
 // than round-tripping on every click.
-export function TagEditorMenu({ tags, catalog, onSave, onCreateTag, label, saving }: TagEditorMenuProps) {
+export function TagEditorMenu({
+  tags,
+  catalog,
+  onSave,
+  onCreateTag,
+  label,
+  saving,
+  disabled,
+  disabledReason,
+}: TagEditorMenuProps) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<string[]>(tags)
   const [picker, setPicker] = useState('')
@@ -66,14 +80,15 @@ export function TagEditorMenu({ tags, catalog, onSave, onCreateTag, label, savin
       <button
         type="button"
         onClick={openMenu}
+        disabled={disabled}
         aria-label={label}
-        title={label}
-        className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
+        title={disabled && disabledReason ? disabledReason : label}
+        className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
       >
         <TagIcon className="h-4 w-4" />
       </button>
 
-      {open && (
+      {!disabled && open && (
         <Modal
           onClose={() => setOpen(false)}
           title={label}

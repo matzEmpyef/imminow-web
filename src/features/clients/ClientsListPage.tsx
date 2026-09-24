@@ -25,6 +25,7 @@ import { useAccountWords } from '@/lib/accountWords'
 import { useAuthStore } from '@/stores/authStore'
 import { useCursorPagination } from '@/lib/pagination'
 import { showToast } from '@/lib/toast'
+import { CASE_MOVED_ACTION_REASON, isCaseMoved } from '@/lib/clientStatus'
 
 type Client = NonNullable<ReturnType<typeof useClients>['data']>['items'][number]
 
@@ -298,6 +299,10 @@ export function ClientsListPage() {
                 instead" of a State column that was mostly dashes). A case under mediation is
                 nobody's to work on, and a consultant should learn that from the list. */}
             {client.status === 'in_dispute' && <Badge color="warning">In dispute</Badge>}
+            {/* Only reachable with show_closed=true (2026-09-24) — closed_switched clients are
+                excluded from the default list — but this row's Tags/Assign controls still 409
+                case_moved if used, so the pill and the disabled controls below go together. */}
+            {isCaseMoved(client.status) && <Badge color="secondary">Moved</Badge>}
             {client.outcome && (
               <Badge color={client.outcome === 'success' ? 'success' : 'secondary'} className="capitalize">
                 {client.outcome}
@@ -316,6 +321,8 @@ export function ClientsListPage() {
             onSave={(next) => setClientTags.mutate({ id: client.id, tags: next })}
             saving={setClientTags.isPending}
             label={`Edit tags for ${client.student.first_name} ${client.student.last_name}`}
+            disabled={isCaseMoved(client.status)}
+            disabledReason={CASE_MOVED_ACTION_REASON}
           />
         </div>
       ),
@@ -333,7 +340,10 @@ export function ClientsListPage() {
         const clientName = `${client.student.first_name} ${client.student.last_name}`
         return (
           <div className="flex justify-end">
-            {client.status === 'closed' ? (
+            {/* A moved case isn't this consultancy's to reopen OR reassign (2026-09-24) — unlike a
+                plain `closed` case, there is no Reopen here: it belongs to another consultancy
+                now. The Moved pill in the Tags column already says so. */}
+            {isCaseMoved(client.status) ? null : client.status === 'closed' ? (
               <ReopenClientTrigger clientId={client.id} clientName={clientName} />
             ) : (
               <>
