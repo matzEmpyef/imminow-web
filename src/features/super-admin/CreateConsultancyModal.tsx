@@ -541,7 +541,7 @@ function ExistingUserPicker({
             <li key={user.id} className="border-b border-border last:border-b-0">
               <button
                 type="button"
-                onClick={() => onSelect({ id: user.id, name: user.name, email: user.email })}
+                onClick={() => onSelect({ id: user.id, name: user.name, email: user.email ?? '' })}
                 className="flex w-full flex-col px-sm py-sm text-left hover:bg-background"
               >
                 <span className="text-body-sm text-text-primary">{user.name}</span>

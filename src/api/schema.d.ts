@@ -144,9 +144,198 @@ export interface paths {
                     };
                 };
                 401: components["responses"]["ErrorResponse"];
+                /** @description `account_disabled` or `subscription_lapsed` — the account may not sign in. Phase 6 (Staff 2FA, owner-approved 2026-09-24) adds `mfa_required` for a console user with an authenticator enrolled: the password was right, no tokens are issued yet, and `error.details.mfa_session` (string, short-lived, single use) is sent to POST /auth/mfa/verify with the 6-digit code to finish signing in. An error code rather than a second 200 shape, so the generated TokenPair type stays intact. The mock server never sends `mfa_required`. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Finish a staff sign-in with an authenticator code (Phase 6 — not served by the mock server)
+         * @description Phase 6 — not served by the mock server. Second step of a console sign-in that answered 403 `mfa_required`: sends that error's `details.mfa_session` with the current 6-digit TOTP code and receives the same TokenPair a password-only sign-in returns. 401 `invalid_mfa_code` for a wrong code (the session stays usable for a few more tries); 401 `mfa_session_expired` when the mfa_session is unknown, used or older than a few minutes — the client starts the sign-in again. 429 `rate_limited` after repeated wrong codes.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        mfa_session: string;
+                        code: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Signed in */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TokenPair"];
+                    };
+                };
+                401: components["responses"]["ErrorResponse"];
+                429: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start authenticator enrollment for the caller (Phase 6 — not served by the mock server)
+         * @description Phase 6 — not served by the mock server. Console users only. Issues a new TOTP secret for the signed-in caller; nothing is enforced until POST /auth/mfa/setup/verify confirms a code from it, so calling this again simply replaces an unconfirmed secret. Allowed while the enrollment gate is answering 403 `mfa_enrollment_required` (it is how that gate is cleared). 409 `mfa_already_enabled` when an authenticator is already confirmed — remove it first with DELETE /auth/mfa. 403 `permission_denied` for a student.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Secret issued, awaiting confirmation */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MfaSetup"];
+                    };
+                };
+                403: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/setup/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm authenticator enrollment with a first code (Phase 6 — not served by the mock server)
+         * @description Phase 6 — not served by the mock server. Confirms the secret from POST /auth/mfa/setup with a current 6-digit code; from then on every sign-in of this account answers 403 `mfa_required` before issuing tokens, and the enrollment gate stops answering 403 `mfa_enrollment_required`. 400 `invalid_mfa_code` for a wrong code; 409 when there is no pending setup to confirm.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        code: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Authenticator enrolled */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove the caller's authenticator (Phase 6 — not served by the mock server)
+         * @description Phase 6 — not served by the mock server. Turns two-factor sign-in off for the caller, who proves possession with a current code. 400 `invalid_mfa_code` for a wrong code; 409 `mfa_required_by_policy` when the account's role requires two-factor (`two_factor_required` — Consultancy Admin and Super Admin at minimum, build reference Staff 2FA) — such an account never goes without one; replacing a lost authenticator goes through Support. 404 when nothing is enrolled.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        code: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Authenticator removed */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -344,7 +533,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Rotate refresh token for a new access token (TRD Section 9) */
+        /**
+         * Exchange a refresh token for a new access token (TRD Section 9)
+         * @description Called by both clients when a request answers 401 with an expired access token. The response always carries a new `access_token`; it carries a `refresh_token` only when the server rotated it, and then the returned token may differ from the one sent and the client must store it (see TokenRefresh.refresh_token). 401 `invalid_refresh_token` when the token is unknown, expired or revoked — the session is over and the client signs out. Phase 6 adds 401 `session_idle` for console sessions idle past 30 minutes (same handling: sign out); the mock server does not send it.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -352,15 +544,22 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RefreshRequest"];
+                };
+            };
             responses: {
-                /** @description New token pair */
+                /** @description New access token (and a rotated refresh token when the server rotates) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["TokenRefresh"];
+                    };
                 };
+                401: components["responses"]["ErrorResponse"];
             };
         };
         delete?: never;
@@ -3703,10 +3902,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Super Admin / Platform Staff accounts */
+        /**
+         * List Super Admin / Platform Staff accounts
+         * @description team_management permission. Paged like every other list since 2026-09-24 (REVIEW_TRIAGE item 21 — it returned a bare array): oldest account first (created_at, then id), invited people included. Default page 20, max 100.
+         */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -3719,7 +3926,10 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["PlatformStaff"][];
+                        "application/json": {
+                            items: components["schemas"]["PlatformStaff"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
                     };
                 };
             };
@@ -14119,7 +14329,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Upload an admin-authored marketing/branding image (ad banners, quiz branding placements) and get back a usable URL (user-requested, 2026-08-18 — "We should be able to upload the image. No point just giving image name"). Distinct from POST /uploads above, which is client-facing case documents tied to a journey_id; this is public, non-case-file creative — build reference 3.8's "logos, ad banners, blog thumbnails, event branding" asset class, served from a CDN, not signed-URL-gated. Super Admin only. */
+        /**
+         * Upload an admin-authored marketing/branding image (ad banners, quiz branding placements) and get back a usable URL (user-requested, 2026-08-18 — "We should be able to upload the image. No point just giving image name"). Distinct from POST /uploads above, which is client-facing case documents tied to a journey_id; this is public, non-case-file creative — build reference 3.8's "logos, ad banners, blog thumbnails, event branding" asset class, served from a CDN, not signed-URL-gated. Super Admin only.
+         * @description **Multipart on purpose** — the one named exception to "no file bytes through the API" (REVIEW_TRIAGE item 29; owner-approved 2026-09-24, Wave 1 plan F18/Q5). These are small public raster images, so the backend checks them in the request itself: PNG, JPEG, GIF or WebP by content (magic bytes, not the declared type), at most 5 MB, 400 `validation_failed` otherwise. Case documents and every other file go through `uploads` and its presigned URLs, never this route. The response URL follows the Media URLs rule in the API description: absolute from the real backend, host-relative `/media/{id}` from the mock server.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -14145,7 +14358,7 @@ export interface paths {
                         "application/json": {
                             /**
                              * Format: uri
-                             * @description An absolute **http(s)** URL the bytes can actually be fetched from. Never a `data:` URI: a browser `<img src>` accepts one but Flutter's Image.network does not, so a data URL renders correctly in immiNow and is silently blank in Sentpo Mobile. Corrected 2026-08-18 after exactly that happened to an uploaded ad banner. Must also be a raster format (PNG/JPEG/GIF/WebP) — the endpoint rejects anything else, since SVG has no decoder on mobile.
+                             * @description An **http(s)** URL the bytes can actually be fetched from. The real backend returns it ABSOLUTE (`https://` on its public media/CDN host); the mock server returns a host-relative `/media/{id}` path during the transition, which each client resolves against its own API origin — see Media URLs in the API description. Never a `data:` URI: a browser `<img src>` accepts one but Flutter's Image.network does not, so a data URL renders correctly in immiNow and is silently blank in Sentpo Mobile. Corrected 2026-08-18 after exactly that happened to an uploaded ad banner. Must also be a raster format (PNG/JPEG/GIF/WebP) — the endpoint rejects anything else, since SVG has no decoder on mobile.
                              */
                             url: string;
                         };
@@ -21160,7 +21373,7 @@ export interface components {
         /** @description Uniform error envelope, every error response, every endpoint (TRD Section 7). */
         Error: {
             error: {
-                /** @description Stable machine-readable code, e.g. permission_denied, validation_failed, insufficient_balance. Clients branch on this, never on message text. `feature_locked` (build reference 1.16 made real, 2026-08-29) is returned 403 by every endpoint gated on a consultancy feature-entitlement flag — own_leads, create_applicant, designations, tags, allocation_rule, phonebook, document_library, case_reopening, audit_log, activity_queue, internal_messaging, multi_branch, applicant_transfer — when the caller's consultancy lacks that flag (see `Consultancy.features`). `message` names the plan that includes it. Distinct from `permission_denied`, which is about what an individual employee within an already-entitled consultancy may do. Institute accounts (INSTITUTE_ACCOUNT_PLAN, 2026-09-10) add three codes: `college_already_linked` (409) when a college already has an institute account or an institute already has a college — see `Consultancy.college_id`; `not_applicable_for_institute` (403) when an institute tries to add or remove a partner college, deliberately NOT `feature_locked`, since nothing is behind a plan and telling an institute to upgrade would be a lie; and `institute_scoped` (409) when a student committed to an institute tries to save a course at another college (D14). */
+                /** @description Stable machine-readable code, e.g. permission_denied, validation_failed, insufficient_balance. Clients branch on this, never on message text. `feature_locked` (build reference 1.16 made real, 2026-08-29) is returned 403 by every endpoint gated on a consultancy feature-entitlement flag — own_leads, create_applicant, designations, tags, allocation_rule, phonebook, document_library, case_reopening, audit_log, activity_queue, internal_messaging, multi_branch, applicant_transfer — when the caller's consultancy lacks that flag (see `Consultancy.features`). `message` names the plan that includes it. Distinct from `permission_denied`, which is about what an individual employee within an already-entitled consultancy may do. Institute accounts (INSTITUTE_ACCOUNT_PLAN, 2026-09-10) add three codes: `college_already_linked` (409) when a college already has an institute account or an institute already has a college — see `Consultancy.college_id`; `not_applicable_for_institute` (403) when an institute tries to add or remove a partner college, deliberately NOT `feature_locked`, since nothing is behind a plan and telling an institute to upgrade would be a lie; and `institute_scoped` (409) when a student committed to an institute tries to save a course at another college (D14). Staff 2FA (Phase 6, owner-approved 2026-09-24; the mock server sends neither): `mfa_required` (403, POST /auth/login only) — see that operation; and `mfa_enrollment_required` (403, any operation for a signed-in console user whose role requires two-factor and who has no authenticator yet, except the allowlist that lets them enroll or leave: GET /profile, POST /auth/mfa/setup, POST /auth/mfa/setup/verify, POST /auth/logout, POST /auth/refresh). The console answers it by opening the enrollment screen. Enforcement is behind a server flag, off until that screen ships. */
                 code: string;
                 message: string;
                 /** @description Field-level validation details where applicable. */
@@ -21349,6 +21562,24 @@ export interface components {
             /** @description Students only, login responses only. True when the optional-preferences prompt has never been shown to this account AND no preferences are on record — the app routes the student to the Preferences screen instead of Home, once ever (the screen reports itself shown via POST /preferences/prompt-seen). Deliberately absent from signup's token issuance: preferences are asked on first login, never during signup. */
             preferences_prompt_pending?: boolean;
         };
+        /** @description Body of POST /auth/refresh. */
+        RefreshRequest: {
+            /** @description The refresh token from the latest TokenPair or TokenRefresh this client received. Opaque to clients — never parse it. */
+            refresh_token: string;
+        };
+        /** @description What POST /auth/refresh returns: a new access token, and a new refresh token when the server rotates it. Deliberately not a TokenPair — no `user` is sent, so a client keeps the user it already holds. */
+        TokenRefresh: {
+            access_token: string;
+            /** @description Present when the server rotated the refresh token (Phase 6, TRD Section 9 — one-time use with reuse detection, behind a server flag). It may differ from the token that was sent, and when it is present the client MUST store it in place of the old one: under rotation the old token is spent, and presenting it again ends the session. Absent means keep using the token already held. The mock server never rotates and never sends it. */
+            refresh_token?: string;
+        };
+        /** @description TOTP enrollment secret for an authenticator app (POST /auth/mfa/setup). */
+        MfaSetup: {
+            /** @description Base32 TOTP secret, for manual entry when the QR code cannot be scanned. */
+            secret: string;
+            /** @description `otpauth://totp/...` URI the console renders as a QR code. */
+            otpauth_uri: string;
+        };
         NotificationToggle: {
             email: boolean;
             push: boolean;
@@ -21374,6 +21605,7 @@ export interface components {
             policy_version?: string;
             /** Format: date-time */
             accepted_at?: string;
+            /** @description The consultancy a consultancy-scoped consent (event 2 or 3) was given to; null on the platform-level events (REVIEW_TRIAGE item 17, 2026-09-24). */
             consultancy_id?: components["schemas"]["UUID"];
         };
         /**
@@ -21602,6 +21834,7 @@ export interface components {
             visa_refusals?: components["schemas"]["VisaRefusalEntry"][];
             /** @enum {string|null} */
             funding_source?: "self" | "loan" | "scholarship_dependent" | null;
+            /** @description Null in a consultancy's copy of a student's preferences (leads, clients) when the student has not shared their budget (`budget_shared` false) — withheld at the projection, never sent to be hidden (REVIEW_TRIAGE item 17, 2026-09-24). */
             budget?: components["schemas"]["Money"];
             /** @default false */
             budget_shared: boolean;
@@ -22123,7 +22356,7 @@ export interface components {
             id: components["schemas"]["UUID"];
             /**
              * Format: uri
-             * @description A mock-server URL the bytes can actually be fetched from — same host-relative `/…` shape POST /media returns, resolved by each client against its own origin, never an external image host (the emulator and dev environment must both work offline).
+             * @description A URL the bytes can actually be fetched from, in the shape POST /media returns — absolute from the real backend, host-relative `/…` from the mock server (resolved by each client against its own origin; see Media URLs in the API description). Never an external image host (the emulator and dev environment must both work offline).
              */
             image_url: string;
             title?: string | null;
@@ -25233,7 +25466,8 @@ export interface components {
             published: boolean;
             /** Format: date-time */
             readonly updated_at?: string;
-            readonly updated_by_name?: string;
+            /** @description Null until someone has edited this guide (REVIEW_TRIAGE item 17, 2026-09-24). */
+            readonly updated_by_name?: string | null;
         };
         /** @description Attribution is by the merchant code the student presented at the counter, recorded on each redemption as `merchant_code_used`. That only identifies a branch when the partner issued a code PER LOCATION; a partner on a single shared code cannot be split, and those redemptions land in `unattributed` rather than being spread across branches on a guess. */
         CouponRedemptionsByLocation: {
@@ -26008,7 +26242,8 @@ export interface components {
         /** @description Append-only change log (build reference 1.24). One entry per create/update/ delete on a core entity, plus mandatory-reason entries for sensitive actions. Shared by the consultancy-scoped Audit Log (build reference 2.2) and the platform-wide one (build reference 1.23) — the latter adds a `consultancy_id` filter over the same shape. */
         AuditLogEntry: {
             id: components["schemas"]["UUID"];
-            actor_id: components["schemas"]["UUID"];
+            /** @description The acting employee or platform-staff record. Null when no staff member acted — an automatic lead allocation, a scheduled job, a student's own action — so it is not required (REVIEW_TRIAGE item 17, 2026-09-24: the mock has always sent null there). */
+            actor_id?: components["schemas"]["UUID"];
             readonly actor_name?: string;
             /** @description Null for platform-level actions with no single owning consultancy. */
             consultancy_id?: components["schemas"]["UUID"];
@@ -26033,8 +26268,11 @@ export interface components {
         UserSearchResult: {
             id: components["schemas"]["UUID"];
             name: string;
-            /** Format: email */
-            email: string;
+            /**
+             * Format: email
+             * @description Null for a student who signed up with a phone number only, so it is not required (REVIEW_TRIAGE item 17, 2026-09-24).
+             */
+            email?: string | null;
             phone?: string | null;
             /** @description Where an under-18 student stands with their guardian, so a Support agent can see whether resending the link is the right move before they do it (2026-09-05). Null for every non-student; `not_required` for a student aged 18 or over. */
             readonly guardian_consent?: components["schemas"]["GuardianConsent"] | null;

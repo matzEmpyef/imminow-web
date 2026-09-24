@@ -2,15 +2,27 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import type { components } from '@/api/schema'
 
+type PlatformStaff = components['schemas']['PlatformStaff']
+
+/// `/platform-staff` is paged since 2026-09-24 (contract item 21); the Platform Team page searches,
+/// filters and sorts in the browser over the whole team, so every page is walked at the maximum
+/// size and joined — one request for any team this size.
 export function usePlatformStaff() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['platform-staff'],
     queryFn: async () => {
-      const { data, error } = await api.GET('/platform-staff')
-      if (error) throw new ApiError('Could not load platform staff.', error)
-      return data
+      const all: PlatformStaff[] = []
+      let cursor: string | undefined
+      do {
+        const { data, error } = await api.GET('/platform-staff', { params: { query: { limit: 100, cursor } } })
+        if (error) throw new ApiError('Could not load platform staff.', error)
+        all.push(...data.items)
+        cursor = data.meta.next_cursor ?? undefined
+      } while (cursor)
+      return all
     },
     enabled: isAuthed,
   })
