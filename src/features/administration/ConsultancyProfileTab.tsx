@@ -66,7 +66,7 @@ export function ProfileTab({ consultancy }: { consultancy: ConsultancyRecord }) 
     setVisiting(visitingHoursStateFrom(record.visiting_schedule))
   }
 
-  // Phase 5 (W-STATE-2): seed once per record, then again only from this form's own save
+  // Phase 5 cleanup (2026-09-24): seed once per record, then again only from this form's own save
   // response. Re-seeding on every refetch wiped unsaved edits whenever anything else on the page
   // (a gallery photo, say) invalidated the same ['consultancy','me'] query.
   const seededForId = useRef<string | null>(null)

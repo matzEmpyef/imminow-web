@@ -24,7 +24,7 @@ function rateShare(ratePercent: number | null | undefined): string {
 
 /**
  * One line naming what a due part is for. Shared by Finance's case drawer and the consultancy's
- * Due Schedule drawer (Phase 5, W-DUP-2) — the two copies had drifted, and the Finance one still
+ * Due Schedule drawer (Phase 5 cleanup, 2026-09-24) — the two copies had drifted, and the Finance one still
  * read an unset rate as "0% share".
  */
 export function duePartLabel(

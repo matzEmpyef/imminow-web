@@ -1,5 +1,5 @@
 // A commission case's payment status, as the Cases tab and the consultancy balance drawer both
-// show it (Phase 5, W-DUP-10 — the two carried identical copies).
+// show it (Phase 5 cleanup, 2026-09-24 — the two carried identical copies).
 export const CASE_STATUS_COLOR = {
   unpaid: 'warning',
   part_paid: 'info',

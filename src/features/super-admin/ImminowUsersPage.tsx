@@ -187,7 +187,7 @@ export function ImminowUsersPage() {
           filters={
             <>
               {/* Searchable, not a plain select of useAdminConsultancies()'s default first page (20) —
-                  any consultancy past that page was unreachable as a filter (Phase 5, W-DUP-3). */}
+                  any consultancy past that page was unreachable as a filter (Phase 5 cleanup, 2026-09-24). */}
               <ConsultancySearchSelect
                 value={consultancyId}
                 onChange={(id) => {

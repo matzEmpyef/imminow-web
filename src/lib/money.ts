@@ -38,7 +38,7 @@ export function formatAmountOnly(currency: string | null | undefined, amount: nu
  * A plain rupee figure as the finance and freelancer screens write it — "₹1,23,456", Indian
  * grouping, ₹ symbol (not {@link formatMoney}'s "INR" prefix). For the `*_inr` numbers those
  * screens hold, which are bare numbers rather than `{ amount, currency }`. A missing value reads
- * as ₹0; use {@link inrOrDash} where missing must read as "—" instead. Phase 5 (W-DUP-1): these two
+ * as ₹0; use {@link inrOrDash} where missing must read as "—" instead. Phase 5 cleanup (2026-09-24): these two
  * replace fourteen local copies — twelve of this one, two of the dash variant.
  */
 export function inr(n: number | null | undefined): string {

@@ -853,7 +853,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
     setFreelancerEnabled(Boolean(record.freelancer_enabled))
   }
 
-  // Phase 5 (W-STATE-2): seed once per account, then again only from this form's own save
+  // Phase 5 cleanup (2026-09-24): seed once per account, then again only from this form's own save
   // response (below). Re-seeding on every refetch wiped unsaved plan edits whenever another
   // section of this modal (renew, rating, 2FA, link college) invalidated the consultancy.
   const seededForId = useRef<string | undefined>(undefined)

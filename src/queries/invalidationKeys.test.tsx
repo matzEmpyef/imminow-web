@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 
-// Phase 5 (W-STATE-3 / W-STATE-4): three mutations invalidated a key no query actually uses, so
+// Phase 5 cleanup (2026-09-24): three mutations invalidated a key no query actually uses, so
 // the screen they were meant to refresh stayed stale until it went stale on its own. What is worth
 // pinning is the BEHAVIOUR, not the key literals: with the real reading hook mounted, a successful
 // mutation must make that hook fetch again. A key typo on either side fails these.

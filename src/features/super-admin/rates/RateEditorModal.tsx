@@ -122,7 +122,7 @@ export function RateEditorModal({
 
   // The saved rates are only known once this account's rates fetch lands. Seeding before that
   // showed a blank matrix for a country that already had rates, and saving it POSTed a duplicate
-  // row per payer group instead of PATCHing the existing ones (Phase 5, W-STATE-1). So the matrix
+  // row per payer group instead of PATCHing the existing ones (Phase 5 cleanup, 2026-09-24). So the matrix
   // waits behind the same loading state as the account fetch above.
   const ratesPending = Boolean(consultancyId) && ownRates.isPending
   const ratesError = Boolean(consultancyId) && ownRates.isError

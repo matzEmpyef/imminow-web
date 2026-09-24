@@ -98,7 +98,7 @@ export function useUpdateCourse(id: string) {
       if (error) throw new ApiError('Could not update this course.', error)
       return data
     },
-    // Phase 5 (W-STATE-3): the same breadth as useSetIntakeDeadline below — a course edit showed
+    // Phase 5 cleanup (2026-09-24): the same breadth as useSetIntakeDeadline below — a course edit showed
     // stale in useCourse's single-course view and in the catalog rollups until they went stale.
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['courses'] })

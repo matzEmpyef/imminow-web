@@ -45,7 +45,7 @@ function partAmount(part: CommissionDuePart): string {
   return money({ amount: part.amount ?? 0, currency: part.currency ?? 'INR' })
 }
 
-// Shared with the consultancy's Due Schedule drawer (Phase 5, W-DUP-2), in Finance's own money format.
+// Shared with the consultancy's Due Schedule drawer (Phase 5 cleanup, 2026-09-24), in Finance's own money format.
 function partLabel(part: CommissionDuePart, ratePercent: number | null | undefined, tuitionFee: FinanceCaseRow['tuition_fee']): string {
   return duePartLabel(part, ratePercent, tuitionFee, money)
 }

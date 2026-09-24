@@ -50,7 +50,7 @@ describe('formatMoneyAmount / formatCourseFee', () => {
   })
 })
 
-// Phase 5 (W-DUP-1): fourteen screens carried their own copy of one of these two. The outputs are
+// Phase 5 cleanup (2026-09-24): fourteen screens carried their own copy of one of these two. The outputs are
 // pinned exactly as those copies wrote them, since each call site kept its own missing-value rule.
 describe('inr / inrOrDash', () => {
   it('writes a rupee figure with the ₹ symbol and Indian grouping', () => {

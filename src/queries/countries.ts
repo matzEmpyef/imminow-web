@@ -36,7 +36,7 @@ export function useCountries(options: { includeInactive?: boolean } = {}) {
 // picked) — `enabled` below just skips the request rather than asking the server about "".
 //
 // `fetchStates` is the one request both this hook and `useStatesForCountries` below run under the
-// same key, so the cache entry they share is always filled the same way (Phase 5, W-DUP-9).
+// same key, so the cache entry they share is always filled the same way (Phase 5 cleanup, 2026-09-24).
 async function fetchStates(country: string) {
   const { data, error } = await api.GET('/countries/{name}/states', {
     params: { path: { name: country } },

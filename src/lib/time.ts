@@ -57,7 +57,7 @@ export function relativeTime(iso: string): string {
  * The coarser, hour-grained "just now / 5h ago / 2d ago" that Notifications and Active Leads
  * show — under an hour reads "just now", and days are plain `floor(hours / 24)`. Deliberately NOT
  * {@link relativeTime} (which counts minutes and floors days through `daysSince`): moving these
- * two screens onto it would change what they print. Phase 5 (W-DUP-12) moved the two identical
+ * two screens onto it would change what they print. Phase 5 cleanup (2026-09-24) moved the two identical
  * local copies here, unchanged.
  */
 export function timeAgo(iso: string): string {
