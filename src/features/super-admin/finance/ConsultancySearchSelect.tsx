@@ -24,5 +24,7 @@ export function ConsultancySearchSelect({
     () => (consultancies.data?.items ?? []).map((c) => ({ id: c.id, label: c.name })),
     [consultancies.data],
   )
-  return <SearchSelect options={options} value={value} onChange={onChange} placeholder={placeholder} />
+  return (
+    <SearchSelect options={options} value={value} onChange={onChange} placeholder={placeholder} ariaLabel="Consultancy" />
+  )
 }

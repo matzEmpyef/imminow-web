@@ -22,6 +22,9 @@ interface SearchSelectProps {
   label?: string
   // Tomato `*` after the floating label, same convention as TextField/SelectField.
   required?: boolean
+  // The control's name for screen readers when it has no visible label — a toolbar filter, say,
+  // where the placeholder is all a sighted user sees.
+  ariaLabel?: string
 }
 
 // Generic type-to-filter replacement for a plain <select> (user-requested, 2026-08-15 —
@@ -40,6 +43,7 @@ export function SearchSelect({
   disabled,
   label,
   required,
+  ariaLabel,
 }: SearchSelectProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -106,6 +110,7 @@ export function SearchSelect({
       <input
         ref={inputRef}
         id={id}
+        aria-label={ariaLabel}
         value={open ? query : (selected?.label ?? '')}
         onChange={(e) => {
           setQuery(e.target.value)
