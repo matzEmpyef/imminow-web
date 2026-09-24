@@ -5,6 +5,7 @@ export const SIGN_IN_METHOD_LABELS: Record<string, string> = {
   password: 'Password',
   email_code: 'Email code',
   phone_code: 'Phone code',
+  google: 'Google',
 }
 
 export const SIGN_IN_OUTCOME_LABELS: Record<string, string> = {

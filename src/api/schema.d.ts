@@ -30,6 +30,7 @@ export interface paths {
                         email: string;
                         password?: string | null;
                         google_token?: string | null;
+                        /** @description Optional phone, in E.164 (e.g. +919876543210) — the client adds the country code (the app's dial-code chip) before sending. A bare national number (9876543210) is refused 400 `validation_failed` by the real backend; the mock was more lenient. */
                         phone?: string | null;
                         /** @description Someone ELSE's code, resolved server-side at signup (2026-08-19 — codes were stored as an inert string before; nothing consumed them). Three outcomes by code owner — **student**: the referrer is credited the referral_signup earn rule via the standard crediting path (cap enforced; self-referral impossible since the new account can't own a code yet; real backend credits when the referred account verifies, the mock at creation since its accounts are born verified — documented simplification). **Freelancer**: full Channel C (build reference 1.19) — journey created in Awaiting Match, a freelancer_referrals row (payment_status owed), and an applicant-allocation queue entry. **Consultancy**: Channel B, unchanged/out of scope here. An invalid or mistyped code is IGNORED and signup proceeds — never block acquisition on a bad code. */
                         referral_code?: string | null;
@@ -654,7 +655,7 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        /** @description Email address, or phone in E.164 (client normalizes before sending). */
+                        /** @description Email address, or phone in E.164 (e.g. +919876543210) — the client adds the country code (the app's dial-code chip) before sending. A bare national number (9876543210) is refused 400 `validation_failed` by the real backend; the mock was more lenient. */
                         identifier: string;
                     };
                 };
@@ -716,6 +717,7 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
+                        /** @description The same identifier the code was requested for: an email address, or a phone in E.164 (e.g. +919876543210) — the client adds the country code (the app's dial-code chip) before sending. A bare national number (9876543210) is refused 400 `validation_failed` by the real backend; the mock was more lenient. */
                         identifier: string;
                         code: string;
                         /**
@@ -793,6 +795,7 @@ export interface paths {
                         date_of_birth: string;
                         /** Format: email */
                         email?: string | null;
+                        /** @description Optional second contact when signing up by email, in E.164 (e.g. +919876543210) — the client adds the country code (the app's dial-code chip) before sending. A bare national number (9876543210) is refused 400 `validation_failed` by the real backend; the mock was more lenient. */
                         phone?: string | null;
                         referral_code?: string | null;
                     };
@@ -866,6 +869,7 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
+                        /** @description The number to verify, in E.164 (e.g. +919876543210) — the client adds the country code (the app's dial-code chip) before sending. A bare national number (9876543210) is refused 400 `validation_failed` by the real backend; the mock was more lenient. */
                         phone: string;
                     };
                 };
@@ -924,6 +928,7 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
+                        /** @description The number the code was sent to, in E.164 (e.g. +919876543210) — the client adds the country code (the app's dial-code chip) before sending. A bare national number (9876543210) is refused 400 `validation_failed` by the real backend; the mock was more lenient. */
                         phone: string;
                         code: string;
                     };
@@ -1084,6 +1089,7 @@ export interface paths {
                     "application/json": {
                         first_name?: string;
                         last_name?: string;
+                        /** @description Phone in E.164 (e.g. +919876543210) — the client adds the country code (the app's dial-code chip) before sending. A bare national number (9876543210) is refused 400 `validation_failed` by the real backend; the mock was more lenient. Changing it clears `phone_verified`. */
                         phone?: string | null;
                         /** @description BCP 47 language tag captured silently from the device, exactly like `timezone` below and PATCHed on the same occasions. Not user-entered. Nothing is translated yet (2026-08-23) — this is captured now so the real backend has a locale to render against rather than having one retrofitted onto accounts that never recorded it. Carries the same system-write exemption as `timezone`: it is not a completion field, so a body containing only this must not run the milestone check. */
                         locale?: string | null;
@@ -1399,6 +1405,7 @@ export interface paths {
                         guardian_name: string;
                         /** Format: email */
                         email?: string | null;
+                        /** @description The guardian's phone, in E.164 (e.g. +919876543210) — the client adds the country code (the app's dial-code chip) before sending. A bare national number (9876543210) is refused 400 `validation_failed` by the real backend; the mock was more lenient. */
                         phone?: string | null;
                     };
                 };
@@ -1630,6 +1637,7 @@ export interface paths {
                         guardian_name?: string | null;
                         /** Format: email */
                         email?: string | null;
+                        /** @description The guardian's replacement phone, in E.164 (e.g. +919876543210) — the client adds the country code (the app's dial-code chip) before sending. A bare national number (9876543210) is refused 400 `validation_failed` by the real backend; the mock was more lenient. */
                         phone?: string | null;
                     };
                 };
@@ -21218,7 +21226,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** One account's sign-in history (2026-09-10), newest first — every attempt with a password, email code or phone code, successful or not, from login_events. Opened from either user directory (a student or a staff member; `id` is the user id both directories return). Gated to user_directory, like the directories. For support ("why can't I get in") and security ("was that me"); not audit-logged, since the audit log records changes only. filter[outcome]= accepts `failed` (every outcome but success) or one exact outcome. */
+        /** One account's sign-in history (2026-09-10), newest first — every attempt with a password, email code, phone code or Google, successful or not, from login_events. Opened from either user directory (a student or a staff member; `id` is the user id both directories return). Gated to user_directory, like the directories. For support ("why can't I get in") and security ("was that me"); not audit-logged, since the audit log records changes only. filter[outcome]= accepts `failed` (every outcome but success) or one exact outcome. */
         get: {
             parameters: {
                 query?: {
@@ -21753,6 +21761,11 @@ export interface components {
         /** @description FR-022 — the flexible, none-mandatory preference pool. */
         StudentPreferences: {
             /**
+             * Format: uuid
+             * @description The student this row belongs to (contract gate 3, 2026-09-25). Always served — the row is keyed by it, one per student — but never written: the server takes the owner from the caller's token (`PATCH /preferences`) or the path (the institution mapping queue's `/institutions/suggestions/{user_id}` operations), and ignores it in a body.
+             */
+            readonly user_id?: string;
+            /**
              * @description What the student wants to study NEXT — a `StudyLevel.code` from `GET /study-levels`.
              *     History matters here. This was free text until 2026-08-27, which is how the seed came to hold `masters` while ad targeting held `Masters`, working only because both sides were lowercased before comparing; "10th" / "Xth" / "class 10" would all have arrived as distinct values the moment school students joined. It was closed into an enum that day, and reopened as a SERVER-MANAGED list on 2026-09-07 — not back to free text. The server rejects any code not in the table, so the guarantee the enum gave is kept; what changes is that adding a level no longer needs an app release. That matters because the ladder is not universal: 10th and 12th mean nothing in the UK or the US, and Sentpo intends to open in more source countries.
              *     `Course.level` draws from the SAME table, because the two are compared to each other in search and matching. Two lists here would be the 2026-08-27 bug wearing a hat.
@@ -21875,10 +21888,10 @@ export interface components {
             /** Format: date */
             date_of_birth?: string | null;
             /**
-             * @description SERVER-DERIVED from `education` (2026-08-31, profile-completion UAT audit) — the highest-ranked entry's own `level`, same "derive the summary field from the structured list" convention `exam_status` already established from `test_scores`. No client screen ever wrote this field directly (Profile's Education editor and the onboarding wizard both only ever wrote the structured `education` array), which left the completion checklist's "Add your education level" item unreachable from Profile alone. Clients send `education`; anything sent here is ignored.
+             * @description SERVER-DERIVED from `education` (2026-08-31, profile-completion UAT audit) — the highest-ranked entry's own `level`, same "derive the summary field from the structured list" convention `exam_status` already established from `test_scores`. No client screen ever wrote this field directly (Profile's Education editor and the onboarding wizard both only ever wrote the structured `education` array), which left the completion checklist's "Add your education level" item unreachable from Profile alone. Clients send `education`; anything sent here is ignored. `phd` joined with `EducationEntry.level` (contract gate 3, 2026-09-25).
              * @enum {string|null}
              */
-            readonly education_level?: "tenth" | "twelfth" | "diploma" | "bachelors" | "masters" | null;
+            readonly education_level?: "tenth" | "twelfth" | "diploma" | "bachelors" | "masters" | "phd" | null;
             /**
              * @description Added 2026-08-31 (profile-completion UAT gap) — mirrors Course.study_mode's own enum, since matching against that field is this preference's whole purpose (Search, Match). Reuses the app's existing "Study mode" terminology (the course filter chips already label full_time/part_time this way) rather than delivery's on_campus/hybrid/online, which is a different axis.
              * @enum {string|null}
@@ -23147,8 +23160,11 @@ export interface components {
         };
         EducationEntry: {
             id?: components["schemas"]["UUID"];
-            /** @enum {string} */
-            level: "tenth" | "twelfth" | "diploma" | "bachelors" | "masters";
+            /**
+             * @description The same level codes `requirements.academic.entry_qualification` uses. `phd` joined on 2026-09-25 (contract gate 3, erd + product owner): the ladder gained a doctorate rung on 2026-09-19 (M23) so a course can require one, and a student who holds one must be able to say so for that requirement to be checkable.
+             * @enum {string}
+             */
+            level: "tenth" | "twelfth" | "diploma" | "bachelors" | "masters" | "phd";
             /** @description Stream/major, e.g. "Science (PCM)", "Computer Science". */
             stream?: string | null;
             score?: number | null;
@@ -26693,8 +26709,11 @@ export interface components {
             id: string;
             /** Format: date-time */
             occurred_at: string;
-            /** @enum {string} */
-            method: "password" | "email_code" | "phone_code";
+            /**
+             * @description How the person signed in. `google` joined on 2026-09-25 (contract gate 3) so a Google sign-in (an ID token verified server-side — `google_token` on /auth/login and /auth/signup) is recorded under its own name rather than as a password attempt; the mock has no Google verification and never records one.
+             * @enum {string}
+             */
+            method: "password" | "email_code" | "phone_code" | "google";
             /** @enum {string} */
             outcome: "success" | "wrong_password" | "unknown_account" | "wrong_code" | "code_expired" | "too_many_attempts" | "rate_limited" | "account_disabled" | "subscription_lapsed";
             /** @enum {string|null} */
@@ -26702,7 +26721,7 @@ export interface components {
             app_version?: string | null;
             ip: string | null;
         };
-        /** @description Sign-in health over the window (2026-09-10), from login_events — one row per sign-in ATTEMPT (password, email code or phone code; reopening the app on a saved session is not a sign-in). Aggregate operational figures only; an under-18 account's attempts are left out of these figures, the same line analytics_events draws, though the rows are kept as a security record. */
+        /** @description Sign-in health over the window (2026-09-10), from login_events — one row per sign-in ATTEMPT (password, email code, phone code or Google; reopening the app on a saved session is not a sign-in). Aggregate operational figures only; an under-18 account's attempts are left out of these figures, the same line analytics_events draws, though the rows are kept as a security record. */
         SignInPulse: {
             attempts: number;
             successes: number;
@@ -26711,7 +26730,7 @@ export interface components {
             /** @description Only methods with at least one attempt, in a fixed order. */
             by_method: {
                 /** @enum {string} */
-                method: "password" | "email_code" | "phone_code";
+                method: "password" | "email_code" | "phone_code" | "google";
                 attempts: number;
                 successes: number;
             }[];
