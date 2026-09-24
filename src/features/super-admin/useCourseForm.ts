@@ -3,13 +3,11 @@ import type { components } from '@/api/schema'
 import { useCountrySettings } from '@/queries/countries'
 import {
   aptitudeRequiredFromServer,
-  intakeStatusFromServer,
   type AptitudeReq,
   type EnglishReq,
   type EntryQualificationValue,
   type FeePeriodValue,
   type FormTab,
-  type IntakeStatus,
   type ScoreSchemeValue,
 } from './courseFormShared'
 
@@ -64,11 +62,14 @@ export interface CourseFormValue {
   onToggleAll: () => void
   intakes: string[]
   setIntakes: (v: string[]) => void
-  // `status` is a plain string, not the three-value union (assumptions audit M37): a status this
-  // build does not know is carried through the form untouched rather than collapsed onto one it
-  // does know.
-  deadlines: Record<string, { deadline: string; status: string }>
-  onDeadlineChange: (month: string, patch: Partial<{ deadline: string; status: string }>) => void
+  /** Month -> the deadline date as typed ('' when blank). Date only: an intake's status is
+   * derived by the server from this date and nobody sets it (product owner, 2026-09-24). */
+  deadlines: Record<string, string>
+  onDeadlineChange: (month: string, deadline: string) => void
+  /** The server's derived status for a month as SAVED, or undefined when the month is new or its
+   * date has been edited in this form — the saved status would then describe a date that is no
+   * longer the one on screen, and only the server derives the new one. */
+  savedIntakeStatus: (month: string) => components['schemas']['IntakeDeadline']['status'] | undefined
   /** Months whose saved deadline the server rolled forward rather than a college confirming (C10). */
   rolledMonths: ReadonlySet<string>
 
@@ -194,17 +195,10 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
     editingCourse?.campus_ids ?? (defaultCampusId ? [defaultCampusId] : activeCampuses.length === 1 ? [activeCampuses[0].id!] : []),
   )
   const [intakes, setIntakes] = useState<string[]>(editingCourse?.intakes ?? [])
-  // Three-valued since the assumptions audit (C10, approved 2026-09-19), and now ALSO lossless
-  // (M37, product owner 2026-09-19): `intakeStatusFromServer` maps explicitly and keeps anything
-  // it does not recognise verbatim, so a fourth status invented server-side round-trips instead
-  // of being re-saved as one of the three this build happens to know.
-  const [deadlines, setDeadlines] = useState<Record<string, { deadline: string; status: string }>>(() =>
-    Object.fromEntries(
-      (editingCourse?.intake_deadlines ?? []).map((d) => [
-        d.month,
-        { deadline: d.application_deadline ?? '', status: intakeStatusFromServer(d.status) },
-      ]),
-    ),
+  // Dates only. The per-month status select went on 2026-09-24: the product owner ruled that
+  // nobody sets an intake's status any more — the server derives it from the deadline on read.
+  const [deadlines, setDeadlines] = useState<Record<string, string>>(() =>
+    Object.fromEntries((editingCourse?.intake_deadlines ?? []).map((d) => [d.month, d.application_deadline ?? ''])),
   )
   // Read-only: the server sets `rolled` when it carried a passed deadline forward a year, and the
   // table says so beside the date instead of presenting an estimate as the college's own (C10).
@@ -431,14 +425,11 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
       application_fee_waived: appFeeWaived,
       scholarship_available: scholarship,
       scholarship_note: scholarship && scholarshipNote ? scholarshipNote : null,
-      // A month nobody has answered for saves as `unknown`, not `open` (C10) — the app shows no
-      // "applications open" badge for it rather than advertising an intake on a guess.
+      // No `status` (2026-09-24): the server derives it from the date and ignores one sent, so
+      // sending it would only suggest the console still decides it.
       intake_deadlines: intakes.map((month) => ({
         month,
-        application_deadline: deadlines[month]?.deadline || null,
-        // Cast, not coerce (M37): the generated type is the three codes the contract documents
-        // today, and a status the server itself sent must go back exactly as it came.
-        status: (deadlines[month]?.status ?? 'unknown') as IntakeStatus,
+        application_deadline: deadlines[month] || null,
       })),
       study_mode: (studyMode || null) as CourseInput['study_mode'],
       delivery: (delivery || null) as CourseInput['delivery'],
@@ -485,12 +476,12 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
     intakes,
     setIntakes,
     deadlines,
-    // A month ticked for the first time starts at Not set, never Open (C10).
-    onDeadlineChange: (month, patch) =>
-      setDeadlines((prev) => ({
-        ...prev,
-        [month]: { deadline: prev[month]?.deadline ?? '', status: prev[month]?.status ?? 'unknown', ...patch },
-      })),
+    onDeadlineChange: (month, deadline) => setDeadlines((prev) => ({ ...prev, [month]: deadline })),
+    savedIntakeStatus: (month) => {
+      const saved = editingCourse?.intake_deadlines?.find((d) => d.month === month)
+      if (!saved || (deadlines[month] ?? '') !== (saved.application_deadline ?? '')) return undefined
+      return saved.status
+    },
     rolledMonths,
 
     feeAmount,

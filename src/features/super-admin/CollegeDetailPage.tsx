@@ -321,7 +321,7 @@ export function CourseFormModal({
                 : tab === 'Campuses & Intakes'
                   ? form.campusRequired
                     ? 'a campus'
-                    : form.intakes.some((m) => form.deadlines[m]?.deadline)
+                    : form.intakes.some((m) => form.deadlines[m])
                       ? null
                       : 'an application deadline'
                   : tab === 'Fees'

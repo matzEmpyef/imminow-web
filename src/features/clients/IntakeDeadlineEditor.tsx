@@ -3,10 +3,12 @@ import { Pencil } from 'lucide-react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
-import { SelectField } from '@/components/SelectField'
 import { useSetIntakeDeadline } from '@/queries/courseSuggestions'
-import { INTAKE_STATUSES, ROLLED_DEADLINE_NOTE, type IntakeStatus } from '@/features/super-admin/courseFormShared'
+import { ROLLED_DEADLINE_NOTE } from '@/features/super-admin/courseFormShared'
 import { showToast } from '@/lib/toast'
+import type { components } from '@/api/schema'
+
+type IntakeDeadline = components['schemas']['IntakeDeadline']
 
 /**
  * "Set Intake Deadline" (2026-09-17 spec, built 2026-09-18) — a consultancy staff member's own
@@ -29,12 +31,14 @@ import { showToast } from '@/lib/toast'
  * 404s for a month with no `IntakeDeadline` row at all, e.g. a course whose `intakes` list
  * outruns its deadline data) and the caller is consultancy staff (Platform Admins edit the course
  * itself in Course Setup instead).
+ *
+ * Date only. The Status select this modal carried went on 2026-09-24, when the product owner
+ * ruled that nobody sets an intake's status: the server derives it from the deadline on read.
  */
 export function IntakeDeadlineEditor({
   courseId,
   month,
   currentDeadline,
-  currentStatus,
   rolled = false,
   onApplied,
 }: {
@@ -43,44 +47,40 @@ export function IntakeDeadlineEditor({
   // Null is a real, meaningful value here (rolling admission), not "unknown" — unlike
   // SuggestCorrectionButton's `current`, which uses null for "no value yet".
   currentDeadline: string | null
-  currentStatus?: IntakeStatus
   /** The server rolled this deadline forward a year; it is an estimate, not the college's word. */
   rolled?: boolean
-  // Fires only on the applied=true path, with exactly what was just written, so the table can
-  // show it without waiting on a refetch of the whole course (CourseDetailModal is handed a
-  // frozen `course` prop snapshot, not a live query result).
-  onApplied: (next: { application_deadline: string | null; status?: IntakeStatus }) => void
+  // Fires only on the applied=true path, with this month's entry as the server now has it, so the
+  // table can show it without waiting on a refetch of the whole course (CourseDetailModal is
+  // handed a frozen `course` prop snapshot, not a live query result).
+  onApplied: (next: IntakeDeadline) => void
 }) {
   const [open, setOpen] = useState(false)
   const [date, setDate] = useState(currentDeadline ?? '')
-  // Opens on the CURRENT status, not on Open (assumptions audit C10, approved 2026-09-19): staff
-  // recording a date they were told over the phone used to flip an unknown — or an admin-set
-  // closed — intake to Open on the shared catalogue, because the select started there and the
-  // status was posted unconditionally.
-  const normalizedStatus: IntakeStatus = currentStatus === 'open' || currentStatus === 'closed' ? currentStatus : 'unknown'
-  const [status, setStatus] = useState<IntakeStatus>(normalizedStatus)
   const setDeadline = useSetIntakeDeadline(courseId)
 
   function openEditor() {
     // Reset to the current value each time it opens, in case an earlier open/cancel left stale
     // text in the field.
     setDate(currentDeadline ?? '')
-    setStatus(normalizedStatus)
     setOpen(true)
   }
 
   function handleSave() {
-    // `status` only travels when the person actually CHANGED it (C10) — this editor's job is the
-    // deadline, and posting the status every time is how an intake nobody asked about got an
-    // answer on the shared catalogue.
-    const statusChanged = status !== normalizedStatus
     setDeadline.mutate(
-      { month, application_deadline: date || null, ...(statusChanged ? { status } : {}) },
+      { month, application_deadline: date || null },
       {
         onSuccess: (result) => {
           if (result?.applied) {
             showToast('Deadline updated')
-            onApplied({ application_deadline: date || null, ...(statusChanged ? { status } : {}) })
+            // The server's own entry, because its status is derived from the new date (2026-09-24)
+            // and saving clears `rolled` — both the server's to say. Without one, the date alone:
+            // no status is shown rather than the old date's.
+            onApplied(
+              result.course?.intake_deadlines?.find((d) => d.month === month) ?? {
+                month,
+                application_deadline: date || null,
+              },
+            )
           } else {
             // Deliberately NOT the success tone — nothing changed on the catalogue yet. And NOT
             // the error tone either — nothing went wrong, the request just needs a person to
@@ -132,16 +132,8 @@ export function IntakeDeadlineEditor({
             </p>
             {rolled && <p className="text-caption text-warning">{ROLLED_DEADLINE_NOTE}</p>}
             <TextField label="Application deadline" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            <SelectField label="Status" value={status} onChange={(e) => setStatus(e.target.value as IntakeStatus)}>
-              {INTAKE_STATUSES.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </SelectField>
             <p className="text-caption text-text-secondary">
-              Leave this alone unless you know — it is only sent when you change it, so an intake
-              nobody has confirmed stays &ldquo;Not set&rdquo; on the shared catalogue.
+              Open or closed follows from this date — there is nothing else to set.
             </p>
             {setDeadline.isError && <p className="text-body-sm text-error">{setDeadline.error.message}</p>}
           </div>

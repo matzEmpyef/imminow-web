@@ -1,4 +1,5 @@
 import type { components } from '@/api/schema'
+import { formatDate } from '@/lib/time'
 
 type Course = components['schemas']['Course']
 
@@ -92,31 +93,23 @@ export const FEE_PERIODS: { value: Exclude<FeePeriodValue, ''>; label: string }[
   { value: 'total', label: 'Total programme' },
 ]
 
-/** An intake month is Open, Closed, or nobody has said (assumptions audit C10, approved
- * 2026-09-19). Ticking nine months used to advertise nine OPEN intakes; `unknown` saves the
- * absence of an answer instead of inventing one. */
-export type IntakeStatus = 'open' | 'closed' | 'unknown'
-
-export const INTAKE_STATUSES: { value: IntakeStatus; label: string }[] = [
-  { value: 'unknown', label: 'Not set' },
-  { value: 'open', label: 'Open' },
-  { value: 'closed', label: 'Closed' },
-]
-
-export const KNOWN_INTAKE_STATUSES: string[] = INTAKE_STATUSES.map((s) => s.value)
+type IntakeDeadline = components['schemas']['IntakeDeadline']
 
 /**
- * What a saved status LOADS as (assumptions audit M37, product owner 2026-09-19).
- *
- * Explicit per value, and a value this build has never seen is kept VERBATIM so it survives the
- * round trip. The original defect was `d.status !== 'closed' ? 'open' : 'closed'` — a third
- * status was re-saved as `open`, publishing an intake as taking applications. C10 narrowed that
- * to `unknown`, which no longer lies but still discards whatever the server actually said; this
- * discards nothing. Missing is `unknown`, which is what the contract says absent means.
+ * How the console words an intake's state. The state itself is NOT the console's to decide: since
+ * the product owner's 2026-09-24 decision nobody sets it — the server derives it from the
+ * deadline on every read (`open` while the deadline is today or later, `closed` once it has
+ * passed, `unknown` with no deadline), so every screen shows it read-only and no write sends one.
+ * Null for a status this build does not know, so the caller shows a dash rather than a guess.
  */
-export function intakeStatusFromServer(status: string | null | undefined): string {
-  if (!status) return 'unknown'
-  return status
+export function intakeStatusLabel(
+  status: IntakeDeadline['status'] | null | undefined,
+  deadline: string | null | undefined,
+): string | null {
+  if (status === 'open') return deadline ? `Open until ${formatDate(deadline)}` : 'Open'
+  if (status === 'closed') return 'Deadline passed'
+  if (status === 'unknown') return 'No deadline'
+  return null
 }
 
 /** Beside a date the server rolled forward a year rather than one a college confirmed — shown in

@@ -127,14 +127,8 @@ export function useUpdateCourse(id: string) {
 export function useSetIntakeDeadline(courseId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    // `status` is optional and three-valued (assumptions audit C10, approved 2026-09-19) — the
-    // editor omits it unless the person actually changed it, so recording a date never decides
-    // an intake's status on their behalf.
-    mutationFn: async (body: {
-      month: string
-      application_deadline: string | null
-      status?: 'open' | 'closed' | 'unknown'
-    }) => {
+    // Month and date only: no `status` since 2026-09-24 — the server derives it from the date.
+    mutationFn: async (body: { month: string; application_deadline: string | null }) => {
       const { data, error } = await api.PATCH('/courses/{id}/intake-deadlines', {
         params: { path: { id: courseId } },
         body,

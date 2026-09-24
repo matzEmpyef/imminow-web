@@ -9,8 +9,6 @@ import type { components } from '@/api/schema'
 import {
   APTITUDE_REQUIRED_OPTIONS,
   FEE_PERIODS,
-  INTAKE_STATUSES,
-  KNOWN_INTAKE_STATUSES,
   MONTHS,
   ROLLED_DEADLINE_NOTE,
   SCORE_SCHEMES,
@@ -21,6 +19,7 @@ import {
   type FeePeriodValue,
   type ScoreSchemeValue,
 } from './courseFormShared'
+import { IntakeStatusBadge } from './IntakeStatusBadge'
 import { humaniseCode } from '@/lib/humanise'
 import { useCurrencyCodes } from '@/lib/currencies'
 import { useLevelLadder } from '@/lib/studyLevels'
@@ -358,17 +357,18 @@ export function CourseCampusIntakesPanel({
               <span>Deadline</span>
               <span>Applications</span>
             </div>
-            {/* Three-valued, defaulting to Not set (assumptions audit C10, approved 2026-09-19).
-                The Open/Closed toggle this replaces had no way to say "nobody has told us", so
-                ticking nine months advertised nine open intakes to students. */}
+            {/* Applications is read-only (product owner, 2026-09-24): the server derives it from
+                the deadline, so there is nothing here to set. A new month or an edited date shows
+                "Updates on save" rather than the old date's status, and rather than the console
+                working out a status the server alone decides. */}
             {form.intakes.map((month) => (
               <div key={month} className="grid grid-cols-3 items-center gap-md px-md py-sm">
                 <span className="text-body-sm text-text-primary">{month}</span>
                 <div className="flex flex-col gap-xs">
                   <input
                     type="date"
-                    value={form.deadlines[month]?.deadline ?? ''}
-                    onChange={(e) => form.onDeadlineChange(month, { deadline: e.target.value })}
+                    value={form.deadlines[month] ?? ''}
+                    onChange={(e) => form.onDeadlineChange(month, e.target.value)}
                     aria-label={`${month} application deadline`}
                     className={ROW_CONTROL}
                   />
@@ -376,21 +376,14 @@ export function CourseCampusIntakesPanel({
                     <span className="text-caption text-text-secondary">{ROLLED_DEADLINE_NOTE}</span>
                   )}
                 </div>
-                <select
-                  value={form.deadlines[month]?.status ?? 'unknown'}
-                  onChange={(e) => form.onDeadlineChange(month, { status: e.target.value })}
-                  aria-label={`${month} intake application status`}
-                  className={ROW_CONTROL}
-                >
-                  {INTAKE_STATUSES.map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                  {/* A saved status this build does not list keeps its own option, so saving the
-                      course does not overwrite it (assumptions audit M37). */}
-                  <UnknownOption value={form.deadlines[month]?.status} known={KNOWN_INTAKE_STATUSES} />
-                </select>
+                {/* Wrapped so the grid cell does not stretch the pill to the column's width. */}
+                <span>
+                  {form.savedIntakeStatus(month) ? (
+                    <IntakeStatusBadge status={form.savedIntakeStatus(month)} deadline={form.deadlines[month]} />
+                  ) : (
+                    <span className="text-caption text-text-secondary">Updates on save</span>
+                  )}
+                </span>
               </div>
             ))}
           </div>

@@ -69,3 +69,46 @@ describe('useCourseForm requirements payload', () => {
     expect(result.current.toPayload().requirements).toBeNull()
   })
 })
+
+// Nobody sets an intake's status since 2026-09-24 — the server derives it from the deadline — so
+// the course save must not send one, and the form only ever shows the status the server derived
+// for the date as saved.
+describe('useCourseForm intake deadlines', () => {
+  const courseWithIntakes: Course = {
+    id: 'course-3',
+    name: 'MSc Data Science',
+    college_id: 'college-1',
+    language: 'English',
+    intakes: ['January', 'September'],
+    intake_deadlines: [
+      { month: 'January', application_deadline: '2027-03-31', status: 'open' },
+      { month: 'September', application_deadline: null, status: 'unknown', rolled: false },
+    ],
+  }
+
+  it('sends month and date only — no status — in the save payload', () => {
+    const { result } = renderHook(() => useCourseForm(college, courseWithIntakes), { wrapper })
+
+    act(() => result.current.onDeadlineChange('September', '2027-06-30'))
+
+    expect(result.current.toPayload().intake_deadlines).toEqual([
+      { month: 'January', application_deadline: '2027-03-31' },
+      { month: 'September', application_deadline: '2027-06-30' },
+    ])
+  })
+
+  it("shows the saved month's derived status until its date is edited", () => {
+    const { result } = renderHook(() => useCourseForm(college, courseWithIntakes), { wrapper })
+
+    expect(result.current.savedIntakeStatus('January')).toBe('open')
+    expect(result.current.savedIntakeStatus('September')).toBe('unknown')
+    expect(result.current.savedIntakeStatus('May')).toBeUndefined()
+
+    act(() => result.current.onDeadlineChange('January', '2027-04-15'))
+    expect(result.current.savedIntakeStatus('January')).toBeUndefined()
+
+    // Typed back to the saved date, the saved status describes it again.
+    act(() => result.current.onDeadlineChange('January', '2027-03-31'))
+    expect(result.current.savedIntakeStatus('January')).toBe('open')
+  })
+})

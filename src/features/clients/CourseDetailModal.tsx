@@ -31,10 +31,12 @@ import { formatDate } from '@/lib/time'
 import type { components } from '@/api/schema'
 import { mediaUrl } from '@/lib/mediaUrl'
 import { ROLLED_DEADLINE_NOTE } from '@/features/super-admin/courseFormShared'
+import { IntakeStatusBadge } from '@/features/super-admin/IntakeStatusBadge'
 import { useLevelLadder } from '@/lib/studyLevels'
 import { DetailSection as Section } from './DetailSection'
 
 type Course = components['schemas']['Course']
+type IntakeDeadline = components['schemas']['IntakeDeadline']
 type IconColor = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
 
 const STUDY_MODE_LABELS: Record<string, string> = { full_time: 'Full time', part_time: 'Part time' }
@@ -171,9 +173,9 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
   // re-fetches it just because this popup is open. Without this, "the row shows the new date
   // immediately" would depend on the caller re-rendering with a fresh `course` prop, which none
   // of today's callers do. Keyed by month since deadlines are unique per month on one course.
-  const [deadlineOverrides, setDeadlineOverrides] = useState<
-    Record<string, { application_deadline: string | null; status?: 'open' | 'closed' | 'unknown' }>
-  >({})
+  // Each override is the whole entry the server returned, never a status worked out here: status
+  // is derived by the server from the date (2026-09-24).
+  const [deadlineOverrides, setDeadlineOverrides] = useState<Record<string, IntakeDeadline>>({})
 
   // ---- header ------------------------------------------------------------------------------
   const header = (
@@ -359,8 +361,9 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
             ) : (
               intakeRows.map(({ month, deadline }) => {
                 // The override, if this row's deadline was set (applied=true) earlier in this
-                // popup's lifetime, layered on top of what the course prop originally carried.
-                const merged = deadline ? { ...deadline, ...deadlineOverrides[month] } : undefined
+                // popup's lifetime, in place of what the course prop originally carried — replaced
+                // whole, so a stale status or rolled flag from the old date never survives.
+                const merged = deadline ? (deadlineOverrides[month] ?? deadline) : undefined
                 return (
                   <tr key={month} className="border-t border-border">
                     <td className="px-md py-sm text-text-primary">
@@ -391,11 +394,8 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
                             courseId={course.id}
                             month={month}
                             currentDeadline={merged.application_deadline ?? null}
-                            currentStatus={merged.status}
                             rolled={Boolean(merged.rolled)}
-                            onApplied={(next) =>
-                              setDeadlineOverrides((o) => ({ ...o, [month]: { ...o[month], ...next } }))
-                            }
+                            onApplied={(next) => setDeadlineOverrides((o) => ({ ...o, [month]: next }))}
                           />
                         </span>
                       ) : merged?.application_deadline ? (
@@ -410,13 +410,8 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
                       )}
                     </td>
                     <td className="px-md py-sm">
-                      {merged?.status === 'open' ? (
-                        <Badge color="success">Open</Badge>
-                      ) : merged?.status === 'closed' ? (
-                        <Badge color="secondary">Closed</Badge>
-                      ) : (
-                        <span className="text-text-secondary">—</span>
-                      )}
+                      {/* Read-only, as the server derived it from the deadline (2026-09-24). */}
+                      <IntakeStatusBadge status={merged?.status} deadline={merged?.application_deadline} />
                     </td>
                   </tr>
                 )
