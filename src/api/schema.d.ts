@@ -2257,7 +2257,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Tag Management's list (build reference 2.2) — this consultancy's own tags for leads and clients */
+        /**
+         * Tag Management's list (build reference 2.2) — this consultancy's own tags for leads and clients
+         * @description Not paged, by design (SCALABILITY F1, contract gate 4): the whole list in one response, bounded at 100 active tags per consultancy. The real backend refuses the 101st POST /tags with 400 `validation_failed`; the mock does not enforce the ceiling.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -2367,7 +2370,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List designations (Business & Ultimate tiers, FR-078) */
+        /**
+         * List designations (Business & Ultimate tiers, FR-078)
+         * @description Not paged, by design (SCALABILITY F1, contract gate 4): the whole list in one response, bounded at 50 designations per consultancy, the protected Owner/Admin one included. The real backend refuses the 51st POST /staff/designations with 400 `validation_failed`; the mock does not enforce the ceiling.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -2470,7 +2476,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List the caller's own branches (FR-078). NOT gated on `multi_branch`: several screens resolve a branch label regardless of plan. Reachable on EVERY tier since 2026-09-21 in any case — see the writes below. */
+        /**
+         * List the caller's own branches (FR-078). NOT gated on `multi_branch`: several screens resolve a branch label regardless of plan. Reachable on EVERY tier since 2026-09-21 in any case — see the writes below.
+         * @description Not paged, by design (SCALABILITY F1, contract gate 4): the whole list in one response, bounded at 100 branches per consultancy, active and inactive together. The real backend refuses the 101st POST /staff/branches with 400 `validation_failed`; the mock does not enforce the ceiling. GET /consultancies/{id}/branches reads the same set, so it has the same bound.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -4437,7 +4446,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add one hero-slideshow image to the caller's own consultancy (student-facing decision, 2026-08-30). Gated the same as the profile self-PATCH — requires `settings.edit_profile`. 422 `gallery_full` once 5 images already exist; delete one first. The image travels as a base64 data string in this single call rather than the two-step POST /media + attach-URL flow logo_url uses, because this call must set the image and its title/caption together — the server stores the bytes in memory and serves them back at a mock-server-controlled URL (`GalleryImage.image_url`), same "never depend on an external image host" rule POST /media already follows. */
+        /** Add one hero-slideshow image to the caller's own consultancy (student-facing decision, 2026-08-30). Gated the same as the profile self-PATCH — requires `settings.edit_profile`. 422 `gallery_full` once 5 images already exist; delete one first. The image travels as a base64 data string in this single call rather than the two-step POST /media + attach-URL flow logo_url uses, because this call must set the image and its title/caption together. A named exception to "bytes go through POST /media only", alongside POST /media itself (contract gate 4): the server runs the image through the same raster pipeline POST /media uses, stores it, and returns it as `GalleryImage.image_url` (see that field) — same "never depend on an external image host" rule POST /media already follows. */
         post: {
             parameters: {
                 query?: never;
@@ -6046,7 +6055,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The caller's consultancy↔college relations (COURSES_MODULE_PLAN.md §1.7). Platform admins may pass consultancy_id to read/manage any consultancy's relations (configure-on-behalf); consultancy staff always get their own. */
+        /**
+         * The caller's consultancy↔college relations (COURSES_MODULE_PLAN.md §1.7). Platform admins may pass consultancy_id to read/manage any consultancy's relations (configure-on-behalf); consultancy staff always get their own.
+         * @description Not paged, by design (SCALABILITY F1, contract gate 4): one consultancy's partner colleges in one response, bounded at 500 per consultancy. The real backend refuses the 501st POST /consultancy-colleges with 400 `validation_failed`; the mock does not enforce the ceiling. An institute has exactly one row, its own college.
+         */
         get: {
             parameters: {
                 query?: {
@@ -6788,7 +6800,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Bookable visit slots for the next 14 days, computed from the consultancy's own `visiting_schedule` and timezone (assumptions audit H12, 2026-09-19) — the app renders these instead of a hard-coded Mon–Sat 10–17 grid on the device clock. */
+        /** Bookable visit slots for the next 14 days, computed from the consultancy's own `visiting_schedule` and timezone (assumptions audit H12, 2026-09-19) — the app renders these instead of a hard-coded Mon–Sat 10–17 grid on the device clock. Not paged, and bounded by construction (SCALABILITY F1, contract gate 4): at most 14 `days`, each with at most 24 one-hour `slots`. */
         get: {
             parameters: {
                 query?: never;
@@ -7142,6 +7154,8 @@ export interface paths {
          *     WHAT A ROW CARRIES is decided by what a student chooses an office on: the branch name, its four picked place levels, and its street line. `address` IS included — it is the street line only since 2026-09-21 (see `Branch.address`), the consultancy already publishes its own address on the detail card, and two offices in one city cannot be told apart, let alone reached, from a city name. `employee_count` and every other operational field on `Branch` are NOT: how many consultants staff an office is the account's own business, and nothing a student decides on.
          *
          *     ANY SIGNED-IN CALLER, not staff-gated. Same visibility rule as `GET /consultancies/{id}`: a suspended or missing consultancy is a 404, never a 403, so this cannot be used to probe which accounts exist. A consultancy with no branches is an empty array and a 200, the same answer GET /countries/{name}/states/{state}/districts gives a state with no districts.
+         *
+         *     NOT PAGED, by design (SCALABILITY F1, contract gate 4): bounded by the 100-branch ceiling on GET /staff/branches, so at most 100 rows.
          */
         get: {
             parameters: {
@@ -9713,8 +9727,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * CSV bulk import — validate → preview → commit pipeline (TRD Section 6)
+         * CSV bulk import of colleges — synchronous, one call
          * @description Columns name, website, description (2026-09-11). A header row naming them is optional and may order them freely; quoted fields may contain commas. Names already in the catalogue, or repeated within the file, are skipped (`status: duplicate`), never created twice. Each created college is audited, and consultancy admins get one `college_added` for the batch.
+         *
+         *     SYNCHRONOUS, AND CAPPED (contract gate 4, owner Q6 2026-09-25): the file is processed inside this request and the per-row results come back in the 200. A file over 1 MB or with more than 2,000 data rows (the header, if any, not counted) is refused whole with 400 `validation_failed` and nothing is created — split it and import the parts (the mock server does not enforce the two caps). A validate → preview → commit flow is parked, not planned.
          */
         post: {
             parameters: {
@@ -9735,7 +9751,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Processed synchronously in this mock (real backend queues it per TRD Section 6) — per-row results plus a created-college count. */
+                /** @description Processed synchronously — per-row results plus a created-college count. */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -9755,6 +9771,15 @@ export interface paths {
                                 errors?: string[];
                             }[];
                         };
+                    };
+                };
+                /** @description `validation_failed` — no file, a file over 1 MB, or more than 2,000 data rows. Nothing is created. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -10515,10 +10540,22 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Course Suggestions' submission history (build reference 1.22) — this consultancy's own submissions, both types */
+        /**
+         * Course Suggestions' submission history (build reference 1.22) — this consultancy's own submissions, both types
+         * @description Paged like every other list since 2026-09-25 (contract gate 4, REVIEW_TRIAGE item 21 / SCALABILITY F1 — it returned a bare array that grows with every suggestion). Default page 20, max 100. Oldest first (created_at, then id) unless sort= says otherwise; sort= accepts created_at, status and type. filter[status]= pending|approved|rejected (comma = any of). Only the caller's own consultancy's rows: anyone who is not active consultancy staff gets an empty page.
+         */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description Sort field. Prefix with - for descending, e.g. sort=-created_at (TRD Section 7). */
+                    sort?: components["parameters"]["SortParam"];
+                    /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
+                    filter?: components["parameters"]["FilterParam"];
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -10531,7 +10568,10 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["CourseSuggestion"][];
+                        "application/json": {
+                            items: components["schemas"]["CourseSuggestion"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
                     };
                 };
             };
@@ -19469,7 +19509,10 @@ export interface paths {
             };
         };
         put?: never;
-        /** Submit (or re-submit) the certificate — document_url from POST /media. A re-submission RESETS verification; a new document has not been reviewed, and keeping the badge over it would verify sight unseen. Notifies the Platform Admin. */
+        /**
+         * Submit (or re-submit) the certificate — document_url from POST /media. A re-submission RESETS verification; a new document has not been reviewed, and keeping the badge over it would verify sight unseen. Notifies the Platform Admin.
+         * @description The certificate is not public (contract gate 4). `document_url` must be a URL POST /media issued to a member of THIS consultancy's staff; anything else — another tenant's upload, an external link, a URL no upload issued — is refused 400 `validation_failed` (the mock server checks only that it is present). On submit the real backend copies the file to private storage, so the public upload URL is never what reviewers read: `KycStatus.document_url` is an expiring link. Submission and verification are both audited.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -19480,6 +19523,7 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
+                        /** @description A URL POST /media returned to this consultancy's staff. */
                         document_url: string;
                     };
                 };
@@ -19492,6 +19536,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["KycStatus"];
+                    };
+                };
+                /** @description `validation_failed` — `document_url` is missing, or is not an upload made by this consultancy's staff. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -21911,11 +21964,12 @@ export interface components {
             branch_ids?: components["schemas"]["UUID"][];
             /** @description CHOSEN, not inferred, since 2026-09-21 (product owner: the invite and the edit both take it explicitly, "to avoid the confusion of it being decided by tick order"). It decides which branch every one of this consultant's leads and clients is filed under — and therefore which branch their revenue is attributed to — which was never safe to read off the order someone ticked boxes in. No longer readOnly: see `EmployeeInput.primary_branch_id` and `EmployeePatchInput.primary_branch_id`. Omitted on create it still falls back to the first entry of `branch_ids` (user-requested 2026-08-15), so a single-branch consultancy sees no change, and the older fallback also stands: if the chosen primary is ever removed from `branch_ids` it is re-derived to that list's first entry rather than left dangling. CHANGING IT RE-STAMPS ONLY FUTURE ASSIGNMENTS (2026-09-21). Leads and clients already filed under a branch keep it — an employee edit never re-files live cases, because that would move branch revenue attribution nobody asked to move. See build reference 1.15's "Branch scoping" note. */
             primary_branch_id?: components["schemas"]["UUID"];
+            /** @description Null when the employee has no designation assigned (contract gate 4, item 17 — observed on the mock for accounts that have set up no designations). */
             designation_id?: components["schemas"]["UUID"];
-            /** @description Sparse map of individual permission keys → boolean, layered on top of the designation's baseline (build reference 1.15's "individual permission toggles"). */
+            /** @description Sparse map of individual permission keys → boolean, layered on top of the designation's baseline (build reference 1.15's "individual permission toggles"). Null or empty when there are none (contract gate 4, item 17). */
             permission_overrides?: {
                 [key: string]: boolean;
-            };
+            } | null;
             is_consultancy_admin?: boolean;
             active?: boolean;
             /** @description Leads and clients currently assigned to this employee. Drives the Deactivate dialog — deactivation requires a successor when this is above zero, so the UI only asks when there is actually something to hand over. */
@@ -22235,7 +22289,11 @@ export interface components {
             /** @description Mandatory — recorded on the audit entry (build reference 1.24, sensitive action). */
             reason: string;
         };
-        /** @description Carries its NEAREST BRANCH to the calling student since 2026-09-21 — see `nearest_branch` / `nearest_branch_match` below, and the ordering rule on GET /consultancies. */
+        /**
+         * @description Carries its NEAREST BRANCH to the calling student since 2026-09-21 — see `nearest_branch` / `nearest_branch_match` below, and the ordering rule on GET /consultancies.
+         *
+         *     WHO RECEIVES WHICH FIELDS (contract gate 4, Wave 2 plan G8 / REVIEW_TRIAGE item 22 — the response is role-scoped at the projection, never sent whole to be hidden client-side). FULL record: the consultancy's own active staff (GET /consultancies/me and its own GET /consultancies/{id}) and platform staff. PUBLIC projection: students, freelancers and every OTHER consultancy's staff — `id`, `created_at`, `name`, `logo_url`, `description`, `about_us`, `countries_served`, `country`, `city`, `public_email`, `public_phone`, `address`, `visiting_hours`, `visiting_schedule`, `kind`, `college_id`, `tier`, `active`, `kyc_verified`, `rating`, `rating_count`, `rating_source`, `review_count`, `featured`, `is_new`, `typical_reply_hours`, `gallery`, `nearest_branch` and `nearest_branch_match`. Every other field — seat, subscription, billing, entitlement, file-number, two-factor, freelancer-channel, upgrade/renewal and rating-override fields — is OMITTED from the public projection, which is why none of them is required. The mock server still sends the full record to every caller; the real backend's projection is a deliberate difference (PHASE6_TEST_CHECKLIST).
+         */
         Consultancy: {
             /** @description WHICH OF THIS ACCOUNT'S BRANCHES IS NEAREST to the calling student (product owner, 2026-09-21), so a card can name the office rather than leave the list's order looking arbitrary. Nearness is a four-step match and nothing else — same city, then same district, then same state, then same country — with no coordinates and no distance involved. Only the account's ACTIVE branches are considered: a switched-off office is not somewhere anyone can walk into. Null when the caller has named no location of their own (`StudentPreferences.city` / `district` / `state` / `resident_country` are all empty), and null when no branch of this account matches even on country. Present and null on every read that has no student caller to speak of, so a client never has to tell "no nearby branch" apart from "this response does not carry the fact". */
             readonly nearest_branch?: {
@@ -22258,6 +22316,7 @@ export interface components {
              */
             readonly created_at?: string;
             name: string;
+            /** @description An ABSOLUTE http(s) URL from the real backend (contract gate 4; see Media URLs in the API description) — the shape POST /media returns. The mock server still returns a host-relative `/media/{id}` for its own uploads, which clients resolve against their API origin. Null when no logo is set. */
             logo_url?: string | null;
             description?: string;
             /** @description FR-030 — consultancy-authored write-up. */
@@ -22331,7 +22390,8 @@ export interface components {
             readonly typical_reply_hours?: number | null;
             /** @enum {string} */
             tier: "starter" | "business" | "ultimate";
-            seat_limit: number;
+            /** @description Seats the plan allows. Full record only (own staff and platform staff) — omitted from the public projection (contract gate 4, see the schema description), which is why it is no longer required. */
+            seat_limit?: number;
             /**
              * Format: date
              * @description Subscription tab (build reference 1.22), user-requested — start date of the current billing term. Set by the super admin's renewal (POST /consultancies/{id}/subscription).
@@ -22387,7 +22447,7 @@ export interface components {
              * @description When the account's admin asked immiNow to renew (POST /consultancies/me/renewal-request, console review C7, 2026-09-13); cleared by the platform's renewal.
              */
             readonly renewal_requested_at?: string | null;
-            /** @description The platform bill converted to the account country's currency via the exchange table (console review M13, 2026-09-13); null when it already bills in that currency or no rate is set. */
+            /** @description The platform bill converted to the account country's currency via the exchange table (console review M13, 2026-09-13). Null when it already bills in that currency, when no rate is set, and when `billing_currency` is not set — the real backend assumes no currency (contract gate 4, Wave 2 plan G18 / REVIEW_TRIAGE item 39); the mock server still reads a missing `billing_currency` as INR, a deliberate difference. */
             readonly subscription_amount_local?: components["schemas"]["Money"] | null;
             /** Format: date-time */
             readonly upgrade_requested_at?: string | null;
@@ -22398,7 +22458,7 @@ export interface components {
             id: components["schemas"]["UUID"];
             /**
              * Format: uri
-             * @description A URL the bytes can actually be fetched from, in the shape POST /media returns — absolute from the real backend, host-relative `/…` from the mock server (resolved by each client against its own origin; see Media URLs in the API description). Never an external image host (the emulator and dev environment must both work offline).
+             * @description A URL the bytes can actually be fetched from, in the shape POST /media returns: an ABSOLUTE http(s) URL from the real backend (contract gate 4; see Media URLs in the API description), stored through the same image pipeline as POST /media. The mock server returns a host-relative `/…` path, which clients resolve against their API origin. Never an external image host (the emulator and dev environment must both work offline).
              */
             image_url: string;
             title?: string | null;
@@ -23006,6 +23066,7 @@ export interface components {
         College: {
             id: components["schemas"]["UUID"];
             name: string;
+            /** @description An ABSOLUTE http(s) URL from the real backend (contract gate 4; see Media URLs in the API description) — the shape POST /media returns. The mock server still returns a host-relative `/media/{id}` for its own uploads, which clients resolve against their API origin. Null when no logo is set. */
             logo_url?: string | null;
             website?: string | null;
             description?: string;
@@ -23319,7 +23380,8 @@ export interface components {
             college_name?: string;
             /** @description Read-model convenience field (user-requested, 2026-08-19) — the course's first linked campus's `Campus.country`, same resolution `GET /courses`' `filter[country]` already performs. Null if the course has no `campus_ids`. Lets the Selected Colleges "Add College" picker and its cross-country confirm check compare countries without resolving campuses client-side. */
             readonly country?: string | null;
-            description?: string;
+            /** @description Null when the catalogue has no write-up for the course yet (contract gate 4, item 17 — the mock sends null on most seeded courses). */
+            description?: string | null;
             /** @description The level this course teaches at — a `StudyLevel.code` from `GET /study-levels`, the same table `StudentPreferences.study_level` draws from, because search matches one against the other. Free text until 2026-09-07, when immiNow's plain text box (with the placeholder "e.g. masters") was found able to store `Masters`, `MSc` or `PG` while the student-side filter offered a hardcoded, title-cased four. */
             level?: string;
             field_of_study?: string;
@@ -23328,9 +23390,12 @@ export interface components {
              *     Free text until that date, and independent of `duration_months`: "18 months" typed here with the number left null passed every duration filter and sorted last, and "2 years" beside a stored 18 displayed one thing and filtered another. **A `duration` in a request body is ignored**, and the stale text on rows written earlier is cleared on their first edit.
              */
             readonly duration?: string;
-            fee?: components["schemas"]["Money"];
-            benefits?: string;
-            eligibility?: string;
+            /** @description Null when the course has no fee recorded yet (contract gate 4, item 17 — observed null on the mock). */
+            fee?: components["schemas"]["Money"] | null;
+            /** @description Null when none is recorded (contract gate 4, item 17). */
+            benefits?: string | null;
+            /** @description The free-text note beside `requirements`; null when none is recorded (contract gate 4, item 17). */
+            eligibility?: string | null;
             intakes?: string[];
             credentials?: string;
             /**
@@ -23488,7 +23553,7 @@ export interface components {
         CourseRequirements: {
             academic?: {
                 /**
-                 * @description `phd` joined on 2026-09-19 (M23) so a programme can require a doctorate. The ONE qualification `min_score` is measured on (2026-09-17) — the same level codes a student's education rows use. The eligibility engine compares the minimum with the student's score at exactly this level; with no score at that level the rule is unknown (never a fail) and the prompt names the level ("add your Bachelor's score to check"). Null on courses not yet curated: the engine then derives the level from `Course.level` as before (masters → bachelors, bachelors → twelfth or diploma, anything else → any row). immiNow pre-fills it from the course level (masters → bachelors, phd → masters, everything else → twelfth).
+                 * @description `phd` joined on 2026-09-19 (M23) so a programme can require a doctorate. The ONE qualification `min_score` is measured on (2026-09-17) — the same level codes a student's education rows use. The eligibility engine compares the minimum with the student's score at exactly this level; with no score at that level the rule is unknown (never a fail) and the prompt names the level ("add your Bachelor's score to check"). REQUIRED whenever `min_score` is set, together with `scheme` — a course write with a minimum score and either one missing is refused 400 `validation_failed` (assumptions audit C1/C3, 2026-09-19). There is NO fallback from `Course.level` any more: an older course holding a minimum score without it gets an `unknown` academic rule that says the course has not named its qualification (awaiting the course's data, not the student's).
                  * @enum {string|null}
                  */
                 entry_qualification?: "tenth" | "twelfth" | "diploma" | "bachelors" | "masters" | "phd" | null;
@@ -23512,13 +23577,10 @@ export interface components {
                 exam_id: components["schemas"]["UUID"];
                 /** @description Interpreted per the exam's score_type (score/percentile/rank/band). */
                 min_score: number;
-                /**
-                 * @description false = "recommended" — annotated, never fails anyone.
-                 * @default true
-                 */
-                required: boolean;
+                /** @description true = required; false = "recommended" — annotated, never fails anyone. No default is assumed (assumptions audit M37, 2026-09-19): immiNow's course form refuses to save an exam with a score until one of the two is chosen, and always writes it. A stored row without it (older data) is evaluated as required. */
+                required?: boolean;
             }[];
-            /** @description Compared with the TOTAL of the student's Profile work-experience rows (`WorkExperienceEntry.months`). A row with no months is not counted; with no countable row the rule is unknown, never a fail. Borderline within 6 months. */
+            /** @description Compared with the TOTAL of the student's Profile work-experience rows (`WorkExperienceEntry.months`). A row with no months is not counted; with no countable row the rule is unknown, never a fail. Pass at or above the minimum, otherwise a fail that names the shortfall in months — there is no borderline band (product owner, 2026-09-19: "drop borderline, show shortfall"). */
             min_work_experience_months?: number | null;
             /** @description Display-only chips, never auto-evaluated. */
             info_flags?: {
@@ -23610,7 +23672,7 @@ export interface components {
             } | null;
             /** @enum {string} */
             type: "new" | "correction";
-            /** @description The proposed fix (type=correction) or the new course's fields (type=new). */
+            /** @description The proposed fix (type=correction) or the new course's fields (type=new). A deadline sent for review by PATCH /courses/{id}/intake-deadlines (the 15-day rule) carries `intake_deadline: {month, application_deadline}` plus a `note` saying why it was queued — the date only, no `status`: an intake's status is derived from its deadline on read (2026-09-24), so approving it writes the date and the status follows. */
             payload: {
                 [key: string]: unknown;
             };
@@ -25800,7 +25862,7 @@ export interface components {
         KycStatus: {
             /** @enum {string} */
             status: "not_submitted" | "pending" | "verified";
-            /** @description The latest submitted certificate (POST /media URL). */
+            /** @description The latest submitted certificate, as an EXPIRING link from the real backend (contract gate 4): a presigned URL to the private copy, valid for a short time (minutes) and issued afresh on every read — fetch it when it is needed, never store or share it. The mock server returns the POST /media URL that was submitted. Null when nothing has been submitted. */
             document_url?: string | null;
             /** Format: date-time */
             uploaded_at?: string | null;

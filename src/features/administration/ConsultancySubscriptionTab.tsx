@@ -41,7 +41,10 @@ export function SubscriptionTab({ consultancy }: { consultancy: Consultancy }) {
   // T2: meta.total when the server provides it — items.length is only ever one page, so a
   // consultancy over one page of employees under-reported its own seat usage.
   const seatsUsed = employees.data?.meta.total ?? employees.data?.items.length ?? 0
-  const seatPct = consultancy.seat_limit > 0 ? Math.min(100, (seatsUsed / consultancy.seat_limit) * 100) : 0
+  // Always present on the consultancy's own record; optional in the contract only because other
+  // callers get the public projection without it (contract gate 4).
+  const seatLimit = consultancy.seat_limit ?? 0
+  const seatPct = seatLimit > 0 ? Math.min(100, (seatsUsed / seatLimit) * 100) : 0
 
   // The ACTUAL effective feature set — resolved preset ⊕ Super Admin override, off
   // `consultancy.features`, rather than a static per-tier list, so it always matches what's

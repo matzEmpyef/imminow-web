@@ -1522,7 +1522,7 @@ export function ManageConsultanciesPage() {
       align: 'right',
       render: (c) => (
         <span className="flex items-center justify-end gap-xs">
-          {c.seats_used != null && c.seats_used >= c.seat_limit && <Badge color="warning">Full</Badge>}
+          {c.seats_used != null && c.seat_limit != null && c.seats_used >= c.seat_limit && <Badge color="warning">Full</Badge>}
           <span className="whitespace-nowrap text-text-primary">
             {c.seats_used ?? '—'} / {c.seat_limit}
           </span>

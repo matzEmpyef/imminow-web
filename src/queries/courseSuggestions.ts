@@ -5,6 +5,7 @@ import { ApiError } from './auth'
 import type { components } from '@/api/schema'
 
 type CourseInput = components['schemas']['CourseInput']
+type CourseSuggestion = components['schemas']['CourseSuggestion']
 
 export type CourseHealthFilter = 'needs_details' | 'complete' | 'missing_requirements'
 
@@ -147,14 +148,23 @@ export function useSetIntakeDeadline(courseId: string) {
   })
 }
 
+/// `/course-suggestions` is paged since 2026-09-25 (contract gate 4, item 21); Submission History
+/// sorts in the browser over the consultancy's whole history, so every page is walked at the
+/// maximum size and joined, oldest first as before — one request for any history this size.
 export function useCourseSuggestions() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['course-suggestions'],
     queryFn: async () => {
-      const { data, error } = await api.GET('/course-suggestions')
-      if (error) throw new ApiError('Could not load submission history.', error)
-      return data
+      const all: CourseSuggestion[] = []
+      let cursor: string | undefined
+      do {
+        const { data, error } = await api.GET('/course-suggestions', { params: { query: { limit: 100, cursor } } })
+        if (error) throw new ApiError('Could not load submission history.', error)
+        all.push(...data.items)
+        cursor = data.meta.next_cursor ?? undefined
+      } while (cursor)
+      return all
     },
     enabled: isAuthed,
   })
