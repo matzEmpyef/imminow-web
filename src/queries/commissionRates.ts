@@ -4,10 +4,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 import type { components } from '@/api/schema'
 
-type CommissionRateInput = components['schemas']['CommissionRateInput']
-type CommissionRateBulkGroup = components['schemas']['CommissionRateBulkGroup']
 export type CommissionRateCoverageRow = components['schemas']['CommissionRateCoverageRow']
-export type CommissionDefaults = components['schemas']['CommissionDefaults']
 
 // `options.enabled` (2026-09-11 addition, default true — every existing call site keeps fetching
 // exactly as before) lets a caller skip the request entirely rather than it falling through to
@@ -45,57 +42,8 @@ export function useMyCommissionRates() {
   })
 }
 
-export function useCreateCommissionRate() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (body: CommissionRateInput) => {
-      const { data, error } = await api.POST('/commission-rates', { body })
-      if (error) throw new ApiError('Could not create this rate.', error)
-      return data
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['commission-rates'] }),
-  })
-}
-
-export function useUpdateCommissionRate(id: string) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (body: { direct_rate?: number; freelancer_sourced_rate?: number }) => {
-      const { data, error } = await api.PATCH('/commission-rates/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update this rate.', error)
-      return data
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['commission-rates'] }),
-  })
-}
-
-// The one-shot rate matrix (user decision, 2026-08-28 — "should be able to add these 8 rates
-// manually, should not have to click add for each type... no need of add rows"): upserts all
-// four payer rows for a (consultancy, destination_country) pair in a single call, whether that
-// country already has some rates configured or none at all.
-export function useBulkSetCommissionRates() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (body: {
-      consultancy_id: string
-      destination_country: string
-      rates: {
-        applicant: CommissionRateBulkGroup
-        college: CommissionRateBulkGroup
-        split: CommissionRateBulkGroup
-        pr: CommissionRateBulkGroup
-      }
-    }) => {
-      const { data, error } = await api.PUT('/commission-rates/bulk', { body })
-      if (error) throw new ApiError('Could not save this rate matrix.', error)
-      return data
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['commission-rates'] }),
-  })
-}
-
 // Saves only the payer groups the admin actually filled in (product review H3, 2026-09-12) — the
-// bulk endpoint above intentionally requires all four groups ("this endpoint exists specifically
+// bulk endpoint (PUT /commission-rates/bulk) intentionally requires all four groups ("this endpoint exists specifically
 // so none can be left unset"), which is right for onboarding a brand-new country but wrong for
 // touching up one or two rows: forcing the other, still-blank rows to 0% would silently price
 // those payer methods at nothing. Uses the single-row endpoints instead, one call per filled row —

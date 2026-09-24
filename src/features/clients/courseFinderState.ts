@@ -123,11 +123,6 @@ export const INTAKE_OPTIONS: Record<string, string> = {
   ...Object.fromEntries(INTAKE_MONTHS.map((m) => [m.name, m.name])),
 }
 
-// The group codes, so a caller can tell a whole-group pick from a single month without a second
-// list. `filter[intake]` takes the group's anchor month and `filter[intake_any_in_group]` widens
-// it — see `useCourseFinder`.
-export const INTAKE_GROUP_CODES = new Set<string>(INTAKE_GROUPS.map((g) => g.code))
-
 // Links minted before 2026-09-19 carry the old halves. The server folds them the same way for a
 // student's own intake — `first_half` is the Jan–Jul group, `second_half` the Aug–Dec one — so
 // an old shared search opens on the group the sender meant rather than being dropped.

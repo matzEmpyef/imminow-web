@@ -5,7 +5,6 @@ import { ApiError } from './auth'
 import type { components } from '@/api/schema'
 
 export type StudentDocument = components['schemas']['StudentDocument']
-export type DocumentType = components['schemas']['DocumentType']
 
 /**
  * What this student has shared with THIS consultancy — never their whole locker. Documents belong

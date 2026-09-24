@@ -93,8 +93,6 @@ export function useUpdateFreelancer() {
   })
 }
 
-export type FreelancerRate = components['schemas']['FreelancerRate']
-
 export function useFreelancerRates() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({

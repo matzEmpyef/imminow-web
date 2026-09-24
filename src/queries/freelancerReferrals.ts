@@ -6,8 +6,6 @@ import type { components } from '@/api/schema'
 
 export type FreelancerReferral = components['schemas']['FreelancerReferral']
 export type FreelancerPayout = components['schemas']['FreelancerPayout']
-export type FreelancerReferralSummary = components['schemas']['FreelancerReferralSummary']
-export type FreelancerOwnPayout = components['schemas']['FreelancerOwnPayout']
 
 export interface FreelancerOwnReferralsFilters {
   search?: string

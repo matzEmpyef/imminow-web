@@ -2,9 +2,6 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from '@/api/errors'
-import type { components } from '@/api/schema'
-
-export type ReviewPage = components['schemas']['ReviewPage']
 
 /**
  * Read-only published reviews for the signed-in consultancy, with the rating summary (2026-09-12)

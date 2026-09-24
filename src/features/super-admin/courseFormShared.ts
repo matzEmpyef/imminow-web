@@ -123,9 +123,6 @@ export function intakeStatusFromServer(status: string | null | undefined): strin
  * both deadline editors so an estimate never reads as the college's own date (C10). */
 export const ROLLED_DEADLINE_NOTE = 'Estimated — rolled from last year'
 
-export const TEXTAREA_CLASS = 'rounded-md border border-border bg-surface p-sm text-body text-text-primary'
-export const SELECT_CLASS = 'h-10 rounded-md border border-border bg-surface px-3 text-body'
-
 /**
  * Capture completeness (COURSES_MODULE_PLAN.md §5) — the meter that makes catalog quality
  * visible instead of hoped for. Seven checks: fee, duration_months, intake deadlines, entry

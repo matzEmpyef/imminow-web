@@ -15,7 +15,7 @@ interface BlogArticleSearchSelectProps {
  *
  * `SearchSelect` (components/SearchSelect.tsx) only filters an `options` array the caller already
  * has loaded in full — fine for the client/lead lists it was built for, wrong here: the article
- * list this used to be handed was `useBlogArticles()`'s first (unfiltered) page, so a sender could
+ * list this used to be handed was the blog list's first (unfiltered) page, so a sender could
  * only ever pick from the 20 most recent articles and had no way to reach anything published
  * earlier. This is the same combobox shape (same floating-fixed dropdown, same clear-button
  * pattern) but the options come from `useBlogArticleSearch`, a live server search keyed on what's

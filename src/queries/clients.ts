@@ -104,21 +104,6 @@ export function useSetClientTags() {
   })
 }
 
-export function useUpdateClientDetails() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ id, address, phone }: { id: string; address?: string | null; phone?: string | null }) => {
-      const { data, error } = await api.PATCH('/clients/{id}', {
-        params: { path: { id } },
-        body: { address, phone },
-      })
-      if (error) throw new ApiError('Could not update this client.', error)
-      return data
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
-  })
-}
-
 export function useSetClientBranch() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -135,7 +120,7 @@ export function useSetClientBranch() {
 }
 
 // User-requested (2026-08-19) — "consultant has to select country finalized to apply." Its own
-// mutation, separate from useUpdateClientDetails above, mirroring the dedicated
+// mutation, separate from the general client PATCH, mirroring the dedicated
 // PATCH /clients/{id}/finalized-country endpoint.
 export function useSetFinalizedCountry() {
   const queryClient = useQueryClient()

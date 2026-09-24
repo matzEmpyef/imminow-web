@@ -5,7 +5,6 @@ import { ApiError } from './auth'
 import type { components } from '@/api/schema'
 
 export type UserSearchResult = components['schemas']['UserSearchResult']
-export type AllocationCandidate = components['schemas']['AllocationCandidate']
 
 /**
  * Support Tools' user directory search (paged since 2026-09-11 — it used to return every match at

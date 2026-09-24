@@ -231,8 +231,6 @@ export function useReactivateConsultancy(id: string) {
   })
 }
 
-export type TierDowngradeImpact = components['schemas']['TierDowngradeImpact']
-
 /**
  * What a tier change would disable, BEFORE it happens.
  *

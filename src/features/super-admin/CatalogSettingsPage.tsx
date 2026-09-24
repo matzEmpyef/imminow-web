@@ -50,10 +50,10 @@ import { showToast } from '@/lib/toast'
 import { ApiError } from '@/api/errors'
 import { useAuthStore } from '@/stores/authStore'
 import type { components } from '@/api/schema'
+import type { StudyLevel } from '@/lib/studyLevels'
 
 type Exam = components['schemas']['Exam']
 type ExchangeRate = components['schemas']['ExchangeRate']
-type StudyLevel = components['schemas']['StudyLevel']
 type CountrySetting = components['schemas']['CountrySetting']
 type StateProvince = components['schemas']['StateProvince']
 type StateProvinceChange = components['schemas']['StateProvinceChange']

@@ -8,19 +8,6 @@ type BlogArticle = components['schemas']['BlogArticle']
 
 const ARTICLES_KEY = ['blog-articles']
 
-export function useBlogArticles() {
-  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
-  return useQuery({
-    queryKey: ARTICLES_KEY,
-    queryFn: async () => {
-      const { data, error } = await api.GET('/blog')
-      if (error) throw new ApiError('Could not load articles.', error)
-      return data
-    },
-    enabled: isAuthed,
-  })
-}
-
 export interface BlogArticleListFilters {
   search?: string
   /** Blog staff only — published (default), hidden, or all. */
@@ -38,7 +25,7 @@ export interface BlogArticleListFilters {
 }
 
 // The admin list (2026-09-11) — server search, cursor paging and a status filter that reaches
-// hidden articles. The old `useBlogArticles()` above called this endpoint with no params, which
+// hidden articles. The console's original list hook called this endpoint with no params, which
 // for the admin meant "published only, first 20": a hidden article vanished from the admin too
 // and could never be restored, and anything past the first page was unreachable.
 export function useAdminBlogArticles(filters: BlogArticleListFilters = {}) {
