@@ -5,6 +5,7 @@ import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { formatDate, formatDateTime } from '@/lib/time'
 import { money } from './money'
+import { duePartDueDateText, duePartLabel } from '@/lib/duePart'
 import type { CommissionDueChange, CommissionDuePart, FinanceCaseRow } from '@/queries/financeDashboard'
 import { AddDueModal } from './AddDueModal'
 import { OverrideDueModal } from './OverrideDueModal'
@@ -47,36 +48,9 @@ function partAmount(part: CommissionDuePart): string {
   return money({ amount: part.amount ?? 0, currency: part.currency ?? 'INR' })
 }
 
+// Shared with the consultancy's Due Schedule drawer (Phase 5, W-DUP-2), in Finance's own money format.
 function partLabel(part: CommissionDuePart, ratePercent: number | null | undefined, tuitionFee: FinanceCaseRow['tuition_fee']): string {
-  if (part.kind === 'override') return `Override — ${part.reason ?? 'no reason given'}`
-  if (part.kind === 'added') return `Added — ${part.reason ?? 'no reason given'}`
-  switch (part.source) {
-    case 'student':
-      return `Student's fee — ${ratePercent ?? 0}% share`
-    case 'student_instalment':
-      return `Student payment of ${money(part.instalment_amount ?? { amount: 0, currency: part.currency ?? 'INR' })} received ${
-        part.instalment_received_on ? formatDate(part.instalment_received_on) : '—'
-      }`
-    case 'student_expected':
-      return 'Student money not received yet'
-    case 'college_instalment':
-      return `College instalment of ${money(part.instalment_amount ?? { amount: 0, currency: part.currency ?? 'INR' })} received ${
-        part.instalment_received_on ? formatDate(part.instalment_received_on) : '—'
-      }`
-    case 'college_expected':
-      return 'College money not received yet'
-    case 'tuition':
-      return `Tuition — ${ratePercent ?? 0}% of ${money(tuitionFee ?? { amount: 0, currency: part.currency ?? 'INR' })}`
-    default:
-      return 'Due'
-  }
-}
-
-function partDueDateText(part: CommissionDuePart): string {
-  if (part.due_on) return formatDate(part.due_on)
-  if (part.source === 'college_expected' || part.source === 'college_instalment') return 'When the college pays'
-  if (part.source === 'student_expected' || part.source === 'student_instalment') return 'When the student pays'
-  return 'When the case closes'
+  return duePartLabel(part, ratePercent, tuitionFee, money)
 }
 
 function changeText(c: CommissionDueChange): string {
@@ -237,7 +211,7 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
                       <Badge color={PART_STATUS_COLOR[part.status ?? 'due']}>{PART_STATUS_LABEL[part.status ?? 'due']}</Badge>
                     </div>
                     <p className="text-caption text-text-secondary">
-                      {partAmount(part)} · {partDueDateText(part)} · Paid {money({ amount: part.paid ?? 0, currency: part.currency ?? 'INR' })}
+                      {partAmount(part)} · {duePartDueDateText(part)} · Paid {money({ amount: part.paid ?? 0, currency: part.currency ?? 'INR' })}
                     </p>
                     {part.status === 'waived' && (
                       <p className="text-caption text-text-secondary">

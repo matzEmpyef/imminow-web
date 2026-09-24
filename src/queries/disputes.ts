@@ -135,7 +135,7 @@ export function useResolveDispute() {
       queryClient.invalidateQueries({ queryKey: ['disputes'] })
       queryClient.invalidateQueries({ queryKey: ['complaints'] })
       queryClient.invalidateQueries({ queryKey: ['clients'] })
-      queryClient.invalidateQueries({ queryKey: ['applicant-allocation'] })
+      queryClient.invalidateQueries({ queryKey: ['applicant-allocation-queue'] })
       queryClient.invalidateQueries({ queryKey: ['admin-attention'] })
     },
   })

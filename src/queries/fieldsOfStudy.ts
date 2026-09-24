@@ -29,7 +29,7 @@ function invalidateFieldViews(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: ['fields-of-study'] })
   queryClient.invalidateQueries({ queryKey: ['course-fields'] })
   queryClient.invalidateQueries({ queryKey: ['courses'] })
-  queryClient.invalidateQueries({ queryKey: ['college-detail'] })
+  queryClient.invalidateQueries({ queryKey: ['admin-college'] })
 }
 
 export function useCreateFieldOfStudy() {

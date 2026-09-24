@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
@@ -120,18 +120,29 @@ export function RateEditorModal({
   const servedCountries = useMemo(() => [...(consultancy.data?.countries_served ?? [])].sort(), [consultancy.data])
   const countryOptions = showAllCountries || servedCountries.length === 0 ? (allCountries.data ?? []) : servedCountries
 
-  // Re-seeds the matrix from whatever's already saved whenever the (consultancy, country) pair
-  // resolves to a new one — covers the unlocked top-level flow, where picking a consultancy and
-  // country that already has rates should show the edit form, not a blank one.
+  // The saved rates are only known once this account's rates fetch lands. Seeding before that
+  // showed a blank matrix for a country that already had rates, and saving it POSTed a duplicate
+  // row per payer group instead of PATCHing the existing ones (Phase 5, W-STATE-1). So the matrix
+  // waits behind the same loading state as the account fetch above.
+  const ratesPending = Boolean(consultancyId) && ownRates.isPending
+  const ratesError = Boolean(consultancyId) && ownRates.isError
+
+  // Seeds the matrix from whatever's already saved once per (consultancy, country) pair, as soon
+  // as that account's rates have loaded — covers the unlocked top-level flow, where picking a
+  // consultancy and country that already has rates should show the edit form, not a blank one.
+  // Not on every later rates refetch (that would wipe an open form back to server values), and
+  // never over something the user has already typed.
+  const seededFor = useRef<string | null>(null)
   useEffect(() => {
     if (touched) return
-    if (consultancyId && country) {
-      const { matrix: seeded, ids } = fromExistingRates(ownRates.data ?? [], country)
-      setMatrix(seeded)
-      setExistingIds(ids)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- ownRates and touched are read, not triggers: re-seeding on every rates refetch would wipe an open, untouched form back to server values
-  }, [consultancyId, country])
+    if (!consultancyId || !country || !ownRates.data) return
+    const pair = `${consultancyId}|${country}`
+    if (seededFor.current === pair) return
+    seededFor.current = pair
+    const { matrix: seeded, ids } = fromExistingRates(ownRates.data, country)
+    setMatrix(seeded)
+    setExistingIds(ids)
+  }, [consultancyId, country, ownRates.data, touched])
 
   function setCell(method: PayerMethod, field: 'direct' | 'freelancer', value: string) {
     setTouched(true)
@@ -168,7 +179,13 @@ export function RateEditorModal({
     return rowErrors
   }, [matrix, freelancerDisabled, filledKeys])
 
-  const canSubmit = Boolean(consultancyId) && Boolean(country) && !consultancyPending && !consultancy.isError
+  const canSubmit =
+    Boolean(consultancyId) &&
+    Boolean(country) &&
+    !consultancyPending &&
+    !consultancy.isError &&
+    !ratesPending &&
+    !ratesError
   const noRowsFilledError = attempted && filledKeys.length === 0 ? 'Fill in at least one payer group before saving.' : undefined
 
   function handleSubmit(e: FormEvent) {
@@ -235,6 +252,7 @@ export function RateEditorModal({
             onChange={(id) => {
               setConsultancyId(id)
               setTouched(false)
+              seededFor.current = null
               setCountry('')
             }}
             placeholder="Search consultancy or university…"
@@ -273,7 +291,7 @@ export function RateEditorModal({
           </div>
         )}
 
-        {consultancyPending ? (
+        {consultancyPending || ratesPending ? (
           <div className="flex flex-col gap-md rounded-md bg-background p-md">
             <p className="text-caption text-text-secondary">Loading this account&rsquo;s settings…</p>
             {RATE_GROUPS.map(({ key }) => (
@@ -282,6 +300,8 @@ export function RateEditorModal({
           </div>
         ) : consultancy.isError ? (
           <ErrorState message="Could not load this account&rsquo;s settings, so the rates cannot be edited safely." onRetry={() => consultancy.refetch()} />
+        ) : ratesError ? (
+          <ErrorState message="Could not load this account&rsquo;s saved rates, so the rates cannot be edited safely." onRetry={() => ownRates.refetch()} />
         ) : (
         <div className="flex flex-col gap-md rounded-md bg-background p-md">
           {RATE_GROUPS.map(({ key, label }) => (

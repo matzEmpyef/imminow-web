@@ -66,7 +66,6 @@ export function useAssignPlan(clientId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plans'] })
-      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plans'] })
       queryClient.invalidateQueries({ queryKey: ['clients', clientId] })
       queryClient.invalidateQueries({ queryKey: ['clients'] })
       // Assigning a plan derives the first step's expected_end_date and can move the client out

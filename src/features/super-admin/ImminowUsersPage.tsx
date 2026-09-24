@@ -5,7 +5,7 @@ import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
-import { useAdminConsultancies } from '@/queries/adminConsultancies'
+import { ConsultancySearchSelect } from './finance/ConsultancySearchSelect'
 import { fetchAllImminowUserDirectory, useImminowUserDirectory } from '@/queries/adminUserDirectories'
 import { useCursorPagination } from '@/lib/pagination'
 import { toCsv, downloadCsv, type CsvColumn } from '@/lib/csv'
@@ -45,7 +45,6 @@ export function ImminowUsersPage() {
   const [historyFor, setHistoryFor] = useState<SignInHistoryPerson | null>(null)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
-  const consultancies = useAdminConsultancies()
 
   function resetPaging() {
     paging.reset()
@@ -187,21 +186,16 @@ export function ImminowUsersPage() {
           }}
           filters={
             <>
-              <CompactSelect
+              {/* Searchable, not a plain select of useAdminConsultancies()'s default first page (20) —
+                  any consultancy past that page was unreachable as a filter (Phase 5, W-DUP-3). */}
+              <ConsultancySearchSelect
                 value={consultancyId}
-                onChange={(e) => {
-                  setConsultancyId(e.target.value)
+                onChange={(id) => {
+                  setConsultancyId(id)
                   resetPaging()
                 }}
-                label="Consultancy"
-              >
-                <option value="">Any (incl. platform staff)</option>
-                {consultancies.data?.items?.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </CompactSelect>
+                placeholder="Any (incl. platform staff)"
+              />
               <CompactSelect
                 value={active}
                 onChange={(e) => {

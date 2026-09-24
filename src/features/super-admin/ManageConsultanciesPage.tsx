@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { SelectField } from '@/components/SelectField'
 import { Settings } from 'lucide-react'
@@ -845,12 +845,22 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
   const [tab, setTab] = useState<DetailTab>('account')
   const isInstitute = consultancy.kind === 'institute'
 
+  function seedFrom(record: Consultancy) {
+    setTier(record.tier)
+    setSeatLimit(record.seat_limit)
+    setOverrides(record.entitlement_overrides ?? {})
+    setFilePrefix(record.file_number_prefix ?? '')
+    setFreelancerEnabled(Boolean(record.freelancer_enabled))
+  }
+
+  // Phase 5 (W-STATE-2): seed once per account, then again only from this form's own save
+  // response (below). Re-seeding on every refetch wiped unsaved plan edits whenever another
+  // section of this modal (renew, rating, 2FA, link college) invalidated the consultancy.
+  const seededForId = useRef<string | undefined>(undefined)
   useEffect(() => {
-    setTier(consultancy.tier)
-    setSeatLimit(consultancy.seat_limit)
-    setOverrides(consultancy.entitlement_overrides ?? {})
-    setFilePrefix(consultancy.file_number_prefix ?? '')
-    setFreelancerEnabled(Boolean(consultancy.freelancer_enabled))
+    if (seededForId.current === consultancy.id) return
+    seededForId.current = consultancy.id
+    seedFrom(consultancy)
   }, [consultancy])
 
   function toggleFlag(key: string, nextValue: boolean) {
@@ -892,7 +902,12 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
   async function handleSave() {
     try {
       const tierChanged = tier !== consultancy.tier
-      if (tierChanged) await changeTier.mutateAsync(tier!)
+      if (tierChanged) {
+        // Re-baseline from the re-tiered record straight away (what the refetch used to do), so a
+        // failed second PATCH below still leaves the form on the NEW plan's seat limit/overrides
+        // and a retry can't re-send the old ones. entitlementsBody reads this render's values.
+        seedFrom(await changeTier.mutateAsync(tier!))
+      }
       // Double-PATCH fix (UAT sweep M5, 2026-08-29): PATCH /tier already performs the clean
       // preset re-baseline (seat limit + overrides reset). Re-sending the modal's PRE-change
       // seat/override values right after silently undid that reset — the form was showing the
@@ -910,7 +925,10 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
             freelancer_enabled: freelancerEnabled,
             ...(consultancy.file_number_locked ? {} : { file_number_prefix: filePrefix }),
           }
-      await updateEntitlements.mutateAsync(entitlementsBody)
+      const updated = await updateEntitlements.mutateAsync(entitlementsBody)
+      // The saved record carries the server's re-baseline after a tier change (seat limit and
+      // overrides reset — see above), so the form shows the NEW plan's numbers straight away.
+      seedFrom(updated)
       showToast(`${consultancy.name} plan updated`)
     } catch {
       // surfaced via changeTier.error / updateEntitlements.error below
@@ -918,11 +936,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
   }
 
   function discardChanges() {
-    setTier(consultancy.tier)
-    setSeatLimit(consultancy.seat_limit)
-    setOverrides(consultancy.entitlement_overrides ?? {})
-    setFilePrefix(consultancy.file_number_prefix ?? '')
-    setFreelancerEnabled(Boolean(consultancy.freelancer_enabled))
+    seedFrom(consultancy)
   }
 
   const tierChanged = tier !== consultancy.tier

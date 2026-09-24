@@ -29,7 +29,9 @@ function wordCount(value: string) {
   return value.trim().split(/\s+/).filter(Boolean).length
 }
 
-export function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnType<typeof useMyConsultancy>['data']> }) {
+type ConsultancyRecord = NonNullable<ReturnType<typeof useMyConsultancy>['data']>
+
+export function ProfileTab({ consultancy }: { consultancy: ConsultancyRecord }) {
   const updateProfile = useUpdateConsultancyProfile()
 
   const [logoUrl, setLogoUrl] = useState('')
@@ -50,18 +52,28 @@ export function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnTyp
   const [visiting, setVisiting] = useState<VisitingHoursState>(() => visitingHoursStateFrom(null))
   const countryOptions = useCountries()
 
+  function seedFrom(record: ConsultancyRecord) {
+    setLogoUrl(record.logo_url ?? '')
+    setDescription(record.description ?? '')
+    setAboutUs(record.about_us ?? '')
+    setCountries(record.countries_served ?? [])
+    setCity(record.city ?? '')
+    setCountry(record.country ?? '')
+    setPublicEmail(record.public_email ?? '')
+    setPublicPhone(record.public_phone ?? '')
+    setAddress(record.address ?? '')
+    setVisitingHours(record.visiting_hours ?? '')
+    setVisiting(visitingHoursStateFrom(record.visiting_schedule))
+  }
+
+  // Phase 5 (W-STATE-2): seed once per record, then again only from this form's own save
+  // response. Re-seeding on every refetch wiped unsaved edits whenever anything else on the page
+  // (a gallery photo, say) invalidated the same ['consultancy','me'] query.
+  const seededForId = useRef<string | null>(null)
   useEffect(() => {
-    setLogoUrl(consultancy.logo_url ?? '')
-    setDescription(consultancy.description ?? '')
-    setAboutUs(consultancy.about_us ?? '')
-    setCountries(consultancy.countries_served ?? [])
-    setCity(consultancy.city ?? '')
-    setCountry(consultancy.country ?? '')
-    setPublicEmail(consultancy.public_email ?? '')
-    setPublicPhone(consultancy.public_phone ?? '')
-    setAddress(consultancy.address ?? '')
-    setVisitingHours(consultancy.visiting_hours ?? '')
-    setVisiting(visitingHoursStateFrom(consultancy.visiting_schedule))
+    if (seededForId.current === consultancy.id) return
+    seededForId.current = consultancy.id
+    seedFrom(consultancy)
   }, [consultancy])
 
   // The schedule is the only field on this form the server can still refuse — everything else is
@@ -96,7 +108,12 @@ export function ProfileTab({ consultancy }: { consultancy: NonNullable<ReturnTyp
         visiting_hours: visitingHours || null,
         visiting_schedule: visitingScheduleFrom(visiting),
       },
-      { onSuccess: () => showToast('Profile updated') },
+      {
+        onSuccess: (updated) => {
+          seedFrom(updated)
+          showToast('Profile updated')
+        },
+      },
     )
   }
 

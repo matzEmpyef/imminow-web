@@ -438,7 +438,6 @@ export function useReopenPlan(clientId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients', clientId] })
-      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plan'] })
     },
   })
 }

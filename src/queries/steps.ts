@@ -5,7 +5,6 @@ import { ApiError } from './auth'
 function invalidateStepRelated(queryClient: ReturnType<typeof useQueryClient>, clientId?: string) {
   queryClient.invalidateQueries({ queryKey: ['activity-feed'] })
   if (clientId) {
-    queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plan'] })
     queryClient.invalidateQueries({ queryKey: ['clients', clientId] })
     queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'activity'] })
   }

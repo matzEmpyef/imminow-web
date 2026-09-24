@@ -75,9 +75,9 @@ export function useCreateConsultancy() {
   })
 }
 
-function invalidateConsultancy(queryClient: ReturnType<typeof useQueryClient>, id: string) {
+function invalidateConsultancy(queryClient: ReturnType<typeof useQueryClient>) {
+  // ['admin-consultancies'] is a prefix of the detail key ['admin-consultancies', 'detail', id] too.
   queryClient.invalidateQueries({ queryKey: ['admin-consultancies'] })
-  queryClient.invalidateQueries({ queryKey: ['admin-consultancies', id] })
 }
 
 /**
@@ -100,7 +100,7 @@ export function useUpdateMfaPolicy(id: string) {
       if (error) throw new ApiError('Could not change the two-factor requirement.', error)
       return data
     },
-    onSuccess: () => invalidateConsultancy(queryClient, id),
+    onSuccess: () => invalidateConsultancy(queryClient),
   })
 }
 
@@ -115,7 +115,7 @@ export function useUpdateConsultancyCountry(id: string) {
       if (error) throw new ApiError('Could not save the country.', error)
       return data
     },
-    onSuccess: () => invalidateConsultancy(queryClient, id),
+    onSuccess: () => invalidateConsultancy(queryClient),
   })
 }
 
@@ -130,7 +130,7 @@ export function useLinkCollege(id: string) {
       if (error) throw new ApiError('Could not link this college.', error)
       return data
     },
-    onSuccess: () => invalidateConsultancy(queryClient, id),
+    onSuccess: () => invalidateConsultancy(queryClient),
   })
 }
 
@@ -142,7 +142,7 @@ export function useChangeTier(id: string) {
       if (error) throw new ApiError("Could not change this consultancy's plan.", error)
       return data
     },
-    onSuccess: () => invalidateConsultancy(queryClient, id),
+    onSuccess: () => invalidateConsultancy(queryClient),
   })
 }
 
@@ -170,7 +170,7 @@ export function useRenewSubscription(id: string) {
       if (error) throw new ApiError("Could not update this consultancy's subscription.", error)
       return data
     },
-    onSuccess: () => invalidateConsultancy(queryClient, id),
+    onSuccess: () => invalidateConsultancy(queryClient),
   })
 }
 
@@ -182,7 +182,7 @@ export function useUpdateEntitlements(id: string) {
       if (error) throw new ApiError('Could not update features/limits.', error)
       return data
     },
-    onSuccess: () => invalidateConsultancy(queryClient, id),
+    onSuccess: () => invalidateConsultancy(queryClient),
   })
 }
 
@@ -194,7 +194,7 @@ export function useSuspendConsultancy(id: string) {
       if (error) throw new ApiError('Could not suspend this consultancy.', error)
       return data
     },
-    onSuccess: () => invalidateConsultancy(queryClient, id),
+    onSuccess: () => invalidateConsultancy(queryClient),
   })
 }
 
@@ -215,7 +215,7 @@ export function useSetConsultancyRating(id: string) {
       if (error) throw new ApiError('Could not update this rating.', error)
       return data
     },
-    onSuccess: () => invalidateConsultancy(queryClient, id),
+    onSuccess: () => invalidateConsultancy(queryClient),
   })
 }
 
@@ -227,7 +227,7 @@ export function useReactivateConsultancy(id: string) {
       if (error) throw new ApiError('Could not reactivate this consultancy.', error)
       return data
     },
-    onSuccess: () => invalidateConsultancy(queryClient, id),
+    onSuccess: () => invalidateConsultancy(queryClient),
   })
 }
 

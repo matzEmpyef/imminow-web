@@ -1,11 +1,10 @@
 import { Drawer } from '@/components/Drawer'
 import { Badge } from '@/components/Badge'
-import { formatDate } from '@/lib/time'
 import { formatMoneyAmount } from '@/lib/money'
+import { duePartDueDateText, duePartLabel } from '@/lib/duePart'
 import type { components } from '@/api/schema'
 
 type CommissionDue = components['schemas']['CommissionDue']
-type CommissionDuePart = components['schemas']['CommissionDuePart']
 
 const money = formatMoneyAmount
 
@@ -26,51 +25,6 @@ const STATUS_LABEL: Record<string, string> = {
   waived: 'Closed by immiNow',
 }
 
-// A rate nobody has set is not 0 % (assumptions audit, approved 2026-09-19) — "Tuition — 0 % of
-// CAD 32,000" read to a consultancy as an agreement priced at nothing, when the truth is that the
-// rate is still missing. Same money area as C5, so it goes in with it.
-function rateShare(ratePercent: number | null | undefined): string {
-  return ratePercent == null ? 'rate not set' : `${ratePercent}% share`
-}
-
-function partLabel(
-  part: CommissionDuePart,
-  ratePercent: number | null | undefined,
-  tuitionFee?: { amount?: number | null; currency?: string | null } | null,
-): string {
-  if (part.kind === 'override') return `Override — ${part.reason ?? 'no reason given'}`
-  if (part.kind === 'added') return `Added — ${part.reason ?? 'no reason given'}`
-  switch (part.source) {
-    case 'student':
-      return `Student's fee — ${rateShare(ratePercent)}`
-    case 'student_instalment':
-      return `Student payment of ${money(part.instalment_amount)} received ${
-        part.instalment_received_on ? formatDate(part.instalment_received_on) : '—'
-      }`
-    case 'student_expected':
-      return 'Student money not received yet'
-    case 'college_instalment':
-      return `College instalment of ${money(part.instalment_amount)} received ${
-        part.instalment_received_on ? formatDate(part.instalment_received_on) : '—'
-      }`
-    case 'college_expected':
-      return 'College money not received yet'
-    case 'tuition':
-      return tuitionFee?.amount != null
-        ? `Tuition — ${rateShare(ratePercent)} of ${money({ amount: tuitionFee.amount, currency: tuitionFee.currency ?? 'INR' })}`
-        : `Tuition — ${rateShare(ratePercent)}`
-    default:
-      return 'Due'
-  }
-}
-
-function partDueDateText(part: CommissionDuePart): string {
-  if (part.due_on) return formatDate(part.due_on)
-  if (part.source === 'college_expected' || part.source === 'college_instalment') return 'When the college pays'
-  if (part.source === 'student_expected' || part.source === 'student_instalment') return 'When the student pays'
-  return 'When the case closes'
-}
-
 /**
  * What a case owes immiNow and when (consultancy view, 2026-09-11) — Active Cases' "View
  * schedule" popover. Same due_schedule Finance sees on their side, minus who at immiNow added a
@@ -85,11 +39,11 @@ export function DueScheduleDrawer({ due, onClose }: { due: CommissionDue | null;
         {schedule.map((part, i) => (
           <div key={part.id ?? `calculated-${i}`} className="rounded-md border border-border px-sm py-xs">
             <div className="flex items-start justify-between gap-sm">
-              <span className="text-body-sm text-text-primary">{partLabel(part, due?.rate_percent, due?.tuition_fee)}</span>
+              <span className="text-body-sm text-text-primary">{duePartLabel(part, due?.rate_percent, due?.tuition_fee, money)}</span>
               {part.status && <Badge color={STATUS_COLOR[part.status]}>{STATUS_LABEL[part.status]}</Badge>}
             </div>
             <p className="text-caption text-text-secondary">
-              {money({ amount: part.amount, currency: part.currency })} · {partDueDateText(part)} · Paid{' '}
+              {money({ amount: part.amount, currency: part.currency })} · {duePartDueDateText(part)} · Paid{' '}
               {money({ amount: part.paid, currency: part.currency })}
             </p>
             {part.status === 'waived' && part.waived_reason && (

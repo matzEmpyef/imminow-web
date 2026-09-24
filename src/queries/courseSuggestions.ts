@@ -98,7 +98,16 @@ export function useUpdateCourse(id: string) {
       if (error) throw new ApiError('Could not update this course.', error)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['courses'] }),
+    // Phase 5 (W-STATE-3): the same breadth as useSetIntakeDeadline below — a course edit showed
+    // stale in useCourse's single-course view and in the catalog rollups until they went stale.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['courses'] })
+      queryClient.invalidateQueries({ queryKey: ['course', id] })
+      queryClient.invalidateQueries({ queryKey: ['course-finder'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-colleges'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-college'] })
+      queryClient.invalidateQueries({ queryKey: ['course-suggestions'] })
+    },
   })
 }
 

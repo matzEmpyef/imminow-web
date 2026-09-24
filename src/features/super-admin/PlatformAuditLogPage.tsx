@@ -4,7 +4,7 @@ import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
-import { useAdminConsultancies } from '@/queries/adminConsultancies'
+import { ConsultancySearchSelect } from './finance/ConsultancySearchSelect'
 import {
   fetchAllPlatformAuditLog,
   usePlatformAuditLog,
@@ -58,7 +58,6 @@ const AUDIT_LOG_CSV_COLUMNS: CsvColumn<Entry>[] = [
 ]
 
 export function PlatformAuditLogPage() {
-  const consultancies = useAdminConsultancies()
   const [consultancyId, setConsultancyId] = useState('')
   const [actionType, setActionType] = useState<PlatformAuditLogFilters['action_type'] | ''>('')
   const [area, setArea] = useState<PlatformAuditLogFilters['area'] | ''>('')
@@ -185,21 +184,16 @@ export function PlatformAuditLogPage() {
           }}
           filters={
             <>
-              <CompactSelect
+              {/* Searchable, not a plain select of useAdminConsultancies()'s default first page (20) —
+                  any consultancy past that page was unreachable as a filter (Phase 5, W-DUP-3). */}
+              <ConsultancySearchSelect
                 value={consultancyId}
-                onChange={(e) => {
-                  setConsultancyId(e.target.value)
+                onChange={(id) => {
+                  setConsultancyId(id)
                   resetPaging()
                 }}
-                label="Consultancy"
-              >
-                <option value="">Any (incl. platform-level)</option>
-                {consultancies.data?.items?.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </CompactSelect>
+                placeholder="Any (incl. platform-level)"
+              />
               <CompactSelect
                 value={actionType}
                 onChange={(e) => {
