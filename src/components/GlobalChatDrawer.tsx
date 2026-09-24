@@ -7,16 +7,9 @@ import { useConversations } from '@/queries/conversations'
 import { useChatWindowStore } from '@/stores/chatWindowStore'
 import { relativeTime } from '@/lib/time'
 import type { components } from '@/api/schema'
+import { CHAT_TYPE_LABELS } from './chatTypeLabels'
 
 type Conversation = components['schemas']['Conversation']
-
-// The client-side fallback when a row carries no explicit badge — "Aspirant" for a lead,
-// "Applicant" for a client, "Colleague" for an internal DM without an Admin badge.
-const TYPE_LABELS: Record<Conversation['type'], string> = {
-  lead: 'Aspirant',
-  client: 'Applicant',
-  internal: 'Colleague',
-}
 
 // Global Chat Drawer — a chat icon in the shell header opening a slide-in list of every
 // conversation the viewer can hold (leads + clients, plus Internal Messaging rows on Ultimate),
@@ -101,7 +94,7 @@ export function GlobalChatDrawer() {
                     <div className="flex items-center gap-sm">
                       <span className="truncate text-body-sm font-semibold text-text-primary">{conversation.name}</span>
                       <span className="shrink-0 rounded-full bg-background px-sm py-0.5 text-caption text-text-secondary">
-                        {conversation.badge ?? TYPE_LABELS[conversation.type]}
+                        {conversation.badge ?? CHAT_TYPE_LABELS[conversation.type]}
                       </span>
                     </div>
                     <p className="truncate text-caption text-text-secondary">

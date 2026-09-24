@@ -8,10 +8,7 @@ import { useFinanceBalances, useFinanceSummary, type ConsultancyBalanceRow } fro
 import { FinanceRevenueChart } from './FinanceRevenueChart'
 import { FinanceSummaryTiles } from './FinanceSummaryTiles'
 import { ConsultancyBalanceDrawer } from './ConsultancyBalanceDrawer'
-
-function inr(n: number | undefined): string {
-  return `₹${(n ?? 0).toLocaleString('en-IN')}`
-}
+import { inr } from '@/lib/money'
 
 /**
  * The landing tab (2026-09-11 rebuild) — glance tiles, the 12-month chart, and a server-paged

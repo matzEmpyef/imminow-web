@@ -12,26 +12,8 @@ import { useFinanceCases, type FinanceCaseRow, type FinanceCasesFilters } from '
 import { money } from './money'
 import { ConsultancySearchSelect } from './ConsultancySearchSelect'
 import { FinanceCaseDrawer } from './FinanceCaseDrawer'
-
-function inr(n: number | undefined): string {
-  return `₹${(n ?? 0).toLocaleString('en-IN')}`
-}
-
-const STATUS_COLOR = {
-  unpaid: 'warning',
-  part_paid: 'info',
-  paid: 'success',
-  not_due: 'secondary',
-  closed: 'secondary',
-} as const
-const STATUS_LABEL = {
-  unpaid: 'Unpaid',
-  part_paid: 'Part-paid',
-  paid: 'Paid',
-  not_due: 'Not due yet',
-  // The remaining due was closed off without ever being collected (2026-09-12, product review H2).
-  closed: 'Closed — not collected',
-} as const
+import { inr } from '@/lib/money'
+import { CASE_STATUS_COLOR as STATUS_COLOR, CASE_STATUS_LABEL as STATUS_LABEL } from './caseStatus'
 
 /**
  * Every active commission case, server-paged (2026-09-11 rebuild) — the platform expects hundreds

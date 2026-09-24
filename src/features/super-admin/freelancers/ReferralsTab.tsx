@@ -9,10 +9,7 @@ import { useFreelancerReferralsAdmin, type FreelancerReferral } from '@/queries/
 import { FreelancerFilterSelect } from './FreelancerFilterSelect'
 import { RecordPayoutModal } from './RecordPayoutModal'
 import { BulkRecordPayoutModal } from './BulkRecordPayoutModal'
-
-function inr(n: number | undefined | null): string {
-  return `₹${(n ?? 0).toLocaleString('en-IN')}`
-}
+import { inr } from '@/lib/money'
 
 /**
  * Backs both the "Owed" and "Not yet due" tabs on Freelancer Payouts (2026-09-11) — same columns

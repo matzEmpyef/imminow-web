@@ -53,6 +53,21 @@ export function relativeTime(iso: string): string {
   return `${daysSince(iso)}d ago`
 }
 
+/**
+ * The coarser, hour-grained "just now / 5h ago / 2d ago" that Notifications and Active Leads
+ * show — under an hour reads "just now", and days are plain `floor(hours / 24)`. Deliberately NOT
+ * {@link relativeTime} (which counts minutes and floors days through `daysSince`): moving these
+ * two screens onto it would change what they print. Phase 5 (W-DUP-12) moved the two identical
+ * local copies here, unchanged.
+ */
+export function timeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime()
+  const hours = Math.floor(diffMs / (1000 * 60 * 60))
+  if (hours < 1) return 'just now'
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
+}
+
 function pad(n: number): string {
   return String(n).padStart(2, '0')
 }

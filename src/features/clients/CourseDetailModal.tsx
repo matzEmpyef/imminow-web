@@ -32,6 +32,7 @@ import type { components } from '@/api/schema'
 import { mediaUrl } from '@/lib/mediaUrl'
 import { ROLLED_DEADLINE_NOTE } from '@/features/super-admin/courseFormShared'
 import { useLevelLadder } from '@/lib/studyLevels'
+import { DetailSection as Section } from './DetailSection'
 
 type Course = components['schemas']['Course']
 type IconColor = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
@@ -79,15 +80,6 @@ function Fact({ icon, color, label, children }: { icon: ReactNode; color: IconCo
         <div className="text-body-sm font-medium text-text-primary">{children}</div>
       </div>
     </div>
-  )
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="flex flex-col gap-md rounded-lg border border-border bg-background p-lg">
-      <h3 className="text-h3 text-text-primary">{title}</h3>
-      {children}
-    </section>
   )
 }
 

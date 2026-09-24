@@ -9,10 +9,7 @@ import { formatDate, localDateISO } from '@/lib/time'
 import { fetchAllFreelancerPayouts, useFreelancerPayouts, type FreelancerPayout } from '@/queries/freelancerReferrals'
 import { FreelancerFilterSelect } from './FreelancerFilterSelect'
 import { VoidPayoutModal } from './VoidPayoutModal'
-
-function inr(n: number | undefined | null): string {
-  return `₹${(n ?? 0).toLocaleString('en-IN')}`
-}
+import { inr } from '@/lib/money'
 
 function csvCell(value: string): string {
   return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value

@@ -16,6 +16,7 @@ import { formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { ChangeReferralCodeModal } from './ChangeReferralCodeModal'
 import { DeactivateFreelancerModal } from './DeactivateFreelancerModal'
+import { inr } from '@/lib/money'
 
 const STATUS_BADGE = {
   invited: { color: 'warning', label: 'Invited' },
@@ -28,10 +29,6 @@ const PAYOUT_STATUS_BADGE = {
   owed: { color: 'warning', label: 'Owed' },
   paid: { color: 'success', label: 'Paid' },
 } as const
-
-function inr(n: number | undefined): string {
-  return `₹${(n ?? 0).toLocaleString('en-IN')}`
-}
 
 /** The share editor — a plain % field that either creates or updates the FreelancerRate row (there is at most one per freelancer), depending on whether Freelancer.rate is null. */
 function ShareEditor({ freelancer }: { freelancer: Freelancer }) {

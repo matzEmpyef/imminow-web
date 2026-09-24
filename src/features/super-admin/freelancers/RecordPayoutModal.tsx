@@ -6,10 +6,7 @@ import { useRecordFreelancerPayout } from '@/queries/freelancerReferrals'
 import type { FreelancerReferral } from '@/queries/freelancerReferrals'
 import { localDateISO } from '@/lib/time'
 import { showToast } from '@/lib/toast'
-
-function inr(n: number | undefined | null): string {
-  return `₹${(n ?? 0).toLocaleString('en-IN')}`
-}
+import { inr } from '@/lib/money'
 
 /** Records one payout against one referral — money moves outside the platform; this just records that it happened. */
 export function RecordPayoutModal({ referral, onClose }: { referral: FreelancerReferral; onClose: () => void }) {

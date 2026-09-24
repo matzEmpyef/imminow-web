@@ -11,12 +11,7 @@ import type { CommissionPayment } from '@/queries/commission'
 import { ConfirmPaymentModal } from './ConfirmPaymentModal'
 import { RejectPaymentModal } from './RejectPaymentModal'
 import { BulkConfirmModal } from './BulkConfirmModal'
-
-
-function inr(n: number | null | undefined): string {
-  return n == null ? '—' : `₹${n.toLocaleString('en-IN')}`
-}
-
+import { inrOrDash } from '@/lib/money'
 
 function daysWaiting(iso: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000))
@@ -67,7 +62,7 @@ export function AwaitingTab() {
         const overpays = (p.amount.amount ?? 0) > (p.entry_outstanding_inr ?? Infinity)
         return (
           <span className="flex items-center justify-end gap-xs">
-            {inr(p.entry_outstanding_inr)}
+            {inrOrDash(p.entry_outstanding_inr)}
             {overpays && <Badge color="warning">More than owed</Badge>}
           </span>
         )

@@ -5,10 +5,7 @@ import { TextField } from '@/components/TextField'
 import { useRecordFreelancerPayout } from '@/queries/freelancerReferrals'
 import type { FreelancerReferral } from '@/queries/freelancerReferrals'
 import { localDateISO } from '@/lib/time'
-
-function inr(n: number | undefined | null): string {
-  return `₹${(n ?? 0).toLocaleString('en-IN')}`
-}
+import { inr } from '@/lib/money'
 
 interface Result {
   succeeded: number

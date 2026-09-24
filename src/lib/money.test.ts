@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatAmountOnly, formatCourseFee, formatMoney, formatMoneyAmount } from './money'
+import { formatAmountOnly, formatCourseFee, formatMoney, formatMoneyAmount, inr, inrOrDash } from './money'
 
 // The one live bug this module was extracted to fix (audit, 2026-09-01): the same INR amount
 // rendered with western grouping on one page and Indian grouping on another. These pin the rule
@@ -47,5 +47,23 @@ describe('formatMoneyAmount / formatCourseFee', () => {
     expect(formatCourseFee({ amount: 32000, currency: 'CAD' }, 'total')).toBe('CAD 32,000')
     expect(formatCourseFee({ amount: 32000, currency: 'CAD' })).toBe('CAD 32,000')
     expect(formatCourseFee({ amount: null, currency: 'CAD' }, 'per_year')).toBe('—')
+  })
+})
+
+// Phase 5 (W-DUP-1): fourteen screens carried their own copy of one of these two. The outputs are
+// pinned exactly as those copies wrote them, since each call site kept its own missing-value rule.
+describe('inr / inrOrDash', () => {
+  it('writes a rupee figure with the ₹ symbol and Indian grouping', () => {
+    expect(inr(3500000)).toBe('₹35,00,000')
+    expect(inr(0)).toBe('₹0')
+    expect(inrOrDash(123456789)).toBe('₹12,34,56,789')
+    expect(inrOrDash(0)).toBe('₹0')
+  })
+
+  it('reads a missing value as ₹0 in inr and as a dash in inrOrDash', () => {
+    expect(inr(undefined)).toBe('₹0')
+    expect(inr(null)).toBe('₹0')
+    expect(inrOrDash(undefined)).toBe('—')
+    expect(inrOrDash(null)).toBe('—')
   })
 })

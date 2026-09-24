@@ -13,10 +13,7 @@ import { VoidDueModal } from './VoidDueModal'
 import { ReceiveDueModal } from './ReceiveDueModal'
 import { CloseDueModal } from './CloseDueModal'
 import { ReopenDueModal } from './ReopenDueModal'
-
-function inr(n: number | undefined): string {
-  return `₹${(n ?? 0).toLocaleString('en-IN')}`
-}
+import { inr } from '@/lib/money'
 
 type BadgeColor = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
 

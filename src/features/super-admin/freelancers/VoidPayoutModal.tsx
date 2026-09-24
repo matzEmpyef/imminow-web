@@ -5,12 +5,9 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { useVoidFreelancerPayout } from '@/queries/freelancerReferrals'
 import type { FreelancerPayout } from '@/queries/freelancerReferrals'
 import { showToast } from '@/lib/toast'
+import { inr } from '@/lib/money'
 
 const MIN_REASON_LENGTH = 3
-
-function inr(n: number | undefined | null): string {
-  return `₹${(n ?? 0).toLocaleString('en-IN')}`
-}
 
 /** Undoes a recorded payout — the amount becomes owed again immediately. */
 export function VoidPayoutModal({ payout, onClose }: { payout: FreelancerPayout; onClose: () => void }) {

@@ -13,8 +13,7 @@ import {
   useSendInternalMessage,
   useUnsendInternalMessage,
 } from '@/queries/internalMessages'
-
-const TYPE_LABELS = { lead: 'Aspirant', client: 'Applicant', internal: 'Colleague' } as const
+import { CHAT_TYPE_LABELS } from './chatTypeLabels'
 
 // Facebook-style floating chat popup — opened from the conversation pages' pop-out buttons and
 // stays available while browsing the rest of the app. One window at a time (see
@@ -161,7 +160,7 @@ export function FloatingChatWindow() {
     <div style={{ maxWidth: '22rem', right: rightOffset }} className="fixed bottom-lg z-50 w-80">
       <ChatPanel
         name={conversation.name}
-        typeLabel={conversation.badge ?? TYPE_LABELS[conversation.type]}
+        typeLabel={conversation.badge ?? CHAT_TYPE_LABELS[conversation.type]}
         typeLabelTone={isLead ? 'primary' : 'neutral'}
         messages={messages}
         isLoading={isLoading}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { daysSince, daysUntil, formatDate, localDateISO, relativeTime } from './time'
+import { daysSince, daysUntil, formatDate, localDateISO, relativeTime, timeAgo } from './time'
 
 // The bug this helper exists for (2026-09-12): "today" was taken from toISOString(), the UTC
 // date, so in India every date default read as yesterday between midnight and 05:30.
@@ -63,5 +63,23 @@ describe('days', () => {
   it('agrees with relativeTime, which used to round', () => {
     expect(relativeTime(hoursAgo(36))).toBe(`${daysSince(hoursAgo(36))}d ago`)
     expect(relativeTime(hoursAgo(36))).toBe('1d ago')
+  })
+})
+
+// Phase 5 (W-DUP-12): Notifications and Active Leads' hour-grained label, moved here unchanged.
+describe('timeAgo', () => {
+  const ago = (ms: number) => new Date(Date.now() - ms).toISOString()
+  const HOUR = 60 * 60 * 1000
+
+  it('reads anything under an hour as "just now", not in minutes', () => {
+    expect(timeAgo(ago(0))).toBe('just now')
+    expect(timeAgo(ago(59 * 60 * 1000))).toBe('just now')
+  })
+
+  it('counts whole hours under a day, then whole days', () => {
+    expect(timeAgo(ago(HOUR + 1000))).toBe('1h ago')
+    expect(timeAgo(ago(23 * HOUR + 1000))).toBe('23h ago')
+    expect(timeAgo(ago(47 * HOUR + 1000))).toBe('1d ago')
+    expect(timeAgo(ago(49 * HOUR))).toBe('2d ago')
   })
 })

@@ -34,6 +34,22 @@ export function formatAmountOnly(currency: string | null | undefined, amount: nu
   return amount.toLocaleString(locale)
 }
 
+/**
+ * A plain rupee figure as the finance and freelancer screens write it — "₹1,23,456", Indian
+ * grouping, ₹ symbol (not {@link formatMoney}'s "INR" prefix). For the `*_inr` numbers those
+ * screens hold, which are bare numbers rather than `{ amount, currency }`. A missing value reads
+ * as ₹0; use {@link inrOrDash} where missing must read as "—" instead. Phase 5 (W-DUP-1): these two
+ * replace fourteen local copies — twelve of this one, two of the dash variant.
+ */
+export function inr(n: number | null | undefined): string {
+  return `₹${(n ?? 0).toLocaleString('en-IN')}`
+}
+
+/** {@link inr}, but a missing value reads as "—" rather than ₹0. */
+export function inrOrDash(n: number | null | undefined): string {
+  return n == null ? '—' : `₹${n.toLocaleString('en-IN')}`
+}
+
 /** Same as {@link formatMoney}, taking the `{ amount, currency }` shape the API returns directly. */
 export function formatMoneyAmount(money: MoneyLike | null | undefined): string {
   if (!money) return '—'

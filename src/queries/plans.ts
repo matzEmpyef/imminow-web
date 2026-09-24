@@ -230,18 +230,22 @@ export function useUploadStepFile(clientId: string) {
 
 // Latest saved response for a linked form (user, 2026-08-20 — the Forms tab is fillable, and
 // what the applicant saved from the app shows here). 404 = nothing saved yet, surfaced as null.
+// `fetchLatestFormResponse` is shared with `useLinkedFormResponses` below, which reads the same
+// query keys (Phase 5, W-DUP-9).
+async function fetchLatestFormResponse(formId: string, clientId: string) {
+  const { data, error, response } = await api.GET('/forms/{id}/responses', {
+    params: { path: { id: formId }, query: { journey_id: clientId } },
+  })
+  if (response.status === 404) return null
+  if (error) throw new ApiError('Could not load the saved answers.', error)
+  return data ?? null
+}
+
 export function useLatestFormResponse(formId: string, clientId: string) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['forms', formId, 'responses', clientId],
-    queryFn: async () => {
-      const { data, error, response } = await api.GET('/forms/{id}/responses', {
-        params: { path: { id: formId }, query: { journey_id: clientId } },
-      })
-      if (response.status === 404) return null
-      if (error) throw new ApiError('Could not load the saved answers.', error)
-      return data ?? null
-    },
+    queryFn: () => fetchLatestFormResponse(formId, clientId),
     enabled: isAuthed && Boolean(formId) && Boolean(clientId),
     retry: false,
   })
@@ -257,14 +261,7 @@ export function useLinkedFormResponses(formIds: string[], clientId: string | und
   return useQueries({
     queries: formIds.map((formId) => ({
       queryKey: ['forms', formId, 'responses', clientId],
-      queryFn: async () => {
-        const { data, error, response } = await api.GET('/forms/{id}/responses', {
-          params: { path: { id: formId }, query: { journey_id: clientId! } },
-        })
-        if (response.status === 404) return null
-        if (error) throw new ApiError('Could not load the saved answers.', error)
-        return data ?? null
-      },
+      queryFn: () => fetchLatestFormResponse(formId, clientId!),
       enabled: isAuthed && Boolean(clientId),
       retry: false,
     })),

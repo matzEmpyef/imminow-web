@@ -18,16 +18,9 @@ import { useAccountWords } from '@/lib/accountWords'
 import { useAuthStore } from '@/stores/authStore'
 import { FilterChip } from '@/components/FilterChip'
 import { Toggle } from '@/components/Toggle'
+import { timeAgo } from '@/lib/time'
 
 type Lead = NonNullable<ReturnType<typeof useLeads>['data']>['items'][number]
-
-function timeAgo(iso: string) {
-  const diffMs = Date.now() - new Date(iso).getTime()
-  const hours = Math.floor(diffMs / (1000 * 60 * 60))
-  if (hours < 1) return 'just now'
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
-}
 
 // Modal isn't a portal, so without StopPropagation a click inside the confirm popup would
 // bubble through this cell into the row's own onClick and navigate away — same wrapper

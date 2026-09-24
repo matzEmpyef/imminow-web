@@ -10,7 +10,7 @@ import { useAccountWords } from '@/lib/accountWords'
 import { useCommission } from '@/queries/commission'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { formatDate } from '@/lib/time'
-import { formatApprox, formatMoney, formatMoneyAmount } from '@/lib/money'
+import { formatApprox, formatMoney, formatMoneyAmount, inrOrDash } from '@/lib/money'
 import { RecordPlatformPaymentModal } from './RecordPlatformPaymentModal'
 import { DueScheduleDrawer } from './commission/DueScheduleDrawer'
 import type { components } from '@/api/schema'
@@ -22,10 +22,7 @@ type Money = components['schemas']['Money']
 const inr = formatMoneyAmount
 
 // overdue_inr/next_due_on are plain INR numbers on CommissionDue, not Money — formatMoneyAmount
-// doesn't apply to them (2026-09-11).
-function inrNum(n: number | null | undefined): string {
-  return n == null ? '—' : `₹${n.toLocaleString('en-IN')}`
-}
+// doesn't apply to them (2026-09-11); inrOrDash (lib/money) does.
 
 // Held in INR — mixed-currency agreements are summed through it, and immiNow collects its cut in
 // it — with the consultancy's own currency beneath when that differs (2026-09-10, user: "show the
@@ -56,7 +53,7 @@ function PaymentHistoryTab({ payments }: { payments: CommissionPayment[] }) {
       render: (p) => {
         const corrections = p.corrections ?? []
         const correctionsTitle = corrections
-          .map((c) => `${inrNum(c.from_amount)} → ${inrNum(c.to_amount)}: ${c.reason ?? ''}`)
+          .map((c) => `${inrOrDash(c.from_amount)} → ${inrOrDash(c.to_amount)}: ${c.reason ?? ''}`)
           .join('\n')
         return (
           <div className="flex flex-col">
@@ -309,7 +306,7 @@ export function CommissionDetailsPage() {
         return (
           <StopPropagation>
             <div className="flex flex-col items-end gap-2xs">
-              {overdue > 0 && <Badge color="warning">Overdue {inrNum(overdue)}</Badge>}
+              {overdue > 0 && <Badge color="warning">Overdue {inrOrDash(overdue)}</Badge>}
               {due.next_due_on && <span className="text-caption text-text-secondary">Next due {formatDate(due.next_due_on)}</span>}
               <button
                 type="button"

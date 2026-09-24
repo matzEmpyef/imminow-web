@@ -1,10 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Skeleton } from '@/components/QueryState'
 import type { FinanceSummary } from '@/queries/financeDashboard'
-
-function inr(n: number | undefined): string {
-  return `₹${(n ?? 0).toLocaleString('en-IN')}`
-}
+import { inr } from '@/lib/money'
 
 /**
  * Overview's four glance tiles (2026-09-11 rebuild) — Outstanding, Awaiting confirmation,

@@ -34,17 +34,22 @@ export function useCountries(options: { includeInactive?: boolean } = {}) {
 // endpoint that stores a state, so this is the only source these pickers should ever read from.
 // `country` is undefined while nothing is chosen yet (e.g. the campus form before Country is
 // picked) — `enabled` below just skips the request rather than asking the server about "".
+//
+// `fetchStates` is the one request both this hook and `useStatesForCountries` below run under the
+// same key, so the cache entry they share is always filled the same way (Phase 5, W-DUP-9).
+async function fetchStates(country: string) {
+  const { data, error } = await api.GET('/countries/{name}/states', {
+    params: { path: { name: country } },
+  })
+  if (error) throw new ApiError('Could not load the states list.', error)
+  return data
+}
+
 export function useStates(country: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['countries', country, 'states'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/countries/{name}/states', {
-        params: { path: { name: country! } },
-      })
-      if (error) throw new ApiError('Could not load the states list.', error)
-      return data
-    },
+    queryFn: () => fetchStates(country!),
     enabled: isAuthed && Boolean(country),
     staleTime: 30 * 60 * 1000,
   })
@@ -88,13 +93,7 @@ export function useStatesForCountries(countries: string[]) {
   const results = useQueries({
     queries: countries.map((country) => ({
       queryKey: ['countries', country, 'states'],
-      queryFn: async () => {
-        const { data, error } = await api.GET('/countries/{name}/states', {
-          params: { path: { name: country } },
-        })
-        if (error) throw new ApiError('Could not load the states list.', error)
-        return data
-      },
+      queryFn: () => fetchStates(country),
       enabled: isAuthed,
       staleTime: 30 * 60 * 1000,
     })),

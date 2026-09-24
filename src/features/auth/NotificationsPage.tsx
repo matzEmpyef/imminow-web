@@ -7,14 +7,7 @@ import { Card } from '@/components/Card'
 import { useMarkNotificationRead, useNotifications } from '@/queries/notifications'
 import { useAuthStore } from '@/stores/authStore'
 import { ErrorState, Skeleton } from '@/components/QueryState'
-
-function timeAgo(iso: string) {
-  const diffMs = Date.now() - new Date(iso).getTime()
-  const hours = Math.floor(diffMs / (1000 * 60 * 60))
-  if (hours < 1) return 'just now'
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
-}
+import { timeAgo } from '@/lib/time'
 
 export function NotificationsPage() {
   const notifications = useNotifications()

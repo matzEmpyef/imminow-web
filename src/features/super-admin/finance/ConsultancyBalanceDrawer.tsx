@@ -3,26 +3,9 @@ import { Badge } from '@/components/Badge'
 import { formatDate } from '@/lib/time'
 import { money } from './money'
 import { useFinanceCases, useFinancePayments } from '@/queries/financeDashboard'
+import { inr } from '@/lib/money'
+import { CASE_STATUS_COLOR as STATUS_COLOR, CASE_STATUS_LABEL as STATUS_LABEL } from './caseStatus'
 
-
-function inr(n: number | undefined): string {
-  return `₹${(n ?? 0).toLocaleString('en-IN')}`
-}
-
-const STATUS_COLOR = {
-  unpaid: 'warning',
-  part_paid: 'info',
-  paid: 'success',
-  not_due: 'secondary',
-  closed: 'secondary',
-} as const
-const STATUS_LABEL = {
-  unpaid: 'Unpaid',
-  part_paid: 'Part-paid',
-  paid: 'Paid',
-  not_due: 'Not due yet',
-  closed: 'Closed — not collected',
-} as const
 const PAYMENT_STATUS_COLOR = { declared: 'warning', confirmed: 'success', rejected: 'error' } as const
 
 /**

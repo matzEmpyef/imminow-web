@@ -10,16 +10,13 @@ import { useFreelancers, type Freelancer } from '@/queries/freelancerRates'
 import { InviteFreelancerModal } from './freelancers/InviteFreelancerModal'
 import { FreelancerDrawer } from './freelancers/FreelancerDrawer'
 import { showToast } from '@/lib/toast'
+import { inr } from '@/lib/money'
 
 const STATUS_BADGE = {
   invited: { color: 'warning', label: 'Invited' },
   active: { color: 'success', label: 'Active' },
   deactivated: { color: 'secondary', label: 'Deactivated' },
 } as const
-
-function inr(n: number | undefined): string {
-  return `₹${(n ?? 0).toLocaleString('en-IN')}`
-}
 
 function SummaryTiles({ freelancers }: { freelancers: Freelancer[] }) {
   const activeCount = freelancers.filter((f) => f.status === 'active' || (f.status == null && f.active !== false)).length
