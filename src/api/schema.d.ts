@@ -9704,7 +9704,7 @@ export interface paths {
          *     It took "first_half"|"second_half" before — calendar halves beginning 1 January and 1 July, so a September start was filtered as though it began on 1 July. Those two values are still accepted and map to the group each half became, because app builds already in students' hands send them. A value that names no month at all matches nothing, rather than widening the search to everything.
          *
          *     filter[level] MATCHES BY RANK, not by string (assumptions audit M23, 2026-09-19) — the value resolves to a rung on `GET /study-levels` — by `code`, by `entry_qualification_code` or by `label`, case-insensitively — and every course at a rung with the SAME `rank` matches. Two rungs may share a rank, which is how a new rung can be added beside an existing one without splitting every search that names its neighbour. A value that resolves to no rung falls back to the old exact-string compare. filter[visible] is "true"/"false", same computed active-AND-parent-college-active meaning as Course.visible — Sentpo Mobile's own search screens always pass filter[visible]=true explicitly (this endpoint doesn't filter out inactive/hidden courses by default, same reasoning as Wave 3's GET /consultancies fix — Colleges & Courses admin needs to see hidden courses too).
-         *     Courses-module filters (COURSES_MODULE_PLAN.md §3.1, 2026-08-21) — filter[country] accepts a comma-separated list (multi-country was single before); filter[fee_max] / filter[fee_min] compare against fee_normalized_inr (INR); filter[study_mode], filter[delivery], filter[language] exact-match; filter[coop], filter[psw], filter[scholarship], filter[app_fee_waived] are "true" flags; filter[open_now]="true" keeps courses with at least one intake whose deadline is today or later and status open; filter[duration_max_months] / filter[duration_min_months] numeric (the min counterpart added 2026-08-31, same pairing convention as fee_min/fee_max, to back Sentpo Mobile's and immiNow Course Finder's duration-range filter chips); filter[city] matches linked campuses' city. sort= additionally accepts fee (normalized INR asc), duration (duration_months asc), and intake (earliest upcoming open intake first). Missing data NEVER excludes — a course without fee_normalized_inr passes fee filters, one without duration_months passes duration filters — filters narrow on known facts, they don't punish catalog gaps (plan §0.2).
+         *     Courses-module filters (COURSES_MODULE_PLAN.md §3.1, 2026-08-21) — filter[country] accepts a comma-separated list (multi-country was single before); filter[fee_max] / filter[fee_min] compare against fee_normalized_inr (INR); filter[study_mode], filter[delivery], filter[language] exact-match; filter[coop], filter[psw], filter[scholarship], filter[app_fee_waived] are "true" flags; filter[open_now]="true" keeps courses with at least one intake whose deadline is today or later (its derived status is open, 2026-09-24); a course with no deadline data at all is kept (no data ≠ closed); filter[duration_max_months] / filter[duration_min_months] numeric (the min counterpart added 2026-08-31, same pairing convention as fee_min/fee_max, to back Sentpo Mobile's and immiNow Course Finder's duration-range filter chips); filter[city] matches linked campuses' city. sort= additionally accepts fee (normalized INR asc), duration (duration_months asc), and intake (earliest upcoming open intake first). Missing data NEVER excludes — a course without fee_normalized_inr passes fee filters, one without duration_months passes duration filters — filters narrow on known facts, they don't punish catalog gaps (plan §0.2).
          *     filter[fee_currency] (2026-08-22) names the currency filter[fee_max] / filter[fee_min] are expressed in, defaulting to INR for older callers. The server converts each course's fee into that currency before comparing, so the app never multiplies by a rate itself — that would be business logic on the client, and would drift the moment a rate changed. It is not a filter in its own right and narrows nothing on its own.
          *     Since 2026-09-10 a course priced in a DIFFERENT currency from the bound is compared with a 5% margin (fee_max widened up, fee_min widened down), because the exchange-rate table is set by hand rather than live; a course priced in the bound's own currency is compared exactly. A course whose fee cannot be converted passes, like any missing data.
          *     filter[country_not] (2026-08-22) is the inverse of filter[country], also comma-separated — it drops courses taught ONLY in the listed countries. It exists so the Sentpo app's Study Abroad tab can exclude the student's own `student_preferences.resident_country` instead of a hardcoded "India" — "abroad" is relative to whoever is looking, and the tab's own copy ("we'll leave out X") was a promise the server never kept until this parameter existed.
@@ -10314,7 +10314,7 @@ export interface paths {
          * Consultancy sets one intake's application deadline (2026-09-17)
          * @description A consultancy talks to the college and usually hears a changed deadline first, so it sets the date itself instead of queueing a correction — UNLESS a person changed that same deadline within the last 15 days, in which case this becomes an ordinary pending `CourseSuggestion` for immiNow to approve (202, `applied: false`) rather than one consultancy overwriting another''s fresh date. Consultancy staff only, and only for a course whose college the caller can see (same catalogue tenancy as suggest-correction).
          *
-         *     Deadlines also roll themselves: once an intake MONTH has passed, its deadline moves to the same date a year later and an intake marked closed reopens, so a catalogue nobody has touched keeps naming a real next intake instead of going silent.
+         *     Deadlines also roll themselves: once an intake MONTH has passed, its deadline moves to the same date a year later, so a catalogue nobody has touched keeps naming a real next intake instead of going silent. Only the date is set here; the intake's status is derived from it on read (2026-09-24), and a `status` in the body is ignored.
          */
         patch: {
             parameters: {
@@ -10335,11 +10335,6 @@ export interface paths {
                          * @description Null for rolling admission.
                          */
                         application_deadline?: string | null;
-                        /**
-                         * @description Three-valued, matching `IntakeDeadline.status` (2026-09-19, assumptions audit C10). OMIT it unless the person actually changed it: this endpoint's job is the deadline, and posting a status every time is how staff recording a date they were told over the phone flipped an unknown — or an admin-set `closed` — intake to Open on the shared catalogue.
-                         * @enum {string}
-                         */
-                        status?: "open" | "closed" | "unknown";
                     };
                 };
             };
@@ -23111,7 +23106,7 @@ export interface components {
             application_fee_waived?: boolean;
             scholarship_available?: boolean;
             scholarship_note?: string | null;
-            /** @description Per intake month — application deadline + open/closed, plus `updated_at` (when a PERSON last set it). Powers "applications open now" filtering, earliest-intake sort, and closing-soon badges. */
+            /** @description Per intake month — application deadline, its status derived from that date (open/closed/unknown, 2026-09-24), plus `updated_at` (when a PERSON last set it). Powers "applications open now" filtering, earliest-intake sort, and closing-soon badges. */
             intake_deadlines?: components["schemas"]["IntakeDeadline"][];
             /** @description THE course length, and the only one stored (assumptions audit M24, 2026-09-19). Every filter, sort and label reads it; `duration` above is derived from it. A form that collects years sends `duration_unit: years` and the server stores the months. */
             duration_months?: number | null;
@@ -23133,7 +23128,7 @@ export interface components {
             readonly campus_city?: string | null;
             /** @description Every campus this course actually runs at, resolved from `campus_ids` (2026-09-16). A course can be taught at several campuses of the same college — UBC's Vancouver and Okanagan, say — and before this the read model exposed only the FIRST one, so a student reading a course offered at three campuses saw one city and could not learn the others existed. Ordered as `campus_ids` is. Empty when the course lists no campuses. */
             readonly campuses?: components["schemas"]["CourseCampus"][];
-            /** @description The soonest upcoming intake — earliest `intake_deadlines` entry that is not closed and whose application deadline (if any) hasn't passed. Null when the course publishes no deadline data (no data ≠ closed, plan §0.2) or everything upcoming is closed. Drives the card's next-intake chip and the detail screen's "apply by" line. */
+            /** @description The soonest upcoming intake — earliest `intake_deadlines` entry whose derived status is `open`, i.e. whose application deadline is today or later (2026-09-24; an intake with no deadline is `unknown` and is not named here). Null when the course publishes no deadline data (no data ≠ closed, plan §0.2) or every deadline has passed. Drives the card's next-intake chip and the detail screen's "apply by" line. */
             readonly next_intake?: {
                 /** @description Display month name, e.g. "September". */
                 month?: string;
@@ -23190,11 +23185,25 @@ export interface components {
             /** Format: date */
             application_deadline?: string | null;
             /**
-             * @description `unknown` (2026-09-19, assumptions audit C10) is the honest state for an intake nobody has confirmed — it was previously read as open, so ticking nine intake months advertised nine open intakes. Absent is read as `unknown`, never as open. The app shows all three: Open with its deadline, Closed and Unknown both with "ask your consultant to confirm".
+             * @description Derived from `application_deadline` on every read and never stored (product owner, 2026-09-24): `open` while the deadline is today or later, `closed` once it has passed, `unknown` when there is no deadline. Nobody sets it — a `status` sent on any write is ignored, not refused, so older console and app builds keep working. Every server rule that reads an intake's openness (the open-now filter, the intake sort, `next_intake`, dashboard deadlines) uses this same derived value.
              * @enum {string}
              */
-            status?: "open" | "closed" | "unknown";
-            /** @description True when the server moved this deadline forward a year because the intake passed (2026-09-17 rule) and no person has confirmed the new date yet. The app labels it "estimated"; immiNow lists it in the "Rolled deadlines to confirm" queue. Cleared the next time a person saves the deadline. */
+            readonly status?: "open" | "closed" | "unknown";
+            /** @description True when the server moved this deadline forward a year because the intake passed (2026-09-17 rule) and no person has confirmed the new date yet. The app labels it "estimated"; immiNow lists it in the "Rolled deadlines to confirm" queue. Cleared the next time a person saves the deadline. Rolling moves only the date; the status then follows from it. */
+            rolled?: boolean;
+            /**
+             * Format: date-time
+             * @description When a PERSON last set this deadline — a rolled date does not change it. Null for a seeded or imported deadline nobody has set yet. Drives the 15-day rule on `PATCH /courses/{id}/intake-deadlines`.
+             */
+            readonly updated_at?: string | null;
+        };
+        /** @description One intake as a course write sends it (2026-09-24). No `status`: it is derived from `application_deadline` on read (see `IntakeDeadline.status`), and one sent anyway is ignored. */
+        IntakeDeadlineInput: {
+            /** @description Month name matching `Course.intakes` entries. */
+            month: string;
+            /** Format: date */
+            application_deadline?: string | null;
+            /** @description Send `false` to confirm a rolled (estimated) deadline as it stands, which takes it out of "Rolled deadlines to confirm". A changed date clears it on its own. */
             rolled?: boolean;
         };
         /** @description Structured entry requirements (COURSES_MODULE_PLAN.md §1.2). EVERY field nullable — absent means "no requirement", never "unknown to us"; the eligibility engine (workstream C) evaluates only rules that exist on the course AND have matching student data, so incomplete data on either side can never fail anyone. The free-text `eligibility` column remains the human-readable note beside this block. Exam references use the admin-managed exams catalog (`GET /exams`), which is what lets one schema serve both Study Abroad (IELTS ≥ 6.5) and Study in India (JEE percentile ≥ 92). */
@@ -23282,7 +23291,7 @@ export interface components {
             application_fee_waived?: boolean;
             scholarship_available?: boolean;
             scholarship_note?: string | null;
-            intake_deadlines?: components["schemas"]["IntakeDeadline"][];
+            intake_deadlines?: components["schemas"]["IntakeDeadlineInput"][];
             /** @description The course length as a NUMBER, with `duration_unit` beside it (assumptions audit M24, 2026-09-19). Stored as months whichever unit is sent. */
             duration_months?: number | null;
             /**
