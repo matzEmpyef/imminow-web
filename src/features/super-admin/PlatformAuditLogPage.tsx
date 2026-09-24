@@ -32,6 +32,8 @@ const AREA_LABELS: Record<PlatformAuditLogArea, string> = {
   finance: 'Finance',
   consultancy_management: 'Consultancy management',
   catalog: 'Catalog',
+  app_config: 'App config',
+  consultancies: 'Consultancies',
 }
 const AREA_OPTIONS = Object.keys(AREA_LABELS) as PlatformAuditLogArea[]
 
@@ -108,7 +110,11 @@ export function PlatformAuditLogPage() {
       key: 'action_type',
       header: 'Action',
       sortable: true,
-      render: (e) => <Badge color={ACTION_COLORS[e.action_type]}>{labelize(e.action_type)}</Badge>,
+      render: (e) => (
+        <Badge color={ACTION_COLORS[e.action_type as keyof typeof ACTION_COLORS] ?? 'secondary'}>
+          {labelize(e.action_type)}
+        </Badge>
+      ),
     },
     {
       key: 'actor_name',

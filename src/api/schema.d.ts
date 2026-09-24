@@ -153,6 +153,17 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description `rate_limited` — too many failed attempts, checked against three independent windows (this email+IP, this email alone, this IP alone; TRD Section 9). Keyed on the submitted address regardless of whether it matches an account, so the throttle cannot be used to enumerate accounts the way varying 429-vs-401 by account existence would. A successful sign-in forgives the caller's own two windows; the shared per-IP window is never forgiven by someone else's success. */
+                429: {
+                    headers: {
+                        /** @description Seconds until the caller may retry. */
+                        "Retry-After"?: number;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -593,6 +604,24 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description Missing or invalid access token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `account_disabled` or `subscription_lapsed` — the same mid-session revocation check every authenticated endpoint applies, so a session already flagged since it signed in still gets a clean sign-out rather than a silent failure. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -3670,7 +3699,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Audit Log (consultancy-scoped) — every change to this consultancy's own data (build reference 1.24, 2.2). Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, area, action_type, actor_name. filter[x]= accepts entity_id, actor_id, action_type=create|update|delete, area=leads|clients|plans|documents|settings|staff, from=<date> (created_at >=), to=<date> (created_at <=). search matches entity_label, reason, and actor_name. */
+        /** Audit Log (consultancy-scoped) — every change to this consultancy's own data (build reference 1.24, 2.2). Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, area, action_type, actor_name. filter[x]= accepts entity_id, actor_id, action_type (any AuditLogEntry.action_type value — the base create/update/delete/view plus the named actions listed there), area (any AuditLogEntry.area value), from=<date> (created_at >=), to=<date> (created_at <=). search matches entity_label, reason, and actor_name. */
         get: {
             parameters: {
                 query?: {
@@ -20457,7 +20486,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Platform-wide — same filters plus consultancy (gated to Platform Staff Administration, build reference 1.23/1.24). Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, area, action_type, actor_name. filter[x]= accepts consultancy_id, entity_id, actor_id, action_type=create|update|delete, area=leads|clients|plans|documents|settings|staff, from=<date> (created_at >=), to=<date> (created_at <=). search matches entity_label, reason, and actor_name. */
+        /** Platform-wide — same filters plus consultancy (gated to Platform Staff Administration, build reference 1.23/1.24). Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, area, action_type, actor_name. filter[x]= accepts consultancy_id, entity_id, actor_id, action_type (any AuditLogEntry.action_type value — the base create/update/delete/view plus the named actions listed there), area (any AuditLogEntry.area value), from=<date> (created_at >=), to=<date> (created_at <=). search matches entity_label, reason, and actor_name. */
         get: {
             parameters: {
                 query?: {
@@ -26247,15 +26276,22 @@ export interface components {
             readonly actor_name?: string;
             /** @description Null for platform-level actions with no single owning consultancy. */
             consultancy_id?: components["schemas"]["UUID"];
-            /** @enum {string} */
-            action_type: "create" | "update" | "delete" | "view";
+            /**
+             * @description The base CRUD/view set, plus named actions the mock writes that are not really a create/update/delete of the row they attach to (gate 2, 2026-09-24, grepped from every `recordAudit` call in the mock): `kyc_verified`, `link_college`, `rating_requested` (freelancer), `renewal_requested`, `upgrade_requested`, `upgrade_request_withdrawn` (consultancy plan), `rating_override_set`/ `rating_override_cleared` (Super Admin on a consultancy's rating), `hide`/`publish` (review moderation), and `country_content.updated` (the one dotted name in the set — left as the mock already writes it rather than renamed to fit the others).
+             * @enum {string}
+             */
+            action_type: "create" | "update" | "delete" | "view" | "kyc_verified" | "link_college" | "rating_requested" | "renewal_requested" | "upgrade_requested" | "upgrade_request_withdrawn" | "rating_override_set" | "rating_override_cleared" | "hide" | "publish" | "country_content.updated";
             /** @description e.g. lead, client, plan, step, employee, designation, branch, tag. */
             entity_type: string;
-            entity_id: components["schemas"]["UUID"];
+            /** @description The audited entity's key. A UUID for most entities; some are keyed by something else the mock already writes here — a country by name (`country_content.updated`), a currency code, a coupon/referral code, or the literal `defaults`, `platform_settings`, `app_config` or `trending` for singleton configuration rows (gate 2, 2026-09-24). */
+            entity_id: string;
             /** @description Human-readable label for the entity at the time of the change (e.g. an applicant's name) — the entity/person search filter matches against this. */
             entity_label?: string | null;
-            /** @enum {string} */
-            area: "leads" | "clients" | "plans" | "documents" | "settings" | "staff" | "marketing" | "support" | "finance" | "consultancy_management" | "catalog";
+            /**
+             * @description `app_config` and `consultancies` added (gate 2, 2026-09-24) — the mock has always written both (platform app-config screens; consultancy-record actions like a rating override or moderating a review) but the contract had never listed them.
+             * @enum {string}
+             */
+            area: "leads" | "clients" | "plans" | "documents" | "settings" | "staff" | "marketing" | "support" | "finance" | "consultancy_management" | "catalog" | "app_config" | "consultancies";
             diff?: {
                 [key: string]: unknown;
             } | null;

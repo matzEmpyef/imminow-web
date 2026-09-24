@@ -58,7 +58,11 @@ export function AuditLogPage() {
       key: 'action_type',
       header: 'Action',
       sortable: true,
-      render: (e) => <Badge color={ACTION_COLORS[e.action_type]}>{labelize(e.action_type)}</Badge>,
+      render: (e) => (
+        <Badge color={ACTION_COLORS[e.action_type as keyof typeof ACTION_COLORS] ?? 'secondary'}>
+          {labelize(e.action_type)}
+        </Badge>
+      ),
     },
     {
       key: 'actor_name',
