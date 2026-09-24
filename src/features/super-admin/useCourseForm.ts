@@ -292,6 +292,11 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
   const [workExpMonths, setWorkExpMonths] = useState(
     existingReqs?.min_work_experience_months != null ? String(existingReqs.min_work_experience_months) : '',
   )
+  // No tab on this form edits interview/portfolio/min-age (2026-09-24) — carried through exactly
+  // as loaded so saving any other field on the course doesn't delete it. `buildRequirements`
+  // below sends it back unchanged and omits the key entirely when the course never had one;
+  // nothing here ever invents a value for it.
+  const infoFlags = existingReqs?.info_flags
   const [eligibility, setEligibility] = useState(editingCourse?.eligibility ?? '')
 
   // Flags
@@ -383,7 +388,18 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
             ...(maxBacklogs !== '' ? { max_backlogs: Number(maxBacklogs) } : {}),
           }
         : null
-    if (!academic && englishRows.length === 0 && aptitudeRows.length === 0 && !moiAccepted && workExpMonths === '') {
+    // `infoFlags` has no editor on this form, so a course whose ONLY requirements content is
+    // those flags must not fall into the "nothing here" branch below and get saved as
+    // `requirements: null` — that would delete them just as surely as omitting the key would
+    // (2026-09-24).
+    if (
+      !academic &&
+      englishRows.length === 0 &&
+      aptitudeRows.length === 0 &&
+      !moiAccepted &&
+      workExpMonths === '' &&
+      !infoFlags
+    ) {
       return null
     }
     return {
@@ -392,6 +408,9 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
       moi_accepted: moiAccepted,
       aptitude: aptitudeRows,
       min_work_experience_months: workExpMonths === '' ? null : Number(workExpMonths),
+      // Included only when the course already had one, and passed through byte-for-byte —
+      // never defaulted, since this form has nothing to ask the admin for it with.
+      ...(infoFlags ? { info_flags: infoFlags } : {}),
     }
   }
 
