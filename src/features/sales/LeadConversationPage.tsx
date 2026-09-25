@@ -7,6 +7,7 @@ import { ErrorState, Skeleton } from '@/components/QueryState'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
+import { CursorPager } from '@/components/CursorPager'
 import { ChatPanel } from '@/components/ChatPanel'
 import { AssignBranchMenu } from '@/components/AssignBranchMenu'
 import { RequestedBranchBadge } from '@/components/RequestedBranch'
@@ -32,6 +33,7 @@ import {
   useSetLeadBranch,
 } from '@/queries/leads'
 import { useBranches } from '@/queries/staff'
+import { useCursorPagination } from '@/lib/pagination'
 import { useFeature } from '@/lib/features'
 import { usePermission } from '@/lib/permissions'
 import { formatDate, formatDateTime } from '@/lib/time'
@@ -259,7 +261,10 @@ function DetailsCard({ lead }: { lead: NonNullable<ReturnType<typeof useLead>['d
 }
 
 function NotesCard({ leadId }: { leadId: string }) {
-  const notes = useLeadNotes(leadId)
+  // Paged since contract gate 7 (Wave 3 plan §7 item 3), oldest first per the contract, same as
+  // Client Profile's Internal Notes tab.
+  const paging = useCursorPagination()
+  const notes = useLeadNotes(leadId, { cursor: paging.cursor, limit: 20 })
   const addNote = useAddLeadNote(leadId)
   const [draft, setDraft] = useState('')
 
@@ -268,6 +273,8 @@ function NotesCard({ leadId }: { leadId: string }) {
     if (!draft.trim()) return
     addNote.mutate(draft, { onSuccess: () => setDraft('') })
   }
+
+  const items = notes.data?.items ?? []
 
   return (
     <Card className="flex flex-col gap-md">
@@ -284,8 +291,8 @@ function NotesCard({ leadId }: { leadId: string }) {
         </Button>
       </form>
       <div className="flex flex-col gap-sm">
-        {notes.data?.length === 0 && <p className="text-body-sm text-text-secondary">No notes yet.</p>}
-        {notes.data?.map((note) => (
+        {items.length === 0 && <p className="text-body-sm text-text-secondary">No notes yet.</p>}
+        {items.map((note) => (
           <div key={note.id} className="border-b border-border pb-sm last:border-0">
             <p className="text-body-sm text-text-primary">{note.content}</p>
             <p className="text-caption text-text-secondary">
@@ -294,6 +301,15 @@ function NotesCard({ leadId }: { leadId: string }) {
           </div>
         ))}
       </div>
+      <CursorPager
+        hasNext={Boolean(notes.data?.meta.next_cursor)}
+        hasPrevious={paging.hasPrevious}
+        onNext={() => notes.data?.meta.next_cursor && paging.next(notes.data.meta.next_cursor)}
+        onPrevious={paging.previous}
+        total={notes.data?.meta.total}
+        noun="note"
+        className="-mx-lg -mb-lg"
+      />
     </Card>
   )
 }

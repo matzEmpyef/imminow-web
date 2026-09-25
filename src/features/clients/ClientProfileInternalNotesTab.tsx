@@ -10,8 +10,10 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { NotebookPen, Send } from 'lucide-react'
 import { Button } from '@/components/Button'
+import { CursorPager } from '@/components/CursorPager'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useAddInternalNote, useInternalNotes } from '@/queries/clients'
+import { useCursorPagination } from '@/lib/pagination'
 import { formatDateTime, relativeTime } from '@/lib/time'
 
 function initials(first?: string | null, last?: string | null) {
@@ -19,7 +21,12 @@ function initials(first?: string | null, last?: string | null) {
 }
 
 export function InternalNotesTab({ clientId }: { clientId: string }) {
-  const notes = useInternalNotes(clientId)
+  // Paged since contract gate 7 (Wave 3 plan §7 item 3), oldest first per the contract — same
+  // order this tab always read, now a page (20) at a time instead of every note in one request. A
+  // case with more than one page of history shows its oldest notes first; Next walks toward the
+  // newest, same as every other paged list's Previous/Next in the console.
+  const paging = useCursorPagination()
+  const notes = useInternalNotes(clientId, { cursor: paging.cursor, limit: 20 })
   const addNote = useAddInternalNote(clientId)
   const [draft, setDraft] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -45,7 +52,7 @@ export function InternalNotesTab({ clientId }: { clientId: string }) {
     }
   }
 
-  const items = notes.data ?? []
+  const items = notes.data?.items ?? []
 
   return (
     <div className="flex h-[calc(100vh-16rem)] flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-card">
@@ -54,9 +61,9 @@ export function InternalNotesTab({ clientId }: { clientId: string }) {
           <h2 className="text-h3 text-text-primary">Internal notes</h2>
           <p className="text-caption text-text-secondary">Visible to your team only. The student never sees these.</p>
         </div>
-        {items.length > 0 && (
+        {notes.data && (
           <span className="text-body-sm tabular-nums text-text-secondary">
-            {items.length} {items.length === 1 ? 'note' : 'notes'}
+            {notes.data.meta.total} {notes.data.meta.total === 1 ? 'note' : 'notes'}
           </span>
         )}
       </div>
@@ -93,6 +100,14 @@ export function InternalNotesTab({ clientId }: { clientId: string }) {
           ))}
         </ul>
       </div>
+
+      <CursorPager
+        hasNext={Boolean(notes.data?.meta.next_cursor)}
+        hasPrevious={paging.hasPrevious}
+        onNext={() => notes.data?.meta.next_cursor && paging.next(notes.data.meta.next_cursor)}
+        onPrevious={paging.previous}
+        noun="note"
+      />
 
       <form onSubmit={submit} className="flex shrink-0 items-end gap-sm border-t border-border px-lg py-md">
         <textarea

@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
-import { fetchAllPages } from '@/lib/pagination'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 
@@ -291,19 +290,19 @@ export function useMarkLeadRead() {
   })
 }
 
-export function useLeadNotes(id: string | undefined) {
+// Paged since contract gate 7 (Wave 3 plan §7 item 3) — replaces the temporary `fetchAllPages`
+// read with the console's own Previous/Next paging.
+export function useLeadNotes(id: string | undefined, filters: { cursor?: string; limit?: number } = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
-    queryKey: ['leads', id, 'notes'],
-    // Paged since contract gate 7; the panel still shows every note (its paging UI is later work).
-    queryFn: () =>
-      fetchAllPages(async (cursor) => {
-        const { data, error } = await api.GET('/leads/{id}/notes', {
-          params: { path: { id: id! }, query: { limit: 100, cursor } },
-        })
-        if (error) throw new ApiError('Could not load internal notes.', error)
-        return data
-      }),
+    queryKey: ['leads', id, 'notes', filters],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/leads/{id}/notes', {
+        params: { path: { id: id! }, query: { limit: filters.limit ?? 20, cursor: filters.cursor } },
+      })
+      if (error) throw new ApiError('Could not load internal notes.', error)
+      return data
+    },
     enabled: isAuthed && Boolean(id),
   })
 }

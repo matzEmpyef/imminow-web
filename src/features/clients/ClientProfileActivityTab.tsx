@@ -1,15 +1,15 @@
 // Split out of ClientProfilePage.tsx (Phase 3 plan, Tier B1, 2026-09-03).
 // Redesigned 2026-09-10 (user: "keep activities very simple and expect 100 entries there"): a
-// compact timeline — one line per event with its time, grouped under Today / Yesterday / a date —
-// that shows the newest 25 and loads older ones 25 at a time, so a long case stays readable.
-import { useState } from 'react'
+// compact timeline — one line per event with its time, grouped under Today / Yesterday / a date.
+// Paged since contract gate 7 (Wave 3 plan §7 item 3) — the local "Show older" (25 at a time, over
+// a fully-loaded list) is now the console's own Previous/Next paging against the server, newest
+// first per the contract, same as it read before.
 import { Card } from '@/components/Card'
-import { Button } from '@/components/Button'
+import { CursorPager } from '@/components/CursorPager'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useClientActivity } from '@/queries/clients'
+import { useCursorPagination } from '@/lib/pagination'
 import { formatDate, formatTime } from '@/lib/time'
-
-const PAGE = 25
 
 function dayLabel(iso: string): string {
   const d = new Date(iso)
@@ -22,15 +22,17 @@ function dayLabel(iso: string): string {
 }
 
 export function ActivityTab({ clientId }: { clientId: string }) {
-  const activity = useClientActivity(clientId)
-  const [shown, setShown] = useState(PAGE)
+  const paging = useCursorPagination()
+  const activity = useClientActivity(clientId, { cursor: paging.cursor, limit: 20 })
 
   if (activity.isLoading) return <Skeleton className="h-24 rounded-lg" />
   if (activity.isError || !activity.data)
     return <ErrorState message="Could not load activity." onRetry={() => activity.refetch()} />
 
-  const items = [...activity.data].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
-  if (items.length === 0) {
+  // Already newest first off the server (contract gate 7) — the client-side sort this tab used
+  // to need against the old unpaged read is gone with it.
+  const items = activity.data.items
+  if (items.length === 0 && !paging.hasPrevious) {
     return (
       <Card>
         <p className="text-body-sm text-text-secondary">No activity recorded yet.</p>
@@ -38,9 +40,8 @@ export function ActivityTab({ clientId }: { clientId: string }) {
     )
   }
 
-  const visible = items.slice(0, shown)
-  const groups: { label: string; entries: typeof visible }[] = []
-  for (const item of visible) {
+  const groups: { label: string; entries: typeof items }[] = []
+  for (const item of items) {
     const label = dayLabel(item.created_at)
     const last = groups[groups.length - 1]
     if (last && last.label === label) last.entries.push(item)
@@ -52,7 +53,7 @@ export function ActivityTab({ clientId }: { clientId: string }) {
       <div className="flex items-baseline justify-between gap-md">
         <h2 className="text-h3 text-text-primary">Activity</h2>
         <span className="text-body-sm tabular-nums text-text-secondary">
-          {items.length} {items.length === 1 ? 'event' : 'events'}
+          {activity.data.meta.total} {activity.data.meta.total === 1 ? 'event' : 'events'}
         </span>
       </div>
 
@@ -75,16 +76,14 @@ export function ActivityTab({ clientId }: { clientId: string }) {
         ))}
       </div>
 
-      {shown < items.length && (
-        <div className="flex items-center justify-center gap-md border-t border-border pt-md">
-          <span className="text-caption text-text-secondary">
-            Showing {visible.length} of {items.length}
-          </span>
-          <Button variant="secondary" size="sm" onClick={() => setShown((n) => n + PAGE)}>
-            Show older
-          </Button>
-        </div>
-      )}
+      <CursorPager
+        hasNext={Boolean(activity.data.meta.next_cursor)}
+        hasPrevious={paging.hasPrevious}
+        onNext={() => activity.data?.meta.next_cursor && paging.next(activity.data.meta.next_cursor)}
+        onPrevious={paging.previous}
+        noun="event"
+        className="-mx-lg -mb-lg"
+      />
     </Card>
   )
 }

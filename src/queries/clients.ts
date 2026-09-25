@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
-import { fetchAllPages } from '@/lib/pagination'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 
@@ -310,19 +309,24 @@ export function useCreatePrCommissionEntry(clientId: string) {
   })
 }
 
-export function useInternalNotes(clientId: string | undefined) {
+interface CursorPageFilters {
+  cursor?: string
+  limit?: number
+}
+
+// Paged since contract gate 7 (Wave 3 plan §7 item 3) — replaces the temporary `fetchAllPages`
+// read with the console's own Previous/Next paging (`CursorPager`, `useCursorPagination`).
+export function useInternalNotes(clientId: string | undefined, filters: CursorPageFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
-    queryKey: ['clients', clientId, 'notes'],
-    // Paged since contract gate 7; the tab still shows every note (its paging UI is later work).
-    queryFn: () =>
-      fetchAllPages(async (cursor) => {
-        const { data, error } = await api.GET('/clients/{id}/notes', {
-          params: { path: { id: clientId! }, query: { limit: 100, cursor } },
-        })
-        if (error) throw new ApiError('Could not load internal notes.', error)
-        return data
-      }),
+    queryKey: ['clients', clientId, 'notes', filters],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/clients/{id}/notes', {
+        params: { path: { id: clientId! }, query: { limit: filters.limit ?? 20, cursor: filters.cursor } },
+      })
+      if (error) throw new ApiError('Could not load internal notes.', error)
+      return data
+    },
     enabled: isAuthed && Boolean(clientId),
   })
 }
@@ -342,19 +346,19 @@ export function useAddInternalNote(clientId: string) {
   })
 }
 
-export function useClientActivity(clientId: string | undefined) {
+// Paged since contract gate 7 (newest first, `created_at` then `id`) — replaces the temporary
+// `fetchAllPages` read (Wave 3 plan §7 item 3).
+export function useClientActivity(clientId: string | undefined, filters: CursorPageFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
-    queryKey: ['clients', clientId, 'activity'],
-    // Paged since contract gate 7 (newest first, as the tab reads); every entry is still shown.
-    queryFn: () =>
-      fetchAllPages(async (cursor) => {
-        const { data, error } = await api.GET('/clients/{id}/activity', {
-          params: { path: { id: clientId! }, query: { limit: 100, cursor } },
-        })
-        if (error) throw new ApiError('Could not load activity.', error)
-        return data
-      }),
+    queryKey: ['clients', clientId, 'activity', filters],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/clients/{id}/activity', {
+        params: { path: { id: clientId! }, query: { limit: filters.limit ?? 20, cursor: filters.cursor } },
+      })
+      if (error) throw new ApiError('Could not load activity.', error)
+      return data
+    },
     enabled: isAuthed && Boolean(clientId),
   })
 }
