@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -13,6 +14,8 @@ import { ComponentFill } from '@/components/ComponentFill'
 import { AddStepModal, type StepDraft } from '@/components/AddStepModal'
 import { AddComponentModal } from '@/components/AddComponentModal'
 import { StopPropagation } from '@/components/StopPropagation'
+import { VersionConflictNotice } from '@/components/VersionConflictNotice'
+import { ApiError } from '@/api/errors'
 import { useAddStep, useDeleteStep, useReorderSteps, useUpdateStep } from '@/queries/plans'
 import { useApproveStep, useRejectStep } from '@/queries/steps'
 import { usePermission } from '@/lib/permissions'
@@ -443,6 +446,7 @@ export function PlanStepBuilder({
   // away too, since Preview mode's step rows are real `<button>`s for keyboard/AT support.
   readOnly?: boolean
 }) {
+  const queryClient = useQueryClient()
   const addStep = useAddStep(clientId, plan.id)
   const updateStep = useUpdateStep(clientId)
   const deleteStep = useDeleteStep(clientId)
@@ -495,7 +499,7 @@ export function PlanStepBuilder({
     const oldIndex = comps.findIndex((c) => c.id === active.id)
     const newIndex = comps.findIndex((c) => c.id === over.id)
     if (oldIndex === -1 || newIndex === -1) return
-    updateStep.mutate({ stepId: selectedStep.id, components: arrayMove(comps, oldIndex, newIndex) })
+    updateStep.mutate({ stepId: selectedStep.id, components: arrayMove(comps, oldIndex, newIndex), version: selectedStep.version })
   }
 
   function handleAddStep(draft: StepDraft) {
@@ -522,7 +526,7 @@ export function PlanStepBuilder({
 
   function addComponentToStep(component: ComponentInput) {
     if (!selectedStep) return
-    updateStep.mutate({ stepId: selectedStep.id, components: [...selectedStep.components, component] })
+    updateStep.mutate({ stepId: selectedStep.id, components: [...selectedStep.components, component], version: selectedStep.version })
   }
 
   function updateComponentInStep(componentId: string, updated: ComponentInput) {
@@ -530,6 +534,7 @@ export function PlanStepBuilder({
     updateStep.mutate({
       stepId: selectedStep.id,
       components: selectedStep.components.map((c) => (c.id === componentId ? updated : c)),
+      version: selectedStep.version,
     })
   }
 
@@ -538,6 +543,7 @@ export function PlanStepBuilder({
     updateStep.mutate({
       stepId: selectedStep.id,
       components: selectedStep.components.filter((c) => c.id !== componentId),
+      version: selectedStep.version,
     })
   }
 
@@ -715,7 +721,14 @@ export function PlanStepBuilder({
         </div>
       </div>
 
-      {mutationError && <p className="text-body-sm text-error">{mutationError.message}</p>}
+      {mutationError &&
+        (mutationError instanceof ApiError && mutationError.code === 'version_conflict' ? (
+          <VersionConflictNotice
+            onReload={() => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'plans'] })}
+          />
+        ) : (
+          <p className="text-body-sm text-error">{mutationError.message}</p>
+        ))}
 
       {showAddStep && <AddStepModal onSubmit={handleAddStep} onClose={() => setShowAddStep(false)} />}
       {editingStep && (
@@ -723,7 +736,7 @@ export function PlanStepBuilder({
           step={editingStep}
           onSubmit={(data) =>
             updateStep.mutate(
-              { stepId: editingStep.id, ...data },
+              { stepId: editingStep.id, ...data, version: editingStep.version },
               { onSuccess: () => showToast(`${editingStep.title} updated`) },
             )
           }

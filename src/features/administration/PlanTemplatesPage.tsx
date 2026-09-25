@@ -13,12 +13,15 @@ import { ComponentBlock, ComponentPreview } from '@/components/PlanComponentBloc
 import { AddStepModal, type StepDraft } from '@/components/AddStepModal'
 import { AddComponentModal } from '@/components/AddComponentModal'
 import { StopPropagation } from '@/components/StopPropagation'
+import { VersionConflictNotice } from '@/components/VersionConflictNotice'
 import {
   useCreatePlanTemplate,
   useDuplicatePlanTemplate,
   usePlanTemplates,
   useUpdatePlanTemplate,
 } from '@/queries/plans'
+import { useQueryClient } from '@tanstack/react-query'
+import { ApiError } from '@/api/errors'
 import { formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard'
@@ -41,6 +44,7 @@ type PlanTemplate = components['schemas']['PlanTemplate']
 // able to see what consultant (while processing) sees") swaps the builder chrome for a read-only
 // mock of each component's real control, the same idea as Form Builder's field mock preview.
 function TemplateEditor({ template, onDone }: { template: PlanTemplate | null; onDone: () => void }) {
+  const queryClient = useQueryClient()
   const createTemplate = useCreatePlanTemplate()
   const updateTemplate = useUpdatePlanTemplate()
   const [name, setName] = useState(template?.name ?? '')
@@ -166,7 +170,8 @@ function TemplateEditor({ template, onDone }: { template: PlanTemplate | null; o
     if (!name || steps.length === 0) return
     if (template) {
       updateTemplate.mutate(
-        { id: template.id, name, steps },
+        // Optimistic lock (contract gate 7, BR §3.6) — the version this edit started from.
+        { id: template.id, name, steps, version: template.version },
         {
           onSuccess: () => {
             showToast(`${name} template saved`)
@@ -336,7 +341,17 @@ function TemplateEditor({ template, onDone }: { template: PlanTemplate | null; o
         </div>
       </div>
 
-      {error && <p className="text-body-sm text-error">{error.message}</p>}
+      {error &&
+        (error instanceof ApiError && error.code === 'version_conflict' ? (
+          <VersionConflictNotice
+            onReload={() => {
+              queryClient.invalidateQueries({ queryKey: ['plan-templates'] })
+              onDone()
+            }}
+          />
+        ) : (
+          <p className="text-body-sm text-error">{error.message}</p>
+        ))}
 
       <div className="flex gap-sm">
         <Button onClick={handleSave} loading={saving} disabled={!name || steps.length === 0}>

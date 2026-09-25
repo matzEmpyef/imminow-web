@@ -4,6 +4,8 @@ import { AppShell } from '@/features/auth/AppShell'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
+import { VersionConflictNotice } from '@/components/VersionConflictNotice'
+import { ApiError } from '@/api/errors'
 import { AddFieldModal } from './AddFieldModal'
 import { AddGroupModal } from './AddGroupModal'
 import { FormFieldsPreview } from './FormFieldsPreview'
@@ -22,6 +24,9 @@ export function FormBuilderPage() {
 
   const [name, setName] = useState('')
   const [fields, setFields] = useState<FormFieldInput[]>([])
+  // The version this edit started from (contract gate 7, BR §3.6) — sent back on save so a stale
+  // edit is refused with 409 `version_conflict` instead of silently overwriting someone else's.
+  const [version, setVersion] = useState<number | undefined>(undefined)
   // The editor renders from LOCAL state, which the effect below fills in only AFTER the fetch
   // resolves — so for one paint `existing.isLoading` was already false while `fields` was still
   // `[]`, and the builder flashed "No fields yet." at a form that has plenty (console review M5,
@@ -36,6 +41,7 @@ export function FormBuilderPage() {
     if (!existing.data) return
     setName(existing.data.name)
     setFields(existing.data.fields)
+    setVersion(existing.data.version)
     setHydrated(true)
   }, [existing.data])
 
@@ -102,7 +108,7 @@ export function FormBuilderPage() {
       )
     } else {
       updateForm.mutate(
-        { name, fields },
+        { name, fields, version },
         {
           onSuccess: () => {
             showToast(`${name} form saved`)
@@ -190,7 +196,17 @@ export function FormBuilderPage() {
           />
         )}
 
-        {error && <p className="text-body-sm text-error">{error.message}</p>}
+        {error &&
+          (error instanceof ApiError && error.code === 'version_conflict' ? (
+            <VersionConflictNotice
+              onReload={() => {
+                updateForm.reset()
+                existing.refetch()
+              }}
+            />
+          ) : (
+            <p className="text-body-sm text-error">{error.message}</p>
+          ))}
 
         <div className="flex gap-sm">
           <Button onClick={handleSave} loading={saving} disabled={!name || fields.length === 0}>

@@ -47,7 +47,13 @@ export function useCreateFormTemplate() {
 export function useUpdateFormTemplate(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (body: { name?: string; fields?: FormFieldInput[] }) => {
+    mutationFn: async (body: {
+      name?: string
+      fields?: FormFieldInput[]
+      // Optimistic lock (contract gate 7, BR §3.6) — the version the edit started from. Omitted,
+      // last write wins as before; stale, the server answers 409 `version_conflict`.
+      version?: number
+    }) => {
       const { data, error } = await api.PATCH('/form-templates/{id}', {
         params: { path: { id } },
         body,
