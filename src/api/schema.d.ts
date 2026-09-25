@@ -21487,6 +21487,10 @@ export interface components {
             total?: number | null;
             /** @description GET /courses only (assumptions audit H17, 2026-09-19): how many courses in the WHOLE result the caller's fit verdict is `below` for — the number a console "hidden" line must show, rather than counting the page it happened to receive. */
             below_count?: number | null;
+            /** @description GET /courses only (owner, 2026-09-25): true when `total` stopped at the search's count cap of 10,000 and the result may hold more — show it as "10,000+". Absent or false: `total` is exact. */
+            readonly total_capped?: boolean;
+            /** @description GET /courses only, sent with `below_count`: true when `below_count` stopped at the same 10,000 cap and may be higher — show it as "10,000+". Absent or false: exact. */
+            readonly below_count_capped?: boolean;
         };
         /**
          * Format: uuid
