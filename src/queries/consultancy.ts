@@ -47,13 +47,16 @@ type ConsultancyProfileEdits = Partial<
 
 // Incoming-transfer codes (build reference 1.18, reworked 2026-08-20: the RECEIVING consultancy
 // mints the code — "do not involve immiNow admin"). Listed and issued from Consultancy
-// Management's Incoming Transfers tab.
-export function useTransferCodes(enabled: boolean) {
+// Management's Incoming Transfers tab. Paged since contract gate 7 (Wave 3 plan §7 item 3) —
+// replaces the bare unpaged read.
+export function useTransferCodes(enabled: boolean, filters: { cursor?: string; limit?: number } = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
-    queryKey: ['transfer-codes'],
+    queryKey: ['transfer-codes', filters],
     queryFn: async () => {
-      const { data, error } = await api.GET('/transfer-codes')
+      const { data, error } = await api.GET('/transfer-codes', {
+        params: { query: { limit: filters.limit ?? 20, cursor: filters.cursor } },
+      })
       if (error) throw new ApiError('Could not load transfer codes.', error)
       return data
     },
@@ -61,11 +64,19 @@ export function useTransferCodes(enabled: boolean) {
   })
 }
 
+// Exactly one of `studentEmail`/`studentPhone` (contract gate 7, erd Open 35, owner 2026-09-25) —
+// a phone-only student has no email to bind the code to.
 export function useIssueTransferCode() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (body: { student_email: string; reason: string }) => {
-      const { data, error } = await api.POST('/transfer-codes', { body })
+    mutationFn: async (body: { studentEmail?: string; studentPhone?: string; reason: string }) => {
+      const { data, error } = await api.POST('/transfer-codes', {
+        body: {
+          student_email: body.studentEmail || undefined,
+          student_phone: body.studentPhone || undefined,
+          reason: body.reason,
+        },
+      })
       if (error) throw new ApiError('Could not issue a transfer code.', error)
       return data
     },

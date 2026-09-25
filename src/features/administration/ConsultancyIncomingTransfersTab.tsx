@@ -6,11 +6,13 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
+import { SegmentedControl } from '@/components/SegmentedControl'
 import { useIssueTransferCode, useTransferCodes } from '@/queries/consultancy'
 import { Table, type TableColumn } from '@/components/Table'
+import { useCursorPagination } from '@/lib/pagination'
 import { formatDateTime } from '@/lib/time'
 import type { components } from '@/api/schema'
-import { EMAIL_ERROR, isValidEmail } from '@/lib/validation'
+import { E164_PHONE_ERROR, EMAIL_ERROR, isValidE164Phone, isValidEmail } from '@/lib/validation'
 
 type TransferCode = components['schemas']['TransferCode']
 
@@ -31,17 +33,31 @@ const CODE_STATUS_META: Record<string, { label: string; color: 'success' | 'seco
 // consultant has to carry away from this screen and hand to the other consultancy.
 function IssueCodeModal({ onClose }: { onClose: () => void }) {
   const issueCode = useIssueTransferCode()
+  // Exactly one of email/phone binds the code (contract gate 7, erd Open 35, owner 2026-09-25) —
+  // a phone-only student has no email to key it on. No dedicated country-code phone input exists
+  // elsewhere in the console (checked CreateApplicantModal/EditEmployeeModal's own plain phone
+  // TextField), so this reuses that same TextField with an E.164-specific validator and example.
+  const [identifierKind, setIdentifierKind] = useState<'email' | 'phone'>('email')
   const [studentEmail, setStudentEmail] = useState('')
+  const [studentPhone, setStudentPhone] = useState('')
   const [reason, setReason] = useState('')
   const [copied, setCopied] = useState(false)
   const emailError = studentEmail && !isValidEmail(studentEmail) ? EMAIL_ERROR : undefined
-  const canIssue = Boolean(studentEmail.trim()) && !emailError && Boolean(reason.trim())
+  const phoneError = studentPhone && !isValidE164Phone(studentPhone) ? E164_PHONE_ERROR : undefined
+  const canIssue =
+    identifierKind === 'email'
+      ? Boolean(studentEmail.trim()) && !emailError && Boolean(reason.trim())
+      : Boolean(studentPhone.trim()) && !phoneError && Boolean(reason.trim())
   const issued = issueCode.isSuccess ? issueCode.data : null
 
   function handleIssue(e?: FormEvent) {
     e?.preventDefault()
     if (!canIssue) return
-    issueCode.mutate({ student_email: studentEmail.trim(), reason: reason.trim() })
+    issueCode.mutate(
+      identifierKind === 'email'
+        ? { studentEmail: studentEmail.trim(), reason: reason.trim() }
+        : { studentPhone: studentPhone.trim(), reason: reason.trim() },
+    )
   }
 
   async function copy(code: string) {
@@ -84,22 +100,45 @@ function IssueCodeModal({ onClose }: { onClose: () => void }) {
             {copied ? 'Copied' : 'Copy code'}
           </Button>
           <p className="text-caption text-text-secondary">
-            For {issued.student_email}. Single use, valid until {formatDateTime(issued.expires_at)}.
+            For {issued.student_email ?? issued.student_phone}. Single use, valid until{' '}
+            {formatDateTime(issued.expires_at)}.
           </p>
         </div>
       ) : (
         <form onSubmit={handleIssue} className="flex flex-col gap-md">
           <p className="text-body-sm text-text-secondary">
-            Issuing a code is your consent to take the case. It is bound to the student&rsquo;s registered email.
+            Issuing a code is your consent to take the case. It is bound to the student&rsquo;s registered email or
+            phone number.
           </p>
-          <TextField
-            label="Student's registered email"
-            required
-            type="email"
-            value={studentEmail}
-            onChange={(e) => setStudentEmail(e.target.value)}
-            error={emailError}
+          <SegmentedControl
+            label="Identify the student by"
+            value={identifierKind}
+            onChange={setIdentifierKind}
+            options={[
+              { value: 'email', label: 'Email' },
+              { value: 'phone', label: 'Phone' },
+            ]}
           />
+          {identifierKind === 'email' ? (
+            <TextField
+              label="Student's registered email"
+              required
+              type="email"
+              value={studentEmail}
+              onChange={(e) => setStudentEmail(e.target.value)}
+              error={emailError}
+            />
+          ) : (
+            <TextField
+              label="Student's registered phone"
+              required
+              type="tel"
+              placeholder="+919876543210"
+              value={studentPhone}
+              onChange={(e) => setStudentPhone(e.target.value)}
+              error={phoneError}
+            />
+          )}
           <TextField label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
           {issueCode.isError && <p className="text-body-sm text-error">{issueCode.error.message}</p>}
         </form>
@@ -109,7 +148,8 @@ function IssueCodeModal({ onClose }: { onClose: () => void }) {
 }
 
 export function IncomingTransfersTab({ isInstitute = false }: { isInstitute?: boolean }) {
-  const codes = useTransferCodes(true)
+  const paging = useCursorPagination()
+  const codes = useTransferCodes(true, { cursor: paging.cursor, limit: 20 })
   const [issuing, setIssuing] = useState(false)
 
   const columns: TableColumn<TransferCode>[] = [
@@ -118,7 +158,12 @@ export function IncomingTransfersTab({ isInstitute = false }: { isInstitute?: bo
       header: 'Code',
       render: (c) => <span className="rounded bg-background px-1.5 py-0.5 font-mono font-semibold">{c.code}</span>,
     },
-    { key: 'student_email', header: 'Student email', render: (c) => c.student_email },
+    {
+      key: 'student',
+      header: 'Student',
+      // Bound to exactly one of email/phone (contract gate 7, erd Open 35) — the other is null.
+      render: (c) => c.student_email ?? c.student_phone ?? '—',
+    },
     {
       key: 'status',
       header: 'Status',
@@ -164,6 +209,13 @@ export function IncomingTransfersTab({ isInstitute = false }: { isInstitute?: bo
         loading={codes.isLoading}
         error={codes.isError ? 'Could not load transfer codes.' : undefined}
         emptyMessage="No transfer codes issued yet."
+        pagination={{
+          hasNext: Boolean(codes.data?.meta?.next_cursor),
+          hasPrevious: paging.hasPrevious,
+          onNext: () => codes.data?.meta?.next_cursor && paging.next(codes.data.meta.next_cursor),
+          onPrevious: paging.previous,
+          total: codes.data?.meta?.total,
+        }}
       />
     </div>
   )

@@ -15,6 +15,18 @@ export function isValidPhone(value: string): boolean {
 export const EMAIL_ERROR = 'Enter a valid email address.'
 export const PHONE_ERROR = 'Enter a valid phone number.'
 
+// Strict E.164 (contract gate 7's `POST /transfer-codes` `student_phone`, and any other field the
+// contract pins to E.164): a leading `+`, no spaces/hyphens/parens, 8 to 15 digits total — unlike
+// `isValidPhone` above, which stays lenient for free-typed contact fields that never leave the
+// console.
+const E164_RE = /^\+[1-9]\d{7,14}$/
+
+export function isValidE164Phone(value: string): boolean {
+  return E164_RE.test(value.trim())
+}
+
+export const E164_PHONE_ERROR = 'Enter the number in international format, e.g. +919876543210.'
+
 /**
  * The platform's age floor (server: `MIN_SIGNUP_AGE`, user 2026-09-05 — under-16s cannot sign
  * up). It lives here too since the assumptions audit (C9, approved 2026-09-19) made a date of
