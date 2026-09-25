@@ -8,6 +8,7 @@ import { SuggestCorrectionButton } from '@/features/clients/SuggestCorrectionBut
 import { useCourses } from '@/queries/courseSuggestions'
 import type { components } from '@/api/schema'
 import { mediaUrl } from '@/lib/mediaUrl'
+import { countOf, formatCount } from '@/lib/counts'
 import { DetailSection as Section } from './DetailSection'
 
 type College = components['schemas']['College']
@@ -71,6 +72,8 @@ export function CollegeDetailModal({ college, onClose }: { college: College; onC
   const campuses = college.campuses ?? []
   const mainCampus = campuses[0]
   const courseTotal = courses.data?.meta.total ?? courses.data?.items.length
+  // "10,000+" when the search stopped counting at its cap (contract gate 6).
+  const courseTotalCapped = courses.data?.meta.total_capped
 
   // ---- header ------------------------------------------------------------------------------
   const header = (
@@ -116,7 +119,7 @@ export function CollegeDetailModal({ college, onClose }: { college: College; onC
           {courseTotal != null && (
             <span className="inline-flex items-center gap-xs">
               <BookOpen className="h-4 w-4 text-secondary" aria-hidden />
-              {courseTotal} {courseTotal === 1 ? 'course' : 'courses'}
+              {countOf(courseTotal, courseTotalCapped, 'course')}
             </span>
           )}
         </div>
@@ -225,7 +228,7 @@ export function CollegeDetailModal({ college, onClose }: { college: College; onC
   )
 
   const courseSection = (
-    <Section title={`Courses${courseTotal != null ? ` (${courseTotal})` : ''}`}>
+    <Section title={`Courses${courseTotal != null ? ` (${formatCount(courseTotal, courseTotalCapped)})` : ''}`}>
       {courses.isLoading && <p className="text-body-sm text-text-secondary">Loading…</p>}
       {/* H10 fix (frontend review, 1 Sep 2026) — a failed fetch used to fall through to "No
           courses listed", indistinguishable from a college that genuinely has none yet. */}

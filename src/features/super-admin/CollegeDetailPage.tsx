@@ -891,6 +891,7 @@ export function CollegeDetailPage() {
             onNext: () => courses.data?.meta.next_cursor && coursePaging.next(courses.data.meta.next_cursor),
             onPrevious: coursePaging.previous,
             total: courses.data?.meta.total,
+            totalCapped: courses.data?.meta.total_capped,
           }}
         />
 

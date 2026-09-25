@@ -31,6 +31,7 @@ import { useMyConsultancy } from '@/queries/consultancy'
 import { useAccountWords } from '@/lib/accountWords'
 import { useCollegeDetail } from '@/queries/adminColleges'
 import type { components } from '@/api/schema'
+import { countOf, formatCount } from '@/lib/counts'
 
 type Course = components['schemas']['Course']
 
@@ -208,7 +209,12 @@ export function CourseFinderPage() {
   const meta = courses.data?.meta
   const totalCount = meta?.total ?? null
   const hiddenCount = state.eligibleOnly ? (meta?.below_count ?? 0) : 0
-  const shownCount = totalCount != null ? Math.max(totalCount - hiddenCount, 0) : null
+  // The search counts only to its cap (contract gate 6): a capped count reads "10,000+". With the
+  // total capped, total − hidden is a floor ("9,500+"); with the hidden count capped too the
+  // difference means nothing, so "of Y" is left out and only the hidden line shows.
+  const hiddenCapped = state.eligibleOnly && Boolean(meta?.below_count_capped)
+  const shownCapped = Boolean(meta?.total_capped)
+  const shownCount = totalCount != null && !hiddenCapped ? Math.max(totalCount - hiddenCount, 0) : null
   // Grade Match only exists relative to a PERSON WITH A PROFILE. An imported lead has no linked
   // student account and the server sends no `fit` at all for one (see useCourseFinder) — showing
   // the column anyway would print "No requirements published" on every row, which is the WRONG
@@ -300,11 +306,11 @@ export function CourseFinderPage() {
         <div className="flex flex-col gap-sm">
           {(shownCount != null || hiddenCount > 0) && rows.length > 0 && (
             <p className="text-body-sm text-text-secondary">
-              {shownCount != null && `Showing ${rows.length} of ${shownCount} matching courses`}
+              {shownCount != null && `Showing ${rows.length} of ${countOf(shownCount, shownCapped, 'matching course')}`}
               {shownCount != null && hiddenCount > 0 && ' · '}
               {hiddenCount > 0 && (
                 <>
-                  {hiddenCount} below requirements hidden —{' '}
+                  {formatCount(hiddenCount, hiddenCapped)} below requirements hidden —{' '}
                   <button
                     type="button"
                     className="text-primary hover:underline"

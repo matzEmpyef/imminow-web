@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { Button } from './Button'
 import { useDebouncedValue } from '@/lib/useDebounce'
+import { countOf } from '@/lib/counts'
 
 export interface TableColumn<T> {
   key: string
@@ -30,6 +31,8 @@ interface TablePagination {
   onNext: () => void
   onPrevious: () => void
   total?: number | null
+  /** The server stopped counting at its cap (`meta.total_capped`): the total reads "10,000+". */
+  totalCapped?: boolean
 }
 
 interface TableSelection {
@@ -312,7 +315,7 @@ export function Table<T>({
       {pagination && (pagination.total != null || hasMultiplePages) && (
         <div className="flex items-center justify-between border-t border-border px-md py-xs">
           <span className="text-caption text-text-secondary">
-            {pagination.total != null ? `${pagination.total} ${pagination.total === 1 ? 'result' : 'results'}` : ''}
+            {pagination.total != null ? countOf(pagination.total, pagination.totalCapped, 'result') : ''}
           </span>
           {hasMultiplePages && (
             <div className="flex gap-xs">

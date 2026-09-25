@@ -104,6 +104,18 @@ describe('Table pagination', () => {
     expect(screen.getByText('3 results')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument()
   })
+
+  it('reads a total the server stopped counting at as "10,000+" (contract gate 6)', () => {
+    render(
+      <Table
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.id}
+        pagination={{ hasNext: true, hasPrevious: false, onNext: vi.fn(), onPrevious: vi.fn(), total: 10000, totalCapped: true }}
+      />,
+    )
+    expect(screen.getByText('10,000+ results')).toBeInTheDocument()
+  })
 })
 
 describe('Table row interaction', () => {

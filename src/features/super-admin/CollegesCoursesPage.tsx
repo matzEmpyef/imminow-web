@@ -199,6 +199,7 @@ function CoursesTab({ initialHealth }: { initialHealth: '' | CourseHealthFilter 
         onNext: () => courses.data?.meta.next_cursor && paging.next(courses.data.meta.next_cursor),
         onPrevious: paging.previous,
         total: courses.data?.meta.total,
+        totalCapped: courses.data?.meta.total_capped,
       }}
     />
   )
