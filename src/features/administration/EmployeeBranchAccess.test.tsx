@@ -20,6 +20,8 @@ vi.mock('@/queries/staff', () => ({
   useEmployees: vi.fn(),
 }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
+// The access editor reads the plan's visible permissions off the consultancy's own record.
+vi.mock('@/queries/consultancy', () => ({ useMyConsultancy: vi.fn(() => ({ data: undefined })) }))
 
 import { useDisableEmployee, useEmployees, useInviteEmployee, useUpdateEmployee } from '@/queries/staff'
 import { InviteEmployeeModal } from './InviteEmployeeModal'

@@ -8,7 +8,7 @@ import { Toggle } from '@/components/Toggle'
 import { useDisableEmployee, useEmployees, useUpdateEmployee } from '@/queries/staff'
 import { BranchAccessPicker } from './BranchAccessPicker'
 import { branchAccessChanged, primaryBranchError, type BranchAccess } from './branchAccess'
-import { permissionGroupsFor } from '@/lib/permissions'
+import { permissionKeys, pickPermissions, useAvailablePermissions, visiblePermissionGroups } from '@/lib/permissions'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
@@ -97,11 +97,17 @@ function AccessModalBody({
 
   const designation = designations.find((d) => d.id === designationId)
   const baseline = designation?.permissions ?? {}
+  // Only the permissions the plan gives meaning to, in the server's order (2026-09-25). An override
+  // on a hidden key is neither shown nor sent — the server keeps it as stored, so it applies again
+  // once the plan includes its feature.
+  const groups = visiblePermissionGroups(useAvailablePermissions(), baseline, overrides)
+  const visibleKeys = permissionKeys(groups)
+  const visibleOverrides = pickPermissions(overrides, visibleKeys)
   // `dirty` means SENSITIVE change — it is what makes the reason mandatory (build reference 1.24),
   // so branch coverage and the primary branch are deliberately not part of it.
   const dirty =
     designationId !== employee.designation_id ||
-    JSON.stringify(overrides) !== JSON.stringify(employee.permission_overrides ?? {})
+    JSON.stringify(visibleOverrides) !== JSON.stringify(pickPermissions(employee.permission_overrides, visibleKeys))
   // …but they ARE changes, and Save was gated on `dirty` alone, which meant a branch-only edit
   // left the button disabled and could not be saved at all. Found while making the primary branch
   // a control (2026-09-21): a control nobody can submit is not a control.
@@ -127,7 +133,7 @@ function AccessModalBody({
         // audit reason for a permission nobody touched (caught live, 2026-09-21). It also covers
         // the account that has no `designations` entitlement: nothing about designations is on
         // screen there, so nothing about them is sent.
-        ...(hasDesignations && dirty ? { designation_id: designationId, permission_overrides: overrides } : {}),
+        ...(hasDesignations && dirty ? { designation_id: designationId, permission_overrides: visibleOverrides } : {}),
         reason: dirty ? reason : undefined,
       },
       {
@@ -207,7 +213,7 @@ function AccessModalBody({
         {hasDesignations && (
         <div className="flex flex-col gap-sm">
           <p className="text-body-sm font-medium text-text-primary">Individual permission overrides</p>
-          {permissionGroupsFor(baseline, overrides).map((group) => (
+          {groups.map((group) => (
             <div key={group.key}>
               <p className="text-caption font-medium text-text-secondary">{group.label}</p>
               <div className="mt-xs flex flex-col gap-xs">

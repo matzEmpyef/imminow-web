@@ -64,8 +64,11 @@ export function InviteEmployeeModal({
         last_name: lastName,
         email,
         phone: phone || undefined,
-        designation: selectedDesignation?.name || undefined,
-        designation_id: hasDesignations ? designationId || undefined : undefined,
+        // Without the Designations feature (Starter's preset) neither is asked for nor sent: the
+        // server puts the invitee on the protected Full access designation (owner, 2026-09-25).
+        ...(hasDesignations
+          ? { designation: selectedDesignation?.name || undefined, designation_id: designationId || undefined }
+          : {}),
         ...(showBranches && access.branchIds.length > 0
           ? { branch_ids: access.branchIds, primary_branch_id: access.primaryId || undefined }
           : {}),
@@ -114,23 +117,33 @@ export function InviteEmployeeModal({
           onChange={(e) => setPhone(e.target.value)}
           error={phoneError}
         />
-        <SelectField
-          label="Designation"
-          id="invite-designation"
-          value={designationId}
-          onChange={(e) => setDesignationId(e.target.value)}
-        >
-          <option value="">Select…</option>
-          {designations.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </SelectField>
-        {hasDesignations && (
-          <p className="text-caption text-text-secondary">
-            The designation also sets this employee&rsquo;s access rights. Adjust individual permissions afterwards from
-            Manage Access.
+        {hasDesignations ? (
+          <>
+            <SelectField
+              label="Designation"
+              id="invite-designation"
+              value={designationId}
+              onChange={(e) => setDesignationId(e.target.value)}
+            >
+              <option value="">Select…</option>
+              {designations.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </SelectField>
+            <p className="text-caption text-text-secondary">
+              The designation also sets this employee&rsquo;s access rights. Adjust individual permissions afterwards
+              from Manage Access.
+            </p>
+          </>
+        ) : (
+          // Starter = full access (product owner, 2026-09-25; build reference 1.15): nothing to pick,
+          // so the form says what they will get instead of asking.
+          <p className="rounded-md bg-background px-md py-sm text-caption text-text-secondary">
+            They&rsquo;ll get <span className="font-medium text-text-primary">Full access</span> — all lead, client and
+            plan work. Managing staff and branches, editing the profile, recording payments and exporting statements
+            stay with the admin.
           </p>
         )}
         {showBranches && (

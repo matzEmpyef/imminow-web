@@ -12,7 +12,13 @@ vi.mock('@/stores/authStore', () => ({
 vi.mock('@/queries/staff', () => ({ useEmployees: vi.fn(), useDesignations: vi.fn() }))
 
 import { useEmployees, useDesignations } from '@/queries/staff'
-import { usePermissionChecker } from './permissions'
+import {
+  permissionGroupsFor,
+  permissionKeys,
+  pickPermissions,
+  usePermissionChecker,
+  visiblePermissionGroups,
+} from './permissions'
 
 type QueryLike<T> = { data: T | undefined; isLoading: boolean; isError: boolean; refetch: () => void }
 function query<T>(data: T | undefined, extra: Partial<QueryLike<T>> = {}): QueryLike<T> {
@@ -83,5 +89,43 @@ describe('usePermissionChecker', () => {
     refetch()
     expect(employeesRefetch).toHaveBeenCalledTimes(1)
     expect(designationsRefetch).toHaveBeenCalledTimes(1)
+  })
+})
+
+// Permissions a plan gives no meaning to are hidden from both editors (product owner, 2026-09-25):
+// the checklist is exactly `Consultancy.available_permissions`, in the server's order.
+describe('visiblePermissionGroups', () => {
+  it('shows only the served keys, in the served order, under their usual headings', () => {
+    const groups = visiblePermissionGroups(['leads.view_own', 'clients.view_all', 'leads.view_all', 'billing.view_commission_details'])
+    expect(groups.map((g) => g.label)).toEqual(['Leads', 'Clients & Plans', 'Billing'])
+    expect(permissionKeys(groups)).toEqual(['leads.view_own', 'leads.view_all', 'clients.view_all', 'billing.view_commission_details'])
+    expect(groups[0].permissions[0]).toEqual({ key: 'leads.view_own', label: 'View own leads' })
+  })
+
+  it('hides a stored key the plan leaves out, even when it is ticked', () => {
+    const groups = visiblePermissionGroups(['leads.view_own'], { 'staff.manage_designations': true, 'leads.view_own': true })
+    expect(permissionKeys(groups)).toEqual(['leads.view_own'])
+  })
+
+  it('labels a served key this build has never heard of rather than dropping it (M34)', () => {
+    const groups = visiblePermissionGroups(['leads.view_own', 'reports.export_all'])
+    expect(groups.at(-1)).toEqual({
+      key: '__unknown',
+      label: 'Other permissions on this account',
+      permissions: [{ key: 'reports.export_all', label: expect.any(String) }],
+    })
+  })
+
+  it('falls back to the full registry for a record without the field', () => {
+    expect(visiblePermissionGroups(undefined, { 'leads.view_own': true })).toEqual(permissionGroupsFor({ 'leads.view_own': true }))
+  })
+})
+
+describe('pickPermissions', () => {
+  it('narrows a sparse map to the visible keys without inventing entries', () => {
+    expect(pickPermissions({ 'leads.view_all': false, 'staff.manage_designations': true }, ['leads.view_own', 'leads.view_all'])).toEqual({
+      'leads.view_all': false,
+    })
+    expect(pickPermissions(undefined, ['leads.view_own'])).toEqual({})
   })
 })

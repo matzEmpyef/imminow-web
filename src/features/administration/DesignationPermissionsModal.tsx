@@ -5,7 +5,12 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { Toggle } from '@/components/Toggle'
 import { useUpdateDesignation } from '@/queries/staff'
-import { permissionGroupsFor } from '@/lib/permissions'
+import {
+  permissionKeys,
+  protectedDesignationReason,
+  useAvailablePermissions,
+  visiblePermissionGroups,
+} from '@/lib/permissions'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
@@ -36,11 +41,19 @@ export function DesignationPermissionsModal({ designation }: { designation: Desi
 
 function PermissionsModalBody({ designation, onClose }: { designation: Designation; onClose: () => void }) {
   const updateDesignation = useUpdateDesignation(designation.id!)
-  const [permissions, setPermissions] = useState<Record<string, boolean>>(designation.permissions ?? {})
+  const readOnly = Boolean(designation.protected)
+  const stored = designation.permissions ?? {}
+  // Only what the plan gives meaning to, in the server's order (2026-09-25). Includes any key the
+  // server already holds that this build's registry lacks (M34) when the record predates the field.
+  const groups = visiblePermissionGroups(useAvailablePermissions(), stored)
+  const visibleKeys = permissionKeys(groups)
+  // The FULL visible map — every shown key, ticked or not. A hidden key is never sent, and the
+  // server keeps its stored tick, so it still applies once the plan includes its feature.
+  const visibleMap = (map: Record<string, boolean>) =>
+    Object.fromEntries(visibleKeys.map((key) => [key, Boolean(map[key])]))
+  const [permissions, setPermissions] = useState<Record<string, boolean>>(stored)
   const [reason, setReason] = useState('')
-  const dirty = JSON.stringify(permissions) !== JSON.stringify(designation.permissions ?? {})
-  // Includes any key the server already holds that this build's registry lacks (M34).
-  const groups = permissionGroupsFor(designation.permissions)
+  const dirty = !readOnly && JSON.stringify(visibleMap(permissions)) !== JSON.stringify(visibleMap(stored))
 
   function toggle(key: string) {
     setPermissions((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -48,7 +61,7 @@ function PermissionsModalBody({ designation, onClose }: { designation: Designati
 
   function handleSave() {
     updateDesignation.mutate(
-      { name: designation.name, permissions, reason },
+      { name: designation.name, permissions: visibleMap(permissions), reason },
       {
         onSuccess: () => {
           showToast(`Permissions updated for ${designation.name}`)
@@ -64,17 +77,27 @@ function PermissionsModalBody({ designation, onClose }: { designation: Designati
       title={`${designation.name} — Permissions`}
       widthRem={30}
       footer={
-        <>
-          {updateDesignation.isError && (
-            <p className="mr-auto self-center text-body-sm text-error">{updateDesignation.error.message}</p>
-          )}
-          <Button loading={updateDesignation.isPending} disabled={!dirty || !reason} onClick={handleSave}>
-            Save Changes
-          </Button>
-        </>
+        // Read-only has nothing to commit; the dialog's own close button is the way out.
+        readOnly ? undefined : (
+          <>
+            {updateDesignation.isError && (
+              <p className="mr-auto self-center text-body-sm text-error">{updateDesignation.error.message}</p>
+            )}
+            <Button loading={updateDesignation.isPending} disabled={!dirty || !reason} onClick={handleSave}>
+              Save Changes
+            </Button>
+          </>
+        )
       }
     >
       <div className="flex flex-col gap-sm">
+        {/* A protected designation (Owner/Admin, Full access — build reference 1.15) is shown, not
+            edited: the server refuses any change 409, so the switches say so up front. */}
+        {readOnly && (
+          <p className="rounded-md bg-background px-md py-sm text-body-sm text-text-secondary">
+            {protectedDesignationReason(designation.name)}
+          </p>
+        )}
         {groups.map((group) => (
           <div key={group.key}>
             <p className="text-caption font-medium text-text-secondary">{group.label}</p>
@@ -86,6 +109,7 @@ function PermissionsModalBody({ designation, onClose }: { designation: Designati
                     checked={Boolean(permissions[perm.key])}
                     onChange={() => toggle(perm.key)}
                     label={perm.label}
+                    disabled={readOnly}
                   />
                 </div>
               ))}
@@ -104,3 +128,4 @@ function PermissionsModalBody({ designation, onClose }: { designation: Designati
     </Modal>
   )
 }
+

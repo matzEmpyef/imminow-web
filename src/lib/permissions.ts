@@ -1,6 +1,7 @@
 import { useAuthStore } from '@/stores/authStore'
 import { humaniseCode } from '@/lib/humanise'
 import { useEmployees, useDesignations } from '@/queries/staff'
+import { useMyConsultancy } from '@/queries/consultancy'
 
 // The six permission areas and their granular sub-permissions, build reference 1.15. Shared
 // between DesignationsPage (editing a template's baseline) and EmployeesPage (editing an
@@ -113,6 +114,68 @@ export function permissionGroupsFor(...keySources: (Record<string, boolean> | un
       permissions: extra.map((key) => ({ key, label: humaniseCode(key) })),
     },
   ]
+}
+
+/**
+ * The checklist an editor shows once the plan is taken into account (product owner, 2026-09-25;
+ * build reference 1.15): ONLY the keys in `Consultancy.available_permissions`, in that order. A
+ * permission is left out there when every action it controls needs a plan feature the consultancy
+ * doesn't have, and the server keeps whatever tick is stored for it — so an editor that never
+ * shows it, and never sends it, is what keeps it intact for after an upgrade.
+ *
+ * Grouped under the same headings as `PERMISSION_GROUPS`, each group appearing where its first
+ * available key does; a served key this build has no label for gets the humanised-key row
+ * `permissionGroupsFor` already uses (M34). `available` undefined — a record without the field —
+ * falls back to `permissionGroupsFor`, the pre-gate-5 behaviour.
+ */
+export function visiblePermissionGroups(
+  available: readonly string[] | undefined,
+  ...keySources: (Record<string, boolean> | undefined | null)[]
+): PermissionGroup[] {
+  if (!available) return permissionGroupsFor(...keySources)
+  const groupOf = new Map<string, { group: PermissionGroup; perm: PermissionDef }>()
+  for (const group of PERMISSION_GROUPS) for (const perm of group.permissions) groupOf.set(perm.key, { group, perm })
+  const result: PermissionGroup[] = []
+  const byKey = new Map<string, PermissionGroup>()
+  for (const key of new Set(available)) {
+    const known = groupOf.get(key)
+    const groupKey = known ? known.group.key : '__unknown'
+    let group = byKey.get(groupKey)
+    if (!group) {
+      group = known
+        ? { key: known.group.key, label: known.group.label, permissions: [] }
+        : { key: '__unknown', label: 'Other permissions on this account', permissions: [] }
+      byKey.set(groupKey, group)
+      result.push(group)
+    }
+    group.permissions.push(known ? known.perm : { key, label: humaniseCode(key) })
+  }
+  return result
+}
+
+/** Every key a checklist shows, flattened — what an editor's save is limited to. */
+export function permissionKeys(groups: PermissionGroup[]): string[] {
+  return groups.flatMap((g) => g.permissions.map((p) => p.key))
+}
+
+/** `map` narrowed to `keys` — keys absent from `map` stay absent (an override map is sparse). */
+export function pickPermissions(map: Record<string, boolean> | undefined | null, keys: string[]): Record<string, boolean> {
+  const source = map ?? {}
+  return Object.fromEntries(keys.filter((k) => k in source).map((k) => [k, source[k]]))
+}
+
+/**
+ * Why a protected designation (Owner/Admin, Full access — build reference 1.15) has no edit or
+ * delete: shown in its read-only viewer and as its badge's tooltip. The server refuses any edit
+ * 409 `protected_designation`.
+ */
+export function protectedDesignationReason(name: string): string {
+  return `${name} is built in, so it can't be edited or deleted.`
+}
+
+/** The plan's visible permission keys from the consultancy's own record (undefined until loaded). */
+export function useAvailablePermissions(): string[] | undefined {
+  return useMyConsultancy().data?.available_permissions
 }
 
 // User-requested (2026-08-15) — the frontend had no way to check "does the logged-in user
