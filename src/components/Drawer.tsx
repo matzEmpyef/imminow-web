@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react'
+import { type ReactNode, type UIEvent } from 'react'
 import { X } from 'lucide-react'
 import { useDialogA11y } from '@/lib/useDialogA11y'
 
@@ -14,13 +14,19 @@ interface DrawerProps {
    * Turn it on for drawers that only show or navigate. The X always closes.
    */
   dismissible?: boolean
+  /**
+   * Forwarded from the scroll container `children` renders inside — GlobalChatDrawer's own
+   * "more on scroll" paging (contract gate 7, owner Q6 2026-09-25) needs to know when the list
+   * nears its bottom, and Drawer owns that scrollable div, not its caller.
+   */
+  onScroll?: (e: UIEvent<HTMLDivElement>) => void
 }
 
 // Shared slide-in-from-right panel — used by GlobalChatDrawer and the Contextual Help Drawer
 // (SidebarShell) so both persistent-pattern drawers share one look instead of being built twice.
 // `stickyContent` (e.g. GlobalChatDrawer's search box) renders between the title bar and the
 // scrollable body, outside the scroll container, so it stays put while `children` scrolls.
-export function Drawer({ open, onClose, title, stickyContent, children, dismissible = false }: DrawerProps) {
+export function Drawer({ open, onClose, title, stickyContent, children, dismissible = false, onScroll }: DrawerProps) {
   // Called unconditionally, before the `!open` early return, per the Rules of Hooks. `open` is
   // passed through as `active` — unlike Modal (always conditionally mounted by its caller),
   // Drawer stays mounted across its own open/close toggling, so the hook needs `open` itself to
@@ -57,7 +63,9 @@ export function Drawer({ open, onClose, title, stickyContent, children, dismissi
           </button>
         </div>
         {stickyContent && <div className="shrink-0 border-b border-border px-lg py-sm">{stickyContent}</div>}
-        <div className="min-h-0 flex-1 overflow-y-auto px-lg py-md">{children}</div>
+        <div onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto px-lg py-md">
+          {children}
+        </div>
       </div>
     </div>
   )

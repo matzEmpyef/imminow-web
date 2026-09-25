@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
@@ -25,5 +25,27 @@ export function useConversations(pollWhileOpen = false) {
     },
     enabled: isAuthed,
     refetchInterval: pollWhileOpen ? 15000 : false,
+  })
+}
+
+// The drawer's own paged, searched read (contract gate 7, owner Q6 2026-09-25: pages of 20, more
+// on scroll, a server-side search box). Kept separate from `useConversations` above, which stays
+// exactly as it was for the header badge (`meta.unread_count`, unpaged, polled while the drawer is
+// open) — Q6 says explicitly "the badge count is unchanged". `useInfiniteQuery` accumulates pages
+// as the drawer scrolls; `search` resets the accumulated pages by changing the query key.
+export function useConversationsList(search: string, options: { enabled: boolean }) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useInfiniteQuery({
+    queryKey: ['conversations', 'list', search],
+    queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
+      const { data, error } = await api.GET('/conversations', {
+        params: { query: { cursor: pageParam, limit: 20, search: search || undefined } },
+      })
+      if (error) throw new ApiError('Could not load conversations.', error)
+      return data
+    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.meta.next_cursor ?? undefined,
+    enabled: isAuthed && options.enabled,
   })
 }
