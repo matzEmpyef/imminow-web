@@ -3887,6 +3887,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/realtime/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A one-time ticket to open the realtime socket (contract gate 8, Wave 3 plan §6.1)
+         * @description Any signed-in user. Returns a single-use ticket, valid for 30 seconds and bound to the caller, their session and the kind of client, and the `url` to open with it (`wss://…/v1/realtime?ticket=…`). A ticket instead of the bearer token because a browser cannot set `Authorization` on a WebSocket, and a short one-time value in the query string leaks nothing lasting into logs. The socket is authorised by the session from then on and closes with 4401 when the session ends (see asyncapi.yaml). At most 20 tickets a minute per user (429 `rate_limited`).
+         *
+         *     503 `realtime_disabled` when the socket is switched off — a server flag, Redis down, or the mock server, which has no socket: the client keeps polling exactly as it does today and asks again later (after `details.retry_after_s` when given).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Issued — open `url` within `expires_at`. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RealtimeTicket"];
+                    };
+                };
+                /** @description `unauthenticated`. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `rate_limited` — more than 20 tickets in a minute. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `realtime_disabled` — no socket now; keep polling. */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/activity-tasks": {
         parameters: {
             query?: never;
@@ -22159,7 +22227,7 @@ export interface components {
         /** @description Uniform error envelope, every error response, every endpoint (TRD Section 7). */
         Error: {
             error: {
-                /** @description Stable machine-readable code, e.g. permission_denied, validation_failed, insufficient_balance. Clients branch on this, never on message text. `feature_locked` (build reference 1.16 made real, 2026-08-29) is returned 403 by every endpoint gated on a consultancy feature-entitlement flag — own_leads, create_applicant, designations, tags, allocation_rule, phonebook, document_library, case_reopening, audit_log, activity_queue, internal_messaging, multi_branch, applicant_transfer — when the caller's consultancy lacks that flag (see `Consultancy.features`). `message` names the plan that includes it. Distinct from `permission_denied`, which is about what an individual employee within an already-entitled consultancy may do. Institute accounts (INSTITUTE_ACCOUNT_PLAN, 2026-09-10) add three codes: `college_already_linked` (409) when a college already has an institute account or an institute already has a college — see `Consultancy.college_id`; `not_applicable_for_institute` (403) when an institute tries to add or remove a partner college, deliberately NOT `feature_locked`, since nothing is behind a plan and telling an institute to upgrade would be a lie; and `institute_scoped` (409) when a student committed to an institute tries to save a course at another college (D14). Staff 2FA (Phase 6, owner-approved 2026-09-24; the mock server sends neither): `mfa_required` (403, POST /auth/login only) — see that operation; and `mfa_enrollment_required` (403, any operation for a signed-in console user whose role requires two-factor and who has no authenticator yet, except the allowlist that lets them enroll or leave: GET /profile, POST /auth/mfa/setup, POST /auth/mfa/setup/verify, POST /auth/logout, POST /auth/refresh). The console answers it by opening the enrollment screen. Enforcement is behind a server flag, off until that screen ships. Casework (contract gate 7): `version_conflict` (409) — a PATCH carried a `version` that is no longer the record's current one (optimistic locking, BR §3.6; re-read and re-apply); `file_not_ready` (409) — a file whose antivirus scan has not finished, or a presigned upload not yet completed; `file_quarantined` (409) — a file the scan found malware in, never served. */
+                /** @description Stable machine-readable code, e.g. permission_denied, validation_failed, insufficient_balance. Clients branch on this, never on message text. `feature_locked` (build reference 1.16 made real, 2026-08-29) is returned 403 by every endpoint gated on a consultancy feature-entitlement flag — own_leads, create_applicant, designations, tags, allocation_rule, phonebook, document_library, case_reopening, audit_log, activity_queue, internal_messaging, multi_branch, applicant_transfer — when the caller's consultancy lacks that flag (see `Consultancy.features`). `message` names the plan that includes it. Distinct from `permission_denied`, which is about what an individual employee within an already-entitled consultancy may do. Institute accounts (INSTITUTE_ACCOUNT_PLAN, 2026-09-10) add three codes: `college_already_linked` (409) when a college already has an institute account or an institute already has a college — see `Consultancy.college_id`; `not_applicable_for_institute` (403) when an institute tries to add or remove a partner college, deliberately NOT `feature_locked`, since nothing is behind a plan and telling an institute to upgrade would be a lie; and `institute_scoped` (409) when a student committed to an institute tries to save a course at another college (D14). Staff 2FA (Phase 6, owner-approved 2026-09-24; the mock server sends neither): `mfa_required` (403, POST /auth/login only) — see that operation; and `mfa_enrollment_required` (403, any operation for a signed-in console user whose role requires two-factor and who has no authenticator yet, except the allowlist that lets them enroll or leave: GET /profile, POST /auth/mfa/setup, POST /auth/mfa/setup/verify, POST /auth/logout, POST /auth/refresh). The console answers it by opening the enrollment screen. Enforcement is behind a server flag, off until that screen ships. Casework (contract gate 7): `version_conflict` (409) — a PATCH carried a `version` that is no longer the record's current one (optimistic locking, BR §3.6; re-read and re-apply); `file_not_ready` (409) — a file whose antivirus scan has not finished, or a presigned upload not yet completed; `file_quarantined` (409) — a file the scan found malware in, never served. Realtime (contract gate 8): `realtime_disabled` (503, POST /realtime/tickets) — the socket is switched off (server flag, Redis down, or the mock server); keep polling and ask again later. */
                 code: string;
                 message: string;
                 /** @description Field-level validation details where applicable. */
@@ -22953,6 +23021,105 @@ export interface components {
             /** @description Same computation as Lead.unread/Client.unread. */
             unread: boolean;
         };
+        /** @description The answer to `POST /realtime/tickets` (contract gate 8). */
+        RealtimeTicket: {
+            /** @description Opaque, single-use; spent by the first connection that presents it. */
+            ticket: string;
+            /** @description The absolute `wss://` URL to open, ticket included. */
+            url: string;
+            /**
+             * Format: date-time
+             * @description 30 seconds after issue.
+             */
+            expires_at: string;
+        };
+        /** @description Every frame on the realtime socket, both directions (contract gate 8; asyncapi.yaml has the channel, close codes and limits). JSON text, at most 4 KB. `data` is the schema named for its `type` — `hello` RealtimeHelloData; `chat.message` RealtimeChatMessageData; `chat.delivered` / `chat.read` RealtimeChatStatusData; `conversation.updated` RealtimeConversationUpdatedData; `unread.changed` RealtimeUnreadChangedData; `presence` RealtimePresenceData; `notification.created` RealtimeNotificationCreatedData; `reconnect` RealtimeReconnectData; `resume` RealtimeResumeData; `viewing` RealtimeViewingData; `ack` RealtimeAckData; `ping`, `pong` and `resync` carry an empty object. Server to client: hello, ping, chat.message, chat.delivered, chat.read, conversation.updated, unread.changed, presence, notification.created, resync, reconnect. Client to server: resume, viewing, ack, pong. A client ignores a `type` it does not know (new signals may be added) and a frame whose `v` is not 1. There is no typing indicator (owner Q1, 2026-09-25). */
+        RealtimeFrame: {
+            /** @description Envelope version — 1. */
+            v: number;
+            /** @enum {string} */
+            type: "hello" | "ping" | "chat.message" | "chat.delivered" | "chat.read" | "conversation.updated" | "unread.changed" | "presence" | "notification.created" | "resync" | "reconnect" | "resume" | "viewing" | "ack" | "pong";
+            /** @description The server's stream position for a frame worth resuming from (chat, status, conversation, unread and notification frames) — send the last one received in `resume` after a reconnect, and in `ack` for a `chat.message`. Null on control frames and on every client frame. */
+            id?: string | null;
+            /**
+             * Format: date-time
+             * @description When the frame was sent.
+             */
+            ts: string;
+            /** @description The payload schema named by `type` (see above). Never null — `{}` when there is nothing to carry. */
+            data: {
+                [key: string]: unknown;
+            };
+        };
+        /** @description Which conversation a realtime frame is about — a lead's chat or a client's (the same ids as `/leads/{id}/messages` and `/clients/{id}/messages`). */
+        RealtimeThreadRef: {
+            /** @enum {string} */
+            type: "lead" | "client";
+            id: components["schemas"]["UUID"];
+        };
+        /** @description The first frame on a new connection. */
+        RealtimeHelloData: {
+            /** @description The server pings this often (25); a client that hears nothing for 60 seconds reconnects. */
+            heartbeat_s: number;
+            /** @description The newest stream position the server holds for this user, for a client deciding whether it has missed anything. */
+            resume_id?: string | null;
+        };
+        /** @description A new message in a thread the receiver can see, persisted before it was sent (BR §3.13) — exactly what `GET …/messages` returns for it. The receiver acknowledges it with `ack`, which moves their side's delivered marker. */
+        RealtimeChatMessageData: {
+            thread: components["schemas"]["RealtimeThreadRef"];
+            message: components["schemas"]["LeadMessage"];
+        };
+        /** @description `chat.delivered` / `chat.read` — the other side's delivered or read marker moved, so every message they sent up to `up_to` is now delivered or read (`LeadMessage.status`). Sent to the other side of the thread only. */
+        RealtimeChatStatusData: {
+            thread: components["schemas"]["RealtimeThreadRef"];
+            /**
+             * @description Whose marker moved.
+             * @enum {string}
+             */
+            side: "student" | "consultant";
+            /**
+             * Format: date-time
+             * @description The marker's new time — every message created at or before it counts.
+             */
+            up_to: string;
+        };
+        /** @description A Global Chat Drawer row changed (a new last message, its unread state) — the row as `GET /conversations` would now return it, so the drawer patches it in place. */
+        RealtimeConversationUpdatedData: {
+            conversation: components["schemas"]["Conversation"];
+        };
+        /** @description The receiver's badge counts, whole — replace, do not add. */
+        RealtimeUnreadChangedData: {
+            /** @description Unread conversations — the drawer badge (`meta.unread_count`) for staff, the chat badge on the student's Home. */
+            chat: number;
+            /** @description Unread notifications — the bell. Null until the notifications module publishes it (Wave 4); keep the bell's own fetch until then. */
+            notifications?: number | null;
+        };
+        /** @description Whether the other party of a thread both are in has the app or console open on it — presence is a live connection that says it is viewing (`viewing`), expiring 60 seconds after the last heartbeat. Never sent about a thread the receiver is not part of. */
+        RealtimePresenceData: {
+            thread: components["schemas"]["RealtimeThreadRef"];
+            online: boolean;
+        };
+        /** @description A new in-app notification for the receiver (reserved — published once the notifications module moves to the socket, Wave 4). Fetch it, or refresh the bell. */
+        RealtimeNotificationCreatedData: {
+            notification_id: components["schemas"]["UUID"];
+            category?: string | null;
+        };
+        /** @description The server is going away (a deploy) — reconnect after `after_ms` with a new ticket, then `resume`. The connection closes with 1012 shortly after. */
+        RealtimeReconnectData: {
+            after_ms: number;
+        };
+        /** @description Client to server, after (re)connecting — replay everything after `last_id`. When that position is too old the server answers `resync`, and the client refetches `/conversations` and the open thread over REST. */
+        RealtimeResumeData: {
+            last_id?: string | null;
+        };
+        /** @description Client to server — which thread is on screen now, or null when none is. Drives presence and the server's push suppression; sent on navigation and repeated with each `pong`. */
+        RealtimeViewingData: {
+            subject?: components["schemas"]["RealtimeThreadRef"] | null;
+        };
+        /** @description Client to server — the `chat.message` frame with this `id` reached the receiver's screen or store. */
+        RealtimeAckData: {
+            id: string;
+        };
         /** @description Tag Management's own list (build reference 1.22). Leads/imported leads/ clients/library documents reference these by a real FK internally (lead_tags, imported_lead_tags, journey_tags, library_document_tags — DB audit C1, 2026-09-03); the `tags` array on each of those resources is still plain strings on the wire, resolved from the FK server-side, so this schema's own shape didn't need to change for the fix. */
         Tag: {
             id: components["schemas"]["UUID"];
@@ -23587,6 +23754,11 @@ export interface components {
                 proposed_time?: string;
                 note?: string | null;
             } | null;
+            /**
+             * @description Delivery status of a message, as its SENDER sees it (contract gate 8, BR §3.13) — derived on read, never stored per message: `read` once the other side's read marker is past the message's `created_at`, `delivered` once their delivered marker is (moved when their socket acknowledges the frame), else `sent`. Absent where it is not known — always on the mock server — which clients show as sent. Changes arrive live as `chat.delivered` / `chat.read` frames.
+             * @enum {string}
+             */
+            readonly status?: "sent" | "delivered" | "read";
             /** Format: date-time */
             created_at: string;
         };
