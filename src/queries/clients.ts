@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
+import { fetchAllPages } from '@/lib/pagination'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 
@@ -144,7 +145,8 @@ export function useTransferApplicant(clientId: string) {
   return useMutation({
     mutationFn: async (input: { newConsultancyId: string; reason: string; transferCode: string }) => {
       const { error } = await api.POST('/clients/{id}/transfer', {
-        params: { path: { id: clientId } },
+        // Required since contract gate 7 (transfer execution): one key per attempt.
+        params: { path: { id: clientId }, header: { 'Idempotency-Key': crypto.randomUUID() } },
         body: { new_consultancy_id: input.newConsultancyId, reason: input.reason, transfer_code: input.transferCode },
       })
       // The server's own message is what a consultant needs to read here — e.g. 409
@@ -312,13 +314,15 @@ export function useInternalNotes(clientId: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['clients', clientId, 'notes'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/clients/{id}/notes', {
-        params: { path: { id: clientId! } },
-      })
-      if (error) throw new ApiError('Could not load internal notes.', error)
-      return data
-    },
+    // Paged since contract gate 7; the tab still shows every note (its paging UI is later work).
+    queryFn: () =>
+      fetchAllPages(async (cursor) => {
+        const { data, error } = await api.GET('/clients/{id}/notes', {
+          params: { path: { id: clientId! }, query: { limit: 100, cursor } },
+        })
+        if (error) throw new ApiError('Could not load internal notes.', error)
+        return data
+      }),
     enabled: isAuthed && Boolean(clientId),
   })
 }
@@ -342,13 +346,15 @@ export function useClientActivity(clientId: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['clients', clientId, 'activity'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/clients/{id}/activity', {
-        params: { path: { id: clientId! } },
-      })
-      if (error) throw new ApiError('Could not load activity.', error)
-      return data
-    },
+    // Paged since contract gate 7 (newest first, as the tab reads); every entry is still shown.
+    queryFn: () =>
+      fetchAllPages(async (cursor) => {
+        const { data, error } = await api.GET('/clients/{id}/activity', {
+          params: { path: { id: clientId! }, query: { limit: 100, cursor } },
+        })
+        if (error) throw new ApiError('Could not load activity.', error)
+        return data
+      }),
     enabled: isAuthed && Boolean(clientId),
   })
 }

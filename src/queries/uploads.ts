@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
+import { fetchAllPages } from '@/lib/pagination'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 
@@ -7,13 +8,18 @@ export function useUploads(journeyId: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['uploads', journeyId],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/uploads', {
-        params: { query: { journey_id: journeyId! } },
-      })
-      if (error) throw new ApiError('Could not load documents.', error)
-      return data
-    },
+    // Paged since contract gate 7 (newest first). The Documents tab still lists every file, oldest
+    // first as it always has, so all pages are read and put back in that order.
+    queryFn: async () =>
+      (
+        await fetchAllPages(async (cursor) => {
+          const { data, error } = await api.GET('/uploads', {
+            params: { query: { journey_id: journeyId!, limit: 100, cursor } },
+          })
+          if (error) throw new ApiError('Could not load documents.', error)
+          return data
+        })
+      ).reverse(),
     enabled: isAuthed && Boolean(journeyId),
   })
 }

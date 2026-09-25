@@ -31,3 +31,22 @@ export function useCursorPagination() {
 
   return { cursor, hasPrevious: stack.length > 0, next, previous, reset }
 }
+
+// Walks a paged list to its end and returns every row (contract gate 7). The notes, a case's files
+// and its activity were unpaged until then, and their screens still show every row — the paging
+// UI for them is later work — so their hooks read all pages, 100 rows a request. Per-record lists,
+// so in practice one request; the page cap only stops a server that never ends its cursor.
+export async function fetchAllPages<T>(
+  fetchPage: (cursor: string | undefined) => Promise<{ items: T[]; meta: { next_cursor?: string | null } }>,
+  maxPages = 50,
+): Promise<T[]> {
+  const rows: T[] = []
+  let cursor: string | undefined
+  for (let page = 0; page < maxPages; page += 1) {
+    const { items, meta } = await fetchPage(cursor)
+    rows.push(...items)
+    if (!meta.next_cursor) break
+    cursor = meta.next_cursor
+  }
+  return rows
+}

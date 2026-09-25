@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
+import { fetchAllPages } from '@/lib/pagination'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 
@@ -294,11 +295,15 @@ export function useLeadNotes(id: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['leads', id, 'notes'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/leads/{id}/notes', { params: { path: { id: id! } } })
-      if (error) throw new ApiError('Could not load internal notes.', error)
-      return data
-    },
+    // Paged since contract gate 7; the panel still shows every note (its paging UI is later work).
+    queryFn: () =>
+      fetchAllPages(async (cursor) => {
+        const { data, error } = await api.GET('/leads/{id}/notes', {
+          params: { path: { id: id! }, query: { limit: 100, cursor } },
+        })
+        if (error) throw new ApiError('Could not load internal notes.', error)
+        return data
+      }),
     enabled: isAuthed && Boolean(id),
   })
 }
@@ -362,7 +367,8 @@ export function useRespondToConversion(leadId: string) {
   return useMutation({
     mutationFn: async ({ proposalId, decision }: { proposalId: string; decision: 'approved' | 'declined' }) => {
       const { data, error } = await api.POST('/conversion-proposals/{id}/respond', {
-        params: { path: { id: proposalId } },
+        // Required since contract gate 7 (approving opens a case): one key per answer.
+        params: { path: { id: proposalId }, header: { 'Idempotency-Key': crypto.randomUUID() } },
         body: { decision },
       })
       if (error) throw new ApiError('Could not respond to this proposal.', error)

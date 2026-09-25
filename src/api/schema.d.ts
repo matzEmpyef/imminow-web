@@ -2783,7 +2783,11 @@ export interface paths {
             };
         };
         put?: never;
-        /** Upload a document directly to the library (user-requested, 2026-08-15) — not tied to any client at upload time, unlike POST /uploads. Lands with an empty tags array; tag it via PATCH /document-library/{id}/tags afterward, same as a freshly-created Lead/Client. */
+        /**
+         * Upload a document directly to the library (user-requested, 2026-08-15) — not tied to any client at upload time, unlike POST /uploads. Lands with an empty tags array; tag it via PATCH /document-library/{id}/tags afterward, same as a freshly-created Lead/Client.
+         * @description Consultancy staff with the `document_library` feature.
+         *     **Two ways in (contract gate 7).** The presigned two-step upload is the target: `POST /file-uploads` → PUT the bytes to its `put_url` → `POST /file-uploads/{id}/complete` → this operation with a JSON body naming `file_upload_id`, so no file bytes pass through the API (BR §3.8, REVIEW_TRIAGE 29). The multipart form is the pre-gate-7 path, kept while the installed clients still send it; it is retired once both clients use the two steps. With `file_upload_id`: 404 `not_found` when it is unknown or not the caller's, 409 `file_not_ready` when it was never completed or has expired, 409 `file_quarantined` when the scan found malware, 409 `conflict` when it was already used, 422 `validation_failed` when its purpose (or case, or document type) is not this operation's.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -2797,6 +2801,10 @@ export interface paths {
                         /** Format: binary */
                         file: string;
                     };
+                    "application/json": {
+                        /** @description A completed `POST /file-uploads` of the right purpose, made by the caller — `stored` or `clean`, never used before. */
+                        file_upload_id: components["schemas"]["UUID"];
+                    };
                 };
             };
             responses: {
@@ -2807,6 +2815,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["LibraryDocument"];
+                    };
+                };
+                /** @description `file_not_ready` / `file_quarantined` / `conflict` — see the two-step note above. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -2845,6 +2862,15 @@ export interface paths {
                         "application/json": {
                             url: string;
                         };
+                    };
+                };
+                /** @description `file_not_ready` / `file_quarantined` — as GET /uploads/{id} (contract gate 7). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -3810,10 +3836,22 @@ export interface paths {
         /**
          * Global Chat Drawer (build reference 1.22/2.2), and the inbox behind Sentpo Mobile's staff chat login (2026-09-15) — every Lead and Client the viewer has access to, messaged-first-by-recency then unmessaged alphabetically. For Ultimate-tier viewers, also unions every active colleague and the consultancy-wide "team" channel (type = internal) — the same rows /internal-conversations returns — into the same list.
          * @description "Has access to" is the same scoping GET /leads and GET /clients already apply, not merely tenant isolation (2026-09-15): a view_own-only viewer sees only leads/clients assigned to them, a view_all viewer sees every one in their own branch(es), and a consultancy admin sees the whole consultancy regardless of branch. A conversation never appears here that the caller could not already find by opening the list it came from. Internal rows are unaffected — they are already per-employee by construction.
+         *
+         *     **Paged, with a server-side search (contract gate 7, owner Q6 2026-09-25).** Pages of `limit` (default 20, max 100) in the drawer's order — the pinned Whole Team row first, then conversations with a message by `last_message_at` newest first, then the rest by name — with `id` as the tie-breaker, walked with the opaque `meta.next_cursor`. `search` matches the conversation's name (case-insensitive substring); `filter[type]=lead|client|internal` (comma = any of) narrows by kind. `meta.total` counts every match across all pages; `meta.unread_count` is the drawer badge and counts every unread conversation the caller can see, whatever `search`, `filter` or page was asked for.
+         *     **Transition:** a request that sends neither `limit` nor `cursor` gets every matching row in one response with `next_cursor` null — the pre-gate-7 behaviour, kept for the builds already installed. Clients send `limit`; the unpaged form is retired once both clients do.
          */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
+                    search?: components["parameters"]["SearchParam"];
+                    /** @description lead, client or internal — comma-separated for any of them. */
+                    "filter[type]"?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -3829,8 +3867,11 @@ export interface paths {
                         "application/json": {
                             items: components["schemas"]["Conversation"][];
                             meta: {
+                                /** @description Pass as `cursor` for the next page; null on the last page (and always null on the unpaged transition form). */
+                                next_cursor?: string | null;
+                                /** @description Every conversation matching `search`/`filter`, across all pages. */
                                 total: number;
-                                /** @description Count of conversations where unread is true — drives the Global Chat Drawer's header badge. */
+                                /** @description Count of conversations where unread is true — drives the Global Chat Drawer's header badge. Counts everything the caller can see, regardless of `search`, `filter` and paging. */
                                 unread_count: number;
                             };
                         };
@@ -3853,11 +3894,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List activity tasks */
+        /**
+         * List activity tasks
+         * @description Paged (contract gate 7): `{items, meta}`, newest first (`created_at`, then `id`), pages of `limit` (default 20, max 100) walked with `meta.next_cursor`; `meta.total` counts every match. **Transition:** a request with neither `limit` nor `cursor` gets the pre-gate-7 bare array of every task (mock only, for builds already installed); clients send `limit`.
+         */
         get: {
             parameters: {
                 query?: {
                     assigned_to_me?: boolean;
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
                 };
                 header?: never;
                 path?: never;
@@ -3871,7 +3919,10 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["ActivityTask"][];
+                        "application/json": {
+                            items: components["schemas"]["ActivityTask"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
                     };
                 };
             };
@@ -7349,7 +7400,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List leads (consultancy-side; student-side via /journeys/me). Merges leads and imported_leads into one list. Default sort last_message_at desc (falls back to created_at for leads that have never messaged), id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, created_at, last_message_at, consultant_name. filter[x]= accepts unallocated=true|false (Lead Pool vs Active Leads), assigned_to_me=true, unattended=true, tag=<name>[,<name>…] (ANY of the listed; comma-separated, 2026-09-10), show_closed=true (user-requested — `status=closed` leads are excluded by default regardless of any other filter; this is the only way to see them again, deliberately not folded into a generic `status=` filter since hiding closed leads is the default everywhere this endpoint is used, not an opt-in). search matches name, email, or phone. */
+        /** List leads (consultancy-side; student-side via /journeys/me). Merges leads and imported_leads into one list. Default sort last_message_at desc (falls back to created_at for leads that have never messaged), id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, created_at, last_message_at, consultant_name. filter[x]= accepts unallocated=true|false (Lead Pool vs Active Leads), assigned_to_me=true, unattended=true, tag=<name>[,<name>…] (ANY of the listed; comma-separated, 2026-09-10), show_closed=true (user-requested — `status=closed` and `status=converted` leads are excluded by default regardless of any other filter (a converted lead lives on as its client); this is the only way to see them again, deliberately not folded into a generic `status=` filter since hiding closed leads is the default everywhere this endpoint is used, not an opt-in). search matches name, email, or phone. */
         get: {
             parameters: {
                 query?: {
@@ -7432,7 +7483,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** CSV bulk import, step 1 — validate → preview (build reference 2.2, same validate/preview/commit pipeline as /colleges/import, TRD Section 6) */
+        /**
+         * CSV bulk import, step 1 — validate → preview (build reference 2.2, same validate/preview/commit pipeline as /colleges/import, TRD Section 6)
+         * @description Synchronous, like the college import (owner Q7, 2026-09-25): at most 1 MB and 2,000 data rows — 400 `validation_failed` above either, before any row is read. Columns are name, phone, email (a header row is recognised and skipped); quoted fields may contain commas. A row needs a name and at least one of phone or email. The batch is held for an hour for the caller who validated it. Needs `leads.import`.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -7488,7 +7542,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** CSV bulk import, step 2 — commit a previously validated batch */
+        /**
+         * CSV bulk import, step 2 — commit a previously validated batch
+         * @description Creates one unallocated imported lead per valid row, skipping duplicates (owner Q7, 2026-09-25; build reference 3.10): a row whose email or phone repeats an earlier row of the same file, or matches an active imported lead the consultancy already holds. Every skipped row is listed with the reason, so nothing disappears silently. Needs `leads.import`, the `own_leads` feature and an active subscription. 400 `invalid_batch` for an unknown, expired or already committed batch.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -7517,7 +7574,23 @@ export interface paths {
                     content: {
                         "application/json": {
                             created_count: number;
+                            /** @description The valid rows that were not created, in file order (contract gate 7). Empty when every row was new. */
+                            skipped: {
+                                /** @description The row's `row_number` from the validate response. */
+                                row_number: number;
+                                /** @enum {string} */
+                                reason: "duplicate_in_file" | "already_imported";
+                            }[];
                         };
+                    };
+                };
+                /** @description `invalid_batch` — the batch is unknown, expired or already committed. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -7575,7 +7648,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Mark this lead's conversation read — clears Lead.unread / the Global Chat Drawer badge for it. Called when a consultant opens the conversation (dedicated page or the floating chat window), not on every message fetch. */
+        /**
+         * Mark this lead's conversation read — clears Lead.unread / the Global Chat Drawer badge for it. Called when a consultant opens the conversation (dedicated page or the floating chat window), not on every message fetch.
+         * @description Moves the CALLER's own read marker (contract gate 7): consultancy staff move the staff side's marker, the lead's student moves theirs (`LeadSummary.unread` in `GET /leads/mine`). One side reading never clears the other side's unread.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -7671,11 +7747,7 @@ export interface paths {
                         "application/json": components["schemas"]["LeadMessage"];
                     };
                 };
-                /**
-                 * @description `lead_not_allocated` (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused.
-                 *
-                 *     `duplicate_share` (product owner, 2026-09-19) — the sender's OWN immediately previous message in this conversation is the same kind of share with the same payload: the same course id, the same college id, the same shortlist snapshot, or the same search filters once normalised. The message reads "You just shared this — it's already in the conversation." Any message in between, from either side, resets it; text messages are never refused.
-                 */
+                /** @description `lead_not_allocated` (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -7831,7 +7903,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Close a lead — user-requested. Gated two ways (both matter, neither replaces Needs clients.close (console review C2, 2026-09-13) — the key was in the matrix and enforced nowhere. the other) — Ultimate tier, since this whole action is Ultimate-only, and the `leads.close` permission (build reference 1.15), which controls which employee inside an already-entitled consultancy can use it. Not yet enforced by the mock server or this frontend, the same as every other granular Leads permission today (`leads.reassign`, `leads.delete`, etc.) — real enforcement is Phase 6 backend work, consistent with how this whole permission system is currently only a configuration surface (Designations/Employees), not an authorization check. Audit-logged with the required reason. */
+        /** Close a lead — user-requested. Consultancy staff holding the `clients.close` permission (console review C2, 2026-09-13; owner Q3, 2026-09-25 — the same key that closes a case, on every plan; there is no `leads.close` key and no tier gate). 400 `validation_failed` without a reason; 409 `already_closed` when it is closed already. Audit-logged with the required reason, which is stored on the lead. */
         post: {
             parameters: {
                 query?: never;
@@ -7875,7 +7947,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reopen a closed lead — user-requested. Ultimate tier only, deliberately no extra permission check — any staff member with tier access can reopen (the user's own call — closing needs `leads.close`, reopening doesn't need anything beyond the tier gate the whole feature already has). */
+        /**
+         * Reopen a closed lead — user-requested. Any consultancy staff member whose consultancy has the `case_reopening` feature (Business and up — 403 `feature_locked` otherwise); no permission key beyond that (owner Q3, 2026-09-25).
+         * @description Refused with 409 `conflict` when the lead is not closed (a converted lead became a case and never reopens), when the student already has another active lead with this consultancy, or while the student has a live case — Stage 2 is one consultancy at a time (build reference 1.2); with 409 `lead_limit_reached` when reopening would take the student past the 15-active-lead cap.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -8004,10 +8079,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Internal notes on this lead's conversation — same pattern as GET /clients/{id}/notes, for continuity before conversion */
+        /**
+         * Internal notes on this lead's conversation — same pattern as GET /clients/{id}/notes, for continuity before conversion
+         * @description Consultancy staff only — a student never reads or writes notes on their own lead. Paged (contract gate 7): `{items, meta}`, oldest first (`created_at`, then `id` — the order the notes panel reads), pages of `limit` (default 20, max 100) walked with `meta.next_cursor`; `meta.total` counts every note. **Transition:** a request with neither `limit` nor `cursor` gets the pre-gate-7 bare array of every note (mock only, for builds already installed); clients send `limit`.
+         */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -8022,7 +8105,10 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["InternalNote"][];
+                        "application/json": {
+                            items: components["schemas"]["InternalNote"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
                     };
                 };
             };
@@ -8196,11 +8282,19 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Approve or decline a pending conversion proposal — the step that was completely missing before (user-asked, 2026-08-19 — flagged as a gap earlier the same day, now fixed). Whichever side did *not* initiate is the one expected to call this endpoint, though nothing server-side enforces that today (no auth distinction exists between "the consultant" and "the student" from this same login). On approval, creates the `Client`/`journeys` row (`origin_lead_id` set, consultant/branch carried over from the lead), marks the lead `converted`, and — if the lead has a most-recent `shortlist_share` message — copies every shared course straight into the new client's Selected Colleges (`considering` status) and sets `finalized_country` to the *first* shared course's country. On decline, just marks the proposal — no journey created. */
+        /**
+         * Approve or decline a pending conversion proposal — the step that was completely missing before (user-asked, 2026-08-19 — flagged as a gap earlier the same day, now fixed). Whichever side did *not* initiate is the one expected to call this endpoint, though nothing server-side enforces that today (no auth distinction exists between "the consultant" and "the student" from this same login). On approval, creates the `Client`/`journeys` row (`origin_lead_id` set, consultant/branch carried over from the lead), marks the lead `converted`, and — if the lead has a most-recent `shortlist_share` message — copies every shared course straight into the new client's Selected Colleges (`considering` status) and sets `finalized_country` to the *first* shared course's country. On decline, just marks the proposal — no journey created.
+         * @description **Approving is the same commit as `POST /journeys/commit`** (owner Q2, 2026-09-25; build reference 1.6/3.6): in one transaction the case opens, the lead becomes `converted`, every other active lead of the student closes, every other pending proposal of the student expires, consent event 3 (the PII grant) is recorded, and the proposal becomes `approved`. A student who already has a live case is refused (409 `already_committed`) — acceptance never opens a second case. A consultancy whose subscription has lapsed is refused on approval (409 `consultancy_unavailable`); declining is always allowed.
+         *
+         *     `Idempotency-Key` is required (contract gate 7) because approval opens a case: a replay with the same key returns the first response.
+         */
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
+                };
                 path: {
                     id: string;
                 };
@@ -8225,6 +8319,33 @@ export interface paths {
                             proposal: components["schemas"]["ConversionProposal"];
                             client_id?: components["schemas"]["UUID"];
                         };
+                    };
+                };
+                /** @description `validation_failed` — `decision` is not approved/declined, or the proposal was already answered; `proposal_expired` — it lapsed after 14 days. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `not_found` — no such proposal, or the caller is not its counterparty. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `already_committed` — the student already has a live case; `consultancy_unavailable` — the consultancy's subscription has lapsed (approval only). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -8265,11 +8386,7 @@ export interface paths {
                         "application/json": components["schemas"]["LeadMessage"];
                     };
                 };
-                /**
-                 * @description `lead_not_allocated` (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused.
-                 *
-                 *     `duplicate_share` (product owner, 2026-09-19) — the sender's OWN immediately previous message in this conversation is the same kind of share with the same payload: the same course id, the same college id, the same shortlist snapshot, or the same search filters once normalised. The message reads "You just shared this — it's already in the conversation." Any message in between, from either side, resets it; text messages are never refused.
-                 */
+                /** @description `lead_not_allocated` (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -8891,11 +9008,7 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /**
-                 * @description `lead_not_allocated` (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused.
-                 *
-                 *     `duplicate_share` (product owner, 2026-09-19) — the sender's OWN immediately previous message in this conversation is the same kind of share with the same payload: the same course id, the same college id, the same shortlist snapshot, or the same search filters once normalised. The message reads "You just shared this — it's already in the conversation." Any message in between, from either side, resets it; text messages are never refused.
-                 */
+                /** @description `lead_not_allocated` (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -9003,11 +9116,7 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /**
-                 * @description `lead_not_allocated` (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused.
-                 *
-                 *     `duplicate_share` (product owner, 2026-09-19) — the sender's OWN immediately previous message in this conversation is the same kind of share with the same payload: the same course id, the same college id, the same shortlist snapshot, or the same search filters once normalised. The message reads "You just shared this — it's already in the conversation." Any message in between, from either side, resets it; text messages are never refused.
-                 */
+                /** @description `lead_not_allocated` (2026-09-10). Staff may not write into a lead's chat while the lead is still in the pool; allocate it to a consultant first. Students are never refused. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -10908,7 +11017,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Commit to a consultancy — atomic: stage change + close other lead chats + expire proposals + PII grant (FR-010, TRD Section 4). Sentpo Mobile Wave 3's Commit-to-Consultancy Confirm — `lead_id` identifies which of the student's (up to 5) active lead chats is becoming the Stage 2 journey; every other active lead the student has closes permanently in the same transaction.
+         * Commit to a consultancy — atomic: stage change + close other lead chats + expire proposals + PII grant (FR-010, TRD Section 4). Sentpo Mobile Wave 3's Commit-to-Consultancy Confirm — `lead_id` identifies which of the student's (up to 15 — owner, 2026-09-07) active lead chats is becoming the Stage 2 journey; every other active lead the student has closes permanently in the same transaction, and every pending conversion proposal of the student (the committed lead's own included) expires. Accepting a proposal (`POST /conversion-proposals/{id}/respond`) runs this same commit (owner Q2, 2026-09-25).
          * @description The new journey is stamped with the LEAD's consultancy, not the caller's — the caller here is the student, who belongs to none. When that counterparty is an INSTITUTE (INSTITUTE_ACCOUNT_PLAN D5, 2026-09-10), every shortlist item whose course belongs to a different college is removed in the SAME atomic block, and the response reports exactly which. An institute can only act on its own courses, so a dream board full of other colleges' would be a list of things nobody on the case can help with. Committing to a CONSULTANCY prunes nothing — it works across colleges, so the board stays meaningful. There is no preview endpoint: the confirm sheet counts client-side from the shortlist it already holds, and the app confirms afterwards against `removed_shortlist_course_ids`, which is what actually happened rather than what was predicted. D14's matching save-time refusal ships with this, never after it — see `POST /shortlist`.
          */
         post: {
@@ -11249,6 +11358,8 @@ export interface paths {
                     "application/json": {
                         address?: string | null;
                         phone?: string | null;
+                        /** @description Optional optimistic lock (contract gate 7, BR §3.6) — the `version` the edit was based on, as last read. Omitted, the edit applies as before (last write wins). Stale — someone saved in between — 409 `version_conflict` and nothing changes; re-read and re-apply. */
+                        version?: number;
                     };
                 };
             };
@@ -11260,6 +11371,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Client"];
+                    };
+                };
+                /** @description `version_conflict` — the `version` sent is not the current one (contract gate 7); `case_moved` — the case moved to another consultancy. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -11443,11 +11563,21 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Transfer an applicant to ANOTHER consultancy (permission `clients.transfer_applicant`) — restored 2026-08-20 (user "Transfer Applicant is needed, both to other consultancy and Transfer Consultant also is needed. Just that Transfer Applicant should not be that accessible"). Closes the journey as `closed_switched`; deliberately surfaced only as a buried, typed-confirmation action, coexisting with /clients/{id}/assign's within-consultancy Transfer Consultant. */
+        /**
+         * Transfer an applicant to ANOTHER consultancy (permission `clients.transfer_applicant`) — restored 2026-08-20 (user "Transfer Applicant is needed, both to other consultancy and Transfer Consultant also is needed. Just that Transfer Applicant should not be that accessible"). Closes the journey as `closed_switched`; deliberately surfaced only as a buried, typed-confirmation action, coexisting with /clients/{id}/assign's within-consultancy Transfer Consultant.
+         * @description **A fresh case opens at the receiver** (product owner, 2026-09-24): the sender's case closes as `closed_switched` (read-only to the sender from then on — 409 `case_moved` on its writes, notes excepted) and a new case opens at the receiving consultancy — `pending_plan_assignment`, unassigned, the receiver's own file number, nothing of the plan, applications or commission carried, `previous_journey_id` pointing back. The documents the student had shared with the sender are revoked there and shared with the receiver on the new case. The receiver's admins are notified (`incoming_transfer`) and so is the student (`consultancy_assigned`).
+         *
+         *     The transfer code must have been issued by `new_consultancy_id` for this student's registered email or phone (whichever the code is bound to — contract gate 7), unused and unexpired; it is spent in the same transaction. Checked in this order, so a refused transfer never spends the receiver's code: the caller's permission, a moved case, the body, the case's state, the receiver, an accepted college, then the code.
+         *
+         *     `Idempotency-Key` is required (contract gate 7; BR §3.4 lists transfer execution): a replay with the same key returns the first response instead of moving the case twice.
+         */
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
+                };
                 path: {
                     id: string;
                 };
@@ -11458,25 +11588,59 @@ export interface paths {
                     "application/json": {
                         new_consultancy_id: components["schemas"]["UUID"];
                         reason: string;
-                        /** @description One-time code issued by the RECEIVING consultancy via POST /transfer-codes (reworked 2026-08-20 per "Transfer code should come from receiving consultancy... do not involve immiNow admin"; originally Platform-Admin-issued the same day) — must have been issued by the selected `new_consultancy_id` FOR this client's registered student email, unused, and unexpired. The code is the receiving consultancy's consent to accept the case, so every cross-consultancy transfer stays a two-party act — sender intent plus receiver acceptance — never unilateral. */
+                        /** @description One-time code issued by the RECEIVING consultancy via POST /transfer-codes (reworked 2026-08-20 per "Transfer code should come from receiving consultancy... do not involve immiNow admin"; originally Platform-Admin-issued the same day) — must have been issued by the selected `new_consultancy_id` FOR this client's registered student email or phone, unused, and unexpired. The code is the receiving consultancy's consent to accept the case, so every cross-consultancy transfer stays a two-party act — sender intent plus receiver acceptance — never unilateral. */
                         transfer_code: string;
                     };
                 };
             };
             responses: {
-                /** @description Transferred (journey closed as switched) */
+                /** @description Transferred — the sender's case is `closed_switched` and a fresh case is open at the receiver. */
                 202: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            status: "transferred";
+                        };
+                    };
                 };
-                /** @description Transfer code invalid, already used, expired, or issued for a different student/consultancy. */
+                /** @description `validation_failed` — a missing field or an unknown `new_consultancy_id`; `same_consultancy` — the case is already there; `not_allocatable` — the receiver is a university (institute) account or is suspended (owner Q8, 2026-09-25: a transfer follows the support switch's rule). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `invalid_transfer_code` — the code is unknown, already used, expired, or issued by another consultancy or for another student; `permission_denied` — the caller lacks `clients.transfer_applicant`; `feature_locked` — the plan lacks `applicant_transfer`. */
                 403: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `not_found` — no such client in the caller's consultancy. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `case_moved` — the case already moved to another consultancy; `case_closed` — the case is closed; `case_in_dispute` — the case is in dispute (decide it on the Disputes page); `case_has_accepted_college` — an accepted college or an active commission entry is on the case (close it or raise a dispute instead); `subscription_lapsed` — the receiver's subscription has lapsed. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -11493,10 +11657,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The calling consultancy's own issued incoming-transfer codes, newest first — so the Incoming Transfers section can show each code's status without any admin involvement. */
+        /**
+         * The calling consultancy's own issued incoming-transfer codes, newest first — so the Incoming Transfers section can show each code's status without any admin involvement.
+         * @description Paged (contract gate 7): pages of `limit` (default 20, max 100), newest first (`created_at`, then `code`), walked with `meta.next_cursor`; `meta.total` counts every code. A request with neither `limit` nor `cursor` gets every code on one page with `next_cursor` null — the pre-gate-7 behaviour, which already had this `{items}` shape.
+         */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -11511,13 +11683,23 @@ export interface paths {
                     content: {
                         "application/json": {
                             items: components["schemas"]["TransferCode"][];
+                            meta?: components["schemas"]["PaginatedMeta"];
                         };
+                    };
+                };
+                /** @description `permission_denied` — the caller lacks `clients.transfer_applicant`. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
         };
         put?: never;
-        /** RECEIVING consultancy issues a one-time incoming-transfer code (permission `clients.transfer_applicant` on the issuing side too — accepting an incoming case is as consequential as sending one away). The issuer types the student's registered email; the code is bound to (issuing consultancy, student email), single-use, 72-hour expiry. Audit-logged on the issuing consultancy's own log with the mandatory reason. Replaces the retired Platform-Admin issuing route (2026-08-20, "do not involve immiNow admin"). */
+        /** RECEIVING consultancy issues a one-time incoming-transfer code (permission `clients.transfer_applicant` on the issuing side too — accepting an incoming case is as consequential as sending one away). The issuer types the student's registered email OR their registered phone number (contract gate 7, erd Open 35 — phone-only students exist); the code is bound to (issuing consultancy, that email or phone), single-use, 72-hour expiry, and matched against the student's account when the sender uses it. It is never resolved to an account at issue — that would tell the issuing consultancy whether the person has a Sentpo account. Audit-logged on the issuing consultancy's own log with the mandatory reason. Replaces the retired Platform-Admin issuing route (2026-08-20, "do not involve immiNow admin"). */
         post: {
             parameters: {
                 query?: never;
@@ -11528,8 +11710,10 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        /** @description The incoming student's registered Sentpo email — the cross-tenant key, since the receiving consultancy has no access to the sender's client id. */
-                        student_email: string;
+                        /** @description The incoming student's registered Sentpo email — the cross-tenant key, since the receiving consultancy has no access to the sender's client id. Compared case-insensitively. */
+                        student_email?: string;
+                        /** @description The incoming student's registered phone number in E.164 (`+919876543210`), for a student who signed up by phone — 400 `validation_failed` when it is not E.164. */
+                        student_phone?: string;
                         reason: string;
                     };
                 };
@@ -11542,6 +11726,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["TransferCode"];
+                    };
+                };
+                /** @description `validation_failed` — no reason, neither or both of email and phone, or a phone that is not E.164. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `permission_denied` — the caller lacks `clients.transfer_applicant`. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -11565,7 +11767,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Assign (or reassign) a client to an employee (user-requested, 2026-08-18) — closes the gap build reference 1.15 flagged (`clients.reassign` was a listed permission with no endpoint behind it). Originally most commonly used on a client with no `assigned_employee_id` yet — e.g. one just allocated from the Applicant Allocation queue — but always worked as a general reassignment too; the frontend now surfaces exactly that as "Transfer Consultant" (user-requested, 2026-08-19), unconditionally on every client, replacing the retired cross-consultancy `POST /clients/{id}/transfer` ("Transfer Applicant" — see PROGRESS.md for the retirement note). Permission-gated on `clients.reassign`. `branch_id` auto-follows the new assignee's `primary_branch_id` unless `branch_manually_set` is true on this client, same branch-stamping rule `POST /leads/{id}/allocate` already uses (build reference 1.15) — not reinvented here. */
+        /** Assign (or reassign) a client to an employee (user-requested, 2026-08-18) — closes the gap build reference 1.15 flagged (`clients.reassign` was a listed permission with no endpoint behind it). Originally most commonly used on a client with no `assigned_employee_id` yet — e.g. one just allocated from the Applicant Allocation queue — but always worked as a general reassignment too; the frontend now surfaces exactly that as "Transfer Consultant" (user-requested, 2026-08-19), unconditionally on every client, within the consultancy. Moving the case to ANOTHER consultancy is the separate `POST /clients/{id}/transfer` ("Transfer Applicant"), retired on 2026-08-19 and restored on 2026-08-20 — both exist. Permission-gated on `clients.reassign`. `branch_id` auto-follows the new assignee's `primary_branch_id` unless `branch_manually_set` is true on this client, same branch-stamping rule `POST /leads/{id}/allocate` already uses (build reference 1.15) — not reinvented here. */
         patch: {
             parameters: {
                 query?: never;
@@ -11836,10 +12038,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Internal Notes tab */
+        /**
+         * Internal Notes tab
+         * @description Consultancy staff only. Readable and writable on a case that moved to another consultancy (owner decision). Paged (contract gate 7): `{items, meta}`, oldest first (`created_at`, then `id`), pages of `limit` (default 20, max 100) walked with `meta.next_cursor`; `meta.total` counts every note. **Transition:** a request with neither `limit` nor `cursor` gets the pre-gate-7 bare array of every note (mock only, for builds already installed); clients send `limit`.
+         */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -11854,7 +12064,10 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["InternalNote"][];
+                        "application/json": {
+                            items: components["schemas"]["InternalNote"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
                     };
                 };
             };
@@ -11952,7 +12165,7 @@ export interface paths {
          *     A PR case has no colleges, so its counterpart to an accepted application is the applicant's recorded contribution (POST /clients/{id}/commission-entry, 2026-09-10). Before this a PR case could never close as a success, and closing one reversed the contribution the consultant had recorded.
          *     CLOSE IS THE MONEY EVENT. The commission entry was created back at acceptance, because that is when the amounts became knowable, but an entry with no `recognized_at` is not revenue and appears in no finance report. A success close stamps `recognized_at`; a failure close REVERSES the entry — a deliberately different status from `voided`, because voided means the acceptance itself was wrong while reversed means it was real and the student still never went, and finance has to tell those apart.
          *     Never automatic. No timer, inactivity rule or stale-after-N-days sweep ever closes a case (user, 2026-09-09) — every detection signal produces a queue row for a person to work, because an auto-close would move money on a case nobody looked at and end a student's case with no one able to say why.
-         *     BOTH OUTCOMES CLOSE TO PLAIN `closed`, never `closed_completed` (that status exists in the schema but nothing sets it today — it is not this endpoint's success path, confirmed against qa-check.sh's own review-offer assertions). `GET /journeys/me` does not fall back to a plain-`closed` journey, so EITHER outcome frees the student to Stage 1 (exploring) immediately and silently. A success case is not lost, though: `reviewOfferFor()` still surfaces it via `GET /journeys/me`'s own `review_offer` field — "the student's most recent reviewable journey, whether it is the case /journeys/me still reports or one that closed and dropped them back to exploring" (that function's own doc comment) — which is how Home is meant to offer the one-time review even though the journey itself is no longer current.
+         *     THE OUTCOME DECIDES WHERE THE STUDENT LANDS (product decision 2026-09-14; contract gate 7 corrects the old "both close to plain `closed`" text). A SUCCESS closes to `closed_completed`: the case stays the student's and `GET /journeys/me` reports Stage 3 — post-arrival, Home without the plan card or the consultancy chat — with the one-time review offered there. A FAILURE closes to plain `closed`, which `GET /journeys/me` does not fall back to, so the student is back on Stage 1 (exploring) at once, with the same one-time review offered through `GET /journeys/me`'s `review_offer` field. Only a `closed` case can be reopened (`POST /clients/{id}/reopen-case`).
          *     409 `case_in_dispute` if the case is frozen: a case under mediation is the platform's to end. Distinct from Transfer Applicant (sets closed_switched) and Reopen Plan.
          */
         post: {
@@ -12135,6 +12348,7 @@ export interface paths {
         /**
          * The student's answer.
          *     IT NEVER MOVES THE APPLICATION. The student is a witness, not the record-keeper, and advancing a case on one party's say-so is exactly the unilateral action this design keeps refusing elsewhere. `got_an_offer` notifies the platform — the highest-value signal there is, and the only one that comes from outside the party that owes the money. `not_yet` and `did_not_apply` are recorded and change nothing on their own: a student saying they never applied somewhere their consultancy says they did is a dispute for a person to work, not a data correction.
+         * @description Only for an application of the student's live case that is still `applied`, has been answered fewer than twice (the offer-prompt cap, contract gate 7) and has no final answer yet (only `not_yet` leaves the question open) — 409 `conflict` otherwise; 404 `not_found` for another case's application; 400 `validation_failed` for an answer outside the list.
          */
         post: {
             parameters: {
@@ -12179,10 +12393,21 @@ export interface paths {
         /**
          * Files the student's consultancies have shared with their cases (2026-09-10)
          * @description Consultant uploads to the student's case files ("Shared by us") and Document Library copies, across every case the student has had, newest first. Open one with GET /uploads/{id}. A share also sends the student a `document_shared` notification whose deep_link is /profile/documents?section=shared; a consultant adding to the student's own locker sends `document_added` linking to /profile/documents.
+         *
+         *     Paged (contract gate 7): pages of `limit` (default 20, max 100), newest first (`created_at`, then `id`), walked with `meta.next_cursor`; `meta.total` counts every document. A request with neither `limit` nor `cursor` gets every document on one page with `next_cursor` null — the pre-gate-7 behaviour, which already had this `{items}` shape.
+         *
+         *     **The student's own files on earlier cases** (contract gate 7, owner 2026-09-25). After a case moves (transfer, support switch, dispute move) or closes, the files the student uploaded on its plan steps stay with that case (owner Q10b) — they are listed here with `filter[uploaded_by]=student` (or `student,consultant` for both kinds), each saying `on_current_case` and `shared_to_current_case`, so the app can offer one-tap sharing with the current consultancy (`POST /uploads/{id}/share`). Files the student uploaded on their CURRENT case are not listed — they live on its plan steps. Without the filter the list is what it always was: consultant-shared files only.
          */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description consultant (the default) or student — comma-separated for both. */
+                    "filter[uploaded_by]"?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -12197,6 +12422,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             items: components["schemas"]["SharedDocument"][];
+                            meta?: components["schemas"]["PaginatedMeta"];
                         };
                     };
                 };
@@ -12256,6 +12482,8 @@ export interface paths {
         /**
          * Upload a document into the locker. Multipart. The type's `allowed_mime_types`, `max_size_mb` and `expires` rules are all enforced here (422). A `singleton` REPLACES the current version, bumps `version`, carries its shares forward and DROPS every verification — a verified passport that quietly becomes a different file is the whole point of verifying gone; the consultancies holding one are notified. An `instance` simply accumulates.
          *     UPLOADING SHARES NOTHING. The default is deny; see POST /me/documents/{id}/share.
+         * @description The student only; the guardian gate applies.
+         *     **Two ways in (contract gate 7).** The presigned two-step upload is the target: `POST /file-uploads` → PUT the bytes to its `put_url` → `POST /file-uploads/{id}/complete` → this operation with a JSON body naming `file_upload_id`, so no file bytes pass through the API (BR §3.8, REVIEW_TRIAGE 29). The multipart form is the pre-gate-7 path, kept while the installed clients still send it; it is retired once both clients use the two steps. With `file_upload_id`: 404 `not_found` when it is unknown or not the caller's, 409 `file_not_ready` when it was never completed or has expired, 409 `file_quarantined` when the scan found malware, 409 `conflict` when it was already used, 422 `validation_failed` when its purpose (or case, or document type) is not this operation's.
          */
         post: {
             parameters: {
@@ -12276,6 +12504,17 @@ export interface paths {
                         /** Format: date */
                         expires_on?: string | null;
                     };
+                    "application/json": {
+                        /** @description A completed `POST /file-uploads` of the right purpose, made by the caller — `stored` or `clean`, never used before. */
+                        file_upload_id: components["schemas"]["UUID"];
+                        /** @description Must be the document type the upload was started for. */
+                        document_type_id: components["schemas"]["UUID"];
+                        label?: string | null;
+                        /** Format: date */
+                        issued_on?: string | null;
+                        /** Format: date */
+                        expires_on?: string | null;
+                    };
                 };
             };
             responses: {
@@ -12286,6 +12525,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["StudentDocument"];
+                    };
+                };
+                /** @description `file_not_ready` / `file_quarantined` / `conflict` — see the two-step note above. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `unsupported_file_type`, `file_too_large`, `expiry_required` — the document type's rules. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -12417,6 +12674,8 @@ export interface paths {
         /**
          * Upload on the student's behalf — the consultant scanned their passport at the desk. Multipart, same validation as the student's own upload. It lands in the STUDENT's locker and follows them everywhere, because it is their passport; the uploading consultancy is granted access, and the student can revoke that like any other share.
          *     Distinct from POST /uploads, which is the consultancy's OWN work product — a drafted SOP, a checklist — and stays journey-scoped. That line is the difference between the student's asset and the consultancy's output.
+         * @description Consultancy staff who can work on the case; refused on a frozen or moved case. The `file_upload_id` must be a `locker` upload started with this case's `journey_id`.
+         *     **Two ways in (contract gate 7).** The presigned two-step upload is the target: `POST /file-uploads` → PUT the bytes to its `put_url` → `POST /file-uploads/{id}/complete` → this operation with a JSON body naming `file_upload_id`, so no file bytes pass through the API (BR §3.8, REVIEW_TRIAGE 29). The multipart form is the pre-gate-7 path, kept while the installed clients still send it; it is retired once both clients use the two steps. With `file_upload_id`: 404 `not_found` when it is unknown or not the caller's, 409 `file_not_ready` when it was never completed or has expired, 409 `file_quarantined` when the scan found malware, 409 `conflict` when it was already used, 422 `validation_failed` when its purpose (or case, or document type) is not this operation's.
          */
         post: {
             parameters: {
@@ -12439,6 +12698,17 @@ export interface paths {
                         /** Format: date */
                         expires_on?: string | null;
                     };
+                    "application/json": {
+                        /** @description A completed `POST /file-uploads` of the right purpose, made by the caller — `stored` or `clean`, never used before. */
+                        file_upload_id: components["schemas"]["UUID"];
+                        /** @description Must be the document type the upload was started for. */
+                        document_type_id: components["schemas"]["UUID"];
+                        label?: string | null;
+                        /** Format: date */
+                        issued_on?: string | null;
+                        /** Format: date */
+                        expires_on?: string | null;
+                    };
                 };
             };
             responses: {
@@ -12449,6 +12719,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["StudentDocument"];
+                    };
+                };
+                /** @description `file_not_ready` / `file_quarantined` / `conflict` — see the two-step note above. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `unsupported_file_type`, `file_too_large`, `expiry_required` — the document type's rules. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -13134,7 +13422,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List plan templates */
+        /**
+         * List plan templates
+         * @description The latest version of every template family the caller's consultancy authored — a bare array, deliberately not paged (contract gate 7): templates are hand-built by the consultancy, one row per family, so the list stays small.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -13218,6 +13509,8 @@ export interface paths {
                     "application/json": {
                         name?: string;
                         steps?: components["schemas"]["StepTemplateInput"][];
+                        /** @description Optional optimistic lock (contract gate 7, BR §3.6) — the template `version` the edit was based on, as last read. Omitted, the edit applies as before. When the family already has a newer version (someone saved a content edit in between) — 409 `version_conflict` and nothing changes. */
+                        version?: number;
                     };
                 };
             };
@@ -13229,6 +13522,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["PlanTemplate"];
+                    };
+                };
+                /** @description `version_conflict` — the `version` sent is not the current one (contract gate 7). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -13399,7 +13701,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Write the one-time review — exactly once per journey, never edited (build reference 1.3, reworked 2026-09-12: offered, not forced). Lands as `pending`; a platform admin publishes or hides it. 409 if one already exists; 403 until the journey is `plan_complete`, `closed_completed`, or `closed` with outcome `success` (a case the consultancy closed as a success also qualifies — user decision 2026-09-12; the journey keeps its consultancy after closing; a case closed as a failure is not reviewed); 400 when the text is under 20 or over 1000 characters. Owning student only. Platform staff are notified (`review_pending`). */
+        /** Write the one-time review — exactly once per journey, never edited (build reference 1.3, reworked 2026-09-12: offered, not forced). Lands as `pending`; a platform admin publishes or hides it. 409 if one already exists; 403 until the case has closed — `closed_completed` or `closed`, EITHER outcome (user 2026-09-14; owner Q5 2026-09-25: a finished plan no longer finishes the case, so the review is offered at the close; a case still carrying the legacy `plan_complete` status also qualifies). A case that moved to another consultancy (`closed_switched`) is not reviewed. 400 when the text is under 20 or over 1000 characters. Owning student only. Platform staff are notified (`review_pending`). */
         post: {
             parameters: {
                 query?: never;
@@ -13483,10 +13785,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Activity tab — read-only history (build reference 2.2) */
+        /**
+         * Activity tab — read-only history (build reference 2.2)
+         * @description Consultancy staff who can see the case. Paged (contract gate 7): `{items, meta}`, newest first (`created_at`, then `id`), pages of `limit` (default 20, max 100) walked with `meta.next_cursor`; `meta.total` counts every entry. **Transition:** a request with neither `limit` nor `cursor` gets the pre-gate-7 bare array of every entry (mock only, for builds already installed); clients send `limit`.
+         */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -13501,7 +13811,10 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["ActivityEntry"][];
+                        "application/json": {
+                            items: components["schemas"]["ActivityEntry"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
                     };
                 };
             };
@@ -13707,6 +14020,8 @@ export interface paths {
                         components?: components["schemas"]["ComponentInput"][];
                         /** @description User refinement, 2026-08-29: an `active` step now also accepts this PATCH for `expected_end_date` alone (title/components stay locked-only, unchanged) — moving an already-started step's date reaches the applicant, so an optional reason rides along into that notification (`step_due_date_changed`). Ignored for a `locked` step's edit, and ignored unless the date actually changed. */
                         reason?: string;
+                        /** @description Optional optimistic lock (contract gate 7, BR §3.6) — the `version` the edit was based on, as last read. Omitted, the edit applies as before (last write wins). Stale — someone saved in between — 409 `version_conflict` and nothing changes; re-read and re-apply. */
+                        version?: number;
                     };
                 };
             };
@@ -13720,7 +14035,15 @@ export interface paths {
                         "application/json": components["schemas"]["Step"];
                     };
                 };
-                409: components["responses"]["ErrorResponse"];
+                /** @description `step_immutable` — title or components on a step that has started; `version_conflict` — the `version` sent is not the current one (contract gate 7); `case_in_dispute` / `case_moved` — the case is frozen or moved. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         trace?: never;
@@ -13752,6 +14075,8 @@ export interface paths {
                 content: {
                     "application/json": {
                         name: string;
+                        /** @description Optional optimistic lock (contract gate 7, BR §3.6) — the `version` the edit was based on, as last read. Omitted, the edit applies as before (last write wins). Stale — someone saved in between — 409 `version_conflict` and nothing changes; re-read and re-apply. */
+                        version?: number;
                     };
                 };
             };
@@ -13763,6 +14088,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Plan"];
+                    };
+                };
+                /** @description `version_conflict` — the `version` sent is not the current one (contract gate 7). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -13962,7 +14296,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Consultant confirms → Done (immutable thereafter, FR-037) */
+        /**
+         * Consultant confirms → Done (immutable thereafter, FR-037)
+         * @description Any ACTIVE step, whether or not the student marked it complete (owner Q4, 2026-09-25): both sides can fill a step, and consultants finish steps that were done offline. The next step activates. Staff with `step_review.confirm_send_back` who can work on the case.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -13983,6 +14320,15 @@ export interface paths {
                         "application/json": components["schemas"]["Step"];
                     };
                 };
+                /** @description `step_not_active` — only the active step can be approved; `case_in_dispute` / `case_moved` — the case is frozen or moved. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -14000,7 +14346,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Send back with mandatory reason, shown prominently to applicant (FR-036) */
+        /**
+         * Send back with mandatory reason, shown prominently to applicant (FR-036)
+         * @description Only the ACTIVE step can be sent back — 409 `step_not_active` otherwise (contract gate 7; a done step is immutable, a locked one has nothing to send back). The step stays `active` with `submitted_at` cleared and `rejection_reason` set. 400 `validation_failed` without a reason.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -14042,7 +14391,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List form templates (Forms page, build reference 2.2) */
+        /**
+         * List form templates (Forms page, build reference 2.2)
+         * @description The latest version of every form family the caller's consultancy authored — a bare array, deliberately not paged (contract gate 7): forms are hand-built by the consultancy, one row per family, so the list stays small.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -14151,6 +14503,8 @@ export interface paths {
                     "application/json": {
                         name?: string;
                         fields?: components["schemas"]["FormFieldInput"][];
+                        /** @description Optional optimistic lock (contract gate 7, BR §3.6) — the template `version` the edit was based on, as last read. Omitted, the edit applies as before. When the family already has a newer version (someone saved a content edit in between) — 409 `version_conflict` and nothing changes. */
+                        version?: number;
                     };
                 };
             };
@@ -14162,6 +14516,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["FormTemplate"];
+                    };
+                };
+                /** @description `version_conflict` — the `version` sent is not the current one (contract gate 7). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -14293,6 +14656,171 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/file-uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a presigned upload — step 1 of 3 (contract gate 7)
+         * @description Checks access for the purpose, the declared type against its allowlist, the size, the guardian gate for students, and the rate limit (20 an hour per user), then returns a `pending` upload with a presigned `put_url`. The client PUTs exactly the declared bytes to it with `put_headers`, then calls `POST /file-uploads/{id}/complete`. Nothing becomes a case file, locker document or library document until the create operation names this upload's id (BR §3.8; REVIEW_TRIAGE 29). The mock server hands out a `put_url` on itself and scans nothing: every completed upload there is `clean`, except a file carrying the EICAR test string, which is `quarantined` (so the refusal paths can be tested).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["FileUploadIntentInput"];
+                };
+            };
+            responses: {
+                /** @description Created — PUT the bytes to `put_url`. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FileUpload"];
+                    };
+                };
+                /** @description `validation_failed` — an unknown purpose, a missing filename, type or size, the purpose's required id (`journey_id` / `document_type_id`) missing, an unknown document type, or a `step_id` that is not a step of the case. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `permission_denied` — the caller may not upload for this purpose (a student for the library, staff without access); `feature_locked` — no `document_library` feature; `guardian_consent_required` — a student waiting for a guardian's approval. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `not_found` — the case is not one the caller can see. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `case_in_dispute` / `case_moved` — the case is frozen or moved. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `unsupported_file_type` — the type is not allowed for this purpose or document type; `file_too_large` — over 15 MB or the document type's own limit. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `rate_limited` — more than 20 uploads started in the last hour. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/file-uploads/{id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Finish a presigned upload — step 3 of 3 (contract gate 7)
+         * @description The bytes are in object storage: the server checks the object's size against `size_bytes` and its first bytes against the declared type (a renamed `.exe` is not a PDF), sets `stored` and queues the antivirus scan, which moves it to `clean` or `quarantined`. Returns the upload. Calling it again on a finished upload returns it unchanged. The caller only — anyone else gets 404.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Checked — `stored` (the scan is running), or already `clean` / `quarantined`. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FileUpload"];
+                    };
+                };
+                /** @description `not_found` — no such upload, or not the caller's. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `file_not_ready` — nothing has been PUT to `put_url` yet, or the upload expired. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `validation_failed` — the stored size differs from `size_bytes`; `unsupported_file_type` — the file's content is not the declared type. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/uploads": {
         parameters: {
             query?: never;
@@ -14300,11 +14828,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Documents tab (Client Profile, build reference 1.22) — full upload list for one journey, `linked_step_id`/`uploaded_by` included per row. The frontend's Documents tab itself only renders consultant-uploaded rows (user-requested, 2026-08-15 — the tab is a one-way consultant-to-applicant sharing method, not a general exchange); student-uploaded rows only ever arise from a Plan step's `file_upload` component submission and are shown in that step's own context, not this tab */
+        /**
+         * Documents tab (Client Profile, build reference 1.22) — full upload list for one journey, `linked_step_id`/`uploaded_by` included per row. The frontend's Documents tab itself only renders consultant-uploaded rows (user-requested, 2026-08-15 — the tab is a one-way consultant-to-applicant sharing method, not a general exchange); student-uploaded rows only ever arise from a Plan step's `file_upload` component submission and are shown in that step's own context, not this tab
+         * @description The student on their own case, or consultancy staff who can see it. Paged (contract gate 7): `{items, meta}`, newest first (`created_at`, then `id`), pages of `limit` (default 20, max 100) walked with `meta.next_cursor`; `meta.total` counts every file. **Transition:** a request with neither `limit` nor `cursor` gets the pre-gate-7 bare array of every file (mock only, for builds already installed); clients send `limit`.
+         */
         get: {
             parameters: {
                 query: {
                     journey_id: components["schemas"]["UUID"];
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
                 };
                 header?: never;
                 path?: never;
@@ -14318,13 +14853,20 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Upload"][];
+                        "application/json": {
+                            items: components["schemas"]["Upload"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
                     };
                 };
             };
         };
         put?: never;
-        /** Upload a file — MIME allowlist, size limit, antivirus scan before downloadable */
+        /**
+         * Upload a file — MIME allowlist, size limit, antivirus scan before downloadable
+         * @description A file on a case — the student on their own case, or consultancy staff who can work on it; `uploaded_by` follows the caller. A consultant's upload notifies the student (`document_shared`).
+         *     **Two ways in (contract gate 7).** The presigned two-step upload is the target: `POST /file-uploads` → PUT the bytes to its `put_url` → `POST /file-uploads/{id}/complete` → this operation with a JSON body naming `file_upload_id`, so no file bytes pass through the API (BR §3.8, REVIEW_TRIAGE 29). The multipart form is the pre-gate-7 path, kept while the installed clients still send it; it is retired once both clients use the two steps. With `file_upload_id`: 404 `not_found` when it is unknown or not the caller's, 409 `file_not_ready` when it was never completed or has expired, 409 `file_quarantined` when the scan found malware, 409 `conflict` when it was already used, 422 `validation_failed` when its purpose (or case, or document type) is not this operation's.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -14340,6 +14882,12 @@ export interface paths {
                         journey_id: components["schemas"]["UUID"];
                         linked_step_id?: components["schemas"]["UUID"];
                     };
+                    "application/json": {
+                        /** @description A completed `POST /file-uploads` of the right purpose, made by the caller — `stored` or `clean`, never used before. */
+                        file_upload_id: components["schemas"]["UUID"];
+                        journey_id: components["schemas"]["UUID"];
+                        linked_step_id?: components["schemas"]["UUID"];
+                    };
                 };
             };
             responses: {
@@ -14350,6 +14898,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Upload"];
+                    };
+                };
+                /** @description `not_found` — the case (or the `file_upload_id`) is not the caller's. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `case_in_dispute` / `case_moved` — the case is frozen or moved; `file_not_ready` / `file_quarantined` / `conflict` — see the two-step note above. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -14369,7 +14935,7 @@ export interface paths {
         };
         /**
          * Get signed download URL (short-lived, ~15 min)
-         * @description The returned url opens the file itself and carries its own token, so a browser can open it without a bearer header; it expires after about 15 minutes. Students may only fetch files on their own case (404 otherwise), staff any case they can see (2026-09-10).
+         * @description The returned url opens the file itself and carries its own token, so a browser can open it without a bearer header; it expires after about 15 minutes. Students may only fetch files on their own case (404 otherwise), staff any case they can see (2026-09-10). Signed per request — nothing is proxied and no link outlives its 15 minutes (contract gate 7).
          */
         get: {
             parameters: {
@@ -14393,10 +14959,98 @@ export interface paths {
                         };
                     };
                 };
+                /** @description `not_found`. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `file_not_ready` — the antivirus scan has not finished (`scan_status` `pending`); `file_quarantined` — the scan found malware, so it is never served (contract gate 7). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/uploads/{id}/share": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Share a file from an earlier case with the current consultancy, in one tap (contract gate 7, owner 2026-09-25)
+         * @description After a case moves or closes, its files stay with it (owner Q10b). The student can pass any of them that they can still open — their own step uploads, or a file the old consultancy shared with them — to the consultancy running their CURRENT case, without uploading it again: the server copies the stored object into the current case's files (same bytes; the client sends none). The copy is a new `Upload` on the current case, `uploaded_by: student`, `copied_from_upload_id` naming the original, and it inherits the original's scan result — a file whose scan is pending or found malware is never copied.
+         *
+         *     The student only (403 `permission_denied` for anyone else; the guardian gate applies). The file must be on one of the student's own cases that has closed or moved (404 `not_found` for anything else, including another student's file), and the student must have a live current case. Sharing the same file again answers 409 `already_shared` with the existing copy's id in `details.upload_id` — the listing's `shared_to_current_case` lets the app show "Shared" instead of the button. Audited on the current consultancy's log.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Copied onto the current case. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Upload"];
+                    };
+                };
+                /** @description `permission_denied` — not a student; `guardian_consent_required` — a student waiting for a guardian's approval. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `not_found` — no such file on one of the caller's closed or moved cases. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `no_case` — the student has no live case to share it with; `conflict` — the file is already on the current case; `already_shared` — shared before (`details.upload_id` is the copy); `case_in_dispute` — the current case is frozen; `file_not_ready` / `file_quarantined` — the original's scan is pending or found malware. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -18769,8 +19423,26 @@ export interface paths {
                         "application/json": components["schemas"]["CommissionRate"];
                     };
                 };
-                /** @description Duplicate (consultancy_id, destination_country, payer_method) */
+                /** @description `validation_failed` — a required field is missing. */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `already_exists` — a rate for this (consultancy_id, destination_country, payer_method) exists already; edit it instead (contract gate 7: 409, not 400). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `validation_failed` — a percentage is out of 0-100, or the freelancer-sourced rate is not above the direct rate. */
+                422: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -19015,7 +19687,25 @@ export interface paths {
                         "application/json": components["schemas"]["CommissionRate"][];
                     };
                 };
-                /** @description A percentage is out of 0-100, a group is missing, or a freelancer_sourced_rate is not strictly greater than its direct_rate. */
+                /** @description `validation_failed` — a required field or one of the four payer groups is missing (contract gate 7: 400, not 422). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `not_found` — no such consultancy. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `validation_failed` — a percentage is out of 0-100, or a freelancer_sourced_rate is not strictly greater than its direct_rate. */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -21469,7 +22159,7 @@ export interface components {
         /** @description Uniform error envelope, every error response, every endpoint (TRD Section 7). */
         Error: {
             error: {
-                /** @description Stable machine-readable code, e.g. permission_denied, validation_failed, insufficient_balance. Clients branch on this, never on message text. `feature_locked` (build reference 1.16 made real, 2026-08-29) is returned 403 by every endpoint gated on a consultancy feature-entitlement flag — own_leads, create_applicant, designations, tags, allocation_rule, phonebook, document_library, case_reopening, audit_log, activity_queue, internal_messaging, multi_branch, applicant_transfer — when the caller's consultancy lacks that flag (see `Consultancy.features`). `message` names the plan that includes it. Distinct from `permission_denied`, which is about what an individual employee within an already-entitled consultancy may do. Institute accounts (INSTITUTE_ACCOUNT_PLAN, 2026-09-10) add three codes: `college_already_linked` (409) when a college already has an institute account or an institute already has a college — see `Consultancy.college_id`; `not_applicable_for_institute` (403) when an institute tries to add or remove a partner college, deliberately NOT `feature_locked`, since nothing is behind a plan and telling an institute to upgrade would be a lie; and `institute_scoped` (409) when a student committed to an institute tries to save a course at another college (D14). Staff 2FA (Phase 6, owner-approved 2026-09-24; the mock server sends neither): `mfa_required` (403, POST /auth/login only) — see that operation; and `mfa_enrollment_required` (403, any operation for a signed-in console user whose role requires two-factor and who has no authenticator yet, except the allowlist that lets them enroll or leave: GET /profile, POST /auth/mfa/setup, POST /auth/mfa/setup/verify, POST /auth/logout, POST /auth/refresh). The console answers it by opening the enrollment screen. Enforcement is behind a server flag, off until that screen ships. */
+                /** @description Stable machine-readable code, e.g. permission_denied, validation_failed, insufficient_balance. Clients branch on this, never on message text. `feature_locked` (build reference 1.16 made real, 2026-08-29) is returned 403 by every endpoint gated on a consultancy feature-entitlement flag — own_leads, create_applicant, designations, tags, allocation_rule, phonebook, document_library, case_reopening, audit_log, activity_queue, internal_messaging, multi_branch, applicant_transfer — when the caller's consultancy lacks that flag (see `Consultancy.features`). `message` names the plan that includes it. Distinct from `permission_denied`, which is about what an individual employee within an already-entitled consultancy may do. Institute accounts (INSTITUTE_ACCOUNT_PLAN, 2026-09-10) add three codes: `college_already_linked` (409) when a college already has an institute account or an institute already has a college — see `Consultancy.college_id`; `not_applicable_for_institute` (403) when an institute tries to add or remove a partner college, deliberately NOT `feature_locked`, since nothing is behind a plan and telling an institute to upgrade would be a lie; and `institute_scoped` (409) when a student committed to an institute tries to save a course at another college (D14). Staff 2FA (Phase 6, owner-approved 2026-09-24; the mock server sends neither): `mfa_required` (403, POST /auth/login only) — see that operation; and `mfa_enrollment_required` (403, any operation for a signed-in console user whose role requires two-factor and who has no authenticator yet, except the allowlist that lets them enroll or leave: GET /profile, POST /auth/mfa/setup, POST /auth/mfa/setup/verify, POST /auth/logout, POST /auth/refresh). The console answers it by opening the enrollment screen. Enforcement is behind a server flag, off until that screen ships. Casework (contract gate 7): `version_conflict` (409) — a PATCH carried a `version` that is no longer the record's current one (optimistic locking, BR §3.6; re-read and re-apply); `file_not_ready` (409) — a file whose antivirus scan has not finished, or a presigned upload not yet completed; `file_quarantined` (409) — a file the scan found malware in, never served. */
                 code: string;
                 message: string;
                 /** @description Field-level validation details where applicable. */
@@ -22187,7 +22877,7 @@ export interface components {
                 /** Format: date-time */
                 since: string;
             }[];
-            /** @description 2026-08-29 addition — the caller's own journeys in `plan_complete`, not yet closed. */
+            /** @description 2026-08-29 addition — the caller's own journeys still carrying the LEGACY `plan_complete` status (contract gate 7). Since 2026-09-09 a finished plan does not finish the case and nothing sets that status, so this is empty on the real backend; a case whose every step is done shows as `waiting_on_colleges` in its case summary instead. Kept so clients that read the array keep working. */
             plan_complete_cases: {
                 journey_id: components["schemas"]["UUID"];
                 client_name: string;
@@ -22755,6 +23445,7 @@ export interface components {
              */
             readonly consultancy_kind?: "consultancy" | "institute";
             readonly consultancy_logo_url?: string | null;
+            /** @description Null while the lead sits in the Lead Pool, unallocated (contract gate 7, item 17 — the mock has always sent null there). */
             assigned_employee_id?: components["schemas"]["UUID"];
             /** @description Denormalized for display/sort (e.g. Active Leads' consultant column) — null when unassigned. */
             readonly assigned_employee_name?: string | null;
@@ -23739,7 +24430,7 @@ export interface components {
              */
             current_stage: 1 | 2 | 3;
             /**
-             * @description `in_dispute` joined this list on 2026-09-14 — it was already real and reachable (POST /clients/{id}/raise-issue, or an escalated complaint) and already sent here as `status`, but only the staff-facing Client schema listed it, so the generated student client had no value to decode it into. `closed_completed` is a success close (Stage 3); `closed` is a failure close (the student is back to Stage 1).
+             * @description `in_dispute` joined this list on 2026-09-14 — it was already real and reachable (POST /clients/{id}/raise-issue, or an escalated complaint) and already sent here as `status`, but only the staff-facing Client schema listed it, so the generated student client had no value to decode it into. `closed_completed` is a success close (Stage 3); `closed` is a failure close (the student is back to Stage 1). `plan_complete` is a LEGACY value (contract gate 7): since 2026-09-09 a finished plan no longer finishes the case — only a close does — so nothing moves a case into it and the real backend never stores it. It stays in the enum so clients that branch on it keep decoding; a row seeded before then may still carry it and reads as a live case.
              * @enum {string}
              */
             status: "exploring" | "awaiting_match" | "commit_confirm" | "pending_plan_assignment" | "in_plan" | "plan_complete" | "in_dispute" | "closed" | "closed_switched" | "closed_completed";
@@ -23784,7 +24475,7 @@ export interface components {
             progress?: string | null;
             /** @description The current in-progress step's title — null until a plan is assigned. */
             active_step_title?: string | null;
-            /** @description The in-progress step's own id. Added 2026-08-31 (Analytics §4 step 5, the Home next-action card) so "Continue: {step title}" can link straight to `/plan/{active_step_id}` — same "extra field beats an extra call" trade as `active_step_position` below. Null until a plan is assigned or once plan_complete. */
+            /** @description The in-progress step's own id. Added 2026-08-31 (Analytics §4 step 5, the Home next-action card) so "Continue: {step title}" can link straight to `/plan/{active_step_id}` — same "extra field beats an extra call" trade as `active_step_position` below. Null until a plan is assigned, and once every step of the plan is done. */
             active_step_id?: components["schemas"]["UUID"];
             /** @description Zero-based `position` of the in-progress step within the plan. Added 2026-08-19 so Stage 2 Home's status card can show "Step 3 of 4" without fetching the whole plan — Home already resolves the journey, and one extra call for two integers would be the wrong trade on the app's most-loaded screen. */
             active_step_position?: number | null;
@@ -23813,6 +24504,7 @@ export interface components {
             /** @description User-requested (2026-08-15) — a unique, sequential, human-readable case reference, `STP` + a 7-digit zero-padded number (e.g. "STP0000024"). Assigned once at `POST /clients` creation, immutable thereafter, never reused. Applicant-only — Leads never get one, per the user's own explicit call. Searchable alongside name/email/phone (`GET /clients`'s `search` param). */
             readonly file_number?: string | null;
             student: components["schemas"]["User"];
+            /** @description Null until a consultant picks the case up (an allocation or a transfer lands unassigned — contract gate 7, item 17). */
             assigned_employee_id?: components["schemas"]["UUID"];
             /** @description Denormalized for display/sort (Clients List's consultant column) — null when unassigned. */
             readonly assigned_employee_name?: string | null;
@@ -23825,10 +24517,12 @@ export interface components {
             /** @description Denormalized for display (2026-09-21) — null when no branch was asked for. */
             readonly preferred_branch_name?: string | null;
             /**
-             * @description The Stage-2 subset of Journey.status — Stage-1-only values (exploring, awaiting_match, commit_confirm, closed_switched) can't appear on a Client. `closed` (user-requested, 2026-08-15) is a generic manual close, mirroring `Lead.status`'s own `closed` — set via `POST /clients/{id}/close`, reversed via `POST /clients/{id}/reopen-case`. Distinct from `closed_completed` (a fully wound-down completed case) and from `plan_complete` (the plan finished; not itself closed).
+             * @description The Stage-2 subset of Journey.status (Stage-1-only values — exploring, awaiting_match, commit_confirm — never appear on a Client). A live case is `pending_plan_assignment` (no plan yet), `in_plan`, or `in_dispute` (frozen while the platform mediates). A case ends in one of three ways: `closed_completed` — `POST /clients/{id}/close` with a success outcome (the student joined the accepted college; Stage 3); `closed` — the same close with a failure outcome (the student is back to Stage 1), reversible via `POST /clients/{id}/reopen-case`; `closed_switched` — the case moved to another consultancy (transfer, support switch or dispute move) and is read-only here. `plan_complete` is a LEGACY value (contract gate 7): since 2026-09-09 a finished plan no longer finishes the case — only a close does — so nothing moves a case into it and the real backend never stores it. It stays in the enum so clients that branch on it keep decoding; a row seeded before then may still carry it and reads as a live case.
              * @enum {string}
              */
             status: "pending_plan_assignment" | "in_plan" | "in_dispute" | "plan_complete" | "closed_switched" | "closed" | "closed_completed";
+            /** @description Optimistic-lock version (contract gate 7, BR §3.6) — changes whenever this case record changes. Send it back as `version` on `PATCH /clients/{id}` to have a stale edit refused with 409 `version_conflict` instead of overwriting someone else's save. */
+            readonly version?: number;
             /** @enum {string} */
             case_type: "student" | "pr";
             address?: string | null;
@@ -23858,7 +24552,7 @@ export interface components {
             readonly close_sub_reason?: string | null;
             /** Format: date-time */
             readonly closed_at?: string | null;
-            /** @description Plan tab's "active-step summary" (build reference 2.2). Null once plan_complete or before a plan exists. */
+            /** @description Plan tab's "active-step summary" (build reference 2.2). Null before a plan exists and once every step is done. */
             active_step_title?: string | null;
             /** @description User-requested (2026-08-15) — the assigned Plan Template's name, for Clients List's "Plan (stage)" column, e.g. "Study Abroad — Masters (Canada)" alongside `progress`'s "2/10". Null before a plan is assigned (Clients List shows "No plan assigned" in that case). */
             readonly plan_template_name?: string | null;
@@ -24029,9 +24723,9 @@ export interface components {
             id: components["schemas"]["UUID"];
             consultancy_id?: components["schemas"]["UUID"];
             name: string;
-            /** @description Immutable version — FR-039. */
+            /** @description Immutable version — FR-039. Also the optimistic lock for `PATCH /plan-templates/{id}` (contract gate 7) — send it back as `version`, and an edit based on a version that is no longer the family's latest is refused with 409 `version_conflict`. A name-only edit stays in place and keeps the number. */
             version: number;
-            /** @description Groups every version of "the same template" (erd.md plan_templates). A content edit via PATCH creates a NEW row in this family with the next version and returns it — the response id differs from the request id; the previous version is never modified. GET /plan-templates lists the latest version per family; any version stays readable by id. */
+            /** @description Groups every version of "the same template" (erd.md plan_templates). A content edit via PATCH creates a NEW row in this family with the next version and returns it — the response id differs from the request id; the previous version is never modified. GET /plan-templates lists the latest version per family. An older version is kept for the plans already assigned from it, but no route reads it — there is no GET /plan-templates/{id} (contract gate 7). */
             readonly template_family_id?: components["schemas"]["UUID"];
             steps: components["schemas"]["StepTemplate"][];
             /**
@@ -24369,6 +25063,13 @@ export interface components {
                 /** Format: date-time */
                 granted_at?: string;
             }[] | null;
+            /**
+             * @description The antivirus scan (contract gate 7, BR §3.8). `pending` until the scan finishes — the file is listed but cannot be opened yet (409 `file_not_ready`); `clean` once it may be opened; `quarantined` when malware was found — never downloadable, kept aside for 30 days. Files that arrived before the scan existed, and everything on the mock server, read `clean`.
+             * @enum {string}
+             */
+            readonly scan_status?: "pending" | "clean" | "quarantined";
+            /** @description A signed link that opens the file (contract gate 7) — about 15 minutes, signed per request, carrying its own token so a browser opens it without a bearer header. Served to the owning student and to a consultancy the document is shared with; null while the scan is pending or quarantined, and on a document that has no stored file (demo data). */
+            readonly url?: string | null;
             /** Format: date-time */
             created_at: string;
         };
@@ -24390,6 +25091,8 @@ export interface components {
             readonly progress?: string | null;
             /** Format: date-time */
             created_at?: string | null;
+            /** @description Optimistic-lock version (contract gate 7, BR §3.6) — changes whenever this record changes. Send it back as `version` on the PATCH to have a stale edit refused with 409 `version_conflict` instead of overwriting someone else's save. */
+            readonly version?: number;
             steps: components["schemas"]["Step"][];
         };
         /** @description FR-033. Container of Components, no fixed type. */
@@ -24401,6 +25104,8 @@ export interface components {
             /** @enum {string} */
             status: "locked" | "active" | "done";
             position: number;
+            /** @description Optimistic-lock version (contract gate 7, BR §3.6) — changes whenever this record changes. Send it back as `version` on the PATCH to have a stale edit refused with 409 `version_conflict` instead of overwriting someone else's save. */
+            readonly version?: number;
             /** @description Copied from the template's `StepTemplate.expected_duration_days` at plan-assign/add-step time (2026-08-29). Exists on the live step so the SERVER can derive `expected_end_date` from it the moment the step actually starts — the duration tells the applicant how long a step should take, which is only meaningful once there is a start date to count from. Locked/future steps carry a duration but no derived date yet. */
             expected_duration_days?: number | null;
             /** Format: date-time */
@@ -24423,7 +25128,7 @@ export interface components {
             submission?: {
                 [key: string]: unknown;
             } | null;
-            /** @description The step's LIVE fill state, keyed by Component id (user, 2026-08-20: "both consultant and applicant should be able to fill the page and save it… Both can see the details and edit"). Written incrementally via `PATCH /steps/{id}/responses` by EITHER side, unlike `submission`, which is the applicant-only snapshot frozen at "I've completed this step". Per-component shape mirrors the component type: checklist → `{items: {<item>: bool}}`; questionnaire → `{answers: {<question>: "Yes"|"No"}}`; file_upload → `{file_name, file_url, uploaded_by_name, uploaded_at}`. Empty object when nothing is filled yet. */
+            /** @description The step's LIVE fill state, keyed by Component id (user, 2026-08-20: "both consultant and applicant should be able to fill the page and save it… Both can see the details and edit"). Written incrementally via `PATCH /steps/{id}/responses` by EITHER side, unlike `submission`, which is the applicant-only snapshot frozen at "I've completed this step". Per-component shape mirrors the component type: checklist → `{items: {<item>: bool}}`; questionnaire → `{answers: {<question>: "Yes"|"No"}}`; file_upload → either a file uploaded to the case, `{file_name, upload_id, uploaded_at?}` (open it with GET /uploads/{upload_id}), or a document from the student's locker, `{file_name, student_document_id, uploaded_at?}` — picking a locker document shares it with this case's consultancy (the student only; contract gate 7 corrects the old `file_url`/`uploaded_by_name` shape, which nothing sends). Empty object when nothing is filled yet. */
             responses?: {
                 [key: string]: unknown;
             } | null;
@@ -24494,7 +25199,7 @@ export interface components {
             name: string;
             /** @description User-requested removal of the linked-plan-template field from Form Builder — the intended direction is reversed (a Plan will select a Form, not the other way around), so this is no longer set on creation. Kept on the schema (nullable) since existing seeded forms still carry a historical value; nothing reads it anymore on the Forms list. */
             plan_template_id?: components["schemas"]["UUID"];
-            /** @description Immutable version — FR-098. */
+            /** @description Immutable version — FR-098. Also the optimistic lock for `PATCH /form-templates/{id}` (contract gate 7) — send it back as `version`, and an edit based on a version that is no longer the family's latest is refused with 409 `version_conflict`. A name-only edit stays in place and keeps the number. */
             version: number;
             /** @description Groups every version of "the same form" (erd.md form_templates). A change to fields via PATCH creates a NEW row in this family with the next version and returns it; the previous version keeps its fields forever, which is what form_responses.form_version and plan-step form_links point at. GET /form-templates lists the latest per family. */
             readonly form_family_id?: components["schemas"]["UUID"];
@@ -24583,10 +25288,13 @@ export interface components {
                 hidden?: number;
             };
         };
-        /** @description A receiving consultancy's consent-to-accept for one incoming cross-consultancy transfer (build reference 1.18) — issued from Consultancy Profile's Incoming Transfers section, read back to the sending consultancy out-of-band, and consumed by POST /clients/{id}/transfer. */
+        /** @description A receiving consultancy's consent-to-accept for one incoming cross-consultancy transfer (build reference 1.18) — issued from Consultancy Profile's Incoming Transfers section, read back to the sending consultancy out-of-band, and consumed by POST /clients/{id}/transfer. Bound to exactly one of the student's email and phone (contract gate 7) — the other is null. */
         TransferCode: {
             code: string;
-            student_email: string;
+            /** @description Lowercased. Null when the code was issued for a phone number. */
+            student_email: string | null;
+            /** @description E.164. Null when the code was issued for an email. */
+            student_phone: string | null;
             /**
              * @description Computed at read time — `used` wins over `expired`.
              * @enum {string}
@@ -24676,6 +25384,17 @@ export interface components {
             consultancy_name?: string | null;
             /** @description True when it was copied from the consultancy's Document Library. */
             from_library?: boolean;
+            /**
+             * @description Who put the file on the case (contract gate 7). Always `consultant` unless the request asked for the student's own files with `filter[uploaded_by]`.
+             * @enum {string}
+             */
+            readonly uploaded_by?: "student" | "consultant";
+            /** @description True when the file is on the student's current live case; false for a file on a case that has closed or moved (contract gate 7). */
+            readonly on_current_case?: boolean;
+            /** @description For a file on an earlier case — true once the student has shared it with their current case (`POST /uploads/{id}/share`), so the app shows "Shared" instead of the button. Always false for a file already on the current case, and when the student has no live case. */
+            readonly shared_to_current_case?: boolean;
+            /** @description The copy on the current case when `shared_to_current_case` is true (open it with GET /uploads/{id}); null otherwise. */
+            readonly current_case_copy_id?: components["schemas"]["UUID"];
         };
         Upload: {
             id: components["schemas"]["UUID"];
@@ -24689,6 +25408,13 @@ export interface components {
             mime_type?: string | null;
             /** @description Set when this upload was created via `POST /document-library/{id}/share` rather than a direct upload — lets the Documents tab's "Share from Library" picker (user-requested, 2026-08-19) detect a document already shared with this client and disable its Share button instead of allowing a duplicate copy. */
             source_library_document_id?: components["schemas"]["UUID"];
+            /** @description Set when the student shared this file from one of their earlier cases with `POST /uploads/{id}/share` (contract gate 7, owner 2026-09-25) — the file it is a copy of. `uploaded_by` is `student` on such a copy. */
+            copied_from_upload_id?: components["schemas"]["UUID"];
+            /**
+             * @description The antivirus scan (contract gate 7, BR §3.8). `pending` until the scan finishes — the file is listed but cannot be opened yet (409 `file_not_ready`); `clean` once it may be opened; `quarantined` when malware was found — never downloadable, kept aside for 30 days. Files that arrived before the scan existed, and everything on the mock server, read `clean`.
+             * @enum {string}
+             */
+            readonly scan_status?: "pending" | "clean" | "quarantined";
             /** Format: date-time */
             created_at: string;
         };
@@ -24702,6 +25428,54 @@ export interface components {
             tags: string[];
             uploaded_by_employee_id: components["schemas"]["UUID"];
             readonly uploaded_by_employee_name?: string;
+            /**
+             * @description The antivirus scan (contract gate 7, BR §3.8). `pending` until the scan finishes — the file is listed but cannot be opened yet (409 `file_not_ready`); `clean` once it may be opened; `quarantined` when malware was found — never downloadable, kept aside for 30 days. Files that arrived before the scan existed, and everything on the mock server, read `clean`.
+             * @enum {string}
+             */
+            readonly scan_status?: "pending" | "clean" | "quarantined";
+            /** Format: date-time */
+            created_at: string;
+        };
+        /** @description Step 1 of the presigned two-step upload (contract gate 7, Wave 3 plan §7). Says what is about to be uploaded and where it will belong, before any byte moves. */
+        FileUploadIntentInput: {
+            /**
+             * @description `case_upload` — a file on a case (`POST /uploads`): needs `journey_id`, optionally `step_id`; the student on their own case or consultancy staff who can work on it. `locker` — a document in the student's locker (`POST /me/documents`, or staff via `POST /clients/{id}/student-documents`): needs `document_type_id`, and `journey_id` when staff upload on the student's behalf. `library` — the consultancy's Document Library (`POST /document-library`): consultancy staff with the `document_library` feature.
+             * @enum {string}
+             */
+            purpose: "case_upload" | "locker" | "library";
+            journey_id?: components["schemas"]["UUID"];
+            step_id?: components["schemas"]["UUID"];
+            document_type_id?: components["schemas"]["UUID"];
+            filename: string;
+            /** @description The declared type, checked against the purpose's allowlist — PDF, JPEG, PNG, WebP or DOCX for case files and the library; the document type's own `allowed_mime_types` for the locker — and later against the file's first bytes at completion. */
+            mime_type: string;
+            /** @description At most 15 MB (and the document type's `max_size_mb` for the locker). The PUT must send exactly this many bytes. */
+            size_bytes: number;
+        };
+        /** @description A pending or finished presigned upload (erd `file_uploads`). `pending` — waiting for the bytes at `put_url`; `stored` — completion checked the size and the file's first bytes against the declared type, the scan is running; `clean` — ready to attach; `quarantined` — the scan found malware, never usable; `expired` — nothing was completed within the hour and the object was deleted. A `stored` or `clean` upload can be attached once, by the caller, to the operation its purpose names. */
+        FileUpload: {
+            id: components["schemas"]["UUID"];
+            /** @enum {string} */
+            purpose: "case_upload" | "locker" | "library";
+            /** @enum {string} */
+            status: "pending" | "stored" | "clean" | "quarantined" | "expired";
+            filename: string;
+            mime_type: string;
+            size_bytes: number;
+            journey_id?: components["schemas"]["UUID"];
+            step_id?: components["schemas"]["UUID"];
+            document_type_id?: components["schemas"]["UUID"];
+            /** @description Only in the `POST /file-uploads` response — where to PUT the bytes, with exactly `put_headers` and `size_bytes` of body. Presigned and pinned to the declared type and length; it works until `expires_at` (15 minutes). Null everywhere else. */
+            put_url?: string | null;
+            /** @description The headers the PUT must carry (at least `Content-Type`). Only in the `POST /file-uploads` response. */
+            put_headers?: {
+                [key: string]: string;
+            } | null;
+            /**
+             * Format: date-time
+             * @description When `put_url` stops working. An upload not completed within an hour of creation expires.
+             */
+            expires_at: string;
             /** Format: date-time */
             created_at: string;
         };
@@ -25939,6 +26713,7 @@ export interface components {
             by_stage: {
                 waiting: number;
                 with_consultancy: number;
+                /** @description Cases still carrying the legacy `plan_complete` status (never set since 2026-09-09 — see Journey.status); 0 on the real backend. */
                 plan_complete: number;
                 succeeded: number;
                 moved: number;
@@ -25958,7 +26733,7 @@ export interface components {
         /** @description Freelancer Dashboard's own row shape (build reference 1.19) — tracking only, no case management, no chat. `status` mirrors the referred journey's own status; the freelancer never edits it here. */
         FreelancerReferral: {
             /**
-             * @description Where the referral stands in plain words (2026-09-12), derived from the journey status: waiting (not with a consultancy yet), with_consultancy, plan_complete, succeeded (closed_completed), moved (closed_switched), closed.
+             * @description Where the referral stands in plain words (2026-09-12), derived from the journey status: waiting (not with a consultancy yet), with_consultancy, plan_complete (only for a case still carrying the legacy `plan_complete` status — never set since 2026-09-09, see Journey.status), succeeded (closed_completed), moved (closed_switched), closed.
              * @enum {string}
              */
             readonly stage?: "waiting" | "with_consultancy" | "plan_complete" | "succeeded" | "moved" | "closed";
@@ -25984,7 +26759,7 @@ export interface components {
             readonly applicant_name: string;
             /** @description Present on the Super Admin payout ledger (/freelancer-referrals) only — a freelancer reading their own list doesn't need their own name on every row. */
             readonly freelancer_name?: string;
-            /** @description The referred journey's own status (e.g. pending_plan_assignment, in_plan, plan_complete). */
+            /** @description The referred journey's own status (e.g. pending_plan_assignment, in_plan, closed_completed). */
             readonly status: string;
             /**
              * @deprecated

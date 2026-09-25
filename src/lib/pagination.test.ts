@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { useCursorPagination } from './pagination'
+import { fetchAllPages, useCursorPagination } from './pagination'
 
 // Table's Previous button can only work if this hook remembers the cursor each page was reached
 // FROM — the server's cursor is opaque and one-directional. These pin the stack discipline.
@@ -44,5 +44,32 @@ describe('useCursorPagination', () => {
     act(() => result.current.reset())
     expect(result.current.cursor).toBeUndefined()
     expect(result.current.hasPrevious).toBe(false)
+  })
+})
+
+// The hooks for the lists contract gate 7 paged still hand their screens every row.
+describe('fetchAllPages', () => {
+  it('follows next_cursor to the end and keeps the order', async () => {
+    const pages: Record<string, { items: number[]; meta: { next_cursor: string | null } }> = {
+      first: { items: [1, 2], meta: { next_cursor: 'b' } },
+      b: { items: [3], meta: { next_cursor: 'c' } },
+      c: { items: [4, 5], meta: { next_cursor: null } },
+    }
+    const asked: (string | undefined)[] = []
+    const rows = await fetchAllPages(async (cursor) => {
+      asked.push(cursor)
+      return pages[cursor ?? 'first']
+    })
+    expect(rows).toEqual([1, 2, 3, 4, 5])
+    expect(asked).toEqual([undefined, 'b', 'c'])
+  })
+
+  it('stops at the page cap if a cursor never ends', async () => {
+    let calls = 0
+    const rows = await fetchAllPages(async () => {
+      calls += 1
+      return { items: [calls], meta: { next_cursor: 'again' } }
+    }, 3)
+    expect(rows).toEqual([1, 2, 3])
   })
 })
