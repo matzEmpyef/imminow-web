@@ -18,6 +18,7 @@ import { ReopenClientModal } from './ReopenClientModal'
 import { useAssignClient, useClients, useSetClientTags } from '@/queries/clients'
 import { useFeature } from '@/lib/features'
 import { useCreateTag, useTags } from '@/queries/tags'
+import { useListCeiling } from '@/lib/listCeilings'
 import { useCountries } from '@/queries/countries'
 import { useBranches, useEmployees } from '@/queries/staff'
 import { usePermissionChecker } from '@/lib/permissions'
@@ -163,6 +164,8 @@ export function ClientsListPage() {
   const canAssign = can('clients.reassign')
   const tags = useTags()
   const createTag = useCreateTag()
+  // At the tag ceiling the editor still picks existing tags but won't create one (2026-09-25).
+  const tagCeiling = useListCeiling('tags', tags.data?.length)
   const setClientTags = useSetClientTags()
   const countries = useCountries()
   const employees = useEmployees()
@@ -318,6 +321,7 @@ export function ClientsListPage() {
             tags={client.tags ?? []}
             catalog={tags.data ?? []}
             onCreateTag={(name) => createTag.mutateAsync(name)}
+            createBlockedReason={tagCeiling?.reason}
             onSave={(next) => setClientTags.mutate({ id: client.id, tags: next })}
             saving={setClientTags.isPending}
             label={`Edit tags for ${client.student.first_name} ${client.student.last_name}`}

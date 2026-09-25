@@ -18,6 +18,7 @@ import {
 } from '@/queries/documentLibrary'
 import { useClients } from '@/queries/clients'
 import { useCreateTag, useTags } from '@/queries/tags'
+import { useListCeiling } from '@/lib/listCeilings'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
@@ -132,6 +133,8 @@ export function DocumentLibraryPage() {
   const clients = useClients({ limit: 100 })
   const tags = useTags()
   const createTag = useCreateTag()
+  // At the tag ceiling the editor still picks existing tags but won't create one (2026-09-25).
+  const tagCeiling = useListCeiling('tags', tags.data?.length)
   const setDocumentTags = useSetLibraryDocumentTags()
   const shareDocument = useShareLibraryDocument()
   const uploadDocument = useUploadLibraryDocument()
@@ -184,6 +187,7 @@ export function DocumentLibraryPage() {
             tags={doc.tags ?? []}
             catalog={tags.data ?? []}
             onCreateTag={(name) => createTag.mutateAsync(name)}
+            createBlockedReason={tagCeiling?.reason}
             onSave={(next) =>
               setDocumentTags.mutate(
                 { id: doc.id, tags: next },

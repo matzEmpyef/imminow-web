@@ -22,6 +22,9 @@ interface TagEditorMenuProps {
   // `label` as the tooltip so the button says WHY instead of just going dead.
   disabled?: boolean
   disabledReason?: string
+  // The consultancy is at its tag ceiling (owner, 2026-09-25): existing tags can still be picked,
+  // but a new name can't be created, and this says why ("You've reached the 100-tag limit.").
+  createBlockedReason?: string
 }
 
 // Shared "edit this record's tags" popup — a centered Modal (not an inline dropdown, matching
@@ -39,14 +42,17 @@ export function TagEditorMenu({
   saving,
   disabled,
   disabledReason,
+  createBlockedReason,
 }: TagEditorMenuProps) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<string[]>(tags)
   const [picker, setPicker] = useState('')
+  const [createError, setCreateError] = useState<string | null>(null)
 
   function openMenu() {
     setDraft(tags)
     setPicker('')
+    setCreateError(null)
     setOpen(true)
   }
 
@@ -56,8 +62,22 @@ export function TagEditorMenu({
       setPicker('')
       return
     }
+    setCreateError(null)
     if (!catalog.some((t) => t.name === trimmed)) {
-      await onCreateTag(trimmed)
+      if (createBlockedReason) {
+        setCreateError(`${createBlockedReason} Pick an existing tag instead.`)
+        setPicker('')
+        return
+      }
+      // A refused create (the real backend's 400 at the ceiling, say) used to escape as an
+      // unhandled rejection and the tag silently never appeared; the server's reason shows now.
+      try {
+        await onCreateTag(trimmed)
+      } catch (err) {
+        setCreateError(err instanceof Error ? err.message : 'Could not create this tag.')
+        setPicker('')
+        return
+      }
     }
     setDraft((prev) => [...prev, trimmed])
     setPicker('')
@@ -128,6 +148,15 @@ export function TagEditorMenu({
               onChange={addTag}
               options={catalog.map((t) => t.name).filter((n) => !draft.includes(n))}
             />
+            {createError ? (
+              <p role="alert" className="text-caption text-error">
+                {createError}
+              </p>
+            ) : (
+              createBlockedReason && (
+                <p className="text-caption text-text-secondary">{createBlockedReason} You can still pick an existing tag.</p>
+              )
+            )}
           </div>
         </Modal>
       )}

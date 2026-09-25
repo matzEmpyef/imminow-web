@@ -17,6 +17,7 @@ import { useMyConsultancy } from '@/queries/consultancy'
 import { useFeature } from '@/lib/features'
 import { useBranches, useEmployees } from '@/queries/staff'
 import { useCreateTag, useTags } from '@/queries/tags'
+import { useListCeiling } from '@/lib/listCeilings'
 import { usePermission } from '@/lib/permissions'
 import { usePlans, useLinkedFormResponses } from '@/queries/plans'
 import { Skeleton } from '@/components/QueryState'
@@ -60,6 +61,8 @@ export function OverviewTab({
   const client = useClient(clientId)
   const tags = useTags()
   const createTag = useCreateTag()
+  // At the tag ceiling the editor still picks existing tags but won't create one (2026-09-25).
+  const tagCeiling = useListCeiling('tags', tags.data?.length)
   const setClientTags = useSetClientTags()
   const employees = useEmployees()
   const branches = useBranches()
@@ -359,6 +362,7 @@ export function OverviewTab({
               tags={data.tags ?? []}
               catalog={tags.data ?? []}
               onCreateTag={(name) => createTag.mutateAsync(name)}
+              createBlockedReason={tagCeiling?.reason}
               onSave={(next) => setClientTags.mutate({ id: clientId, tags: next })}
               saving={setClientTags.isPending}
               label={`Edit tags for ${data.student.first_name} ${data.student.last_name}`}

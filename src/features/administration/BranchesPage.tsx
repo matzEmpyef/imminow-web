@@ -5,6 +5,7 @@ import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
+import { CeilingCreateButton } from '@/components/CeilingCreateButton'
 import { BranchFormModal } from './BranchFormModal'
 import { branchHasLocation, formatBranchLocation } from './branchLocation'
 import { useBranches, useUpdateBranch } from '@/queries/staff'
@@ -178,7 +179,9 @@ export function BranchesPage() {
               country, state, district and city filled in before it can be offered that way.
             </p>
           </div>
-          <Button onClick={() => setShowAddModal(true)}>Add Branch</Button>
+          <CeilingCreateButton kind="branches" count={branches.data?.length} onClick={() => setShowAddModal(true)}>
+            Add Branch
+          </CeilingCreateButton>
         </div>
 
         {showAddModal && <BranchFormModal onClose={() => setShowAddModal(false)} />}

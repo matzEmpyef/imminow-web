@@ -5,6 +5,7 @@ import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { Modal } from '@/components/Modal'
+import { CeilingCreateButton } from '@/components/CeilingCreateButton'
 import { useCreateTag, useDeleteTag, useTags } from '@/queries/tags'
 import { showToast } from '@/lib/toast'
 
@@ -104,22 +105,20 @@ export function TagManagementTab() {
 
   return (
     <>
-      <div className="flex items-center justify-between gap-md">
-        <p className="text-body-sm text-text-secondary">Tags applied to leads and clients, filterable in list views.</p>
-        <Button onClick={() => setAdding(true)} className="inline-flex shrink-0 items-center gap-xs">
+      <div className="flex items-start justify-between gap-md">
+        <p className="pt-sm text-body-sm text-text-secondary">Tags applied to leads and clients, filterable in list views.</p>
+        {/* "12 of 100 tags" sits under the button (owner, 2026-09-25) — it replaced the bare count
+            that used to sit in the card header, so the number is shown once, beside the action it
+            limits. */}
+        <CeilingCreateButton kind="tags" count={tags.data?.length} onClick={() => setAdding(true)}>
           <Plus className="h-4 w-4" aria-hidden />
           Add tag
-        </Button>
+        </CeilingCreateButton>
       </div>
       {adding && <AddTagModal onClose={() => setAdding(false)} />}
 
       <Card>
-        <div className="flex items-center justify-between gap-md">
-          <h2 className="text-h3 text-text-primary">Tags</h2>
-          {tags.data && tags.data.length > 0 && (
-            <span className="text-body-sm tabular-nums text-text-secondary">{tags.data.length}</span>
-          )}
-        </div>
+        <h2 className="text-h3 text-text-primary">Tags</h2>
         {tags.isLoading && <p className="mt-sm text-body-sm text-text-secondary">Loading…</p>}
         {tags.data?.length === 0 && (
           <p className="mt-sm text-body-sm text-text-secondary">No tags yet — use Add tag to create your first.</p>

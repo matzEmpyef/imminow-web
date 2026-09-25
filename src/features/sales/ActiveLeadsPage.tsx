@@ -12,6 +12,7 @@ import { ReopenLeadModal } from './ReopenLeadModal'
 import { useBranches, useEmployees } from '@/queries/staff'
 import { useAllocateLead, useLeads, useSetLeadTags } from '@/queries/leads'
 import { useCreateTag, useTags } from '@/queries/tags'
+import { useListCeiling } from '@/lib/listCeilings'
 import { useCursorPagination } from '@/lib/pagination'
 import { usePermission } from '@/lib/permissions'
 import { useAccountWords } from '@/lib/accountWords'
@@ -85,6 +86,8 @@ export function ActiveLeadsPage() {
   const multiBranch = (branches.data?.length ?? 0) > 1
   const tags = useTags()
   const createTag = useCreateTag()
+  // At the tag ceiling the editor still picks existing tags but won't create one (2026-09-25).
+  const tagCeiling = useListCeiling('tags', tags.data?.length)
   const setLeadTags = useSetLeadTags()
   // Mirrors the leads.reassign enforcement on PATCH /leads/:id/assign. Only the reassign menu is
   // gated — the closed-lead Reopen trigger in the same column is tier-gated separately and stays.
@@ -159,6 +162,7 @@ export function ActiveLeadsPage() {
             tags={lead.tags ?? []}
             catalog={tags.data ?? []}
             onCreateTag={(name) => createTag.mutateAsync(name)}
+            createBlockedReason={tagCeiling?.reason}
             onSave={(next) => setLeadTags.mutate({ id: lead.id, tags: next })}
             saving={setLeadTags.isPending}
             label={`Edit tags for ${lead.name}`}
