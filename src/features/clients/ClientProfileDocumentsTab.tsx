@@ -9,9 +9,12 @@ import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { IconBadge } from '@/components/IconBadge'
+import { CursorPager } from '@/components/CursorPager'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useDownloadUrl, useUploadFile, useUploads } from '@/queries/uploads'
 import { useStudentDocuments, type StudentDocument } from '@/queries/studentDocuments'
+import { useCursorPagination } from '@/lib/pagination'
+import { scanStatusLabel } from '@/lib/uploads'
 import { formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { ShareFromLibraryModal } from './ShareFromLibraryModal'
@@ -89,7 +92,13 @@ function EmptyState({ children }: { children: ReactNode }) {
  *   My documents → From your consultancy, and is notified when one is shared (2026-09-10).
  */
 export function DocumentsTab({ clientId, readOnly = false }: { clientId: string; readOnly?: boolean }) {
-  const uploads = useUploads(clientId)
+  // Paged since contract gate 7 (newest first) — replaces the fetchAllPages read that used to
+  // walk every page and reverse it. This tab's exact "sent by you" total moved with it: /uploads'
+  // meta.total counts every row on the case (student- and consultant-authored together, per its
+  // own contract), not this one filtered subset, so only the CursorPager's own count below the
+  // list is exact now; the top summary line no longer claims a precise "sent by you" figure.
+  const paging = useCursorPagination()
+  const uploads = useUploads(clientId, { cursor: paging.cursor, limit: 20 })
   const studentDocs = useStudentDocuments(clientId)
   const uploadFile = useUploadFile(clientId)
   const downloadUrl = useDownloadUrl()
@@ -106,7 +115,7 @@ export function DocumentsTab({ clientId, readOnly = false }: { clientId: string;
 
   // "Shared by us" is one-way. A student's own step upload is not something this group can receive,
   // so it is filtered out rather than mislabelled (user-requested correction, 2026-08-15).
-  const sentDocuments = uploads.data?.filter((doc) => doc.uploaded_by === 'consultant') ?? []
+  const sentDocuments = uploads.data?.items.filter((doc) => doc.uploaded_by === 'consultant') ?? []
   const theirDocuments = studentDocs.data?.items ?? []
   const verified = theirDocuments.filter((d) => d.verified && !d.expired).length
   const expired = theirDocuments.filter((d) => d.expired).length
@@ -126,7 +135,13 @@ export function DocumentsTab({ clientId, readOnly = false }: { clientId: string;
         tab.opener = null
         tab.location.href = url
       },
-      onError: () => tab?.close(),
+      // 409 file_not_ready / file_quarantined (contract gate 7, BR §3.8) — the server's own
+      // message says which; surfaced as a toast since this is a click-to-open action with no
+      // inline error slot of its own.
+      onError: (err) => {
+        tab?.close()
+        showToast(err.message, 'error')
+      },
       onSettled: () => setOpeningId(null),
     })
   }
@@ -142,7 +157,7 @@ export function DocumentsTab({ clientId, readOnly = false }: { clientId: string;
         {expired > 0 && <Badge color="warning">{expired} expired</Badge>}
         <span aria-hidden>·</span>
         <span>
-          <span className="font-medium text-text-primary">{sentDocuments.length}</span> shared by you
+          <span className="font-medium text-text-primary">{sentDocuments.length}</span> shared by you on this page
         </span>
       </div>
 
@@ -239,32 +254,52 @@ export function DocumentsTab({ clientId, readOnly = false }: { clientId: string;
             <EmptyState>Nothing sent yet. Send a document, or share one from your Document Library.</EmptyState>
           ) : (
             <ul className="flex flex-col divide-y divide-border">
-              {sentDocuments.map((doc) => (
-                <li key={doc.id} className="flex items-center gap-sm py-sm">
-                  <FileIcon filename={doc.filename} mimeType={doc.mime_type} />
-                  <div className="min-w-0 flex-1">
-                    <p className="break-words text-body-sm font-medium text-text-primary">{doc.filename}</p>
-                    <p className="flex flex-wrap items-center gap-xs text-caption text-text-secondary">
-                      Sent {formatDate(doc.created_at)}
-                      {doc.source_library_document_id && <Badge color="info">From Library</Badge>}
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    loading={openingId === doc.id}
-                    onClick={() => openUpload(doc.id)}
-                    aria-label={`Download ${doc.filename}`}
-                    className="inline-flex shrink-0 items-center gap-xs"
-                  >
-                    <Download className="h-3.5 w-3.5" aria-hidden />
-                    Download
-                  </Button>
-                </li>
-              ))}
+              {sentDocuments.map((doc) => {
+                // The antivirus scan (contract gate 7, BR §3.8) — "Checking file…" until it
+                // clears, and a quarantined file is listed but never downloadable.
+                const checking = scanStatusLabel(doc.scan_status)
+                const canOpen = doc.scan_status !== 'pending' && doc.scan_status !== 'quarantined'
+                return (
+                  <li key={doc.id} className="flex items-center gap-sm py-sm">
+                    <FileIcon filename={doc.filename} mimeType={doc.mime_type} />
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words text-body-sm font-medium text-text-primary">{doc.filename}</p>
+                      <p className="flex flex-wrap items-center gap-xs text-caption text-text-secondary">
+                        Sent {formatDate(doc.created_at)}
+                        {doc.source_library_document_id && <Badge color="info">From Library</Badge>}
+                        {checking && (
+                          <Badge color={doc.scan_status === 'quarantined' ? 'warning' : 'secondary'}>{checking}</Badge>
+                        )}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      loading={openingId === doc.id}
+                      onClick={() => openUpload(doc.id)}
+                      disabled={!canOpen}
+                      title={!canOpen ? checking ?? undefined : undefined}
+                      aria-label={`Download ${doc.filename}`}
+                      className="inline-flex shrink-0 items-center gap-xs"
+                    >
+                      <Download className="h-3.5 w-3.5" aria-hidden />
+                      Download
+                    </Button>
+                  </li>
+                )
+              })}
             </ul>
           )}
+          <CursorPager
+            hasNext={Boolean(uploads.data?.meta.next_cursor)}
+            hasPrevious={paging.hasPrevious}
+            onNext={() => uploads.data?.meta.next_cursor && paging.next(uploads.data.meta.next_cursor)}
+            onPrevious={paging.previous}
+            total={uploads.data?.meta.total}
+            noun="file"
+            className="-mx-lg -mb-lg"
+          />
         </Card>
       </div>
 
@@ -294,7 +329,13 @@ function StudentDocumentRow({ doc }: { doc: StudentDocument }) {
       {/* Expiry beats verification: a verified passport that has since run out is not a document
           anyone should be relying on. "Provided" and "checked" are different states, and
           conflating them is how a consultant ends up trusting a document nobody here has read. */}
-      {doc.expired ? (
+      {/* The antivirus scan (contract gate 7, BR §3.8) outranks expiry/verification — a document
+          that isn't clean yet has nothing to say about either. */}
+      {doc.scan_status === 'pending' || doc.scan_status === 'quarantined' ? (
+        <Badge color={doc.scan_status === 'quarantined' ? 'warning' : 'secondary'} className="shrink-0">
+          {scanStatusLabel(doc.scan_status)}
+        </Badge>
+      ) : doc.expired ? (
         <Badge color="warning" className="shrink-0">
           Expired
         </Badge>

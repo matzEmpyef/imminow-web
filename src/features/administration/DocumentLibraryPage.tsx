@@ -20,6 +20,7 @@ import { useClients } from '@/queries/clients'
 import { useCreateTag, useTags } from '@/queries/tags'
 import { useListCeiling } from '@/lib/listCeilings'
 import { useCursorPagination } from '@/lib/pagination'
+import { scanStatusLabel } from '@/lib/uploads'
 import { formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { FilterMultiSelect } from '@/components/FilterMultiSelect'
@@ -54,6 +55,9 @@ function DocumentRowActions({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const downloadUrl = useDownloadLibraryDocumentUrl()
   const deleteDocument = useDeleteLibraryDocument()
+  // The antivirus scan (contract gate 7, BR §3.8) — never downloadable while pending or quarantined.
+  const checking = scanStatusLabel(doc.scan_status)
+  const canOpen = doc.scan_status !== 'pending' && doc.scan_status !== 'quarantined'
 
   return (
     <div className="flex justify-end">
@@ -61,9 +65,10 @@ function DocumentRowActions({
       <button
         type="button"
         onClick={() => downloadUrl.mutate(doc.id)}
+        disabled={!canOpen}
         aria-label={`Download ${doc.filename}`}
-        title="Download"
-        className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
+        title={canOpen ? 'Download' : checking ?? undefined}
+        className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
       >
         <Download className="h-4 w-4" />
       </button>
@@ -158,7 +163,15 @@ export function DocumentLibraryPage() {
     {
       key: 'type',
       header: 'Type',
-      render: (doc) => <Badge color="secondary">{mimeLabel(doc.mime_type)}</Badge>,
+      render: (doc) => {
+        const checking = scanStatusLabel(doc.scan_status)
+        return (
+          <div className="flex flex-wrap gap-xs">
+            <Badge color="secondary">{mimeLabel(doc.mime_type)}</Badge>
+            {checking && <Badge color={doc.scan_status === 'quarantined' ? 'warning' : 'secondary'}>{checking}</Badge>}
+          </div>
+        )
+      },
     },
     {
       key: 'uploaded_by',

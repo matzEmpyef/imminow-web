@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
+import { presignedUpload } from '@/lib/uploads'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 
@@ -43,15 +44,15 @@ export function useDocumentLibrary(filters: DocumentLibraryFilters = {}) {
   })
 }
 
+// Presigned since contract gate 7 (Wave 3 plan §7): purpose `library`, gated the same way
+// `POST /file-uploads` itself gates it (the document_library feature, consultancy staff only).
 export function useUploadLibraryDocument() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (file: File) => {
-      const formData = new FormData()
-      formData.append('file', file)
+      const upload = await presignedUpload({ file, purpose: 'library' })
       const { data, error } = await api.POST('/document-library', {
-        body: formData as unknown as { file: string },
-        bodySerializer: () => formData,
+        body: { file_upload_id: upload.id },
       })
       if (error) throw new ApiError('Could not upload this document.', error)
       return data

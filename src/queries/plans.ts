@@ -1,5 +1,6 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
+import { presignedUpload } from '@/lib/uploads'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 import type { components } from '@/api/schema'
@@ -90,10 +91,22 @@ export function useCreatePlanTemplate() {
 export function useUpdatePlanTemplate() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, name, steps }: { id: string; name?: string; steps?: StepTemplateInput[] }) => {
+    mutationFn: async ({
+      id,
+      name,
+      steps,
+      version,
+    }: {
+      id: string
+      name?: string
+      steps?: StepTemplateInput[]
+      // Optimistic lock (contract gate 7, BR §3.6) — the version the edit started from. Omitted,
+      // last write wins as before; stale, the server answers 409 `version_conflict`.
+      version?: number
+    }) => {
       const { data, error } = await api.PATCH('/plan-templates/{id}', {
         params: { path: { id } },
-        body: { name, steps },
+        body: { name, steps, version },
       })
       if (error) throw new ApiError('Could not update this plan template.', error)
       return data
@@ -160,6 +173,9 @@ export function useUpdateStep(clientId: string) {
       expected_end_date?: string | null
       components?: ComponentInput[]
       reason?: string
+      // Optimistic lock (contract gate 7, BR §3.6) — the step's `version` as last read. Omitted,
+      // last write wins as before; stale, the server answers 409 `version_conflict`.
+      version?: number
     }) => {
       const { data, error } = await api.PATCH('/steps/{id}', {
         params: { path: { id: stepId } },
@@ -209,18 +225,14 @@ export function useSaveStepResponses(clientId: string) {
 
 // Upload a real file against a step's file_upload component — POST /uploads with the journey and
 // step linked, so the file lands in the journey's upload history like any other document.
+// Presigned since contract gate 7 (Wave 3 plan §7), via the same shared `presignedUpload` helper
+// every other console upload flow uses.
 export function useUploadStepFile(clientId: string) {
   return useMutation({
     mutationFn: async ({ stepId, file }: { stepId: string; file: File }) => {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('journey_id', clientId)
-      formData.append('linked_step_id', stepId)
+      const upload = await presignedUpload({ file, purpose: 'case_upload', journeyId: clientId, stepId })
       const { data, error } = await api.POST('/uploads', {
-        // openapi-fetch serializes plain objects to JSON; hand it real FormData and neutralize
-        // the serializer so the multipart boundary header is set by the browser.
-        body: formData as unknown as { file: string; journey_id: string },
-        bodySerializer: (b: unknown) => b as FormData,
+        body: { file_upload_id: upload.id, journey_id: clientId, linked_step_id: stepId },
       })
       if (error) throw new ApiError('Could not upload this file.', error)
       return data

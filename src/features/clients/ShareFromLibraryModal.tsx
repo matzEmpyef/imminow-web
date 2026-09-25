@@ -19,9 +19,17 @@ export function ShareFromLibraryModal({ clientId, onClose }: { clientId: string;
   // share mention already shared." This client's own uploads already carry
   // `source_library_document_id` for anything shared from the library, so a document already
   // shared in a *previous* session is detected the same way as one just shared in this one.
-  const uploads = useUploads(clientId)
+  // Best-effort only — a large page (contract gate 7's /uploads is paged newest-first now) rather
+  // than every page: the server's own 400 `already_shared` on POST /document-library/{id}/share
+  // is the real guard (its doc comment: this proactive disable "mainly covers a race between two
+  // open tabs"), so missing a share made before the case's most recent 100 files just falls back
+  // to that 400 instead of a disabled button.
+  const uploads = useUploads(clientId, { limit: 100 })
   const alreadySharedLibraryIds = useMemo(
-    () => new Set(uploads.data?.map((u) => u.source_library_document_id).filter((id): id is string => Boolean(id))),
+    () =>
+      new Set(
+        uploads.data?.items.map((u) => u.source_library_document_id).filter((id): id is string => Boolean(id)),
+      ),
     [uploads.data],
   )
 
