@@ -563,3 +563,30 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
     toPayload,
   }
 }
+
+/**
+ * The first reason the save button is disabled, named with the tab it sits on — the blocked field
+ * is usually not on the tab the admin is looking at. Mirrors `isValid` above rule for rule, so
+ * keep the two in step (Wave 2 console check, 2026-09-25: fee period and delivery used to block
+ * the save with nothing on screen to say so). A plain "required" reads quietly; a value the form
+ * refuses to guess reads as an error.
+ */
+export function courseFormBlocker(form: CourseFormValue): { text: string; tone: 'hint' | 'error' } | null {
+  if (!form.name.trim()) return { text: 'Course name is required (Basics tab).', tone: 'hint' }
+  if (!form.level) return { text: 'Level is required (Basics tab).', tone: 'hint' }
+  if (!form.fieldOfStudy) return { text: 'Field of study is required (Basics tab).', tone: 'hint' }
+  if (!form.language) return { text: 'Language of teaching is required (Basics tab).', tone: 'hint' }
+  if (!form.delivery) return { text: 'Delivery is required (Flags tab).', tone: 'hint' }
+  if (form.campusRequired) return { text: 'Pick at least one campus (Campuses & Intakes tab).', tone: 'error' }
+  if (form.entryQualificationError || form.schemeError) {
+    return { text: 'A minimum score needs its qualification and scale (Entry Requirements tab).', tone: 'error' }
+  }
+  if (form.aptitudeRequiredError) {
+    return { text: 'Say whether each entrance exam is required or optional (Entry Requirements tab).', tone: 'error' }
+  }
+  if (form.feeCurrencyError || form.appFeeCurrencyError) return { text: 'A fee needs its currency (Fees tab).', tone: 'error' }
+  if (form.feePeriodError) {
+    return { text: 'Say whether the tuition fee is per year or for the whole programme (Fees tab).', tone: 'error' }
+  }
+  return null
+}

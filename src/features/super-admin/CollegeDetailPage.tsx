@@ -33,7 +33,7 @@ import {
   CourseFlagsPanel,
   CourseRequirementsPanel,
 } from './CourseFormPanels'
-import { useCourseForm } from './useCourseForm'
+import { courseFormBlocker, useCourseForm } from './useCourseForm'
 import { CollegeFormModal } from './CollegeFormModal'
 import type { components } from '@/api/schema'
 import { formatCourseFee } from '@/lib/money'
@@ -264,6 +264,8 @@ export function CourseFormModal({
     )
   }
 
+  const blocker = courseFormBlocker(form)
+
   return (
     <Modal
       onClose={onClose}
@@ -272,27 +274,15 @@ export function CourseFormModal({
       footer={
         <>
           {mutation.isError && <p className="mr-auto self-center text-body-sm text-error">{mutation.error.message}</p>}
-          {!form.language && (
-            <p className="mr-auto self-center text-body-sm text-text-secondary">
-              Language of teaching is required (Basics tab).
-            </p>
-          )}
-          {form.campusRequired && (
-            <p className="mr-auto self-center text-body-sm text-error">
-              Pick at least one campus (Campuses &amp; Intakes tab).
-            </p>
-          )}
-          {/* The answers the form no longer guesses (assumptions audit C1/C3/C5, approved
-              2026-09-19). Named with their tab, same as the two above, because the blocked field
-              is usually not the tab the admin is looking at. */}
-          {(form.entryQualificationError || form.schemeError) && (
-            <p className="mr-auto self-center text-body-sm text-error">
-              A minimum score needs its qualification and scale (Entry Requirements tab).
-            </p>
-          )}
-          {(form.feeCurrencyError || form.appFeeCurrencyError) && (
-            <p className="mr-auto self-center text-body-sm text-error">
-              A fee needs its currency (Fees tab).
+          {/* Every rule that disables the button is named here with its tab — the blocked field
+              is usually not on the tab the admin is looking at, and a greyed button with no reason
+              reads as a broken form (Wave 2 console check, 2026-09-25: fee period and delivery
+              blocked the save silently). Keep this list in step with `isValid` in useCourseForm. */}
+          {!mutation.isError && blocker && (
+            <p
+              className={`mr-auto self-center text-body-sm ${blocker.tone === 'error' ? 'text-error' : 'text-text-secondary'}`}
+            >
+              {blocker.text}
             </p>
           )}
           <Button type="submit" form="course-form" loading={mutation.isPending} disabled={!form.isValid}>
