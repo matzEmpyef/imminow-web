@@ -7,6 +7,14 @@ import { useCommitLeadImport, useCreateLead, useValidateLeadImport } from '@/que
 import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
 import { showToast } from '@/lib/toast'
 
+// Contract gate 7, owner Q7 (2026-09-25): duplicates — repeated within the file, or matching an
+// existing active imported lead — are skipped rather than failing the whole import, and listed
+// with a reason so nothing silently disappears.
+const SKIPPED_REASON_LABEL: Record<string, string> = {
+  duplicate_in_file: 'Duplicate row in this file',
+  already_imported: 'Already an active lead',
+}
+
 const SOURCES = [
   { value: 'referral', label: 'Referral' },
   { value: 'website', label: 'Website' },
@@ -146,9 +154,43 @@ export function ImportLeadsModal({ onClose }: { onClose: () => void }) {
       )}
 
       {commit.isSuccess && (
-        <p className="mt-md text-body-sm text-success">
-          {commit.data.created_count} leads imported into the Lead Pool.
-        </p>
+        <div className="mt-md flex flex-col gap-sm">
+          <p className="text-body-sm text-success">
+            {commit.data.created_count} leads imported into the Lead Pool.
+          </p>
+          {commit.data.skipped.length > 0 && (
+            <div className="flex flex-col gap-xs">
+              <p className="text-body-sm text-text-primary">
+                {commit.data.skipped.length} row{commit.data.skipped.length === 1 ? '' : 's'} skipped —
+                already there, so nothing was overwritten.
+              </p>
+              <div className="max-h-40 overflow-auto rounded-md border border-border">
+                <table className="w-full text-body-sm">
+                  <thead className="bg-background text-caption text-text-secondary">
+                    <tr>
+                      <th className="px-sm py-xs text-left">Row</th>
+                      <th className="px-sm py-xs text-left">Name</th>
+                      <th className="px-sm py-xs text-left">Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {commit.data.skipped.map((row) => (
+                      <tr key={row.row_number} className="border-t border-border">
+                        <td className="px-sm py-xs">{row.row_number}</td>
+                        <td className="px-sm py-xs">
+                          {validate.data?.rows.find((r) => r.row_number === row.row_number)?.name ?? '—'}
+                        </td>
+                        <td className="px-sm py-xs text-text-secondary">
+                          {SKIPPED_REASON_LABEL[row.reason] ?? row.reason}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </Modal>
   )
