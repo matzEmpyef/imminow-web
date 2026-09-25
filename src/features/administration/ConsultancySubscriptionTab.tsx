@@ -35,7 +35,9 @@ export function SubscriptionTab({ consultancy }: { consultancy: Consultancy }) {
   // nothing said about what happens next. It asks first now.
   const [confirmUpgrade, setConfirmUpgrade] = useState(false)
 
-  const tier = consultancy.tier
+  // Always present on the consultancy's own record; optional in the contract only because the
+  // public projection leaves the plan out (contract gate 5).
+  const tier = consultancy.tier ?? 'starter'
   const tierIndex = TIER_ORDER.indexOf(tier)
   const nextTier = TIER_ORDER[tierIndex + 1]
   // T2: meta.total when the server provides it — items.length is only ever one page, so a

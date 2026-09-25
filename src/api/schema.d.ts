@@ -319,7 +319,7 @@ export interface paths {
         post?: never;
         /**
          * Remove the caller's authenticator (Phase 6 — not served by the mock server)
-         * @description Phase 6 — not served by the mock server. Turns two-factor sign-in off for the caller, who proves possession with a current code. 400 `invalid_mfa_code` for a wrong code; 409 `mfa_required_by_policy` when the account's role requires two-factor (`two_factor_required` — Consultancy Admin and Super Admin at minimum, build reference Staff 2FA) — such an account never goes without one; replacing a lost authenticator goes through Support. 404 when nothing is enrolled.
+         * @description Phase 6 — not served by the mock server. Turns two-factor sign-in off for the caller, who proves possession with a current code. 400 `invalid_mfa_code` for a wrong code; 409 `mfa_required_by_policy` when the account's role requires two-factor (`two_factor_required` — Consultancy Admin and Super Admin at minimum, build reference Staff 2FA) — such an account never goes without one; replacing a lost authenticator goes through Support. 404 when nothing is enrolled. On the production identity provider the removal also needs the account's `password` (contract gate 5): 400 `validation_failed` naming `password` when it is missing, 400 `invalid_current_password` when it is wrong.
          */
         delete: {
             parameters: {
@@ -332,6 +332,11 @@ export interface paths {
                 content: {
                     "application/json": {
                         code: string;
+                        /**
+                         * Format: password
+                         * @description The account's current password. Required where the identity provider can check an authenticator code only inside a password sign-in (Cognito); clients always send it. The local development identity provider ignores it.
+                         */
+                        password?: string;
                     };
                 };
             };
@@ -2259,7 +2264,7 @@ export interface paths {
         };
         /**
          * Tag Management's list (build reference 2.2) — this consultancy's own tags for leads and clients
-         * @description Not paged, by design (SCALABILITY F1, contract gate 4): the whole list in one response, bounded at 100 active tags per consultancy. The real backend refuses the 101st POST /tags with 400 `validation_failed`; the mock does not enforce the ceiling.
+         * @description Not paged, by design (SCALABILITY F1, contract gate 4): the whole list in one response, bounded at 100 active tags per consultancy (`Consultancy.limits.tags`). The real backend refuses the 101st POST /tags with 400 `validation_failed`; the mock does not enforce the ceiling.
          */
         get: {
             parameters: {
@@ -2372,7 +2377,7 @@ export interface paths {
         };
         /**
          * List designations (Business & Ultimate tiers, FR-078)
-         * @description Not paged, by design (SCALABILITY F1, contract gate 4): the whole list in one response, bounded at 50 designations per consultancy, the protected Owner/Admin one included. The real backend refuses the 51st POST /staff/designations with 400 `validation_failed`; the mock does not enforce the ceiling.
+         * @description Not paged, by design (SCALABILITY F1, contract gate 4): the whole list in one response, bounded at 50 designations per consultancy, the protected Owner/Admin and Full access ones included (`Consultancy.limits.designations`). The real backend refuses the 51st POST /staff/designations with 400 `validation_failed`; the mock does not enforce the ceiling.
          */
         get: {
             parameters: {
@@ -2439,7 +2444,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Edit designation — blocked on the system-protected Owner/Admin designation */
+        /** Edit designation — blocked on the system-protected Owner/Admin and Full access designations */
         patch: {
             parameters: {
                 query?: never;
@@ -2478,7 +2483,7 @@ export interface paths {
         };
         /**
          * List the caller's own branches (FR-078). NOT gated on `multi_branch`: several screens resolve a branch label regardless of plan. Reachable on EVERY tier since 2026-09-21 in any case — see the writes below.
-         * @description Not paged, by design (SCALABILITY F1, contract gate 4): the whole list in one response, bounded at 100 branches per consultancy, active and inactive together. The real backend refuses the 101st POST /staff/branches with 400 `validation_failed`; the mock does not enforce the ceiling. GET /consultancies/{id}/branches reads the same set, so it has the same bound.
+         * @description Not paged, by design (SCALABILITY F1, contract gate 4): the whole list in one response, bounded at 100 branches per consultancy, active and inactive together (`Consultancy.limits.branches`). The real backend refuses the 101st POST /staff/branches with 400 `validation_failed`; the mock does not enforce the ceiling. GET /consultancies/{id}/branches reads the same set, so it has the same bound.
          */
         get: {
             parameters: {
@@ -6057,7 +6062,7 @@ export interface paths {
         };
         /**
          * The caller's consultancy↔college relations (COURSES_MODULE_PLAN.md §1.7). Platform admins may pass consultancy_id to read/manage any consultancy's relations (configure-on-behalf); consultancy staff always get their own.
-         * @description Not paged, by design (SCALABILITY F1, contract gate 4): one consultancy's partner colleges in one response, bounded at 500 per consultancy. The real backend refuses the 501st POST /consultancy-colleges with 400 `validation_failed`; the mock does not enforce the ceiling. An institute has exactly one row, its own college.
+         * @description Not paged (SCALABILITY F1, contract gate 4): one consultancy's partner colleges in one response. There is NO ceiling on how many colleges a consultancy partners with (product owner, 2026-09-25 — the 500 of gate 4 is withdrawn). An institute has exactly one row, its own college.
          */
         get: {
             parameters: {
@@ -6347,7 +6352,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Discovery list (Stage 1, filter by country, sort by rating/match score, FR-028) — also Manage Consultancies' searchable list (build reference 1.23), via the search/tier/ active params below. Open to any authenticated user, not just Super Admin (Sentpo Mobile Wave 3 — this was the one gap between this doc's own dual-purpose summary and its mock-server implementation, which had been Super-Admin-gated). Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, city, country, seat_limit, tier, rating, subscription (soonest expiry first, no term last), seats_used and active_applicants (platform team only), and match (build reference 1.5's rule-based overlap score between the caller's own `StudentPreferences` and each consultancy's countries_served — students only, silently falls back to rating for any other caller; study level deliberately does NOT score, since a consultancy serves every course level in a college — user, 2026-08-20; `fields_served` was removed from the schema entirely, 2026-08-30, since no web or mobile UI ever displayed or edited it). filter[country]= narrows to consultancies serving that country. District filtering from the build reference's own Discovery List description isn't implemented — no schema anywhere (`Consultancy`, `User`, `StudentPreferences`) has a district/location field, the same pre-existing gap flagged for Wave 2's "Study in [Home Country]" tab. Discovery List's own caller passes active=true explicitly (this endpoint doesn't filter out retired consultancies by default — Manage Consultancies needs to see them too).
+         * Discovery list (Stage 1, filter by country, sort by rating/match score, FR-028) — also Manage Consultancies' searchable list (build reference 1.23), via the search/tier/ active params below. Open to any authenticated user, not just Super Admin (Sentpo Mobile Wave 3 — this was the one gap between this doc's own dual-purpose summary and its mock-server implementation, which had been Super-Admin-gated). Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, city, country, seat_limit, tier (platform team only since 2026-09-25 — the plan is not public), rating, subscription (soonest expiry first, no term last), seats_used and active_applicants (platform team only), and match (build reference 1.5's rule-based overlap score between the caller's own `StudentPreferences` and each consultancy's countries_served — students only, silently falls back to rating for any other caller; study level deliberately does NOT score, since a consultancy serves every course level in a college — user, 2026-08-20; `fields_served` was removed from the schema entirely, 2026-08-30, since no web or mobile UI ever displayed or edited it). filter[country]= narrows to consultancies serving that country. District filtering from the build reference's own Discovery List description isn't implemented — no schema anywhere (`Consultancy`, `User`, `StudentPreferences`) has a district/location field, the same pre-existing gap flagged for Wave 2's "Study in [Home Country]" tab. Discovery List's own caller passes active=true explicitly (this endpoint doesn't filter out retired consultancies by default — Manage Consultancies needs to see them too).
          *
          *     RANKED BY NEARNESS since 2026-09-21 (product owner) — "featured first, then nearest, then rating, then the existing rotation tie-break." Nearness is each account's NEAREST BRANCH — same city, then district, then state, then country, then no match — reported per row as `nearest_branch` / `nearest_branch_match` so a card can name the office and the order never reads as arbitrary. It goes in as a priority tier ahead of whatever `sort=` asks for, the way `filter[preferred]` already does, so it survives paging with the keyset cursor. THE WHOLE TIER IS SKIPPED for a caller who has named no location of their own — a student with no `city`/`district`/`state`/`resident_country` gets exactly the ordering they got before this shipped, which is also why `featured` leads here rather than everywhere — Manage Consultancies' alphabetical admin list is not a discovery ranking, and Home's featured rail is a separate call to `filter[featured]=true`.
          *
@@ -6366,6 +6371,7 @@ export interface paths {
                     sort?: components["parameters"]["SortParam"];
                     /** @description Match against name — and, for the platform team, city and country (Manage Consultancies, 2026-09-11). */
                     search?: string;
+                    /** @description Narrows to one plan — the platform team only (Manage Consultancies). The plan is not public (product owner, 2026-09-25), so anyone else's `tier=` is ignored, as is their `sort=tier`, rather than letting a student read it back one query at a time. */
                     tier?: "starter" | "business" | "ultimate";
                     /** @description Narrows to one kind of account (INSTITUTE_ACCOUNT_PLAN D10, 2026-09-10). Institutes are already rows in this list under D6, so discovery needs a tag and a filter rather than a new screen. Discovery's institute "view all" is this plus the endpoint's own default `sort=name` ascending — alphabetical, deliberately NOT `-rating` or `match`, because D15 removes the ranking problem by not ranking institutes against consultancies at all. */
                     kind?: "consultancy" | "institute";
@@ -6400,7 +6406,7 @@ export interface paths {
                         "application/json": {
                             items: components["schemas"]["Consultancy"][];
                             meta: components["schemas"]["PaginatedMeta"];
-                            /** @description Active accounts on the platform by plan, consultancies and institutes together (Manage Consultancies KPI cards, user-requested 2026-08-18; active only since 2026-09-11) — always computed over the full set, independent of this response's own search/tier/status filters or pagination, so the KPI totals never shift as an admin filters or pages through the list. */
+                            /** @description Active accounts on the platform by plan, consultancies and institutes together (Manage Consultancies KPI cards, user-requested 2026-08-18; active only since 2026-09-11) — always computed over the full set, independent of this response's own search/tier/status filters or pagination, so the KPI totals never shift as an admin filters or pages through the list. Platform team only — omitted for everyone else, since the plan is not public (2026-09-25). */
                             tier_counts?: {
                                 starter: number;
                                 business: number;
@@ -21987,7 +21993,11 @@ export interface components {
             branch_ids?: components["schemas"]["UUID"][];
             /** @description Which of this employee's own branches is their primary one (product owner, 2026-09-21). It decides which branch every lead and client assigned to them is filed under, so the invite asks for it rather than inferring it from the order `branch_ids` happens to be in. OPTIONAL. Omitted (or null), it falls back to `branch_ids[0]` — exactly the behaviour before 2026-09-21 — so a single-branch consultancy and any client not yet sending the field notice nothing. A value that is not in this same request's `branch_ids` is a 422 `validation_failed` with a plain-language message. */
             primary_branch_id?: components["schemas"]["UUID"];
-            designation_id?: components["schemas"]["UUID"];
+            /**
+             * Format: uuid
+             * @description The access-rights designation. On a plan without the `designations` feature (Starter's preset; product owner, 2026-09-25) the console does not ask for one: omitted (or null), the employee is put on the consultancy's protected Full access designation — every work permission ticked and stored, the six consultancy-running ones not — so that after an upgrade the admin can untick what they want. With the feature, an omitted designation leaves the employee on none. A plan change later never moves anyone: staff invited while on Starter keep Full access after an upgrade, and staff restricted on Business keep their restrictions after a downgrade.
+             */
+            designation_id?: string;
             permission_overrides?: {
                 [key: string]: boolean;
             };
@@ -22003,6 +22013,7 @@ export interface components {
             /** @description Change which of this employee's branches is their primary one (product owner, 2026-09-21) — see `EmployeeInput.primary_branch_id`. CHECKED AGAINST THE MERGED ROW: one call may add a branch and name it primary, and a value outside the employee's branches (as this request leaves them) is a 422 `validation_failed` that writes nothing at all rather than half-applying the edit. Omitted, the stored value stands, except for the pre-existing fallback: a `branch_ids` that no longer contains the current primary re-derives it to `branch_ids[0]`. EXISTING LEADS AND CLIENTS ARE NOT RE-FILED. The new primary is stamped onto assignments made from here on — allocate, assign, reassign-on-deactivate, downgrade-reassign — and live cases keep the branch they are already filed under. */
             primary_branch_id?: components["schemas"]["UUID"];
             designation_id?: components["schemas"]["UUID"];
+            /** @description Replaces the employee's overrides. A key outside the consultancy's `Consultancy.available_permissions` keeps its stored value whatever is sent (the editor does not show it), so it still applies once the plan includes its feature (2026-09-25). */
             permission_overrides?: {
                 [key: string]: boolean;
             };
@@ -22012,7 +22023,7 @@ export interface components {
         Designation: {
             id: components["schemas"]["UUID"];
             name: string;
-            /** @description True only for the system-provisioned Owner/Admin designation — cannot be edited or deleted (build reference 1.15). */
+            /** @description True only for the two system-provisioned designations — Owner/Admin (every permission) and Full access (every work permission; none of the six that run the consultancy: `staff.manage_employees`, `staff.manage_designations`, `staff.manage_branches`, `settings.edit_profile`, `billing.record_payment`, `billing.export_statements`; product owner, 2026-09-25) — which cannot be edited or deleted (build reference 1.15). */
             readonly protected?: boolean;
             /** @description Six permission areas, granular sub-permissions per build reference 1.15. */
             permissions: {
@@ -22021,6 +22032,7 @@ export interface components {
         };
         DesignationInput: {
             name: string;
+            /** @description On an edit, replaces the designation's permissions — except a key outside the consultancy's `Consultancy.available_permissions`, which keeps its stored value whatever is sent (the editor does not show it), so it still applies once the plan includes its feature (2026-09-25). */
             permissions?: {
                 [key: string]: boolean;
             };
@@ -22032,6 +22044,11 @@ export interface components {
         /** @description A consultancy's office. Carries a STRUCTURED location since 2026-09-21 (product owner): students choose which branch of a consultancy to talk to, and the consultancy list is ordered by how near a branch is to them — same city, then district, then state, then country. No coordinates and no distance are involved, so every level has to be a value picked from the same managed list the student's filter reads. `address` keeps its original job — the street line — because a free-text address cannot be filtered, which is the failure already named on job locations. All four location fields are NULLABLE and a branch may carry none of them: accounts have branches nobody has filled in yet, and refusing to store one would only move the gap somewhere the platform team cannot see. Those branches are counted on the Super Admin's Needs attention page instead (`branches_missing_location`). */
         Branch: {
             id: components["schemas"]["UUID"];
+            /**
+             * Format: uuid
+             * @description The consultancy the branch belongs to (contract gate 5) — always the caller's own on the staff routes.
+             */
+            readonly consultancy_id?: string;
             name: string;
             /** @description The STREET LINE only since 2026-09-21 — door number, building, road. The city, district, state and country are the structured fields below and are not repeated here. */
             address: string;
@@ -22292,7 +22309,7 @@ export interface components {
         /**
          * @description Carries its NEAREST BRANCH to the calling student since 2026-09-21 — see `nearest_branch` / `nearest_branch_match` below, and the ordering rule on GET /consultancies.
          *
-         *     WHO RECEIVES WHICH FIELDS (contract gate 4, Wave 2 plan G8 / REVIEW_TRIAGE item 22 — the response is role-scoped at the projection, never sent whole to be hidden client-side). FULL record: the consultancy's own active staff (GET /consultancies/me and its own GET /consultancies/{id}) and platform staff. PUBLIC projection: students, freelancers and every OTHER consultancy's staff — `id`, `created_at`, `name`, `logo_url`, `description`, `about_us`, `countries_served`, `country`, `city`, `public_email`, `public_phone`, `address`, `visiting_hours`, `visiting_schedule`, `kind`, `college_id`, `tier`, `active`, `kyc_verified`, `rating`, `rating_count`, `rating_source`, `review_count`, `featured`, `is_new`, `typical_reply_hours`, `gallery`, `nearest_branch` and `nearest_branch_match`. Every other field — seat, subscription, billing, entitlement, file-number, two-factor, freelancer-channel, upgrade/renewal and rating-override fields — is OMITTED from the public projection, which is why none of them is required. The mock server still sends the full record to every caller; the real backend's projection is a deliberate difference (PHASE6_TEST_CHECKLIST).
+         *     WHO RECEIVES WHICH FIELDS (contract gate 4, Wave 2 plan G8 / REVIEW_TRIAGE item 22 — the response is role-scoped at the projection, never sent whole to be hidden client-side). FULL record: the consultancy's own active staff (GET /consultancies/me and its own GET /consultancies/{id}) and platform staff. PUBLIC projection: students, freelancers and every OTHER consultancy's staff — `id`, `created_at`, `name`, `logo_url`, `description`, `about_us`, `countries_served`, `country`, `city`, `public_email`, `public_phone`, `address`, `visiting_hours`, `visiting_schedule`, `kind`, `college_id`, `active`, `kyc_verified`, `rating`, `rating_count`, `rating_source`, `review_count`, `featured`, `is_new`, `typical_reply_hours`, `gallery`, `nearest_branch` and `nearest_branch_match`. Every other field — plan tier, seat, subscription, billing, entitlement, file-number, two-factor, freelancer-channel, upgrade/renewal, rating-override, `limits` and `available_permissions` — is OMITTED from the public projection, which is why none of them is required. The plan tier left the public projection on 2026-09-25 (product owner: students and other consultancies don't see Starter/Business/Ultimate). The mock server omits `tier`, `limits` and `available_permissions` from the public projection too but still sends the other private fields to every caller; the real backend's full projection is a deliberate difference (PHASE6_TEST_CHECKLIST).
          */
         Consultancy: {
             /** @description WHICH OF THIS ACCOUNT'S BRANCHES IS NEAREST to the calling student (product owner, 2026-09-21), so a card can name the office rather than leave the list's order looking arbitrary. Nearness is a four-step match and nothing else — same city, then same district, then same state, then same country — with no coordinates and no distance involved. Only the account's ACTIVE branches are considered: a switched-off office is not somewhere anyone can walk into. Null when the caller has named no location of their own (`StudentPreferences.city` / `district` / `state` / `resident_country` are all empty), and null when no branch of this account matches even on country. Present and null on every read that has no student caller to speak of, so a client never has to tell "no nearby branch" apart from "this response does not carry the fact". */
@@ -22388,8 +22405,22 @@ export interface components {
             } | null;
             /** @description Median hours between a student's message and the consultancy's next reply over the last 90 days of lead chats (app review H2, 2026-09-13). Null under three samples. */
             readonly typical_reply_hours?: number | null;
-            /** @enum {string} */
-            tier: "starter" | "business" | "ultimate";
+            /**
+             * @description The plan. Full record only (own staff and platform staff) since 2026-09-25 — omitted from the public projection students and other consultancies receive, which is why it is not required. Gate features on `features`, never on this.
+             * @enum {string}
+             */
+            tier?: "starter" | "business" | "ultimate";
+            /** @description The ceilings on this consultancy's bounded lists (product owner, 2026-09-25), so the console can show a count against them ("12 of 100 tags"). The same on every plan; creating one more at a ceiling is refused 400 `validation_failed` by the real backend. Partner colleges have no ceiling and are not listed. Full record only. */
+            readonly limits?: {
+                /** @description Active tags (GET /tags), 100. */
+                tags: number;
+                /** @description Designations, the protected ones included (GET /staff/designations), 50. */
+                designations: number;
+                /** @description Branches, active and inactive together (GET /staff/branches), 100. */
+                branches: number;
+            };
+            /** @description The staff permission keys this consultancy's plan gives any meaning to (product owner, 2026-09-25) — what the designation editor and the per-person access editor show. A permission is left out when EVERY action it controls needs a plan feature this consultancy's `features` has off; one that controls at least one action with no plan feature, or with all of its features on, is included. Computed by the server from its own route declarations (each route's permission and plan features), so it cannot drift from what the routes actually allow. Keys left out keep whatever tick is stored on a designation or an override: an edit leaves them as they were, and they apply again as soon as the plan includes their feature. In the order of the 27 keys. Full record only. */
+            readonly available_permissions?: string[];
             /** @description Seats the plan allows. Full record only (own staff and platform staff) — omitted from the public projection (contract gate 4, see the schema description), which is why it is no longer required. */
             seat_limit?: number;
             /**

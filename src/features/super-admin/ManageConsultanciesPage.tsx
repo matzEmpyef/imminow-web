@@ -887,7 +887,10 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
 
   // Only a DOWNGRADE has consequences worth warning about — moving up never disables anything.
   const isDowngrade =
-    tier !== consultancy.tier && TIER_ORDER.indexOf(tier ?? '') < TIER_ORDER.indexOf(consultancy.tier ?? '')
+    tier !== consultancy.tier &&
+    tier !== undefined &&
+    consultancy.tier !== undefined &&
+    TIER_ORDER.indexOf(tier) < TIER_ORDER.indexOf(consultancy.tier)
   const impact = useTierImpact(consultancy.id!, tier, isDowngrade)
 
   const hasChanges =
