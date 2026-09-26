@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { api } from '@/api/client'
+import { useRealtimeOpen } from '@/lib/realtime'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 
@@ -14,8 +15,14 @@ import { ApiError } from './auth'
 // `refetchInterval` hammered `/conversations` every 15s even with the drawer never opened. The
 // query still fires once on mount/focus for the unread badge, it just only POLLS while the caller
 // says the drawer is actually open.
+//
+// The poll is itself a fallback since contract gate 8 (Wave 3 plan §6.6): while the realtime
+// socket is open, `conversation.updated` patches a row in place and `unread.changed` replaces the
+// badge count directly, so there's nothing for the 15s poll to do — it switches off and resumes
+// the instant the socket isn't open.
 export function useConversations(pollWhileOpen = false) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  const realtimeOpen = useRealtimeOpen()
   return useQuery({
     queryKey: ['conversations'],
     queryFn: async () => {
@@ -24,7 +31,7 @@ export function useConversations(pollWhileOpen = false) {
       return data
     },
     enabled: isAuthed,
-    refetchInterval: pollWhileOpen ? 15000 : false,
+    refetchInterval: pollWhileOpen && !realtimeOpen ? 15000 : false,
   })
 }
 

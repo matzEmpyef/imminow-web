@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
+import { useRealtimeOpen } from '@/lib/realtime'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 import type { components } from '@/api/schema'
@@ -249,8 +250,14 @@ export function useRequestRating() {
   })
 }
 
+// Polls every 5s as a fallback only — while the realtime socket is open, `chat.message` /
+// `chat.delivered` / `chat.read` frames patch this same cache directly (contract gate 8, Wave 3
+// plan §6.6) and the poll switches itself off; it resumes the instant the socket isn't open
+// (reconnecting, disabled against the mock, or an outage), so nothing here changes when the socket
+// is down.
 export function useLeadMessages(id: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  const realtimeOpen = useRealtimeOpen()
   return useQuery({
     queryKey: ['leads', id, 'messages'],
     queryFn: async () => {
@@ -259,7 +266,7 @@ export function useLeadMessages(id: string | undefined) {
       return data
     },
     enabled: isAuthed && Boolean(id),
-    refetchInterval: 5000,
+    refetchInterval: realtimeOpen ? false : 5000,
   })
 }
 

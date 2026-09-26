@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
+import { useRealtimeOpen } from '@/lib/realtime'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 import type { components } from '@/api/schema'
@@ -399,8 +400,12 @@ export function useCommissions(clientId: string | undefined) {
   })
 }
 
+// Polls every 5s as a fallback only — see the identical note on `useLeadMessages`
+// (queries/leads.ts): while the realtime socket is open, frames patch this cache directly and the
+// poll switches itself off, resuming the instant the socket isn't.
 export function useClientMessages(clientId: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  const realtimeOpen = useRealtimeOpen()
   return useQuery({
     queryKey: ['clients', clientId, 'messages'],
     queryFn: async () => {
@@ -411,7 +416,7 @@ export function useClientMessages(clientId: string | undefined) {
       return data
     },
     enabled: isAuthed && Boolean(clientId),
-    refetchInterval: 5000,
+    refetchInterval: realtimeOpen ? false : 5000,
   })
 }
 
