@@ -8,12 +8,11 @@
 // the composer pinned at the bottom. Not chat bubbles: notes come from any team member, not a
 // two-party exchange, so author-labelled rows read better here.
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { NotebookPen, Send } from 'lucide-react'
+import { ChevronUp, NotebookPen, Send } from 'lucide-react'
 import { Button } from '@/components/Button'
-import { CursorPager } from '@/components/CursorPager'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useAddInternalNote, useInternalNotes } from '@/queries/clients'
-import { useCursorPagination } from '@/lib/pagination'
+import { chronologicalPages } from '@/lib/pagination'
 import { formatDateTime, relativeTime } from '@/lib/time'
 
 function initials(first?: string | null, last?: string | null) {
@@ -21,12 +20,11 @@ function initials(first?: string | null, last?: string | null) {
 }
 
 export function InternalNotesTab({ clientId }: { clientId: string }) {
-  // Paged since contract gate 7 (Wave 3 plan §7 item 3), oldest first per the contract — same
-  // order this tab always read, now a page (20) at a time instead of every note in one request. A
-  // case with more than one page of history shows its oldest notes first; Next walks toward the
-  // newest, same as every other paged list's Previous/Next in the console.
-  const paging = useCursorPagination()
-  const notes = useInternalNotes(clientId, { cursor: paging.cursor, limit: 20 })
+  // Paged since contract gate 7 (Wave 3 plan §7 item 3), reordered 2026-09-26 (coordinator
+  // decision) to page NEWEST first — so the newest notes, and one just added, are always on the
+  // first page. The tab still renders chronologically (oldest at top, `chronologicalPages`) and
+  // loads older pages on request with "Show earlier notes" at the top, the way chat threads work.
+  const notes = useInternalNotes(clientId)
   const addNote = useAddInternalNote(clientId)
   const [draft, setDraft] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -52,7 +50,8 @@ export function InternalNotesTab({ clientId }: { clientId: string }) {
     }
   }
 
-  const items = notes.data?.items ?? []
+  const items = chronologicalPages(notes.data?.pages)
+  const total = notes.data?.pages[0]?.meta.total
 
   return (
     <div className="flex h-[calc(100vh-16rem)] flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-card">
@@ -61,9 +60,9 @@ export function InternalNotesTab({ clientId }: { clientId: string }) {
           <h2 className="text-h3 text-text-primary">Internal notes</h2>
           <p className="text-caption text-text-secondary">Visible to your team only. The student never sees these.</p>
         </div>
-        {notes.data && (
+        {total != null && (
           <span className="text-body-sm tabular-nums text-text-secondary">
-            {notes.data.meta.total} {notes.data.meta.total === 1 ? 'note' : 'notes'}
+            {total} {total === 1 ? 'note' : 'notes'}
           </span>
         )}
       </div>
@@ -77,6 +76,20 @@ export function InternalNotesTab({ clientId }: { clientId: string }) {
             <p className="text-body-sm text-text-secondary">
               No notes yet. Write down anything the team should know about this case.
             </p>
+          </div>
+        )}
+        {notes.hasNextPage && (
+          <div className="mb-md flex justify-center">
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={notes.isFetchingNextPage}
+              onClick={() => notes.fetchNextPage()}
+              className="inline-flex items-center gap-xs"
+            >
+              <ChevronUp className="h-4 w-4" aria-hidden />
+              Show earlier notes
+            </Button>
           </div>
         )}
         <ul className="flex flex-col gap-md">
@@ -100,14 +113,6 @@ export function InternalNotesTab({ clientId }: { clientId: string }) {
           ))}
         </ul>
       </div>
-
-      <CursorPager
-        hasNext={Boolean(notes.data?.meta.next_cursor)}
-        hasPrevious={paging.hasPrevious}
-        onNext={() => notes.data?.meta.next_cursor && paging.next(notes.data.meta.next_cursor)}
-        onPrevious={paging.previous}
-        noun="note"
-      />
 
       <form onSubmit={submit} className="flex shrink-0 items-end gap-sm border-t border-border px-lg py-md">
         <textarea

@@ -1,7 +1,12 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import type { components } from '@/api/schema'
+
+type InternalNote = components['schemas']['InternalNote']
+type NotesPage = { items: InternalNote[]; meta: components['schemas']['PaginatedMeta'] }
+type InfiniteNotesData = { pages: NotesPage[]; pageParams: (string | undefined)[] }
 
 interface ClientListFilters {
   assignedToMe?: boolean
@@ -314,19 +319,23 @@ interface CursorPageFilters {
   limit?: number
 }
 
-// Paged since contract gate 7 (Wave 3 plan §7 item 3) — replaces the temporary `fetchAllPages`
-// read with the console's own Previous/Next paging (`CursorPager`, `useCursorPagination`).
-export function useInternalNotes(clientId: string | undefined, filters: CursorPageFilters = {}) {
+// Paged since contract gate 7 (Wave 3 plan §7 item 3), reordered 2026-09-26 (coordinator decision)
+// to page NEWEST first — a `useInfiniteQuery` feed rather than the console's Previous/Next paging,
+// so the panel can render chronologically with a "Show earlier notes" button loading OLDER pages,
+// the way chat threads work (`chronologicalPages` in `lib/pagination.ts` does the reversal).
+export function useInternalNotes(clientId: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
-  return useQuery({
-    queryKey: ['clients', clientId, 'notes', filters],
-    queryFn: async () => {
+  return useInfiniteQuery({
+    queryKey: ['clients', clientId, 'notes'],
+    queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
       const { data, error } = await api.GET('/clients/{id}/notes', {
-        params: { path: { id: clientId! }, query: { limit: filters.limit ?? 20, cursor: filters.cursor } },
+        params: { path: { id: clientId! }, query: { limit: 20, cursor: pageParam } },
       })
       if (error) throw new ApiError('Could not load internal notes.', error)
       return data
     },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.meta.next_cursor ?? undefined,
     enabled: isAuthed && Boolean(clientId),
   })
 }
@@ -342,7 +351,19 @@ export function useAddInternalNote(clientId: string) {
       if (error) throw new ApiError('Could not add this note.', error)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'notes'] }),
+    // The feed pages newest-first, so a note just added belongs at the top of `pages[0]` (the
+    // first-fetched — always the newest — page), not appended at the end of whatever page happens
+    // to be loaded last. Written straight into the cache instead of invalidating: the panel then
+    // renders it at the bottom of the chronological list immediately, with no refetch.
+    onSuccess: (note) =>
+      queryClient.setQueryData(['clients', clientId, 'notes'], (old: InfiniteNotesData | undefined) => {
+        if (!old || old.pages.length === 0) return old
+        const [first, ...rest] = old.pages
+        return {
+          ...old,
+          pages: [{ ...first, items: [note, ...first.items], meta: { ...first.meta, total: (first.meta.total ?? 0) + 1 } }, ...rest],
+        }
+      }),
   })
 }
 

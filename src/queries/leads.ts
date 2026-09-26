@@ -1,7 +1,12 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import type { components } from '@/api/schema'
+
+type InternalNote = components['schemas']['InternalNote']
+type NotesPage = { items: InternalNote[]; meta: components['schemas']['PaginatedMeta'] }
+type InfiniteNotesData = { pages: NotesPage[]; pageParams: (string | undefined)[] }
 
 interface LeadListFilters {
   unallocated?: boolean
@@ -290,19 +295,23 @@ export function useMarkLeadRead() {
   })
 }
 
-// Paged since contract gate 7 (Wave 3 plan §7 item 3) — replaces the temporary `fetchAllPages`
-// read with the console's own Previous/Next paging.
-export function useLeadNotes(id: string | undefined, filters: { cursor?: string; limit?: number } = {}) {
+// Paged since contract gate 7 (Wave 3 plan §7 item 3), reordered 2026-09-26 (coordinator decision)
+// to page NEWEST first — a `useInfiniteQuery` feed, same shape as Client Profile's Internal Notes
+// tab (`useInternalNotes`, `queries/clients.ts`), so both notes panels render chronologically with
+// a "Show earlier notes" button loading OLDER pages (`chronologicalPages` in `lib/pagination.ts`).
+export function useLeadNotes(id: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
-  return useQuery({
-    queryKey: ['leads', id, 'notes', filters],
-    queryFn: async () => {
+  return useInfiniteQuery({
+    queryKey: ['leads', id, 'notes'],
+    queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
       const { data, error } = await api.GET('/leads/{id}/notes', {
-        params: { path: { id: id! }, query: { limit: filters.limit ?? 20, cursor: filters.cursor } },
+        params: { path: { id: id! }, query: { limit: 20, cursor: pageParam } },
       })
       if (error) throw new ApiError('Could not load internal notes.', error)
       return data
     },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.meta.next_cursor ?? undefined,
     enabled: isAuthed && Boolean(id),
   })
 }
@@ -318,7 +327,18 @@ export function useAddLeadNote(id: string) {
       if (error) throw new ApiError('Could not add this note.', error)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['leads', id, 'notes'] }),
+    // Same cache-surgery as Client Profile's notes tab: the new note goes to the top of `pages[0]`
+    // (always the newest page) so it renders at the bottom of the chronological list at once, with
+    // no refetch.
+    onSuccess: (note) =>
+      queryClient.setQueryData(['leads', id, 'notes'], (old: InfiniteNotesData | undefined) => {
+        if (!old || old.pages.length === 0) return old
+        const [first, ...rest] = old.pages
+        return {
+          ...old,
+          pages: [{ ...first, items: [note, ...first.items], meta: { ...first.meta, total: (first.meta.total ?? 0) + 1 } }, ...rest],
+        }
+      }),
   })
 }
 

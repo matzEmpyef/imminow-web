@@ -1,13 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, PictureInPicture2 } from 'lucide-react'
+import { ArrowLeft, ChevronUp, PictureInPicture2 } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Card } from '@/components/Card'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
-import { CursorPager } from '@/components/CursorPager'
 import { ChatPanel } from '@/components/ChatPanel'
 import { AssignBranchMenu } from '@/components/AssignBranchMenu'
 import { RequestedBranchBadge } from '@/components/RequestedBranch'
@@ -33,7 +32,7 @@ import {
   useSetLeadBranch,
 } from '@/queries/leads'
 import { useBranches } from '@/queries/staff'
-import { useCursorPagination } from '@/lib/pagination'
+import { chronologicalPages } from '@/lib/pagination'
 import { useFeature } from '@/lib/features'
 import { usePermission } from '@/lib/permissions'
 import { formatDate, formatDateTime } from '@/lib/time'
@@ -260,11 +259,12 @@ function DetailsCard({ lead }: { lead: NonNullable<ReturnType<typeof useLead>['d
   )
 }
 
-function NotesCard({ leadId }: { leadId: string }) {
-  // Paged since contract gate 7 (Wave 3 plan §7 item 3), oldest first per the contract, same as
-  // Client Profile's Internal Notes tab.
-  const paging = useCursorPagination()
-  const notes = useLeadNotes(leadId, { cursor: paging.cursor, limit: 20 })
+export function NotesCard({ leadId }: { leadId: string }) {
+  // Paged since contract gate 7 (Wave 3 plan §7 item 3), reordered 2026-09-26 (coordinator
+  // decision) to page NEWEST first, same as Client Profile's Internal Notes tab
+  // (`useInternalNotes`) — renders chronologically (oldest at top, `chronologicalPages`) with
+  // "Show earlier notes" at the top loading older pages, the way chat threads work.
+  const notes = useLeadNotes(leadId)
   const addNote = useAddLeadNote(leadId)
   const [draft, setDraft] = useState('')
 
@@ -274,7 +274,7 @@ function NotesCard({ leadId }: { leadId: string }) {
     addNote.mutate(draft, { onSuccess: () => setDraft('') })
   }
 
-  const items = notes.data?.items ?? []
+  const items = chronologicalPages(notes.data?.pages)
 
   return (
     <Card className="flex flex-col gap-md">
@@ -290,6 +290,20 @@ function NotesCard({ leadId }: { leadId: string }) {
           Add
         </Button>
       </form>
+      {notes.hasNextPage && (
+        <div className="flex justify-center">
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={notes.isFetchingNextPage}
+            onClick={() => notes.fetchNextPage()}
+            className="inline-flex items-center gap-xs"
+          >
+            <ChevronUp className="h-4 w-4" aria-hidden />
+            Show earlier notes
+          </Button>
+        </div>
+      )}
       <div className="flex flex-col gap-sm">
         {items.length === 0 && <p className="text-body-sm text-text-secondary">No notes yet.</p>}
         {items.map((note) => (
@@ -301,15 +315,6 @@ function NotesCard({ leadId }: { leadId: string }) {
           </div>
         ))}
       </div>
-      <CursorPager
-        hasNext={Boolean(notes.data?.meta.next_cursor)}
-        hasPrevious={paging.hasPrevious}
-        onNext={() => notes.data?.meta.next_cursor && paging.next(notes.data.meta.next_cursor)}
-        onPrevious={paging.previous}
-        total={notes.data?.meta.total}
-        noun="note"
-        className="-mx-lg -mb-lg"
-      />
     </Card>
   )
 }

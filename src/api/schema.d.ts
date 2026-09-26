@@ -8149,7 +8149,7 @@ export interface paths {
         };
         /**
          * Internal notes on this lead's conversation — same pattern as GET /clients/{id}/notes, for continuity before conversion
-         * @description Consultancy staff only — a student never reads or writes notes on their own lead. Paged (contract gate 7): `{items, meta}`, oldest first (`created_at`, then `id` — the order the notes panel reads), pages of `limit` (default 20, max 100) walked with `meta.next_cursor`; `meta.total` counts every note. **Transition:** a request with neither `limit` nor `cursor` gets the pre-gate-7 bare array of every note (mock only, for builds already installed); clients send `limit`.
+         * @description Consultancy staff only — a student never reads or writes notes on their own lead. Paged (contract gate 7; reordered per the coordinator's decision): `{items, meta}`, newest first (`created_at` desc, then `id` desc), pages of `limit` (default 20, max 100), `meta.next_cursor` walking toward older notes; `meta.total` counts every note. The notes panel renders the loaded page(s) chronologically (oldest at top) and pages in older notes on request, so the newest note — and one just added — is always on the first page. **Transition:** a request with neither `limit` nor `cursor` gets the pre-gate-7 bare array of every note (mock only, for builds already installed); clients send `limit`.
          */
         get: {
             parameters: {
@@ -12108,7 +12108,7 @@ export interface paths {
         };
         /**
          * Internal Notes tab
-         * @description Consultancy staff only. Readable and writable on a case that moved to another consultancy (owner decision). Paged (contract gate 7): `{items, meta}`, oldest first (`created_at`, then `id`), pages of `limit` (default 20, max 100) walked with `meta.next_cursor`; `meta.total` counts every note. **Transition:** a request with neither `limit` nor `cursor` gets the pre-gate-7 bare array of every note (mock only, for builds already installed); clients send `limit`.
+         * @description Consultancy staff only. Readable and writable on a case that moved to another consultancy (owner decision). Paged (contract gate 7; reordered per the coordinator's decision): `{items, meta}`, newest first (`created_at` desc, then `id` desc), pages of `limit` (default 20, max 100), `meta.next_cursor` walking toward older notes; `meta.total` counts every note. The notes panel renders the loaded page(s) chronologically (oldest at top) and pages in older notes on request, so the newest note — and one just added — is always on the first page. **Transition:** a request with neither `limit` nor `cursor` gets the pre-gate-7 bare array of every note (mock only, for builds already installed); clients send `limit`.
          */
         get: {
             parameters: {

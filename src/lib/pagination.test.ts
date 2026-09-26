@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { fetchAllPages, useCursorPagination } from './pagination'
+import { chronologicalPages, fetchAllPages, useCursorPagination } from './pagination'
 
 // Table's Previous button can only work if this hook remembers the cursor each page was reached
 // FROM — the server's cursor is opaque and one-directional. These pin the stack discipline.
@@ -71,5 +71,32 @@ describe('fetchAllPages', () => {
       return { items: [calls], meta: { next_cursor: 'again' } }
     }, 3)
     expect(rows).toEqual([1, 2, 3])
+  })
+})
+
+// GET /leads/{id}/notes and GET /clients/{id}/notes page newest-first since the 2026-09-26
+// coordinator reorder (contract gate 7). `useInfiniteQuery` fetches pages in that order — the
+// first-fetched page (`pages[0]`) is the newest 20, the next fetched page (older) goes after it —
+// but the notes panels render chronologically (oldest at top), so both the page order and each
+// page's own item order have to flip.
+describe('chronologicalPages', () => {
+  it('reverses page order and each page\'s item order to read oldest-first overall', () => {
+    // Page 1 (fetched first, newest): notes 6..4 in the order the server sent them (newest first).
+    // Page 2 (fetched second via next_cursor, older): notes 3..1, same server order.
+    const pages = [
+      { items: [{ id: 6 }, { id: 5 }, { id: 4 }] },
+      { items: [{ id: 3 }, { id: 2 }, { id: 1 }] },
+    ]
+    expect(chronologicalPages(pages).map((n) => n.id)).toEqual([1, 2, 3, 4, 5, 6])
+  })
+
+  it('one page still reverses to oldest-first', () => {
+    const pages = [{ items: [{ id: 3 }, { id: 2 }, { id: 1 }] }]
+    expect(chronologicalPages(pages).map((n) => n.id)).toEqual([1, 2, 3])
+  })
+
+  it('handles no pages loaded yet', () => {
+    expect(chronologicalPages(undefined)).toEqual([])
+    expect(chronologicalPages([])).toEqual([])
   })
 })

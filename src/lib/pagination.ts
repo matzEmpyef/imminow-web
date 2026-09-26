@@ -32,6 +32,23 @@ export function useCursorPagination() {
   return { cursor, hasPrevious: stack.length > 0, next, previous, reset }
 }
 
+// Flattens `useInfiniteQuery` pages from a feed paged NEWEST FIRST (contract gate 7's 2026-09-26
+// reorder: `GET /leads/{id}/notes` and `GET /clients/{id}/notes`, `created_at` desc) into a single
+// chronological (oldest-first) list, the way a chat thread reads. Each page itself arrives
+// newest-first, so both the page order AND each page's own item order have to reverse: the last
+// page fetched (oldest notes) goes first, and within it the last item (its oldest note) goes
+// first too. Shared so every "load earlier" feed in the console (currently the two notes panels)
+// renders and re-renders identically rather than each screen reversing it slightly differently.
+export function chronologicalPages<T>(pages: { items: T[] }[] | undefined): T[] {
+  if (!pages) return []
+  const out: T[] = []
+  for (let p = pages.length - 1; p >= 0; p -= 1) {
+    const items = pages[p].items
+    for (let i = items.length - 1; i >= 0; i -= 1) out.push(items[i])
+  }
+  return out
+}
+
 // Walks a paged list to its end and returns every row (contract gate 7). The notes, a case's files
 // and its activity were unpaged until then, and their screens still show every row — the paging
 // UI for them is later work — so their hooks read all pages, 100 rows a request. Per-record lists,
