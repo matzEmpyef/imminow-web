@@ -35,7 +35,13 @@ const replayable = new Map<string, Request>()
  */
 let refreshInFlight: Promise<string | null> | null = null
 
-async function requestNewAccessToken(): Promise<string | null> {
+/**
+ * Exported so the idle lock's "Stay signed in" (`lib/idleLock`) can trigger the exact same refresh
+ * the 401 interceptor below uses, rather than a second, subtly different implementation — the real
+ * backend refuses this after 30 minutes idle (`auth_sessions`), which is exactly why calling it
+ * before that mark is itself the activity signal the server needs.
+ */
+export async function requestNewAccessToken(): Promise<string | null> {
   const refreshToken = useAuthStore.getState().refreshToken
   if (!refreshToken) return null
   try {
