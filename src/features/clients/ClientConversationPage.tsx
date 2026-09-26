@@ -7,6 +7,7 @@ import { SuggestCourseInChat } from './SuggestCourseInChat'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useClient, useClientMessages, useMarkClientRead, useSendClientMessage } from '@/queries/clients'
 import { useChatWindowStore } from '@/stores/chatWindowStore'
+import { useViewingThread } from '@/lib/realtime'
 import { duplicateShareMessage } from './shareGuards'
 import { CASE_MOVED_COMPOSER_NOTE, isCaseMoved } from '@/lib/clientStatus'
 
@@ -28,6 +29,9 @@ export function ClientConversationPage() {
   useEffect(() => {
     if (id) markRead(id)
   }, [id, markRead])
+
+  // Presence (Wave 3 plan §6.3) — see the identical call in LeadConversationPage.
+  useViewingThread('client', id || null)
 
   function handleSend(e: FormEvent) {
     e.preventDefault()

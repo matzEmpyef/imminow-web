@@ -12,6 +12,7 @@ import { AssignBranchMenu } from '@/components/AssignBranchMenu'
 import { RequestedBranchBadge } from '@/components/RequestedBranch'
 import { StudentProfileFields } from '@/components/StudentProfileFields'
 import { useChatWindowStore } from '@/stores/chatWindowStore'
+import { useViewingThread } from '@/lib/realtime'
 import { showToast } from '@/lib/toast'
 import { SetReminderModal } from './SetReminderModal'
 import { RequestRatingModal } from './RequestRatingModal'
@@ -357,6 +358,10 @@ export function LeadConversationPage() {
   useEffect(() => {
     if (id) markRead(id)
   }, [id, markRead])
+
+  // Presence (Wave 3 plan §6.3) — tells the realtime manager this thread is on screen; cleared
+  // (viewing: null) on unmount rather than left dangling when the consultant navigates away.
+  useViewingThread('lead', id || null)
 
   function handleSend(e: FormEvent) {
     e.preventDefault()

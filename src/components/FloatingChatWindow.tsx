@@ -15,6 +15,7 @@ import {
 } from '@/queries/internalMessages'
 import { CHAT_TYPE_LABELS } from './chatTypeLabels'
 import { CASE_MOVED_COMPOSER_NOTE, isCaseMoved } from '@/lib/clientStatus'
+import { useViewingThread } from '@/lib/realtime'
 
 // Facebook-style floating chat popup — opened from the conversation pages' pop-out buttons and
 // stays available while browsing the rest of the app. One window at a time (see
@@ -62,6 +63,10 @@ export function FloatingChatWindow() {
     else if (conversationType === 'client') markClientRead(conversationId)
     else markInternalRead(conversationId)
   }, [conversationId, conversationType, markLeadRead, markClientRead, markInternalRead])
+
+  // Presence (Wave 3 plan §6.3) — a lead/client thread open in the floating window counts as
+  // "viewing" the same as the full conversation page; internal DMs have no RealtimeThreadRef.
+  useViewingThread(isLead ? 'lead' : isClient ? 'client' : null, conversationId ?? null)
 
   if (!conversation) return null
 
