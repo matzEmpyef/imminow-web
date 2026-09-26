@@ -6,11 +6,15 @@ import { AppErrorBoundary } from './components/AppErrorBoundary.tsx'
 import { ToastViewport } from './components/Toast.tsx'
 import { queryClient } from './lib/queryClient.ts'
 import { startAnalytics } from './lib/analytics.ts'
+import { startRealtime } from './lib/realtime'
 import './index.css'
 import App from './App.tsx'
 
 // Flushes buffered events when the tab is hidden; see lib/analytics.ts.
 startAnalytics()
+// The one realtime connection manager for the tab (contract gate 8, Wave 3 plan §6.6) — started
+// here, outside the React tree, the same way analytics is; see lib/realtime/bootstrap.ts.
+startRealtime()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
