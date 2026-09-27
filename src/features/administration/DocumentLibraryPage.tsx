@@ -59,13 +59,36 @@ function DocumentRowActions({
   const checking = scanStatusLabel(doc.scan_status)
   const canOpen = doc.scan_status !== 'pending' && doc.scan_status !== 'quarantined'
 
+  // Same shape as ClientProfileDocumentsTab's openUpload: the tab is opened on the click itself so
+  // a pop-up blocker allows it, then pointed at the signed link once it arrives; a browser that
+  // blocks new windows outright gets the file in this tab instead.
+  function openDocument() {
+    const tab = window.open('', '_blank')
+    downloadUrl.mutate(doc.id, {
+      onSuccess: (url) => {
+        if (!tab) {
+          window.location.assign(url)
+          return
+        }
+        tab.opener = null
+        tab.location.href = url
+      },
+      // 409 file_not_ready / file_quarantined (contract gate 7, BR §3.8) — the server's own message
+      // says which; a toast, since the row has no inline error slot of its own.
+      onError: (err) => {
+        tab?.close()
+        showToast(err.message, 'error')
+      },
+    })
+  }
+
   return (
     <div className="flex justify-end">
       <ShareDocumentMenu clients={clients} onSelect={onShare} label={`Share ${doc.filename} with an applicant`} />
       <button
         type="button"
-        onClick={() => downloadUrl.mutate(doc.id)}
-        disabled={!canOpen}
+        onClick={openDocument}
+        disabled={!canOpen || downloadUrl.isPending}
         aria-label={`Download ${doc.filename}`}
         title={canOpen ? 'Download' : checking ?? undefined}
         className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
