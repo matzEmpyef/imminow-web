@@ -68,7 +68,11 @@ export function useSendBroadcast() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (body: BroadcastInput) => {
-      const { data, error } = await api.POST('/broadcast', { body })
+      // Required since contract gate 9 — a retried send must never double-notify everyone.
+      const { data, error } = await api.POST('/broadcast', {
+        body,
+        params: { header: { 'Idempotency-Key': crypto.randomUUID() } },
+      })
       // The server's own message names the problem — an unroutable destination, most likely —
       // and swallowing it would leave the sender guessing at a form they can still fix.
       if (error) throw new ApiError(error.error?.message ?? 'Could not send this broadcast.')

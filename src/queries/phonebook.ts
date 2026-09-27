@@ -2,15 +2,24 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import type { components } from '@/api/schema'
+
+type PhonebookContact = components['schemas']['PhonebookContact']
 
 export function usePhonebook() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['phonebook'],
-    queryFn: async () => {
+    queryFn: async (): Promise<PhonebookContact[]> => {
       const { data, error } = await api.GET('/phonebook')
       if (error) throw new ApiError('Could not load the phonebook.', error)
-      return data
+      // Contract gate 9 paged this endpoint ({items, meta}); the real backend returns that shape,
+      // but the mock is frozen post-Wave-3 and still answers the pre-gate-9 bare array. Unwrap
+      // whichever comes back — full paging (search/filter/load-more) is Wave 4 client work.
+      const payload: unknown = data
+      return Array.isArray(payload)
+        ? (payload as PhonebookContact[])
+        : ((payload as { items?: PhonebookContact[] })?.items ?? [])
     },
     enabled: isAuthed,
   })

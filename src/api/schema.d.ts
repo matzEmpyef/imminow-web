@@ -2613,11 +2613,25 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Phonebook — directory of external contacts (Business & Ultimate tiers, build reference 2.2) */
+        /**
+         * Phonebook — directory of external contacts (Business & Ultimate tiers, build reference 2.2)
+         * @description Paged (contract gate 9, K13): `{items, meta}`, `meta.next_cursor` walking the list, `meta.categories` every category value currently in use for the caller's consultancy (Q10 — free text with a picker, so the console needs the full set even on one page). `search` matches name, phone and email; `filter[category]` replaces the old bare `category` param. **Transition:** a request with neither `limit` nor `cursor` gets the pre-gate-9 bare array, honouring the old `category` param (mock only, for builds already installed); clients send `limit`.
+         */
         get: {
             parameters: {
                 query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
+                    search?: components["parameters"]["SearchParam"];
+                    /**
+                     * @deprecated
+                     * @description Pre-gate-9 alias for `filter[category]`, kept for the transition.
+                     */
                     category?: string;
+                    "filter[category]"?: string;
                 };
                 header?: never;
                 path?: never;
@@ -2631,13 +2645,19 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["PhonebookContact"][];
+                        "application/json": {
+                            items: components["schemas"]["PhonebookContact"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
                     };
                 };
             };
         };
         put?: never;
-        /** Add a phonebook contact */
+        /**
+         * Add a phonebook contact
+         * @description `name`/`category`/`phone` trimmed and non-empty (400 `validation_failed`, contract gate 9, K13); `phone` accepts digits, spaces, `+`, `(`, `)` and `-`, 5–20 characters.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -2665,6 +2685,7 @@ export interface paths {
                         "application/json": components["schemas"]["PhonebookContact"];
                     };
                 };
+                400: components["responses"]["ErrorResponse"];
             };
         };
         delete?: never;
@@ -2706,7 +2727,10 @@ export interface paths {
         };
         options?: never;
         head?: never;
-        /** Edit a phonebook contact */
+        /**
+         * Edit a phonebook contact
+         * @description Partial update; any field sent is validated exactly as `POST /phonebook` validates it (contract gate 9, K13) — a blank name/category/phone, or a malformed phone, is 400 `validation_failed` rather than silently stored. Audited as before/after pairs, not the raw request body.
+         */
         patch: {
             parameters: {
                 query?: never;
@@ -2736,6 +2760,8 @@ export interface paths {
                         "application/json": components["schemas"]["PhonebookContact"];
                     };
                 };
+                400: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
             };
         };
         trace?: never;
@@ -2786,7 +2812,8 @@ export interface paths {
         /**
          * Upload a document directly to the library (user-requested, 2026-08-15) — not tied to any client at upload time, unlike POST /uploads. Lands with an empty tags array; tag it via PATCH /document-library/{id}/tags afterward, same as a freshly-created Lead/Client.
          * @description Consultancy staff with the `document_library` feature.
-         *     **Two ways in (contract gate 7).** The presigned two-step upload is the target: `POST /file-uploads` → PUT the bytes to its `put_url` → `POST /file-uploads/{id}/complete` → this operation with a JSON body naming `file_upload_id`, so no file bytes pass through the API (BR §3.8, REVIEW_TRIAGE 29). The multipart form is the pre-gate-7 path, kept while the installed clients still send it; it is retired once both clients use the two steps. With `file_upload_id`: 404 `not_found` when it is unknown or not the caller's, 409 `file_not_ready` when it was never completed or has expired, 409 `file_quarantined` when the scan found malware, 409 `conflict` when it was already used, 422 `validation_failed` when its purpose (or case, or document type) is not this operation's.
+         *     The presigned two-step upload: `POST /file-uploads` → PUT the bytes to its `put_url` → `POST /file-uploads/{id}/complete` → this operation with a JSON body naming `file_upload_id`, so no file bytes pass through the API (BR §3.8, REVIEW_TRIAGE 29). 404 `not_found` when it is unknown or not the caller's, 409 `file_not_ready` when it was never completed or has expired, 409 `file_quarantined` when the scan found malware, 409 `conflict` when it was already used, 422 `validation_failed` when its purpose (or case, or document type) is not this operation's.
+         *     **Multipart retired (Wave 3 correction, 2026-09-27):** the pre-gate-7 multipart form is gone from this operation — neither client has sent it since both moved to the two-step upload, and the backend has never accepted it (400 `validation_failed` on any `multipart/form-data` body). See `POST /uploads` for the other three operations this applies to.
          */
         post: {
             parameters: {
@@ -2797,10 +2824,6 @@ export interface paths {
             };
             requestBody?: {
                 content: {
-                    "multipart/form-data": {
-                        /** Format: binary */
-                        file: string;
-                    };
                     "application/json": {
                         /** @description A completed `POST /file-uploads` of the right purpose, made by the caller — `stored` or `clean`, never used before. */
                         file_upload_id: components["schemas"]["UUID"];
@@ -2817,8 +2840,26 @@ export interface paths {
                         "application/json": components["schemas"]["LibraryDocument"];
                     };
                 };
+                /** @description `not_found` — unknown `file_upload_id`, or not the caller's. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
                 /** @description `file_not_ready` / `file_quarantined` / `conflict` — see the two-step note above. */
                 409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `validation_failed` — the upload's purpose, case or document type is not this operation's. */
+                422: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -2864,6 +2905,15 @@ export interface paths {
                         };
                     };
                 };
+                /** @description `not_found`. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
                 /** @description `file_not_ready` / `file_quarantined` — as GET /uploads/{id} (contract gate 7). */
                 409: {
                     headers: {
@@ -2896,6 +2946,7 @@ export interface paths {
                     };
                     content?: never;
                 };
+                404: components["responses"]["ErrorResponse"];
             };
         };
         options?: never;
@@ -2943,6 +2994,16 @@ export interface paths {
                         "application/json": components["schemas"]["LibraryDocument"];
                     };
                 };
+                /** @description `validation_failed` — `tags` is not an array of strings, or names an unknown tag. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                404: components["responses"]["ErrorResponse"];
             };
         };
         trace?: never;
@@ -2956,7 +3017,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Share a library document with an applicant (user-requested, 2026-08-15) — copies it into the target journey's own Documents tab (creates an Upload row with `uploaded_by` set to consultant), exactly as if a consultant had uploaded it there directly. A one-time copy — editing or deleting the library original afterward doesn't affect it. Rejects with 400 if this document was already shared with this journey (user-requested duplicate-share guard, 2026-08-19) — the frontend picker disables the Share button proactively using `Upload.source_library_document_id`, so this mainly covers a race between two open tabs. */
+        /** Share a library document with an applicant (user-requested, 2026-08-15) — copies it into the target journey's own Documents tab (creates an Upload row with `uploaded_by` set to consultant), exactly as if a consultant had uploaded it there directly. A one-time copy — editing or deleting the library original afterward doesn't affect it. Refuses a duplicate share of this document to this journey (user-requested guard, 2026-08-19) — the frontend picker disables the Share button proactively using `Upload.source_library_document_id`, so this mainly covers a race between two open tabs. */
         post: {
             parameters: {
                 query?: never;
@@ -2983,7 +3044,25 @@ export interface paths {
                         "application/json": components["schemas"]["Upload"];
                     };
                 };
-                400: components["responses"]["ErrorResponse"];
+                /** @description `validation_failed` — `journey_id` does not match a known client the caller can work on. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                404: components["responses"]["ErrorResponse"];
+                /** @description `already_shared` — this document is already shared with this journey (Wave 3 correction, backend-confirmed 2026-09-27: this was previously 400). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -2999,7 +3078,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Internal Messaging conversation list (Ultimate tier only, build reference 2.2) — one row per active colleague plus a single consultancy-wide "team" row, same `Conversation` shape the Global Chat Drawer's /conversations endpoint unions these same rows into for Ultimate-tier viewers. `id` is the other employee's id for a DM row, or the literal string "team". */
+        /**
+         * Internal Messaging conversation list (Ultimate tier only, build reference 2.2) — one row per active colleague plus a single consultancy-wide "team" row, same `Conversation` shape the Global Chat Drawer's /conversations endpoint unions these same rows into for Ultimate-tier viewers. `id` is the other employee's id for a DM row, or the literal string "team".
+         * @description `meta.unread_count` documented (contract gate 9, K12) — unread DM + Team conversations for the caller, over the whole list, not just a page; only the ACTIVE standing of a colleague is offered a DM row here (a deactivated colleague's existing DM stays readable through its own thread endpoint but drops off this list, and sending to it 404s).
+         */
         get: {
             parameters: {
                 query?: never;
@@ -3074,10 +3156,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** DM thread with a specific colleague — the server resolves/creates the underlying conversation on first message, same lazy-resolution idiom as /leads/{id}/messages resolving its chat_thread internally. */
+        /**
+         * DM thread with a specific colleague — the server resolves/creates the underlying conversation on first message, same lazy-resolution idiom as /leads/{id}/messages resolving its chat_thread internally.
+         * @description Paged from the newest end (contract gate 9, K12), same idiom as `GET /leads/{id}/messages`: without `before` the newest `limit` messages come back oldest-to-newest; `meta.next_cursor` is the id of the oldest one returned when older messages exist. Pass it as `before` to fetch the page older than that.
+         */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description Message id from a previous page's `meta.next_cursor`; returns the page of messages OLDER than it. Omit for the newest page. */
+                    before?: string;
+                };
                 header?: never;
                 path: {
                     employeeId: string;
@@ -3241,10 +3331,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The consultancy-wide Team conversation — every active employee is a participant */
+        /**
+         * The consultancy-wide Team conversation — every active employee is a participant
+         * @description Paged from the newest end (contract gate 9, K12) — same `before`/`limit`/`meta.next_cursor` idiom as the DM thread above.
+         */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description Message id from a previous page's `meta.next_cursor`; returns the page of messages OLDER than it. Omit for the newest page. */
+                    before?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4036,7 +4134,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Mark a task done */
+        /**
+         * Mark a task done
+         * @description 404 `not_found` outside the caller's own consultancy (don't confirm existence). 409 `conflict` for consultancy staff who are neither the assignee nor the assigner (Wave 3 correction, backend-confirmed 2026-09-27 — deliberately not a 403: any staff member of the consultancy may legitimately look at the task, just not complete someone else's).
+         */
         post: {
             parameters: {
                 query?: never;
@@ -4055,6 +4156,16 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["ActivityTask"];
+                    };
+                };
+                404: components["responses"]["ErrorResponse"];
+                /** @description `conflict` — the caller is neither the assignee nor the assigner. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -7971,7 +8082,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Close a lead — user-requested. Consultancy staff holding the `clients.close` permission (console review C2, 2026-09-13; owner Q3, 2026-09-25 — the same key that closes a case, on every plan; there is no `leads.close` key and no tier gate). 400 `validation_failed` without a reason; 409 `already_closed` when it is closed already. Audit-logged with the required reason, which is stored on the lead. */
+        /** Close a lead — user-requested. Consultancy staff holding the `clients.close` permission (console review C2, 2026-09-13; owner Q3, 2026-09-25 — the same key that closes a case, on every plan; there is no `leads.close` key and no tier gate). 400 `validation_failed` without a reason; 409 `already_closed` when it is closed already; 403 `permission_denied` for staff lacking `clients.close`; 404 `not_found` for a student caller, checked before the permission check even runs (Wave 3 correction, 2026-09-27 — previously undocumented, though already the backend's behaviour; same convention as `POST /clients/{id}/close`). Audit-logged with the required reason, which is stored on the lead. */
         post: {
             parameters: {
                 query?: never;
@@ -7996,6 +8107,42 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Lead"];
+                    };
+                };
+                /** @description `validation_failed` — reason is required. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `permission_denied` — staff lacking `clients.close`. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `not_found` — a student caller. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `already_closed`. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -12185,7 +12332,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reopen Plan (exceptional) — mandatory reason, audit-logged (FR-038) */
+        /**
+         * Reopen Plan (exceptional) — mandatory reason, audit-logged (FR-038)
+         * @description Optional `step_id` (Wave 3 correction, backend-confirmed 2026-09-27): reopens that step of the case's newest plan; 400 `validation_failed` when it names a step of a different case. Without it, reopens the newest plan's last `done` step, as before.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -12199,6 +12349,8 @@ export interface paths {
                 content: {
                     "application/json": {
                         reason: string;
+                        /** @description A step of this case's newest plan. Optional — see above. */
+                        step_id?: components["schemas"]["UUID"];
                     };
                 };
             };
@@ -12209,6 +12361,15 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description `validation_failed` — `step_id` is not a step of this case. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -12233,8 +12394,9 @@ export interface paths {
          *     A PR case has no colleges, so its counterpart to an accepted application is the applicant's recorded contribution (POST /clients/{id}/commission-entry, 2026-09-10). Before this a PR case could never close as a success, and closing one reversed the contribution the consultant had recorded.
          *     CLOSE IS THE MONEY EVENT. The commission entry was created back at acceptance, because that is when the amounts became knowable, but an entry with no `recognized_at` is not revenue and appears in no finance report. A success close stamps `recognized_at`; a failure close REVERSES the entry — a deliberately different status from `voided`, because voided means the acceptance itself was wrong while reversed means it was real and the student still never went, and finance has to tell those apart.
          *     Never automatic. No timer, inactivity rule or stale-after-N-days sweep ever closes a case (user, 2026-09-09) — every detection signal produces a queue row for a person to work, because an auto-close would move money on a case nobody looked at and end a student's case with no one able to say why.
-         *     THE OUTCOME DECIDES WHERE THE STUDENT LANDS (product decision 2026-09-14; contract gate 7 corrects the old "both close to plain `closed`" text). A SUCCESS closes to `closed_completed`: the case stays the student's and `GET /journeys/me` reports Stage 3 — post-arrival, Home without the plan card or the consultancy chat — with the one-time review offered there. A FAILURE closes to plain `closed`, which `GET /journeys/me` does not fall back to, so the student is back on Stage 1 (exploring) at once, with the same one-time review offered through `GET /journeys/me`'s `review_offer` field. Only a `closed` case can be reopened (`POST /clients/{id}/reopen-case`).
+         *     THE OUTCOME DECIDES WHERE THE STUDENT LANDS (product decision 2026-09-14; contract gate 7 corrects the old "both close to plain `closed`" text). A SUCCESS closes to `closed_completed`: the case stays the student's and `GET /journeys/me` reports Stage 3 — post-arrival, Home without the plan card or the consultancy chat — with the one-time review offered there. A FAILURE closes to plain `closed`, which `GET /journeys/me` does not fall back to, so the student is back on Stage 1 (exploring) at once, with the same one-time review offered through `GET /journeys/me`'s `review_offer` field. A `closed` OR `closed_completed` case can be reopened (`POST /clients/{id}/reopen-case`) — corrected Wave 3, 2026-09-27: this text previously said "only `closed`", contradicting the backend, which has always allowed reopening either.
          *     409 `case_in_dispute` if the case is frozen: a case under mediation is the platform's to end. Distinct from Transfer Applicant (sets closed_switched) and Reopen Plan.
+         *     403 `permission_denied` when the caller is staff but lacks `clients.close`; 404 `not_found` for a student caller, before the permission check even runs — the same "hide a staff-only route from a student on their own case" convention `POST /steps/{id}/complete` and `POST /leads/{id}/close` use (Wave 3 correction, 2026-09-27: previously undocumented, though already the backend's behaviour).
          */
         post: {
             parameters: {
@@ -12268,6 +12430,33 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Client"];
+                    };
+                };
+                /** @description `permission_denied` — staff lacking `clients.close`. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `not_found` — a student caller, or the case does not exist for this caller. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `case_in_dispute` — the case is frozen. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
                 /** @description `sub_reason_required` — a case closing without an accepted college needs one; `student_joined_required` — a case with an acceptance must say whether the student joined. */
@@ -12346,6 +12535,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["DocumentType"];
+                    };
+                };
+                /** @description `code_taken` — the code already exists globally or for this consultancy (Wave 3 correction, 2026-09-27: response block added; the code itself was already 409). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -12494,12 +12692,14 @@ export interface paths {
                         };
                     };
                 };
-                /** @description Not a student account */
+                /** @description `permission_denied` — not a student account (Wave 3 correction, 2026-09-27: schema reference added; the code itself was always correct). */
                 403: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -12548,10 +12748,10 @@ export interface paths {
         };
         put?: never;
         /**
-         * Upload a document into the locker. Multipart. The type's `allowed_mime_types`, `max_size_mb` and `expires` rules are all enforced here (422). A `singleton` REPLACES the current version, bumps `version`, carries its shares forward and DROPS every verification — a verified passport that quietly becomes a different file is the whole point of verifying gone; the consultancies holding one are notified. An `instance` simply accumulates.
+         * Upload a document into the locker. The type's `allowed_mime_types`, `max_size_mb` and `expires` rules are all enforced here (422). A `singleton` REPLACES the current version, bumps `version`, carries its shares forward and DROPS every verification — a verified passport that quietly becomes a different file is the whole point of verifying gone; the consultancies holding one are notified. An `instance` simply accumulates.
          *     UPLOADING SHARES NOTHING. The default is deny; see POST /me/documents/{id}/share.
          * @description The student only; the guardian gate applies.
-         *     **Two ways in (contract gate 7).** The presigned two-step upload is the target: `POST /file-uploads` → PUT the bytes to its `put_url` → `POST /file-uploads/{id}/complete` → this operation with a JSON body naming `file_upload_id`, so no file bytes pass through the API (BR §3.8, REVIEW_TRIAGE 29). The multipart form is the pre-gate-7 path, kept while the installed clients still send it; it is retired once both clients use the two steps. With `file_upload_id`: 404 `not_found` when it is unknown or not the caller's, 409 `file_not_ready` when it was never completed or has expired, 409 `file_quarantined` when the scan found malware, 409 `conflict` when it was already used, 422 `validation_failed` when its purpose (or case, or document type) is not this operation's.
+         *     The presigned two-step upload: `POST /file-uploads` → PUT the bytes to its `put_url` → `POST /file-uploads/{id}/complete` → this operation with a JSON body naming `file_upload_id`, so no file bytes pass through the API (BR §3.8, REVIEW_TRIAGE 29). 404 `not_found` when it is unknown or not the caller's, 409 `file_not_ready` when it was never completed or has expired, 409 `file_quarantined` when the scan found malware, 409 `conflict` when it was already used, 422 `validation_failed` when its purpose (or case, or document type) is not this operation's. Multipart retired (Wave 3 correction, 2026-09-27) — see `POST /uploads`.
          */
         post: {
             parameters: {
@@ -12562,16 +12762,6 @@ export interface paths {
             };
             requestBody?: {
                 content: {
-                    "multipart/form-data": {
-                        document_type_id: components["schemas"]["UUID"];
-                        /** Format: binary */
-                        file: string;
-                        label?: string | null;
-                        /** Format: date */
-                        issued_on?: string | null;
-                        /** Format: date */
-                        expires_on?: string | null;
-                    };
                     "application/json": {
                         /** @description A completed `POST /file-uploads` of the right purpose, made by the caller — `stored` or `clean`, never used before. */
                         file_upload_id: components["schemas"]["UUID"];
@@ -12593,6 +12783,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["StudentDocument"];
+                    };
+                };
+                /** @description `not_found` — unknown `file_upload_id`, or not the caller's. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
                 /** @description `file_not_ready` / `file_quarantined` / `conflict` — see the two-step note above. */
@@ -12651,13 +12850,31 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Shared */
+                /** @description Shared — also the answer to a repeat share of the same document to the same consultancy (idempotent, Wave 3 correction confirmed 2026-09-27). */
                 201: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": components["schemas"]["StudentDocument"];
+                    };
+                };
+                /** @description `validation_failed` — `consultancy_id` does not name a known consultancy. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `not_found` — the document is not the caller's. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -12698,6 +12915,15 @@ export interface paths {
                     };
                     content?: never;
                 };
+                /** @description `not_found` — no live share of this document with this consultancy. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         options?: never;
@@ -12736,14 +12962,23 @@ export interface paths {
                         };
                     };
                 };
+                /** @description `not_found` — the case does not exist for this caller. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         put?: never;
         /**
-         * Upload on the student's behalf — the consultant scanned their passport at the desk. Multipart, same validation as the student's own upload. It lands in the STUDENT's locker and follows them everywhere, because it is their passport; the uploading consultancy is granted access, and the student can revoke that like any other share.
+         * Upload on the student's behalf — the consultant scanned their passport at the desk. Same validation as the student's own upload. It lands in the STUDENT's locker and follows them everywhere, because it is their passport; the uploading consultancy is granted access, and the student can revoke that like any other share.
          *     Distinct from POST /uploads, which is the consultancy's OWN work product — a drafted SOP, a checklist — and stays journey-scoped. That line is the difference between the student's asset and the consultancy's output.
          * @description Consultancy staff who can work on the case; refused on a frozen or moved case. The `file_upload_id` must be a `locker` upload started with this case's `journey_id`.
-         *     **Two ways in (contract gate 7).** The presigned two-step upload is the target: `POST /file-uploads` → PUT the bytes to its `put_url` → `POST /file-uploads/{id}/complete` → this operation with a JSON body naming `file_upload_id`, so no file bytes pass through the API (BR §3.8, REVIEW_TRIAGE 29). The multipart form is the pre-gate-7 path, kept while the installed clients still send it; it is retired once both clients use the two steps. With `file_upload_id`: 404 `not_found` when it is unknown or not the caller's, 409 `file_not_ready` when it was never completed or has expired, 409 `file_quarantined` when the scan found malware, 409 `conflict` when it was already used, 422 `validation_failed` when its purpose (or case, or document type) is not this operation's.
+         *     The presigned two-step upload: `POST /file-uploads` → PUT the bytes to its `put_url` → `POST /file-uploads/{id}/complete` → this operation with a JSON body naming `file_upload_id`, so no file bytes pass through the API (BR §3.8, REVIEW_TRIAGE 29). 404 `not_found` when it is unknown or not the caller's, 409 `file_not_ready` when it was never completed or has expired, 409 `file_quarantined` when the scan found malware, 409 `conflict` when it was already used, 422 `validation_failed` when its purpose (or case, or document type) is not this operation's. Multipart retired (Wave 3 correction, 2026-09-27) — see `POST /uploads`.
          */
         post: {
             parameters: {
@@ -12756,16 +12991,6 @@ export interface paths {
             };
             requestBody?: {
                 content: {
-                    "multipart/form-data": {
-                        document_type_id: components["schemas"]["UUID"];
-                        /** Format: binary */
-                        file: string;
-                        label?: string | null;
-                        /** Format: date */
-                        issued_on?: string | null;
-                        /** Format: date */
-                        expires_on?: string | null;
-                    };
                     "application/json": {
                         /** @description A completed `POST /file-uploads` of the right purpose, made by the caller — `stored` or `clean`, never used before. */
                         file_upload_id: components["schemas"]["UUID"];
@@ -12787,6 +13012,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["StudentDocument"];
+                    };
+                };
+                /** @description `not_found` — unknown `file_upload_id`, or not the caller's. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
                 /** @description `file_not_ready` / `file_quarantined` / `conflict` — see the two-step note above. */
@@ -13454,7 +13688,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reopen a client closed via POST /clients/{id}/close (user-requested, 2026-08-15) — same shape as POST /leads/{id}/reopen, no reason required (reversible, low-stakes). Named distinctly from POST /clients/{id}/reopen (Reopen Plan) since the two mean different things. */
+        /**
+         * Reopen a client closed via POST /clients/{id}/close (user-requested, 2026-08-15) — same shape as POST /leads/{id}/reopen, no reason required (reversible, low-stakes). Named distinctly from POST /clients/{id}/reopen (Reopen Plan) since the two mean different things.
+         * @description Reopenable from `closed` OR `closed_completed` (Wave 3 correction, 2026-09-27 — backend-confirmed; this text previously implied `closed` only). 409 `case_not_closed` otherwise.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -13473,6 +13710,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Client"];
+                    };
+                };
+                /** @description `case_not_closed` — the case is neither `closed` nor `closed_completed`. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -14318,7 +14564,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Applicant marks step complete (Sentpo Mobile Wave 4 — the contract was defined back in Wave 3's era since it's what populates Step.submission/submitted_at that Step Approvals reads; now actually called by Sentpo Mobile). Restricted to the owning student (`studentOwnsJourney`) — a consultant/staff caller gets 403, since this is specifically the applicant's own "I've completed this step" action (build reference 1.7), distinct from `/approve`/`/reject` below. */
+        /** Applicant marks step complete (Sentpo Mobile Wave 4 — the contract was defined back in Wave 3's era since it's what populates Step.submission/submitted_at that Step Approvals reads; now actually called by Sentpo Mobile). Restricted to the owning student (`studentOwnsJourney`) — a consultant/staff caller (or any other student) gets 404 `not_found`, since this is specifically the applicant's own "I've completed this step" action (build reference 1.7), distinct from `/approve`/`/reject` below. Corrected Wave 3 2026-09-27 — this text previously said 403; the backend has always answered 404, the same "don't confirm existence" convention every other case-scoped route uses. */
         post: {
             parameters: {
                 query?: never;
@@ -14345,6 +14591,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Step"];
+                    };
+                };
+                /** @description `not_found` — not the owning student. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -14933,7 +15188,8 @@ export interface paths {
         /**
          * Upload a file — MIME allowlist, size limit, antivirus scan before downloadable
          * @description A file on a case — the student on their own case, or consultancy staff who can work on it; `uploaded_by` follows the caller. A consultant's upload notifies the student (`document_shared`).
-         *     **Two ways in (contract gate 7).** The presigned two-step upload is the target: `POST /file-uploads` → PUT the bytes to its `put_url` → `POST /file-uploads/{id}/complete` → this operation with a JSON body naming `file_upload_id`, so no file bytes pass through the API (BR §3.8, REVIEW_TRIAGE 29). The multipart form is the pre-gate-7 path, kept while the installed clients still send it; it is retired once both clients use the two steps. With `file_upload_id`: 404 `not_found` when it is unknown or not the caller's, 409 `file_not_ready` when it was never completed or has expired, 409 `file_quarantined` when the scan found malware, 409 `conflict` when it was already used, 422 `validation_failed` when its purpose (or case, or document type) is not this operation's.
+         *     The presigned two-step upload: `POST /file-uploads` → PUT the bytes to its `put_url` → `POST /file-uploads/{id}/complete` → this operation with a JSON body naming `file_upload_id`, so no file bytes pass through the API (BR §3.8, REVIEW_TRIAGE 29). 404 `not_found` when it is unknown or not the caller's, 409 `file_not_ready` when it was never completed or has expired, 409 `file_quarantined` when the scan found malware, 409 `conflict` when it was already used, 422 `validation_failed` when its purpose (or case, or document type) is not this operation's.
+         *     **Multipart retired (Wave 3 correction, 2026-09-27):** the pre-gate-7 multipart form is gone from this operation and the other three document-create operations (`POST /me/documents`, `POST /clients/{id}/student-documents`, `POST /document-library`) — confirmed neither client has sent it since both moved to the two-step upload, and the backend has never accepted it (400 `validation_failed` on any `multipart/form-data` body, `NO_BYTES_HERE`).
          */
         post: {
             parameters: {
@@ -14944,12 +15200,6 @@ export interface paths {
             };
             requestBody?: {
                 content: {
-                    "multipart/form-data": {
-                        /** Format: binary */
-                        file: string;
-                        journey_id: components["schemas"]["UUID"];
-                        linked_step_id?: components["schemas"]["UUID"];
-                    };
                     "application/json": {
                         /** @description A completed `POST /file-uploads` of the right purpose, made by the caller — `stored` or `clean`, never used before. */
                         file_upload_id: components["schemas"]["UUID"];
@@ -14977,7 +15227,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description `case_in_dispute` / `case_moved` — the case is frozen or moved; `file_not_ready` / `file_quarantined` / `conflict` — see the two-step note above. */
+                /** @description `case_in_dispute` / `case_moved` — the case is frozen or moved; `case_closed` — the case is closed (Wave 3 correction, backend-confirmed 2026-09-27); `file_not_ready` / `file_quarantined` / `conflict` — see the two-step note above. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -15069,6 +15319,7 @@ export interface paths {
          * @description After a case moves or closes, its files stay with it (owner Q10b). The student can pass any of them that they can still open — their own step uploads, or a file the old consultancy shared with them — to the consultancy running their CURRENT case, without uploading it again: the server copies the stored object into the current case's files (same bytes; the client sends none). The copy is a new `Upload` on the current case, `uploaded_by: student`, `copied_from_upload_id` naming the original, and it inherits the original's scan result — a file whose scan is pending or found malware is never copied.
          *
          *     The student only (403 `permission_denied` for anyone else; the guardian gate applies). The file must be on one of the student's own cases that has closed or moved (404 `not_found` for anything else, including another student's file), and the student must have a live current case. Sharing the same file again answers 409 `already_shared` with the existing copy's id in `details.upload_id` — the listing's `shared_to_current_case` lets the app show "Shared" instead of the button. Audited on the current consultancy's log.
+         *     Optional `step_id` (Wave 3 correction, owner ruling: one-tap share lives in a plan step, backend-confirmed 2026-09-27) — must be a step of the CURRENT live case (400 `validation_failed` otherwise) with a `file_upload` component to fill (422 `validation_failed` otherwise); the copy's `linked_step_id` is set to it.
          */
         post: {
             parameters: {
@@ -15079,7 +15330,14 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @description A `file_upload` step of the student's current live case. Optional — see above. */
+                        step_id?: components["schemas"]["UUID"];
+                    };
+                };
+            };
             responses: {
                 /** @description Copied onto the current case. */
                 201: {
@@ -15088,6 +15346,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Upload"];
+                    };
+                };
+                /** @description `validation_failed` — `step_id` is not a step of the current case. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
                 /** @description `permission_denied` — not a student; `guardian_consent_required` — a student waiting for a guardian's approval. */
@@ -15110,6 +15377,15 @@ export interface paths {
                 };
                 /** @description `no_case` — the student has no live case to share it with; `conflict` — the file is already on the current case; `already_shared` — shared before (`details.upload_id` is the copy); `case_in_dispute` — the current case is frozen; `file_not_ready` / `file_quarantined` — the original's scan is pending or found malware. */
                 409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `validation_failed` — `step_id` names a step with no `file_upload` component. */
+                422: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -15184,7 +15460,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** In-app inbox (both products, FR-073). Newest first; the Sentpo app scrolls it page by page (2026-09-02) and its background push poll asks for a small page only. */
+        /**
+         * In-app inbox (both products, FR-073). Newest first; the Sentpo app scrolls it page by page (2026-09-02) and its background push poll asks for a small page only.
+         * @description `filter[read]=true|false`, `filter[type]=<notification type key>` (comma-separated for several, OR semantics) and `search` (title/body substring) documented (contract gate 9) — the mock already accepted all three; nothing here changes their behaviour.
+         */
         get: {
             parameters: {
                 query?: {
@@ -15192,6 +15471,10 @@ export interface paths {
                     cursor?: components["parameters"]["CursorParam"];
                     /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
                     limit?: components["parameters"]["LimitParam"];
+                    "filter[read]"?: boolean;
+                    "filter[type]"?: string;
+                    /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
+                    search?: components["parameters"]["SearchParam"];
                 };
                 header?: never;
                 path?: never;
@@ -15252,7 +15535,7 @@ export interface paths {
                          * @default true
                          */
                         active?: boolean;
-                        /** @description The screen currently open, in the same form the notification names as its subject — e.g. `client:{journeyId}` for a conversation. Null when in the app but not on a screen any notification is about. */
+                        /** @description The screen currently open, in the same form the notification names as its subject: `lead:{leadId}` or `client:{journeyId}` for a lead/case conversation; `internal:{employeeId}` for an Internal Messaging DM or `internal:team` for the Whole Team conversation (contract gate 9, item 10 — the mobile staff shell sends these too, over the socket's `viewing` frame as well as here). Null when in the app but not on a screen any notification is about. */
                         viewing?: string | null;
                     };
                 };
@@ -15352,6 +15635,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark every one of the caller's notifications read (contract gate 9, K10) — the app's Mark all read button, which until now fired one POST per row.
+         * @description Marks read whatever `GET /notifications` would currently return for the caller — nothing addressed to anyone else, same scoping as `POST /notifications/{id}/read`. Idempotent: calling it with nothing left unread still answers 200.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description How many rows this call actually flipped from unread to read. */
+                            marked_count: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notification-settings": {
         parameters: {
             query?: never;
@@ -15385,7 +15710,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update toggles */
+        /**
+         * Update toggles — partial (contract gate 9)
+         * @description Send only the keys being changed; every other key keeps its current value. Full replacement (the pre-gate-9 behaviour) still works when every key is sent, since a partial update and a full one are the same request shape.
+         */
         patch: {
             parameters: {
                 query?: never;
@@ -15395,7 +15723,7 @@ export interface paths {
             };
             requestBody?: {
                 content: {
-                    "application/json": components["schemas"]["NotificationSettings"];
+                    "application/json": components["schemas"]["NotificationSettingsPatch"];
                 };
             };
             responses: {
@@ -15445,7 +15773,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update channel config */
+        /**
+         * Update channel config
+         * @description `in_app_enabled` documented (contract gate 9) — the mock already accepted it, the contract did not. No `configurable` flag: every one of these switches is a real, admin-editable control (owner Q3 → A, 2026-09-27); there is no subset the console should render read-only.
+         */
         patch: {
             parameters: {
                 query?: never;
@@ -15457,6 +15788,7 @@ export interface paths {
                 content: {
                     "application/json": {
                         notification_type: string;
+                        in_app_enabled?: boolean;
                         push_enabled?: boolean;
                         email_enabled?: boolean;
                     };
@@ -15472,8 +15804,85 @@ export interface paths {
                         "application/json": components["schemas"]["NotificationChannelConfigEntry"];
                     };
                 };
+                /** @description `not_found` — unknown `notification_type`. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
+        trace?: never;
+    };
+    "/me/push-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Register (or refresh) this device's push token (contract gate 9, K5) — bound to the caller's auth session; it dies with the session, so a sign-out or session revocation is also an unregister. */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @description The FCM registration token (Android and, later, iOS through Firebase). Opaque to the server past storage and delivery. */
+                        token: string;
+                        /** @enum {string} */
+                        platform: "android" | "ios";
+                        app_version?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Registered */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        /** Unregister this device's push token — called on sign-out and on a push permission being revoked in-app. */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        token: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Unregistered */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/broadcast/audience-count": {
@@ -15574,11 +15983,17 @@ export interface paths {
             };
         };
         put?: never;
-        /** Ad-hoc admin-composed notification — respects each recipient's own opt-in (FR-077) */
+        /**
+         * Ad-hoc admin-composed notification — respects each recipient's own opt-in (FR-077)
+         * @description `Idempotency-Key` required (contract gate 9) — a broadcast retried after a lost response must never send twice. `sent_by_name` is kept on the created record (†web sends the key; nothing else about the response shape changes).
+         */
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -15588,7 +16003,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Batched send queued */
+                /** @description Batched send queued, `status` `queued` (contract gate 9; the mock, having no real queue, answers with `status` already `sent`). */
                 202: {
                     headers: {
                         [name: string]: unknown;
@@ -15597,8 +16012,17 @@ export interface paths {
                         "application/json": components["schemas"]["Broadcast"];
                     };
                 };
-                /** @description A required field is missing, or deep_link names a destination the app cannot open. */
+                /** @description `validation_failed` — a required field is missing; `title`/`body` past its length limit (contract gate 9, owner Q11: title 80, message 500); `audience` outside its enum (contract gate 9, K7); `audience: segment` with no `targeting` key at all; `deep_link` names a destination the app cannot open. */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `validation_failed` — `targeting` present but malformed for `audience: segment`. */
+                422: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -22249,6 +22673,10 @@ export interface components {
             readonly total_capped?: boolean;
             /** @description GET /courses only, sent with `below_count`: true when `below_count` stopped at the same 10,000 cap and may be higher — show it as "10,000+". Absent or false: exact. */
             readonly below_count_capped?: boolean;
+            /** @description GET /phonebook only (contract gate 9, K13, owner Q10 — free text with a picker): every category value currently in use across the caller's whole list, not just the page, so the console's category picker keeps offering the full set on a paged list. */
+            readonly categories?: string[];
+            /** @description GET /internal-conversations only (contract gate 9, K12) — unread DM + Team conversations for the caller, counted over the whole list, not just the page. */
+            readonly unread_count?: number;
         };
         /**
          * Format: uuid
@@ -22442,17 +22870,28 @@ export interface components {
             email: boolean;
             push: boolean;
         };
-        /** @description Category toggles, FR-076. */
+        /** @description Category toggles, FR-076. `GET` always returns every key below (server-side defaults fill anything the recipient never set); `PATCH` is a PARTIAL update (contract gate 9) — send only the keys you are changing, keyed by `NotificationSettingsPatch` below. Every key stays required on the object this GET returns, since a client should never have to guess a missing toggle's state. */
         NotificationSettings: {
             chat: components["schemas"]["NotificationToggle"];
             plan: components["schemas"]["NotificationToggle"];
             events: components["schemas"]["NotificationToggle"];
             broadcast: components["schemas"]["NotificationToggle"];
+            /** @description Points and coupon notices (contract gate 9, owner Q4, 2026-09-27): push defaults ON, a new "Rewards" switch distinct from `plan`/`events`. The daily-login points award stays in-app only regardless of this toggle (owner ruling) — it is not gated by any NotificationSettings key. */
+            rewards: components["schemas"]["NotificationToggle"];
             /**
              * @description Single switch for "new blog post in topics you follow" device notifications (user, 2026-08-20). Blog deliberately has no email channel — a mail per article is a newsletter, not a notification — so this is a lone boolean, not a NotificationToggle pair.
              * @default true
              */
             blog_push: boolean;
+        };
+        /** @description `PATCH /notification-settings`'s body (contract gate 9) — every key optional, unlike the full `NotificationSettings` the GET returns. Omitted keys are left exactly as they were; there is no way to clear a key back to a server default once set, same as every other partial PATCH in this contract. */
+        NotificationSettingsPatch: {
+            chat?: components["schemas"]["NotificationToggle"];
+            plan?: components["schemas"]["NotificationToggle"];
+            events?: components["schemas"]["NotificationToggle"];
+            broadcast?: components["schemas"]["NotificationToggle"];
+            rewards?: components["schemas"]["NotificationToggle"];
+            blog_push?: boolean;
         };
         ConsentRecord: {
             /**
@@ -23033,12 +23472,12 @@ export interface components {
              */
             expires_at: string;
         };
-        /** @description Every frame on the realtime socket, both directions (contract gate 8; asyncapi.yaml has the channel, close codes and limits). JSON text, at most 4 KB. `data` is the schema named for its `type` — `hello` RealtimeHelloData; `chat.message` RealtimeChatMessageData; `chat.delivered` / `chat.read` RealtimeChatStatusData; `conversation.updated` RealtimeConversationUpdatedData; `unread.changed` RealtimeUnreadChangedData; `presence` RealtimePresenceData; `notification.created` RealtimeNotificationCreatedData; `reconnect` RealtimeReconnectData; `resume` RealtimeResumeData; `viewing` RealtimeViewingData; `ack` RealtimeAckData; `ping`, `pong` and `resync` carry an empty object. Server to client: hello, ping, chat.message, chat.delivered, chat.read, conversation.updated, unread.changed, presence, notification.created, resync, reconnect. Client to server: resume, viewing, ack, pong. A client ignores a `type` it does not know (new signals may be added) and a frame whose `v` is not 1. There is no typing indicator (owner Q1, 2026-09-25). */
+        /** @description Every frame on the realtime socket, both directions (contract gate 8; asyncapi.yaml has the channel, close codes and limits). JSON text, at most 4 KB. `data` is the schema named for its `type` — `hello` RealtimeHelloData; `chat.message` RealtimeChatMessageData; `chat.delivered` / `chat.read` RealtimeChatStatusData; `internal.message` RealtimeInternalMessageData; `internal.unsent` RealtimeInternalUnsentData; `conversation.updated` RealtimeConversationUpdatedData; `unread.changed` RealtimeUnreadChangedData; `presence` RealtimePresenceData; `notification.created` RealtimeNotificationCreatedData; `reconnect` RealtimeReconnectData; `resume` RealtimeResumeData; `viewing` RealtimeViewingData; `ack` RealtimeAckData; `ping`, `pong` and `resync` carry an empty object. Server to client: hello, ping, chat.message, chat.delivered, chat.read, internal.message, internal.unsent, conversation.updated, unread.changed, presence, notification.created, resync, reconnect. Client to server: resume, viewing, ack, pong. A client ignores a `type` it does not know (new signals may be added) and a frame whose `v` is not 1. There is no typing indicator (owner Q1, 2026-09-25). `internal.message`/`internal.unsent` added contract gate 9 (K11, Wave 4+5 plan §10 item 7) — the internal-messaging equivalent of chat.message, additive only; Internal Messaging has no delivered/read status frame (Team is N-way and the contract carries no status field for it). */
         RealtimeFrame: {
             /** @description Envelope version — 1. */
             v: number;
             /** @enum {string} */
-            type: "hello" | "ping" | "chat.message" | "chat.delivered" | "chat.read" | "conversation.updated" | "unread.changed" | "presence" | "notification.created" | "resync" | "reconnect" | "resume" | "viewing" | "ack" | "pong";
+            type: "hello" | "ping" | "chat.message" | "chat.delivered" | "chat.read" | "internal.message" | "internal.unsent" | "conversation.updated" | "unread.changed" | "presence" | "notification.created" | "resync" | "reconnect" | "resume" | "viewing" | "ack" | "pong";
             /** @description The server's stream position for a frame worth resuming from (chat, status, conversation, unread and notification frames) — send the last one received in `resume` after a reconnect, and in `ack` for a `chat.message`. Null on control frames and on every client frame. */
             id?: string | null;
             /**
@@ -23056,6 +23495,13 @@ export interface components {
             /** @enum {string} */
             type: "lead" | "client";
             id: components["schemas"]["UUID"];
+        };
+        /** @description Which internal-messaging conversation an `internal.message`/`internal.unsent` frame is about, from the RECEIVER's own side (contract gate 9, K11) — the same "id is the other employee's id for a DM, or the literal string 'team'" convention `GET /internal-conversations` already uses, so a client can match a frame straight to a row it already has without asking who the sender was. */
+        RealtimeInternalRef: {
+            /** @enum {string} */
+            kind: "dm" | "team";
+            /** @description The other employee's id — required when `kind` is `dm`, absent for `team`. */
+            colleague_id?: components["schemas"]["UUID"];
         };
         /** @description The first frame on a new connection. */
         RealtimeHelloData: {
@@ -23082,6 +23528,16 @@ export interface components {
              * @description The marker's new time — every message created at or before it counts.
              */
             up_to: string;
+        };
+        /** @description A new Internal Messaging DM or Team message the receiver can see (contract gate 9, K11) — exactly what `GET /internal-conversations/with/{employeeId}/messages` (or `.../team/messages`) returns for it. No delivered/read status frame — Internal Messaging has no per-message status field to derive one from. */
+        RealtimeInternalMessageData: {
+            thread: components["schemas"]["RealtimeInternalRef"];
+            message: components["schemas"]["InternalChatMessage"];
+        };
+        /** @description An Internal Messaging message was unsent (`DELETE .../messages/{messageId}`) and should be removed from the thread (contract gate 9, K11). */
+        RealtimeInternalUnsentData: {
+            thread: components["schemas"]["RealtimeInternalRef"];
+            message_id: components["schemas"]["UUID"];
         };
         /** @description A Global Chat Drawer row changed (a new last message, its unread state) — the row as `GET /conversations` would now return it, so the drawer patches it in place. */
         RealtimeConversationUpdatedData: {
@@ -23114,7 +23570,8 @@ export interface components {
         };
         /** @description Client to server — which thread is on screen now, or null when none is. Drives presence and the server's push suppression; sent on navigation and repeated with each `pong`. */
         RealtimeViewingData: {
-            subject?: components["schemas"]["RealtimeThreadRef"] | null;
+            /** @description A lead/client thread, or (contract gate 9, item 10) an internal-messaging DM or Team conversation — `RealtimeThreadRef` and `RealtimeInternalRef` are told apart by shape (`type` vs `kind`), same as the REST `POST /presence` `viewing` string distinguishes `lead:`/`client:` from `internal:`. */
+            subject?: (components["schemas"]["RealtimeThreadRef"] | components["schemas"]["RealtimeInternalRef"]) | null;
         };
         /** @description Client to server — the `chat.message` frame with this `id` reached the receiver's screen or store. */
         RealtimeAckData: {
@@ -24707,7 +25164,7 @@ export interface components {
             /** @enum {string|null} */
             payer_method?: "college" | "applicant" | "split" | null;
             /**
-             * @description The CASE plan's fraction. Unchanged in meaning since scopes arrived (2026-09-09) — see `case_summary` for everything one fraction can no longer say.
+             * @description The CASE plan's fraction. Unchanged in meaning since scopes arrived (2026-09-09) — see `case_summary` for everything one fraction can no longer say. Always a string, never null or a number (Wave 3 correction, backend-confirmed 2026-09-27) — `"0/0"` before any plan is assigned, not omitted or null.
              * @example 3/10
              */
             progress: string;
@@ -25671,20 +26128,18 @@ export interface components {
             id: components["schemas"]["UUID"];
             /** @description Added 2026-08-19 alongside the first "an action also notifies someone" mechanism (awardPoints() crediting Sentpo points) — which user this notification belongs to. */
             user_id?: components["schemas"]["UUID"];
-            type?: string;
+            type: string;
             /**
-             * @description Which notification-settings toggle row governs this notification's email/push delivery (notification-settings enforcement, 2026-08-20). Null = transactional (points, coupon redemptions, referral signups) — always delivered on every channel. `blog` (added 2026-08-20, user "we want push notification too") is the odd one out — in-app + push gated by the single `blog_push` switch, never email.
+             * @description Which notification-settings toggle row governs this notification's email/push delivery (notification-settings enforcement, 2026-08-20; `jobs`/`billing`/`account` and `rewards` added contract gate 9 — the mock already emitted `jobs` as `job_alert`'s category before the enum here caught up, and a generated client that does not know a value it receives can fail to decode the whole row). Wording corrected per assumptions audit C14 (2026-09-19): null does NOT mean "every channel" — `category` is now required at every server-side `notify()` call site, and a null value here means either a row from before that requirement, or (per C14) a genuinely uncategorised call, which defaults to in-app only, never email or push. The in-app feed always receives every notification regardless of category — see `channels` below — so "in-app only" and "never delivered" are not the same thing. `blog` (added 2026-08-20, user "we want push notification too") is the odd one out — in-app + push gated by the single `blog_push` switch, never email. `rewards` (owner Q4, 2026-09-27) covers points-earned and coupon-redeemed notices, push-enabled by default; the daily-login points award is deliberately NOT gated by it — it stays in-app only regardless of any toggle.
              * @enum {string|null}
              */
-            category?: "chat" | "plan" | "events" | "broadcast" | "blog" | null;
-            /** @description The delivery channels this notification got, resolved from the RECIPIENT's notification settings at creation time (a later settings change never rewrites history). The in-app feed always receives it — the FR-076 toggles gate only email and push. The app raises a device notification only for unread items carrying `push`; rows created before this field existed carry none and are never pushed retroactively. */
-            channels?: ("in_app" | "push" | "email")[];
-            /** @description The sender address the email channel uses, resolved by AUDIENCE at creation (mail identity plan, 2026-08-20): students get the Sentpo address, staff and freelancers get the immiNow address — each configurable via env (MAIL_FROM_SENTPO / MAIL_FROM_IMMINOW). Null when channels excludes email. Server metadata for the mailer; clients never display it. Full send-point inventory: docs/MAIL_AND_NOTIFICATIONS.md. */
-            email_from?: string | null;
+            category?: "chat" | "plan" | "events" | "broadcast" | "blog" | "jobs" | "billing" | "account" | "rewards" | null;
+            /** @description The delivery channels this notification got, resolved from the RECIPIENT's notification settings at creation time (a later settings change never rewrites history). The in-app feed always receives it, whatever `category` says (AA C14) — the FR-076/rewards toggles and the platform-wide NotificationChannelConfigEntry gate only email and push. The app raises a device notification only for unread items carrying `push`; rows created before this field existed carry none and are never pushed retroactively. */
+            channels: ("in_app" | "push" | "email")[];
             title: string;
             body: string;
-            /** @description Route + params from the deep-link registry, TRD Section 6. */
-            deep_link?: string;
+            /** @description Route + params from the deep-link registry, TRD Section 6. Guaranteed non-null for every notification type in the catalogue (contract gate 9) — a type with nowhere to send the tap is a catalogue gap, not a valid state; nullable only for rows that predate a type's catalogue entry. */
+            deep_link?: string | null;
             read: boolean;
             /** Format: date-time */
             created_at: string;
@@ -27039,7 +27494,7 @@ export interface components {
              */
             recognized_at: string;
         };
-        /** @description The platform's cut when no Commission Rates row covers a case (2026-09-11). Consultancies default to 2.5% (they charge students about 10% and the platform takes 25-30% of that); universities, which pay the platform directly, default to 10%. A change prices cases accepted from then on; accepted cases keep their rate and carry rate_source fallback_default. */
+        /** @description The platform's cut when no Commission Rates row covers a case (2026-09-11). Consultancies default to 25% of what the consultancy earns on the case; universities, which pay the platform directly, default to 10% of the tuition fee (Wave 3 correction, 2026-09-27: this description previously said 2.5%, contradicting `consultancy_percent`'s own field description and the backend, both 25 since 2026-09-11 — 2.5% was always the stale value). A change prices cases accepted from then on; accepted cases keep their rate and carry rate_source fallback_default. */
         CommissionDefaults: {
             /** @description Default rate when a freelancer brought the student and no rate is set (2026-09-11, 40). */
             freelancer_percent?: number;
@@ -27483,6 +27938,11 @@ export interface components {
             id: components["schemas"]["UUID"];
             title: string;
             body: string;
+            /**
+             * @description Contract gate 9, owner Q11. `queued` on the 202 the send call returns — the fan-out is batched, not synchronous — and `sent` once the batch has gone out; the mock, having no real queue, moves straight to `sent`.
+             * @enum {string}
+             */
+            readonly status: "queued" | "sent";
             /** @enum {string} */
             audience: "all_students" | "segment" | "all_staff";
             /** @description Segment audience only; null for `all_students` and `all_staff`. */
@@ -27501,13 +27961,18 @@ export interface components {
             readonly deep_link?: string | null;
         };
         BroadcastInput: {
+            /** @description Contract gate 9, owner Q11 — 400 `validation_failed` past 80 characters. */
             title: string;
+            /** @description Contract gate 9, owner Q11 — 400 `validation_failed` past 500 characters. */
             body: string;
-            /** @enum {string} */
+            /**
+             * @description 400 `validation_failed` for any value outside this enum (contract gate 9, K7) — the send used to accept anything and silently notify nobody.
+             * @enum {string}
+             */
             audience: "all_students" | "segment" | "all_staff";
             /** @description Where tapping the notification takes the student. Optional — omit for a broadcast that is purely informational. Must be one of the routes the app can open: /points, /plan, /coupons, /events, /blog, /jobs, or an item path /event/{id}, /article/{id}, /job/{id}. Validated at send time rather than only in the app, because the app silently ignores an unrecognised link — a good safety net and useless feedback for whoever wrote it. */
             deep_link?: string | null;
-            /** @description Required when `audience` is `segment`; ignored otherwise. An empty targeting object on a segment send reaches every student, i.e. the same set as `all_students`. */
+            /** @description Required when `audience` is `segment` — 400 `validation_failed` when the key is missing entirely (contract gate 9, K7); an empty targeting OBJECT on a segment send is valid and reaches every student, i.e. the same set as `all_students`. Ignored (and may be omitted) for `all_students` and `all_staff`. */
             targeting?: components["schemas"]["Targeting"];
             /**
              * @description What the broadcast is ABOUT. Closed list as of 2026-08-27 (it was free text): this value is purely a label on the send history — it is rendered as a badge there and included in that table's search — and free text made the one thing it exists for unreliable, since "Newsletter", "newsletter" and "News letter" file and filter as three separate categories.
