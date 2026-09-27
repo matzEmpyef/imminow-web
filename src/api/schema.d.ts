@@ -2647,7 +2647,10 @@ export interface paths {
                     content: {
                         "application/json": {
                             items: components["schemas"]["PhonebookContact"][];
-                            meta: components["schemas"]["PaginatedMeta"];
+                            meta: components["schemas"]["PaginatedMeta"] & {
+                                /** @description Contract gate 9, K13, owner Q10 (free text with a picker) — every category value currently in use across the caller's whole list, not just the page, so the console's category picker keeps offering the full set on a paged list. */
+                                readonly categories?: string[];
+                            };
                         };
                     };
                 };
@@ -3099,7 +3102,10 @@ export interface paths {
                     content: {
                         "application/json": {
                             items: components["schemas"]["Conversation"][];
-                            meta: components["schemas"]["PaginatedMeta"];
+                            meta: components["schemas"]["PaginatedMeta"] & {
+                                /** @description Contract gate 9, K12 — unread DM + Team conversations for the caller, counted over the whole list, not just the page. */
+                                readonly unread_count?: number;
+                            };
                         };
                     };
                 };
@@ -22673,10 +22679,6 @@ export interface components {
             readonly total_capped?: boolean;
             /** @description GET /courses only, sent with `below_count`: true when `below_count` stopped at the same 10,000 cap and may be higher — show it as "10,000+". Absent or false: exact. */
             readonly below_count_capped?: boolean;
-            /** @description GET /phonebook only (contract gate 9, K13, owner Q10 — free text with a picker): every category value currently in use across the caller's whole list, not just the page, so the console's category picker keeps offering the full set on a paged list. */
-            readonly categories?: string[];
-            /** @description GET /internal-conversations only (contract gate 9, K12) — unread DM + Team conversations for the caller, counted over the whole list, not just the page. */
-            readonly unread_count?: number;
         };
         /**
          * Format: uuid
@@ -23570,8 +23572,8 @@ export interface components {
         };
         /** @description Client to server — which thread is on screen now, or null when none is. Drives presence and the server's push suppression; sent on navigation and repeated with each `pong`. */
         RealtimeViewingData: {
-            /** @description A lead/client thread, or (contract gate 9, item 10) an internal-messaging DM or Team conversation — `RealtimeThreadRef` and `RealtimeInternalRef` are told apart by shape (`type` vs `kind`), same as the REST `POST /presence` `viewing` string distinguishes `lead:`/`client:` from `internal:`. */
-            subject?: (components["schemas"]["RealtimeThreadRef"] | components["schemas"]["RealtimeInternalRef"]) | null;
+            /** @description A lead or client thread. Internal-messaging presence is carried over `POST /presence` only for now (contract gate 9, item 10 — `internal:<employeeId>` / `internal:team`); extending this socket frame to internal threads too is left for whenever the internal-messaging socket work itself lands, to avoid a oneOf here two clients would need to regenerate around for a frame neither sends yet. */
+            subject?: components["schemas"]["RealtimeThreadRef"] | null;
         };
         /** @description Client to server — the `chat.message` frame with this `id` reached the receiver's screen or store. */
         RealtimeAckData: {
