@@ -16051,7 +16051,7 @@ export interface paths {
                         "application/json": components["schemas"]["Broadcast"];
                     };
                 };
-                /** @description `validation_failed` — a required field is missing; `title`/`body` past its length limit (contract gate 9, owner Q11: title 80, message 500); `audience` outside its enum (contract gate 9, K7); `audience: segment` with no `targeting` key at all; `deep_link` names a destination the app cannot open. */
+                /** @description `validation_failed` — a required field is missing, including a missing or blank `Idempotency-Key` (contract gate 10, lane N3 — checked by hand, not just the generic required-header validation, since the idempotency middleware only replays a key it was given); `title`/`body` past its length limit (contract gate 9, owner Q11: title 80, message 500); `audience` outside its enum (contract gate 9, K7); `audience: segment` with no `targeting` key at all; `deep_link` names a destination the app cannot open. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -16063,6 +16063,17 @@ export interface paths {
                 /** @description `validation_failed` — `targeting` present but malformed for `audience: segment`. */
                 422: {
                     headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `rate_limited` (contract gate 10, lane N3) — more than 10 broadcast sends by this caller in the last hour (plan §4.3, owner Q11: "a slip of the finger is a hundred thousand pushes" — the only thing standing between a fat-fingered admin and that). */
+                429: {
+                    headers: {
+                        /** @description Seconds until the caller may retry. */
+                        "Retry-After"?: number;
                         [name: string]: unknown;
                     };
                     content: {
@@ -28056,10 +28067,10 @@ export interface components {
             title: string;
             body: string;
             /**
-             * @description Contract gate 9, owner Q11. `queued` on the 202 the send call returns — the fan-out is batched, not synchronous — and `sent` once the batch has gone out; the mock, having no real queue, moves straight to `sent`.
+             * @description Contract gate 9, owner Q11; `sending`/`failed` added contract gate 10 (lane N3, plan §5.2's state machine: `queued → sending → sent | failed`). `queued` on the 202 the send call returns — the fan-out is batched, not synchronous; `sending` once a worker has claimed the batch; `sent` once it has gone out; `failed` if the fan-out could not complete. The mock, having no real queue, moves straight to `sent`.
              * @enum {string}
              */
-            readonly status: "queued" | "sent";
+            readonly status: "queued" | "sending" | "sent" | "failed";
             /** @enum {string} */
             audience: "all_students" | "segment" | "all_staff";
             /** @description Segment audience only; null for `all_students` and `all_staff`. */
