@@ -20,6 +20,7 @@ import { BlogArticleSearchSelect } from '@/features/super-admin/blog/BlogArticle
 import { useAdminEvents } from '@/queries/eventsAdmin'
 import { useCountries } from '@/queries/countries'
 import { useBroadcastAudienceCount, useBroadcastHistory, useSendBroadcast } from '@/queries/broadcast'
+import { ApiError } from '@/api/errors'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDateTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
@@ -54,6 +55,25 @@ const AUDIENCE_LABELS: Record<Audience, string> = {
   all_students: 'All students',
   segment: 'Filtered segment',
   all_staff: 'All immiNow staff',
+}
+
+// `sending`/`failed` added contract gate 10 (lane N3's `queued → sending → sent | failed` state
+// machine) — the mock has no real queue and always answers `sent`, so these never render against
+// it, but the real backend can leave a row at `sending` or land it on `failed`, and a row nobody
+// can see failed is worse than a plain one (RT: "the only thing standing between a fat-fingered
+// admin and a hundred thousand pushes" cuts both ways — they need to know if it didn't go out).
+// `status` predates gate 10 on the schema (owner Q11) but was never rendered here at all.
+const STATUS_LABELS: Record<NonNullable<Broadcast['status']>, string> = {
+  queued: 'Queued',
+  sending: 'Sending',
+  sent: 'Sent',
+  failed: 'Failed',
+}
+const STATUS_COLORS: Record<NonNullable<Broadcast['status']>, 'secondary' | 'info' | 'success' | 'error'> = {
+  queued: 'secondary',
+  sending: 'info',
+  sent: 'success',
+  failed: 'error',
 }
 
 // User-requested (2026-08-16) — "use popup to create a broadcast message instead of inline,"
@@ -142,7 +162,13 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
         footer={
           <>
             {sendBroadcast.isError && (
-              <p className="mr-auto self-center text-body-sm text-error">{sendBroadcast.error.message}</p>
+              <p className="mr-auto self-center text-body-sm text-error">
+                {sendBroadcast.error.message}
+                {/* 429 rate_limited (contract gate 10, lane N3) — more than 10 sends in an hour. */}
+                {sendBroadcast.error instanceof ApiError &&
+                  sendBroadcast.error.code === 'rate_limited' &&
+                  ' Wait a while before sending another.'}
+              </p>
             )}
             <Button variant="secondary" onClick={() => setConfirming(false)} disabled={sendBroadcast.isPending}>
               Back
@@ -340,6 +366,16 @@ export function BroadcastPage() {
       render: (b) => <Badge color="secondary">{broadcastCategoryLabel(b.category)}</Badge>,
     },
     { key: 'recipient_count', header: 'Recipients', sortable: true, align: 'right', render: (b) => b.recipient_count },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (b) =>
+        b.status ? (
+          <Badge color={STATUS_COLORS[b.status]}>{STATUS_LABELS[b.status]}</Badge>
+        ) : (
+          <span className="text-text-secondary">—</span>
+        ),
+    },
     { key: 'sent_by_name', header: 'Sent By', render: (b) => b.sent_by_name },
     { key: 'created_at', header: 'Sent', sortable: true, render: (b) => formatDateTime(b.created_at) },
   ]
