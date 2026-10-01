@@ -14,6 +14,9 @@ import { useChatWindowStore } from '@/stores/chatWindowStore'
 import { avatarTheme } from '@/lib/avatarTheme'
 import { Skeleton } from '@/components/QueryState'
 import { formatDate } from '@/lib/time'
+import type { components } from '@/api/schema'
+
+type InternalChatMessage = components['schemas']['InternalChatMessage']
 
 const EMPTY_CONVERSATIONS: NonNullable<ReturnType<typeof useInternalConversations>['data']>['items'] = []
 
@@ -43,6 +46,16 @@ export function InternalMessagingPage() {
   }, [items, query])
 
   const selected = items.find((c) => c.id === id)
+
+  // Pages come back newest-fetched-first (`pages[0]`), each page itself oldest-to-newest within
+  // it (contract gate 9, K12) — flattening in reverse page order lays the whole thread out
+  // oldest-at-top, same read direction the chat UI has always rendered in.
+  const flatMessages = useMemo(() => {
+    if (!messages.data) return undefined
+    const out: InternalChatMessage[] = []
+    for (let p = messages.data.pages.length - 1; p >= 0; p -= 1) out.push(...messages.data.pages[p].items)
+    return out
+  }, [messages.data])
 
   // `mutate` is destructured because it is referentially stable in React Query v5, so it can be
   // a real dependency: the rule is satisfied and `id` stays the only trigger (B5, 2026-09-03).
@@ -174,7 +187,7 @@ export function InternalMessagingPage() {
               <ChatPanel
                 name={selected.name}
                 typeLabel={selected.badge ?? selected.designation ?? 'Colleague'}
-                messages={messages.data?.items?.map((m) => ({
+                messages={flatMessages?.map((m) => ({
                   ...m,
                   fromMe: m.from_me,
                   senderName: id === 'team' ? m.sender_name : undefined,
@@ -187,6 +200,9 @@ export function InternalMessagingPage() {
                 onSend={handleSend}
                 sending={sendMessage.isPending}
                 onUnsend={(messageId) => unsendMessage.mutateAsync(messageId)}
+                onLoadEarlier={() => messages.fetchNextPage()}
+                hasEarlier={messages.hasNextPage}
+                loadingEarlier={messages.isFetchingNextPage}
                 heightClassName="h-full"
                 headerActions={
                   <button

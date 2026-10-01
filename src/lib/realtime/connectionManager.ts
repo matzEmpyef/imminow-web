@@ -9,6 +9,8 @@ import {
   type RealtimeChatMessageData,
   type RealtimeChatStatusData,
   type RealtimeConversationUpdatedData,
+  type RealtimeInternalMessageData,
+  type RealtimeInternalUnsentData,
   type RealtimePresenceData,
   type RealtimeReconnectData,
   type RealtimeThreadRef,
@@ -18,6 +20,8 @@ import {
   applyChatMessage,
   applyChatStatus,
   applyConversationUpdated,
+  applyInternalMessage,
+  applyInternalUnsent,
   applyNotificationCreated,
   applyResync,
   applyUnreadChanged,
@@ -255,6 +259,17 @@ export class RealtimeConnectionManager {
           data.side,
           data.up_to,
         )
+        break
+      }
+      case 'internal.message': {
+        const data = frame.data as RealtimeInternalMessageData
+        applyInternalMessage(this.deps.queryClient, data.thread, data.message)
+        // No ack — internal messaging has no delivered/read status frame to drive (asyncapi.yaml).
+        break
+      }
+      case 'internal.unsent': {
+        const data = frame.data as RealtimeInternalUnsentData
+        applyInternalUnsent(this.deps.queryClient, data.thread, data.message_id)
         break
       }
       case 'conversation.updated': {

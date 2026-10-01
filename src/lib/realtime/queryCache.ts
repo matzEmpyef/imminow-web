@@ -1,12 +1,18 @@
 import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 import type { components } from '@/api/schema'
-import type { RealtimeThreadRef } from './frame'
+import { internalThreadIdOrTeam, type RealtimeInternalRef, type RealtimeThreadRef } from './frame'
 
 type LeadMessage = components['schemas']['LeadMessage']
 type Conversation = components['schemas']['Conversation']
+type InternalChatMessage = components['schemas']['InternalChatMessage']
 
 interface MessagesPage {
   items: LeadMessage[]
+  meta: { next_cursor?: string | null; total?: number | null }
+}
+
+interface InternalMessagesPage {
+  items: InternalChatMessage[]
   meta: { next_cursor?: string | null; total?: number | null }
 }
 
@@ -36,6 +42,57 @@ export function applyChatMessage(queryClient: QueryClient, thread: RealtimeThrea
     if (old.items.some((m) => m.id === message.id)) return old
     return { ...old, items: [...old.items, message] }
   })
+}
+
+/** `['internal-conversations', idOrTeam, 'messages']` — the `useInfiniteQuery` key
+ * `useInternalConversationMessages` (queries/internalMessages.ts) reads and pages with
+ * `before`/`limit` (contract gate 9, K12). */
+export function internalMessagesKey(idOrTeam: string): [string, string, string] {
+  return ['internal-conversations', idOrTeam, 'messages']
+}
+
+/**
+ * `internal.message` (contract gate 9, K11) — append to the NEWEST loaded page (`pages[0]`, since
+ * `fetchNextPage` only ever extends the array with OLDER pages, same convention
+ * `queries/internalMessages.ts` pages by). Nothing to patch when the thread isn't cached at all,
+ * same as `applyChatMessage`. De-duped by id for the same reason: the sender's own connection gets
+ * this frame back too, and `useSendInternalMessage`'s own invalidate could race it.
+ */
+export function applyInternalMessage(
+  queryClient: QueryClient,
+  thread: RealtimeInternalRef,
+  message: InternalChatMessage,
+): void {
+  const key = internalMessagesKey(internalThreadIdOrTeam(thread))
+  queryClient.setQueryData<InfiniteData<InternalMessagesPage>>(key, (old) => {
+    if (!old || old.pages.length === 0) return old
+    const newest = old.pages[0]
+    if (newest.items.some((m) => m.id === message.id)) return old
+    const pages = [...old.pages]
+    pages[0] = { ...newest, items: [...newest.items, message] }
+    return { ...old, pages }
+  })
+  // No `conversation.updated` equivalent is emitted for internal messaging (asyncapi.yaml) — the
+  // Internal Messaging list and the Global Chat Drawer's unioned rows both just refetch.
+  queryClient.invalidateQueries({ queryKey: ['internal-conversations'] })
+  queryClient.invalidateQueries({ queryKey: ['conversations'] })
+}
+
+/** `internal.unsent` — removes the message from wherever it's cached, across every loaded page. */
+export function applyInternalUnsent(queryClient: QueryClient, thread: RealtimeInternalRef, messageId: string): void {
+  const key = internalMessagesKey(internalThreadIdOrTeam(thread))
+  queryClient.setQueryData<InfiniteData<InternalMessagesPage>>(key, (old) => {
+    if (!old) return old
+    let changed = false
+    const pages = old.pages.map((page) => {
+      if (!page.items.some((m) => m.id === messageId)) return page
+      changed = true
+      return { ...page, items: page.items.filter((m) => m.id !== messageId) }
+    })
+    return changed ? { ...old, pages } : old
+  })
+  queryClient.invalidateQueries({ queryKey: ['internal-conversations'] })
+  queryClient.invalidateQueries({ queryKey: ['conversations'] })
 }
 
 const STATUS_RANK: Record<string, number> = { sent: 0, delivered: 1, read: 2 }

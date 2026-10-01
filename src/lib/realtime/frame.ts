@@ -8,6 +8,9 @@ export type RealtimeUnreadChangedData = components['schemas']['RealtimeUnreadCha
 export type RealtimePresenceData = components['schemas']['RealtimePresenceData']
 export type RealtimeReconnectData = components['schemas']['RealtimeReconnectData']
 export type RealtimeHelloData = components['schemas']['RealtimeHelloData']
+export type RealtimeInternalRef = components['schemas']['RealtimeInternalRef']
+export type RealtimeInternalMessageData = components['schemas']['RealtimeInternalMessageData']
+export type RealtimeInternalUnsentData = components['schemas']['RealtimeInternalUnsentData']
 
 /** A frame this client can receive (server → client, per asyncapi.yaml `receiveServerFrames`). */
 export type KnownServerFrameType =
@@ -16,6 +19,8 @@ export type KnownServerFrameType =
   | 'chat.message'
   | 'chat.delivered'
   | 'chat.read'
+  | 'internal.message'
+  | 'internal.unsent'
   | 'conversation.updated'
   | 'unread.changed'
   | 'presence'
@@ -29,6 +34,8 @@ const KNOWN_SERVER_FRAME_TYPES = new Set<string>([
   'chat.message',
   'chat.delivered',
   'chat.read',
+  'internal.message',
+  'internal.unsent',
   'conversation.updated',
   'unread.changed',
   'presence',
@@ -93,4 +100,12 @@ export function isKnownServerFrameType(type: string): type is KnownServerFrameTy
 
 export function threadKey(thread: RealtimeThreadRef): string {
   return `${thread.type}:${thread.id}`
+}
+
+/** `RealtimeInternalRef` → the `idOrTeam` string `queries/internalMessages.ts` already keys its
+ * queries and routes by (`'team'`, or the other employee's id for a DM) — the same convention
+ * `GET /internal-conversations` uses, which is exactly why the frame's own description says a
+ * client can match it straight to a row it already has. */
+export function internalThreadIdOrTeam(thread: RealtimeInternalRef): string {
+  return thread.kind === 'team' ? 'team' : (thread.colleague_id ?? 'team')
 }

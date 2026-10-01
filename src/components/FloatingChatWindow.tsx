@@ -96,11 +96,15 @@ export function FloatingChatWindow() {
           isSessionBreak: m.type === 'session_break',
           isCallInitiated: m.type === 'call_initiated',
         }))
-      : internalMessages.data?.items?.map((m) => ({
-          ...m,
-          fromMe: m.from_me,
-          senderName: conversation.id === 'team' ? m.sender_name : undefined,
-        }))
+      : internalMessages.data?.pages
+          .slice()
+          .reverse()
+          .flatMap((page) => page.items)
+          .map((m) => ({
+            ...m,
+            fromMe: m.from_me,
+            senderName: conversation.id === 'team' ? m.sender_name : undefined,
+          }))
   const isLoading = isLead ? leadMessages.isLoading : isClient ? clientMessages.isLoading : internalMessages.isLoading
   const activeMessagesQuery = isLead ? leadMessages : isClient ? clientMessages : internalMessages
   const isError = activeMessagesQuery.isError
@@ -195,6 +199,9 @@ export function FloatingChatWindow() {
           chatPerson ? <SuggestCourseInChat person={chatPerson} onShareError={setComposerError} /> : undefined
         }
         onUnsend={isInternal ? (messageId) => unsendInternalMessage.mutateAsync(messageId) : undefined}
+        onLoadEarlier={isInternal ? () => internalMessages.fetchNextPage() : undefined}
+        hasEarlier={isInternal ? internalMessages.hasNextPage : undefined}
+        loadingEarlier={isInternal ? internalMessages.isFetchingNextPage : undefined}
         className="shadow-lg"
         headerActions={
           <>

@@ -100,6 +100,12 @@ interface ChatPanelProps {
    * typed is left alone; nothing is retried.
    */
   composerError?: ReactNode
+  // Contract gate 9, K12 — internal-messaging threads page from the newest end (`before`/`limit`).
+  // Optional: Lead/Client conversations don't pass it and render exactly as before. When set, a
+  // "Load earlier messages" affordance appears above the oldest loaded message.
+  onLoadEarlier?: () => void
+  hasEarlier?: boolean
+  loadingEarlier?: boolean
 }
 
 /**
@@ -221,6 +227,9 @@ export function ChatPanel({
   person,
   composerAction,
   composerError,
+  onLoadEarlier,
+  hasEarlier,
+  loadingEarlier,
 }: ChatPanelProps) {
   // Confirm-gated per the platform's standing delete rule; owned here (not per caller) so both
   // the Internal Messaging page and the floating window get one identical implementation.
@@ -237,7 +246,29 @@ export function ChatPanel({
   // (React Query polling) never yanks the view if nothing new actually arrived. One shared effect
   // covers every caller — inline conversation pages and the floating window alike.
   const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  // Set right before calling `onLoadEarlier` and read once the older page lands, so the effect
+  // below can tell "older messages were prepended" apart from "a new one arrived at the bottom" —
+  // the two need opposite scroll behaviour (restore position vs. jump to the newest message).
+  const loadingEarlierRef = useRef(false)
+  const prevScrollHeightRef = useRef(0)
+
+  function handleLoadEarlier() {
+    if (!onLoadEarlier) return
+    loadingEarlierRef.current = true
+    prevScrollHeightRef.current = scrollRef.current?.scrollHeight ?? 0
+    onLoadEarlier()
+  }
+
   useEffect(() => {
+    if (loadingEarlierRef.current) {
+      loadingEarlierRef.current = false
+      // Keep whatever message was on screen in view — appending older rows at the top otherwise
+      // shoves the whole thread down by exactly the height of what was just inserted.
+      const el = scrollRef.current
+      if (el) el.scrollTop += el.scrollHeight - prevScrollHeightRef.current
+      return
+    }
     bottomRef.current?.scrollIntoView({ block: 'end' })
   }, [messages?.length])
 
@@ -276,7 +307,7 @@ export function ChatPanel({
         {headerActions && <div className="flex shrink-0 items-center gap-xs">{headerActions}</div>}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-sm overflow-y-auto px-md py-md">
+      <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col gap-sm overflow-y-auto px-md py-md">
         {isLoading && !isError && (
           <div className="flex h-full items-center justify-center">
             <p className="text-body-sm text-text-secondary">Loading…</p>
@@ -295,6 +326,17 @@ export function ChatPanel({
         {!isLoading && !isError && messages?.length === 0 && (
           <div className="flex h-full items-center justify-center">
             <p className="text-body-sm text-text-secondary">No messages yet — say hello.</p>
+          </div>
+        )}
+        {!isLoading && !isError && onLoadEarlier && Boolean(messages?.length) && (
+          <div className="flex justify-center pb-xs">
+            {hasEarlier ? (
+              <Button variant="secondary" size="sm" loading={loadingEarlier} onClick={handleLoadEarlier}>
+                Load earlier messages
+              </Button>
+            ) : (
+              <span className="text-caption text-text-secondary">Start of conversation</span>
+            )}
           </div>
         )}
         {!isError &&
