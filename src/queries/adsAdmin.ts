@@ -21,12 +21,17 @@ export function useAdminAds() {
 }
 
 // Who clicked an ad (user 2026-08-20) — fetched only while the drill-down popup is open.
-export function useAdClicks(adId: string | null) {
+// Cursor-paginated (contract gate 10b item 4 — `cursor`/`limit` added), same `useCursorPagination`
+// pattern as every other cursor list in the console; the page owns the cursor and resets it
+// whenever a different ad's drill-down opens.
+export function useAdClicks(adId: string | null, params: { cursor?: string; limit?: number } = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
-    queryKey: ['ads', adId, 'clicks'],
+    queryKey: ['ads', adId, 'clicks', params],
     queryFn: async () => {
-      const { data, error } = await api.GET('/ads/{id}/clicks', { params: { path: { id: adId! } } })
+      const { data, error } = await api.GET('/ads/{id}/clicks', {
+        params: { path: { id: adId! }, query: { cursor: params.cursor, limit: params.limit } },
+      })
       if (error) throw new ApiError('Could not load ad clicks.', error)
       return data
     },

@@ -27,6 +27,20 @@ interface PersonListModalProps {
    * as the empty message, which reads as a verdict on an empty list rather than a pending fetch.
    */
   loading?: boolean
+  /**
+   * For a caller whose list is paged server-side (contract gate 10b item 4 — ad clicks gained
+   * cursor/limit): `rows` is already just the current page, so the modal's own PAGE_SIZE slicing
+   * is skipped in favour of this — same hasNext/hasPrevious/onNext/onPrevious shape as
+   * `useCursorPagination` everywhere else in the console. Search and the type filter still narrow
+   * only the loaded page, same as Table's own search does for any other page of a server list.
+   */
+  serverPagination?: {
+    hasNext: boolean
+    hasPrevious: boolean
+    onNext: () => void
+    onPrevious: () => void
+    total?: number | null
+  }
 }
 
 type IndexedRow = PersonListRow & { index: number }
@@ -53,7 +67,7 @@ const typeBadgeColor: Record<'applicant' | 'aspirant', 'success' | 'info'> = {
 // - left aligned") instead of hand-rolled div rows — # and Name are real left-aligned columns now
 // (Table's default alignment), same shape as the Quiz Leaderboard popup built the same day.
 // `bare` drops Table's own card chrome since it's already nested inside Modal's.
-export function PersonListModal({ title, rows, emptyMessage, onClose, intro, loading }: PersonListModalProps) {
+export function PersonListModal({ title, rows, emptyMessage, onClose, intro, loading, serverPagination }: PersonListModalProps) {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
@@ -67,9 +81,11 @@ export function PersonListModal({ title, rows, emptyMessage, onClose, intro, loa
     return items
   }, [rows, typeFilter, search])
 
-  const pageRows: IndexedRow[] = filtered
-    .slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
-    .map((row, i) => ({ ...row, index: page * PAGE_SIZE + i + 1 }))
+  const pageRows: IndexedRow[] = serverPagination
+    ? filtered.map((row, i) => ({ ...row, index: i + 1 }))
+    : filtered
+        .slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
+        .map((row, i) => ({ ...row, index: page * PAGE_SIZE + i + 1 }))
 
   const columns: TableColumn<IndexedRow>[] = [
     { key: 'index', header: '#', render: (r) => r.index },
@@ -124,13 +140,23 @@ export function PersonListModal({ title, rows, emptyMessage, onClose, intro, loa
             ))}
           </div>
         }
-        pagination={{
-          hasNext: (page + 1) * PAGE_SIZE < filtered.length,
-          hasPrevious: page > 0,
-          onNext: () => setPage((p) => p + 1),
-          onPrevious: () => setPage((p) => Math.max(0, p - 1)),
-          total: filtered.length,
-        }}
+        pagination={
+          serverPagination
+            ? {
+                hasNext: serverPagination.hasNext,
+                hasPrevious: serverPagination.hasPrevious,
+                onNext: serverPagination.onNext,
+                onPrevious: serverPagination.onPrevious,
+                total: serverPagination.total,
+              }
+            : {
+                hasNext: (page + 1) * PAGE_SIZE < filtered.length,
+                hasPrevious: page > 0,
+                onNext: () => setPage((p) => p + 1),
+                onPrevious: () => setPage((p) => Math.max(0, p - 1)),
+                total: filtered.length,
+              }
+        }
       />
     </Modal>
   )

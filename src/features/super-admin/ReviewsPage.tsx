@@ -5,6 +5,7 @@ import { FilterChip } from '@/components/FilterChip'
 import { StarRating } from '@/components/StarRating'
 import { StopPropagation } from '@/components/StopPropagation'
 import { Table, type TableColumn } from '@/components/Table'
+import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
 import { useAdminReviews, type Review } from '@/queries/adminReviews'
 import { ReviewDrawer } from './ReviewDrawer'
@@ -27,22 +28,22 @@ const LIMIT = 20
 /**
  * Platform Reviews moderation (2026-09-12) — the pre-moderation queue for every review a student
  * writes about their consultancy. Same Consultancies permission (`consultancy_approval`) and same
- * tabbed-status-queue shape as ComplaintsPage, minus its cursor pagination — this contract pages by
- * limit/offset instead.
+ * tabbed-status-queue shape as ComplaintsPage, now also cursor-paginated like it (contract gate 10b
+ * item 8 switched this from limit/offset to the console's usual cursor pattern).
  */
 export function ReviewsPage() {
   const [status, setStatus] = useState<StatusKey>('pending')
-  const [offset, setOffset] = useState(0)
-  const reviews = useAdminReviews({ status, limit: LIMIT, offset })
+  const paging = useCursorPagination()
+  const reviews = useAdminReviews({ status, limit: LIMIT, cursor: paging.cursor })
   const [viewing, setViewing] = useState<Review | null>(null)
 
   const rows = reviews.data?.items ?? []
   const counts = reviews.data?.counts
-  const total = reviews.data?.total ?? 0
+  const nextCursor = reviews.data?.meta.next_cursor
 
   function changeStatus(next: StatusKey) {
     setStatus(next)
-    setOffset(0)
+    paging.reset()
   }
 
   const columns: TableColumn<Review>[] = [
@@ -145,11 +146,12 @@ export function ReviewsPage() {
             </>
           }
           pagination={{
-            hasNext: offset + LIMIT < total,
-            hasPrevious: offset > 0,
-            onNext: () => setOffset((o) => o + LIMIT),
-            onPrevious: () => setOffset((o) => Math.max(0, o - LIMIT)),
-            total,
+            hasNext: Boolean(nextCursor),
+            hasPrevious: paging.hasPrevious,
+            onNext: () => nextCursor && paging.next(nextCursor),
+            onPrevious: paging.previous,
+            total: reviews.data?.meta.total,
+            totalCapped: reviews.data?.meta.total_capped,
           }}
         />
       </div>

@@ -61,7 +61,16 @@ function ReuseQuestionsModal({
             onClick={() => {
               const picked = (source?.questions ?? [])
                 .filter((_, i) => checked.has(i))
-                .map((q): QuizQuestionInput => ({ text: q.text, options: [...q.options], correct_option: q.correct_option }))
+                .map(
+                  (q): QuizQuestionInput => ({
+                    text: q.text,
+                    options: [...q.options],
+                    // correct_option is events-permission-scoped on the wire (contract gate 10b,
+                    // K20) — null only for a caller without it, which this admin-only reuse picker
+                    // never is (it only renders for someone already managing this quiz's pool).
+                    correct_option: q.correct_option ?? 0,
+                  }),
+                )
               onAdd(picked)
               onClose()
             }}
@@ -127,7 +136,11 @@ function ReuseQuestionsModal({
 export function ManageQuestionsModal({ event, onClose }: { event: Event; onClose: () => void }) {
   const updateEvent = useUpdateEvent(event.id!)
   const [questions, setQuestions] = useState<QuizQuestionInput[]>(
-    event.questions && event.questions.length > 0 ? event.questions : [emptyQuestion()],
+    event.questions && event.questions.length > 0
+      ? // Same events-permission scoping as the reuse picker above — correct_option is null only
+        // for a caller without it, never true for whoever can open this modal.
+        event.questions.map((q) => ({ ...q, correct_option: q.correct_option ?? 0 }))
+      : [emptyQuestion()],
   )
   const [currentIndex, setCurrentIndex] = useState(0)
   const [reusing, setReusing] = useState(false)

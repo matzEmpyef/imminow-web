@@ -7308,26 +7308,32 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Recorded */
+                /** @description Recorded (contract gate 10 — response body now documented). */
                 201: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Rating"];
+                    };
                 };
-                /** @description not_yet_rateable — the consultancy has not replied yet, or the conversation is under three days old (app review H3, 2026-09-13). */
+                /** @description `not_yet_rateable` — the consultancy has not replied yet (`no_reply_yet`), or the conversation is under three days old (`too_new`; app review H3, 2026-09-13). The two reasons are distinguished only by message text (contract gate 10) — the mock carries no separate machine-readable `reason` field. */
                 403: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
-                /** @description Rate-limited — once per lead relationship per 7 days. */
+                /** @description `rate_limited` — once per lead relationship per 7 days (contract gate 10). */
                 429: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -8266,7 +8272,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Request a rating from the lead's student (cooldown-aware — build reference 1.6/2.2). Sentpo-sourced leads only. */
+        /** Request a rating from the lead's student (cooldown-aware — build reference 1.6/2.2). STAFF ONLY (contract gate 10) — scoped to staff who can see the lead, same as every other lead route; a student caller gets 404, not 403, same convention as the rest of the leads module. Sentpo-sourced leads only; active leads only. */
         post: {
             parameters: {
                 query?: never;
@@ -8285,7 +8291,34 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description Still within the 7-day cooldown */
+                /** @description `not_applicable` — an imported lead has no student account to request a rating from (contract gate 10). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Lead not found, or not visible to this caller (contract gate 10). */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `conflict` — the lead is not active (contract gate 10). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `rating_cooldown_active` — still within the 7-day cooldown (contract gate 10). */
                 429: {
                     headers: {
                         [name: string]: unknown;
@@ -9464,6 +9497,42 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/home": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The student app's Home, in one response (contract gate 10, plan §4.14, RT 11 — Wave 5's exit criterion). Replaces 14–17 separate requests. The mock implements this from its own existing handlers' logic — same filters, same per-caller projections, same list sizes — not a new read path; †mobile Home switches to it, keeping the per-section calls as the fallback for one release. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Home"];
+                    };
                 };
             };
         };
@@ -14079,8 +14148,24 @@ export interface paths {
                         "application/json": components["schemas"]["Review"];
                     };
                 };
-                403: components["responses"]["ErrorResponse"];
-                409: components["responses"]["ErrorResponse"];
+                /** @description `plan_not_complete` — the mock's code, kept verbatim (contract gate 10): the case hasn't closed yet (neither `closed`/`closed_completed`, nor the legacy `plan_complete`). */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `already_reviewed` — a review already exists for this journey (contract gate 10). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -16230,7 +16315,7 @@ export interface paths {
                         venue_address?: string | null;
                         meeting_url?: string | null;
                         meeting_platform?: string | null;
-                        /** @description Quiz only — see Targeting. */
+                        /** @description Any event type (review M16, 2026-09-12) — see Event.targeting. */
                         targeting?: components["schemas"]["Targeting"] | null;
                         branding?: {
                             [key: string]: unknown;
@@ -16321,6 +16406,15 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
+                /** @description Already RSVP'd (contract gate 10) — idempotent re-call returns the existing row unchanged rather than erroring or duplicating it. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EventRsvp"];
+                    };
+                };
                 /** @description RSVP'd (or waitlisted, if the event is at capacity) */
                 201: {
                     headers: {
@@ -16328,6 +16422,33 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["EventRsvp"];
+                    };
+                };
+                /** @description `guardian_consent_required` — physical meetings only; a minor needing guardian approval cannot RSVP to attend in person (contract gate 10). */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Event not found, or not visible to this student (contract gate 10). */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `rsvp_closed` — registration closed when the event started (contract gate 10). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -16350,6 +16471,15 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description No such event, or no RSVP to remove (contract gate 10). */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -16467,19 +16597,41 @@ export interface paths {
                         "application/json": components["schemas"]["QuizStartResponse"];
                     };
                 };
-                /** @description Window not open yet, already ended before any attempt was started, targeting not met, or phone unverified */
+                /** @description `not_open_yet` (hasn't opened — `starts_at` is in the future), `not_ready` (no questions yet, or fewer than the pool needs), or `validation_failed` (this quiz has been voided, or has already closed with no attempt ever started) (contract gate 10). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `phone_not_verified` (verify your phone before taking a quiz) or `not_eligible` (targeting excludes this student's profile) (contract gate 10). */
                 403: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
-                /** @description This student already has a completed, submitted attempt for this quiz. */
+                /** @description Event not found, unlisted, or not a quiz (contract gate 10). */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `already_attempted` — this student already has a completed, submitted attempt for this quiz. */
                 409: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -16606,7 +16758,13 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
+                    "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
+                };
                 path: {
                     id: components["schemas"]["UUID"];
                 };
@@ -16639,7 +16797,25 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description Both sends already used. */
+                /** @description Event not found, not a webinar, or not visible to this student (contract gate 10). */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `no_meeting_link` — this webinar has no meeting link yet (contract gate 10). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `send_limit_reached` — both sends already used. */
                 429: {
                     headers: {
                         [name: string]: unknown;
@@ -16669,7 +16845,13 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
+                    "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
+                };
                 path: {
                     id: string;
                 };
@@ -16691,12 +16873,41 @@ export interface paths {
                         };
                     };
                 };
-                /** @description Window not open (before starts_at or after ends_at). */
+                /** @description `validation_failed` — this event isn't a webinar. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `outside_window` — not open (before starts_at or after ends_at). */
                 403: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Event not found or not visible to this student (contract gate 10). */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `no_meeting_link` — this webinar has no meeting link yet (contract gate 10). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -16754,12 +16965,41 @@ export interface paths {
                         };
                     };
                 };
-                /** @description Code doesn't match this event's venue_code. */
+                /** @description `invalid_code` — doesn't match this event's venue_code. */
                 400: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `guardian_consent_required` (a minor needing guardian approval) or `outside_window` (codes work from 3 hours before the meeting until 2 hours after it ends, or 12 hours after the start with no `ends_at`) (contract gate 10). */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Event not found, not a physical meeting, or not visible to this student (contract gate 10). */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `too_many_attempts` (contract gate 10, NEW code — K21) — the backend limits wrong codes the same shape as coupons' merchant-code limiter (5 wrong codes per student per event per hour); the mock, frozen, does not enforce this limit itself. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -16779,6 +17019,8 @@ export interface paths {
         /**
          * Listings — category/country/province_state/job_type filters (FR-054; `location` was the free-text one until 2026-09-20). Also `filter[active]=true` (Sentpo Mobile Wave 2, Home's Top Jobs & Internships — live listings only, computed server-side from `active`/`active_from`/`active_to`) + `limit`; both optional, so JobsAdminPage's own unfiltered admin call is unaffected. Since 2026-08-18 this endpoint honours the standard `search`/`sort`/`cursor` trio and returns a real `next_cursor` — `search` matches title, company, category, the composed `location` string and skills, and the default sort is `-posted_at`. Sentpo Mobile's Jobs list is an infinite scroll built on that cursor; filtering is server-side because a client must never pull hundreds of listings just to filter them locally.
          *
+         *     STUDENTS ALWAYS GET LIVE LISTINGS (contract gate 10, K24) — `filter[active]=true` is implied for any caller without the `jobs` permission, whether or not they pass it; a student can never see a switched-off, scheduled or expired listing by omitting the filter. Only a `jobs`-permission caller (the admin console) gets the unfiltered set.
+         *
          *     FEATURED FIRST (product owner, 2026-09-20). On the student's plain live list — `filter[active]=true` and nothing else, no search, no sort, no cursor — the jobs named by `PlatformSettings.featured_jobs` are lifted to the front IN THE ADMIN'S ORDER and are never repeated further down. `meta` is unchanged — the same listings come back, in a different order.
          *
          *     The lift applies only to that one unqualified ask, deliberately. The moment a student searches, ticks a facet or chooses a sort, the list is an answer to THEIR question, and promoting three unrelated jobs into it would be a worse answer rather than a more valuable one.
@@ -16786,6 +17028,8 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
+                    /** @description true = live listings only (contract gate 10). Implied for any caller without the `jobs` permission regardless of what they pass — documented here mainly for the `jobs`-permission admin console, which may still pass it to narrow its own unfiltered view. Any other value behaves as omitted. */
+                    "filter[active]"?: boolean;
                     /** @description Admin list — live, scheduled, expired, off; comma-separated = any of. */
                     "filter[status]"?: string;
                     /** @description Country names, comma-separated = any of (product owner, 2026-09-20). REPLACES `filter[location]`, which matched a whole free-text string exactly: workable against thirty seeded rows, useless against thousands where one city is filed under a dozen spellings and every spelling is its own chip. Values are the canonical names `GET /jobs/locations` returns. A place-less remote listing matches no value here. */
@@ -17068,10 +17312,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Saved Jobs (build reference 2.2) — "every bookmarked listing, styled the same as the main Jobs List." A bare array of `JobListing`, same small-personal-list convention as `GET /shortlist`. */
+        /** Saved Jobs (build reference 2.2) — "every bookmarked listing, styled the same as the main Jobs List." Cursor-paginated (contract gate 10 — was a bare array; a student who saves heavily no longer pulls every bookmark in one response, same convention `GET /jobs` and `GET /blog/bookmarks` already use), newest save first. */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -17084,7 +17333,10 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JobListing"][];
+                        "application/json": {
+                            items: components["schemas"]["JobListing"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
                     };
                 };
             };
@@ -17182,7 +17434,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Create alert — pushes on new matching listing (FR-054). "A 'Create alert' flow reuses the main [Jobs] list's filter controls" (build reference 2.2) — `filter_criteria` is the same shape `GET /jobs`' own `filter` query param accepts (category, country, province_state, job_type, work_mode) — `location` was the free-text one until 2026-09-20 (product owner). An alert saved against a key that is no longer a filter falls through as an unknown key — ignored, never a failed match. */
+        /** Create alert — pushes on new matching listing (FR-054). "A 'Create alert' flow reuses the main [Jobs] list's filter controls" (build reference 2.2) — `filter_criteria` is `JobAlert.filter_criteria`'s closed shape (contract gate 10, K24): the same filter keys `GET /jobs` accepts, validated rather than an open blob. Capped at 10 alerts per student (owner Q11, 2026-09-27) — the 11th create is refused. */
         post: {
             parameters: {
                 query?: never;
@@ -17193,8 +17445,14 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
+                        /** @description See JobAlert.filter_criteria — the same closed shape. */
                         filter_criteria: {
-                            [key: string]: unknown;
+                            search?: string | null;
+                            job_type?: ("full_time" | "internship" | "part_time")[] | null;
+                            work_mode?: ("remote" | "hybrid" | "on_site")[] | null;
+                            category?: string[] | null;
+                            country?: string[] | null;
+                            province_state?: string[] | null;
                         };
                     };
                 };
@@ -17207,6 +17465,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["JobAlert"];
+                    };
+                };
+                /** @description `limit_reached` (contract gate 10) — this student already has 10 alerts, the per-student cap (owner Q11). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -17366,10 +17633,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Saved Articles (FR-062) — "every bookmarked article, styled the same as the main Blog List" (build reference 2.2). A bare array, same small-personal-list convention as `GET /shortlist`/`GET /jobs/saved`; must be routed before `/blog/{id}` so "bookmarks" isn't matched as an article id. */
+        /** Saved Articles (FR-062) — "every bookmarked article, styled the same as the main Blog List" (build reference 2.2). Cursor-paginated (contract gate 10 — was a bare array, same reasoning as `GET /jobs/saved`), newest bookmark first; must be routed before `/blog/{id}` so "bookmarks" isn't matched as an article id. */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -17382,7 +17654,10 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["BlogArticle"][];
+                        "application/json": {
+                            items: components["schemas"]["BlogArticle"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
                     };
                 };
             };
@@ -17614,7 +17889,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update curation state (admin) — publish to app or unpublish, pin, or override the tags derived from the WordPress category. Unpublishing removes the article from discovery but keeps the cached body, so a student who bookmarked it can still read it; deleting would silently empty their Saved Articles. */
+        /** Update curation state (admin) — publish to app or unpublish, or override the tags derived from the WordPress category (contract gate 10 — "pin" dropped from this wording; the request body has never carried a pin field, only `published_to_app`/`category_ids`). Unpublishing removes the article from discovery but keeps the cached body, so a student who bookmarked it can still read it; deleting would silently empty their Saved Articles. */
         patch: {
             parameters: {
                 query?: never;
@@ -17701,7 +17976,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cache full content locally for offline reading (FR-061) — "reusing the same content the list API already exposes" (build reference 1.12), so this returns the same `BlogArticle` shape `GET /blog/{id}` does, `content` included; the client is what persists it. Recording the download server-side is what flips `downloaded` on subsequent reads, which in turn is what makes Blog Article render natively instead of as a webview (erd.md's `blog_downloads`: "presence of a row is what triggers native rendering"). Idempotent — re-downloading an already-downloaded article returns the same content rather than duplicating the row. */
+        /** Cache full content locally for offline reading (FR-061) — "reusing the same content the list API already exposes" (build reference 1.12), so this returns the same `BlogArticle` shape `GET /blog/{id}` does, `content` included; the client is what persists it. Recording the download server-side is what flips `downloaded` on subsequent reads, which in turn is what makes Blog Article render natively instead of as a webview (erd.md's `blog_downloads`: "presence of a row is what triggers native rendering"). Idempotent — re-downloading an already-downloaded article returns the same content rather than duplicating the row. Requires a PUBLISHED article (contract gate 10, K26) — a hidden article can no longer be newly downloaded by id, even by a caller who could otherwise read it; an article already downloaded before it was hidden keeps its cached content on the device (nothing recalls it), it simply can't be re-fetched. */
         post: {
             parameters: {
                 query?: never;
@@ -17720,6 +17995,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["BlogArticle"];
+                    };
+                };
+                /** @description Article not found, or hidden (`published_to_app` false) — contract gate 10. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -17788,7 +18072,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Bookmark (FR-062). Idempotent — bookmarking an already-bookmarked article is a no-op rather than a duplicate row, same idiom as `POST /shortlist`/`POST /jobs/{id}/save`. */
+        /** Bookmark (FR-062). Idempotent — bookmarking an already-bookmarked article is a no-op rather than a duplicate row, same idiom as `POST /shortlist`/`POST /jobs/{id}/save`. Requires a PUBLISHED article (contract gate 10, K26) — a hidden article can no longer be newly bookmarked by id; an existing bookmark made before the article was hidden keeps working (`GET /blog/{id}` stays readable for it, erd.md's `blog_bookmarks`). */
         post: {
             parameters: {
                 query?: never;
@@ -17807,6 +18091,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["BlogArticle"];
+                    };
+                };
+                /** @description Article not found, or hidden (`published_to_app` false) — contract gate 10. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -17892,10 +18185,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Currently-qualifying banners for home carousel, targeted (FR-047). Admin (Ads Manager, build reference 1.23) sees every banner, including expired/future-dated ones. `filter[live]=true` (Sentpo Mobile Wave 2) narrows to the actually-qualifying set server-side — the same Live/Scheduled-Expired window AdsManagerPage's own status badge already computes, done once here instead of duplicated client-side a second time. */
+        /**
+         * Currently-qualifying banners for home carousel, targeted (FR-047). Admin (Ads Manager, build reference 1.23) sees every banner, including expired/future-dated ones, with the full admin shape. `filter[live]=true` (Sentpo Mobile Wave 2) narrows to the actually- qualifying set server-side — the same Live/Scheduled-Expired window AdsManagerPage's own status badge already computes, done once here instead of duplicated client-side a second time.
+         *
+         *     STUDENT PROJECTION (contract gate 10, K25) — `filter[live]=true` is implied for any caller without the `ads` permission, whether or not they pass it: a student only ever sees the live, targeted set (priority then age), never an off, scheduled or expired ad. That projection also drops `targeting`, `clicks_count` and `impressions_count` — see `AdBanner` for the per-field scoping. A student with no matching preference data is NOT excluded (lenient rule, K25 — "an off-target ad is only an ignorable banner," unlike quiz targeting's strict 404): unknown data always INCLUDES.
+         */
         get: {
             parameters: {
                 query?: {
+                    /** @description true = the live, targeted set only (contract gate 10). Implied for any caller without the `ads` permission regardless of what they pass. */
+                    "filter[live]"?: boolean;
                     /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
                     filter?: components["parameters"]["FilterParam"];
                 };
@@ -17959,8 +18258,8 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * Delete an ad for good (platform ads permission)
-         * @description Switching an ad off (PATCH active=false) is reversible and keeps its numbers; this removes it. Either way it stops being served on the next load (2026-09-11).
+         * Delete an ad (platform ads permission)
+         * @description Switching an ad off (PATCH active=false) is reversible and keeps its numbers; this is a SOFT delete (contract gate 10, K25, Q10/Open 39) — the row and its `ad_clicks` history stay, `deleted_at` is set, and the ad stops being served (admin and student) on the next load. Replaces the earlier hard delete, which orphaned `ad_clicks`. Either way, 2026-09-11.
          */
         delete: {
             parameters: {
@@ -18136,7 +18435,12 @@ export interface paths {
         /** Who clicked this ad (user 2026-08-20, "see the users who have clicked an ad. name, applicant/aspirant and time") — newest first, name/student_type joined at query time same as the RSVP and coupon-claim person lists. Ads admin permission. */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -20726,7 +21030,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Deep-link resolution (2026-08-19) — maps a shared sentpo.com article URL to its curated article id, slug-matched against the cache (published articles only). 404 means "not curated" and the app opens the URL in the browser instead — the documented App Links fallback. Optionally authenticated, same as GET /blog — a shared link must open before login. */
+        /**
+         * Deep-link resolution (2026-08-19) — maps a shared sentpo.com article URL to its curated article id, slug-matched against the cache (published articles only). 404 means "not curated" and the app opens the URL in the browser instead — the documented App Links fallback. Optionally authenticated, same as GET /blog — a shared link must open before login.
+         *     ORIGIN-CHECKED (contract gate 10, K26) — `source_url` must resolve against the configured marketing origin (`BLOG_WP_ORIGIN`'s public host); a URL on any other host is refused rather than slug-matched, so a lookalike link can't be used to probe which slugs are curated.
+         */
         get: {
             parameters: {
                 query: {
@@ -20747,6 +21054,15 @@ export interface paths {
                         "application/json": {
                             id: components["schemas"]["UUID"];
                         };
+                    };
+                };
+                /** @description `validation_failed` — not a URL on the configured marketing origin (contract gate 10). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
                 /** @description Not curated — open the URL in a browser. */
@@ -22331,14 +22647,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Moderation queue (2026-09-12). Consultancies permission (`consultancy_approval`) — whoever manages consultancies moderates what students say about them. `counts` carries the per-status totals for the Pending / Published / Hidden tabs regardless of the filter. */
+        /** Moderation queue (2026-09-12). Consultancies permission (`consultancy_approval`) — whoever manages consultancies moderates what students say about them. `counts` carries the per-status totals for the Pending / Published / Hidden tabs regardless of the filter. Cursor-paginated (contract gate 10 — was `limit`/`offset`; the mock is offset, per the plan). */
         get: {
             parameters: {
                 query?: {
                     status?: "pending" | "published" | "hidden";
                     consultancy_id?: string;
-                    limit?: number;
-                    offset?: number;
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
                 };
                 header?: never;
                 path?: never;
@@ -24485,7 +24803,53 @@ export interface components {
              */
             suggestions_unseen: number;
             /** @description Events running RIGHT NOW that this student can see (2026-09-02) — started and not yet ended, an event with no `ends_at` counting as one hour. Drives the animated ring around the footer's Events tab; rides on this call so the shell needs no extra poll. */
-            live_events?: number;
+            live_events: number;
+        };
+        /**
+         * @description Contract gate 10 (plan §4.14, RT 11 — the Wave 5 exit criterion). ONE response for the student app's Home, replacing the 14–17 separate requests the app warmed up on; the mock implements it by composing its own existing handlers' logic, not a new read path. Stage-appropriate: `stage1` is present only for a student on `current_stage: 1` who is not `awaiting_match` (Channel C's queued state, `Journey.status`) — the Stage 1 discovery rails have nothing to show someone who hasn't been matched to a consultancy yet. `journey` alone (its own `progress`/`active_step_title`/`active_step_id`) already carries what a Stage 2/3 caller needs; there is no separate plan-summary section.
+         *     EACH SECTION IS THE OWNING MODULE'S OWN LIST-READ SCHEMA — `upcoming_events` is `Event[]` exactly as `GET /events` returns it, `top_jobs` is `JobListing[]` exactly as `GET /jobs` returns it, and so on — so the generated client models are shared, not duplicated.
+         *     FAILS ALONE (plan §4.14) — a section whose owning module could not be read is simply omitted and named in `sections_failed`; the caller never gets a 5xx for one module's trouble, and the app renders that section's own error state while every other section still renders. Cached where a section is not per-student (plan §8) — `live_ads`, `daily_posts`, `stage1.featured_institutes`/`trending_courses` are the same for every caller in the same minute; `journey`, `badges`, `greeting`, `topics_you_picked`, `stage1.preferred_consultancies` are not. Kept under ~100 KB (mobile perf review H1, RT 11) by the same list-sized limits the app's own warmup requests used: 6 topics, 10 daily posts, 5 upcoming events, 4 jobs, no admin-only fields (every section already serves the public/student projection its own list endpoint does).
+         */
+        Home: {
+            /** @description Exactly `GET /journeys/me`'s own response. Null only if named in `sections_failed` (journeys unreachable) — not a normal state; every student has a journey answer, even `awaiting_match`. */
+            journey: components["schemas"]["Journey"] | null;
+            /** @description Null only if named in `sections_failed`. */
+            greeting: {
+                /** @description First name only — enough for a greeting (same convention used elsewhere in this contract, e.g. the plan-preparation card). */
+                greeting_name: string;
+                /** @description Same `SUM(delta)` value as `PointsBalance.balance` — just the number, not the whole Points Popup payload (earn rules, milestones), which the app still fetches separately only when that screen opens. */
+                points_balance: number;
+            } | null;
+            /** @description `HomeBadges`'s three fields, same values `GET /me/badges` returns, plus the notification bell's own unread count (plan §4.14 "badges + notification unread") — `GET /notifications/unread-count`'s figure, ridden on this call so Home needs no extra request for the bell. Null only if named in `sections_failed`. */
+            badges: (components["schemas"]["HomeBadges"] & {
+                notifications_unread: number;
+            }) | null;
+            topics_you_picked: {
+                items: components["schemas"]["BlogArticle"][];
+                /** @description Same meaning as `StudentPreferences.blog_topics_chosen` — false means this is the random-default-topic fallback (AA M3), not a choice the student made; the app may caption the rail differently in that case. */
+                blog_topics_chosen: boolean;
+            };
+            daily_posts: {
+                /** @description Latest published articles, newest first — unfiltered by topic, same ordering `GET /blog`'s default gives. */
+                items: components["schemas"]["BlogArticle"][];
+            };
+            /** @description Exactly the student projection `GET /ads?filter[live]=true` returns. */
+            live_ads: components["schemas"]["AdBanner"][];
+            /** @description Exactly `GET /events?when=upcoming`'s own items, soonest first, capped at 5. */
+            upcoming_events: components["schemas"]["Event"][];
+            /** @description Live listings, newest first — NO featured lift (owner, 2026-09-20 — featured jobs are for the Jobs tab, not Home, same as `GET /jobs` without `featured_first`). */
+            top_jobs: components["schemas"]["JobListing"][];
+            /** @description Null for a non-student, for Channel C while `awaiting_match`, and for any caller not on `current_stage: 1` — the Stage 1 discovery rails. Present otherwise. */
+            stage1?: {
+                /** @description Home's Top Consultancies rail (plan §4.14 "preferred/featured consultancies") — `PlatformSettings.featured_consultancies` (hand-picked, stored order) when the platform has made picks, otherwise `GET /consultancies?filter[preferred]=true`'s ranking (the caller's own `target_country` ranked first, never narrowed), capped at 10 either way. The two paths `GET /consultancies` itself exposes separately (`filter[featured]`, `filter[preferred]`) collapse to this one rail here because Home shows only one Top Consultancies card. */
+                preferred_consultancies: components["schemas"]["Consultancy"][];
+                /** @description Exactly `GET /consultancies?filter[featured]=true&kind=institute`'s items — empty is the normal state (no institutes at launch); the app hides the rail rather than rendering it half-empty. */
+                featured_institutes: components["schemas"]["Consultancy"][];
+                /** @description Exactly `GET /courses/trending`'s own array. */
+                trending_courses: components["schemas"]["Course"][];
+            } | null;
+            /** @description Names any section above whose owning module could not be read, rather than failing the whole response — empty in the normal case. `journey`/`greeting`/`badges` fall back to null; the array sections fall back to an empty list (or, for `stage1`, null). The app shows that section's own error state and leaves every other section alone. */
+            sections_failed: ("journey" | "greeting" | "badges" | "topics_you_picked" | "daily_posts" | "live_ads" | "upcoming_events" | "top_jobs" | "stage1")[];
         };
         /**
          * @description A course the student's consultant has put forward — the student-facing read of `selected_colleges`, which before 2026-08-23 had no student-facing surface at all: the row was written by the consultant's "Suggest" action and read only by their own Selected Colleges tab, the finance destination-country helper, and a staff-side cross-country warning. The applicant was never told.
@@ -25959,6 +26323,16 @@ export interface components {
             /** Format: date-time */
             submitted_at: string;
         };
+        /** @description Contract gate 10 — the 201 body of `POST /consultancies/{id}/ratings`, previously undocumented. The star-only rating behind the Lead Chat Thread's inline prompt (cooldown-gated, no text, any time during Stage 1 chat) — distinct from the written `Review`, which is one-time and post-close. Backs `consultancy_rating_rollups` (`ConsultancyRatings` registry seam); not independently listable — a consultancy's current figure is `Consultancy.rating`/`rating_count`. */
+        Rating: {
+            id: components["schemas"]["UUID"];
+            consultancy_id: components["schemas"]["UUID"];
+            student_id: components["schemas"]["UUID"];
+            lead_id: components["schemas"]["UUID"];
+            stars: number;
+            /** Format: date-time */
+            created_at: string;
+        };
         /** @description Verified review (build reference 1.3, reworked 2026-09-12): one per journey, written once after the plan is complete, never edited. Signed with the student's full name (user decision). `status` is the moderation state — `pending` until a platform admin with the Consultancies permission publishes it (pre-moderation: nothing unread is ever shown), `published` (visible in the app and to the consultancy, counts towards the rating), `hidden` (pulled by the platform with a reason; leaves the rating). Distinct from the star-only `ratings` behind POST /consultancies/{id}/ratings (cooldown-gated, no text, any time during Stage 1 chat). */
         Review: {
             id: components["schemas"]["UUID"];
@@ -25967,11 +26341,11 @@ export interface components {
              * Format: uuid
              * @description Null on seeded reviews from before the mock modelled their journeys.
              */
-            journey_id?: string | null;
+            journey_id: string | null;
             student_name: string;
             /** @description The journey's study level at the time (masters, bachelors…) — shown under the name. */
-            study_level?: string | null;
-            target_country?: string | null;
+            study_level: string | null;
+            target_country: string | null;
             stars: number;
             text: string;
             /** @enum {string} */
@@ -26015,11 +26389,10 @@ export interface components {
             total: number;
             summary: components["schemas"]["ReviewSummary"];
         };
+        /** @description Cursor-paginated (contract gate 10 — was offset-paginated: `limit`/`offset`/`total`). `counts` still covers the whole platform regardless of the page or filter, same as before. */
         AdminReviewPage: {
             items: components["schemas"]["Review"][];
-            limit: number;
-            offset: number;
-            total: number;
+            meta: components["schemas"]["PaginatedMeta"];
             /** @description Reviews per status across the whole platform, for the queue tabs. */
             counts: {
                 pending?: number;
@@ -26267,29 +26640,35 @@ export interface components {
             /** @description Counts down from 2. Enough for one that lands in spam; not a relay. */
             sends_remaining?: number;
         };
-        /** @description One table, type-specific fields nullable per type (erd.md Engagement section) — Webinars, Quiz, and Physical Meetings each get their own admin page (build reference 1.13) but share this one underlying shape. */
+        /**
+         * @description One table, type-specific fields nullable per type (erd.md Engagement section) — Webinars, Quiz, and Physical Meetings each get their own admin page (build reference 1.13) but share this one underlying shape.
+         *     Never carries a people list (contract gate 10, K20) — who RSVP'd, who attended, or who attempted a quiz lives behind its own `events`-permission route, never inline here: `GET /events/{id}/attendance` (RSVP list + attendance list, admin) and `GET /events/{id}/leaderboard` (role-projected per `QuizLeaderboardEntry`). Two fields on this object are ROLE-SCOPED the same way — see `QuizQuestion.correct_option` and `venue_code` below — served to `events`-permission callers only, null to everyone else.
+         */
         Event: {
             /**
              * @description One status for every event type (2026-09-11). draft = a quiz whose question pool is smaller than questions_per_attempt; voided = a cancelled quiz. Computed by the server; clients show it and never re-derive it.
              * @enum {string}
              */
-            readonly status?: "upcoming" | "live" | "ended" | "voided" | "draft";
+            readonly status: "upcoming" | "live" | "ended" | "voided" | "draft";
             /** @description Waitlisted RSVPs. `rsvp_count` counts confirmed seats only since 2026-09-11, so it can be compared with `capacity`. */
-            readonly waitlist_count?: number;
+            readonly waitlist_count: number;
             id: components["schemas"]["UUID"];
             /** @enum {string} */
             type: "quiz" | "webinar" | "physical_meeting";
             title: string;
             /** @description Fixed to be nullable like every other clearable field on this schema (`capacity`, `venue_address`, etc.) — was previously missing the nullable marker, which didn't match how every Webinar/Quiz/Physical Meeting admin form already cleared it (`description || null`), producing a real `tsc` mismatch (`string | null` not assignable to `string | undefined`) that had gone unfixed across several sessions. */
-            description?: string | null;
+            description: string | null;
             /** Format: date-time */
             starts_at: string;
-            /** Format: date-time */
-            ends_at?: string | null;
-            capacity?: number | null;
-            rsvp_count?: number;
+            /**
+             * Format: date-time
+             * @description Required (non-null) for a webinar (contract gate 10, K21) — the join window (`starts_at ≤ now ≤ ends_at`) and the "email me the link" window can't close without one, and a webinar without `ends_at` never stops accepting joins. Optional for `quiz` (though required once it carries `position_prizes` — settlement waits on it) and for `physical_meeting` (the attendance-code window falls back to 12 hours after `starts_at`). Still nullable at the schema level, same as every other type-conditional field here, since the requirement is per-type, not universal.
+             */
+            ends_at: string | null;
+            capacity: number | null;
+            rsvp_count: number;
             /** @description Computed, never stored. Webinar/Physical Meeting: event_attendance.length. Quiz (2026-08-17): quiz_attempts.length — same number /events/{id}/leaderboard's `participant_count` returns, so the list-view count and the leaderboard popup can never disagree. */
-            attendance_count?: number;
+            attendance_count: number;
             /** @description Quiz only, and present only when the authenticated caller has already used their one attempt. Its presence is what a client should gate the Start Quiz control on — POST /events/{id}/quiz/start rejects a second attempt with 409 already_attempted, and nothing else in this payload reveals that in advance. Carries the caller's own result only; it names no student and exposes nothing about anyone else, same scoping rule as QuizLeaderboardEntry.is_me. */
             my_attempt?: {
                 score: number;
@@ -26298,66 +26677,74 @@ export interface components {
                 submitted_at: string;
             };
             /** @description Quiz only — admin can void a published quiz, reversing any points already awarded (build reference 1.13). */
-            voided?: boolean;
+            voided: boolean;
             /**
              * @description Soft delete for webinars and physical meetings (2026-09-04). false removes the event from the student app (list and detail) while staff keep it, with RSVPs and attendance intact, and can restore it. Set via PATCH /events/{id}.
              * @default true
              */
             listed: boolean;
             /** @description Quiz only (user-requested, 2026-08-15) — computed, never stored. `!voided && questions.length >= questions_per_attempt`. A quiz is created inactive with zero questions (two-step creation — see POST /events) and flips to active on its own once the pool catches up; there's no admin toggle for this. */
-            readonly active?: boolean | null;
+            readonly active: boolean | null;
             /** @description Participation points (user-requested, 2026-08-15) — overrides the generic earn-rule value for this specific event, credited to everyone who completes it regardless of leaderboard position. Distinct from position_prizes below, which is rank-based and optional. */
-            points_override?: number | null;
+            points_override: number | null;
             /**
              * @description The IANA zone this event HAPPENS in (Phase E, 2026-08-22). For a physical meeting it is the VENUE's zone and is authoritative; for a webinar or quiz it records the zone the organiser was thinking in when they picked the time.
              *     Before this existed the authoring zone was implicit — whatever zone the admin's browser happened to be in — which is an assumption nobody ever stated and which nothing downstream could recover. An IANA NAME, never an offset, so it survives a daylight-saving transition between authoring and the event itself.
              */
-            timezone?: string | null;
+            timezone: string | null;
             /**
              * @description True for `physical_meeting`, false otherwise — **the correctness rule of this feature.** A campus fair in Mumbai starts at 10:30 in Mumbai whether the student reading about it is in Delhi, Berlin or on a plane; converting it to their zone would tell them to arrive at the wrong hour. A webinar is the opposite — one global instant that every attendee should see on their own clock.
              *     Stated by the server rather than re-derived from `type` by each client, because a rule two frontends infer separately is a rule that will eventually be inferred differently.
              */
-            readonly time_is_local_to_venue?: boolean;
+            readonly time_is_local_to_venue: boolean;
             /** @description `starts_at` as wall-clock time in `timezone`, e.g. "2026-08-22T10:30:00". Deliberately carries NO offset suffix — it is what the clock on the wall says there, not another encoding of the same instant. A client rendering a venue-local event must print this verbatim and must not convert it; re-encoding it with an offset would invite exactly the double-conversion this field exists to prevent. Null when the event has no timezone recorded. */
-            readonly starts_at_local?: string | null;
+            readonly starts_at_local: string | null;
             /** @description Same treatment as `starts_at_local`, for `ends_at`. */
-            readonly ends_at_local?: string | null;
+            readonly ends_at_local: string | null;
             /** @description A short human label for `timezone` at this event's date ("GMT+5:30"), for captioning a displayed time. Resolved at the event's own instant so it reflects daylight saving correctly. Ambiguous as storage — which is why `timezone` is always the IANA name — but exactly right printed beside a clock time. */
-            readonly timezone_label?: string | null;
+            readonly timezone_label: string | null;
             /** @description Physical Meeting only. */
-            venue_address?: string | null;
-            /** @description Physical Meeting only — displayed on a venue banner, self-entered by attendees. System-generated on create when not provided; admin-settable/editable via PATCH (user-requested 2026-08-20, "admin should be able to decide what the key should be") **until 3 hours before starts_at** — the same threshold at which attendee code entry opens — after which the server rejects changes with a 400, so the code students are already entering can never change under them. */
-            venue_code?: string | null;
+            venue_address: string | null;
+            /**
+             * @description Physical Meeting only — displayed on a venue banner, self-entered by attendees via `POST /events/{id}/physical/verify`, never read from this field by the app. System- generated on create when not provided; admin-settable/editable via PATCH (user-requested 2026-08-20, "admin should be able to decide what the key should be") **until 3 hours before starts_at** — the same threshold at which attendee code entry opens — after which the server rejects changes with a 400, so the code students are already entering can never change under them.
+             *     ROLE-SCOPED (contract gate 10, K20) — served to `events`-permission callers only. Null to every other caller, including the student checking in: handing it back here would let a student verify attendance without ever visiting the venue, which is the one thing this code exists to prevent.
+             */
+            venue_code: string | null;
             /** @description Webinar only. */
-            meeting_url?: string | null;
+            meeting_url: string | null;
             /**
              * @description Webinar only.
              * @enum {string|null}
              */
-            meeting_platform?: "google_meet" | "zoom" | "webex" | "teams" | "other" | null;
-            /** @description Quiz only (build reference 1.13). The same shape ads and broadcasts use — unknown student data INCLUDES here, as it does for ads. */
-            targeting?: components["schemas"]["Targeting"] | null;
+            meeting_platform: "google_meet" | "zoom" | "webex" | "teams" | "other" | null;
+            /** @description Any event type (review M16, 2026-09-12 — not Quiz only, as build reference 1.13's first wording had it). The same shape ads and broadcasts use — unknown student data INCLUDES here, as it does for ads. Server-enforced on every student-facing route (contract gate 10, K20) — the list, detail, RSVP, quiz start, webinar join/email-link and physical verify all 404 a targeted-out student, not just the list. */
+            targeting: components["schemas"]["Targeting"] | null;
             /** @description Quiz only — 3 placements (pre-load screen, persistent banner, results screen), build reference 1.13. */
-            branding?: {
+            branding: {
                 [key: string]: unknown;
             } | null;
             /** @description Quiz only — how many questions get drawn per attempt from the pool (questions[]). No longer enforced as a hard minimum at save time (user-requested, 2026-08-15) — a quiz can be created, and its question pool built up, below this count; see `active` above for what that does to playability. */
-            questions_per_attempt?: number | null;
+            questions_per_attempt: number | null;
             /** @description Quiz only — hard limit, auto-submits at expiry. */
-            time_limit_minutes?: number | null;
+            time_limit_minutes: number | null;
             /** @description Quiz only. */
-            questions?: components["schemas"]["QuizQuestion"][] | null;
+            questions: components["schemas"]["QuizQuestion"][] | null;
             /** @description Quiz only (user-requested, 2026-08-15) — optional leaderboard-position prizes, entirely separate from points_override's flat participation points. A quiz can have none, some, or all positions filled in; each entry can carry a prize description, bonus points, or both. */
             position_prizes?: components["schemas"]["PositionPrize"][] | null;
+            /**
+             * Format: date-time
+             * @description Quiz only (contract gate 10) — when `position_prizes` were paid out: `ends_at` + the time limit + a 5-second settlement allowance (plan §5.1), or, for a quiz with no `ends_at`, the moment of the first submit (prizes can't wait on a close that never comes). Null before settlement and for a quiz with no `position_prizes`. ADMIN ONLY — served to `events`-permission callers; null to a student, who has no use for the internal settlement timestamp and already sees prize outcomes on the leaderboard.
+             */
+            readonly prizes_settled_at?: string | null;
             /** @description What completing/attending THIS event credits — resolved SERVER-side as points_override ?? the governing earn rule's points_value (quiz_completed / webinar_attended / physical_meeting_attended by type), null when the rule is inactive or missing. Exists so the app can print the number at the decision moment (user, 2026-08-19 — points shown at the place of activity, not in a rules list) without re-implementing the resolution: a client-computed value could disagree with what awardPoints() actually credits. PER-CALLER since 2026-08-19: also null once the caller's own lifetime cap for the governing rule is reached (user — "after 50 do not show participation points. Just stop showing"). Caps are never displayed; an exhausted offer disappears rather than growing fine print. */
-            readonly points_on_offer?: number | null;
+            readonly points_on_offer: number | null;
             /**
              * @description The CALLER's own RSVP state, null when they haven't RSVP'd. Closed the 2026-08-19 audit gap where the backend distinguished waitlisted from confirmed (a full-capacity RSVP waitlists) but the app only knew "registered or not" — a waitlisted student believed they had a confirmed seat. Per-caller computed, same pattern as my_attempt.
              * @enum {string|null}
              */
-            readonly my_rsvp_status?: "rsvpd" | "waitlisted" | null;
+            readonly my_rsvp_status: "rsvpd" | "waitlisted" | null;
             /** @description Whether the caller checked in (in-person / webinar) or attempted (quiz) — app review H9, 2026-09-13. Null for a caller with no student context. points_on_offer is null once the event has ended; this says what actually happened. */
-            my_attended?: boolean | null;
+            my_attended: boolean | null;
             /** @description 16:9 cover set on immiNow at a fixed size (1280×720) — the app renders it at its own aspect ratio with no fixed height (mobile corrections #3, 2026-09-13). Null shows the gradient card. */
             cover_image_url?: string | null;
             /** @description Webinars only, and only for a signed-in caller. Drives the "email me the link" button — see the schema for why the window is resolved server-side. */
@@ -26373,6 +26760,8 @@ export interface components {
         };
         /** @description One row per confirmed attendee (user-requested, 2026-08-15) — Webinar (join-click) or Physical Meeting (venue code entry); Quiz attendance is completion-based and doesn't use this shape. */
         EventAttendee: {
+            /** @description contract gate 10 — same DB-audit motivation as EventRsvp.id (a transition trail and an attendance list row both need something stable to key on). */
+            id: components["schemas"]["UUID"];
             student_name: string;
             /** Format: email */
             email: string;
@@ -26386,6 +26775,8 @@ export interface components {
         };
         /** @description One row per RSVP (user-requested, 2026-08-16 — split out of the inline response shape so rsvps and attendance carry the same student_name/email/student_type fields). */
         EventRsvp: {
+            /** @description contract gate 10 (DB audit H3, 2026-09-03) — needed as `transitions`' `entity_id` for the event_rsvp state machine (rsvpd/waitlisted). */
+            id: components["schemas"]["UUID"];
             student_name: string;
             /** Format: email */
             email: string;
@@ -26442,7 +26833,7 @@ export interface components {
             meeting_url?: string | null;
             /** @enum {string|null} */
             meeting_platform?: "google_meet" | "zoom" | "webex" | "teams" | "other" | null;
-            /** @description Quiz only — see Targeting. Unknown student data INCLUDES here. */
+            /** @description Any event type (review M16, 2026-09-12) — see Event.targeting. Unknown student data INCLUDES here. */
             targeting?: components["schemas"]["Targeting"] | null;
             branding?: {
                 [key: string]: unknown;
@@ -26456,8 +26847,8 @@ export interface components {
             id: components["schemas"]["UUID"];
             text: string;
             options: string[];
-            /** @description Index into `options`. */
-            correct_option: number;
+            /** @description Index into `options`. ROLE-SCOPED (contract gate 10, K20) — served only to a caller holding the `events` permission, who needs the answer key back to edit the pool. Every other caller, including the student taking the quiz, receives null: the key is present but empty, never the real index. The quiz runner never needs it from here — it draws its question set from `POST /events/{id}/quiz/start`, whose `QuizAttemptQuestion` shape has no `correct_option` property at all, and scoring happens server-side in `POST /events/{id}/quiz/submit`. The projection is applied server-side, same convention as `QuizLeaderboardEntry`'s role-scoped fields. */
+            correct_option: number | null;
         };
         QuizQuestionInput: {
             /** @description Omit for a new question, include an existing question's id to edit it in place — same normalize-on-save pattern as StepTemplateInput. */
@@ -26489,7 +26880,7 @@ export interface components {
                 question_id: components["schemas"]["UUID"];
                 selected_option: number;
             }[];
-            /** @description Computed on-device (build reference 1.13 — "completion time is computed on-device... to remove any network-speed advantage"), not derived from request timestamps server-side. */
+            /** @description IGNORED by the server (contract gate 10, assumptions audit M32, product owner 2026-09-19) — a device-measured time, sent across two clocks, drifted whenever the app was backgrounded mid-attempt. Still accepted in the body so app builds already in the field keep working, but the server times the attempt itself (`quiz/start` to `quiz/submit`, minus a flat network-slack allowance) and that figure, returned in `QuizSubmitResponse.completion_time_ms`, is the one scored and ranked. */
             completion_time_ms?: number;
         };
         QuizSubmitResponse: {
@@ -26530,9 +26921,9 @@ export interface components {
              * @description Same rule as AdBanner.status (2026-09-11). A date-only active_to runs to the end of that day, India time. Computed by the server; clients show it and never re-derive it.
              * @enum {string}
              */
-            readonly status?: "live" | "scheduled" | "expired" | "off";
+            readonly status: "live" | "scheduled" | "expired" | "off";
             /** @description This listing is one of `PlatformSettings.featured_jobs` and is inside its own active window (product owner, 2026-09-20). Present on EVERY row, not only the featured ones, so a card renders its badge from the row it already has rather than cross-referencing a separate list. A picked job that has left its window reads `false` here and drops out of the featured ordering, with the setting untouched. */
-            readonly featured?: boolean;
+            readonly featured: boolean;
             id: components["schemas"]["UUID"];
             title: string;
             company: string;
@@ -26540,27 +26931,27 @@ export interface components {
              * Format: uri
              * @description Employer logo shown beside the listing in Sentpo Mobile. Added 2026-08-18; listings created before that have none, so every client must tolerate its absence rather than assume artwork exists.
              */
-            company_logo_url?: string;
+            company_logo_url: string;
             /**
              * @description Where the listing is, in one line, DERIVED from `city`, `province_state` and `country` (product owner, 2026-09-20) — the empty parts are left out, so "Bengaluru, Karnataka, India", or just "India" when only a country is known. The same treatment `Course.duration` got from `duration_months` (assumptions audit M24).
              *     Free text until that date. Thirty seeded listings hid what that costs: with thousands, every admin spells a place their own way — "Bengaluru", "Bangalore", "Bengaluru, KA" are three values — so the facet built on it offered hundreds of chips, no two of which agreed, and a student picking one silently lost the jobs filed under the others. The same failure that produced the institution free-text suggestions queue. **A `location` in a request body is ignored**, and the stale text on rows written earlier is dropped on their first edit. Filter on `country` / `province_state` instead; `search` still matches this composed string, so a keyword search finds a city.
              */
-            readonly location?: string;
+            readonly location: string;
             /** @description The country the job is based in, from the shared list at `GET /countries` (product owner, 2026-09-20). **Required unless `work_mode` is `remote`** — a hybrid job has an office some days a week and must say where it is; only a remote job has no office to name. A remote job MAY still carry a country when the employer wants applicants from one, so this is a floor and not a ban. Null only on a place-less remote listing, which appears under no `filter[country]` and in no `GET /jobs/locations` entry. */
-            country?: string | null;
+            country: string | null;
             /** @description One of `GET /countries/{name}/states` for this listing's country (product owner, 2026-09-20); anything else is refused 422. Stored with its official spelling whatever case was typed. Optional — a country with no managed subdivision list (Hong Kong has none) keeps what was typed, and a listing with no country cannot hold one at all. */
-            province_state?: string | null;
+            province_state: string | null;
             /** @description Free text, deliberately (product owner, 2026-09-20): a managed world city list is a rabbit hole nobody asked for, and a city is one rung below what the filters need. Searchable through the composed `location`, but not a filter of its own. */
-            city?: string | null;
-            category?: string;
+            city: string | null;
+            category: string;
             /** @enum {string} */
-            job_type?: "full_time" | "internship" | "part_time";
-            description?: string;
-            apply_url?: string;
+            job_type: "full_time" | "internship" | "part_time";
+            description: string;
+            apply_url: string;
             /** @description Periodically health-checked (build reference 1.10) — a listing whose link starts failing is flagged to admin. */
-            readonly apply_url_healthy?: boolean;
+            readonly apply_url_healthy: boolean;
             /** @description Free text as the admin typed it, rendered verbatim. Kept as the display value because it carries formatting and caveats a number cannot. */
-            salary_range?: string | null;
+            salary_range: string | null;
             /** @description Structured floor of the band, added 2026-08-18 so the Jobs list can offer a real salary filter — salary_range is free text and cannot be compared numerically. Omitted entirely when a listing states no salary; never sent as null. */
             salary_min?: number | null;
             /** @description Structured ceiling of the band. filter[salary_min]=N matches listings whose ceiling reaches N, so a band that could pay N qualifies. */
@@ -26570,18 +26961,18 @@ export interface components {
             /** @description year or month. */
             salary_period?: string | null;
             /** @enum {string} */
-            work_mode?: "remote" | "hybrid" | "on_site";
-            experience_level?: string | null;
-            skills?: string[];
+            work_mode: "remote" | "hybrid" | "on_site";
+            experience_level: string | null;
+            skills: string[];
             /** Format: date-time */
-            posted_at?: string;
+            posted_at: string;
             /** Format: date */
-            active_from?: string | null;
+            active_from: string | null;
             /** Format: date */
             active_to?: string | null;
-            active?: boolean;
-            readonly total_clicks?: number;
-            readonly unique_clicks?: number;
+            active: boolean;
+            readonly total_clicks: number;
+            readonly unique_clicks: number;
         };
         JobListingInput: {
             title: string;
@@ -26657,8 +27048,16 @@ export interface components {
         JobAlert: {
             id: components["schemas"]["UUID"];
             student_id: components["schemas"]["UUID"];
+            /** @description CLOSED (contract gate 10, K24 — was an unvalidated `additionalProperties: true` blob). The exact filter keys `GET /jobs` itself accepts, so "Create alert" can reuse the Jobs list's own filter controls one-for-one; a key outside this set is refused rather than silently stored and never matched. Matching is any-of within a key (an alert with two `country` values fires on either), and-of across keys. */
             filter_criteria: {
-                [key: string]: unknown;
+                search?: string | null;
+                job_type?: ("full_time" | "internship" | "part_time")[] | null;
+                work_mode?: ("remote" | "hybrid" | "on_site")[] | null;
+                category?: string[] | null;
+                /** @description Canonical names, same values `GET /jobs/locations` returns. */
+                country?: string[] | null;
+                /** @description Canonical names, same values `GET /jobs/locations?country=…` returns. */
+                province_state?: string[] | null;
             };
             /** Format: date-time */
             created_at: string;
@@ -26674,10 +27073,10 @@ export interface components {
             readonly tags_overridden?: boolean;
             id: components["schemas"]["UUID"];
             title: string;
-            thumbnail_url?: string;
-            excerpt?: string;
+            thumbnail_url: string;
+            excerpt: string;
             /** @description The in-app tags, resolved at **read** time from `blog_cache_categories` -> `blog_category_mappings`. An array because live posts genuinely carry more than one category (of the 100 most recent, 57 have one, 38 have two, 5 have three) — the singular `category` string this replaced dropped tags on 43% of the catalogue. Resolving at read rather than at cache time is what makes renaming a tag a one-row admin edit with nothing to re-fetch; the label never enters the cached row. */
-            tags?: {
+            tags: {
                 id: components["schemas"]["UUID"];
                 /** @description Stable slug — safe to persist in a client-side filter selection. */
                 app_tag: string;
@@ -26685,15 +27084,15 @@ export interface components {
                 label: string;
             }[];
             /** @description The article's canonical URL on the Sentpo marketing site. Backs native Share and the App Links / Universal Links deep link, and is the fallback the app opens in a browser for any URL it doesn't recognise as a curated article. */
-            source_url?: string;
+            source_url: string;
             /** Format: date-time */
-            published_at?: string;
+            published_at: string;
             /** @description Sanitised HTML, present on the single-article detail fetch and the download response but not on list rows. Restricted to the semantic subset the app renders natively — `h2`–`h4`, `p`, `strong`, `em`, `a`, `ul`/`ol`/`li`, `blockquote`, `table`, `img`, `br`. No `style` or `class` attributes, no `div`/`span`, no scripts, and `href`/`src` are http(s) only. Build reference 1.12 — articles always render natively, so this is never optional the way it was under the old webview default. */
             content?: string;
             /** @description Computed per calling student from `blog_bookmarks` — drives the bookmark icon's filled/outline state and membership in `GET /blog/bookmarks`. Always `false` for an unauthenticated caller, since these endpoints are optionally authenticated. */
-            bookmarked?: boolean;
+            bookmarked: boolean;
             /** @description Computed per calling student from `blog_downloads`. Governs offline availability only — as of 2026-08-18 it no longer switches rendering mode, because articles always render natively. */
-            downloaded?: boolean;
+            downloaded: boolean;
             /** @description Curation state, admin-facing. Students never receive an article with this false — `GET /blog` filters them out — but the admin list shows every curated article regardless, so the toggle has something to toggle. An unpublished article stays readable at `GET /blog/{id}` for anyone who already bookmarked it. */
             published_to_app?: boolean;
         };
@@ -26919,34 +27318,43 @@ export interface components {
         };
         AdBanner: {
             /** @description Admin-only label to tell ads apart (2026-09-11). Never shown to students. */
-            name?: string | null;
+            name: string | null;
             /**
              * @description off = switched off; scheduled = before active_from; expired = past active_to (a date-only bound runs to the end of that day, India time); live otherwise. Computed by the server; clients show it and never re-derive it.
              * @enum {string}
              */
-            readonly status?: "live" | "scheduled" | "expired" | "off";
+            readonly status: "live" | "scheduled" | "expired" | "off";
             id: components["schemas"]["UUID"];
+            /** @description Absolute `https://` from the real backend — see Media URLs in the API description. The server refuses `http://` on create/edit (K25); the image is locked (400 on further edits) once the ad has more than one impression. */
             image_url: string;
             /** @enum {string} */
             destination_type: "internal" | "event" | "blog" | "external_url";
-            destination_id?: components["schemas"]["UUID"];
+            destination_id: components["schemas"]["UUID"];
             /** @description Set when destination_type=external_url. */
-            destination_url?: string | null;
+            destination_url: string | null;
             priority: number;
-            targeting?: components["schemas"]["Targeting"] | null;
+            /** @description ADMIN ONLY (contract gate 10, K25) — served to `ads`-permission callers; null in the student projection, which never sees what it was targeted on, only whether it qualified (lenient: unknown data always includes, so a student is never told they were excluded either). */
+            targeting: components["schemas"]["Targeting"] | null;
             /** Format: date */
-            active_from?: string | null;
+            active_from: string | null;
             /** Format: date */
-            active_to?: string | null;
+            active_to: string | null;
             /**
              * @description Admin-controlled retire switch, independent of active_from/active_to scheduling. Defaults true on create; once set false ("Retired"), takes precedence over the date-computed Live/Scheduled/Expired state.
              * @default true
              */
             active: boolean;
+            /**
+             * Format: date-time
+             * @description Contract gate 10 (K25, erd `ads.deleted_at`, Q10/Open 39) — set by `DELETE /ads/{id}`, which soft-deletes rather than removing the row, so `ad_clicks` is never orphaned. A deleted ad stops being served (admin and student alike) the moment this is set. ADMIN ONLY — never served in the student projection, which never sees a deleted ad at all.
+             */
+            readonly deleted_at?: string | null;
             /** @description FR-049 — present only when destination is an event starting within 24h. */
-            event_countdown_seconds?: number | null;
-            readonly clicks_count?: number;
-            readonly impressions_count?: number;
+            event_countdown_seconds: number | null;
+            /** @description ADMIN ONLY (contract gate 10, K25) — a counter, not in the student projection. */
+            readonly clicks_count: number;
+            /** @description ADMIN ONLY (contract gate 10, K25) — a counter, not in the student projection. */
+            readonly impressions_count: number;
         };
         AdBannerInput: {
             name?: string | null;
@@ -26995,7 +27403,7 @@ export interface components {
             user_id: components["schemas"]["UUID"];
             trigger_type: string;
             delta: number;
-            reason?: string;
+            reason: string;
             /**
              * @description The specific thing this movement was paid for — the article for `article_read`, the consultancy for `consultancy_viewed`. Null for account-level triggers, which can only fire once anyway. This is what makes "already paid for this one?" answerable, so a student earns for an article the first time they read it and never again however often they reopen it (2026-08-25).
              *
@@ -27016,11 +27424,11 @@ export interface components {
             trigger_type: "profile_completed" | "webinar_attended" | "physical_meeting_attended" | "quiz_completed" | "referral_signup" | "welcome_signup" | "profile_30_percent" | "profile_70_percent" | "article_read" | "consultancy_viewed" | "daily_login";
             points_value: number;
             /** @description A ceiling on the POINTS one student may earn from this rule, counted over `cap_period`. Null means no points ceiling. */
-            cap?: number | null;
+            cap: number | null;
             /** @description A ceiling on how many TIMES this rule may credit one student, counted over `cap_period` — a different question from `cap` above, and the one `daily_login` needed (assumptions audit M14, product owner 2026-09-19). That rule was uncapped for life, so simply opening the app every day for ten years earned 18,250 points: a liability nobody decided to take on, growing with nothing but time. It is capped at **365** lifetime awards, one year of perfect attendance. Null means no award ceiling. Whichever cap bites first stops the rule for that student. */
             award_cap?: number | null;
             /** @description A DAILY rule's ceiling in POINTS over the student's whole life (product owner, 2026-09-20) — counted over every award the rule ever made to them, whatever `cap_period` says. The last award pays only what is left under it. Only a `day` rule may carry one (400 otherwise): on a `lifetime` rule `cap` already is that number. Null means no lifetime ceiling. Always present on responses. */
-            lifetime_cap?: number | null;
+            lifetime_cap: number | null;
             /**
              * @description WHICH LEDGER ROWS the two caps above are measured over (product owner, 2026-09-20: "article_read and view consultancy points should have daily cap instead of life time").
              *     `lifetime` counts everything this student has ever earned from the rule — the original meaning, and the default, so a rule left alone behaves exactly as before. `day` counts only TODAY's rows, and today is the **student's own calendar day** from `users.timezone` (UTC when unknown), the same day boundary `daily_login` already uses — a UTC one would refresh a Kolkata student's allowance at 05:30 local, which is neither a day they recognise nor one they can plan around.
@@ -27028,36 +27436,36 @@ export interface components {
              *     Per-subject de-duplication is unaffected: the same article never pays twice, on any day. A `day` rule must carry at least one of `cap` / `award_cap` — a daily rule with neither is no cap at all wearing a window, and is refused 400.
              * @enum {string}
              */
-            cap_period?: "lifetime" | "day";
-            active?: boolean;
+            cap_period: "lifetime" | "day";
+            active: boolean;
         };
         Coupon: {
             /**
              * @description For the admin list (2026-09-11). Coupon responses never carry the claim list — claims (with who claimed) come only from GET /coupons/{id}/redemptions, and `redemptions_by_location` is null for anyone without points_coupons. Computed by the server; clients show it and never re-derive it.
              * @enum {string}
              */
-            readonly status?: "live" | "out_of_stock" | "expired" | "off" | "partner_retired";
+            readonly status: "live" | "out_of_stock" | "expired" | "off" | "partner_retired";
             id: components["schemas"]["UUID"];
             partner_id: components["schemas"]["UUID"];
-            readonly partner_name?: string;
+            readonly partner_name: string;
             /**
              * @description `online` makes this a digital voucher (2026-09-15): redeemed in the app with no merchant code, and the redeem response carries the issued code.
              * @enum {string}
              */
-            readonly partner_kind?: "store" | "online";
-            readonly partner_logo_url?: string | null;
+            readonly partner_kind: "store" | "online";
+            readonly partner_logo_url: string | null;
             /** @description How many times one student may claim this coupon, ever (assumptions audit M14, product owner 2026-09-19). Required on create; null only on a coupon created before that date, which is governed by the platform-wide rule alone. */
             per_student_limit?: number | null;
             /**
              * @description For the calling student only (null for staff): which per-student limit stops them redeeming this coupon right now — this coupon's own `per_student_limit` or the platform-wide rule at `GET /coupons/limits`, whichever is tighter.
              * @enum {string|null}
              */
-            readonly limit_reached?: "monthly" | "total" | null;
+            readonly limit_reached: "monthly" | "total" | null;
             /**
              * Format: date
              * @description With `limit_reached = monthly`, the first day of next month in the student's OWN calendar month (contract gate 10, L2 wording fix) — not UTC, the same day-boundary convention `cap_period: day` and `daily_login` use elsewhere in this contract.
              */
-            readonly available_again_on?: string | null;
+            readonly available_again_on: string | null;
             /** @description Only on the POST /coupons/{id}/redeem response for a digital voucher — the one code just issued to the student. Null everywhere else. */
             readonly issued_code?: components["schemas"]["IssuedCode"] | null;
             /** @description Only on the POST /coupons/{id}/redeem response (contract gate 10, L2) — the caller's own points balance immediately after this redemption's debit, same `SUM(delta)` value `GET /points/balance` would return. Null everywhere else, same convention as `issued_code` above. */
@@ -27070,13 +27478,13 @@ export interface components {
              */
             type: "discount" | "voucher" | "freebie" | "cashback";
             /** @description Free-text value description (e.g. "10% off", "₹500 voucher") — coupon types vary too much for a single structured amount field. */
-            amount?: string;
-            description?: string;
-            terms?: string;
-            thumbnail_url?: string | null;
-            stock?: number;
+            amount: string;
+            description: string;
+            terms: string;
+            thumbnail_url: string | null;
+            stock: number;
             /** Format: date */
-            expiry_date?: string | null;
+            expiry_date: string | null;
             /**
              * @description How close one of the partner's locations must be to the student for this coupon to appear in their catalog. Each value names the field compared on both sides, except `country`, which reads the student's `student_preferences.resident_country` (there is no `country` preference field) against the partner location's `country`.
              *     `country` was a no-op until 2026-08-22 — it returned true for everyone on the grounds that this was a single-country platform. It no longer is, so a country-scoped coupon for an Indian partner is no longer offered to a student living in Nigeria who could never redeem it.
@@ -27085,15 +27493,15 @@ export interface components {
              * @enum {string}
              */
             relevance_scope: "city" | "district" | "state" | "country";
-            active?: boolean;
+            active: boolean;
             /** @description How many students have claimed this coupon (user-requested, 2026-08-18 — "in Coupons - we need to see how many people claimed it"). Backed by `coupon_redemptions` (erd.md), the same atomic points-debit-plus-redemption-insert transaction as `POST /coupons/{id}/redeem`. */
-            readonly redemption_count?: number;
+            readonly redemption_count: number;
             /** @description Per-branch split of `redemption_count` (user-requested, 2026-08-22 — "it would be great if we could see the count of consumed coupon per branch (if there are multiple branches)"). Null when the partner has fewer than two locations, so single-shop partners get no breakdown to read rather than a one-row table restating the total. */
-            readonly redemptions_by_location?: components["schemas"]["CouponRedemptionsByLocation"] | null;
+            readonly redemptions_by_location: components["schemas"]["CouponRedemptionsByLocation"] | null;
             /** @description `stock - redemption_count` — computed, never a second stored field (build reference 1.8: `stock` keeps its meaning of admin-set total capacity). Zero renders as "out of stock" and stays visible rather than hiding the coupon. */
-            readonly remaining_stock?: number;
+            readonly remaining_stock: number;
             /** @description Computed per calling student against their own points balance (Sentpo Mobile Wave 6b's Coupons Catalog). Presentation only — build reference 1.8: "an unaffordable coupon stays visible, greyed out with its cost shown," never filtered out. Always true for a non-student caller (the admin console has no balance to compare against). */
-            readonly affordable?: boolean;
+            readonly affordable: boolean;
         };
         /** @description The platform-level settings row for one country in the shared list (2026-09-02). Today that is only `default_currency` — the unit a student RESIDENT in this country sees course fees in until they pick another in the Search filter drawer (user: "map country to a default currency in immiNow, so currency will be shown default based on country of residence and changeable in filter"). Managed on immiNow's Countries page; the Sentpo app never reads this directly — `Preferences.display_currency` is derived from it server-side. */
         CountrySetting: {
@@ -27235,9 +27643,9 @@ export interface components {
         PartnerLocation: {
             id: components["schemas"]["UUID"];
             city: string;
-            district?: string | null;
+            district: string | null;
             /** @description One of GET /countries/{name}/states for this location's country (2026-09-15); anything else is refused 422. */
-            state?: string | null;
+            state: string | null;
             country: string;
             /** @description System-generated by default, but can be admin-typed too via `code` on POST /redemption-partners/{id}/rotate-code (build reference 1.8, changed 2026-08-18; wording fixed contract gate 10, L2 — the "never admin-typed" claim here was stale). Not settable on this location's own create/PATCH body — rotate-code is the only write path. Always rotatable on demand regardless of origin. */
             readonly merchant_code: string;
@@ -27259,15 +27667,15 @@ export interface components {
         RedemptionPartner: {
             id: components["schemas"]["UUID"];
             name: string;
-            category?: string;
-            contact_person?: string;
-            contact_phone?: string;
+            category: string;
+            contact_person: string;
+            contact_phone: string;
             /**
              * @description Admin's choice per partner (build reference 1.8) — one shared code across all locations, or an independent code per location.
              * @enum {string}
              */
-            code_mode?: "shared" | "per_location";
-            locations?: components["schemas"]["PartnerLocation"][];
+            code_mode: "shared" | "per_location";
+            locations: components["schemas"]["PartnerLocation"][];
             /**
              * @description Soft retire (2026-09-03). A retired partner drops out of the coupon picker and the student catalog (all its coupons become unavailable at once) and can no longer be redeemed against; it stays listed for the admin, reactivatable, and its coupons and redemption history are untouched. Never hard-deleted.
              * @default true

@@ -10,7 +10,7 @@ export interface AdminReviewsFilters {
   status?: 'pending' | 'published' | 'hidden'
   consultancy_id?: string
   limit?: number
-  offset?: number
+  cursor?: string
 }
 
 /**
@@ -18,6 +18,10 @@ export interface AdminReviewsFilters {
  * nothing shows in the app until a Consultancies-permission holder (`consultancy_approval`)
  * publishes it. `counts` always carries the per-status totals regardless of the active `status`
  * filter, so the Pending/Published/Hidden tab chips never need a second request.
+ *
+ * Cursor-paginated (contract gate 10b item 8 — was `limit`/`offset`/`total`; same `meta.next_cursor`
+ * shape as every other cursor list in the console, consumed via `useCursorPagination`). The mock
+ * stays offset-paginated per the plan, so this only lines up against the real backend.
  */
 export function useAdminReviews(filters: AdminReviewsFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))

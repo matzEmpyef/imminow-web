@@ -13,6 +13,7 @@ import { ImageUploadField } from '@/components/ImageUploadField'
 import { SearchSelect, type SearchSelectOption } from '@/components/SearchSelect'
 import { TargetingFilter } from '@/features/super-admin/TargetingFilter'
 import { hasAnyTargeting } from '@/lib/targeting'
+import { useCursorPagination } from '@/lib/pagination'
 import { showToast } from '@/lib/toast'
 import {
   useAdAudienceCount,
@@ -551,8 +552,20 @@ export function AdsManagerPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   // Which ad's click list is open (user 2026-08-20: "see the users who have clicked an ad").
+  // Cursor-paginated (contract gate 10b item 4) — `clicksPaging` owns the cursor the same way
+  // every other server-paged list in the console does, reset whenever a different ad's drill-down
+  // opens or the current one closes.
   const [clicksAdId, setClicksAdId] = useState<string | null>(null)
-  const adClicks = useAdClicks(clicksAdId)
+  const clicksPaging = useCursorPagination()
+  const adClicks = useAdClicks(clicksAdId, { cursor: clicksPaging.cursor, limit: 25 })
+  function openClicks(adId: string) {
+    clicksPaging.reset()
+    setClicksAdId(adId)
+  }
+  function closeClicks() {
+    setClicksAdId(null)
+    clicksPaging.reset()
+  }
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'' | NonNullable<AdBanner['status']>>('')
@@ -671,7 +684,7 @@ export function AdsManagerPage() {
       // Drills down to who clicked (name / Aspirant-Applicant / time) — nobody asked to identify
       // viewers, only clickers, so impressions above stay a bare count.
       render: (ad) => (
-        <button type="button" onClick={() => setClicksAdId(ad.id!)} className="font-medium text-primary hover:underline">
+        <button type="button" onClick={() => openClicks(ad.id!)} className="font-medium text-primary hover:underline">
           {ad.clicks_count ?? 0}
         </button>
       ),
@@ -733,8 +746,19 @@ export function AdsManagerPage() {
               studentType: c.student_type,
               updatedAt: formatDateTime(c.clicked_at),
             }))}
+            loading={adClicks.isLoading}
             emptyMessage="No clicks recorded for this ad yet."
-            onClose={() => setClicksAdId(null)}
+            onClose={closeClicks}
+            serverPagination={{
+              hasNext: Boolean(adClicks.data?.meta.next_cursor),
+              hasPrevious: clicksPaging.hasPrevious,
+              onNext: () => {
+                const next = adClicks.data?.meta.next_cursor
+                if (next) clicksPaging.next(next)
+              },
+              onPrevious: clicksPaging.previous,
+              total: adClicks.data?.meta.total ?? rows.find((a) => a.id === clicksAdId)?.clicks_count,
+            }}
           />
         )}
 
