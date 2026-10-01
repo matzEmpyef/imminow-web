@@ -22,6 +22,7 @@ import {
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate as formatDateShared, relativeTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
+import { sanitizeArticleHtml } from '@/lib/sanitizeHtml'
 import type { components } from '@/api/schema'
 import { mediaUrl } from '@/lib/mediaUrl'
 
@@ -526,8 +527,10 @@ function AddArticleModal({ onClose }: { onClose: () => void }) {
                 className="prose-preview max-h-72 overflow-y-auto rounded border border-border bg-surface p-md text-body-sm text-text-primary"
                 // Server-sanitised to a fixed allowlist (h2–h4, p, strong, em, a, lists, tables,
                 // img, br) with all style/class attributes and any script stripped, and href/src
-                // restricted to http(s). See mock-server/lib/articleContent.js.
-                dangerouslySetInnerHTML={{ __html: preview.content ?? '' }}
+                // restricted to http(s) — see mock-server/lib/articleContent.js. Review Triage
+                // item 6 (web M4): DOMPurify runs a second, independent pass client-side before
+                // this ever reaches dangerouslySetInnerHTML, rather than trusting that alone.
+                dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(preview.content) }}
               />
             </div>
           </div>
