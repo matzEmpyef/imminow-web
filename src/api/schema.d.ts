@@ -6664,7 +6664,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header: {
-                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
                 };
                 path?: never;
@@ -7735,7 +7738,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header: {
-                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
                 };
                 path?: never;
@@ -8214,7 +8220,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header: {
-                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
                 };
                 path?: never;
@@ -8426,7 +8435,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header: {
-                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
                 };
                 path: {
@@ -8467,7 +8479,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header: {
-                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
                 };
                 path: {
@@ -8513,7 +8528,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header: {
-                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
                 };
                 path: {
@@ -10072,7 +10090,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header: {
-                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
                 };
                 path?: never;
@@ -11245,7 +11266,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header: {
-                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
                 };
                 path?: never;
@@ -11796,7 +11820,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header: {
-                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
                 };
                 path: {
@@ -13909,7 +13936,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header: {
-                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
                 };
                 path: {
@@ -15997,7 +16027,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header: {
-                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
                 };
                 path?: never;
@@ -16264,7 +16297,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header: {
-                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
                 };
                 path: {
@@ -16456,7 +16492,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header: {
-                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
                 };
                 path: {
@@ -16494,10 +16533,19 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Public per-quiz leaderboard, persists after close (FR-067) — Sentpo Mobile Wave 6a's Quiz Runner results flow ends here. Also the admin console's answer to "where do I see how many people participated and their details as well as leader board" (user-requested, 2026-08-17) — same endpoint, both callers. Open to any authenticated caller as of Wave 6a (previously Super-Admin-only in the mock-server implementation, the one gap between this doc's own "public" framing and its actual gating — same class of fix as Wave 3's GET /consultancies). */
+        /**
+         * Public per-quiz leaderboard, persists after close (FR-067) — Sentpo Mobile Wave 6a's Quiz Runner results flow ends here. Also the admin console's answer to "where do I see how many people participated and their details as well as leader board" (user-requested, 2026-08-17) — same endpoint, both callers. Open to any authenticated caller as of Wave 6a (previously Super-Admin-only in the mock-server implementation, the one gap between this doc's own "public" framing and its actual gating — same class of fix as Wave 3's GET /consultancies).
+         *
+         *     Served whole up to 1,000 entries (plan §8's window-function shape caps the query there), then an optional cursor takes over (contract gate 10) — dormant for a normal quiz, since no quiz plausibly draws more than 1,000 entrants; `next_cursor` is simply absent once every entry has been served in one response.
+         */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -16516,6 +16564,8 @@ export interface paths {
                             entries: components["schemas"]["QuizLeaderboardEntry"][];
                             /** @description entries.length — computed, not separately incremented, same as Event.attendance_count for this quiz (both are ultimately quiz_attempts.length). */
                             participant_count: number;
+                            /** @description Contract gate 10 (plan §8) — present only when more than 1,000 entries exist and this page is not the last; pass it back as `cursor` for the next page. Null/absent for every quiz under the 1,000-entry cap, which is every quiz today. */
+                            next_cursor?: string | null;
                         };
                     };
                 };
@@ -16659,7 +16709,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header: {
-                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
                 };
                 path: {
@@ -18249,7 +18302,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Admin-configured trigger list (admin). No POST here (removed 2026-08-17, user: "if so remove it") — trigger types are a closed, developer-instrumented list (build reference 1.8); a new one only exists once an app release fires it somewhere, and that release is what seeds its rule, not an admin-console create action. */
+        /** Admin-configured trigger list — platform `points_coupons` permission (contract gate 10, L1: narrowed from plain "admin"; the app reads the rules it can see from `GET /points/balance` instead, not this route). No POST here (removed 2026-08-17, user: "if so remove it") — trigger types are a closed, developer-instrumented list (build reference 1.8); a new one only exists once an app release fires it somewhere, and that release is what seeds its rule, not an admin-console create action. */
         get: {
             parameters: {
                 query?: never;
@@ -18291,7 +18344,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Edit earn rule */
+        /** Edit earn rule — platform `points_coupons` permission (contract gate 10, L1). The whole merged rule is validated and the served shape returned (the mock returns the raw row). */
         patch: {
             parameters: {
                 query?: never;
@@ -18306,6 +18359,15 @@ export interface paths {
                     "application/json": {
                         points_value?: number;
                         cap?: number | null;
+                        /** @description See EarnRule.award_cap. */
+                        award_cap?: number | null;
+                        /** @description See EarnRule.lifetime_cap. */
+                        lifetime_cap?: number | null;
+                        /**
+                         * @description See EarnRule.cap_period.
+                         * @enum {string}
+                         */
+                        cap_period?: "lifetime" | "day";
                         active?: boolean;
                     };
                 };
@@ -18461,7 +18523,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Catalog — unaffordable stays visible, greyed out (FR-042). Admin (Coupons, build reference 1.23) sees every coupon including out-of-stock and inactive ones. `filter[active]=true` (Sentpo Mobile Wave 6b's Coupons Catalog) additionally hides admin-disabled coupons — additive and optional, so the admin console's own unfiltered call is unaffected, same shape as `GET /jobs`' own `filter[active]`. Out-of-stock coupons are never hidden by that filter: build reference 1.8 is explicit that stock reaching zero "shows out of stock but stays visible — never auto-deactivates."
+         * Catalog — unaffordable stays visible, greyed out (FR-042). Admin (Coupons, build reference 1.23) sees every coupon including out-of-stock and inactive ones. `filter[active]=true` (Sentpo Mobile Wave 6b's Coupons Catalog) additionally hides admin-disabled coupons — IMPLIED for a student caller (contract gate 10, L2 wording fix: was "additive and optional"; a student never sees an admin-disabled coupon whether or not they pass it), explicit and optional for admin so the admin console's own unfiltered call is unaffected, same shape as `GET /jobs`' own `filter[active]`. Out-of-stock coupons are never hidden by that filter: build reference 1.8 is explicit that stock reaching zero "shows out of stock but stays visible — never auto-deactivates."
          *
          *     Cursor-paged since 2026-09-17 (mobile performance review L3), the same `{items, meta}` shape as every other list — it was the one bare-array list left. `filter[type]` takes one coupon type or a comma-separated set; `filter[partner_id]` one partner; `search` matches the partner name, amount and description. `sort` accepts `point_cost` and `created_at`. For a STUDENT caller the server ranks before it sorts, in tiers that no sort direction flips: relevant-and-affordable, then relevant-but-unaffordable, then relevant-but-out-of-stock, then the same three for coupons outside the student's relevance scope — "unaffordable stays visible, greyed out, sorted with what's usable ranked toward the top" (1.8), now applied server-side so a page boundary never splits the ranking. Admin callers get plain `created_at` descending.
          */
@@ -18598,6 +18660,8 @@ export interface paths {
                         expiry_date?: string | null;
                         /** @enum {string} */
                         relevance_scope?: "city" | "district" | "state" | "country";
+                        /** @description Contract gate 10 (L2, Q10 item 41). CouponInput already required this on create; the PATCH previously had no way to set it on an existing coupon. Not nullable here — once a limit is set (on create or by this PATCH) it stays governed by one, same as `Coupon.per_student_limit`'s own note that only a coupon created before 2026-09-19 may still carry null. */
+                        per_student_limit?: number;
                         active?: boolean;
                     };
                 };
@@ -18633,7 +18697,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header: {
-                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
                 };
                 path: {
@@ -18679,6 +18746,17 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description `too_many_attempts` (contract gate 10, coordinator override 2026-09-28) — the merchant-code guess limiter tripped for this coupon/partner, including when it fails closed because the limiter itself is unavailable. A redemption spends points, so this is the only thing stopping unlimited code guessing. */
+                429: {
+                    headers: {
+                        /** @description Seconds until the caller may retry. */
+                        "Retry-After"?: number;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -19285,7 +19363,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header: {
-                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
                 };
                 path?: never;
@@ -21525,7 +21606,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header: {
-                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
                 };
                 path?: never;
@@ -21657,7 +21741,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header: {
-                    /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
                 };
                 path?: never;
@@ -22872,6 +22959,11 @@ export interface components {
             email: boolean;
             push: boolean;
         };
+        /** @description `NotificationSettingsPatch`'s per-category shape (contract gate 10, coordinator note 2026-09-28): `email` and `push` are each independently optional, unlike the full `NotificationToggle` the GET returns. qa 1900 and the mock already merge each side on its own — send only `push` to flip that one channel and leave `email` exactly as it was; the earlier gate 9 draft required both keys together, which this replaces. */
+        NotificationTogglePatch: {
+            email?: boolean;
+            push?: boolean;
+        };
         /** @description Category toggles, FR-076. `GET` always returns every key below (server-side defaults fill anything the recipient never set); `PATCH` is a PARTIAL update (contract gate 9) — send only the keys you are changing, keyed by `NotificationSettingsPatch` below. Every key stays required on the object this GET returns, since a client should never have to guess a missing toggle's state. */
         NotificationSettings: {
             chat: components["schemas"]["NotificationToggle"];
@@ -22886,13 +22978,13 @@ export interface components {
              */
             blog_push: boolean;
         };
-        /** @description `PATCH /notification-settings`'s body (contract gate 9) — every key optional, unlike the full `NotificationSettings` the GET returns. Omitted keys are left exactly as they were; there is no way to clear a key back to a server default once set, same as every other partial PATCH in this contract. */
+        /** @description `PATCH /notification-settings`'s body (contract gate 9, toggle shape fixed gate 10) — every key optional, unlike the full `NotificationSettings` the GET returns. Omitted keys are left exactly as they were; there is no way to clear a key back to a server default once set, same as every other partial PATCH in this contract. Each toggle is itself a `NotificationTogglePatch` (gate 10) — `email`/`push` merge independently, so sending `{"chat": {"push": false}}` leaves `chat.email` untouched. */
         NotificationSettingsPatch: {
-            chat?: components["schemas"]["NotificationToggle"];
-            plan?: components["schemas"]["NotificationToggle"];
-            events?: components["schemas"]["NotificationToggle"];
-            broadcast?: components["schemas"]["NotificationToggle"];
-            rewards?: components["schemas"]["NotificationToggle"];
+            chat?: components["schemas"]["NotificationTogglePatch"];
+            plan?: components["schemas"]["NotificationTogglePatch"];
+            events?: components["schemas"]["NotificationTogglePatch"];
+            broadcast?: components["schemas"]["NotificationTogglePatch"];
+            rewards?: components["schemas"]["NotificationTogglePatch"];
             blog_push?: boolean;
         };
         ConsentRecord: {
@@ -24105,10 +24197,15 @@ export interface components {
             /** @description Student view only (GET /leads/mine; app review H3, 2026-09-13): true once the consultancy has replied at least once and the conversation is at least three days old. POST /consultancies/{id}/ratings returns 403 not_yet_rateable otherwise. */
             rating_eligible?: boolean;
             /**
-             * @description Why rating_eligible is false; null when it is true.
+             * @description Why rating_eligible is false; null when it is true. `cooldown` (contract gate 10, lane R) covers the student's own 7-day cooldown after a rating on this consultancy — the case the gate 9 draft inverted, since `rating_eligible` had no way to go false again once the reply-and-age bar was cleared.
              * @enum {string|null}
              */
-            rating_eligible_reason?: "no_reply_yet" | "too_new" | null;
+            rating_eligible_reason?: "no_reply_yet" | "too_new" | "cooldown" | null;
+            /**
+             * @description Student view only (`GET /leads/mine`; contract gate 10, lane R, build reference §2.1). Only set while `rating_eligible` is true: `requested` when staff sent a rating request (`POST /leads/{id}/rating-request`) in the last 7 days; `quiet` when neither side has messaged in 7 days; null otherwise. Sentpo Mobile's Rate prompt reads this to decide whether, and why, to surface the ask.
+             * @enum {string|null}
+             */
+            rating_prompt?: "requested" | "quiet" | null;
             /** @description Server-computed — true when the most recent message is from the student and the consultant hasn't replied yet. Unlike `unread`, this doesn't care whether anyone has opened the conversation, only whether anyone has responded. Shown as "Pending Response" on Active Leads (build reference 2.2) — the field name stays `unattended` for continuity with `unattended_cases`/`unattended=true` filtering elsewhere; only the on-screen label changed. */
             unattended: boolean;
             /** @description The student's most recent message on this lead, shown in the Lead Pool table (2026-09-10). Null when the student has sent nothing, and always for imported leads. A shared Dream Courses card with no text reads "Shared their Dream Courses". */
@@ -26294,13 +26391,21 @@ export interface components {
         /** @description One row per claim (user-requested, 2026-08-18 — "in Coupons - we need to see how many people claimed it"), same shape as EventAttendee/EventRsvp — backed by `coupon_redemptions` (erd.md), append-only, inserted atomically with the points-ledger debit at redeem time. */
         CouponRedemption: {
             student_name: string;
-            /** Format: email */
-            email: string;
             /**
-             * @description Derived at query time, same as EventAttendee.student_type; not a stored column on coupon_redemptions.
+             * Format: email
+             * @description Null for an `imported` redemption (contract gate 10, L2) — the 5 seeded redemptions carried over from before the points system existed have no student and no debit, and were served as the placeholder `imported-claim@sentpo.invalid` until this fix.
+             */
+            email: string | null;
+            /**
+             * @description Derived at query time, same as EventAttendee.student_type; not a stored column on coupon_redemptions. Null for an `imported` redemption (contract gate 10, L2) — served as the placeholder `aspirant` until this fix.
+             * @enum {string|null}
+             */
+            student_type: "applicant" | "aspirant" | null;
+            /**
+             * @description Whether this row came from a student's own `POST /coupons/{id}/redeem` or was carried over as pre-existing data with no student attached (contract gate 10, L2; `coupon_redemptions.source`, erd.md). An `imported` row has no `email`/`student_type`.
              * @enum {string}
              */
-            student_type: "applicant" | "aspirant";
+            source: "app" | "imported";
             /** Format: date-time */
             redeemed_at: string;
             /** @description Null for a digital voucher, which has no merchant code. */
@@ -26851,6 +26956,8 @@ export interface components {
         /** @description Sentpo Mobile Wave 6b's Home balance pill and Points Popup. `balance` is `SUM(delta)` over the caller's own ledger, never a stored mutable column (erd.md's `points_ledger` note). `earn_rules` carries only rules that can still credit THIS caller — active AND below the caller's own lifetime cap (2026-08-19) — since a rule that can't credit would promise points the backend won't award. The Refer Friends card reads its "+N each" from here, so a capped-out referrer's card simply stops promising. */
         PointsBalance: {
             balance: number;
+            /** @description Points credited to the caller over the student's own calendar day (contract gate 10, L1) — the same day boundary `cap_period: day` and `daily_login` already use (`users.timezone`, UTC when unknown). Sentpo Mobile's Points Popup shows it next to the running balance; it is a read of today's ledger rows, not a separate counter. */
+            earned_today: number;
             earn_rules: components["schemas"]["EarnRule"][];
             /** @description The caller's own profile completion, so the meter and the milestones below arrive together rather than from two calls that can disagree by a save. */
             readonly profile_completion_percent?: number;
@@ -26878,8 +26985,14 @@ export interface components {
             trigger_type: string;
             delta: number;
             reason?: string;
-            /** @description The specific thing this movement was paid for — the article for `article_read`, the consultancy for `consultancy_viewed`. Null for account-level triggers, which can only fire once anyway. This is what makes "already paid for this one?" answerable, so a student earns for an article the first time they read it and never again however often they reopen it (2026-08-25). */
-            subject_id?: components["schemas"]["UUID"] | null;
+            /**
+             * @description The specific thing this movement was paid for — the article for `article_read`, the consultancy for `consultancy_viewed`. Null for account-level triggers, which can only fire once anyway. This is what makes "already paid for this one?" answerable, so a student earns for an article the first time they read it and never again however often they reopen it (2026-08-25).
+             *
+             *     A plain string, not a UUID (contract gate 10, L1 finding 2026-09-28) — `daily_login`'s subject is the student's own local calendar date (the de-duplication key for "already credited today?"), which is not a UUID, so it was served null for that trigger until this fix. Every other trigger still carries the UUID it always did, formatted as a string like any other.
+             */
+            subject_id?: string | null;
+            /** @description Set only on a reversal row (build reference 3.6 W10) — the id of the ledger entry it reverses. Null on every ordinary earn or spend row (contract gate 10, L1). */
+            reversal_of?: components["schemas"]["UUID"] | null;
             /** Format: date-time */
             created_at: string;
         };
@@ -26931,11 +27044,13 @@ export interface components {
             readonly limit_reached?: "monthly" | "total" | null;
             /**
              * Format: date
-             * @description With `limit_reached = monthly`, the first day of next month (UTC).
+             * @description With `limit_reached = monthly`, the first day of next month in the student's OWN calendar month (contract gate 10, L2 wording fix) — not UTC, the same day-boundary convention `cap_period: day` and `daily_login` use elsewhere in this contract.
              */
             readonly available_again_on?: string | null;
             /** @description Only on the POST /coupons/{id}/redeem response for a digital voucher — the one code just issued to the student. Null everywhere else. */
             readonly issued_code?: components["schemas"]["IssuedCode"] | null;
+            /** @description Only on the POST /coupons/{id}/redeem response (contract gate 10, L2) — the caller's own points balance immediately after this redemption's debit, same `SUM(delta)` value `GET /points/balance` would return. Null everywhere else, same convention as `issued_code` above. */
+            readonly balance?: number | null;
             point_cost: number;
             /**
              * @description A closed list (build reference 1.19's Coupons Catalog filters by type, which only makes sense against a bounded set — was a free-text field until 2026-08-18).
@@ -27014,7 +27129,7 @@ export interface components {
             /** @description Null until someone has edited this guide (REVIEW_TRIAGE item 17, 2026-09-24). */
             readonly updated_by_name?: string | null;
         };
-        /** @description Attribution is by the merchant code the student presented at the counter, recorded on each redemption as `merchant_code_used`. That only identifies a branch when the partner issued a code PER LOCATION; a partner on a single shared code cannot be split, and those redemptions land in `unattributed` rather than being spread across branches on a guess. */
+        /** @description Attribution uses the BRANCH STORED ON EACH REDEMPTION at redeem time (contract gate 10, L2 wording fix — `coupon_redemptions.location_id`, erd.md K17), not re-derived later from the merchant code presented: a code re-derivation breaks after a code rotation, because the current location codes no longer match a historical redemption. That only identifies a branch when the partner issued a code PER LOCATION; a partner on a single shared code cannot be split, and those redemptions land in `unattributed` rather than being spread across branches on a guess. */
         CouponRedemptionsByLocation: {
             locations: {
                 location_id: components["schemas"]["UUID"];
@@ -27033,7 +27148,7 @@ export interface components {
             /** Format: date-time */
             issued_at: string;
         };
-        /** @description Per-student limits applied to EVERY coupon, in-store and digital (2026-09-15). A student may redeem any single coupon at most `per_month` times in a calendar month (UTC) and `total` times ever; different coupons never count against each other. Null means no limit. */
+        /** @description Per-student limits applied to EVERY coupon, in-store and digital (2026-09-15). A student may redeem any single coupon at most `per_month` times in THE STUDENT'S OWN calendar month (contract gate 10, L2 wording fix — not UTC) and `total` times ever; different coupons never count against each other. Null means no limit. */
         CouponLimits: {
             per_month?: number | null;
             total?: number | null;
@@ -27113,7 +27228,7 @@ export interface components {
             /** @description One of GET /countries/{name}/states for this location's country (2026-09-15); anything else is refused 422. */
             state?: string | null;
             country: string;
-            /** @description Always system-generated, never admin-typed (build reference 1.8). */
+            /** @description System-generated by default, but can be admin-typed too via `code` on POST /redemption-partners/{id}/rotate-code (build reference 1.8, changed 2026-08-18; wording fixed contract gate 10, L2 — the "never admin-typed" claim here was stale). Not settable on this location's own create/PATCH body — rotate-code is the only write path. Always rotatable on demand regardless of origin. */
             readonly merchant_code: string;
             /** @enum {string} */
             code_mode: "shared" | "per_location";
@@ -28417,7 +28532,10 @@ export interface components {
         };
         /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
         SearchParam: string;
-        /** @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated UUID; replay with the same key returns the original result rather than re-executing. */
+        /**
+         * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+         *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+         */
         IdempotencyKeyHeader: string;
     };
     requestBodies: never;
