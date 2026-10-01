@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Bell } from 'lucide-react'
 import { useMarkNotificationRead, useNotifications, useUnreadCount } from '@/queries/notifications'
 import { relativeTime } from '@/lib/time'
+import { safeDeepLink } from '@/lib/deepLinks'
 
 const MAX_VISIBLE = 5
 
@@ -17,7 +18,7 @@ export function NotificationsDropdown() {
   const containerRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const { data: unreadCount } = useUnreadCount()
-  const { data, isError, isLoading, refetch } = useNotifications({ enabled: open })
+  const { data, isError, isLoading, refetch } = useNotifications({ limit: MAX_VISIBLE }, { enabled: open })
   const markRead = useMarkNotificationRead()
   const items = data?.items.slice(0, MAX_VISIBLE) ?? []
 
@@ -77,7 +78,10 @@ export function NotificationsDropdown() {
               items.map((n) => (
                 <Link
                   key={n.id}
-                  to={n.deep_link ?? '/notifications'}
+                  // RT 6 / contract gate 9 K8 — only ever navigate to a deep_link this console
+                  // actually serves; an unrecognised one (a student-app route, a stale pre-
+                  // catalogue row) falls back to the full inbox rather than an unroutable path.
+                  to={safeDeepLink(n.deep_link, '/notifications')}
                   onClick={() => {
                     if (!n.read) markRead.mutate(n.id)
                     setOpen(false)
