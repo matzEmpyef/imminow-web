@@ -460,6 +460,28 @@ function App() {
               </FeatureGate>
             }
           />
+          {/* Contract gate 9, K8 — the internal-messaging `chat_message` notification's deep_link is
+              the bare route `/staff/conversations` (no id; the catalogue doesn't expose which
+              colleague/team thread, so the best a tap can do is land on the inbox, same as the
+              mobile staff shell's `isStaffLocation` prefix). Aliases onto the real page rather than
+              duplicating it, so old notification rows (pre-dating this route) keep working the
+              moment it ships. */}
+          <Route
+            path="/staff/conversations"
+            element={
+              <FeatureGate feature={FEATURE_BY_KEY.internal_messaging}>
+                <InternalMessagingPage />
+              </FeatureGate>
+            }
+          />
+          <Route
+            path="/staff/conversations/:id"
+            element={
+              <FeatureGate feature={FEATURE_BY_KEY.internal_messaging}>
+                <InternalMessagingPage />
+              </FeatureGate>
+            }
+          />
           <Route
             path="/administration/audit-log"
             element={
