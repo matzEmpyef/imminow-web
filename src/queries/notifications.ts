@@ -78,20 +78,17 @@ export function useMarkNotificationRead() {
 
 /**
  * Mark-all-read (contract gate 9, K10) — `POST /notifications/read-all`. The mock (frozen
- * post-Wave-3) doesn't implement this route yet, so a 404/network failure falls back to the old
- * one-POST-per-row behaviour over the caller's currently-known unread ids, same as the mobile
- * inbox did before this endpoint existed — the button still actually works against today's mock,
- * and drops the fallback for free the moment the real backend answers it.
+ * post-Wave-3) doesn't implement this route yet and answers 404; no mock-only fallback lives
+ * here (docs/CLAUDE.md: `mock-server/` is temporary, nothing client-side should special-case it)
+ * — a failure just surfaces as the caller's normal error toast, rows unchanged, same as any other
+ * mutation.
  */
 export function useMarkAllNotificationsRead() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (fallbackUnreadIds: string[]) => {
+    mutationFn: async () => {
       const { error } = await api.POST('/notifications/read-all')
-      if (!error) return
-      await Promise.all(
-        fallbackUnreadIds.map((id) => api.POST('/notifications/{id}/read', { params: { path: { id } } })),
-      )
+      if (error) throw new ApiError('Could not mark all as read.', error)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] })

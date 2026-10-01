@@ -52,11 +52,10 @@ export function NotificationsPage() {
     reset()
   }
 
-  const unreadIds = (notifications.data?.items ?? []).filter((n) => !n.read).map((n) => n.id)
   const hasUnread = (notifications.data?.unread_count ?? 0) > 0
 
   function handleMarkAllRead() {
-    markAllRead.mutate(unreadIds, {
+    markAllRead.mutate(undefined, {
       onSuccess: () => showToast('All notifications marked as read.'),
       onError: () => showToast('Could not mark all as read.', 'error'),
     })
