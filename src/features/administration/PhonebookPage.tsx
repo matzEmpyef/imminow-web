@@ -10,7 +10,7 @@ import { useDeletePhonebookContact, usePhonebook } from '@/queries/phonebook'
 import { AddPhonebookContactModal } from './AddPhonebookContactModal'
 import { useAccountWords } from '@/lib/accountWords'
 
-type Contact = NonNullable<ReturnType<typeof usePhonebook>['data']>[number]
+type Contact = NonNullable<ReturnType<typeof usePhonebook>['data']>['items'][number]
 
 export function PhonebookPage() {
   // H2 (2026-09-13) — an institute is not a consultancy; the nouns follow `kind`.
@@ -23,7 +23,10 @@ export function PhonebookPage() {
   const [search, setSearch] = useState('')
   const [deletingContact, setDeletingContact] = useState<Contact | null>(null)
 
-  const categories = [...new Set(contacts.data?.map((c) => c.category) ?? [])]
+  // Contract gate 9, K13 — the full set of categories in use across the whole list, not just
+  // whatever happens to be loaded (`meta.categories`, owner Q10); `usePhonebook` falls back to
+  // deriving it from the fetched page when the mock doesn't send it.
+  const categories = contacts.data?.categories ?? []
   // "Other" is always offered, even on an empty phonebook (console review M9, 2026-09-13). The
   // dropdown is seeded from categories already in use, so the very first contact — and anyone
   // filing someone who fits none of the existing groups — faced a required field with nothing
@@ -32,7 +35,7 @@ export function PhonebookPage() {
   const addModalCategories = categories.includes('Other') ? categories : [...categories, 'Other']
 
   const rows = useMemo(() => {
-    let items = contacts.data ?? []
+    let items = contacts.data?.items ?? []
     if (categoryFilter) items = items.filter((c) => c.category === categoryFilter)
     if (search) {
       const q = search.toLowerCase()

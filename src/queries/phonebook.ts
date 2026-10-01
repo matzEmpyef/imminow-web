@@ -6,20 +6,43 @@ import type { components } from '@/api/schema'
 
 type PhonebookContact = components['schemas']['PhonebookContact']
 
+export interface PhonebookResult {
+  items: PhonebookContact[]
+  /** Every category value in use across the caller's whole list (contract gate 9, K13, owner
+   * Q10) — from `meta.categories` once the backend sends it; derived from the fetched page as a
+   * fallback against the mock, which still answers the pre-gate-9 bare array (see below). */
+  categories: string[]
+}
+
+/**
+ * Contract gate 9, K13 paged this endpoint (`{items, meta}`, `meta.categories`) — the mock (frozen
+ * post-Wave-3) still answers the pre-gate-9 bare array unconditionally, ignoring
+ * `limit`/`cursor`/`search`/`filter[category]` entirely (it only honours the deprecated bare
+ * `category` param, and even that only when nothing paginated is asked for). `limit` is sent to
+ * opt into the new response shape per the contract's own "transition" note; both response shapes
+ * are unwrapped. `PhonebookPage` still filters/searches/sorts client-side over the result — the
+ * mock narrows nothing server-side regardless of what's sent, so that's what makes search and the
+ * category filter actually work today (harmless once a real backend narrows it too: filtering an
+ * already-filtered list is a no-op). True cursor paging ("load more") is left for whenever the
+ * backend actually honours `limit` — an endpoint that always returns everything has nothing to
+ * page yet.
+ */
 export function usePhonebook() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['phonebook'],
-    queryFn: async (): Promise<PhonebookContact[]> => {
-      const { data, error } = await api.GET('/phonebook')
+    queryFn: async (): Promise<PhonebookResult> => {
+      const { data, error } = await api.GET('/phonebook', { params: { query: { limit: 100 } } })
       if (error) throw new ApiError('Could not load the phonebook.', error)
-      // Contract gate 9 paged this endpoint ({items, meta}); the real backend returns that shape,
-      // but the mock is frozen post-Wave-3 and still answers the pre-gate-9 bare array. Unwrap
-      // whichever comes back — full paging (search/filter/load-more) is Wave 4 client work.
       const payload: unknown = data
-      return Array.isArray(payload)
+      const items = Array.isArray(payload)
         ? (payload as PhonebookContact[])
         : ((payload as { items?: PhonebookContact[] })?.items ?? [])
+      const serverCategories = !Array.isArray(payload)
+        ? (payload as { meta?: { categories?: string[] } })?.meta?.categories
+        : undefined
+      const categories = serverCategories ?? [...new Set(items.map((c) => c.category))]
+      return { items, categories }
     },
     enabled: isAuthed,
   })
