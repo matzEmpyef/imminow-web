@@ -68,7 +68,8 @@ export interface paths {
          * @description Batched and fire-and-forget. Clients buffer events and flush periodically rather than posting per interaction, and must never surface a failure here — losing analytics is always preferable to disturbing the person using the app.
          *     Namespaced under `/analytics` because `/events` already belongs to webinars, meet-ups and quizzes.
          *     `product` is set SERVER-side from the caller's role rather than taken from the request: clients can be wrong or lie about which product they are, roles cannot. Unauthenticated calls are accepted so pre-signup activity is not invisible.
-         *     Always 202. Rows are not validated individually — one malformed event must not discard the rest of a batch.
+         *     Always 202. Rows are not validated individually — a bad row is dropped, not the whole batch.
+         *     Limits (gate 12, F63/Q11): up to 100 events per batch, 64 KB request body, 120 batches a minute per device/IP (rate-limited, failing open — never blocks the app over this). Over the batch-size limit: 413. The frozen mock has none of this — it silently truncates a bigger batch to 200 and always answers 202, a known gap this gate documents rather than fixes.
          */
         post: {
             parameters: {
@@ -91,6 +92,15 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description Batch too large (gate 12, F63/Q11) — more than 100 events or over 64 KB. */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -1826,7 +1836,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Support Tools search across students, staff and freelancers by name or email (support_tools permission). Paged since 2026-09-11 (it returned every match at once), sorted by name. */
+        /** Support Tools search across students, staff and freelancers (support_tools permission). Paged since 2026-09-11 (it returned every match at once), sorted by name. The production backend's matching rule (gate 12, F35): email and phone match exactly (normalised — case/whitespace for email, digits-only for phone), a file number matches by prefix, a name matches by prefix and needs at least 3 characters — `q` shorter than that matches only an exact email/phone or a file number; platform staff rows are never returned (managed on Platform Team, not here). The frozen mock still runs a plain substring scan over everyone, platform staff included — a known gap this gate documents rather than fixes (F35). */
         get: {
             parameters: {
                 query: {
@@ -1873,7 +1883,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Generate a data export for a user on their behalf (support_tools permission). A reason is required since 2026-09-11 and kept on the audit record. 404 for an unknown user. */
+        /** Generate a data export for a user, Support acting on their behalf (support_tools permission). A reason is required since 2026-09-11 and kept on the audit record. 404 for an unknown user. The archive goes to the USER's own verified email, never the operator (gate 12, F34 — Wave 1's export core, a 7-day link, RT 28); Support triggers it, Support does not receive it. */
         post: {
             parameters: {
                 query?: never;
@@ -1891,7 +1901,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Queued */
+                /** @description Queued — the archive will be emailed to the user, not returned here or sent to the operator. */
                 202: {
                     headers: {
                         [name: string]: unknown;
@@ -1921,7 +1931,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Change a locked-out user's sign-in email (support_tools permission, reworked 2026-09-11). The operator records how they verified it is really the account holder; the address must be valid and unused by any other account (409 email_taken). Both the old and the new address are emailed, and the user is signed out on every device. Audited under support. */
+        /** Change a locked-out user's sign-in email (support_tools permission, reworked 2026-09-11). The operator records how they verified it is really the account holder; the address must be valid and unused by any other account (409 email_taken). Both the old and the new address are emailed, and the user is signed out on every device. Audited under support. 403 for a Super Admin target (gate 12, F33 — the production backend refuses outright; platform staff targets also need the caller to be Super Admin). The frozen mock still accepts any target, Super Admins included, a known gap (F33). */
         post: {
             parameters: {
                 query?: never;
@@ -1954,7 +1964,16 @@ export interface paths {
                         "application/json": components["schemas"]["UserSearchResult"];
                     };
                 };
-                /** @description Email already used by another account */
+                /** @description `super_admin_target` (gate 12, F33) — not allowed through this route. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Email already used by another account (`email_taken`) */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -3512,7 +3531,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Student raises a complaint to the Sentpo admin team from the app (build reference 1.27). journey_id/consultancy context is attached server-side from the caller's active journey — never client-supplied. Notifies platform admins in-app. */
+        /** Student raises a complaint to the Sentpo admin team from the app (build reference 1.27). Students only — 403 for any other caller (gate 12, F38: the mock had no role check at all). `consultancy_id` is the student's own pick from their own cases, current or past (`GET /complaints/consultancies`, M6) — this corrects the earlier, self-contradicting wording here that called the whole context "never client-supplied"; only the student's account itself (who is complaining) comes from the session, never the body. Notifies platform admins in-app. */
         post: {
             parameters: {
                 query?: never;
@@ -3546,6 +3565,25 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Complaint"];
+                    };
+                };
+                400: components["responses"]["ErrorResponse"];
+                /** @description Not a student (gate 12, F38). */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `consultancy_id` does not match one of the student's own cases, or is required (several cases, none chosen) and missing. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -3658,7 +3696,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Platform Admin updates a complaint (permission `support`). open → in_review picks it up (the caller becomes the owner if nobody is) and tells the student it is being looked at; assign_to_me takes it over; resolved needs resolution_note, records who resolved it and sends the student the outcome. 409 already_resolved once resolved (the outcome stands), 409 dispute_open while its dispute is still open — resolving the dispute closes it. Audit-logged under support. */
+        /** Platform Admin updates a complaint (permission `support`). open → in_review picks it up (the caller becomes the owner if nobody is) and tells the student it is being looked at; assign_to_me takes it over; resolved needs resolution_note, records who resolved it and sends the student the outcome. 409 already_resolved once resolved (the outcome stands), 409 dispute_open while its dispute is still open — resolving the dispute closes it. A conditional update on the expected current assignee (gate 12, F41) — two concurrent assign_to_me calls do not both silently win; the loser gets 409 taken_over, naming who has it, and retries against the fresh row. Audit-logged under support. */
         patch: {
             parameters: {
                 query?: never;
@@ -3689,7 +3727,7 @@ export interface paths {
                         "application/json": components["schemas"]["Complaint"];
                     };
                 };
-                /** @description already_resolved or dispute_open */
+                /** @description already_resolved, dispute_open, or taken_over (gate 12, F41). */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -10337,7 +10375,7 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Update the app gate and rating prompt (app_config permission). minimum_version can never be above latest_version (400, review C1 2026-09-12) — the app force-blocks anything below the minimum with no dismiss. Every change is audited as "App configuration".
+         * Update the app gate and rating prompt (app_config permission). minimum_version can never be above latest_version (400, review C1 2026-09-12) — the app force-blocks anything below the minimum with no dismiss. Every change is audited as "App configuration". Raising minimum_version needs `reason` (gate 12) — the 200 reports `affected_students`, how many active students (by their last reported `last_app_version`) would be force-blocked by the new minimum, so an admin sees the blast radius before and after the change, not after the support tickets arrive.
          * @description Requires the `app_config` platform permission (part of `platform_staff_administration` before the 2026-09-10 split). Every change is audited.
          */
         patch: {
@@ -10349,7 +10387,10 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["AppConfig"];
+                    "application/json": components["schemas"]["AppConfig"] & {
+                        /** @description Required when minimum_version is raised above its current value (gate 12) — kept on the audit record. Not required for any other change. */
+                        reason?: string;
+                    };
                 };
             };
             responses: {
@@ -10359,10 +10400,13 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AppConfig"];
+                        "application/json": components["schemas"]["AppConfig"] & {
+                            /** @description How many active students' last reported app version now falls below minimum_version (gate 12). Null when minimum_version did not change. Null on the frozen mock, which tracks no per-student app version. */
+                            readonly affected_students?: number | null;
+                        };
                     };
                 };
-                /** @description Malformed version string or a non-sane number. */
+                /** @description Malformed version string or a non-sane number, or (gate 12) minimum_version raised with no `reason`. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -11471,7 +11515,17 @@ export interface paths {
                         };
                     };
                 };
-                /** @description Case closed, in dispute, or the consultancy cannot take it */
+                /** @description `same_consultancy` or `not_allocatable` (gate 12, F42 — missing from the responses here, though named in the summary above). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                404: components["responses"]["ErrorResponse"];
+                /** @description Case closed, in dispute, or the consultancy cannot take it (no_active_staff / subscription_lapsed). */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -13187,12 +13241,32 @@ export interface paths {
                         "application/json": components["schemas"]["CaseDispute"];
                     };
                 };
-                /** @description `dispute_already_open` — both sides raising at once is a race, not a second problem. */
+                /** @description Missing reason, or the case cannot be disputed in its current state. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not found, or another consultancy's case (gate 12, F26) — resolved through the same cross-tenant guard every `/clients/{id}/*` route uses; a stranger learns nothing about whether the id exists. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `dispute_already_open` (both sides raising at once is a race, not a second problem), `case_moved` (gate 12, F42 — the case moved to another consultancy), or `already_closed`. */
                 409: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -13209,12 +13283,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Cases the payments team should chase (2026-09-09), sorted by what is most likely to be stuck rather than by date — a case with money on it and no movement outranks a merely old one. Read-only and side-effect free: working the queue is a phone call, not a button. Finance permission only since 2026-09-11 (the service signals moved to GET /service-followups); the case notes and GET /admin/applicants/{id} stay open to finance or support. */
+        /** Cases the payments team should chase (2026-09-09), sorted by what is most likely to be stuck rather than by date — a case with money on it and no movement outranks a merely old one. Read-only and side-effect free: working the queue is a phone call, not a button. Finance permission only since 2026-09-11 (the service signals moved to GET /service-followups); the case notes and GET /admin/applicants/{id} stay open to finance or support. Cursor-paged (gate 12) — dormant against the frozen mock, which still returns every row unpaged (`meta` omitted there); the web Case Follow-ups page picks this up separately (†). */
         get: {
             parameters: {
                 query?: {
                     /** @description Include rows whose last call set a call-back date still ahead. */
                     include_snoozed?: boolean;
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
                 };
                 header?: never;
                 path?: never;
@@ -13230,6 +13308,8 @@ export interface paths {
                     content: {
                         "application/json": {
                             items?: components["schemas"]["CaseFollowupRow"][];
+                            /** @description Absent on the frozen mock (gate 12) — `items` is returned unpaged there. */
+                            meta?: components["schemas"]["PaginatedMeta"];
                             summary?: components["schemas"]["FollowupSummary"];
                         };
                     };
@@ -13324,11 +13404,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Students Support should reach out to (2026-09-11), most urgent signal first. Support permission. Rows whose last call set a future call-back date are hidden unless include_snoozed. */
+        /** Students Support should reach out to (2026-09-11), most urgent signal first. Support permission. Rows whose last call set a future call-back date are hidden unless include_snoozed. Cursor-paged (gate 12) — dormant against the frozen mock, which still returns every row unpaged (`meta` omitted there); the web Service Follow-ups page picks this up separately (†). */
         get: {
             parameters: {
                 query?: {
                     include_snoozed?: boolean;
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
                 };
                 header?: never;
                 path?: never;
@@ -13344,6 +13428,8 @@ export interface paths {
                     content: {
                         "application/json": {
                             items: components["schemas"]["ServiceFollowupRow"][];
+                            /** @description Absent on the frozen mock (gate 12) — `items` is returned unpaged there. */
+                            meta?: components["schemas"]["PaginatedMeta"];
                             summary: components["schemas"]["FollowupSummary"];
                         };
                     };
@@ -13618,7 +13704,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Take ownership of an open dispute (permission `support`). 409 once resolved. */
+        /** Take ownership of an open dispute (permission `support`). 409 once resolved. A conditional update on the expected current assignee (gate 12, F41) — two support staff picking it up at once are not both told they succeeded. */
         post: {
             parameters: {
                 query?: never;
@@ -13639,7 +13725,7 @@ export interface paths {
                         "application/json": components["schemas"]["CaseDispute"];
                     };
                 };
-                /** @description Resolved */
+                /** @description Resolved, or `taken_over` (gate 12, F41) — someone else picked it up first; the message names who. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -13773,6 +13859,25 @@ export interface paths {
                         "application/json": components["schemas"]["CaseDispute"];
                     };
                 };
+                /** @description Missing/invalid action or resolution_note (gate 12, F42). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                404: components["responses"]["ErrorResponse"];
+                /** @description `already_resolved` (gate 12, F42). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -13792,7 +13897,7 @@ export interface paths {
         put?: never;
         /**
          * Reopen a client closed via POST /clients/{id}/close (user-requested, 2026-08-15) — same shape as POST /leads/{id}/reopen, no reason required (reversible, low-stakes). Named distinctly from POST /clients/{id}/reopen (Reopen Plan) since the two mean different things.
-         * @description Reopenable from `closed` OR `closed_completed` (Wave 3 correction, 2026-09-27 — backend-confirmed; this text previously implied `closed` only). 409 `case_not_closed` otherwise.
+         * @description Reopenable from `closed` OR `closed_completed` (Wave 3 correction, 2026-09-27 — backend-confirmed; this text previously implied `closed` only). 409 `case_not_closed` otherwise; 409 `closed_by_platform` (gate 12, F31) when a dispute closed it — a consultancy does not get to reopen a case the platform decided to end.
          */
         post: {
             parameters: {
@@ -13814,7 +13919,7 @@ export interface paths {
                         "application/json": components["schemas"]["Client"];
                     };
                 };
-                /** @description `case_not_closed` — the case is neither `closed` nor `closed_completed`. */
+                /** @description `case_not_closed` — the case is neither `closed` nor `closed_completed` — or `closed_by_platform` (gate 12, F31) when a dispute resolved as `close` ended it. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -19625,10 +19730,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Pending dues + running total (consultancy-side, gated to Admin/Billing, FR-088) */
+        /** Pending dues + running total (consultancy-side, gated to Admin/Billing, FR-088). Paged by two independent cursors (gate 11) — dues by `cursor`/`limit`, payment_history by its own `history_cursor`/`history_limit` — since each grows separately and neither bounds the other. Dormant against the frozen mock, which still returns both arrays unpaged in full (`meta`/`history_meta` omitted there); the web Commission Details page picks this up separately (†). */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    cursor?: string;
+                    limit?: number;
+                    history_cursor?: string;
+                    history_limit?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -19643,12 +19753,16 @@ export interface paths {
                     content: {
                         "application/json": {
                             dues: components["schemas"]["CommissionDue"][];
+                            /** @description Paging state for `dues`. Absent on the frozen mock (gate 11). */
+                            meta?: components["schemas"]["PaginatedMeta"];
                             /** Format: double */
                             running_total: number;
                             /** @example INR */
                             currency: string;
                             /** @description running_total in the viewer's own currency (2026-09-10). Null when the viewer reads INR or there is no rate. */
                             running_total_approx?: components["schemas"]["ApproxMoney"] | null;
+                            /** @description Paging state for `payment_history`. Absent on the frozen mock (gate 11). */
+                            history_meta?: components["schemas"]["PaginatedMeta"];
                             payment_history: components["schemas"]["CommissionPayment"][];
                         };
                     };
@@ -19731,7 +19845,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Super Admin marks a declared payment as received (finance permission) — the previously missing declared → confirmed transition. Confirmed payments reduce the consultancy's running total and count into platform revenue. Audited. */
+        /** Super Admin marks a declared payment as received (finance permission) — the previously missing declared → confirmed transition. Confirmed payments reduce the consultancy's running total and count into platform revenue. Audited. 409 `entry_not_active` (gate 11, F12) when the entry was voided or reversed since the payment was declared — the declared payment is rejected automatically at that point, not left confirmable. 409 `more_than_outstanding` unless `allow_overpayment` (gate 11, F10) — the same ceiling `/receive` already enforces; an accepted surplus is stored as the entry's credit. */
         patch: {
             parameters: {
                 query?: never;
@@ -19747,6 +19861,8 @@ export interface paths {
                         /** @description What actually arrived (2026-09-11). Defaults to the declared amount. A different figure needs `note`; the consultancy is told. If nothing arrived, reject instead. */
                         received_amount?: number;
                         note?: string;
+                        /** @description Required true to confirm more than is outstanding (gate 11, F10) — otherwise 409 `more_than_outstanding` with the outstanding figure in the message. */
+                        allow_overpayment?: boolean;
                     };
                 };
             };
@@ -19760,6 +19876,8 @@ export interface paths {
                         "application/json": components["schemas"]["CommissionPayment"];
                     };
                 };
+                400: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
                 409: components["responses"]["ErrorResponse"];
             };
         };
@@ -19802,6 +19920,8 @@ export interface paths {
                         "application/json": components["schemas"]["CommissionPayment"];
                     };
                 };
+                400: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
                 /** @description Not a confirmed payment */
                 409: {
                     headers: {
@@ -19832,7 +19952,13 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
+                    "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
+                };
                 path: {
                     id: string;
                 };
@@ -19861,6 +19987,8 @@ export interface paths {
                         "application/json": components["schemas"]["FinanceCaseRow"];
                     };
                 };
+                400: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
                 /** @description Entry not active */
                 409: {
                     headers: {
@@ -19928,6 +20056,8 @@ export interface paths {
                         "application/json": components["schemas"]["FinanceCaseRow"];
                     };
                 };
+                400: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
                 /** @description Entry not active */
                 409: {
                     headers: {
@@ -19954,7 +20084,13 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
+                    "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
+                };
                 path: {
                     id: string;
                 };
@@ -19986,6 +20122,8 @@ export interface paths {
                         "application/json": components["schemas"]["FinanceCaseRow"];
                     };
                 };
+                400: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
                 /** @description Part closed without payment */
                 409: {
                     headers: {
@@ -20016,7 +20154,13 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
+                    "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
+                };
                 path: {
                     id: string;
                 };
@@ -20124,7 +20268,13 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
+                    "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
+                };
                 path: {
                     id: string;
                 };
@@ -20154,7 +20304,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/commission-entries/{id}/installments/{installmentId}": {
+    "/commission-entries/{id}/installments/{installmentId}/void": {
         parameters: {
             query?: never;
             header?: never;
@@ -20163,29 +20313,53 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
-        /** Remove a mis-entered installment (billing.record_payment, audited with the amounts in the diff). */
-        delete: {
+        /** Void a mis-entered installment (billing.record_payment, audited with the amounts in the diff) — never deleted (gate 11, F14: erd Open 53, an append-only money record like every other). Replaces the DELETE this operation used to be. */
+        post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
+                    "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
+                };
                 path: {
                     id: string;
                     installmentId: string;
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reason: string;
+                    };
+                };
+            };
             responses: {
-                /** @description Removed */
-                204: {
+                /** @description Voided */
+                200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["CommissionInstallment"];
+                    };
+                };
+                404: components["responses"]["ErrorResponse"];
+                /** @description `entry_not_active` — the entry was voided or reversed. `part_settled` — a payment is already allocated to this installment's share part; void that payment first. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -20624,10 +20798,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List freelancer accounts (admin) — build reference 1.19 */
+        /** List freelancer accounts (admin) — build reference 1.19. Cursor-paged (gate 12) — dormant against the frozen mock, which still returns the plain array below; the web Freelancers page picks this up separately (†). */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -20804,10 +20983,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Freelancer Commission Table — flat percentage each freelancer personally earns, build reference 1.17 (FR-089) */
+        /** Freelancer Commission Table — flat percentage each freelancer personally earns, build reference 1.17 (FR-089). Cursor-paged (gate 12) — dormant against the frozen mock, which still returns the plain array below; the web Freelancers page picks this up separately (†). */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -21273,6 +21457,7 @@ export interface paths {
                             totals?: {
                                 earned_inr?: number;
                                 paid_inr?: number;
+                                /** @description May be negative (gate 12, F10/F48 — "overpaid") after a correction or a rejection undoes money already paid out; never clawed back automatically. */
                                 owed_inr?: number;
                             };
                         };
@@ -21297,11 +21482,17 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Record a payout to the freelancer for this referral (freelancers permission, 2026-09-11). amount_inr must be positive and no more than what is owed; the freelancer is notified. */
+        /** Record a payout to the freelancer for this referral (freelancers permission, 2026-09-11). amount_inr must be positive and no more than what is owed (409 `more_than_owed`); the freelancer is notified. In ₹ with paise (gate 12, F11/F48 — `amount_inr` is the rupee figure; the production backend holds the paisa precision behind it). */
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
+                    "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
+                };
                 path: {
                     id: string;
                 };
@@ -21327,7 +21518,7 @@ export interface paths {
                         "application/json": components["schemas"]["FreelancerPayout"];
                     };
                 };
-                /** @description More than is owed, or nothing is owed */
+                /** @description `more_than_owed` — more than is owed, or nothing is owed. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -21464,7 +21655,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Mark a referral's payout state (Super Admin). Records that payment happened — money moves outside the platform (build reference 1.19, tracking only). Audit-logged. */
+        /** An internal note on the referral (Super Admin). Body reduced to `note` (gate 12, F55) — `payment_status` wrote a field nothing read and the ledger (`payout_status`, derived from actual payouts) was always the real answer; this route no longer changes it. Kept for the contract's operation count. Audit-logged. */
         patch: {
             parameters: {
                 query?: never;
@@ -21477,8 +21668,7 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        /** @enum {string} */
-                        payment_status: "owed" | "paid";
+                        note: string | null;
                     };
                 };
             };
@@ -21841,15 +22031,19 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Completed cases only, filterable by consultancy/date/country/payer (admin) */
+        /** Legacy (gate 11, Q10) — kept, served from the same figures as the newer `/commission/ finance/*` reads, until the console stops calling it; no new console work targets it. Every ACTIVE commission entry (not "completed cases" — the stale wording this corrects; an entry stays active whether its case's share is fully paid or still outstanding), filterable by consultancy/date/country/payer (admin). Cursor-paged (gate 11) — dormant against the frozen mock, which still returns the full unpaged `items` array (`meta` omitted there). */
         get: {
             parameters: {
                 query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
                     consultancy_id?: string;
                     from?: string;
                     to?: string;
                     destination_country?: string;
-                    payer_method?: "college" | "applicant" | "split";
+                    payer_method?: "college" | "applicant" | "split" | "pr";
                 };
                 header?: never;
                 path?: never;
@@ -21865,6 +22059,8 @@ export interface paths {
                     content: {
                         "application/json": {
                             items: components["schemas"]["FinanceDashboardEntry"][];
+                            /** @description Absent on the frozen mock (gate 11) — `items` is returned unpaged there. */
+                            meta?: components["schemas"]["PaginatedMeta"];
                             running_total: components["schemas"]["Money"];
                             /** @description Consultancy-declared platform payments awaiting the finance Confirm action (all payment things in one place, user-requested 2026-08-28). */
                             declared_payments?: components["schemas"]["CommissionPayment"][];
@@ -21890,7 +22086,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List invoices. Default sort created_at desc, id always appended as the Needs billing.view_commission_details (console review C3, 2026-09-13); creating and voiding need billing.record_payment. deterministic secondary key (TRD Section 7). sort= accepts number, applicant_name, amount, created_at. filter[status]= accepts sent|paid|overdue|void. search matches invoice number and applicant name. */
+        /** List invoices. Needs billing.view_commission_details (console review C3, 2026-09-13); creating and voiding need billing.record_payment. Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts number, applicant_name, amount, created_at. filter[status]= accepts sent|part_paid|paid|void — the derived status (gate 11, F2): draft and overdue dropped, since neither is ever stored or computed. search matches invoice number and applicant name. */
         get: {
             parameters: {
                 query?: {
@@ -21951,6 +22147,7 @@ export interface paths {
                          * @example INR
                          */
                         currency?: string;
+                        /** @description Up to 50 lines (gate 11, Q11). */
                         line_items: components["schemas"]["InvoiceLineItem"][];
                     };
                 };
@@ -21965,6 +22162,7 @@ export interface paths {
                         "application/json": components["schemas"]["Invoice"];
                     };
                 };
+                400: components["responses"]["ErrorResponse"];
             };
         };
         delete?: never;
@@ -21982,7 +22180,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Void — mandatory reason, audit-logged, never deleted (FR-091) */
+        /** Void — mandatory reason, audit-logged, never deleted (FR-091). 409 `has_receipts` while any non-voided receipt is still recorded against it — void the receipts first (gate 11, F5); 409 `already_voided` on a second void. */
         post: {
             parameters: {
                 query?: never;
@@ -22009,6 +22207,8 @@ export interface paths {
                         "application/json": components["schemas"]["Invoice"];
                     };
                 };
+                404: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
             };
         };
         delete?: never;
@@ -22024,7 +22224,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List receipts. Default sort recorded_at desc, id always appended as the Needs billing.view_commission_details (console review C3, 2026-09-13); recording needs billing.record_payment. deterministic secondary key (TRD Section 7). sort= accepts applicant_name, amount, recorded_at. filter[status]= accepts recorded|void. search matches invoice number and applicant name. */
+        /** List receipts. Needs billing.view_commission_details (console review C3, 2026-09-13); recording needs billing.record_payment (gate 11, F1 — on the production backend; the frozen mock still accepts any consultancy staffer, kept only as a known gap). Default sort recorded_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts applicant_name, amount, recorded_at. filter[status]= accepts recorded|void. search matches invoice number and applicant name. */
         get: {
             parameters: {
                 query?: {
@@ -22063,7 +22263,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Record a receipt against an invoice */
+        /** Record a receipt against an invoice. 409 `more_than_balance` when the amount exceeds the invoice's current balance due (gate 11, F5) — the message carries the balance; a surplus is never silently clamped. */
         post: {
             parameters: {
                 query?: never;
@@ -22096,6 +22296,8 @@ export interface paths {
                         "application/json": components["schemas"]["Receipt"];
                     };
                 };
+                400: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
             };
         };
         delete?: never;
@@ -22113,7 +22315,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Void a receipt (mandatory reason) */
+        /** Void a receipt (mandatory reason; billing.record_payment — gate 11, F1). 409 `already_voided` on a second void. */
         post: {
             parameters: {
                 query?: never;
@@ -22140,6 +22342,8 @@ export interface paths {
                         "application/json": components["schemas"]["Receipt"];
                     };
                 };
+                404: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
             };
         };
         delete?: never;
@@ -22365,11 +22569,16 @@ export interface paths {
         };
         /**
          * The allocation queue — freelancer-sourced applicants awaiting a consultancy, plus students who asked to change theirs (build reference 1.19, 1.23)
-         * @description Oldest first. Rows come from three places (`source`): freelancer referral sign-ups, consultancy-change requests raised with a complaint, and disputes resolved as "reassign".
+         * @description Oldest first. Rows come from three places (`source`): freelancer referral sign-ups, consultancy-change requests raised with a complaint, and disputes resolved as "reassign". Cursor-paged (gate 12) — dormant against the frozen mock, which still returns the plain array below; the web Applicant Allocation queue picks this up separately (†).
          */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -22406,7 +22615,7 @@ export interface paths {
         put?: never;
         /**
          * Decline a consultancy-change request without transferring
-         * @description Removes the row from the transfer list and leaves the journey untouched — same consultancy, same plan, same consultant. Records the reason against the complaint. Does NOT close the complaint: refusing a transfer is not the same as resolving the grievance, which is handled off-platform. Only valid on a row whose `source` is `complaint` — a dispute reassignment was already decided and is refused.
+         * @description Removes the row from the transfer list and leaves the journey untouched — same consultancy, same plan, same consultant. Records the reason against the complaint. Does NOT close the complaint: refusing a transfer is not the same as resolving the grievance, which is handled off-platform. Only valid on a row whose `source` is `complaint` — a dispute reassignment was already decided and is refused. 409 when the case is `in_dispute` (gate 12, F32) — an open dispute decides the case's consultancy, not a declined change request; the row stays on the queue until the dispute resolves.
          */
         post: {
             parameters: {
@@ -22435,6 +22644,15 @@ export interface paths {
                 };
                 /** @description Missing note, or the row is not a consultancy-change request */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `case_in_dispute` (gate 12, F32) — the case has an open dispute. */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -22543,7 +22761,16 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description No active staff (`no_active_staff`) or a lapsed subscription (`subscription_lapsed`). The row stays on the queue. */
+                /** @description Queue row not found (gate 12, F42). */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No active staff (`no_active_staff`), a lapsed subscription (`subscription_lapsed`), the target at its seat limit (`seat_limit_reached`, gate 12, F44 — the mock answered 500 here, a missing-key bug this corrects), the student already has a live case (`already_a_case`, gate 12, F43), or this row was already allocated by a concurrent call (`already_allocated`, gate 12, W9). The row stays on the queue. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -23148,9 +23375,9 @@ export interface components {
             app_version?: string | null;
             /**
              * Format: date-time
-             * @description The DEVICE clock, when it actually happened. The server records its own arrival time separately — phones have wrong clocks and go offline, and without both a genuine midnight session is indistinguishable from a misconfigured device.
+             * @description The DEVICE clock, when it actually happened. The server records its own arrival time separately — phones have wrong clocks and go offline, and without both a genuine midnight session is indistinguishable from a misconfigured device. Not required (gate 12, item 8) — the mock falls back to its own arrival time when omitted; a client still sends it whenever the device clock is available.
              */
-            occurred_at: string;
+            occurred_at?: string;
         };
         User: {
             id: components["schemas"]["UUID"];
@@ -24317,13 +24544,13 @@ export interface components {
         AllocationCandidate: {
             consultancy_id: components["schemas"]["UUID"];
             name: string;
-            city?: string | null;
-            country?: string | null;
+            city: string | null;
+            country: string | null;
             /** @description The applicant's target countries this consultancy serves. */
             serves_countries: string[];
             active_applicants: number;
             /** @description Open cases divided by `seat_limit`, and what the ranking reads (assumptions audit M12, product owner 2026-09-19). Raw `active_applicants` made a two-person agency with 4 cases look lighter than a twenty-person firm with 15 — it measured the size of the business, not how busy its people are. Null when no seats are recorded, which sorts last rather than dividing by zero. */
-            readonly active_applicants_per_seat?: number | null;
+            readonly active_applicants_per_seat: number | null;
             seats_used: number;
             seat_limit: number;
             /**
@@ -24335,20 +24562,21 @@ export interface components {
         /** @description Applicant Allocation queue (build reference 1.19, 1.23) — a read model over erd.md's `applicant_allocation_queue`, joined with the applicant's name for display, plus the referenced journey's own contact/case fields (email, phone, case_type) — needed so `POST .../allocate` (below) has enough to create the real client record once a consultancy is chosen, without a second round-trip back to the journey. */
         ApplicantAllocationEntry: {
             id: components["schemas"]["UUID"];
-            journey_id: components["schemas"]["UUID"];
+            /** @description Gate 12 (RT 17, F46/Q10 item 48): the row is keyed on the student, not a reserved case — null for a freelancer-sourced row until allocation opens the case. Still always present on the frozen mock, which reserves the case id up front (a gap F46 names). Always present for a consultancy-change or reassignment row (the case it names). */
+            journey_id: components["schemas"]["UUID"] | null;
             applicant_name: string;
             /** Format: email */
-            email?: string;
-            phone?: string | null;
+            email: string;
+            phone: string | null;
             /** @enum {string} */
-            case_type?: "student" | "pr";
+            case_type: "student" | "pr";
             /**
              * @description How this row got here. `reassignment` and `conflict` were removed on 2026-08-23: reassignment turned out to BE a consultancy change (user's call), and conflict had no meaning once it was clear freelancers onboard by referral code and never claim an applicant, so there was nothing for them to conflict over.
              * @enum {string}
              */
             reason: "freelancer_sourced" | "consultancy_change";
             /** @description Who sourced this applicant, joined via `freelancer_referrals.journey_id` (user-requested, 2026-08-19 — "if freelancer sourced please show freelancer name too"). Always `null` when `reason` isn't `freelancer_sourced`. */
-            freelancer_name?: string | null;
+            freelancer_name: string | null;
             /** Format: date-time */
             created_at: string;
             /** @description Set only on a consultancy_change row — the complaint that asked for the move. */
@@ -24360,20 +24588,20 @@ export interface components {
              * @description Where the row came from (2026-09-11): a student who signed up with a freelancer's referral code; a student who asked to change consultancy when raising a complaint; or a dispute Support resolved as "reassign" (a consultancy_change row with `dispute_id` set, which cannot be declined — the move was already decided).
              * @enum {string}
              */
-            readonly source?: "freelancer_signup" | "complaint" | "dispute";
-            readonly dispute_id?: components["schemas"]["UUID"] | null;
+            readonly source: "freelancer_signup" | "complaint" | "dispute";
+            readonly dispute_id: components["schemas"]["UUID"] | null;
             /** @description The student's own account. Allocation opens the new case on it. */
-            readonly student_user_id?: components["schemas"]["UUID"] | null;
+            readonly student_user_id: components["schemas"]["UUID"] | null;
             /** @description The ONE destination from the student's own preferences (assumptions audit M8, product owner 2026-09-19); null when they have set none. */
-            readonly target_country?: string | null;
+            readonly target_country: string | null;
             /** @description Derived from `target_country` — zero or one element. Kept so the console's existing renderer keeps working; read the scalar in new code (assumptions audit M8). */
-            readonly target_countries?: string[];
-            readonly fields_of_interest?: string[];
-            readonly study_level?: string | null;
+            readonly target_countries: string[];
+            readonly fields_of_interest: string[];
+            readonly study_level: string | null;
             /** @description The consultancy a change request is leaving — the case's own. */
-            readonly current_consultancy_id?: components["schemas"]["UUID"] | null;
+            readonly current_consultancy_id: components["schemas"]["UUID"] | null;
             /** @description Who the student is with today, i.e. who they are asking to leave. */
-            readonly current_consultancy_name?: string | null;
+            readonly current_consultancy_name: string | null;
         };
         /**
          * @description One work queue that needs the platform team (2026-09-10, user: "anything that needs platform team attention will be alerted — they should be able to identify").
@@ -24386,7 +24614,7 @@ export interface components {
             count: number;
             /** @description What the sidebar counter and the card both read (assumptions audit M35, 2026-09-19). Equal to `count`, except on a `low` queue where it is always 0 — a queue that may legitimately never reach zero must not drive a badge that then never clears. */
             readonly open_count: number;
-            hint?: string | null;
+            hint: string | null;
             /** @description The PRE-FILTERED console route for this queue — path and query — so the page it opens lists exactly the rows that were counted (assumptions audit M35, 2026-09-19). */
             link: string;
             /**
@@ -24397,16 +24625,21 @@ export interface components {
         };
         /** @description Super Admin Dashboard (build reference 1.23). */
         AdminDashboardSummary: {
+            /**
+             * Format: date-time
+             * @description When the rollups behind this view were last refreshed (gate 12, Q7 — hourly). Needs Attention / queue counts stay live regardless. Null on the frozen mock, which computes everything live.
+             */
+            readonly as_of?: string | null;
             /** @description Keys (2026-09-02, after the user asked why "Total Students" and "Active Aspirants/Applicants" disagreed): `total_consultancies` — ACTIVE consultancies; `total_institutes` — active institutes (split 2026-09-10; one number used to hold both kinds, inactive included); `total_students` — student ACCOUNTS registered in the Sentpo app, the same count the Sentpo Users page shows; (`stuck_onboarding` left the Overview 2026-09-10 — it is the Needs attention queue of the same name); `study_abroad_students` — distinct students with a target country other than their own (the four-way split, home included, lives on Supply & Demand; `study_home_students` left the Overview 2026-09-10); `active_aspirants` — Stage 1: open lead conversations, native AND imported by a consultancy (imported leads have no Sentpo account, which is exactly why this can exceed `total_students`); `active_applicants` — Stage 2 journeys in progress; `completed_cases` — cases closed successfully, the same count as the Enrolled slice (2026-09-10; plan_complete cases before); `total_colleges`; `total_courses`; `median_days_to_enrol` — median days from a case opening to its successful close, null until one exists (`courses_missing_requirements` moved to Needs attention 2026-09-10). Cards where "added this month" is a real flow carry `trend`. Every card carries a one-line `hint` saying what it counts; the console links each key to the page where that population is managed. */
             stat_cards: {
-                key?: string;
-                label?: string;
+                key: string;
+                label: string;
                 /** @description Null when there is nothing to measure yet (median_days_to_enrol). */
-                value?: number | null;
+                value: number | null;
                 /** @description Shown after the number, e.g. `days`. */
                 unit?: string | null;
                 /** @description One line under the number saying exactly what is counted. */
-                hint?: string | null;
+                hint: string | null;
                 /** @description Added this calendar month vs last month (2026-09-10) — new consultancies, institutes, students, leads, cases, successful closes. Absent on stock-only cards. */
                 trend?: {
                     this_month: number;
@@ -24415,24 +24648,24 @@ export interface components {
             }[];
             /** @description Pending course suggestions/corrections awaiting review. */
             pending_actions_count: number;
-            revenue_snapshot?: components["schemas"]["Money"];
+            revenue_snapshot: components["schemas"]["Money"];
             /** @description Confirmed platform commission (INR) this calendar month vs last (2026-09-10). */
-            revenue_trend?: {
+            revenue_trend: {
                 this_month: number;
                 last_month: number;
             };
             /** @description Platform commission owed and not yet paid (2026-09-10) — the same figure as the Finance dashboard's unfiltered `running_total` (active entries' platform dues net of confirmed payments). */
-            dues_outstanding?: components["schemas"]["Money"];
+            dues_outstanding: components["schemas"]["Money"];
             /** @description Sentpo students by the furthest stage reached (2026-09-10): signed_up, onboarded, aspirant, applicant, enrolled. Each stage contains the ones after it, so counts only narrow; `pct_of_previous` is the share that reached this stage from the one before (null on the first, or when the previous is 0). Consultancy-created people (Channel B) have no Sentpo account and are not in it. */
-            journey_funnel?: {
+            journey_funnel: {
                 /** @enum {string} */
                 stage: "signed_up" | "onboarded" | "aspirant" | "applicant" | "enrolled";
                 label: string;
                 count: number;
-                pct_of_previous?: number | null;
+                pct_of_previous: number | null;
             }[];
             /** @description Every closed case, all time (2026-09-10): successful (= Enrolled) vs not, and the close sub_reason of each unsuccessful one, most frequent first. */
-            case_outcomes?: {
+            case_outcomes: {
                 closed: number;
                 successful: number;
                 failed: number;
@@ -24444,7 +24677,7 @@ export interface components {
                 }[];
             };
             /** @description New registrations per month by acquisition channel (A = Sentpo direct, B = consultancy-sourced, C = freelancer referral) over a fixed trailing 12-calendar-month window ending at "now" — always exactly 12 entries, zero-filled. Distinct people, each counted once in the month they arrived (user, 2026-09-10: count only new users onboarded, not users who start in Stage 1 and move to Stage 2). A and C are student accounts by created_at (C = signed up with a freelancer's referral code); B is everyone a consultancy creates, when it creates them — its own leads (Add Lead / Import Leads) and Create Applicant clients. A lead converting to a client (Sentpo or the consultancy's own) is the same person and is never counted again. Replaced the aspirants/applicants series (which counted records, not people) on 2026-09-10. */
-            registrations_over_time?: {
+            registrations_over_time: {
                 /** @description YYYY-MM */
                 month: string;
                 channel_a: number;
@@ -24452,24 +24685,24 @@ export interface components {
                 channel_c: number;
             }[];
             /** @description Cases closed successfully (the Enrolled slice's cases — status closed, outcome success) by the calendar month they were closed (`closed_at`), fixed trailing 12-month window, split by the kind of organisation (2026-09-10). Replaced the old single series, which counted plan_complete cases by their created_at month. */
-            completed_cases_over_time?: {
+            completed_cases_over_time: {
                 /** @description YYYY-MM */
                 month: string;
                 consultancy: number;
                 institute: number;
             }[];
             /** @description Three slices for a doughnut chart (user-requested, 2026-08-18; made current 2026-09-10): `Aspirants (Stage 1)` = open leads now and `Applicants (Stage 2)` = open cases now — the same numbers as the active_aspirants / active_applicants stat cards — plus `Enrolled` = cases closed as a success, all time. Before 2026-09-10 the first two were every lead and every case ever created, closed and converted included. */
-            applicant_stage_breakdown?: {
+            applicant_stage_breakdown: {
                 label: string;
                 count: number;
             }[];
             /** @description CURRENT applicants per organisation, split by kind (2026-09-10 — replaced `applicants_by_consultancy`, which listed every organisation's all-time case count and could not scale). Same "active applicant" rule as the active_applicants stat card, so consultancies.total + institutes.total equals that card. */
-            applicants_by_organisation?: {
+            applicants_by_organisation: {
                 consultancies: components["schemas"]["OrgApplicantRanking"];
                 institutes: components["schemas"]["OrgApplicantRanking"];
             };
             /** @description Confirmed platform commission (INR) by the calendar month it was confirmed, fixed trailing 12-month window, split by the kind of organisation it came from (2026-09-10 — was one `amount` series). */
-            revenue_over_time?: {
+            revenue_over_time: {
                 /** @description YYYY-MM */
                 month: string;
                 consultancy: number;
@@ -24561,6 +24794,11 @@ export interface components {
         };
         /** @description Build reference 2.2, Consultancy Dashboard. Stat cards are a generic key/label/value list rather than fixed fields, since which cards a viewer sees depends on their permission areas (build reference 1.15) and grows as later waves (Clients, Finance) add their own — this avoids a schema change every time a new card is added. */
         DashboardSummary: {
+            /**
+             * Format: date-time
+             * @description When the rollups behind this view were last refreshed (gate 12, Q7 — hourly). Null on the frozen mock, which computes everything live.
+             */
+            readonly as_of?: string | null;
             greeting_name: string;
             /** @enum {string} */
             scope: "personal" | "branch" | "consultancy";
@@ -24740,10 +24978,10 @@ export interface components {
         };
         /** @description The queryable side-record of a `visit_request` chat message (2026-08-24) — Support Tools' cross-consultancy list reads this, not the per-conversation message stores, since a platform admin has no reason to scan every lead/client's chat on the platform to find these. One row per request, created alongside its chat message and never mutated afterward (no status field — see `responded` below for why one wasn't needed). */
         VisitRequest: {
-            readonly student_email?: string | null;
-            readonly student_phone?: string | null;
+            readonly student_email: string | null;
+            readonly student_phone: string | null;
             /** @description The assigned consultant, else a consultancy admin (2026-09-11). */
-            readonly consultancy_contact?: {
+            readonly consultancy_contact: {
                 name?: string;
                 email?: string | null;
                 phone?: string | null;
@@ -24751,10 +24989,10 @@ export interface components {
                 assigned?: boolean;
             } | null;
             /** @description Hours since the request while the consultancy has not replied; null once it has. */
-            readonly waiting_hours?: number | null;
-            readonly nudge_count?: number;
+            readonly waiting_hours: number | null;
+            readonly nudge_count: number;
             /** Format: date-time */
-            readonly last_nudged_at?: string | null;
+            readonly last_nudged_at: string | null;
             id: components["schemas"]["UUID"];
             consultancy_id: components["schemas"]["UUID"];
             consultancy_name: string;
@@ -24768,7 +25006,7 @@ export interface components {
             /** Format: date */
             proposed_date: string;
             proposed_time: string;
-            note?: string | null;
+            note: string | null;
             /** @description Server-computed from the conversation's own unattended state, not a stored status — "the rest happens over chat" means the consultant replying IS the response, so this reuses the exact same unattended computation every other unread/unattended badge in the app already relies on, rather than inventing a parallel status the two could drift out of sync with. True once the consultant (or anyone on the consultancy side) has sent a message in that thread at or after this request. */
             readonly responded: boolean;
             /** Format: date-time */
@@ -25188,6 +25426,13 @@ export interface components {
                  */
                 cooldown_days: number;
             };
+            /** @description Realtime transport config (gate 12, RT 31) — mobile and web read it to decide socket vs. polling and the poll intervals to fall back on (†, client work). Absent/null means today's plain polling, unchanged; a client that doesn't know this field ignores it the same way. Null on the frozen mock. */
+            readonly realtime?: {
+                /** @enum {string|null} */
+                transport?: "socket" | "polling" | null;
+                chat_poll_seconds?: number | null;
+                notification_poll_seconds?: number | null;
+            } | null;
         };
         /** @description One row of the curated Trending Courses list (2026-09-16). */
         TrendingCourse: {
@@ -25703,9 +25948,9 @@ export interface components {
         /** @description Client Profile's Commissions tab, `clients.view_commissions` only. Reworked 2026-08-28 — driven by the journey's active commission entry (created when a college is Accepted, or directly for PR cases) rather than derived from invoices. DELIBERATELY carries no platform cut, rate, or platform payment status — that tier of information is visible only on the Commission Details page (`GET /commission`, `billing.view_commission_details`), per the tiered-visibility rule. */
         CommissionSummary: {
             /** @enum {string|null} */
-            payer_method?: "college" | "applicant" | "split" | null;
+            payer_method: "college" | "applicant" | "split" | null;
             /** @description Null until a college is Accepted (or a PR contribution is recorded). */
-            entry?: components["schemas"]["CommissionEntryDetail"] | null;
+            entry: components["schemas"]["CommissionEntryDetail"] | null;
             /** @description Money actually received against the entry, in the order recorded. */
             installments: components["schemas"]["CommissionInstallment"][];
             /** @description This journey's platform invoices — linked documents, optional (a consultancy may invoice externally; recording installments never requires one). */
@@ -25723,11 +25968,11 @@ export interface components {
              * Format: uuid
              * @description The accepted application that earned this entry, stamped at acceptance. Renamed from `selected_college_id` 2026-09-09 with the entity. Null for PR entries — a PR case has no application lifecycle.
              */
-            application_id?: string | null;
+            application_id: string | null;
             /** Format: uuid */
-            course_id?: string | null;
-            course_name?: string | null;
-            college_name?: string | null;
+            course_id: string | null;
+            course_name: string | null;
+            college_name: string | null;
             destination_country: string;
             /**
              * @description PR entries are always `applicant`.
@@ -25735,30 +25980,30 @@ export interface components {
              */
             payer_method: "college" | "applicant" | "split";
             /** @description The consultancy's agreed commission FROM the college — the relation's commission_percent × the course's tuition, prefilled at Accept and editable there if the agreed figure differs (user decision, 2026-08-28). Always in the course's own fee currency. NOT the tuition amount itself. */
-            expected_from_college?: components["schemas"]["Money"] | null;
+            expected_from_college: components["schemas"]["Money"] | null;
             /**
              * Format: double
              * @description The Partner Colleges relation's commission_percent, snapshotted onto this entry at acceptance — null for applicant-pays and PR entries.
              */
-            readonly college_commission_percent?: number | null;
+            readonly college_commission_percent: number | null;
             /** @description Agreed applicant-side amount in the consultant-chosen currency (INR by default). */
-            expected_from_student?: components["schemas"]["Money"] | null;
+            expected_from_student: components["schemas"]["Money"] | null;
             /** @description Null for PR entries — there is no course. */
-            course_start?: {
+            course_start: {
                 /** @example September */
                 month?: string;
                 /** @example 2027 */
                 year?: number;
             } | null;
             /** @description Computed sum of college-source installments, in the expected currency. */
-            received_from_college?: components["schemas"]["Money"] | null;
-            received_from_student?: components["schemas"]["Money"] | null;
+            received_from_college: components["schemas"]["Money"] | null;
+            received_from_student: components["schemas"]["Money"] | null;
             /**
              * @description A journey has at most one active entry. `voided` means the acceptance itself was reverted (reason recorded, audited). `reversed` (2026-09-09) means the acceptance was real and the student still never went — a visa refusal, a withdrawal, a no-show — so the money was earned on paper and then was not. Finance has to tell those two apart, which is why closing a case as a failure does NOT reuse `voided`.
              * @enum {string}
              */
             status: "active" | "voided" | "reversed";
-            void_reason?: string | null;
+            void_reason: string | null;
             /** @description The close sub_reason that caused the reversal. */
             reversal_reason?: string | null;
             /** Format: date-time */
@@ -25775,11 +26020,18 @@ export interface components {
             amount: components["schemas"]["Money"];
             /** Format: date */
             received_on: string;
-            note?: string | null;
+            note: string | null;
             /** Format: uuid */
-            receipt_id?: string | null;
+            receipt_id: string | null;
             /** Format: date-time */
             created_at: string;
+            /**
+             * Format: date-time
+             * @description Set by the void operation (gate 11, F14) — the row stays, never deleted.
+             */
+            voided_at?: string | null;
+            voided_reason?: string | null;
+            voided_by_name?: string | null;
         };
         CommissionInstallmentInput: {
             /** @enum {string} */
@@ -25872,80 +26124,81 @@ export interface components {
         };
         /** @description Where a given applicant is, for platform staff (2026-09-09). Carries NO documents and NO chat, deliberately: the student's locker is theirs and is shared with a consultancy by their own grant, and the conversation is the consultancy's record with their client. */
         ApplicantCaseView: {
-            journey_id?: components["schemas"]["UUID"];
-            file_number?: string | null;
-            student?: {
-                id?: components["schemas"]["UUID"];
-                name?: string;
-                email?: string;
-                phone?: string | null;
+            journey_id: components["schemas"]["UUID"];
+            file_number: string | null;
+            student: {
+                id: components["schemas"]["UUID"];
+                name: string;
+                email: string;
+                phone: string | null;
             };
-            consultancy_id?: components["schemas"]["UUID"];
-            consultancy_name?: string | null;
-            consultant_name?: string | null;
-            status?: string;
-            outcome?: string | null;
-            close_sub_reason?: string | null;
-            finalized_country?: string | null;
-            previous_journey_id?: components["schemas"]["UUID"];
+            consultancy_id: components["schemas"]["UUID"];
+            consultancy_name: string | null;
+            consultant_name: string | null;
+            status: string;
+            outcome: string | null;
+            close_sub_reason: string | null;
+            finalized_country: string | null;
+            previous_journey_id: components["schemas"]["UUID"];
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** Format: date-time */
-            closed_at?: string | null;
-            days_since_started?: number | null;
-            case_progress?: components["schemas"]["CaseSummary"];
-            applications?: {
-                id?: components["schemas"]["UUID"];
-                status?: string;
-                country?: string | null;
-                course_name?: string | null;
-                college_name?: string | null;
+            closed_at: string | null;
+            days_since_started: number | null;
+            case_progress: components["schemas"]["CaseSummary"];
+            applications: {
+                id: components["schemas"]["UUID"];
+                status: string;
+                country: string | null;
+                course_name: string | null;
+                college_name: string | null;
                 /** Format: date-time */
-                status_changed_at?: string | null;
-                days_since_status_change?: number | null;
+                status_changed_at: string | null;
+                days_since_status_change: number | null;
             }[];
-            plans?: {
-                id?: components["schemas"]["UUID"];
+            plans: {
+                id: components["schemas"]["UUID"];
                 /** @enum {string} */
-                scope?: "case" | "application";
-                progress?: string;
-                college_name?: string | null;
+                scope: "case" | "application";
+                progress: string;
+                college_name: string | null;
             }[];
             /** @description Null until a college is accepted. `recognized_at` is the line between earned and due — an entry without one is money on paper that nobody owes yet. */
-            commission?: {
-                status?: string;
+            commission: {
+                status: string;
                 /** Format: date-time */
-                recognized_at?: string | null;
+                recognized_at: string | null;
                 /** Format: date-time */
-                reversed_at?: string | null;
-                platform_due_inr?: number;
+                reversed_at: string | null;
+                platform_due_inr: number;
             } | null;
-            signals?: {
-                code?: string;
-                label?: string;
-                detail?: string;
-                ask_student?: boolean;
+            signals: {
+                code: string;
+                label: string;
+                detail: string;
+                ask_student: boolean;
             }[];
-            amount_at_stake_inr?: number;
+            amount_at_stake_inr: number;
         };
         /** @description A call logged on a follow-up, or a push nudge sent to a student (2026-09-11). Finance notes hang off a case (journey_id); student follow-up notes hang off the student (student_id). */
         FollowupNote: {
             id: components["schemas"]["UUID"];
             /** Format: uuid */
-            journey_id?: string | null;
+            journey_id: string | null;
             /** Format: uuid */
-            student_id?: string | null;
+            student_id: string | null;
             /** @enum {string} */
             queue: "finance" | "service";
             /** @enum {string} */
             kind: "call" | "nudge";
             note: string;
             /** @description Finance: promised_to_close | disputed | no_answer | resolved. Service: helped | no_answer | not_interested | resolved. */
-            outcome?: string | null;
+            outcome: string | null;
             /** Format: date */
-            call_back_on?: string | null;
+            call_back_on: string | null;
             /** Format: uuid */
-            author_id?: string | null;
+            author_id: string | null;
+            /** @description Resolved from author_id on the note-list routes. Not required (gate 12, item 8) — when this note is embedded as CaseFollowupRow/ServiceFollowupRow's `last_followup`, the mock carries the raw row with no author_name added. */
             author_name?: string | null;
             /** Format: date-time */
             created_at: string;
@@ -25965,26 +26218,26 @@ export interface components {
         ServiceFollowupRow: {
             student_id: components["schemas"]["UUID"];
             student_name: string;
-            email?: string;
-            phone?: string | null;
-            profile_completion_percent?: number;
+            email: string;
+            phone: string | null;
+            profile_completion_percent: number;
             /** @description The student's intake, month + year (assumptions audit M9, 2026-09-19). Replaces the `intended_intake` half this row used to carry. */
-            intake?: components["schemas"]["Intake"] | null;
+            intake: components["schemas"]["Intake"] | null;
             /** @description '"September 2027" / "Any month August–December 2027"', or "Not decided yet" since 2026-09-21, or null when the student has not answered at all. */
-            intake_label?: string | null;
+            intake_label: string | null;
             /** @description The student told us they have not decided yet (product owner, 2026-09-21) — see `StudentPreferences.intake_undecided`. This queue is a call list, and a staffer needs to know the difference between a student who has answered "not yet" and one nobody has asked. An undecided student can never carry the `no_consultancy_yet` signal: that signal is keyed on an intake they NAMED, and they have named none. */
-            intake_undecided?: boolean;
+            intake_undecided: boolean;
             /**
              * Format: date-time
              * @description When the student set it. The "Intake set, no consultancy yet" signal counts its 90 days from HERE, not from sign-up (assumptions audit M10, product owner 2026-09-19) — the queue's own label said intake while its code measured from the account's creation, so a student who signed up two years ago and named an intake yesterday appeared as a two-year-old failure to serve.
              */
-            intake_set_at?: string | null;
+            intake_set_at: string | null;
             /**
              * Format: uuid
              * @description The student's open case, when they have one.
              */
-            journey_id?: string | null;
-            consultancy_name?: string | null;
+            journey_id: string | null;
+            consultancy_name: string | null;
             signals: {
                 /** @enum {string} */
                 code: "no_consultancy_yet" | "waiting_for_allocation" | "lead_no_reply" | "waiting_for_plan" | "stalled_application" | "plan_steps_overdue" | "long_running";
@@ -25994,15 +26247,15 @@ export interface components {
             /** @description How long the longest-standing signal has been true, in days. */
             days_waiting: number;
             /** Format: date-time */
-            last_nudge_at?: string | null;
-            last_followup?: components["schemas"]["FollowupNote"] | null;
+            last_nudge_at: string | null;
+            last_followup: components["schemas"]["FollowupNote"] | null;
             /** @description Calls logged (nudges are not counted). */
             followup_count: number;
             /**
              * Format: date
              * @description The last call's call-back date while it is still ahead; the row is hidden until then.
              */
-            snoozed_until?: string | null;
+            snoozed_until: string | null;
             /** @description The last call's call-back date has arrived. */
             due_for_call: boolean;
         };
@@ -26012,23 +26265,23 @@ export interface components {
          *     NOTHING HERE CLOSES ANYTHING. Every signal is a queue row for a person to work. There is no auto-close, no inactivity rule and no timer, because an auto-close would move money on a case nobody looked at and end a student's case with no one able to say why. A signal that fired and was never worked is a staffing problem, not a reason to let the system decide.
          */
         CaseFollowupRow: {
-            student_id?: components["schemas"]["UUID"];
-            last_followup?: components["schemas"]["FollowupNote"] | null;
+            student_id: components["schemas"]["UUID"];
+            last_followup: components["schemas"]["FollowupNote"] | null;
             /** @description Calls logged (nudges are not counted). */
-            followup_count?: number;
+            followup_count: number;
             /**
              * Format: date
              * @description The last call's call-back date while it is still ahead; the row is hidden until then.
              */
-            snoozed_until?: string | null;
+            snoozed_until: string | null;
             /** @description The last call's call-back date has arrived. */
-            due_for_call?: boolean;
-            journey_id?: components["schemas"]["UUID"];
-            student_name?: string;
-            consultancy_name?: string | null;
-            status?: string;
-            outcome?: string | null;
-            signals?: {
+            due_for_call: boolean;
+            journey_id: components["schemas"]["UUID"];
+            student_name: string;
+            consultancy_name: string | null;
+            status: string;
+            outcome: string | null;
+            signals: {
                 /** @enum {string} */
                 code?: "closed_without_acceptance" | "accepted_not_closed" | "failed_despite_acceptance" | "payment_overdue";
                 label?: string;
@@ -26036,11 +26289,11 @@ export interface components {
                 /** @description Whether this signal escalates straight to the student rather than through the consultancy first. True only for the two that mean a case ended owing nothing, where the student is the other witness. */
                 ask_student?: boolean;
             }[];
-            days_since_started?: number | null;
-            days_since_last_status_change?: number | null;
-            case_progress?: components["schemas"]["CaseSummary"];
+            days_since_started: number | null;
+            days_since_last_status_change: number | null;
+            case_progress: components["schemas"]["CaseSummary"];
             /** @description The platform's cut on an entry that exists but is not yet recognised — earned on paper, not yet due. The queue sorts on it, because a case with money on it and no movement outranks a merely old one. */
-            amount_at_stake_inr?: number;
+            amount_at_stake_inr: number;
         };
         /** @description What one progress fraction can no longer say, now that a case runs several plans at once (2026-09-09). `Client.progress` carries the same summed fraction as `plan_progress` below; everything else here is what that number cannot say. */
         CaseSummary: {
@@ -26062,51 +26315,51 @@ export interface components {
         /** @description A frozen case under platform mediation (2026-09-09). Not a way of closing: a dispute is the state a case sits in WHILE the platform decides, after which it is resumed, closed or reassigned. */
         CaseDispute: {
             /** @description The student complaint this dispute came from, when support escalated one. */
-            complaint_id?: components["schemas"]["UUID"] | null;
-            readonly student_email?: string | null;
-            readonly student_phone?: string | null;
-            readonly raised_by_name?: string | null;
+            complaint_id: components["schemas"]["UUID"] | null;
+            readonly student_email: string | null;
+            readonly student_phone: string | null;
+            readonly raised_by_name: string | null;
             /** @description Who to call at the consultancy (2026-09-11) — the staff member who raised it, else the case's assigned consultant, else a consultancy admin. Mediation happens by phone. */
-            readonly consultancy_contact?: {
+            readonly consultancy_contact: {
                 name?: string;
                 email?: string | null;
                 phone?: string | null;
             } | null;
             /** @description Whole days the case has been frozen (to resolution, or to now while open). */
-            readonly paused_days?: number;
-            readonly assigned_to_id?: components["schemas"]["UUID"] | null;
-            readonly assigned_to_name?: string | null;
+            readonly paused_days: number;
+            readonly assigned_to_id: components["schemas"]["UUID"] | null;
+            readonly assigned_to_name: string | null;
             /** Format: date-time */
-            readonly picked_up_at?: string | null;
-            readonly resolved_by_name?: string | null;
+            readonly picked_up_at: string | null;
+            readonly resolved_by_name: string | null;
             /** @description Resolved as reassign and still waiting on Applicant Allocation. */
-            readonly reassign_pending?: boolean;
-            readonly note_count?: number;
+            readonly reassign_pending: boolean;
+            readonly note_count: number;
             /** Format: date-time */
-            readonly last_note_at?: string | null;
+            readonly last_note_at: string | null;
             id: components["schemas"]["UUID"];
             journey_id: components["schemas"]["UUID"];
-            consultancy_id?: components["schemas"]["UUID"];
+            consultancy_id: components["schemas"]["UUID"];
             /** @enum {string} */
             raised_by: "consultancy" | "student";
-            raised_by_user_id?: components["schemas"]["UUID"];
+            raised_by_user_id: components["schemas"]["UUID"];
             reason: string;
             /** @enum {string} */
             status: "open" | "resolved";
             /** @description Required to resolve — mediation happens off-platform, so the decision and its reasoning are the only part of it the record ever gets. */
-            resolution_note?: string | null;
+            resolution_note: string | null;
             /** @enum {string|null} */
-            resolution_action?: "resume" | "close" | "reassign" | null;
+            resolution_action: "resume" | "close" | "reassign" | null;
             /** @description Set when a second dispute on the same case is closed as a duplicate of the first, so the link is real rather than a note. */
-            duplicate_of?: components["schemas"]["UUID"];
-            readonly student_name?: string | null;
-            readonly consultancy_name?: string | null;
+            duplicate_of: components["schemas"]["UUID"];
+            readonly student_name: string | null;
+            readonly consultancy_name: string | null;
             /** @description How far along the case was. The mediator needs this before deciding anything. */
-            readonly case_progress?: components["schemas"]["CaseSummary"] | null;
+            readonly case_progress: components["schemas"]["CaseSummary"] | null;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
-            resolved_at?: string | null;
+            resolved_at: string | null;
         };
         /**
          * @description What a consultancy may ask a student for (2026-09-09). TWO TIERS on purpose: "we will include every possible document" is a promise nobody can keep — documents are country × visa-type × college × year specific and change when a government changes its rules on a Tuesday. A platform-global type (`consultancy_id` null) is the shared vocabulary every consultancy draws on; a private one belongs to the consultancy that created it, is invisible to other consultancies, and exists so a consultancy blocked on a visa deadline is never waiting on a platform callback.
@@ -26425,9 +26678,9 @@ export interface components {
             subject_id: components["schemas"]["UUID"];
             note: string;
             /** @enum {string|null} */
-            outcome?: "spoke_to_student" | "spoke_to_consultancy" | "no_answer" | "waiting_on_student" | "waiting_on_consultancy" | null;
-            author_id?: components["schemas"]["UUID"];
-            readonly author_name?: string | null;
+            outcome: "spoke_to_student" | "spoke_to_consultancy" | "no_answer" | "waiting_on_student" | "waiting_on_consultancy" | null;
+            author_id: components["schemas"]["UUID"];
+            readonly author_name: string | null;
             /** Format: date-time */
             created_at: string;
         };
@@ -26437,7 +26690,7 @@ export interface components {
              * @description WHICH CONSULTANCY THIS IS ABOUT — chosen by the STUDENT (assumptions audit M6, product owner 2026-09-19). It used to be derived from their CURRENT case, falling back to a completed one, so a complaint about a consultancy they had LEFT was filed against the one they are with now — and a consultancy-change request moved them away from the wrong agency.
              *     Sent on create, validated against the student's own cases current or past (`GET /complaints/consultancies`): anything else is refused **422**. A student who has worked with more than one and sends none is refused 422 as well — it is a question to ask, not one the server may answer for them. Stored on the complaint itself, so a case closing or being reassigned never rewrites who it was about.
              */
-            consultancy_id?: components["schemas"]["UUID"] | null;
+            consultancy_id: components["schemas"]["UUID"] | null;
             /** @description The student's current phone, from their profile. Support queue only. */
             readonly phone?: string | null;
             /** @description Who on the support team picked this up (2026-09-11). Support queue only — omitted for the student. */
@@ -26447,43 +26700,43 @@ export interface components {
             readonly picked_up_at?: string | null;
             readonly resolved_by_name?: string | null;
             /** Format: date-time */
-            readonly resolved_at?: string | null;
+            readonly resolved_at: string | null;
             /** @description Set once the complaint is escalated to a dispute (or attached to one already open on the case). */
-            readonly dispute_id?: components["schemas"]["UUID"] | null;
+            readonly dispute_id: components["schemas"]["UUID"] | null;
             /** @enum {string|null} */
             readonly dispute_status?: "open" | "resolved" | null;
             readonly note_count?: number;
             /** Format: date-time */
             readonly last_note_at?: string | null;
             id: components["schemas"]["UUID"];
-            user_id?: components["schemas"]["UUID"];
+            user_id: components["schemas"]["UUID"];
             /** @description Resolved server-side for the admin queue. */
-            readonly student_name?: string;
-            readonly email?: string;
+            readonly student_name: string;
+            readonly email: string;
             /** @enum {string} */
             category: "consultancy_dispute" | "payment_issue" | "app_problem" | "other";
             description: string;
             /** @description The student's active journey at submission time, attached automatically (read-only context for the admin — the student never picks it). */
-            journey_id?: components["schemas"]["UUID"] | null;
+            journey_id: components["schemas"]["UUID"] | null;
             /** @description Name of the consultancy on the attached journey, resolved server-side. */
-            readonly consultancy_name?: string | null;
+            readonly consultancy_name: string | null;
             /** @enum {string} */
             status: "open" | "in_review" | "resolved";
             /** @description Mandatory when moving to resolved; null before that. */
-            resolution_note?: string | null;
+            resolution_note: string | null;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
-            updated_at?: string | null;
+            updated_at: string | null;
             /**
              * @description How the student asked to be reached about this complaint.
              * @enum {string|null}
              */
-            preferred_contact_mode?: "call" | "email" | null;
+            preferred_contact_mode: "call" | "email" | null;
             /** @description Resolved server-side from the student's profile — their phone for `call`, their email for `email` — so Support has the actual contact detail without a second lookup. */
-            readonly preferred_contact_value?: string | null;
+            readonly preferred_contact_value: string | null;
             /** @description True when this complaint also raised a consultancy-change request on the Applicant Allocation queue. */
-            readonly consultancy_change_requested?: boolean;
+            readonly consultancy_change_requested: boolean;
         };
         /** @description A file a consultancy shared with one of the student's cases (2026-09-10). */
         SharedDocument: {
@@ -26611,6 +26864,7 @@ export interface components {
             id: components["schemas"]["UUID"];
             /** @description Added 2026-08-19 alongside the first "an action also notifies someone" mechanism (awardPoints() crediting Sentpo points) — which user this notification belongs to. */
             user_id?: components["schemas"]["UUID"];
+            /** @description The notification catalogue's template key (not enumerated here — the catalogue grows with every wave). Gate 11 adds `commission_payment_confirmed` (F16): sent to `consultancy_billing` when Finance confirms a declared payment at the declared amount (a different amount already sent `payment_amount_changed`; this was the silent gap — confirming the exact figure told nobody). */
             type: string;
             /**
              * @description Which notification-settings toggle row governs this notification's email/push delivery (notification-settings enforcement, 2026-08-20; `jobs`/`billing`/`account` and `rewards` added contract gate 9 — the mock already emitted `jobs` as `job_alert`'s category before the enum here caught up, and a generated client that does not know a value it receives can fail to decode the whole row). Wording corrected per assumptions audit C14 (2026-09-19): null does NOT mean "every channel" — `category` is now required at every server-side `notify()` call site, and a null value here means either a row from before that requirement, or (per C14) a genuinely uncategorised call, which defaults to in-app only, never email or push. The in-app feed always receives every notification regardless of category — see `channels` below — so "in-app only" and "never delivered" are not the same thing. `blog` (added 2026-08-20, user "we want push notification too") is the odd one out — in-app + push gated by the single `blog_push` switch, never email. `rewards` (owner Q4, 2026-09-27) covers points-earned and coupon-redeemed notices, push-enabled by default; the daily-login points award is deliberately NOT gated by it — it stays in-app only regardless of any toggle.
@@ -27264,6 +27518,11 @@ export interface components {
             dormant_days?: number | null;
         };
         MarketingOverview: {
+            /**
+             * Format: date-time
+             * @description When the rollups behind this view were last refreshed (gate 12, Q7 — hourly). Null on the frozen mock, which computes everything live.
+             */
+            readonly as_of?: string | null;
             window_days: number;
             points: {
                 issued: number;
@@ -27731,18 +27990,18 @@ export interface components {
             /** @enum {string} */
             payer_method: "college" | "applicant" | "split";
             /** @enum {string} */
-            case_type?: "student" | "pr";
-            college_name?: string | null;
+            case_type: "student" | "pr";
+            college_name: string | null;
             /** @description The platform's due for this entry (INR, snapshotted at acceptance). */
             amount: components["schemas"]["Money"];
             /** @description INR-normalized agreed total for the case. */
-            expected_total?: components["schemas"]["Money"];
+            expected_total: components["schemas"]["Money"];
             /** @description INR-normalized installments received by the consultancy so far. */
-            received_total?: components["schemas"]["Money"];
+            received_total: components["schemas"]["Money"];
             /** Format: double */
-            rate_percent?: number;
+            rate_percent: number;
             /** @enum {string} */
-            rate_source?: "configured" | "fallback_default";
+            rate_source: "configured" | "fallback_default";
             /** @description Days after a part falls due within which it is payable — snapshotted from the platform defaults at acceptance (2026-09-19, assumptions audit C12), exactly as `rate_percent` is. Before this the live default was read at render time, so shortening the terms moved every existing case's due dates backwards and fired overdue signals on money that was not late the day before. */
             payment_terms_days?: number;
             /** Format: date-time */
@@ -27795,26 +28054,26 @@ export interface components {
              * @description invited until they accept the email invite and set a password (2026-09-11).
              * @enum {string}
              */
-            readonly status?: "invited" | "active" | "deactivated";
+            readonly status: "invited" | "active" | "deactivated";
             /** @description Their share, in %, of the commission immiNow collects on cases they bring. Null until set. */
-            readonly rate?: number | null;
-            readonly referrals?: number;
+            readonly rate: number | null;
+            readonly referrals: number;
             /** @description Their share of the commission immiNow has confirmed collecting on their cases. */
-            readonly earned_inr?: number;
-            readonly paid_inr?: number;
-            readonly owed_inr?: number;
+            readonly earned_inr: number;
+            readonly paid_inr: number;
+            readonly owed_inr: number;
             /** Format: date-time */
-            readonly last_referral_at?: string | null;
+            readonly last_referral_at: string | null;
             /** Format: date-time */
-            readonly invited_at?: string | null;
+            readonly invited_at: string | null;
             /** Format: date-time */
-            readonly joined_at?: string | null;
+            readonly joined_at: string | null;
             id: components["schemas"]["UUID"];
             readonly name: string;
             /** Format: email */
             readonly email: string;
             /** @description The code a student types at signup to be attributed to this freelancer. Stops attributing the moment the account is deactivated. */
-            readonly referral_code?: string;
+            readonly referral_code: string;
             active: boolean;
         };
         /** @description The freelancer's share, in %, of the commission immiNow actually COLLECTS on a case they brought (user, 2026-09-11). Not a % of the case fee: the Freelancer % on Commission Rates is what immiNow charges the consultancy for a freelancer-brought case, and this is what immiNow passes on from what it receives — so a payout can never exceed what came in. */
@@ -27846,19 +28105,19 @@ export interface components {
             id: components["schemas"]["UUID"];
             referral_id: components["schemas"]["UUID"];
             freelancer_id: components["schemas"]["UUID"];
-            readonly freelancer_name?: string;
-            readonly applicant_name?: string | null;
+            readonly freelancer_name: string;
+            readonly applicant_name: string | null;
             amount_inr: number;
             /** Format: date */
             paid_on: string;
-            reference?: string | null;
-            readonly recorded_by_name?: string | null;
+            reference: string | null;
+            readonly recorded_by_name: string | null;
             /** Format: date-time */
             recorded_at: string;
             /** Format: date-time */
-            voided_at?: string | null;
-            void_reason?: string | null;
-            voided_by_name?: string | null;
+            voided_at: string | null;
+            void_reason: string | null;
+            voided_by_name: string | null;
         };
         /** @description The freelancer's own totals across ALL their referrals (2026-09-12) — not narrowed by the list's filters, so tiles and chip counts stay put while filtering. */
         FreelancerReferralSummary: {
@@ -27907,11 +28166,12 @@ export interface components {
             /** @description rate_percent of collected_inr. */
             readonly earned_inr?: number;
             readonly paid_inr?: number;
+            /** @description May be negative (gate 12, F10/F48 — "overpaid") after a correction or a rejection undoes money already paid out; never clawed back automatically. */
             readonly owed_inr?: number;
             /** @description rate_percent of what immiNow is due on the case, once all of it is collected. */
             readonly expected_share_inr?: number | null;
             /**
-             * @description not_due until immiNow has confirmed receiving commission on the case (user, 2026-09-11); owed while earned exceeds paid; paid once every earned rupee has been paid out.
+             * @description not_due until immiNow has confirmed receiving commission on the case (user, 2026-09-11); owed while earned exceeds paid; paid once every earned rupee has been paid out. Not required (gate 12, item 8) — PATCH /freelancer-referrals/{id}'s 200 is the bare row (id/journey_id/applicant_name/status/payment_status/created_at only); this and the other money/stage fields appear on the two GET reads.
              * @enum {string}
              */
             readonly payout_status?: "not_due" | "owed" | "paid";
@@ -27932,19 +28192,23 @@ export interface components {
             payment_status: "owed" | "paid";
             /** @description Present only once the referred journey has an ACTIVE commission entry. The freelancer's entire money view — their own cut (their FreelancerRate % of the case's expected total, INR-normalized). The case's total commission, the consultancy's rate, and the platform's take are deliberately never exposed here. */
             readonly commission?: {
-                course_name?: string | null;
-                college_name?: string | null;
+                course_name: string | null;
+                college_name: string | null;
                 /** @description Null when no FreelancerRate row exists yet (rate_missing true). */
-                your_cut?: components["schemas"]["Money"] | null;
+                your_cut: components["schemas"]["Money"] | null;
                 /** @description True when immiNow has not configured this freelancer's rate — surfaced on the payouts page rather than silently showing zero. */
-                rate_missing?: boolean;
+                rate_missing: boolean;
             } | null;
             /** Format: date-time */
             created_at: string;
         };
         InvoiceLineItem: {
+            /** @description Trimmed (gate 11, F3). */
             description: string;
-            /** Format: double */
+            /**
+             * Format: double
+             * @description Major units, rounded to the currency's own exponent (gate 11, F3) — numeric(18,3) on the production backend, ISO 4217 minor-unit digits applied on write.
+             */
             amount: number;
         };
         Invoice: {
@@ -27955,52 +28219,52 @@ export interface components {
             applicant_name?: string;
             amount: components["schemas"]["Money"];
             /**
-             * @description Derived on every read from the receipts recorded against the invoice (console review C4, 2026-09-13): sent (nothing recorded), part_paid (some, less than the total), paid (total or more). draft and void are stored states.
+             * @description sent and void are stored (gate 11, F2: only these two are ever written); part_paid and paid are derived on every read from the receipts recorded against the invoice (console review C4, 2026-09-13): part_paid (some receipts, less than the total), paid (total or more). draft and overdue dropped (gate 11) — neither was ever stored or computed; an invoice has no due date to be overdue against.
              * @enum {string}
              */
-            status: "sent" | "paid" | "overdue" | "void" | "part_paid";
-            paid_amount?: components["schemas"]["Money"];
-            balance_due?: components["schemas"]["Money"];
-            line_items?: components["schemas"]["InvoiceLineItem"][];
-            void_reason?: string | null;
+            status: "sent" | "part_paid" | "paid" | "void";
+            paid_amount: components["schemas"]["Money"];
+            balance_due: components["schemas"]["Money"];
+            line_items: components["schemas"]["InvoiceLineItem"][];
+            void_reason: string | null;
             /** Format: date-time */
             created_at: string;
         };
         Receipt: {
             id: components["schemas"]["UUID"];
             invoice_id: components["schemas"]["UUID"];
-            invoice_number?: string;
+            invoice_number: string;
             applicant_name?: string;
             amount: components["schemas"]["Money"];
             /** @enum {string} */
             status: "recorded" | "void";
-            void_reason?: string | null;
+            void_reason: string | null;
             /** Format: date-time */
             recorded_at: string;
         };
         /** @description Commission Details' itemized rows (reworked 2026-08-28) — one per ACTIVE commission entry of the caller's consultancy. This is the tier where the platform's cut IS visible (`billing.view_commission_details`); the per-applicant Commissions tab deliberately omits it. Totals that mix currencies (college fee currency + student currency) are normalized to INR via the platform exchange rates, same pivot the course catalog uses. */
         CommissionDue: {
             /** @description University accounts only — the tuition fee their share is taken on. */
-            readonly tuition_fee?: components["schemas"]["Money"] | null;
+            readonly tuition_fee: components["schemas"]["Money"] | null;
             /** @description immiNow's share not due yet, in INR (with approx). */
-            readonly platform_expected?: components["schemas"]["Money"];
+            readonly platform_expected: components["schemas"]["Money"];
             /** @description What has fallen due and is not yet paid, in INR (with approx). */
-            readonly platform_outstanding?: components["schemas"]["Money"];
-            readonly by_currency?: components["schemas"]["CommissionCurrencyTotals"][];
+            readonly platform_outstanding: components["schemas"]["Money"];
+            readonly by_currency: components["schemas"]["CommissionCurrencyTotals"][];
             /** Format: date-time */
-            readonly accepted_at?: string;
-            readonly case_closed?: boolean;
-            readonly overdue_inr?: number;
+            readonly accepted_at: string;
+            readonly case_closed: boolean;
+            readonly overdue_inr: number;
             /** Format: date */
-            readonly next_due_on?: string | null;
+            readonly next_due_on: string | null;
             /** @description What is due when and why (2026-09-11) — the original amount and any added by immiNow. */
-            readonly due_schedule?: components["schemas"]["CommissionDuePart"][];
+            readonly due_schedule: components["schemas"]["CommissionDuePart"][];
             id: components["schemas"]["UUID"];
             journey_id: components["schemas"]["UUID"];
             applicant_name: string;
             /** @description Null for PR entries. */
-            college_name?: string | null;
-            course_name?: string | null;
+            college_name: string | null;
+            course_name: string | null;
             /** @enum {string} */
             case_type: "student" | "pr";
             /** @enum {string} */
@@ -28028,7 +28292,7 @@ export interface components {
              * Format: date-time
              * @description When the case closed as a success — what makes the share due. Null while open (2026-09-11; it carried the acceptance date before, now accepted_at).
              */
-            recognized_at: string;
+            recognized_at: string | null;
         };
         /** @description The platform's cut when no Commission Rates row covers a case (2026-09-11). Consultancies default to 25% of what the consultancy earns on the case; universities, which pay the platform directly, default to 10% of the tuition fee (Wave 3 correction, 2026-09-27: this description previously said 2.5%, contradicting `consultancy_percent`'s own field description and the backend, both 25 since 2026-09-11 — 2.5% was always the stale value). A change prices cases accepted from then on; accepted cases keep their rate and carry rate_source fallback_default. */
         CommissionDefaults: {
@@ -28070,9 +28334,9 @@ export interface components {
         };
         FinanceSummary: {
             /** @description immiNow's share not due yet across every case (open cases, college money not arrived). */
-            expected_share_inr?: number;
+            expected_share_inr: number;
             /** @description Unpaid money past its due date, across every case. */
-            overdue_inr?: number;
+            overdue_inr: number;
             /** @description Every active case's platform due, less what has been confirmed. */
             outstanding_inr: number;
             awaiting: {
@@ -28087,7 +28351,7 @@ export interface components {
             consultancies_owing: number;
             payment_followups: number;
             /** @description What the open payment follow-ups are worth (review H5, 2026-09-12). */
-            payment_followups_pending_inr?: number;
+            payment_followups_pending_inr: number;
             /** @description Confirmed payments per calendar month, the last 12 months, oldest first. */
             revenue_by_month: {
                 /** @example 2026-09 */
@@ -28103,52 +28367,52 @@ export interface components {
             paid_inr: number;
             awaiting_inr: number;
             outstanding_inr: number;
-            oldest_unpaid_days?: number | null;
+            oldest_unpaid_days: number | null;
         };
         FinanceCaseRow: {
             /** @description Parts Finance closed without payment, in INR. */
-            readonly waived_inr?: number;
+            readonly waived_inr: number;
             /**
              * Format: date-time
              * @description When the college was accepted (the commission entry was created).
              */
-            readonly accepted_at?: string;
+            readonly accepted_at: string;
             /** @description The case closed as a success — what makes anything due. */
-            readonly case_closed?: boolean;
+            readonly case_closed: boolean;
             /** @description University accounts only — the fee their share is taken on. */
-            readonly tuition_fee?: components["schemas"]["Money"] | null;
+            readonly tuition_fee: components["schemas"]["Money"] | null;
             /** @description immiNow's share not due yet (case still open, or college money not arrived), in INR. */
-            readonly expected_share_inr?: number;
+            readonly expected_share_inr: number;
             /** Format: date */
-            readonly oldest_unpaid_since?: string | null;
-            readonly by_currency?: components["schemas"]["CommissionCurrencyTotals"][];
+            readonly oldest_unpaid_since: string | null;
+            readonly by_currency: components["schemas"]["CommissionCurrencyTotals"][];
             /** @description immiNow's whole share as calculated at acceptance, in INR at that day's rates. Reference only. */
-            readonly calculated_due_inr?: number;
+            readonly calculated_due_inr: number;
             /** @description Unpaid money on parts whose due date has passed. Undated parts are never overdue. */
-            readonly overdue_inr?: number;
+            readonly overdue_inr: number;
             /** Format: date */
-            readonly next_due_on?: string | null;
-            readonly due_schedule?: components["schemas"]["CommissionDuePart"][];
+            readonly next_due_on: string | null;
+            readonly due_schedule: components["schemas"]["CommissionDuePart"][];
             /** @description Every change Finance made to this case's due, newest first, removed ones included. */
-            readonly due_changes?: components["schemas"]["CommissionDueChange"][];
+            readonly due_changes: components["schemas"]["CommissionDueChange"][];
             id: components["schemas"]["UUID"];
             journey_id: components["schemas"]["UUID"];
             consultancy_id: components["schemas"]["UUID"];
             consultancy_name: string;
             applicant_name: string;
-            destination_country?: string | null;
-            payer_method?: string | null;
-            case_type?: string | null;
-            college_name?: string | null;
-            rate_percent?: number | null;
-            rate_source?: string | null;
+            destination_country: string | null;
+            payer_method: string | null;
+            case_type: string | null;
+            college_name: string | null;
+            rate_percent: number | null;
+            rate_source: string | null;
             /**
              * Format: date-time
              * @description When the case closed as a success, which is what makes the share due (2026-09-11). Null while open. It carried the acceptance date before; that is accepted_at now.
              */
-            recognized_at: string;
-            expected_total_inr?: number;
-            received_total_inr?: number;
+            recognized_at: string | null;
+            expected_total_inr: number;
+            received_total_inr: number;
             /** @description What has fallen due, in INR at today's rates (the parts are owed in their own currencies). */
             due_inr: number;
             paid_inr: number;
@@ -28163,114 +28427,116 @@ export interface components {
         /** @description immiNow's share on one case in one currency (2026-09-11). Money is owed in the currency it arrives in. */
         CommissionCurrencyTotals: {
             /** @description Closed by Finance without payment. */
-            waived?: number;
-            currency?: string;
+            waived: number;
+            currency: string;
             /** @description Parts that have fallen due (the case closed as a success; college money as it arrived). */
-            due?: number;
+            due: number;
             /** @description Parts not due yet — the case is still open, or the college has not paid that money yet. */
-            expected?: number;
+            expected: number;
             /** @description Confirmed payments in this currency. */
-            paid?: number;
-            outstanding?: number;
-            overdue?: number;
+            paid: number;
+            /** @description Confirmed money in this currency beyond what any due part is still owed (gate 11, F10) — an accepted overpayment, never clawed back automatically. Absent/null on the frozen mock, which has no overpayment ledger yet; the production backend always reports it, 0 when there is none. */
+            credit?: number | null;
+            outstanding: number;
+            overdue: number;
         };
         /** @description One part of immiNow's share on a case (2026-09-11), in the currency the money arrives in. Nothing falls due until the case closes as a success; the student's part and a university's tuition part fall due at close; the college's part falls due per instalment the consultancy records (on arrival or at close, whichever is later), the rest of it showing as expected. A part is payable within the payment terms of falling due. Confirmed payments settle parts earliest-due first; a payment in another currency is converted through INR. */
         CommissionDuePart: {
             /** @description Stable id of the part (2026-09-11) — what receive and waive refer to. */
-            key?: string;
-            waived_amount?: number | null;
+            key: string;
+            waived_amount: number | null;
             /** @description Set when Finance closed the part without payment. */
-            waived_reason?: string | null;
-            waived_by_name?: string | null;
+            waived_reason: string | null;
+            waived_by_name: string | null;
             /** Format: date-time */
-            waived_at?: string | null;
+            waived_at: string | null;
             /** @description Pass to /commission-entries/{id}/dues/{changeId}/void to reopen the part. */
-            waive_change_id?: components["schemas"]["UUID"] | null;
-            /** @description The instalment, override or added amount this part comes from; null for a calculated part. */
-            id?: components["schemas"]["UUID"] | null;
+            waive_change_id: components["schemas"]["UUID"] | null;
+            /** @description A durable id for this due part (gate 11, F9 — every part is its own `commission_dues` row once the dues engine lands, never recomputed from scratch). The instalment, override or added row this part comes from. Still null on the frozen mock for a purely-calculated part with nothing triggering it (a share worked out fresh on every read, with no row of its own to point at) — the production backend gives every part an id, calculated ones included. */
+            id: components["schemas"]["UUID"] | null;
             /** @enum {string} */
-            kind?: "calculated" | "override" | "added";
+            kind: "calculated" | "override" | "added";
             /** @enum {string|null} */
-            source?: "student" | "student_instalment" | "student_expected" | "college_instalment" | "college_expected" | "tuition" | null;
-            currency?: string;
-            amount?: number;
+            source: "student" | "student_instalment" | "student_expected" | "college_instalment" | "college_expected" | "tuition" | null;
+            currency: string;
+            amount: number;
             /**
              * Format: date
              * @description When the part fell due. Null while it is only expected.
              */
-            triggered_on?: string | null;
+            triggered_on: string | null;
             /**
              * Format: date
              * @description The date it must be paid by — triggered_on plus the payment terms, or a date Finance set.
              */
-            due_on?: string | null;
-            reason?: string | null;
+            due_on: string | null;
+            reason: string | null;
             /** @description Finance view only. */
             added_by_name?: string | null;
             /** Format: date-time */
-            added_at?: string;
+            added_at: string;
             /** Format: date */
-            instalment_received_on?: string | null;
+            instalment_received_on: string | null;
             /** @description The college instalment this part is a share of, as the consultancy recorded it. */
-            instalment_amount?: components["schemas"]["Money"] | null;
-            paid?: number;
-            outstanding?: number;
+            instalment_amount: components["schemas"]["Money"] | null;
+            paid: number;
+            outstanding: number;
             /** @enum {string} */
-            status?: "expected" | "due" | "overdue" | "paid" | "waived";
+            status: "expected" | "due" | "overdue" | "paid" | "waived";
         };
         /** @description A change Finance made to a case's share, with who and why (2026-09-11): an amount added, or an override of the calculated share. Removed ones stay listed. */
         CommissionDueChange: {
             /** @description The part a waived change closed. */
-            part_key?: string | null;
-            id?: components["schemas"]["UUID"];
+            part_key: string | null;
+            id: components["schemas"]["UUID"];
             /**
              * @description original_changed is an override of the calculated share.
              * @enum {string}
              */
-            kind?: "added" | "original_changed" | "waived";
-            amount?: number;
-            currency?: string;
+            kind: "added" | "original_changed" | "waived";
+            amount: number;
+            currency: string;
             /** Format: date */
-            due_on?: string | null;
+            due_on: string | null;
             /** @description The override this one replaced; null when it replaced the calculation. */
-            previous_amount?: number | null;
-            previous_currency?: string | null;
-            reason?: string;
-            changed_by_name?: string | null;
+            previous_amount: number | null;
+            previous_currency: string | null;
+            reason: string;
+            changed_by_name: string | null;
             /** Format: date-time */
-            changed_at?: string;
+            changed_at: string;
             /** Format: date-time */
-            voided_at?: string | null;
-            void_reason?: string | null;
-            voided_by_name?: string | null;
+            voided_at: string | null;
+            void_reason: string | null;
+            voided_by_name: string | null;
         };
         /** @description A platform payment declared against ONE commission entry's due (reworked 2026-08-28 — "consultant click on the due transaction and enter the amount"). Legacy pooled payments recorded before this change carry a null commission_entry_id and show as "General" rather than against any one case. No proof upload is required or accepted; the optional transaction_id is the consultant's own bank/UPI reference, for their own bookkeeping — confirmation by immiNow finance is what actually settles the due. */
         CommissionPayment: {
             /** @description Recorded directly by immiNow Finance (money that arrived without a declaration). */
-            readonly recorded_by_finance?: boolean;
+            readonly recorded_by_finance: boolean;
             /** Format: date */
-            readonly received_on?: string | null;
+            readonly received_on: string | null;
             /** @description The part key this payment was recorded against; it settles that part first. */
-            readonly applies_to?: string | null;
+            readonly applies_to: string | null;
             /** @description The amount in MINOR UNITS — the stored fact (assumptions audit M15, product owner 2026-09-19). A received amount used to be `Math.round`ed to whole units, so CAD 1,240.60 was recorded as 1,241 and CAD 1,240.40 as 1,240; over a year of settlements that is real money, and it was invisible because the number looked exact. `amount` above is derived from this. A client totalling or comparing received money works from here, never from the floating-point major-unit figure. */
-            readonly amount_minor?: number;
+            readonly amount_minor: number;
             /** @description ISO 4217 minor-unit exponent for `currency` — 2 for most, 0 for JPY/KRW/VND and the other zero-decimal currencies, 3 for the Gulf dinars. `amount = amount_minor / 10^n`. */
-            readonly currency_exponent?: number;
+            readonly currency_exponent: number;
             /** @description The INR-per-unit rate this settlement was valued at, FROZEN onto the row when the payment was declared (assumptions audit M15, product owner 2026-09-19). Cross-currency settlement used to convert at today's rate on every read, so which part of a due a payment settled changed retroactively whenever an admin edited the rate table. Null only on a row written before 2026-09-19. */
-            readonly rate_used?: number | null;
+            readonly rate_used: number | null;
             /**
              * Format: date-time
              * @description When the rate in `rate_used` was set — so a disputed ₹ figure can be explained rather than argued about.
              */
-            readonly rate_as_of?: string | null;
+            readonly rate_as_of: string | null;
             /** @description The payment's INR value at `rate_used`, fixed when it was DECLARED (assumptions audit M15, product owner 2026-09-19 — it used to be re-fixed at confirm, which put revenue on whichever day Finance ticked the box). Recomputed only when the AMOUNT changes, and always at the frozen rate. Revenue and freelancer shares count this. */
-            readonly amount_inr?: number;
+            readonly amount_inr: number;
             /** @description What the consultancy declared, when Finance recorded a different amount received (2026-09-11). `amount` is always what actually arrived; every total counts that. */
-            readonly declared_amount?: components["schemas"]["Money"] | null;
+            readonly declared_amount: components["schemas"]["Money"] | null;
             /** @description Why the amount received differs from the declaration. */
-            readonly received_note?: string | null;
+            readonly received_note: string | null;
             /** @description Changes to the received amount after confirmation, oldest first. */
-            readonly corrections?: {
+            readonly corrections: {
                 id?: components["schemas"]["UUID"];
                 from_amount?: number;
                 to_amount?: number;
@@ -28280,44 +28546,44 @@ export interface components {
                 corrected_at?: string;
             }[];
             /** @description Who confirmed it (2026-09-11). */
-            readonly confirmed_by_name?: string | null;
+            readonly confirmed_by_name: string | null;
             /** Format: date-time */
-            readonly rejected_at?: string | null;
-            readonly rejected_by_name?: string | null;
+            readonly rejected_at: string | null;
+            readonly rejected_by_name: string | null;
             /** @description Why Finance turned the declaration down; the consultancy is shown it. */
-            readonly reject_reason?: string | null;
+            readonly reject_reason: string | null;
             /** @description What the linked case still owes the platform after confirmed payments. Null for legacy pooled payments. */
-            readonly entry_outstanding_inr?: number | null;
+            readonly entry_outstanding_inr: number | null;
             /** @description The same outstanding, in the PAYMENT's currency (assumptions audit H14, 2026-09-19), so the confirm screen compares like with like instead of deriving a rate from amount_inr / declared amount — which was 0 whenever amount_inr was missing. */
-            readonly entry_outstanding?: components["schemas"]["Money"] | null;
+            readonly entry_outstanding: components["schemas"]["Money"] | null;
             id: components["schemas"]["UUID"];
             /**
              * Format: uuid
              * @description Which consultancy declared the payment — the Finance Dashboard's confirm queue needs to say who.
              */
-            readonly consultancy_id?: string;
-            readonly consultancy_name?: string;
+            readonly consultancy_id: string;
+            readonly consultancy_name: string;
             /**
              * Format: uuid
              * @description Which case's due this payment is declared against. Null for legacy pooled payments recorded before per-case linking.
              */
-            readonly commission_entry_id?: string | null;
+            readonly commission_entry_id: string | null;
             /**
              * Format: uuid
              * @description The linked entry's client journey — lets a UI link the payment back to the applicant's profile. Derived server-side from commission_entry_id; null for legacy pooled payments (shown as "General").
              */
-            readonly journey_id?: string | null;
+            readonly journey_id: string | null;
             /** @description The linked entry's journey student name — convenience for both history views. Null when commission_entry_id is null (shown as "General"). */
-            readonly applicant_name?: string | null;
+            readonly applicant_name: string | null;
             amount: components["schemas"]["Money"];
             /** @description Optional consultant-supplied bank/UPI reference. Not verified — no proof upload is required. */
-            transaction_id?: string | null;
+            transaction_id: string | null;
             /** @enum {string} */
             status: "declared" | "confirmed" | "rejected";
             /** Format: date-time */
             recorded_at: string;
             /** Format: date-time */
-            confirmed_at?: string | null;
+            confirmed_at: string | null;
         };
         /** @description Append-only change log (build reference 1.24). One entry per create/update/ delete on a core entity, plus mandatory-reason entries for sensitive actions. Shared by the consultancy-scoped Audit Log (build reference 2.2) and the platform-wide one (build reference 1.23) — the latter adds a `consultancy_id` filter over the same shape. */
         AuditLogEntry: {
@@ -28360,17 +28626,17 @@ export interface components {
              * @description Null for a student who signed up with a phone number only, so it is not required (REVIEW_TRIAGE item 17, 2026-09-24).
              */
             email?: string | null;
-            phone?: string | null;
+            phone: string | null;
             /** @description Where an under-18 student stands with their guardian, so a Support agent can see whether resending the link is the right move before they do it (2026-09-05). Null for every non-student; `not_required` for a student aged 18 or over. */
             readonly guardian_consent?: components["schemas"]["GuardianConsent"] | null;
             /** @enum {string} */
             role: "student" | "consultancy_admin" | "consultant" | "super_admin" | "platform_staff" | "freelancer";
             /** @description Student results only — their current journey's status, if any. */
-            case_stage?: string | null;
+            case_stage: string | null;
             /** @description Student results only — set when they have an active journey, needed to drive the consultancy-switch action. */
-            journey_id?: components["schemas"]["UUID"];
+            journey_id: components["schemas"]["UUID"];
             /** @description Staff/freelancer results — their own consultancy, or null for platform staff. */
-            consultancy_name?: string | null;
+            consultancy_name: string | null;
         };
         /** @description Super Admin or Platform Staff account (build reference 1.15/1.23). Super Admin has every flag permanently on and unremovable; Platform Staff has individually configurable flags. */
         PlatformStaff: {
@@ -28520,7 +28786,7 @@ export interface components {
         /** @description One row of GET /admin/users/sentpo (docs/PROGRESS.md §4 Step 3) — students only. Never blended with ImminowUserDirectoryRow; product is derived server-side the same way analytics events are (build reference "never blend the two populations"). */
         SentpoUserDirectoryRow: {
             /** @description How much of their profile the student has filled in (2026-09-11) — the number the app shows them. Sort on it; filter[profile]=under_50|50_to_99|complete. */
-            profile_completion_percent?: number;
+            profile_completion_percent: number;
             id: components["schemas"]["UUID"];
             name: string;
             /** Format: email */
@@ -28539,14 +28805,14 @@ export interface components {
              * Format: date-time
              * @description When the student last used the app (see User.last_active_at).
              */
-            last_active_at?: string | null;
+            last_active_at: string | null;
             /**
              * @description The app the student last opened (2026-09-03); null until the app has reported once. filter[platform]=android|ios|web|unknown.
              * @enum {string|null}
              */
-            platform?: "android" | "ios" | "web" | null;
+            platform: "android" | "ios" | "web" | null;
             /** @description Version string the student last reported with `platform`. */
-            app_version?: string | null;
+            app_version: string | null;
             /**
              * @description 1 = pre-commit (exploring or awaiting_match), 2 = committed to a consultancy. Same derivation GET /journeys/me already uses.
              * @enum {integer}
@@ -28555,7 +28821,7 @@ export interface components {
             /** @description exploring | awaiting_match | one of the Journey status enum values. */
             journey_status: string;
             /** @description Null until the student commits (journey_stage 2). */
-            consultancy_name?: string | null;
+            consultancy_name: string | null;
             points_balance: number;
         };
         /** @description One row of GET /admin/users/imminow (docs/PROGRESS.md §4 Step 3) — every consultancy's employees plus platform staff, distinguished by `kind` so the two never blend in the UI either. */
@@ -28567,30 +28833,30 @@ export interface components {
             /** Format: email */
             email: string;
             /** @description Null for platform_staff rows. */
-            consultancy_name?: string | null;
+            consultancy_name: string | null;
             /** @description Employee designation name for consultancy_staff; "Super Admin" or "Platform Staff" for platform_staff. */
-            designation?: string | null;
+            designation: string | null;
             active: boolean;
             /**
              * Format: date-time
              * @description From the matching invites row (matched by email), when one exists. Null for accounts created before the invite system or seeded directly.
              */
-            invited_at?: string | null;
+            invited_at: string | null;
             /** Format: date-time */
-            accepted_at?: string | null;
+            accepted_at: string | null;
             /** Format: date-time */
-            last_login_at?: string | null;
+            last_login_at: string | null;
         };
         /** @description Consultancy-scoped usage analytics (docs/PROGRESS.md §4 Step 4) computed server-side from analytics_events/status_transitions/leads/journeys — never a client-supplied value. Capture began 2026-08-25, so every field renders honestly with near-zero history instead of a fabricated number; `collecting_since` is what the UI shows instead of a bare `0` while volume is low. Tenant-scoped the same way every other field on DashboardSummary is. */
         DashboardAnalytics: {
             /** Format: date-time */
             collecting_since: string;
             /** @description Median hours from a lead's created_at to the first sender=consultant message on that lead's conversation, within the current scope. Null when nothing in scope has a consultant reply yet. */
-            response_time_median_hours?: number | null;
+            response_time_median_hours: number | null;
             /** @description Age in whole days of the oldest open lead whose last message is the student's (console review M19, 2026-09-13); null when every lead has been answered. The median above counts only leads that got a reply. */
-            oldest_unanswered_lead_days?: number | null;
+            oldest_unanswered_lead_days: number | null;
             /** @description Median days from lead created_at to its lead->converted status_transitions row. Null with no conversions yet in scope. */
-            conversion_median_days?: number | null;
+            conversion_median_days: number | null;
             /** @description This consultancy's committed (Stage-2) students, bucketed by last_active_at recency (last_login_at before 2026-09-10); `never_logged_in` means never active in the app (labelled "Never active"). All four buckets are always present, even at 0, so the UI never has to guess the vocabulary. */
             active_student_engagement: {
                 /** @enum {string} */
@@ -28600,6 +28866,11 @@ export interface components {
         };
         /** @description Platform-wide market intelligence (docs/PROGRESS.md §4 Step 4). Demand is read from student_preferences (target_country/fields_of_interest, one of each per student since 2026-09-19 — assumptions audit M8, so a student is counted once); supply is read from consultancies.countries_served plus seat usage. `mismatch` is the actionable table: countries with real student demand and little or no consultancy coverage. */
         SupplyDemandResponse: {
+            /**
+             * Format: date-time
+             * @description When the rollups behind this view were last refreshed (gate 12, Q7 — hourly). Null on the frozen mock, which computes everything live.
+             */
+            readonly as_of?: string | null;
             /** @description Supply at a glance (2026-09-10): how many countries have `coverage: none` in `coverage_by_country` (students want it or are heading there, and no organisation that can take new students serves it), and seat usage across ACTIVE consultancies and institutes (active employees vs summed seat limits; `pct` null when no seats). */
             supply_summary: {
                 countries_without_coverage: number;
@@ -28808,6 +29079,11 @@ export interface components {
         PlatformPulseResponse: {
             /**
              * Format: date-time
+             * @description When the rollups behind this view were last refreshed (gate 12, Q7 — hourly). Null on the frozen mock, which computes everything live.
+             */
+            readonly as_of?: string | null;
+            /**
+             * Format: date-time
              * @description The earliest analytics_events row on record (not a fixed constant the way SupplyDemandResponse's is — this endpoint's sparsest lists, top_search_countries/ top_search_fields especially, need an honest answer to "since when").
              */
             collecting_since: string;
@@ -28884,22 +29160,22 @@ export interface components {
             /** @description Leads Sentpo sent this account inside the window. Leads the account added or imported itself are not counted (2026-09-11). */
             leads_received: number;
             /** @description Of the window's Sentpo leads that can be judged, the percent whose first staff reply came within `thresholds.slow_response_hours`. An active lead with no reply after that long is a miss; a lead with no reply that was converted or closed anyway is left out, as is one still inside its first 48 hours. Null when nothing can be judged yet. */
-            responded_within_percent?: number | null;
+            responded_within_percent: number | null;
             /** @description Median hours to the first staff reply, over the window's Sentpo leads that got one. */
-            response_time_median_hours?: number | null;
+            response_time_median_hours: number | null;
             /** @description The window's Sentpo leads that are converted or closed. */
             leads_decided: number;
             /** @description Converted over decided leads (`leads_decided`), so leads still being worked do not drag it down. Null when none are decided. */
-            conversion_rate_percent?: number | null;
+            conversion_rate_percent: number | null;
             /** @description Open applicant cases as of today — the same definition as Manage Consultancies and the Dashboard. */
             active_applicants: number;
             /** @description Cases closed as a success inside the window. */
             enrolled: number;
             /** @description The rating students see (an admin override included). */
-            rating?: number | null;
+            rating: number | null;
             rating_count: number;
             /** @description Confirmed commission_payments over total platform_due_inr across this account's active commission_entries, as of today. Null when there are no entries yet. */
-            dues_paid_ratio?: number | null;
+            dues_paid_ratio: number | null;
             /** @description What the account still owes immiNow today, in INR. Never negative. */
             dues_outstanding_inr: number;
             /** @description Red-flag booleans against `PerformanceLeagueResponse.thresholds` (recorded judgement, docs/PROGRESS.md §4 — no single composite score). */
@@ -28913,6 +29189,11 @@ export interface components {
         };
         /** @description Per-account operational league table (docs/PROGRESS.md §4 Step 4; reworked 2026-09-11) — deliberately NO composite score (recorded judgement): a single number hides which thing is wrong and starts an argument about weighting. `thresholds` are named constants the UI reads rather than hardcodes, so a flag and its displayed cutoff can never drift apart. Active accounts of one kind only, sorted by leads received, most first. */
         PerformanceLeagueResponse: {
+            /**
+             * Format: date-time
+             * @description When the rollups behind this view were last refreshed (gate 12, Q7 — hourly). Null on the frozen mock, which computes everything live.
+             */
+            readonly as_of?: string | null;
             /** @enum {integer} */
             window_days: 30 | 90 | 365;
             thresholds: {
