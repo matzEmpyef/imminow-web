@@ -9,7 +9,7 @@ import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
 import { useCountries } from '@/queries/countries'
 import { useFinanceCases, type FinanceCaseRow, type FinanceCasesFilters } from '@/queries/financeDashboard'
-import { money } from './money'
+import { creditsByCurrency, money } from './money'
 import { ConsultancySearchSelect } from './ConsultancySearchSelect'
 import { FinanceCaseDrawer } from './FinanceCaseDrawer'
 import { inr } from '@/lib/money'
@@ -122,7 +122,25 @@ export function CasesTab() {
       hideBelow: 'md',
       render: (r) => <span className="tabular-nums text-text-secondary">{inr(r.expected_share_inr)}</span>,
     },
-    { key: 'paid_inr', header: 'Paid', align: 'right', render: (r) => <span className="tabular-nums">{inr(r.paid_inr)}</span> },
+    {
+      key: 'paid_inr',
+      header: 'Paid',
+      align: 'right',
+      render: (r) => {
+        // Money beyond what any part still owes (contract gate 11) — held as credit, per currency.
+        const credits = creditsByCurrency(r.by_currency)
+        return (
+          <div className="flex flex-col items-end">
+            <span className="tabular-nums">{inr(r.paid_inr)}</span>
+            {credits.length > 0 && (
+              <span className="text-caption text-warning">
+                Credit {credits.map((c) => money({ amount: c.credit, currency: c.currency })).join(' · ')}
+              </span>
+            )}
+          </div>
+        )
+      },
+    },
     {
       key: 'outstanding_inr',
       header: 'Outstanding',

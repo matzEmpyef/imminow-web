@@ -4,7 +4,7 @@ import { Drawer } from '@/components/Drawer'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { formatDate, formatDateTime } from '@/lib/time'
-import { money } from './money'
+import { creditsByCurrency, money } from './money'
 import { duePartDueDateText, duePartLabel } from '@/lib/duePart'
 import type { CommissionDueChange, CommissionDuePart, FinanceCaseRow } from '@/queries/financeDashboard'
 import { AddDueModal } from './AddDueModal'
@@ -90,6 +90,8 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
   const dueChanges = row?.due_changes ?? []
   const byCurrency = row?.by_currency ?? []
   const hasOverride = dueSchedule.some((p) => p.kind === 'override')
+  const credits = creditsByCurrency(byCurrency)
+  const hasCreditField = byCurrency.some((c) => c.credit != null)
 
   return (
     <Drawer open={row != null} onClose={onClose} title={row?.applicant_name ?? 'Case'}>
@@ -133,8 +135,17 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
           {/* outstanding_inr floors at 0 (review C5, 2026-09-12), so a genuine over-payment
               recorded via ReceiveDueModal's checkbox would otherwise vanish from this drawer
               entirely — paid_inr - due_inr surfaces it back. */}
-          {row.paid_inr > row.due_inr && (
-            <p className="text-body-sm text-warning">Overpaid by {inr(row.paid_inr - row.due_inr)}</p>
+          {/* From contract gate 11 the server reports the surplus itself, per currency, as `credit`;
+              that is the truth when present, and the ₹ inference stays for a server that sends none. */}
+          {credits.length > 0 ? (
+            <p className="text-body-sm text-warning">
+              Overpaid — credit held: {credits.map((c) => money({ amount: c.credit, currency: c.currency })).join(' · ')}
+            </p>
+          ) : (
+            !hasCreditField &&
+            row.paid_inr > row.due_inr && (
+              <p className="text-body-sm text-warning">Overpaid by {inr(row.paid_inr - row.due_inr)}</p>
+            )
           )}
 
           {byCurrency.length > 0 && (
@@ -149,6 +160,7 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
                       <th className="px-sm py-xs text-right font-medium">Not yet due</th>
                       <th className="px-sm py-xs text-right font-medium">Paid</th>
                       <th className="px-sm py-xs text-right font-medium">Outstanding</th>
+                      {hasCreditField && <th className="px-sm py-xs text-right font-medium">Credit</th>}
                       <th className="px-sm py-xs text-right font-medium">Overdue</th>
                       <th className="px-sm py-xs text-right font-medium">Closed</th>
                     </tr>
@@ -163,6 +175,11 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
                         <td className="px-sm py-xs text-right font-medium tabular-nums text-text-primary">
                           {money({ amount: c.outstanding ?? 0, currency: c.currency ?? 'INR' })}
                         </td>
+                        {hasCreditField && (
+                          <td className={`px-sm py-xs text-right tabular-nums ${(c.credit ?? 0) > 0 ? 'text-warning' : 'text-text-secondary'}`}>
+                            {money({ amount: c.credit ?? 0, currency: c.currency ?? 'INR' })}
+                          </td>
+                        )}
                         <td className={`px-sm py-xs text-right tabular-nums ${(c.overdue ?? 0) > 0 ? 'text-warning' : ''}`}>
                           {money({ amount: c.overdue ?? 0, currency: c.currency ?? 'INR' })}
                         </td>

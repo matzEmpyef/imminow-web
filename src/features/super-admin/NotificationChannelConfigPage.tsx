@@ -82,6 +82,7 @@ const LABELS: Record<string, string> = {
   commission_payment_declared: 'Consultancy declared a payment to immiNow (Finance)',
   commission_payment_overdue: 'A payment to immiNow is overdue (Finance)',
   commission_payment_recorded: 'immiNow recorded a payment from the consultancy (to the consultancy)',
+  commission_payment_confirmed: 'immiNow confirmed a declared payment at the amount declared (to the consultancy)',
   student_reports_offer: 'Student reported an offer',
   step_submitted: 'Student submitted a step',
   document_replaced: 'Student replaced a document',
