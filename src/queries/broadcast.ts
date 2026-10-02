@@ -17,6 +17,13 @@ interface BroadcastHistoryFilters {
   limit?: number
 }
 
+// A send lands as `queued` and the worker moves it to `sent`/`failed` within seconds, so a row in
+// either non-final state gets re-polled until it settles. Nothing pending = no timer at all.
+export const BROADCAST_POLL_MS = 3000
+export function hasPendingBroadcast(items: { status?: string | null }[] | undefined): boolean {
+  return Boolean(items?.some((b) => b.status === 'queued' || b.status === 'sending'))
+}
+
 export function useBroadcastHistory(filters: BroadcastHistoryFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
@@ -37,6 +44,7 @@ export function useBroadcastHistory(filters: BroadcastHistoryFilters = {}) {
       return data
     },
     enabled: isAuthed,
+    refetchInterval: (query) => (hasPendingBroadcast(query.state.data?.items) ? BROADCAST_POLL_MS : false),
   })
 }
 
