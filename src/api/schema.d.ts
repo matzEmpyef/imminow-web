@@ -10387,10 +10387,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["AppConfig"] & {
-                        /** @description Required when minimum_version is raised above its current value (gate 12) — kept on the audit record. Not required for any other change. */
-                        reason?: string;
-                    };
+                    "application/json": components["schemas"]["AppConfigUpdate"];
                 };
             };
             responses: {
@@ -10406,7 +10403,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description Malformed version string or a non-sane number, or (gate 12) minimum_version raised with no `reason`. */
+                /** @description Malformed version string or a non-sane number, or (gate 12) minimum_version raised with no `reason`, or (gate 12c, F64) an `update_url_android`/`update_url_ios` that is not https on its store's host. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -10417,6 +10414,15 @@ export interface paths {
                 };
                 /** @description Caller lacks the `app_config` platform permission. */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Gate 12c (F64): `minimum_version` is above the newest version any active student's app has reported (`last_app_version`) — the change would lock out every install — and the body did not carry `force: true` with a `reason`. Never returned by the frozen mock. */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -12262,7 +12268,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Advance a Selected College's status. FORWARD-ONLY (user decision, 2026-08-28): considering → applied → offer_received → accepted, one step at a time, no skipping, no going back; rejected is allowed from applied (college declined) or offer_received (student declined); accepted and rejected are terminal (fixing a wrong acceptance goes through revert-acceptance, never back through this route). A `suggested` row cannot be advanced by ANY staff call (422) — only the student's own save flips it to considering; the student has to want the course before anything can be applied on their behalf. Order violations are 422. Moving to `accepted` REQUIRES the `commission` object — the money agreement captured in the Accept popup — and creates the journey's commission entry (409 if one is already active). Every change is audited, recorded as a status transition, and notifies the student (`application_status_changed`). */
+        /** Advance a Selected College's status. FORWARD-ONLY (user decision, 2026-08-28): considering → applied → offer_received → accepted, one step at a time, no skipping, no going back; rejected is allowed from applied (college declined) or offer_received (student declined); accepted and rejected are terminal (fixing a wrong acceptance goes through revert-acceptance, never back through this route). A `suggested` row cannot be advanced by ANY staff call (422) — only the student's own save flips it to considering; the student has to want the course before anything can be applied on their behalf. Order violations are 422. Moving to `accepted` REQUIRES the `commission` object — the money agreement captured in the Accept popup — and creates the journey's commission entry (409 if one is already active). For a channel-B case (the consultancy's own client) the entry is a bookkeeping entry (gate 12b, owner §15 Q5): created the same way from the same `commission` body but with no rate lookup (a missing Commission Rates row never blocks it) and no Sentpo share — see `CommissionEntryDetail`. Every change is audited, recorded as a status transition, and notifies the student (`application_status_changed`). */
         patch: {
             parameters: {
                 query?: never;
@@ -12363,7 +12369,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** PR cases only — records the applicant's agreed contribution directly (a PR case has no Selected Colleges lifecycle to hang an acceptance on). Creates the journey's commission entry with payer `applicant`, priced by the country's `pr` Commission Rates row. 422 on a student case; 409 if an entry is already active. */
+        /** PR cases only — records the applicant's agreed contribution directly (a PR case has no Selected Colleges lifecycle to hang an acceptance on). Creates the journey's commission entry with payer `applicant`, priced by the country's `pr` Commission Rates row. 422 on a student case; 409 if an entry is already active. On a channel-B PR case it creates a bookkeeping entry instead (gate 12b, owner §15 Q5) with `channel` B, no `pr` rate lookup, no Sentpo share — see `CommissionEntryDetail`. */
         post: {
             parameters: {
                 query?: never;
@@ -19787,7 +19793,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Declare a payment against one case's due (reworked 2026-08-28 — "consultant click on the due transaction and enter the amount") — notifies immiNow finance; the amount may be partial, and confirmation by immiNow finance is what settles it */
+        /** Declare a payment against one case's due (reworked 2026-08-28 — "consultant click on the due transaction and enter the amount") — notifies immiNow finance; the amount may be partial, and confirmation by immiNow finance is what settles it. 409 `bookkeeping_only` for a channel-B entry (gate 12b) — nothing is owed to Sentpo on it. */
         post: {
             parameters: {
                 query?: never;
@@ -19822,6 +19828,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["CommissionPayment"];
+                    };
+                };
+                /** @description `bookkeeping_only` — the entry is a channel-B bookkeeping entry (gate 12b). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -20264,7 +20279,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Record a received payment against a commission entry (billing.record_payment) — source college or student, partial amounts expected, optionally linked to a platform receipt of the same journey. Consultancies invoicing externally record installments here with no platform invoice at all. */
+        /** Record a received payment against a commission entry (billing.record_payment) — source college or student, partial amounts expected, optionally linked to a platform receipt of the same journey. Consultancies invoicing externally record installments here with no platform invoice at all. Works the same on a channel-B bookkeeping entry (gate 12b), where nothing is allocated and nothing is owed to Sentpo. */
         post: {
             parameters: {
                 query?: never;
@@ -20372,7 +20387,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The applicant's own payments view (mobile) — their accepted case, what they are expected to contribute, and the installments received from them. Returns has_commission false (all else null) until a college is accepted or a PR contribution is recorded, and also once accepted if the payer method is college — a college-pays entry has nothing expected from the student, so it is deliberately withheld (user decision, 2026-08-28) rather than shown with a null amount. Never exposes college-side amounts, rates, or platform figures. */
+        /** The applicant's own payments view (mobile) — their accepted case, what they are expected to contribute, and the installments received from them. Returns has_commission false (all else null) until a college is accepted or a PR contribution is recorded, and also once accepted if the payer method is college — a college-pays entry has nothing expected from the student, so it is deliberately withheld (user decision, 2026-08-28) rather than shown with a null amount. Never exposes college-side amounts, rates, or platform figures. Also `has_commission` false for a channel-B bookkeeping entry (gate 12b) — that record is the consultancy's own. */
         get: {
             parameters: {
                 query?: never;
@@ -20798,7 +20813,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List freelancer accounts (admin) — build reference 1.19. Cursor-paged (gate 12) — dormant against the frozen mock, which still returns the plain array below; the web Freelancers page picks this up separately (†). */
+        /** List freelancer accounts (admin) — build reference 1.19. Cursor-paged (gate 12, 12b) — `{items, meta}` like every other paged list; the mock serves the same envelope (gate 12b, additive). */
         get: {
             parameters: {
                 query?: {
@@ -20819,7 +20834,10 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Freelancer"][];
+                        "application/json": {
+                            items: components["schemas"]["Freelancer"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
                     };
                 };
             };
@@ -20983,7 +21001,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Freelancer Commission Table — flat percentage each freelancer personally earns, build reference 1.17 (FR-089). Cursor-paged (gate 12) — dormant against the frozen mock, which still returns the plain array below; the web Freelancers page picks this up separately (†). */
+        /** Freelancer Commission Table — flat percentage each freelancer personally earns, build reference 1.17 (FR-089). Cursor-paged (gate 12, 12b) — `{items, meta}` like every other paged list; the mock serves the same envelope (gate 12b, additive). */
         get: {
             parameters: {
                 query?: {
@@ -21004,7 +21022,10 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["FreelancerRate"][];
+                        "application/json": {
+                            items: components["schemas"]["FreelancerRate"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
                     };
                 };
             };
@@ -22569,7 +22590,7 @@ export interface paths {
         };
         /**
          * The allocation queue — freelancer-sourced applicants awaiting a consultancy, plus students who asked to change theirs (build reference 1.19, 1.23)
-         * @description Oldest first. Rows come from three places (`source`): freelancer referral sign-ups, consultancy-change requests raised with a complaint, and disputes resolved as "reassign". Cursor-paged (gate 12) — dormant against the frozen mock, which still returns the plain array below; the web Applicant Allocation queue picks this up separately (†).
+         * @description Oldest first. Rows come from three places (`source`): freelancer referral sign-ups, consultancy-change requests raised with a complaint, and disputes resolved as "reassign". Cursor-paged (gate 12, 12b) — `{items, meta}` like every other paged list; the mock serves the same envelope (gate 12b, additive).
          */
         get: {
             parameters: {
@@ -22591,7 +22612,10 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["ApplicantAllocationEntry"][];
+                        "application/json": {
+                            items: components["schemas"]["ApplicantAllocationEntry"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
                     };
                 };
             };
@@ -22967,7 +22991,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Sentpo user directory (docs/PROGRESS.md §4 Step 3) — one row per student, never blended with the immiNow console directory (see /admin/users/imminow). Gated to user_directory (platform_staff_administration before the 2026-09-10 split). Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, last_active_at, name (last_login_at removed 2026-09-10). filter[x]= accepts stage=1|2, dormant_days=<integer> (last_active_at older than N days, or never active), from=<date>/to=<date> over created_at (signed-up range), and onboarding=never_logged_in|stuck|onboarded|pending platform=android|ios|web|unknown (2026-09-03, the app the student last opened), and (2026-09-02; `pending` = the two not-onboarded states together, which is what the Platform Dashboard's Stuck at Onboarding card links to). search matches name and email. */
+        /** Sentpo user directory (docs/PROGRESS.md §4 Step 3) — one row per student, never blended with the immiNow console directory (see /admin/users/imminow). Gated to user_directory (platform_staff_administration before the 2026-09-10 split). Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, last_active_at, name, profile_completion_percent (gate 12c: the mock has always sorted on it and the row's own description says "sort on it"; last_login_at removed 2026-09-10). filter[x]= accepts profile=under_50|50_to_99|complete (gate 12c, likewise already served), stage=1|2, dormant_days=<integer> (last_active_at older than N days, or never active), from=<date>/to=<date> over created_at (signed-up range), and onboarding=never_logged_in|stuck|onboarded|pending platform=android|ios|web|unknown (2026-09-03, the app the student last opened), and (2026-09-02; `pending` = the two not-onboarded states together, which is what the Platform Dashboard's Stuck at Onboarding card links to). search matches name and email. */
         get: {
             parameters: {
                 query?: {
@@ -25399,10 +25423,20 @@ export interface components {
              */
             minimum_version: string;
             /**
-             * @description Opened by the blocking update screen's one button (url_launcher) — the app/play store listing.
+             * @description Opened by the blocking update screen's one button (url_launcher) — the app/play store listing. Since gate 12c (F64) this is the FALLBACK: a client opens its own platform's `update_url_android` / `update_url_ios` when that one is set, and this otherwise, so installs from before the split keep working and the field stays required.
              * @example https://play.google.com/store/apps/details?id=com.sentpo.app
              */
             update_url: string;
+            /**
+             * @description Gate 12c (F64): the Play Store listing the Android app opens. https only, and only a Play host (`play.google.com`) — a PATCH naming anything else is 400. Null/absent means the Android app uses `update_url`. Dormant on the frozen mock, which sends neither this nor `update_url_ios`.
+             * @example https://play.google.com/store/apps/details?id=com.sentpo.app
+             */
+            update_url_android?: string | null;
+            /**
+             * @description Gate 12c (F64): the App Store listing the iOS app opens. https only, and only an App Store host (`apps.apple.com`) — a PATCH naming anything else is 400. Null/absent means the iOS app uses `update_url`.
+             * @example https://apps.apple.com/app/sentpo/id0000000000
+             */
+            update_url_ios?: string | null;
             /**
              * @description Plain text shown on both the blocking update screen and the what's-new sheet.
              * @example Faster course search, a redesigned Points dashboard, and a handful of bug fixes.
@@ -25433,6 +25467,29 @@ export interface components {
                 chat_poll_seconds?: number | null;
                 notification_poll_seconds?: number | null;
             } | null;
+        };
+        /** @description PATCH /app-config body (gate 12c, F64). Partial — send only what changes, like every other PATCH here; gate 12 left it as the whole `AppConfig` (all five fields required) though the clients and the mock already send partial bodies. Same field shapes as `AppConfig`. */
+        AppConfigUpdate: {
+            /** @example 1.0.0 */
+            latest_version?: string;
+            /** @example 1.0.0 */
+            minimum_version?: string;
+            update_url?: string;
+            /** @description See AppConfig.update_url_android. Null clears it (the app falls back to `update_url`). */
+            update_url_android?: string | null;
+            /** @description See AppConfig.update_url_ios. Null clears it. */
+            update_url_ios?: string | null;
+            release_notes?: string;
+            /** @description Partial — each threshold is optional. */
+            rating?: {
+                min_days_since_install?: number;
+                min_sessions?: number;
+                cooldown_days?: number;
+            };
+            /** @description Required when minimum_version is raised above its current value (gate 12) — kept on the audit record. Not required for any other change. */
+            reason?: string;
+            /** @description Gate 12c (F64): lets a `minimum_version` above the newest version any active student reports through (409 otherwise). Needs `reason`. Ignored on the frozen mock. */
+            force?: boolean;
         };
         /** @description One row of the curated Trending Courses list (2026-09-16). */
         TrendingCourse: {
@@ -25873,6 +25930,11 @@ export interface components {
             readonly version?: number;
             /** @enum {string} */
             case_type: "student" | "pr";
+            /**
+             * @description The case's acquisition channel (gate 12b, owner §15 Q5) — the same value as `Journey.acquisition_source`, stamped at creation and never changing, a switch or a dispute move keeping it: A = Sentpo direct, B = the consultancy's own client (Create Applicant), C = a freelancer's referral. Null = unknown (an erased student's legacy case). The Commissions tab reads it: on `B` it is the consultancy's own bookkeeping record (see `CommissionEntryDetail.channel`). Absent on the frozen mock, where the console keeps today's behaviour (no Commissions tab entry for a channel-B client).
+             * @enum {string|null}
+             */
+            readonly acquisition_source?: "A" | "B" | "C" | null;
             address?: string | null;
             /** @description The state or province the student lives in, from their own profile (2026-09-10). Read from the student's profile rather than the case's preferences, which never carried location; a client is a committed student, and commitment grants full profile access. */
             readonly residence_state?: string | null;
@@ -25945,7 +26007,10 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
-        /** @description Client Profile's Commissions tab, `clients.view_commissions` only. Reworked 2026-08-28 — driven by the journey's active commission entry (created when a college is Accepted, or directly for PR cases) rather than derived from invoices. DELIBERATELY carries no platform cut, rate, or platform payment status — that tier of information is visible only on the Commission Details page (`GET /commission`, `billing.view_commission_details`), per the tiered-visibility rule. */
+        /**
+         * @description Client Profile's Commissions tab, `clients.view_commissions` only. Reworked 2026-08-28 — driven by the journey's active commission entry (created when a college is Accepted, or directly for PR cases) rather than derived from invoices. DELIBERATELY carries no platform cut, rate, or platform payment status — that tier of information is visible only on the Commission Details page (`GET /commission`, `billing.view_commission_details`), per the tiered-visibility rule.
+         *     **Channel B (gate 12b, owner §15 Q5).** A channel-B client (`Client.acquisition_source` = `B`, the consultancy's own client) gets the same tab, same shape, over a BOOKKEEPING entry: `entry.channel` is `B`, and the consultancy records what it expects and receives (installments from the college or the student) for its own books. There is no Sentpo share on it — no dues, no schedule, nothing owed — and it never appears in any Sentpo finance read (see `CommissionEntryDetail`). The tab shows no platform figure for any channel.
+         */
         CommissionSummary: {
             /** @enum {string|null} */
             payer_method: "college" | "applicant" | "split" | null;
@@ -25958,12 +26023,20 @@ export interface components {
             /** @description This journey's platform receipts, linkable from an installment. */
             receipts: components["schemas"]["Receipt"][];
         };
-        /** @description One case's money agreement, snapshotted at acceptance (or at PR contribution entry). The platform's own cut is deliberately NOT part of this shape — it appears only in the Commission Details / Finance Dashboard read models. */
+        /**
+         * @description One case's money agreement, snapshotted at acceptance (or at PR contribution entry). The platform's own cut is deliberately NOT part of this shape — it appears only in the Commission Details / Finance Dashboard read models.
+         *     **A channel-B entry is a bookkeeping entry (gate 12b, owner §15 Q5 — read this before building F1/F2).** For a case whose journey is channel B, accepting a college (or recording a PR contribution) creates an entry exactly as for any case — same endpoint, same `commission` body, same `expected_from_*`, same installments, same void/revert/ reversal states — with `channel: 'B'`, and the backend skips everything that is Sentpo's: no rate lookup (so a missing Commission Rates row never blocks acceptance), `rate_percent` 0, `rate_source` `none`, `platform_due_inr` 0, `freelancer_sourced` false, and NO `commission_dues`, `commission_payment_allocations` or `commission_entry_balances` rows, ever. `channel` is stamped from the journey when the entry is created and never changes (an erased student cannot change it). Only `B` is bookkeeping-only; `A`, `C` and null (unknown, legacy) are commissionable as before. Consequences, all server-enforced: (1) every Finance read — `/commission/finance/*`, `/commission/finance-dashboard`, the consultancy's `GET /commission` dues and payment history, `/dashboard`'s commission figures, analytics revenue, the follow-up signals (`/case-followups`) — excludes channel B (`channel IS DISTINCT FROM 'B'`); (2) a Finance operation addressed to a channel-B entry (`/commission-entries/{id}/dues`, `/original-due`, `/receive`, `/waive`, `/dues/{changeId}/void`, `/commission/payments/…`) is 404 `not_found` — to Finance the entry does not exist; (3) `POST /commission/payments` (the consultancy declaring a payment to Sentpo) against one is 409 `bookkeeping_only`; (4) `POST /commission-entries/{id}/installments` and its void work as for any entry, with nothing allocated (so `part_settled` never applies); (5) `GET /me/commissions` (the student's own view) reports `has_commission: false` for it; (6) a switch or dispute move leaves it with the old consultancy (§15 Q1) and the new consultancy's own acceptance creates its own channel-B entry; (7) the database enforces it — a trigger refuses an entry insert whose `channel` disagrees with its journey's, and refuses a `commission_dues`/ allocation/balance row that points at a channel-B entry. Absent on the frozen mock, which creates no entry for a channel-B case at all (the console then shows today's behaviour).
+         */
         CommissionEntryDetail: {
             id: components["schemas"]["UUID"];
             journey_id: components["schemas"]["UUID"];
             /** @enum {string} */
             case_type: "student" | "pr";
+            /**
+             * @description The case's acquisition channel, stamped on the entry from the journey's `acquisition_source` when it is created and never changing (gate 12b). `B` marks a bookkeeping entry — the consultancy's own record with no Sentpo share, never in Sentpo's finance screens, nothing ever owed (see this schema's description). Absent on the frozen mock (no entry exists for a channel-B case there).
+             * @enum {string|null}
+             */
+            readonly channel?: "A" | "B" | "C" | null;
             /**
              * Format: uuid
              * @description The accepted application that earned this entry, stamped at acceptance. Renamed from `selected_college_id` 2026-09-09 with the entity. Null for PR entries — a PR case has no application lifecycle.
@@ -27183,9 +27256,9 @@ export interface components {
             company: string;
             /**
              * Format: uri
-             * @description Employer logo shown beside the listing in Sentpo Mobile. Added 2026-08-18; listings created before that have none, so every client must tolerate its absence rather than assume artwork exists.
+             * @description Employer logo shown beside the listing in Sentpo Mobile. Added 2026-08-18; listings created before that have none (null, gate 12b), so every client must tolerate its absence rather than assume artwork exists.
              */
-            company_logo_url: string;
+            company_logo_url: string | null;
             /**
              * @description Where the listing is, in one line, DERIVED from `city`, `province_state` and `country` (product owner, 2026-09-20) — the empty parts are left out, so "Bengaluru, Karnataka, India", or just "India" when only a country is known. The same treatment `Course.duration` got from `duration_months` (assumptions audit M24).
              *     Free text until that date. Thirty seeded listings hid what that costs: with thousands, every admin spells a place their own way — "Bengaluru", "Bangalore", "Bengaluru, KA" are three values — so the facet built on it offered hundreds of chips, no two of which agreed, and a student picking one silently lost the jobs filed under the others. The same failure that produced the institution free-text suggestions queue. **A `location` in a request body is ignored**, and the stale text on rows written earlier is dropped on their first edit. Filter on `country` / `province_state` instead; `search` still matches this composed string, so a keyword search finds a city.
@@ -27327,7 +27400,8 @@ export interface components {
             readonly tags_overridden?: boolean;
             id: components["schemas"]["UUID"];
             title: string;
-            thumbnail_url: string;
+            /** @description Null when the post has no featured image (gate 12b — the server sends null here, so clients must tolerate it). */
+            thumbnail_url: string | null;
             excerpt: string;
             /** @description The in-app tags, resolved at **read** time from `blog_cache_categories` -> `blog_category_mappings`. An array because live posts genuinely carry more than one category (of the 100 most recent, 57 have one, 38 have two, 5 have three) — the singular `category` string this replaced dropped tags on 43% of the catalogue. Resolving at read rather than at cache time is what makes renaming a tag a one-row admin edit with nothing to re-fetch; the label never enters the cached row. */
             tags: {
@@ -27592,8 +27666,8 @@ export interface components {
             /** @description Set when destination_type=external_url. */
             destination_url: string | null;
             priority: number;
-            /** @description ADMIN ONLY (contract gate 10, K25) — served to `ads`-permission callers; null in the student projection, which never sees what it was targeted on, only whether it qualified (lenient: unknown data always includes, so a student is never told they were excluded either). */
-            targeting: components["schemas"]["Targeting"] | null;
+            /** @description ADMIN ONLY (contract gate 10, K25) — served to `ads`-permission callers; omitted (or null) in the student projection, which never sees what it was targeted on, only whether it qualified (lenient: unknown data always includes, so a student is never told they were excluded either). */
+            targeting?: components["schemas"]["Targeting"] | null;
             /** Format: date */
             active_from: string | null;
             /** Format: date */
@@ -27611,9 +27685,9 @@ export interface components {
             /** @description FR-049 — present only when destination is an event starting within 24h. */
             event_countdown_seconds: number | null;
             /** @description ADMIN ONLY (contract gate 10, K25) — a counter, not in the student projection. */
-            readonly clicks_count: number;
+            readonly clicks_count?: number;
             /** @description ADMIN ONLY (contract gate 10, K25) — a counter, not in the student projection. */
-            readonly impressions_count: number;
+            readonly impressions_count?: number;
         };
         AdBannerInput: {
             name?: string | null;
@@ -28595,9 +28669,11 @@ export interface components {
             consultancy_id?: components["schemas"]["UUID"];
             /**
              * @description The base CRUD/view set, plus named actions the mock writes that are not really a create/update/delete of the row they attach to (gate 2, 2026-09-24, grepped from every `recordAudit` call in the mock): `kyc_verified`, `link_college`, `rating_requested` (freelancer), `renewal_requested`, `upgrade_requested`, `upgrade_request_withdrawn` (consultancy plan), `rating_override_set`/ `rating_override_cleared` (Super Admin on a consultancy's rating), `hide`/`publish` (review moderation), and `country_content.updated` (the one dotted name in the set — left as the mock already writes it rather than renamed to fit the others).
+             *
+             *     Gate 12c (2026-10-02) adds the named actions Waves 6 and 7 record (plan §4, §5). A plain create/update of a row stays `create`/`update` (an invoice, receipt, installment, dues row, complaint, freelancer rate or app-config edit); a name below is for an act that is more than that. Settlement (area `billing` for the consultancy's writes, `finance` for platform ones): `installment_voided`, `due_added`, `due_overridden` (the original due), `due_waived`, `due_change_voided`, `payment_declared`, `payment_confirmed`, `payment_rejected`, `payment_corrected`, `payment_received` (Finance's receive). Invoicing (`billing`): `invoice_voided`, `receipt_voided`. Moderation: `applicant_allocated`, `applicant_declined`. Support (`support`): `case_switched`, `email_changed`, `data_exported`, `note_added` (case notes, complaint and dispute notes, follow-up notes), `nudge_sent` (student and visit-request nudges), `complaint_assigned`, `complaint_resolved`, `dispute_raised`, `dispute_escalated`, `dispute_picked_up`, `dispute_resolved`. Freelancers: `freelancer_invited`, `freelancer_invite_resent`, `freelancer_rate_set`, `freelancer_payout_recorded`, `freelancer_payout_voided`. Platform: `app_config_changed`, `analytics_archived`, `analytics_restored` (Q8's archive and restore jobs). Also listed because the backend already writes them and the contract never did: `merchant_code_rejected` (a wrong redemption-partner code, K17) and `freelancer_referral_payment_updated` (legacy; F55 retired the field, so no new rows). Every value is a superset addition — none renamed or removed. The mock writes none of the new ones.
              * @enum {string}
              */
-            action_type: "create" | "update" | "delete" | "view" | "kyc_verified" | "link_college" | "rating_requested" | "renewal_requested" | "upgrade_requested" | "upgrade_request_withdrawn" | "rating_override_set" | "rating_override_cleared" | "hide" | "publish" | "country_content.updated";
+            action_type: "create" | "update" | "delete" | "view" | "kyc_verified" | "link_college" | "rating_requested" | "renewal_requested" | "upgrade_requested" | "upgrade_request_withdrawn" | "rating_override_set" | "rating_override_cleared" | "hide" | "publish" | "country_content.updated" | "installment_voided" | "due_added" | "due_overridden" | "due_waived" | "due_change_voided" | "payment_declared" | "payment_confirmed" | "payment_rejected" | "payment_corrected" | "payment_received" | "invoice_voided" | "receipt_voided" | "applicant_allocated" | "applicant_declined" | "case_switched" | "email_changed" | "data_exported" | "note_added" | "nudge_sent" | "complaint_assigned" | "complaint_resolved" | "dispute_raised" | "dispute_escalated" | "dispute_picked_up" | "dispute_resolved" | "freelancer_invited" | "freelancer_invite_resent" | "freelancer_rate_set" | "freelancer_payout_recorded" | "freelancer_payout_voided" | "app_config_changed" | "analytics_archived" | "analytics_restored" | "merchant_code_rejected" | "freelancer_referral_payment_updated";
             /** @description e.g. lead, client, plan, step, employee, designation, branch, tag. */
             entity_type: string;
             /** @description The audited entity's key. A UUID for most entities; some are keyed by something else the mock already writes here — a country by name (`country_content.updated`), a currency code, a coupon/referral code, or the literal `defaults`, `platform_settings`, `app_config` or `trending` for singleton configuration rows (gate 2, 2026-09-24). */
@@ -28605,10 +28681,12 @@ export interface components {
             /** @description Human-readable label for the entity at the time of the change (e.g. an applicant's name) — the entity/person search filter matches against this. */
             entity_label?: string | null;
             /**
-             * @description `app_config` and `consultancies` added (gate 2, 2026-09-24) — the mock has always written both (platform app-config screens; consultancy-record actions like a rating override or moderating a review) but the contract had never listed them.
+             * @description Gate 12c (2026-10-02): `billing` (F25 — the consultancy's money writes: invoices, receipts, installments, payment declarations; `finance` stays the platform's own settlement writes), plus `moderation` (applicant allocation queue), `freelancers`, `analytics` (the archive and restore jobs), and three areas the Wave 4/5 backend already writes that the contract never listed: `ads`, `jobs`, `notifications`. The mock writes none of these.
+             *
+             *     `app_config` and `consultancies` added (gate 2, 2026-09-24) — the mock has always written both (platform app-config screens; consultancy-record actions like a rating override or moderating a review) but the contract had never listed them.
              * @enum {string}
              */
-            area: "leads" | "clients" | "plans" | "documents" | "settings" | "staff" | "marketing" | "support" | "finance" | "consultancy_management" | "catalog" | "app_config" | "consultancies";
+            area: "leads" | "clients" | "plans" | "documents" | "settings" | "staff" | "marketing" | "support" | "finance" | "consultancy_management" | "catalog" | "app_config" | "consultancies" | "billing" | "moderation" | "freelancers" | "analytics" | "ads" | "jobs" | "notifications";
             diff?: {
                 [key: string]: unknown;
             } | null;
