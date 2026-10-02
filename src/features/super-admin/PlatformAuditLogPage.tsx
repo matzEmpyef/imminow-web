@@ -34,6 +34,13 @@ const AREA_LABELS: Record<PlatformAuditLogArea, string> = {
   catalog: 'Catalog',
   app_config: 'App config',
   consultancies: 'Consultancies',
+  billing: 'Billing',
+  moderation: 'Moderation',
+  freelancers: 'Freelancers',
+  analytics: 'Analytics',
+  ads: 'Ads',
+  jobs: 'Jobs',
+  notifications: 'Notifications',
 }
 const AREA_OPTIONS = Object.keys(AREA_LABELS) as PlatformAuditLogArea[]
 
