@@ -8,10 +8,19 @@ import { useCursorPagination } from '@/lib/pagination'
 import { useUserSearch, type UserSearchResult } from '@/queries/supportTools'
 import { UserActionsModal } from './support-tools/UserActionsModal'
 
+// What the search box matches, in words — shared by the intro, the placeholder-adjacent empty states.
+const SEARCH_RULE = 'an exact email or phone number, the first 3 or more letters of a name, or the start of a file number'
+
 /**
- * Support Tools (rebuilt 2026-09-12) — search any user by name or email, then act on their
- * account through a focused popup rather than a bare row of icons. Results deliberately show
- * name, contact, case stage and consultancy only — not commission figures or documents.
+ * Support Tools (rebuilt 2026-09-12) — search any user, then act on their account through a
+ * focused popup rather than a bare row of icons. Results deliberately show name, contact, case
+ * stage and consultancy only — not commission figures or documents.
+ *
+ * What a search matches (contract gate 12, F35 — the production backend's rule, which the page's
+ * words must teach, since a loose substring box is what people expect): an email or phone EXACTLY,
+ * a file number by its start, a name by its start and only from 3 characters. Platform staff never
+ * come back (they live on Platform Team). The frozen mock still substring-scans everyone, so against
+ * it a looser search happens to work; the copy describes the real rule.
  */
 export function SupportToolsPage() {
   const [search, setSearch] = useState('')
@@ -87,8 +96,9 @@ export function SupportToolsPage() {
         <div>
           <h1 className="text-h1 text-text-primary">Support Tools</h1>
           <p className="text-body-sm text-text-secondary">
-            Search any user by name or email — students, staff, and freelancers. Results show name, contact, and case
-            stage only, deliberately not commission figures or documents.
+            Find a student, consultancy staff member or freelancer by {SEARCH_RULE}. Platform staff are managed on
+            Platform Team and never appear here. Results show name, contact, and case stage only, deliberately not
+            commission figures or documents.
           </p>
         </div>
 
@@ -98,7 +108,13 @@ export function SupportToolsPage() {
           rowKey={(result) => result.id}
           loading={results.isLoading}
           error={results.isError ? 'Could not run this search.' : undefined}
-          emptyMessage={search.trim().length < 2 ? 'Type at least two characters to search.' : `No matches for "${search}".`}
+          emptyMessage={
+            search.trim().length < 2
+              ? `Search by ${SEARCH_RULE}.`
+              : search.trim().length < 3
+                ? `No exact email, phone or file-number match for "${search.trim()}". A name needs at least 3 letters.`
+                : `No matches for "${search.trim()}". Email and phone must match exactly; a name or file number matches from its start.`
+          }
           search={{
             value: search,
             onChange: (value) => {
@@ -108,7 +124,7 @@ export function SupportToolsPage() {
               // H8) risks acting on whoever was open rather than whoever is now on screen.
               setActionsFor(null)
             },
-            placeholder: 'Search by name or email…',
+            placeholder: 'Email, phone, name (3+ letters) or file number…',
           }}
           pagination={{
             hasNext: Boolean(results.data?.meta.next_cursor),
