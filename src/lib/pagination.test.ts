@@ -101,14 +101,10 @@ describe('chronologicalPages', () => {
   })
 })
 
-// Contract gate 12: three lists (allocation queue, freelancers, freelancer rates) gain cursor
-// paging while the frozen mock still answers with the plain array. toPage reads either shape and
-// cursorPager turns the meta into Table/CursorPager props — no next_cursor, no pager.
+// Contract gate 12/12b: three lists (allocation queue, freelancers, freelancer rates) return the
+// cursor envelope. toPage reads it (tolerating a missing meta) and cursorPager turns the meta into
+// Table/CursorPager props — no next_cursor, no pager.
 describe('toPage', () => {
-  it('treats a plain array as one complete, unpaged page', () => {
-    expect(toPage([1, 2])).toEqual({ items: [1, 2], meta: undefined })
-  })
-
   it('reads the cursor envelope', () => {
     expect(toPage({ items: ['a'], meta: { next_cursor: 'c2', total: 9 } })).toEqual({
       items: ['a'],

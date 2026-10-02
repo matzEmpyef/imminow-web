@@ -4,10 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 
 // Contract gate 12 paged four lists: the applicant-allocation queue, the case/service follow-up
-// queues, and the freelancer roster / rates. The frozen mock ignores the cursor and still answers
-// with a plain array (or, for the follow-ups, `items` with no `meta`), so each hook has to (a) put
-// the cursor on the wire, (b) read both shapes, and (c) leave `meta.next_cursor` unset when there
-// is nowhere further to go — that is what keeps the "next" button away.
+// queues, and the freelancer roster / rates (the three lists became `{ items, meta }` envelopes in
+// gate 12b). Each hook has to (a) put the cursor on the wire, (b) read the envelope, and (c) leave
+// `meta.next_cursor` unset when there is nowhere further to go — that is what keeps the "next"
+// button away.
 vi.mock('@/api/client', () => ({ api: { GET: vi.fn(), POST: vi.fn(), PATCH: vi.fn() } }))
 
 import { api } from '@/api/client'
@@ -34,8 +34,8 @@ beforeEach(() => {
 })
 
 describe('applicant allocation queue', () => {
-  it('reads the frozen mock’s plain array as one complete page', async () => {
-    respond([{ id: 'a1' }, { id: 'a2' }])
+  it('reads an envelope with no next_cursor as one complete page', async () => {
+    respond({ items: [{ id: 'a1' }, { id: 'a2' }], meta: { total: 2 } })
     const { result } = renderHook(() => useApplicantAllocationQueue(), { wrapper })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(result.current.data?.items).toHaveLength(2)
@@ -75,7 +75,7 @@ describe('follow-up queues', () => {
 })
 
 describe('freelancers and rates', () => {
-  it('pages the roster by cursor and reads either shape', async () => {
+  it('pages the roster by cursor', async () => {
     respond({ items: [{ id: 'f1' }], meta: { next_cursor: 'f2' } })
     const { result } = renderHook(() => useFreelancers('f1c'), { wrapper })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
@@ -96,7 +96,7 @@ describe('freelancers and rates', () => {
     expect(mockedGet).toHaveBeenCalledWith('/freelancers', { params: { query: { cursor: undefined, limit: 100 } } })
   })
 
-  it('finds a rate row on a later page, and still works against the plain-array mock', async () => {
+  it('finds a rate row on a later page, and stops when meta has no next_cursor', async () => {
     mockedGet.mockImplementation((async (_path: unknown, opts: { params: { query: { cursor?: string } } }) => {
       return opts.params.query.cursor
         ? { data: { items: [{ id: 'r2', freelancer_id: 'f2' }], meta: {} }, error: undefined }
@@ -107,7 +107,7 @@ describe('freelancers and rates', () => {
     expect(paged.result.current.data?.find((r) => r.freelancer_id === 'f2')?.id).toBe('r2')
 
     mockedGet.mockReset()
-    respond([{ id: 'r1', freelancer_id: 'f1' }])
+    respond({ items: [{ id: 'r1', freelancer_id: 'f1' }], meta: {} })
     const plain = renderHook(() => useFreelancerRates(), { wrapper })
     await waitFor(() => expect(plain.result.current.isSuccess).toBe(true))
     expect(plain.result.current.data).toHaveLength(1)

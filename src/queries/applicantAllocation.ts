@@ -5,9 +5,8 @@ import { ApiError } from './auth'
 import { toPage } from '@/lib/pagination'
 
 /**
- * The allocation queue, oldest first. Cursor-paged since contract gate 12 — `{ items, meta }` like
- * every other cursor list; the frozen mock still answers with the plain array, which `toPage`
- * reads as one complete page (no `next_cursor`, so no pager). The key keeps
+ * The allocation queue, oldest first. Cursor-paged — `{ items, meta }` like every other cursor
+ * list (contract gate 12b); no `next_cursor` means one complete page, so no pager. The key keeps
  * `['applicant-allocation-queue']` as its prefix, which allocate / resolve / dispute-resolve invalidate.
  */
 export function useApplicantAllocationQueue(cursor?: string) {

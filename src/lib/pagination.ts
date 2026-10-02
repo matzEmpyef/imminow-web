@@ -76,18 +76,15 @@ export interface PageMeta {
 }
 
 /**
- * Reads a list that is moving from a plain array to the cursor envelope (contract gate 12:
- * `GET /applicant-allocation-queue`, `/freelancers`, `/freelancer-rates`). The contract documents
- * the paging params and says the frozen mock still returns the plain array, but types the
- * response as that array — the paged envelope is the same `{ items, meta }` every other cursor
- * list uses, so accept both. A plain array (or an envelope with no `meta`) is one complete page:
- * no `next_cursor`, so no pager and no "load more".
+ * Reads a cursor-paged list's `{ items, meta }` envelope (`GET /applicant-allocation-queue`,
+ * `/freelancers`, `/freelancer-rates` since contract gate 12b). `meta.next_cursor` is optional in
+ * practice: an envelope with no `meta` (or a missing response) is one complete page — no
+ * `next_cursor`, so no pager and no "load more".
  */
-export function toPage<T>(raw: T[] | { items?: T[] | null; meta?: PageMeta | null } | null | undefined): {
+export function toPage<T>(raw: { items?: T[] | null; meta?: PageMeta | null } | null | undefined): {
   items: T[]
   meta: PageMeta | undefined
 } {
-  if (Array.isArray(raw)) return { items: raw, meta: undefined }
   return { items: raw?.items ?? [], meta: raw?.meta ?? undefined }
 }
 

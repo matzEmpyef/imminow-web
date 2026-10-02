@@ -9,8 +9,8 @@ type FreelancerRateInput = components['schemas']['FreelancerRateInput']
 
 export type Freelancer = components['schemas']['Freelancer']
 
-// One page of the roster (contract gate 12 — `GET /freelancers` is cursor-paged; the frozen mock
-// still returns the plain array, which `toPage` reads as one complete page, so no pager shows).
+// One page of the roster (`GET /freelancers` is cursor-paged, `{ items, meta }` since contract gate
+// 12b; no `next_cursor` means one complete page, so no pager shows).
 // Search and the status filter stay client-side over the page in view.
 export function useFreelancers(cursor?: string) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
@@ -114,7 +114,7 @@ export function useUpdateFreelancer() {
   })
 }
 
-// Cursor-paged since contract gate 12 (the mock still returns the plain array). The only consumer
+// Cursor-paged, `{ items, meta }` (contract gate 12b). The only consumer
 // is the share editor, which must find THIS freelancer's rate row to decide create vs update — a
 // row on page two would otherwise read as "no rate" and POST a duplicate — so it walks every page
 // (100 rows a request) rather than showing one screenful.
