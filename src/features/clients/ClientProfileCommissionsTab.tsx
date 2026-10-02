@@ -12,6 +12,7 @@ import { formatAmountOnly, formatApprox, formatMoneyAmount } from '@/lib/money'
 import { RecordInstallmentModal } from './RecordInstallmentModal'
 import { RecordPrContributionModal } from './RecordPrContributionModal'
 import { VoidInstallmentModal } from './VoidInstallmentModal'
+import { BOOKKEEPING_CAPTION, isBookkeepingChannel } from './bookkeeping'
 import type { components } from '@/api/schema'
 
 // One source's expected-vs-received line with a progress bar — the same treatment for the
@@ -67,6 +68,9 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
   const data = commissions.data
   const entry = data.entry
   const isPr = client.data?.case_type === 'pr'
+  // Own-client bookkeeping: installments work as usual; the tab has no Sentpo figure and no
+  // declare-payment control for any channel, so the only difference is the explanatory caption.
+  const bookkeeping = isBookkeepingChannel(entry?.channel, client.data?.acquisition_source)
 
   if (!entry) {
     return (
@@ -78,6 +82,7 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
               ? 'Record the applicant’s agreed contribution to start tracking payments for this PR case.'
               : 'The entry is created when a college is accepted on the Applications tab — the Accept popup captures the agreed amounts.'}
           </p>
+          {bookkeeping && <p className="mt-xs text-caption text-text-secondary">{BOOKKEEPING_CAPTION}</p>}
         </div>
         {isPr && canRecord && <Button onClick={() => setShowPrEntry(true)}>Record Applicant Contribution</Button>}
         {showPrEntry && (
@@ -118,6 +123,7 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
                 : 'Split'}
           </Badge>
         </div>
+        {bookkeeping && <p className="text-caption text-text-secondary">{BOOKKEEPING_CAPTION}</p>}
         <ExpectedVsReceived
           label="From college"
           expected={entry.expected_from_college}
