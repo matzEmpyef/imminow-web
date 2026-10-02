@@ -21,9 +21,12 @@ export function useRecordInstallment(clientId: string) {
   return useMutation({
     mutationFn: async ({
       entryId,
+      idempotencyKey,
       ...body
     }: {
       entryId: string
+      /** Per-modal-open key (gate 11): a retry of the same submit replays instead of double-recording. */
+      idempotencyKey?: string
       source: 'college' | 'student'
       amount: { amount: number; currency: string }
       received_on?: string
@@ -31,7 +34,7 @@ export function useRecordInstallment(clientId: string) {
       receipt_id?: string
     }) => {
       const { data, error } = await api.POST('/commission-entries/{id}/installments', {
-        params: { path: { id: entryId } },
+        params: { path: { id: entryId }, header: { 'Idempotency-Key': idempotencyKey ?? crypto.randomUUID() } },
         body,
       })
       if (error) throw new ApiError('Could not record this installment.', error)
@@ -41,14 +44,35 @@ export function useRecordInstallment(clientId: string) {
   })
 }
 
-export function useDeleteInstallment(clientId: string) {
+/**
+ * Voids a mis-entered installment (gate 11, F14) — it replaces the old DELETE: the row is never
+ * removed, it stays in the money record marked void with who/why. 409 `part_settled` when a payment
+ * is already allocated to the installment's share part (void that payment first), 409
+ * `entry_not_active` when the entry itself was voided or reversed.
+ */
+export function useVoidInstallment(clientId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ entryId, installmentId }: { entryId: string; installmentId: string }) => {
-      const { error } = await api.DELETE('/commission-entries/{id}/installments/{installmentId}', {
-        params: { path: { id: entryId, installmentId } },
+    mutationFn: async ({
+      entryId,
+      installmentId,
+      reason,
+      idempotencyKey,
+    }: {
+      entryId: string
+      installmentId: string
+      reason: string
+      idempotencyKey?: string
+    }) => {
+      const { data, error } = await api.POST('/commission-entries/{id}/installments/{installmentId}/void', {
+        params: {
+          path: { id: entryId, installmentId },
+          header: { 'Idempotency-Key': idempotencyKey ?? crypto.randomUUID() },
+        },
+        body: { reason },
       })
-      if (error) throw new ApiError('Could not remove this installment.', error)
+      if (error) throw new ApiError('Could not void this installment.', error)
+      return data
     },
     onSuccess: () => invalidateCommissionViews(queryClient, clientId),
   })

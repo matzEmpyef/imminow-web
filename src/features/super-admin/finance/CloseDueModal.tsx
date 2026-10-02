@@ -30,6 +30,7 @@ export function CloseDueModal({
 }) {
   const waiveDue = useWaiveCommissionDue()
   const [reason, setReason] = useState('')
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
   const trimmedReason = reason.trim()
   const invalid = trimmedReason.length < MIN_REASON_LENGTH || !part.key
   const outstanding = money({ amount: part.outstanding ?? part.amount ?? 0, currency: part.currency ?? 'INR' })
@@ -52,7 +53,7 @@ export function CloseDueModal({
             onClick={() =>
               part.key &&
               waiveDue.mutate(
-                { entryId: caseRow.id, part_key: part.key, reason: trimmedReason },
+                { entryId: caseRow.id, part_key: part.key, reason: trimmedReason, idempotencyKey },
                 {
                   onSuccess: (row) => {
                     showToast(`Due closed for ${caseRow.applicant_name}`)

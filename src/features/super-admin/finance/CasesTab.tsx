@@ -170,7 +170,7 @@ export function CasesTab() {
       header: 'Closed',
       align: 'right',
       hideBelow: 'lg',
-      render: (r) => (r.case_closed ? formatDate(r.recognized_at) : <span className="text-text-secondary">Open</span>),
+      render: (r) => (r.case_closed ? (r.recognized_at ? formatDate(r.recognized_at) : 'Closed') : <span className="text-text-secondary">Open</span>),
     },
   ]
 

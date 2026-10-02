@@ -34,6 +34,7 @@ export function BulkRecordPayoutModal({
   const [running, setRunning] = useState(false)
   const [result, setResult] = useState<Result | null>(null)
   const [attempted, setAttempted] = useState(false)
+  const [batchKey] = useState(() => crypto.randomUUID())
   const total = referrals.reduce((sum, r) => sum + (r.owed_inr ?? 0), 0)
   const paidOnError = attempted && !paidOn ? 'Pick the date these were paid.' : undefined
 
@@ -50,6 +51,7 @@ export function BulkRecordPayoutModal({
       try {
         await recordPayout.mutateAsync({
           referralId: referral.id,
+          idempotencyKey: `${batchKey}-${referral.id}`,
           amount_inr: referral.owed_inr ?? 0,
           paid_on: paidOn,
           reference: reference || undefined,

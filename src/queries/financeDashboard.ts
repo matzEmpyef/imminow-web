@@ -238,15 +238,17 @@ export function useAddCommissionDue() {
       currency,
       due_on,
       reason,
+      idempotencyKey,
     }: {
       entryId: string
+      idempotencyKey?: string
       amount: number
       currency?: string
       due_on?: string | null
       reason: string
     }) => {
       const { data, error } = await api.POST('/commission-entries/{id}/dues', {
-        params: { path: { id: entryId } },
+        params: { path: { id: entryId }, header: { 'Idempotency-Key': idempotencyKey ?? crypto.randomUUID() } },
         body: { amount, currency, due_on, reason },
       })
       if (error) throw new ApiError('Could not add this due amount.', error)
@@ -326,8 +328,10 @@ export function useReceiveCommissionDue() {
       reference,
       note,
       allow_overpayment,
+      idempotencyKey,
     }: {
       entryId: string
+      idempotencyKey?: string
       amount: number
       currency?: string
       part_key?: string
@@ -337,7 +341,7 @@ export function useReceiveCommissionDue() {
       allow_overpayment?: boolean
     }) => {
       const { data, error } = await api.POST('/commission-entries/{id}/receive', {
-        params: { path: { id: entryId } },
+        params: { path: { id: entryId }, header: { 'Idempotency-Key': idempotencyKey ?? crypto.randomUUID() } },
         body: { amount, currency, part_key, received_on, reference, note, allow_overpayment },
       })
       if (error) throw new ApiError('Could not record this payment.', error)
@@ -354,9 +358,19 @@ export function useReceiveCommissionDue() {
 export function useWaiveCommissionDue() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ entryId, part_key, reason }: { entryId: string; part_key: string; reason: string }) => {
+    mutationFn: async ({
+      entryId,
+      part_key,
+      reason,
+      idempotencyKey,
+    }: {
+      entryId: string
+      part_key: string
+      reason: string
+      idempotencyKey?: string
+    }) => {
       const { data, error } = await api.POST('/commission-entries/{id}/waive', {
-        params: { path: { id: entryId } },
+        params: { path: { id: entryId }, header: { 'Idempotency-Key': idempotencyKey ?? crypto.randomUUID() } },
         body: { part_key, reason },
       })
       if (error) throw new ApiError('Could not close this part.', error)

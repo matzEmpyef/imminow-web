@@ -16,6 +16,7 @@ export function RecordPayoutModal({ referral, onClose }: { referral: FreelancerR
   const [paidOn, setPaidOn] = useState(localDateISO())
   const [reference, setReference] = useState('')
   const [attempted, setAttempted] = useState(false)
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
 
   const amountValue = Number(amount)
   const valid = amountValue >= 1 && amountValue <= owed && Boolean(paidOn)
@@ -34,7 +35,7 @@ export function RecordPayoutModal({ referral, onClose }: { referral: FreelancerR
       return
     }
     recordPayout.mutate(
-      { referralId: referral.id, amount_inr: amountValue, paid_on: paidOn, reference: reference || undefined },
+      { referralId: referral.id, amount_inr: amountValue, paid_on: paidOn, reference: reference || undefined, idempotencyKey },
       {
         onSuccess: () => {
           showToast(`Payout recorded for ${referral.applicant_name}`)

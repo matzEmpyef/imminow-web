@@ -6,12 +6,13 @@ import { Badge } from '@/components/Badge'
 import { CountryLabel } from '@/components/CountryLabel'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useClient, useCommissions } from '@/queries/clients'
-import { useDeleteInstallment } from '@/queries/commissionEntries'
 import { formatDate } from '@/lib/time'
 import { usePermission } from '@/lib/permissions'
 import { formatAmountOnly, formatApprox, formatMoneyAmount } from '@/lib/money'
 import { RecordInstallmentModal } from './RecordInstallmentModal'
 import { RecordPrContributionModal } from './RecordPrContributionModal'
+import { VoidInstallmentModal } from './VoidInstallmentModal'
+import type { components } from '@/api/schema'
 
 // One source's expected-vs-received line with a progress bar — the same treatment for the
 // college side and the applicant side so partial payment reads at a glance.
@@ -55,10 +56,10 @@ function ExpectedVsReceived({
 export function CommissionsTab({ clientId }: { clientId: string }) {
   const client = useClient(clientId)
   const commissions = useCommissions(clientId)
-  const deleteInstallment = useDeleteInstallment(clientId)
   const canRecord = usePermission('billing.record_payment')
   const [showRecord, setShowRecord] = useState(false)
   const [showPrEntry, setShowPrEntry] = useState(false)
+  const [voiding, setVoiding] = useState<components['schemas']['CommissionInstallment'] | null>(null)
   if (commissions.isLoading) return <Skeleton className="h-24 rounded-lg" />
   if (commissions.isError || !commissions.data) {
     return <ErrorState message="Could not load commissions." onRetry={() => commissions.refetch()} />
@@ -144,35 +145,45 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
           </p>
         ) : (
           <div className="flex flex-col gap-xs">
-            {data.installments.map((inst) => (
-              <div key={inst.id} className="flex items-center justify-between gap-md text-body-sm">
-                <div>
-                  <span className="font-medium text-text-primary">{formatMoneyAmount(inst.amount)}</span>
-                  {formatApprox(inst.amount.approx) && (
-                    <span className="text-text-secondary"> ({formatApprox(inst.amount.approx)})</span>
+            {data.installments.map((inst) => {
+              const isVoid = Boolean(inst.voided_at)
+              return (
+                <div key={inst.id} className="flex items-center justify-between gap-md text-body-sm">
+                  <div className={isVoid ? 'text-text-secondary' : undefined}>
+                    <span className={`font-medium ${isVoid ? 'line-through' : 'text-text-primary'}`}>
+                      {formatMoneyAmount(inst.amount)}
+                    </span>
+                    {!isVoid && formatApprox(inst.amount.approx) && (
+                      <span className="text-text-secondary"> ({formatApprox(inst.amount.approx)})</span>
+                    )}
+                    <span className="text-text-secondary">
+                      {' '}
+                      from {inst.source === 'student' ? 'applicant' : 'college'} · {formatDate(inst.received_on)}
+                      {inst.note ? ` · ${inst.note}` : ''}
+                      {inst.receipt_id ? ' · receipt linked' : ''}
+                    </span>
+                    {isVoid && (
+                      <span className="mt-xs block text-caption text-text-secondary">
+                        Voided{inst.voided_by_name ? ` by ${inst.voided_by_name}` : ''}
+                        {inst.voided_at ? ` on ${formatDate(inst.voided_at)}` : ''}
+                        {inst.voided_reason ? ` — ${inst.voided_reason}` : ''}
+                      </span>
+                    )}
+                  </div>
+                  {isVoid ? (
+                    <Badge color="secondary">Void</Badge>
+                  ) : (
+                    canRecord && (
+                      <Button size="sm" variant="secondary" onClick={() => setVoiding(inst)}>
+                        Void
+                      </Button>
+                    )
                   )}
-                  <span className="text-text-secondary">
-                    {' '}
-                    from {inst.source === 'student' ? 'applicant' : 'college'} · {formatDate(inst.received_on)}
-                    {inst.note ? ` · ${inst.note}` : ''}
-                    {inst.receipt_id ? ' · receipt linked' : ''}
-                  </span>
                 </div>
-                {canRecord && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => deleteInstallment.mutate({ entryId: entry.id, installmentId: inst.id })}
-                    disabled={deleteInstallment.isPending}
-                  >
-                    Remove
-                  </Button>
-                )}
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
-        {deleteInstallment.isError && <p className="text-body-sm text-error">{deleteInstallment.error.message}</p>}
       </Card>
 
       {(data.invoices.length > 0 || data.receipts.length > 0) && (
@@ -201,6 +212,10 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
             </div>
           ))}
         </Card>
+      )}
+
+      {voiding && (
+        <VoidInstallmentModal clientId={clientId} entryId={entry.id} installment={voiding} onClose={() => setVoiding(null)} />
       )}
 
       {showRecord && (

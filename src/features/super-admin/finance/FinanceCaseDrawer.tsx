@@ -106,7 +106,7 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
             </div>
             <p className="mt-xs text-body-sm text-text-primary">
               {row.case_closed ? (
-                <>Closed as a success on {formatDate(row.recognized_at)}</>
+                <>Closed as a success{row.recognized_at ? <> on {formatDate(row.recognized_at)}</> : null}</>
               ) : (
                 'Open — nothing is due until the case closes as a success'
               )}

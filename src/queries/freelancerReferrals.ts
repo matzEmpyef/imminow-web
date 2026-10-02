@@ -173,6 +173,8 @@ export interface RecordPayoutInput {
   amount_inr: number
   paid_on: string
   reference?: string
+  /** Stable per submit (gate 12): a retried submit replays rather than paying out twice. */
+  idempotencyKey?: string
 }
 
 /**
@@ -183,9 +185,9 @@ export interface RecordPayoutInput {
 export function useRecordFreelancerPayout() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ referralId, ...body }: RecordPayoutInput) => {
+    mutationFn: async ({ referralId, idempotencyKey, ...body }: RecordPayoutInput) => {
       const { data, error } = await api.POST('/freelancer-referrals/{id}/payouts', {
-        params: { path: { id: referralId } },
+        params: { path: { id: referralId }, header: { 'Idempotency-Key': idempotencyKey ?? crypto.randomUUID() } },
         body,
       })
       if (error) throw new ApiError('Could not record this payout.', error)

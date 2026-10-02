@@ -45,6 +45,7 @@ export function RecordInstallmentModal({
   const currencyCodes = useCurrencyCodes(currency)
   const [receivedOn, setReceivedOn] = useState(localDateISO())
   const [note, setNote] = useState('')
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
   const [receiptId, setReceiptId] = useState('')
 
   function pickSource(next: 'college' | 'student') {
@@ -61,6 +62,7 @@ export function RecordInstallmentModal({
     record.mutate(
       {
         entryId: entry.id,
+        idempotencyKey,
         source,
         amount: { amount: Number(amount), currency },
         received_on: receivedOn,

@@ -328,7 +328,7 @@ export function CommissionDetailsPage() {
         <div className="flex flex-col items-end">
           <span>{due.accepted_at ? formatDate(due.accepted_at) : '—'}</span>
           <span className="text-caption text-text-secondary">
-            {due.case_closed ? `Closed ${formatDate(due.recognized_at)}` : 'Open'}
+            {due.case_closed ? (due.recognized_at ? `Closed ${formatDate(due.recognized_at)}` : 'Closed') : 'Open'}
           </span>
         </div>
       ),

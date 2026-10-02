@@ -38,6 +38,7 @@ export function ReceiveDueModal({
   const [receivedOn, setReceivedOn] = useState(localDateISO())
   const [reference, setReference] = useState('')
   const [note, setNote] = useState('')
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
   // Overpayment guard (review C5, 2026-09-12) — the modal already knows what's outstanding for
   // this part/case+currency, so it warns before the round trip rather than waiting on the
   // server's 409. Only ticking the checkbox sends allow_overpayment: true.
@@ -72,6 +73,7 @@ export function ReceiveDueModal({
               receiveDue.mutate(
                 {
                   entryId: caseRow.id,
+                  idempotencyKey,
                   amount: parsed,
                   currency: part ? (part.currency ?? undefined) : currency,
                   part_key: part?.key,
