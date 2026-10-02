@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
+import { AsOfCaption } from '@/components/AsOfCaption'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Card } from '@/components/Card'
 import { DoughnutChart } from '@/components/DoughnutChart'
@@ -219,7 +220,10 @@ export function SuperAdminDashboardPage() {
         {/* "Platform", not "Super Admin" — this landing page is the one console surface every
             platform account sees, flags or not (#12); the old title lied to a Platform Staff
             viewer. */}
-        <h1 className="text-h1 text-text-primary">Platform Dashboard</h1>
+        <div>
+          <h1 className="text-h1 text-text-primary">Platform Dashboard</h1>
+          <AsOfCaption asOf={dashboard.data?.as_of} note="Needs Attention and the queue counts are live." />
+        </div>
 
         <div className="grid grid-cols-2 gap-md md:grid-cols-4">
           {dashboard.data?.stat_cards.map((card) => {

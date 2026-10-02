@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { AsOfCaption } from '@/components/AsOfCaption'
 import { Link } from 'react-router-dom'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Card } from '@/components/Card'
@@ -56,6 +57,7 @@ export function MarketingOverviewPage() {
               How the Sentpo app&apos;s marketing is doing — the last {data?.window_days ?? windowDays} days unless a
               number says otherwise.
             </p>
+            <AsOfCaption asOf={data?.as_of} />
           </div>
           <div className="flex gap-xs rounded-full border border-border bg-surface p-xs">
             {WINDOWS.map((w) => (

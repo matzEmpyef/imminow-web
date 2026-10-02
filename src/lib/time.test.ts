@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { daysSince, daysUntil, formatDate, localDateISO, relativeTime, timeAgo } from './time'
+import { daysSince, daysUntil, formatAsOf, formatDate, localDateISO, relativeTime, timeAgo } from './time'
 
 // The bug this helper exists for (2026-09-12): "today" was taken from toISOString(), the UTC
 // date, so in India every date default read as yesterday between midnight and 05:30.
@@ -81,5 +81,20 @@ describe('timeAgo', () => {
     expect(timeAgo(ago(23 * HOUR + 1000))).toBe('23h ago')
     expect(timeAgo(ago(47 * HOUR + 1000))).toBe('1d ago')
     expect(timeAgo(ago(49 * HOUR))).toBe('2d ago')
+  })
+})
+
+// Contract gate 12 (owner Q7): each rollup dashboard says "as of HH:00". The minutes are dropped on
+// purpose and a missing stamp — what the frozen mock sends — must yield no caption at all.
+describe('formatAsOf', () => {
+  it('names the hour on the local clock and drops the minutes', () => {
+    expect(formatAsOf(new Date(2026, 9, 2, 14, 7).toISOString())).toBe('as of 14:00')
+    expect(formatAsOf(new Date(2026, 9, 2, 9, 59).toISOString())).toBe('as of 09:00')
+  })
+
+  it('gives nothing for a missing or unreadable stamp', () => {
+    expect(formatAsOf(null)).toBeNull()
+    expect(formatAsOf(undefined)).toBeNull()
+    expect(formatAsOf('not a date')).toBeNull()
   })
 })

@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { AsOfCaption } from '@/components/AsOfCaption'
 import { Link } from 'react-router-dom'
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { CheckCircle2, FolderKanban, TriangleAlert, UserPlus, Users } from 'lucide-react'
@@ -202,6 +203,7 @@ export function DashboardPage() {
           <div>
             <h1 className="text-h1 text-text-primary">Welcome back, {user?.first_name ?? data.greeting_name}</h1>
             <p className="text-body-sm text-text-secondary">{today}</p>
+            <AsOfCaption asOf={data.as_of} />
           </div>
           {data.available_scopes.length > 1 && (
             <div className="flex gap-xs rounded-full border border-border bg-surface p-xs">

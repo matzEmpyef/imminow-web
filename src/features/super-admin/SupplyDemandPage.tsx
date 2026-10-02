@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AsOfCaption } from '@/components/AsOfCaption'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { useAuthStore } from '@/stores/authStore'
 import { useUpdatePlatformSettings } from '@/queries/catalogSettings'
@@ -269,6 +270,7 @@ export function SupplyDemandPage() {
             Where students want to go vs. where consultancies actually serve — collecting since{' '}
             {formatDate(data.collecting_since)}.
           </p>
+          <AsOfCaption asOf={data.as_of} />
         </div>
 
         {/* Where students want to study (user, 2026-09-02; revised 2026-09-10). Distinct students

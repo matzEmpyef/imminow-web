@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { AsOfCaption } from '@/components/AsOfCaption'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
@@ -204,6 +205,7 @@ export function PerformanceLeaguePage() {
             <p className="text-body-sm text-text-secondary">
               How each account handles the leads Sentpo sends it. Sort any column; badges mark what needs a look.
             </p>
+            <AsOfCaption asOf={league.data?.as_of} />
           </div>
           <div className="flex gap-xs rounded-full border border-border bg-surface p-xs">
             {WINDOWS.map((w) => (

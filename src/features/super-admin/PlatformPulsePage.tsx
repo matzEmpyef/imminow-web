@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AsOfCaption } from '@/components/AsOfCaption'
 import { Link } from 'react-router-dom'
 import { Bar, BarChart, Cell, Legend, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { AdminShell } from '@/features/auth/AdminShell'
@@ -369,6 +370,7 @@ export function PlatformPulsePage() {
             <p className="text-body-sm text-text-secondary">
               What's most popular across the platform — collecting since {formatDate(data.collecting_since)}.
             </p>
+            <AsOfCaption asOf={data.as_of} />
           </div>
           <div className="flex gap-xs rounded-full border border-border bg-surface p-xs">
             {WINDOWS.map((w) => (

@@ -191,3 +191,19 @@ export function formatDayLabel(input: string | Date): string {
 // (assumptions audit M9, product owner). A student's intake is a month and a year now, worded by
 // the server as `intake_label` so the console and the app cannot disagree; the picker vocabulary
 // and the local fallback wording live in `lib/intake.ts`.
+
+/**
+ * "as of 14:00" — the caption for a rollup-backed dashboard (contract gate 12, owner Q7: hourly
+ * rollups, each page saying how fresh it is). The server stamps the hour its rollups were last
+ * refreshed; the minutes are dropped on purpose — the figures cover everything up to the top of
+ * that hour, so "as of 14:00" is the claim, not the minute the job happened to finish. Read on the
+ * browser's own clock like every other time in the console. Returns null for a missing or
+ * unparseable stamp (the frozen mock sends null: it computes everything live), so the caller shows
+ * no caption rather than an invented one.
+ */
+export function formatAsOf(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  return `as of ${pad(d.getHours())}:00`
+}
