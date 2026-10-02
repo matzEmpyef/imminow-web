@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { chronologicalPages, fetchAllPages, useCursorPagination } from './pagination'
+import { chronologicalPages, cursorPager, fetchAllPages, toPage, useCursorPagination } from './pagination'
 
 // Table's Previous button can only work if this hook remembers the cursor each page was reached
 // FROM — the server's cursor is opaque and one-directional. These pin the stack discipline.
@@ -98,5 +98,59 @@ describe('chronologicalPages', () => {
   it('handles no pages loaded yet', () => {
     expect(chronologicalPages(undefined)).toEqual([])
     expect(chronologicalPages([])).toEqual([])
+  })
+})
+
+// Contract gate 12: three lists (allocation queue, freelancers, freelancer rates) gain cursor
+// paging while the frozen mock still answers with the plain array. toPage reads either shape and
+// cursorPager turns the meta into Table/CursorPager props — no next_cursor, no pager.
+describe('toPage', () => {
+  it('treats a plain array as one complete, unpaged page', () => {
+    expect(toPage([1, 2])).toEqual({ items: [1, 2], meta: undefined })
+  })
+
+  it('reads the cursor envelope', () => {
+    expect(toPage({ items: ['a'], meta: { next_cursor: 'c2', total: 9 } })).toEqual({
+      items: ['a'],
+      meta: { next_cursor: 'c2', total: 9 },
+    })
+  })
+
+  it('survives an envelope with no meta and a missing response', () => {
+    expect(toPage({ items: ['a'] })).toEqual({ items: ['a'], meta: undefined })
+    expect(toPage(undefined)).toEqual({ items: [], meta: undefined })
+  })
+})
+
+describe('cursorPager', () => {
+  it('shows no way forward or back for an unpaged response', () => {
+    const { result } = renderHook(() => useCursorPagination())
+    const pager = cursorPager(result.current, undefined)
+    expect(pager.hasNext).toBe(false)
+    expect(pager.hasPrevious).toBe(false)
+  })
+
+  it('walks forward on the server cursor and back on the remembered one', () => {
+    const { result, rerender } = renderHook(
+      ({ meta }: { meta: { next_cursor: string | null; total?: number } }) => {
+        const paging = useCursorPagination()
+        return { paging, pager: cursorPager(paging, meta) }
+      },
+      { initialProps: { meta: { next_cursor: 'c2', total: 41 } as { next_cursor: string | null; total?: number } } },
+    )
+    expect(result.current.pager.hasNext).toBe(true)
+    expect(result.current.pager.total).toBe(41)
+
+    act(() => result.current.pager.onNext())
+    expect(result.current.paging.cursor).toBe('c2')
+
+    rerender({ meta: { next_cursor: null } })
+    expect(result.current.pager.hasNext).toBe(false)
+    expect(result.current.pager.hasPrevious).toBe(true)
+    act(() => result.current.pager.onNext())
+    expect(result.current.paging.cursor).toBe('c2')
+
+    act(() => result.current.pager.onPrevious())
+    expect(result.current.paging.cursor).toBeUndefined()
   })
 })

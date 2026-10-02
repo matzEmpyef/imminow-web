@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
@@ -7,12 +7,25 @@ import type { components } from '@/api/schema'
 
 export type CommissionPayment = components['schemas']['CommissionPayment']
 
-export function useCommission() {
+/**
+ * Commission Details (`GET /commission`). Contract gate 11 pages it by TWO independent cursors —
+ * the dues by `cursor`, the payment history by its own `history_cursor` — since each grows on its
+ * own; the response carries `meta` / `history_meta` for them. The frozen mock ignores both and
+ * returns every row with no meta, so with no `next_cursor` the page simply shows no pager.
+ * The query key keeps `['commission']` as its prefix, so every existing invalidation still hits it.
+ */
+export function useCommission(paging: { cursor?: string; historyCursor?: string } = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  const { cursor, historyCursor } = paging
   return useQuery({
-    queryKey: ['commission'],
+    queryKey: ['commission', { cursor: cursor ?? null, historyCursor: historyCursor ?? null }],
+    // Keep the previous page on screen while the next one loads, so flipping one table's page
+    // doesn't blank the whole screen (the totals and the other table come back in the same read).
+    placeholderData: keepPreviousData,
     queryFn: async () => {
-      const { data, error } = await api.GET('/commission')
+      const { data, error } = await api.GET('/commission', {
+        params: { query: { cursor, history_cursor: historyCursor } },
+      })
       if (error) throw new ApiError('Could not load commission details.', error)
       return data
     },

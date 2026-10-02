@@ -45,12 +45,14 @@ interface GatedSubLink extends SidebarSubLink {
   /** Consultancy permission key required to see this link, e.g. `staff.manage_employees`. */
   permission?: string
   /**
-   * Hidden on an `institute` account (H3, 2026-09-13). Not a feature flag: a college's applicants
-   * pay the college directly, so there is no platform commission for ANY institute to track —
-   * that is a property of the account kind, not something a Super Admin should be able to switch
-   * on for one college and off for another.
+   * Hidden on an `institute` account (H3, 2026-09-13). Not a feature flag: that is a property of
+   * the account kind, not something a Super Admin should be able to switch on for one college and
+   * off for another. (Commission Details used this until owner answer Q6, 2026-10-01: an institute
+   * owes the platform its share like any tenant, so it now shows there under `instituteLabel`.)
    */
   consultancyOnly?: boolean
+  /** What an `institute` account calls this link — the same page, worded for a college. */
+  instituteLabel?: string
 }
 
 interface GatedSection extends Omit<SidebarSection, 'sidebarLinks'> {
@@ -155,7 +157,7 @@ const SECTIONS: GatedSection[] = [
         path: '/administration/commission-details',
         icon: Percent,
         permission: 'billing.view_commission_details',
-        consultancyOnly: true,
+        instituteLabel: 'Sentpo’s Share',
       },
       { label: 'Forms', path: '/administration/forms', icon: ClipboardList },
       {
@@ -230,6 +232,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       .map((link) =>
         link.label === 'Activity' ? { ...link, badge: activityFeed.data?.needs_action_today_count } : link,
       )
+      .map((link) => (isInstitute && link.instituteLabel ? { ...link, label: link.instituteLabel } : link))
     // The section header navigates to its first sublink — resolved AFTER permission filtering,
     // so a user denied the section's usual landing page (e.g. Plan Templates) lands on their
     // first visible link instead of a permission-denied card.

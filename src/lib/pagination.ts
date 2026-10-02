@@ -67,3 +67,48 @@ export async function fetchAllPages<T>(
   }
   return rows
 }
+
+/** The `meta` block every cursor-paged list carries (`components['schemas']['PaginatedMeta']`). */
+export interface PageMeta {
+  next_cursor?: string | null
+  total?: number | null
+  total_capped?: boolean
+}
+
+/**
+ * Reads a list that is moving from a plain array to the cursor envelope (contract gate 12:
+ * `GET /applicant-allocation-queue`, `/freelancers`, `/freelancer-rates`). The contract documents
+ * the paging params and says the frozen mock still returns the plain array, but types the
+ * response as that array — the paged envelope is the same `{ items, meta }` every other cursor
+ * list uses, so accept both. A plain array (or an envelope with no `meta`) is one complete page:
+ * no `next_cursor`, so no pager and no "load more".
+ */
+export function toPage<T>(raw: T[] | { items?: T[] | null; meta?: PageMeta | null } | null | undefined): {
+  items: T[]
+  meta: PageMeta | undefined
+} {
+  if (Array.isArray(raw)) return { items: raw, meta: undefined }
+  return { items: raw?.items ?? [], meta: raw?.meta ?? undefined }
+}
+
+/**
+ * The Table/CursorPager props for one cursor chain, from the page's `meta` and its
+ * `useCursorPagination()`. With no `next_cursor` there is nowhere to go forward (and with an
+ * empty stack nowhere back), so an unpaged response renders no pager at all.
+ */
+export function cursorPager(
+  paging: { hasPrevious: boolean; next: (cursor: string) => void; previous: () => void },
+  meta: PageMeta | null | undefined,
+) {
+  const nextCursor = meta?.next_cursor
+  return {
+    hasNext: Boolean(nextCursor),
+    hasPrevious: paging.hasPrevious,
+    onNext: () => {
+      if (nextCursor) paging.next(nextCursor)
+    },
+    onPrevious: paging.previous,
+    total: meta?.total,
+    totalCapped: meta?.total_capped,
+  }
+}

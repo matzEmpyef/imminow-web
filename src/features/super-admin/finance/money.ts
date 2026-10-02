@@ -41,6 +41,20 @@ export function paymentMoney(p: PaymentMoney | null | undefined): string {
   return money({ amount, currency: p?.amount?.currency })
 }
 
+/**
+ * Credit held per currency on a case (contract gate 11, F10): confirmed money beyond what any due
+ * part is still owed — an accepted overpayment, never clawed back automatically. Only currencies
+ * with a positive credit come back, so an empty list means "nothing to show". `credit` is absent on
+ * the frozen mock (it has no overpayment ledger); the production backend always reports it.
+ */
+export function creditsByCurrency(
+  byCurrency: readonly { currency?: string | null; credit?: number | null }[] | null | undefined,
+): { currency: string; credit: number }[] {
+  return (byCurrency ?? [])
+    .filter((c): c is { currency: string; credit: number } => Boolean(c.currency) && (c.credit ?? 0) > 0)
+    .map((c) => ({ currency: c.currency, credit: c.credit }))
+}
+
 /** "12 Sep" — short enough to sit inside a rate note without crowding the amount beside it. */
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 function shortDate(iso: string): string {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ComponentProps } from 'react'
 import { Link } from 'react-router-dom'
 import { AppShell } from '@/features/auth/AppShell'
 import { Card } from '@/components/Card'
@@ -8,6 +8,8 @@ import { StopPropagation } from '@/components/StopPropagation'
 import { usePermissionChecker } from '@/lib/permissions'
 import { useAccountWords } from '@/lib/accountWords'
 import { useCommission } from '@/queries/commission'
+import { cursorPager, useCursorPagination } from '@/lib/pagination'
+import { creditsByCurrency } from '@/features/super-admin/finance/money'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { formatDate } from '@/lib/time'
 import { formatApprox, formatMoney, formatMoneyAmount, inrOrDash } from '@/lib/money'
@@ -43,7 +45,9 @@ type Tab = (typeof TABS)[number]
 // Consultancy-side payment history (user decision 2026-08-28: moved off the main page onto its
 // own tab). Shows which case each payment was declared against — "General" for legacy pooled
 // rows that predate per-case linking.
-function PaymentHistoryTab({ payments }: { payments: CommissionPayment[] }) {
+type TablePager = ComponentProps<typeof Table>['pagination']
+
+function PaymentHistoryTab({ payments, pagination }: { payments: CommissionPayment[]; pagination: TablePager }) {
   // A proper table (user, 2026-08-28) — columns beat a flowing row the moment there are more
   // than a few payments to scan.
   const columns: TableColumn<CommissionPayment>[] = [
@@ -119,7 +123,13 @@ function PaymentHistoryTab({ payments }: { payments: CommissionPayment[] }) {
     <Card>
       <h2 className="text-h3 text-text-primary">Payment History</h2>
       <div className="mt-sm">
-        <Table columns={columns} rows={payments} rowKey={(p) => p.id} emptyMessage="No payments recorded yet." />
+        <Table
+          columns={columns}
+          rows={payments}
+          rowKey={(p) => p.id}
+          emptyMessage="No payments recorded yet."
+          pagination={pagination}
+        />
       </div>
     </Card>
   )
@@ -130,25 +140,18 @@ export function CommissionDetailsPage() {
   // promised permission-based access — now it actually checks the key. usePermissionChecker
   // (not usePermission) because a denial page must not flash while permissions are loading.
   const { can, isLoading: permsLoading, isError: permsError, refetch: refetchPerms } = usePermissionChecker()
-  // H3 (2026-09-13): the route stays reachable (a bookmark, a stale link) but says why there is
-  // nothing here — same not-available card the permission denial below uses.
+  // Owner answer Q6 (2026-10-01): an institute owes Sentpo its share like any other tenant, so it
+  // gets this page too, worded for a college — "Sentpo's share", where it sees dues and declares
+  // payments. (H3, 2026-09-13, had shown it a "nothing to track" card instead.)
   const { isInstitute } = useAccountWords()
-  const commission = useCommission()
+  // Two independent cursor chains (contract gate 11): dues and payment history each page on their
+  // own; the read returns the running total with either.
+  const duesPaging = useCursorPagination()
+  const historyPaging = useCursorPagination()
+  const commission = useCommission({ cursor: duesPaging.cursor, historyCursor: historyPaging.cursor })
   const [activeTab, setActiveTab] = useState<Tab>('Active Cases')
   const [payingDue, setPayingDue] = useState<CommissionDue | null>(null)
   const [viewingSchedule, setViewingSchedule] = useState<CommissionDue | null>(null)
-
-  if (isInstitute) {
-    return (
-      <AppShell>
-        <Card>
-          <p className="text-body text-text-secondary">
-            Your applicants pay you directly — there is no platform commission to track.
-          </p>
-        </Card>
-      </AppShell>
-    )
-  }
 
   if (permsLoading) {
     return (
@@ -198,6 +201,9 @@ export function CommissionDetailsPage() {
 
   const data = commission.data
   const canRecordPayment = can('billing.record_payment')
+  // No `meta` = the frozen mock (or an unpaged server): everything is already on screen, no pager.
+  const duesPager = cursorPager(duesPaging, data.meta)
+  const historyPager = cursorPager(historyPaging, data.history_meta)
 
   const dueColumns: TableColumn<CommissionDue>[] = [
     {
@@ -249,7 +255,7 @@ export function CommissionDetailsPage() {
     },
     {
       key: 'platform_due',
-      header: 'Due to immiNow',
+      header: isInstitute ? 'Due to Sentpo' : 'Due to immiNow',
       align: 'right',
       render: (due) => {
         const others = (due.by_currency ?? []).filter((c) => c.currency && c.currency !== 'INR' && (c.outstanding ?? 0) > 0)
@@ -269,6 +275,15 @@ export function CommissionDetailsPage() {
             {others.length > 0 && (
               <span className="text-caption text-text-secondary">
                 {others.map((c) => `${c.currency} ${(c.outstanding ?? 0).toLocaleString('en-US')}`).join(' · ')}
+              </span>
+            )}
+            {/* Paid beyond what is owed (contract gate 11) — held as credit, per currency. */}
+            {creditsByCurrency(due.by_currency).length > 0 && (
+              <span className="text-caption text-success">
+                Credit{' '}
+                {creditsByCurrency(due.by_currency)
+                  .map((c) => `${c.currency} ${c.credit.toLocaleString('en-US')}`)
+                  .join(' · ')}
               </span>
             )}
           </div>
@@ -339,9 +354,9 @@ export function CommissionDetailsPage() {
     <AppShell>
       <div className="flex flex-col gap-lg">
         <div>
-          <h1 className="text-h1 text-text-primary">Commission Details</h1>
+          <h1 className="text-h1 text-text-primary">{isInstitute ? 'Sentpo’s Share' : 'Commission Details'}</h1>
           <p className="mt-xs text-h2 text-text-primary">
-            {formatMoney(data.currency, data.running_total)} running total
+            {formatMoney(data.currency, data.running_total)} {isInstitute ? 'owed to Sentpo' : 'running total'}
           </p>
           {formatApprox(data.running_total_approx) && (
             <p className="text-body-sm text-text-secondary">{formatApprox(data.running_total_approx)}</p>
@@ -372,8 +387,8 @@ export function CommissionDetailsPage() {
               <p className="text-caption text-text-secondary">
                 One row per accepted case (or PR contribution). Amounts are held in INR, with your own currency
                 beneath where it differs (approximate — rates are set by hand); per-source detail, in the currency
-                each was agreed in, lives on each applicant&rsquo;s Commissions tab. This page is the one place the
-                platform&rsquo;s cut is visible.
+                each was agreed in, lives on each applicant&rsquo;s Commissions tab. This page is the one place{' '}
+                {isInstitute ? 'Sentpo’s share' : 'the platform’s cut'} is visible.
                 {canRecordPayment && ' Click a case to record a payment against its due.'}
               </p>
             </div>
@@ -384,12 +399,13 @@ export function CommissionDetailsPage() {
                 rowKey={(due) => due.id}
                 emptyMessage="Nothing pending — cases appear here when a college is accepted."
                 onRowClick={canRecordPayment ? (due) => setPayingDue(due) : undefined}
+                pagination={duesPager}
               />
             </div>
           </Card>
         )}
 
-        {activeTab === 'Payment History' && <PaymentHistoryTab payments={data.payment_history} />}
+        {activeTab === 'Payment History' && <PaymentHistoryTab payments={data.payment_history} pagination={historyPager} />}
       </div>
     </AppShell>
   )
