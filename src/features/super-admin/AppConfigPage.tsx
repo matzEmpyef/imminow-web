@@ -27,6 +27,34 @@ function compareVersions(a: string, b: string): number {
   return 0
 }
 
+// Gate 12c (F64): the per-platform store links accept https and the store's own host only
+// (the server answers 400 otherwise) — checked here so the form says so before Save. Empty is
+// fine: that platform's app falls back to `update_url`.
+function platformUrlError(value: string | null | undefined, host: string): string | undefined {
+  const trimmed = (value ?? '').trim()
+  if (!trimmed) return undefined
+  try {
+    const url = new URL(trimmed)
+    if (url.protocol === 'https:' && url.hostname === host) return undefined
+  } catch {
+    // falls through to the message below
+  }
+  return `Must be an https://${host} link`
+}
+
+// Blank per-platform URLs go back as null (clears the override). When the server never sent the
+// field (the frozen mock) and the box was left empty, leave the key out so nothing new is sent.
+function withPlatformUrls(form: AppConfig, saved: AppConfig | undefined): AppConfig {
+  const out: AppConfig = { ...form }
+  for (const key of ['update_url_android', 'update_url_ios'] as const) {
+    const trimmed = (form[key] ?? '').trim()
+    if (trimmed) out[key] = trimmed
+    else if (saved && key in saved) out[key] = null
+    else delete out[key]
+  }
+  return out
+}
+
 /**
  * App Config (Session 37, 2026-08-30) — the server-driven version gate + store-rating prompt
  * thresholds Sentpo Mobile fetches on every launch, before login. One form, one Save, same
@@ -77,6 +105,8 @@ function VersionAndRatingCard() {
     versionsValid &&
     !minAboveLatest &&
     form.update_url.trim().length > 0 &&
+    !platformUrlError(form.update_url_android, 'play.google.com') &&
+    !platformUrlError(form.update_url_ios, 'apps.apple.com') &&
     form.release_notes.trim().length > 0 &&
     form.rating.min_days_since_install >= 0 &&
     form.rating.min_sessions >= 0 &&
@@ -104,7 +134,7 @@ function VersionAndRatingCard() {
 
   function saveNow() {
     if (!form) return
-    update.mutate(form, {
+    update.mutate(withPlatformUrls(form, config.data), {
       onSuccess: () => {
         setConfirmingVersions(false)
         showToast('App settings saved')
@@ -153,12 +183,31 @@ function VersionAndRatingCard() {
           </p>
         </div>
         <TextField
-          label="Update URL"
+          label="Update URL (fallback)"
           required
           value={form.update_url}
           onChange={(e) => updateField('update_url', e.target.value)}
           placeholder="https://play.google.com/store/apps/details?id=com.sentpo.app"
         />
+        <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
+          <TextField
+            label="Android update URL"
+            value={form.update_url_android ?? ''}
+            onChange={(e) => updateField('update_url_android', e.target.value)}
+            placeholder="https://play.google.com/store/apps/details?id=com.sentpo.app"
+            error={platformUrlError(form.update_url_android, 'play.google.com')}
+          />
+          <TextField
+            label="iOS update URL"
+            value={form.update_url_ios ?? ''}
+            onChange={(e) => updateField('update_url_ios', e.target.value)}
+            placeholder="https://apps.apple.com/app/sentpo/id0000000000"
+            error={platformUrlError(form.update_url_ios, 'apps.apple.com')}
+          />
+        </div>
+        <p className="-mt-sm text-caption text-text-secondary">
+          Each app opens its own store&rsquo;s link when it is set; the fallback URL is used when it is left empty.
+        </p>
         <div className="flex flex-col gap-xs">
           <label className="text-body-sm font-medium text-text-primary" htmlFor="release-notes">
             Release notes<span className="text-error"> *</span>
