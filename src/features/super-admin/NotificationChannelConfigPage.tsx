@@ -256,11 +256,11 @@ export function NotificationChannelConfigPage() {
             here stops it for everyone, whatever they have chosen in their own notification settings — which can only
             narrow it further, never widen it. &ldquo;Goes to&rdquo; says which product&rsquo;s users are affected.
           </p>
-          {/* Said plainly rather than left for someone to discover: Email genuinely sends, Push
-              does not yet, and a row of identical-looking toggles gives no hint which is which. */}
+          {/* Said plainly rather than left for someone to discover: Push only reaches a device
+              once the server has a Firebase project, and identical-looking toggles give no hint. */}
           <p className="text-caption text-text-secondary">
-            In-app and Email take effect immediately. <strong>Push does not send yet</strong> — it needs the FCM/APNs
-            integration, so turning it on records the intent and reaches no device until that lands.
+            In-app and Email take effect immediately. <strong>Push reaches devices once the server&rsquo;s Firebase project
+            is configured</strong>; until then turning it on records the intent.
           </p>
         </div>
 
