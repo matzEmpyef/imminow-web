@@ -67,3 +67,11 @@ describe('inr / inrOrDash', () => {
     expect(inrOrDash(null)).toBe('—')
   })
 })
+
+// A freelancer's `owed` can go negative (contract gate 12 — overpaid): the sign leads the symbol.
+describe('inr with a negative', () => {
+  it('writes -₹500, not ₹-500', () => {
+    expect(inr(-500)).toBe('-₹500')
+    expect(inr(-1234567)).toBe('-₹12,34,567')
+  })
+})

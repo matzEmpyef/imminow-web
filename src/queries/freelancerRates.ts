@@ -1,26 +1,47 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { fetchAllPages, toPage } from '@/lib/pagination'
 import type { components } from '@/api/schema'
 
 type FreelancerRateInput = components['schemas']['FreelancerRateInput']
 
 export type Freelancer = components['schemas']['Freelancer']
 
-// The whole roster — small enough (per the contract note on GET /freelancers) that search and
-// status filtering happen client-side on FreelancersPage rather than adding server paging for a
-// list that will not grow into the hundreds any time soon.
-export function useFreelancers() {
+// One page of the roster (contract gate 12 — `GET /freelancers` is cursor-paged; the frozen mock
+// still returns the plain array, which `toPage` reads as one complete page, so no pager shows).
+// Search and the status filter stay client-side over the page in view.
+export function useFreelancers(cursor?: string) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
-    queryKey: ['freelancers'],
+    queryKey: ['freelancers', 'page', cursor ?? null],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
-      const { data, error } = await api.GET('/freelancers')
+      const { data, error } = await api.GET('/freelancers', { params: { query: { cursor } } })
       if (error) throw new ApiError('Could not load freelancers.', error)
-      return data
+      return toPage(data)
     },
     enabled: isAuthed,
+  })
+}
+
+// The whole roster, every page walked (100 rows a request). For the places that need the full set
+// rather than one screenful: the payouts pages' freelancer picker and the summary tiles' totals.
+// `enabled: false` lets a caller that already holds the complete list skip the extra walk.
+export function useAllFreelancers(options: { enabled?: boolean } = {}) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['freelancers', 'all'],
+    queryFn: async () => {
+      return fetchAllPages<Freelancer>(async (cursor) => {
+        const { data, error } = await api.GET('/freelancers', { params: { query: { cursor, limit: 100 } } })
+        if (error) throw new ApiError('Could not load freelancers.', error)
+        const page = toPage(data)
+        return { items: page.items, meta: page.meta ?? {} }
+      })
+    },
+    enabled: isAuthed && (options.enabled ?? true),
   })
 }
 
@@ -93,14 +114,21 @@ export function useUpdateFreelancer() {
   })
 }
 
+// Cursor-paged since contract gate 12 (the mock still returns the plain array). The only consumer
+// is the share editor, which must find THIS freelancer's rate row to decide create vs update — a
+// row on page two would otherwise read as "no rate" and POST a duplicate — so it walks every page
+// (100 rows a request) rather than showing one screenful.
 export function useFreelancerRates() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['freelancer-rates'],
     queryFn: async () => {
-      const { data, error } = await api.GET('/freelancer-rates')
-      if (error) throw new ApiError('Could not load freelancer rates.', error)
-      return data
+      return fetchAllPages<components['schemas']['FreelancerRate']>(async (cursor) => {
+        const { data, error } = await api.GET('/freelancer-rates', { params: { query: { cursor, limit: 100 } } })
+        if (error) throw new ApiError('Could not load freelancer rates.', error)
+        const page = toPage(data)
+        return { items: page.items, meta: page.meta ?? {} }
+      })
     },
     enabled: isAuthed,
   })

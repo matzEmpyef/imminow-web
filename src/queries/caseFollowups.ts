@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
@@ -19,13 +19,17 @@ export type CaseFollowupOutcome = 'promised_to_close' | 'disputed' | 'no_answer'
  * that has not happened. Nothing here closes or moves anything: working the queue is a phone
  * call, not a button.
  */
-export function useCaseFollowups(includeSnoozed = false) {
+export function useCaseFollowups(includeSnoozed = false, cursor?: string) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
-    queryKey: ['case-followups', 'list', includeSnoozed],
+    // Cursor-paged (contract gate 12; the frozen mock ignores `cursor` and returns every row with
+    // no `meta`). `summary` is the whole queue's, so it rides every page; keep the previous page
+    // on screen while the next loads.
+    queryKey: ['case-followups', 'list', includeSnoozed, cursor ?? null],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const { data, error } = await api.GET('/case-followups', {
-        params: { query: { include_snoozed: includeSnoozed } },
+        params: { query: { include_snoozed: includeSnoozed, cursor } },
       })
       if (error) throw new ApiError('Could not load the follow-up queue.', error)
       return data

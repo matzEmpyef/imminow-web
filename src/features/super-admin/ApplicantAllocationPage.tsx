@@ -15,6 +15,7 @@ import {
   useResolveAllocationRequest,
 } from '@/queries/applicantAllocation'
 import { formatDate } from '@/lib/time'
+import { cursorPager, useCursorPagination } from '@/lib/pagination'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
@@ -281,14 +282,18 @@ function AllocateAction({ entry }: { entry: QueueEntry }) {
 }
 
 export function ApplicantAllocationPage() {
-  const queue = useApplicantAllocationQueue()
+  const paging = useCursorPagination()
+  const queue = useApplicantAllocationQueue(paging.cursor)
+  // No `meta` = the frozen mock / an unpaged server: the whole queue is here, no pager.
+  const pager = cursorPager(paging, queue.data?.meta)
+  const paged = pager.hasNext || pager.hasPrevious
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
   const [sourceFilter, setSourceFilter] = useState<'' | Source>('')
 
   // The server sends oldest first; a column sort replaces that.
   const rows = useMemo(() => {
-    let items = queue.data ?? []
+    let items = queue.data?.items ?? []
     if (sourceFilter) items = items.filter((e) => e.source === sourceFilter)
     if (search) {
       const q = search.toLowerCase()
@@ -439,7 +444,8 @@ export function ApplicantAllocationPage() {
           emptyMessage={search || sourceFilter ? 'No applicants match these filters.' : 'Nothing awaiting allocation.'}
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
-          search={{ value: search, onChange: setSearch, placeholder: 'Search applicant…' }}
+          search={{ value: search, onChange: setSearch, placeholder: paged ? 'Search this page…' : 'Search applicant…' }}
+          pagination={pager}
           filters={
             <CompactSelect
               value={sourceFilter}

@@ -12,6 +12,7 @@ import { Table, type TableColumn } from '@/components/Table'
 import { TextAreaField } from '@/components/TextAreaField'
 import { TextField } from '@/components/TextField'
 import { relativeTime } from '@/lib/time'
+import { cursorPager, useCursorPagination } from '@/lib/pagination'
 import { showToast } from '@/lib/toast'
 import {
   useServiceFollowups,
@@ -179,7 +180,8 @@ function SendNudgeModal({ row, onClose }: { row: ServiceFollowupRow; onClose: ()
  */
 export function ServiceFollowupsPage() {
   const [includeSnoozed, setIncludeSnoozed] = useState(false)
-  const queue = useServiceFollowups(includeSnoozed)
+  const paging = useCursorPagination()
+  const queue = useServiceFollowups(includeSnoozed, paging.cursor)
   const [search, setSearch] = useState('')
   const [signalFilter, setSignalFilter] = useState('')
   const [notCalledOnly, setNotCalledOnly] = useState(false)
@@ -190,6 +192,9 @@ export function ServiceFollowupsPage() {
 
   const items = useMemo(() => queue.data?.items ?? [], [queue.data])
   const summary = queue.data?.summary
+  // No `meta` = the frozen mock / an unpaged server: every row is here already, no pager.
+  const pager = cursorPager(paging, queue.data?.meta)
+  const paged = pager.hasNext || pager.hasPrevious
 
   const signalOptions = useMemo(
     () =>
@@ -343,7 +348,8 @@ export function ServiceFollowupsPage() {
           error={queue.isError ? 'Could not load the follow-up queue.' : undefined}
           emptyMessage="Nothing needs chasing right now."
           onRowClick={(row) => setViewing(row)}
-          search={{ value: search, onChange: setSearch, placeholder: 'Search student, email or consultancy…' }}
+          search={{ value: search, onChange: setSearch, placeholder: paged ? 'Search this page…' : 'Search student, email or consultancy…' }}
+          pagination={pager}
           filters={
             <CompactSelect value={signalFilter} onChange={(e) => setSignalFilter(e.target.value)} label="Signal">
               <option value="">Any signal</option>
@@ -358,7 +364,14 @@ export function ServiceFollowupsPage() {
             <>
               <FilterChip label="Not called yet" active={notCalledOnly} onChange={setNotCalledOnly} />
               <FilterChip label="Due for a call" active={dueOnly} onChange={setDueOnly} />
-              <FilterChip label="Show snoozed" active={includeSnoozed} onChange={setIncludeSnoozed} />
+              <FilterChip
+                label="Show snoozed"
+                active={includeSnoozed}
+                onChange={(v) => {
+                  setIncludeSnoozed(v)
+                  paging.reset()
+                }}
+              />
             </>
           }
         />

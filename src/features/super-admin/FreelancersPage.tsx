@@ -6,7 +6,8 @@ import { CompactSelect } from '@/components/CompactSelect'
 import { Card } from '@/components/Card'
 import { Table, type TableColumn } from '@/components/Table'
 import { formatDate } from '@/lib/time'
-import { useFreelancers, type Freelancer } from '@/queries/freelancerRates'
+import { cursorPager, useCursorPagination } from '@/lib/pagination'
+import { useAllFreelancers, useFreelancers, type Freelancer } from '@/queries/freelancerRates'
 import { InviteFreelancerModal } from './freelancers/InviteFreelancerModal'
 import { FreelancerDrawer } from './freelancers/FreelancerDrawer'
 import { showToast } from '@/lib/toast'
@@ -21,7 +22,8 @@ const STATUS_BADGE = {
 function SummaryTiles({ freelancers }: { freelancers: Freelancer[] }) {
   const activeCount = freelancers.filter((f) => f.status === 'active' || (f.status == null && f.active !== false)).length
   const invitedCount = freelancers.filter((f) => f.status === 'invited').length
-  const owedTotal = freelancers.reduce((sum, f) => sum + (f.owed_inr ?? 0), 0)
+  // Overpaid freelancers (negative `owed`, gate 12) are not netted off what others are owed.
+  const owedTotal = freelancers.reduce((sum, f) => sum + Math.max(0, f.owed_inr ?? 0), 0)
   const paidTotal = freelancers.reduce((sum, f) => sum + (f.paid_inr ?? 0), 0)
 
   return (
@@ -57,14 +59,24 @@ function SummaryTiles({ freelancers }: { freelancers: Freelancer[] }) {
  * sets or edits it, which was everything that tab did.
  */
 export function FreelancersPage() {
-  const freelancers = useFreelancers()
+  const paging = useCursorPagination()
+  const freelancers = useFreelancers(paging.cursor)
+  const pager = cursorPager(paging, freelancers.data?.meta)
+  const paged = pager.hasNext || pager.hasPrevious
+  // The tiles' totals and the drawer's lookup need the whole roster, not one page of it: walk the
+  // rest only once the first page says there is more (an unpaged answer already is everything).
+  const everyone = useAllFreelancers({ enabled: paged })
+  const roster = useMemo(
+    () => (paged ? (everyone.data ?? freelancers.data?.items ?? []) : (freelancers.data?.items ?? [])),
+    [paged, everyone.data, freelancers.data],
+  )
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<'' | 'invited' | 'active' | 'deactivated'>('')
   const [viewingId, setViewingId] = useState<string | null>(null)
   const [inviting, setInviting] = useState(false)
 
   const rows = useMemo(() => {
-    const items = freelancers.data ?? []
+    const items = freelancers.data?.items ?? []
     const q = search.trim().toLowerCase()
     return items.filter((f) => {
       if (status && f.status !== status) return false
@@ -78,8 +90,8 @@ export function FreelancersPage() {
   }, [freelancers.data, search, status])
 
   const viewingFreelancer = useMemo(
-    () => (viewingId ? (freelancers.data ?? []).find((f) => f.id === viewingId) ?? null : null),
-    [viewingId, freelancers.data],
+    () => (viewingId ? roster.find((f) => f.id === viewingId) ?? null : null),
+    [viewingId, roster],
   )
 
   const columns: TableColumn<Freelancer>[] = [
@@ -139,9 +151,18 @@ export function FreelancersPage() {
       header: 'Owed',
       align: 'right',
       render: (f) => (
-        <span className={`whitespace-nowrap tabular-nums ${(f.owed_inr ?? 0) > 0 ? 'font-medium text-warning' : 'text-text-primary'}`}>
-          {inr(f.owed_inr)}
-        </span>
+        // A negative `owed` is an overpayment (contract gate 12): a correction or rejection undid
+        // money already paid out. Said as such rather than as a minus sign; never clawed back automatically.
+        (f.owed_inr ?? 0) < 0 ? (
+          <span className="flex flex-col items-end whitespace-nowrap tabular-nums">
+            <span className="font-medium text-error">{inr(Math.abs(f.owed_inr))}</span>
+            <Badge color="error">Overpaid</Badge>
+          </span>
+        ) : (
+          <span className={`whitespace-nowrap tabular-nums ${(f.owed_inr ?? 0) > 0 ? 'font-medium text-warning' : 'text-text-primary'}`}>
+            {inr(f.owed_inr)}
+          </span>
+        )
       ),
     },
     {
@@ -169,7 +190,7 @@ export function FreelancersPage() {
           </div>
         </div>
 
-        <SummaryTiles freelancers={freelancers.data ?? []} />
+        <SummaryTiles freelancers={roster} />
 
         <Table
           columns={columns}
@@ -179,7 +200,8 @@ export function FreelancersPage() {
           error={freelancers.isError ? 'Could not load freelancers.' : undefined}
           emptyMessage="No freelancer accounts yet."
           onRowClick={(f) => setViewingId(f.id)}
-          search={{ value: search, onChange: setSearch, placeholder: 'Search name, email or code…' }}
+          search={{ value: search, onChange: setSearch, placeholder: paged ? 'Search this page…' : 'Search name, email or code…' }}
+          pagination={pager}
           filters={
             <CompactSelect
               value={status}

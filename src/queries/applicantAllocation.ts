@@ -1,16 +1,24 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { toPage } from '@/lib/pagination'
 
-export function useApplicantAllocationQueue() {
+/**
+ * The allocation queue, oldest first. Cursor-paged since contract gate 12 — `{ items, meta }` like
+ * every other cursor list; the frozen mock still answers with the plain array, which `toPage`
+ * reads as one complete page (no `next_cursor`, so no pager). The key keeps
+ * `['applicant-allocation-queue']` as its prefix, which allocate / resolve / dispute-resolve invalidate.
+ */
+export function useApplicantAllocationQueue(cursor?: string) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
-    queryKey: ['applicant-allocation-queue'],
+    queryKey: ['applicant-allocation-queue', 'page', cursor ?? null],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
-      const { data, error } = await api.GET('/applicant-allocation-queue')
+      const { data, error } = await api.GET('/applicant-allocation-queue', { params: { query: { cursor } } })
       if (error) throw new ApiError('Could not load the allocation queue.', error)
-      return data
+      return toPage(data)
     },
     enabled: isAuthed,
   })

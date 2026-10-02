@@ -42,7 +42,9 @@ export function formatAmountOnly(currency: string | null | undefined, amount: nu
  * replace fourteen local copies — twelve of this one, two of the dash variant.
  */
 export function inr(n: number | null | undefined): string {
-  return `₹${(n ?? 0).toLocaleString('en-IN')}`
+  const value = n ?? 0
+  // A negative reads "-₹500", not "₹-500" (gate 12: a freelancer's `owed` can go negative — overpaid).
+  return value < 0 ? `-₹${Math.abs(value).toLocaleString('en-IN')}` : `₹${value.toLocaleString('en-IN')}`
 }
 
 /** {@link inr}, but a missing value reads as "—" rather than ₹0. */

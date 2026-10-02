@@ -8,6 +8,7 @@ import { FilterChip } from '@/components/FilterChip'
 import { StopPropagation } from '@/components/StopPropagation'
 import { Table, type TableColumn } from '@/components/Table'
 import { relativeTime, formatDate } from '@/lib/time'
+import { cursorPager, useCursorPagination } from '@/lib/pagination'
 import { showToast } from '@/lib/toast'
 import { useCaseFollowups, useCaseNotes, useRecordFollowup, type CaseFollowupOutcome, type CaseFollowupRow } from '@/queries/caseFollowups'
 import { FollowupSummaryStrip } from './followups/FollowupSummaryStrip'
@@ -29,7 +30,8 @@ import { CASE_OUTCOME_OPTIONS, CASE_SIGNAL_LABELS, OUTCOME_LABELS } from './foll
  */
 export function CaseFollowupsPage() {
   const [includeSnoozed, setIncludeSnoozed] = useState(false)
-  const queue = useCaseFollowups(includeSnoozed)
+  const paging = useCursorPagination()
+  const queue = useCaseFollowups(includeSnoozed, paging.cursor)
   const [search, setSearch] = useState('')
   const [signalFilter, setSignalFilter] = useState('')
   const [consultancyFilter, setConsultancyFilter] = useState('')
@@ -40,6 +42,9 @@ export function CaseFollowupsPage() {
 
   const items = useMemo(() => queue.data?.items ?? [], [queue.data])
   const summary = queue.data?.summary
+  // No `meta` = the frozen mock / an unpaged server: every row is here already, no pager.
+  const pager = cursorPager(paging, queue.data?.meta)
+  const paged = pager.hasNext || pager.hasPrevious
 
   // Built from the loaded rows rather than a server facet — the API has no facets endpoint for
   // this queue, and the visible page of rows is small enough that this is cheap.
@@ -203,7 +208,8 @@ export function CaseFollowupsPage() {
           error={queue.isError ? 'Could not load the follow-up queue.' : undefined}
           emptyMessage="Nothing needs chasing right now."
           onRowClick={(row) => setViewing(row)}
-          search={{ value: search, onChange: setSearch, placeholder: 'Search student or consultancy…' }}
+          search={{ value: search, onChange: setSearch, placeholder: paged ? 'Search this page…' : 'Search student or consultancy…' }}
+          pagination={pager}
           filters={
             <>
               <CompactSelect value={signalFilter} onChange={(e) => setSignalFilter(e.target.value)} label="Signal">
@@ -232,7 +238,14 @@ export function CaseFollowupsPage() {
             <>
               <FilterChip label="Not called yet" active={notCalledOnly} onChange={setNotCalledOnly} />
               <FilterChip label="Due for a call" active={dueOnly} onChange={setDueOnly} />
-              <FilterChip label="Show snoozed" active={includeSnoozed} onChange={setIncludeSnoozed} />
+              <FilterChip
+                label="Show snoozed"
+                active={includeSnoozed}
+                onChange={(v) => {
+                  setIncludeSnoozed(v)
+                  paging.reset()
+                }}
+              />
             </>
           }
         />

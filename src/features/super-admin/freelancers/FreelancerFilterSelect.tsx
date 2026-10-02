@@ -1,9 +1,9 @@
 import { CompactSelect } from '@/components/CompactSelect'
-import { useFreelancers } from '@/queries/freelancerRates'
+import { useAllFreelancers } from '@/queries/freelancerRates'
 
-/** Shared freelancer picker for the payouts tabs and payout history — the roster is small enough to list in full (see GET /freelancers' contract note). */
+/** Shared freelancer picker for the payouts tabs and payout history — lists the whole roster (walks every page of the cursor-paged GET /freelancers). */
 export function FreelancerFilterSelect({ value, onChange }: { value: string; onChange: (id: string) => void }) {
-  const freelancers = useFreelancers()
+  const freelancers = useAllFreelancers()
 
   return (
     <CompactSelect value={value} onChange={(e) => onChange(e.target.value)} label="Freelancer">

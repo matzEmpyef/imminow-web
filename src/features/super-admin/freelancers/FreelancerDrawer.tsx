@@ -138,9 +138,19 @@ export function FreelancerDrawer({ freelancer, onClose }: { freelancer: Freelanc
               <p className="text-text-primary">{freelancer.referrals ?? 0}</p>
             </div>
             <div>
-              <p className="text-caption text-text-secondary">Owed now</p>
-              <p className={freelancer.owed_inr ? 'font-medium text-warning' : 'text-text-primary'}>
-                {inr(freelancer.owed_inr)}
+              <p className="text-caption text-text-secondary">
+                {(freelancer.owed_inr ?? 0) < 0 ? 'Overpaid' : 'Owed now'}
+              </p>
+              <p
+                className={
+                  (freelancer.owed_inr ?? 0) < 0
+                    ? 'font-medium text-error'
+                    : freelancer.owed_inr
+                      ? 'font-medium text-warning'
+                      : 'text-text-primary'
+                }
+              >
+                {inr(Math.abs(freelancer.owed_inr ?? 0))}
               </p>
             </div>
             <div>

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
@@ -14,13 +14,17 @@ export type ServiceFollowupOutcome = 'helped' | 'no_answer' | 'not_interested' |
  * consultancy yet, no reply from one, no plan, or a stalled application. Per STUDENT rather than
  * per case, since several signals fire before any case exists at all.
  */
-export function useServiceFollowups(includeSnoozed = false) {
+export function useServiceFollowups(includeSnoozed = false, cursor?: string) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
-    queryKey: ['service-followups', 'list', includeSnoozed],
+    // Cursor-paged (contract gate 12; the frozen mock ignores `cursor` and returns every row with
+    // no `meta`). `summary` is the whole queue's, so it rides every page; keep the previous page
+    // on screen while the next loads.
+    queryKey: ['service-followups', 'list', includeSnoozed, cursor ?? null],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const { data, error } = await api.GET('/service-followups', {
-        params: { query: { include_snoozed: includeSnoozed } },
+        params: { query: { include_snoozed: includeSnoozed, cursor } },
       })
       if (error) throw new ApiError('Could not load the follow-up queue.', error)
       return data
