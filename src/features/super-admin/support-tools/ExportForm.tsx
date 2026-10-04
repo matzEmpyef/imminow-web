@@ -12,7 +12,10 @@ export function ExportForm({ result, onCancel }: { result: UserSearchResult; onC
   if (succeeded) {
     return (
       <div className="flex flex-col gap-sm">
-        <p className="text-body-sm text-success">Export queued — {result.name} will get their copy once it's ready.</p>
+        <p className="text-body-sm text-success">
+          Export queued. The copy goes to {result.name}'s own verified email as a link that works for 7 days — it is
+          not sent to you.
+        </p>
         <div>
           <Button size="sm" variant="secondary" onClick={onCancel}>
             Close
@@ -25,7 +28,8 @@ export function ExportForm({ result, onCancel }: { result: UserSearchResult; onC
   return (
     <div className="flex flex-col gap-sm">
       <p className="text-caption text-text-secondary">
-        Generates a full copy of everything Sentpo holds on this user. Safe to run — it only reads.
+        Generates a full copy of everything Sentpo holds on this user and emails it to that user's own verified address
+        (a link that works for 7 days). You do not receive it. Safe to run — it only reads.
       </p>
       <TextField label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
       {exportData.isError && <p className="text-body-sm text-error">{exportData.error.message}</p>}
@@ -35,7 +39,7 @@ export function ExportForm({ result, onCancel }: { result: UserSearchResult; onC
         </Button>
         <Button
           size="sm"
-          disabled={!reason.trim()}
+          disabled={reason.trim().length < 3}
           loading={exportData.isPending}
           onClick={() =>
             exportData.mutate({ id: result.id, reason: reason.trim() }, { onSuccess: () => setSucceeded(true) })

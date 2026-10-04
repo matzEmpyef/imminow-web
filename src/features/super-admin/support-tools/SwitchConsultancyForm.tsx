@@ -10,6 +10,7 @@ const BLOCKED_REASON_LABELS: Record<string, string> = {
   no_active_staff: 'No active staff',
   subscription_lapsed: 'Subscription lapsed',
   freelancer_disabled: 'Freelancer disabled',
+  seat_limit_reached: 'No seat left to staff the case',
 }
 
 /**
@@ -47,7 +48,9 @@ export function SwitchConsultancyForm({ result, onCancel }: { result: UserSearch
   }
 
   if (candidates.isLoading) return <p className="text-body-sm text-text-secondary">Loading consultancies…</p>
-  if (candidates.isError) return <p className="text-body-sm text-error">Could not load consultancies to switch to.</p>
+  // The server's own words when it gave any (404 for a case that no longer exists, a permission
+  // refusal); ApiError falls back to the generic line otherwise.
+  if (candidates.isError) return <p className="text-body-sm text-error">{candidates.error.message}</p>
 
   const refusal = candidates.data?.refusal
   if (refusal) {
