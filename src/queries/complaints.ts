@@ -52,6 +52,8 @@ export function useComplaints(filters: ComplaintsFilters = {}) {
   })
 }
 
+const STALE_ROW_CODES = new Set(['taken_over', 'already_resolved', 'dispute_open'])
+
 export interface UpdateComplaintInput {
   /**
    * The status alone — and NOTHING ELSE (assumptions audit M7, product owner 2026-09-19).
@@ -81,6 +83,15 @@ export function useUpdateComplaint(id: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['complaints'] })
       queryClient.invalidateQueries({ queryKey: ['admin-attention'] })
+    },
+    // 409 taken_over / already_resolved / dispute_open all mean the row the admin is looking at is
+    // out of date (someone else got there first). Refetch so the owner and status shown are the
+    // real ones; the server's own message ("…taken this — refresh and try again") stays on screen.
+    onError: (err) => {
+      if (err instanceof ApiError && STALE_ROW_CODES.has(err.code ?? '')) {
+        queryClient.invalidateQueries({ queryKey: ['complaints'] })
+        queryClient.invalidateQueries({ queryKey: ['admin-attention'] })
+      }
     },
   })
 }

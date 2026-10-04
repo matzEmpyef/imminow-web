@@ -46,9 +46,18 @@ export function useAllocateApplicant(id: string) {
         params: { path: { id } },
         body: { consultancy_id: consultancyId },
       })
-      if (error) throw new ApiError(error.error?.message ?? 'Could not allocate this applicant.')
+      if (error) throw new ApiError('Could not allocate this applicant.', error)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['applicant-allocation-queue'] }),
+    // The queue moved under the admin: a concurrent allocation took the row (409 already_allocated,
+    // so it should leave the list), or the chosen consultancy filled its last seat in the meantime
+    // (409 seat_limit_reached, so its candidate row is stale). A live case (already_a_case) leaves
+    // the row on the queue by design and needs no refresh.
+    onError: (err) => {
+      if (err instanceof ApiError && (err.code === 'already_allocated' || err.code === 'seat_limit_reached')) {
+        queryClient.invalidateQueries({ queryKey: ['applicant-allocation-queue'] })
+      }
+    },
   })
 }
 
@@ -68,7 +77,7 @@ export function useResolveAllocationRequest(id: string) {
         params: { path: { id } },
         body: { note },
       })
-      if (error) throw new ApiError(error.error?.message ?? 'Could not resolve this request.')
+      if (error) throw new ApiError('Could not resolve this request.', error)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['applicant-allocation-queue'] })

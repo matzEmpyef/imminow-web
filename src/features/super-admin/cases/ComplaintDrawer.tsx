@@ -139,6 +139,8 @@ export function ComplaintDrawer({
           pickedUpAt={complaint.picked_up_at}
           pending={update.isPending}
           readOnly={resolved}
+          // The take-over popup shows its own error; this line is for a failed Pick up.
+          error={!confirmingTakeOver && update.isError ? update.error.message : undefined}
           // BOTH FIELDS, DELIBERATELY (assumptions audit M7, product owner 2026-09-19). This sent
           // `status: 'in_review'` alone and relied on the server treating any edit as a claim —
           // which is exactly the behaviour the audit removed, so on its own it would now move the

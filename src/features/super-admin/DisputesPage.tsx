@@ -57,6 +57,12 @@ export function DisputesPage() {
   const [viewing, setViewing] = useState<CaseDispute | null>(null)
   const [resolving, setResolving] = useState<CaseDispute | null>(null)
 
+  // The open drawer holds a snapshot of its row. When the list refetches (a 409 taken_over refreshes
+  // it) swap in the fresh row so the owner and status shown are real.
+  useEffect(() => {
+    setViewing((current) => (current ? (rows.find((r) => r.id === current.id) ?? current) : current))
+  }, [rows])
+
   // Opens the drawer once the matching row has loaded, then drops ?id= so navigating away and back
   // (or Escape) doesn't keep reopening it.
   useEffect(() => {

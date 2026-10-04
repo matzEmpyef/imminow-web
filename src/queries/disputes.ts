@@ -78,6 +78,14 @@ export function usePickUpDispute() {
       queryClient.invalidateQueries({ queryKey: ['disputes'] })
       queryClient.invalidateQueries({ queryKey: ['admin-attention'] })
     },
+    // 409 taken_over (someone picked it up first — the message names who) or already resolved:
+    // refetch so the owner and status shown are the real ones.
+    onError: (err) => {
+      if (err instanceof ApiError && (err.code === 'taken_over' || err.code === 'already_resolved')) {
+        queryClient.invalidateQueries({ queryKey: ['disputes'] })
+        queryClient.invalidateQueries({ queryKey: ['admin-attention'] })
+      }
+    },
   })
 }
 

@@ -145,6 +145,8 @@ export function DisputeDrawer({
           pickedUpAt={dispute.picked_up_at}
           pending={pickUp.isPending}
           readOnly={resolved}
+          // The take-over popup shows its own error; this line is for a failed Pick up.
+          error={!confirmingTakeOver && pickUp.isError ? pickUp.error.message : undefined}
           onPickUp={() => pickUp.mutate(dispute.id, { onSuccess: (updated) => updated && onUpdated(updated) })}
           onTakeOver={() => setConfirmingTakeOver(true)}
         />

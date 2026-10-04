@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
@@ -62,6 +62,11 @@ export function ComplaintsPage() {
   const rows = useMemo(() => complaints.data?.items ?? [], [complaints.data])
   const summary = complaints.data?.summary
   const [viewing, setViewing] = useState<Complaint | null>(null)
+  // The open drawer holds a snapshot of its row. When the list refetches (a 409 taken_over or
+  // already_resolved refreshes it) swap in the fresh row so the owner and status shown are real.
+  useEffect(() => {
+    setViewing((current) => (current ? (rows.find((r) => r.id === current.id) ?? current) : current))
+  }, [rows])
 
   const chipCount = (key: StatusKey): number | undefined => {
     if (!summary) return undefined

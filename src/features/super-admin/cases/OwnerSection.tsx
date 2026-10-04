@@ -17,6 +17,7 @@ export function OwnerSection({
   onTakeOver,
   pending,
   readOnly,
+  error,
 }: {
   assignedToName?: string | null
   pickedUpAt?: string | null
@@ -24,30 +25,35 @@ export function OwnerSection({
   onTakeOver: () => void
   pending?: boolean
   readOnly?: boolean
+  /** Why the last pick-up / take-over failed (e.g. someone else just took it), in the server's words. */
+  error?: string
 }) {
   return (
-    <div className="flex items-center justify-between gap-md rounded-md bg-background px-md py-sm">
-      <div>
-        <p className="text-caption text-text-secondary">Owner</p>
-        {assignedToName ? (
-          <p className="text-body-sm text-text-primary">
-            {assignedToName}
-            {pickedUpAt && <span className="text-text-secondary"> · picked up {relativeTime(pickedUpAt)}</span>}
-          </p>
-        ) : (
-          <p className="text-body-sm text-warning">Unassigned</p>
-        )}
+    <div className="flex flex-col gap-xs rounded-md bg-background px-md py-sm">
+      <div className="flex items-center justify-between gap-md">
+        <div>
+          <p className="text-caption text-text-secondary">Owner</p>
+          {assignedToName ? (
+            <p className="text-body-sm text-text-primary">
+              {assignedToName}
+              {pickedUpAt && <span className="text-text-secondary"> · picked up {relativeTime(pickedUpAt)}</span>}
+            </p>
+          ) : (
+            <p className="text-body-sm text-warning">Unassigned</p>
+          )}
+        </div>
+        {!readOnly &&
+          (assignedToName ? (
+            <Button size="sm" variant="secondary" loading={pending} onClick={onTakeOver} className="whitespace-nowrap">
+              Take over
+            </Button>
+          ) : (
+            <Button size="sm" loading={pending} onClick={onPickUp} className="whitespace-nowrap">
+              Pick up
+            </Button>
+          ))}
       </div>
-      {!readOnly &&
-        (assignedToName ? (
-          <Button size="sm" variant="secondary" loading={pending} onClick={onTakeOver} className="whitespace-nowrap">
-            Take over
-          </Button>
-        ) : (
-          <Button size="sm" loading={pending} onClick={onPickUp} className="whitespace-nowrap">
-            Pick up
-          </Button>
-        ))}
+      {error && <p role="alert" className="text-body-sm text-error">{error}</p>}
     </div>
   )
 }
