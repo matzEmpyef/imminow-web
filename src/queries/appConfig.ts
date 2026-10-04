@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 import type { components } from '@/api/schema'
 
-type AppConfig = components['schemas']['AppConfig']
+type AppConfigUpdate = components['schemas']['AppConfigUpdate']
 
 // GET /app-config is public on the server (the version gate must work before login), but the
 // admin console only ever renders this page inside AdminShell — same "still requires an
@@ -25,7 +25,9 @@ export function useAppConfig() {
 export function useUpdateAppConfig() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (body: AppConfig) => {
+    // Partial body (gate 12c, F64) — only what changed, plus `reason` / `force` when the minimum
+    // version is raised. The 200 may carry `affected_students` (null/absent on the frozen mock).
+    mutationFn: async (body: AppConfigUpdate) => {
       const { data, error } = await api.PATCH('/app-config', { body })
       if (error) throw new ApiError('Could not save the app configuration.', error)
       return data

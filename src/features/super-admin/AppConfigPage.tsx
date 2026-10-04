@@ -6,6 +6,8 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { Modal } from '@/components/Modal'
 import { useAppConfig, useUpdateAppConfig } from '@/queries/appConfig'
+import { ApiError } from '@/api/errors'
+import { buildAppConfigPatch, compareVersions, minimumRaised } from './appConfigPatch'
 import { FeaturedConsultanciesCard, FeaturedInstitutesCard, FeaturedJobsCard } from './FeaturedAccountsCard'
 import type { components } from '@/api/schema'
 import { showToast } from '@/lib/toast'
@@ -13,19 +15,6 @@ import { showToast } from '@/lib/toast'
 type AppConfig = components['schemas']['AppConfig']
 
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+$/
-
-// Plain MAJOR.MINOR.PATCH comparison — no pre-release/build metadata in this app's own version
-// strings, so a numeric part-by-part compare is enough; a real semver range parser would be
-// overkill for a field that's already regex-validated to three dot-separated integers.
-function compareVersions(a: string, b: string): number {
-  const pa = a.split('.').map(Number)
-  const pb = b.split('.').map(Number)
-  for (let i = 0; i < 3; i++) {
-    const diff = (pa[i] ?? 0) - (pb[i] ?? 0)
-    if (diff !== 0) return diff
-  }
-  return 0
-}
 
 // Gate 12c (F64): the per-platform store links accept https and the store's own host only
 // (the server answers 400 otherwise) — checked here so the form says so before Save. Empty is
@@ -42,19 +31,6 @@ function platformUrlError(value: string | null | undefined, host: string): strin
   return `Must be an https://${host} link`
 }
 
-// Blank per-platform URLs go back as null (clears the override). When the server never sent the
-// field (the frozen mock) and the box was left empty, leave the key out so nothing new is sent.
-function withPlatformUrls(form: AppConfig, saved: AppConfig | undefined): AppConfig {
-  const out: AppConfig = { ...form }
-  for (const key of ['update_url_android', 'update_url_ios'] as const) {
-    const trimmed = (form[key] ?? '').trim()
-    if (trimmed) out[key] = trimmed
-    else if (saved && key in saved) out[key] = null
-    else delete out[key]
-  }
-  return out
-}
-
 /**
  * App Config (Session 37, 2026-08-30) — the server-driven version gate + store-rating prompt
  * thresholds Sentpo Mobile fetches on every launch, before login. One form, one Save, same
@@ -65,7 +41,7 @@ function withPlatformUrls(form: AppConfig, saved: AppConfig | undefined): AppCon
  * no reason to hide the merchandising selection, so each card owns its own loading and error
  * state rather than the page gating on both.
  */
-function VersionAndRatingCard() {
+export function VersionAndRatingCard() {
   const config = useAppConfig()
   const update = useUpdateAppConfig()
 
@@ -75,6 +51,15 @@ function VersionAndRatingCard() {
   // separately from `form` so cancelling the confirmation never loses the rest of an in-progress
   // edit.
   const [confirmingVersions, setConfirmingVersions] = useState(false)
+  // Raising the minimum needs a reason on the audit record (gate 12). Held beside `form` — it is
+  // not part of the saved config — and sent only when the minimum goes up (or when forcing).
+  const [reason, setReason] = useState('')
+  // Set when the server answers 409 `lockout_guard`: the new minimum is above the newest version
+  // any active student reports, so saving would lock out every install. The admin must confirm
+  // before the change is re-sent with force.
+  const [lockout, setLockout] = useState<{ affected?: number; newest?: string } | null>(null)
+  // How many active students the saved minimum blocks, from the 200 (null/absent on the mock).
+  const [affectedNote, setAffectedNote] = useState<{ count: number; minimum: string } | null>(null)
 
   // Sync local editable state from the fetched config exactly once it arrives — a plain settings
   // form, not a per-row table, so one local copy that the Save button writes back is simpler than
@@ -101,8 +86,11 @@ function VersionAndRatingCard() {
 
   const versionsValid = SEMVER_PATTERN.test(form.latest_version) && SEMVER_PATTERN.test(form.minimum_version)
   const minAboveLatest = versionsValid && compareVersions(form.minimum_version, form.latest_version) > 0
+  const raisingMinimum = config.data != null && minimumRaised(form, config.data)
+  const reasonMissing = raisingMinimum && reason.trim().length === 0
   const canSave =
     versionsValid &&
+    !reasonMissing &&
     !minAboveLatest &&
     form.update_url.trim().length > 0 &&
     !platformUrlError(form.update_url_android, 'play.google.com') &&
@@ -132,12 +120,29 @@ function VersionAndRatingCard() {
     saveNow()
   }
 
-  function saveNow() {
-    if (!form) return
-    update.mutate(withPlatformUrls(form, config.data), {
-      onSuccess: () => {
+  function saveNow(force = false) {
+    if (!form || !config.data) return
+    const body = buildAppConfigPatch(form, config.data, { reason, force })
+    update.mutate(body, {
+      onSuccess: (saved) => {
         setConfirmingVersions(false)
+        setLockout(null)
+        setReason('')
+        const affected = saved?.affected_students
+        setAffectedNote(typeof affected === 'number' ? { count: affected, minimum: saved.minimum_version } : null)
         showToast('App settings saved')
+      },
+      onError: (err) => {
+        // 409 lockout_guard: not a failure to report, a decision to put to the admin.
+        if (err instanceof ApiError && err.code === 'lockout_guard') {
+          const count = err.details?.affected_students
+          const newest = err.details?.newest_reported_version
+          setConfirmingVersions(false)
+          setLockout({
+            affected: typeof count === 'number' ? count : undefined,
+            newest: typeof newest === 'string' ? newest : undefined,
+          })
+        }
       },
     })
   }
@@ -182,6 +187,17 @@ function VersionAndRatingCard() {
             new&rdquo; sheet.
           </p>
         </div>
+        {raisingMinimum && (
+          <TextField
+            label="Reason for raising the minimum"
+            required
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. Security fix — older builds must update"
+            maxLength={500}
+            error={reasonMissing ? 'Say why — it is kept on the audit record' : undefined}
+          />
+        )}
         <TextField
           label="Update URL (fallback)"
           required
@@ -259,9 +275,20 @@ function VersionAndRatingCard() {
         </div>
       </div>
 
+      {affectedNote && (
+        <div role="status" className="flex items-start gap-sm rounded-md border border-border bg-background p-sm">
+          <AlertTriangle className="mt-[2px] h-4 w-4 shrink-0 text-warning" />
+          <p className="text-body-sm text-text-secondary">
+            {affectedNote.count === 0
+              ? `No active student is below version ${affectedNote.minimum}, so nobody will be blocked.`
+              : `${affectedNote.count} active ${affectedNote.count === 1 ? 'student is' : 'students are'} on a version below ${affectedNote.minimum} and will be asked to update before they can use the app.`}
+          </p>
+        </div>
+      )}
+
       <div className="flex items-center justify-end gap-md border-t border-border pt-lg">
-        {update.isError && !confirmingVersions && <p className="mr-auto text-body-sm text-error">{update.error.message}</p>}
-        <Button onClick={handleSave} loading={update.isPending} disabled={!canSave}>
+        {update.isError && !confirmingVersions && !lockout && <p className="mr-auto text-body-sm text-error">{update.error.message}</p>}
+        <Button onClick={handleSave} loading={update.isPending && !confirmingVersions && !lockout} disabled={!canSave}>
           Save
         </Button>
       </div>
@@ -278,7 +305,7 @@ function VersionAndRatingCard() {
             <Button variant="secondary" onClick={() => setConfirmingVersions(false)} disabled={update.isPending}>
               Cancel
             </Button>
-            <Button onClick={saveNow} loading={update.isPending}>
+            <Button onClick={() => saveNow()} loading={update.isPending}>
               Change gate
             </Button>
           </>
@@ -303,6 +330,43 @@ function VersionAndRatingCard() {
               </p>
             )}
           </div>
+        </div>
+      </Modal>
+    )}
+
+    {lockout && config.data && (
+      <Modal
+        onClose={() => setLockout(null)}
+        title="This would lock students out"
+        widthRem={28}
+        footer={
+          <>
+            {update.isError && !(update.error instanceof ApiError && update.error.code === 'lockout_guard') && (
+              <p className="mr-auto self-center text-body-sm text-error">{update.error.message}</p>
+            )}
+            <Button variant="secondary" onClick={() => setLockout(null)} disabled={update.isPending}>
+              Cancel
+            </Button>
+            <Button onClick={() => saveNow(true)} loading={update.isPending}>
+              Lock them out anyway
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-md">
+          <p className="text-body-sm text-text-primary">
+            {lockout.affected != null
+              ? `Setting the minimum to ${form.minimum_version} would lock out ${lockout.affected} active ${lockout.affected === 1 ? 'student' : 'students'}.`
+              : `Setting the minimum to ${form.minimum_version} would lock out the students on older versions.`}{' '}
+            {lockout.newest
+              ? `The newest version any active student is running is ${lockout.newest}, so every installed app would be blocked`
+              : 'No active student is running that version yet, so every installed app would be blocked'}{' '}
+            behind an &ldquo;Update required&rdquo; screen with no way past it until they update.
+          </p>
+          <p className="text-body-sm text-text-secondary">
+            Only continue if that version is already live in the stores. Your reason is kept on the audit record:{' '}
+            <span className="text-text-primary">{reason.trim()}</span>
+          </p>
         </div>
       </Modal>
     )}
