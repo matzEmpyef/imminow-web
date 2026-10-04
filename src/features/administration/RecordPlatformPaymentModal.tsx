@@ -7,6 +7,7 @@ import { useRecordCommissionPayment } from '@/queries/commission'
 import { formatMoneyAmount } from '@/lib/money'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
+import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 type CommissionDue = components['schemas']['CommissionDue']
 
@@ -42,7 +43,7 @@ export function RecordPlatformPaymentModal({ due, onClose }: { due: CommissionDu
   // declared the amount twice. A stable key lets the (Phase 6) backend treat a retry of THIS
   // declaration as the same operation; the mock ignores the header today, which is why the
   // isPending guard below is the protection that matters right now.
-  const [idempotencyKey] = useState(() => crypto.randomUUID())
+  const { key: idempotencyKey, settle } = useIdempotencyKey()
 
   function handleCurrencyChange(next: string) {
     setCurrency(next)
@@ -64,6 +65,7 @@ export function RecordPlatformPaymentModal({ due, onClose }: { due: CommissionDu
         idempotencyKey,
       },
       {
+        onError: settle,
         onSuccess: () => {
           showToast(`Payment recorded for ${due.applicant_name}`)
           onClose()

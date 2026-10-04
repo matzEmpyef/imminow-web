@@ -8,6 +8,7 @@ import { currencyOptions, money } from './money'
 import { useReceiveCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { localDateISO } from '@/lib/time'
 import { showToast } from '@/lib/toast'
+import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 /**
  * Finance records that money has actually arrived (2026-09-11) — a confirmed payment with no
@@ -38,7 +39,7 @@ export function ReceiveDueModal({
   const [receivedOn, setReceivedOn] = useState(localDateISO())
   const [reference, setReference] = useState('')
   const [note, setNote] = useState('')
-  const [idempotencyKey] = useState(() => crypto.randomUUID())
+  const { key: idempotencyKey, settle } = useIdempotencyKey()
   // Overpayment guard (review C5, 2026-09-12) — the modal already knows what's outstanding for
   // this part/case+currency, so it warns before the round trip rather than waiting on the
   // server's 409. Only ticking the checkbox sends allow_overpayment: true.
@@ -83,6 +84,7 @@ export function ReceiveDueModal({
                   allow_overpayment: isOverpayment ? allowOverpayment : undefined,
                 },
                 {
+                  onError: settle,
                   onSuccess: (row) => {
                     showToast(`Payment recorded for ${caseRow.applicant_name}`)
                     onReceived(row)

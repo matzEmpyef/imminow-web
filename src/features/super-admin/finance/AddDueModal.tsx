@@ -7,6 +7,7 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { currencyOptions } from './money'
 import { useAddCommissionDue, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { showToast } from '@/lib/toast'
+import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 const MIN_REASON_LENGTH = 3
 
@@ -33,7 +34,7 @@ export function AddDueModal({
   const [dueOn, setDueOn] = useState('')
   const [reason, setReason] = useState('')
   const [attempted, setAttempted] = useState(false)
-  const [idempotencyKey] = useState(() => crypto.randomUUID())
+  const { key: idempotencyKey, settle } = useIdempotencyKey()
 
   const parsed = Number(amount)
   const isValidAmount = amount.trim() !== '' && Number.isFinite(parsed) && parsed > 0
@@ -70,6 +71,7 @@ export function AddDueModal({
               addDue.mutate(
                 { entryId: caseRow.id, amount: parsed, currency, due_on: dueOn || null, reason: trimmedReason, idempotencyKey },
                 {
+                  onError: settle,
                   onSuccess: (row) => {
                     showToast(`Due added for ${caseRow.applicant_name}`)
                     onAdded(row)

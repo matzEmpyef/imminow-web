@@ -49,11 +49,11 @@ export function useRecordCommissionPayment() {
       transaction_id?: string | null
       idempotencyKey: string
     }) => {
-      const { data, error } = await api.POST('/commission/payments', {
+      const { data, error, response } = await api.POST('/commission/payments', {
         params: { header: { 'Idempotency-Key': idempotencyKey } },
         body,
       })
-      if (error) throw new ApiError('Could not record this payment.', error)
+      if (error) throw new ApiError('Could not record this payment.', error, response?.status)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['commission'] }),

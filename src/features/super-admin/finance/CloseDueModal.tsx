@@ -5,6 +5,7 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { money } from './money'
 import { useWaiveCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { showToast } from '@/lib/toast'
+import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 const MIN_REASON_LENGTH = 3
 
@@ -30,7 +31,7 @@ export function CloseDueModal({
 }) {
   const waiveDue = useWaiveCommissionDue()
   const [reason, setReason] = useState('')
-  const [idempotencyKey] = useState(() => crypto.randomUUID())
+  const { key: idempotencyKey, settle } = useIdempotencyKey()
   const trimmedReason = reason.trim()
   const invalid = trimmedReason.length < MIN_REASON_LENGTH || !part.key
   const outstanding = money({ amount: part.outstanding ?? part.amount ?? 0, currency: part.currency ?? 'INR' })
@@ -55,6 +56,7 @@ export function CloseDueModal({
               waiveDue.mutate(
                 { entryId: caseRow.id, part_key: part.key, reason: trimmedReason, idempotencyKey },
                 {
+                  onError: settle,
                   onSuccess: (row) => {
                     showToast(`Due closed for ${caseRow.applicant_name}`)
                     onClosed(row)

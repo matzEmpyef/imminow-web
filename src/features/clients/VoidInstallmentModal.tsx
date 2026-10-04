@@ -7,6 +7,7 @@ import { formatDate } from '@/lib/time'
 import { formatMoneyAmount } from '@/lib/money'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
+import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 const MIN_REASON_LENGTH = 3
 
@@ -29,7 +30,7 @@ export function VoidInstallmentModal({
 }) {
   const voidInstallment = useVoidInstallment(clientId)
   const [reason, setReason] = useState('')
-  const [idempotencyKey] = useState(() => crypto.randomUUID())
+  const { key: idempotencyKey, settle } = useIdempotencyKey()
   const trimmed = reason.trim()
 
   function submit() {
@@ -37,6 +38,7 @@ export function VoidInstallmentModal({
     voidInstallment.mutate(
       { entryId, installmentId: installment.id, reason: trimmed, idempotencyKey },
       {
+        onError: settle,
         onSuccess: () => {
           showToast('Installment voided')
           onClose()

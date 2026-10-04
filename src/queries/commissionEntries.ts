@@ -33,11 +33,11 @@ export function useRecordInstallment(clientId: string) {
       note?: string
       receipt_id?: string
     }) => {
-      const { data, error } = await api.POST('/commission-entries/{id}/installments', {
+      const { data, error, response } = await api.POST('/commission-entries/{id}/installments', {
         params: { path: { id: entryId }, header: { 'Idempotency-Key': idempotencyKey ?? crypto.randomUUID() } },
         body,
       })
-      if (error) throw new ApiError('Could not record this installment.', error)
+      if (error) throw new ApiError('Could not record this installment.', error, response?.status)
       return data
     },
     onSuccess: () => invalidateCommissionViews(queryClient, clientId),
@@ -64,14 +64,14 @@ export function useVoidInstallment(clientId: string) {
       reason: string
       idempotencyKey?: string
     }) => {
-      const { data, error } = await api.POST('/commission-entries/{id}/installments/{installmentId}/void', {
+      const { data, error, response } = await api.POST('/commission-entries/{id}/installments/{installmentId}/void', {
         params: {
           path: { id: entryId, installmentId },
           header: { 'Idempotency-Key': idempotencyKey ?? crypto.randomUUID() },
         },
         body: { reason },
       })
-      if (error) throw new ApiError('Could not void this installment.', error)
+      if (error) throw new ApiError('Could not void this installment.', error, response?.status)
       return data
     },
     onSuccess: () => invalidateCommissionViews(queryClient, clientId),

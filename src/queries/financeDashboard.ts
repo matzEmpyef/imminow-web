@@ -247,11 +247,11 @@ export function useAddCommissionDue() {
       due_on?: string | null
       reason: string
     }) => {
-      const { data, error } = await api.POST('/commission-entries/{id}/dues', {
+      const { data, error, response } = await api.POST('/commission-entries/{id}/dues', {
         params: { path: { id: entryId }, header: { 'Idempotency-Key': idempotencyKey ?? crypto.randomUUID() } },
         body: { amount, currency, due_on, reason },
       })
-      if (error) throw new ApiError('Could not add this due amount.', error)
+      if (error) throw new ApiError('Could not add this due amount.', error, response?.status)
       return data
     },
     onSuccess: () => invalidateFinanceCaseViews(queryClient),
@@ -340,11 +340,11 @@ export function useReceiveCommissionDue() {
       note?: string
       allow_overpayment?: boolean
     }) => {
-      const { data, error } = await api.POST('/commission-entries/{id}/receive', {
+      const { data, error, response } = await api.POST('/commission-entries/{id}/receive', {
         params: { path: { id: entryId }, header: { 'Idempotency-Key': idempotencyKey ?? crypto.randomUUID() } },
         body: { amount, currency, part_key, received_on, reference, note, allow_overpayment },
       })
-      if (error) throw new ApiError('Could not record this payment.', error)
+      if (error) throw new ApiError('Could not record this payment.', error, response?.status)
       return data
     },
     onSuccess: () => invalidateFinanceCaseViews(queryClient),
@@ -369,11 +369,11 @@ export function useWaiveCommissionDue() {
       reason: string
       idempotencyKey?: string
     }) => {
-      const { data, error } = await api.POST('/commission-entries/{id}/waive', {
+      const { data, error, response } = await api.POST('/commission-entries/{id}/waive', {
         params: { path: { id: entryId }, header: { 'Idempotency-Key': idempotencyKey ?? crypto.randomUUID() } },
         body: { part_key, reason },
       })
-      if (error) throw new ApiError('Could not close this part.', error)
+      if (error) throw new ApiError('Could not close this part.', error, response?.status)
       return data
     },
     onSuccess: () => invalidateFinanceCaseViews(queryClient),

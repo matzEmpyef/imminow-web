@@ -9,6 +9,7 @@ import { formatMoneyAmount } from '@/lib/money'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 import { localDateISO } from '@/lib/time'
+import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 type Receipt = components['schemas']['Receipt']
 type Entry = components['schemas']['CommissionEntryDetail']
@@ -45,7 +46,7 @@ export function RecordInstallmentModal({
   const currencyCodes = useCurrencyCodes(currency)
   const [receivedOn, setReceivedOn] = useState(localDateISO())
   const [note, setNote] = useState('')
-  const [idempotencyKey] = useState(() => crypto.randomUUID())
+  const { key: idempotencyKey, settle } = useIdempotencyKey()
   const [receiptId, setReceiptId] = useState('')
 
   function pickSource(next: 'college' | 'student') {
@@ -70,6 +71,7 @@ export function RecordInstallmentModal({
         ...(receiptId ? { receipt_id: receiptId } : {}),
       },
       {
+        onError: settle,
         onSuccess: () => {
           showToast(`Installment recorded for ${entry.college_name ?? entry.course_name ?? 'this case'}`)
           onClose()
