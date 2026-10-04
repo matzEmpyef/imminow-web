@@ -23,6 +23,7 @@ import { EMAIL_ERROR, isValidEmail } from '@/lib/validation'
 import { showToast } from '@/lib/toast'
 import { formatDate, localDateISO } from '@/lib/time'
 import type { components } from '@/api/schema'
+import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 type AccountKind = NonNullable<components['schemas']['Consultancy']['kind']>
 type AdminMode = 'invite' | 'attach'
@@ -60,7 +61,7 @@ function trialEndISO(): string {
 export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
   const createConsultancy = useCreateConsultancy()
   // T8: one key per modal open — see the N7 payment fix for the pattern.
-  const [idempotencyKey] = useState(() => crypto.randomUUID())
+  const { key: idempotencyKey, settle } = useIdempotencyKey()
 
   // ONLY A SUPER ADMIN CREATES AN INSTITUTE, and ATTACH is institute-only (user, 2026-09-10).
   // One decision in two halves, and the second half is what makes the first work.
@@ -204,6 +205,7 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
       },
       // Already on Manage Consultancies, and the list invalidates itself — closing is enough.
       {
+        onError: settle,
         onSuccess: () => {
           onClose()
           showToast(`${name} created`)

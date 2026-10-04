@@ -58,11 +58,11 @@ export function useAssignPlan(clientId: string) {
       // right default for a case running one plan.
       name?: string
     }) => {
-      const { data, error } = await api.POST('/clients/{id}/plan/assign', {
+      const { data, error, response } = await api.POST('/clients/{id}/plan/assign', {
         params: { path: { id: clientId }, header: { 'Idempotency-Key': idempotencyKey } },
         body: { template_id: templateId, ...(name?.trim() ? { name: name.trim() } : {}) },
       })
-      if (error) throw new ApiError('Could not assign this plan.', error)
+      if (error) throw new ApiError('Could not assign this plan.', error, (response as Response | undefined)?.status)
       return data
     },
     onSuccess: () => {

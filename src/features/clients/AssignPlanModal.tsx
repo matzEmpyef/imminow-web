@@ -6,6 +6,7 @@ import { TextField } from '@/components/TextField'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useAssignPlan, usePlanTemplates } from '@/queries/plans'
 import { showToast } from '@/lib/toast'
+import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 // User-requested (2026-08-15) — "let consultant assign a plan in Overview tab itself. on button
 // click a popup appears to select the plan." Was a standalone page (AssignPlanPage.tsx,
@@ -31,7 +32,7 @@ export function AssignPlanModal({ clientId, onClose }: { clientId: string; onClo
   // overwrites something they wrote.
   const [nameEdited, setNameEdited] = useState(false)
   // T8: one key per modal open — double-clicking Assign is one operation.
-  const [idempotencyKey] = useState(() => crypto.randomUUID())
+  const { key: idempotencyKey, settle } = useIdempotencyKey()
 
   const selected = templates.data?.find((t) => t.id === selectedId)
 
@@ -58,6 +59,7 @@ export function AssignPlanModal({ clientId, onClose }: { clientId: string; onClo
               assignPlan.mutate(
                 { templateId: selected.id, idempotencyKey, name },
                 {
+                  onError: settle,
                   onSuccess: () => {
                     showToast(`${name} assigned`)
                     onClose()

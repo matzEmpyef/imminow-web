@@ -228,11 +228,11 @@ export function useBulkAllocateLeads() {
       employee_id: string
       idempotencyKey: string
     }) => {
-      const { data, error } = await api.POST('/leads/bulk-allocate', {
+      const { data, error, response } = await api.POST('/leads/bulk-allocate', {
         params: { header: { 'Idempotency-Key': idempotencyKey } },
         body,
       })
-      if (error) throw new ApiError('Could not allocate the selected leads.', error)
+      if (error) throw new ApiError('Could not allocate the selected leads.', error, (response as Response | undefined)?.status)
       return data
     },
     onSuccess: () => invalidateLeads(queryClient),
@@ -369,10 +369,10 @@ export function useProposeConversion() {
   return useMutation({
     // T8: key minted once per modal open by the caller — see useBulkAllocateLeads.
     mutationFn: async ({ id, idempotencyKey }: { id: string; idempotencyKey: string }) => {
-      const { data, error } = await api.POST('/leads/{id}/convert', {
+      const { data, error, response } = await api.POST('/leads/{id}/convert', {
         params: { path: { id }, header: { 'Idempotency-Key': idempotencyKey } },
       })
-      if (error) throw new ApiError('Could not send the conversion proposal.', error)
+      if (error) throw new ApiError('Could not send the conversion proposal.', error, (response as Response | undefined)?.status)
       return data
     },
     onSuccess: (_data, { id }) => {

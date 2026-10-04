@@ -1,7 +1,7 @@
-import { useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { useProposeConversion } from '@/queries/leads'
+import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 // Was its own page (`/sales/leads/:id/propose-conversion`) — folded into a popup off the Lead
 // Conversation page (user-requested: "Instead of going to another page, show it on popup. No
@@ -19,7 +19,7 @@ export function ConvertToClientModal({
 }) {
   const propose = useProposeConversion()
   // T8: one key per modal open — double-clicking Send is one operation, not two proposals.
-  const [idempotencyKey] = useState(() => crypto.randomUUID())
+  const { key: idempotencyKey, settle } = useIdempotencyKey()
 
   if (propose.isSuccess) {
     return (
@@ -48,7 +48,7 @@ export function ConvertToClientModal({
           {propose.isError && <p className="mr-auto self-center text-body-sm text-error">{propose.error.message}</p>}
           <div className="flex gap-sm">
             <Button
-              onClick={() => !propose.isPending && propose.mutate({ id: leadId, idempotencyKey })}
+              onClick={() => !propose.isPending && propose.mutate({ id: leadId, idempotencyKey }, { onError: settle })}
               loading={propose.isPending}
             >
               Send Proposal

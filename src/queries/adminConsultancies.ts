@@ -64,11 +64,11 @@ export function useCreateConsultancy() {
       idempotencyKey,
       ...body
     }: ConsultancyCreateInput & { idempotencyKey: string }) => {
-      const { data, error } = await api.POST('/consultancies', {
+      const { data, error, response } = await api.POST('/consultancies', {
         params: { header: { 'Idempotency-Key': idempotencyKey } },
         body,
       })
-      if (error) throw new ApiError('Could not create this consultancy.', error)
+      if (error) throw new ApiError('Could not create this consultancy.', error, response?.status)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-consultancies'] }),
