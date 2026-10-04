@@ -21663,50 +21663,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/freelancer-referrals/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** An internal note on the referral (Super Admin). Body reduced to `note` (gate 12, F55) — `payment_status` wrote a field nothing read and the ledger (`payout_status`, derived from actual payouts) was always the real answer; this route no longer changes it. Kept for the contract's operation count. Audit-logged. */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": {
-                        note: string | null;
-                    };
-                };
-            };
-            responses: {
-                /** @description Updated */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["FreelancerReferral"];
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
     "/freelancer/me": {
         parameters: {
             query?: never;
@@ -28250,7 +28206,7 @@ export interface components {
             /** @description rate_percent of what immiNow is due on the case, once all of it is collected. */
             readonly expected_share_inr?: number | null;
             /**
-             * @description not_due until immiNow has confirmed receiving commission on the case (user, 2026-09-11); owed while earned exceeds paid; paid once every earned rupee has been paid out. Not required (gate 12, item 8) — PATCH /freelancer-referrals/{id}'s 200 is the bare row (id/journey_id/applicant_name/status/payment_status/created_at only); this and the other money/stage fields appear on the two GET reads.
+             * @description not_due until immiNow has confirmed receiving commission on the case (user, 2026-09-11); owed while earned exceeds paid; paid once every earned rupee has been paid out. Not required (gate 12, item 8). (PATCH /freelancer-referrals/{id}, whose 200 was the bare row, was REMOVED at gate 12d — owner 2026-10-04: its internal note was read by nothing. The frozen mock still serves it.)
              * @enum {string}
              */
             readonly payout_status?: "not_due" | "owed" | "paid";
@@ -28269,8 +28225,6 @@ export interface components {
              * @enum {string}
              */
             payment_status: "owed" | "paid";
-            /** @description Finance's internal note on the referral (gate 12d, owner 2026-10-04; written by PATCH /freelancer-referrals/{id}, at most 2000 characters, null when none). Present on the Super Admin payout ledger (GET /freelancer-referrals) and in that PATCH's 200 ONLY. It is never sent to the freelancer: the key is omitted from the freelancer's own reads (GET /freelancer/referrals and GET /freelancer/referrals/{id}). Absent on the frozen mock. */
-            note?: string | null;
             /** @description Present only once the referred journey has an ACTIVE commission entry. The freelancer's entire money view — their own cut (their FreelancerRate % of the case's expected total, INR-normalized). The case's total commission, the consultancy's rate, and the platform's take are deliberately never exposed here. */
             readonly commission?: {
                 course_name: string | null;

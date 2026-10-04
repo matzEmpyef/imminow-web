@@ -226,12 +226,6 @@ export function FreelancerDrawer({ freelancer, onClose }: { freelancer: Freelanc
                   <p className="text-caption text-text-secondary">
                     Referred {formatDate(r.created_at)} · Earned {inr(r.earned_inr)} · Owed {inr(r.owed_inr)}
                   </p>
-                  {/* Finance's internal note (gate 12d) — admin ledger only, in full here. */}
-                  {r.note && (
-                    <p className="mt-xs whitespace-pre-wrap break-words text-caption text-text-secondary">
-                      Note: {r.note}
-                    </p>
-                  )}
                 </div>
               ))}
             </div>

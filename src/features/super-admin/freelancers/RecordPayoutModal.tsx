@@ -68,8 +68,6 @@ export function RecordPayoutModal({ referral, onClose }: { referral: FreelancerR
         <div className="rounded-md border border-border bg-background p-md text-body-sm text-text-secondary">
           immiNow collected {inr(referral.collected_inr)} on this case; {referral.freelancer_name ? `${referral.freelancer_name}’s` : 'their'} share is{' '}
           {referral.rate_percent ?? 0}% = {inr(referral.earned_inr)}; {inr(referral.paid_inr)} already paid.
-          {/* Finance's internal note on the referral (gate 12d), in full. */}
-          {referral.note && <p className="mt-xs whitespace-pre-wrap break-words">Note: {referral.note}</p>}
         </div>
         <TextField
           label="Amount (₹)"
