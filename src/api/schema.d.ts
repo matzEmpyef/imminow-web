@@ -6649,7 +6649,7 @@ export interface paths {
                     tier?: "starter" | "business" | "ultimate";
                     /** @description Narrows to one kind of account (INSTITUTE_ACCOUNT_PLAN D10, 2026-09-10). Institutes are already rows in this list under D6, so discovery needs a tag and a filter rather than a new screen. Discovery's institute "view all" is this plus the endpoint's own default `sort=name` ascending — alphabetical, deliberately NOT `-rating` or `match`, because D15 removes the ranking problem by not ranking institutes against consultancies at all. */
                     kind?: "consultancy" | "institute";
-                    /** @description Manage Consultancies' status filter (2026-09-11). `active` and `suspended` are the account switch, `kyc_pending` is KYC not yet verified, and `expiring`, `grace` and `lapsed` match `subscription_status`. An unknown value is a 400. */
+                    /** @description Manage Consultancies' status filter (2026-09-11). `active` and `suspended` are the account switch, `kyc_pending` is KYC uploaded and awaiting verification (gate 12d, owner 2026-10-04: the account has submitted a certificate that nobody has verified yet — exactly the accounts Needs Attention's `kyc_pending` card counts, so the card and the list it opens always agree; an unverified account that has uploaded nothing is NOT listed. The frozen mock still lists every account whose KYC is not verified), and `expiring`, `grace` and `lapsed` match `subscription_status`. An unknown value is a 400. */
                     status?: "active" | "suspended" | "kyc_pending" | "expiring" | "grace" | "lapsed";
                     active?: boolean;
                     /** @description Discovery List's DESTINATION filter — matches against countries_served, i.e. the country a student wants to study in. Unchanged by 2026-09-21's branch filters below, deliberately: one key cannot also mean "has an office there", and re-pointing this one would have silently changed every caller already sending it. */
@@ -24651,9 +24651,14 @@ export interface components {
         AdminDashboardSummary: {
             /**
              * Format: date-time
-             * @description When the rollups behind this view were last refreshed (gate 12, Q7 — hourly). Needs Attention / queue counts stay live regardless. Null on the frozen mock, which computes everything live.
+             * @description When the rollups behind this view were last refreshed (gate 12, Q7 — hourly). Needs Attention / queue counts stay live regardless. Null on the frozen mock, which computes everything live. Since gate 12d this does NOT include the demand rollup, which runs three days behind by design — see `demand_as_of`.
              */
             readonly as_of?: string | null;
+            /**
+             * Format: date-time
+             * @description How far the demand rollup is complete (gate 12d, owner 2026-10-04) — the date of the one figure on this page read from it, the `study_abroad_students` stat card. Demand deliberately lags three days (a new student's preferences settle first), so it carries its own date instead of holding the whole page's `as_of` back. Null until that rollup has run once; absent on the frozen mock, which computes everything live. `GET /admin/supply-demand` is unchanged: its `as_of` is still the lagged one.
+             */
+            readonly demand_as_of?: string | null;
             /** @description Keys (2026-09-02, after the user asked why "Total Students" and "Active Aspirants/Applicants" disagreed): `total_consultancies` — ACTIVE consultancies; `total_institutes` — active institutes (split 2026-09-10; one number used to hold both kinds, inactive included); `total_students` — student ACCOUNTS registered in the Sentpo app, the same count the Sentpo Users page shows; (`stuck_onboarding` left the Overview 2026-09-10 — it is the Needs attention queue of the same name); `study_abroad_students` — distinct students with a target country other than their own (the four-way split, home included, lives on Supply & Demand; `study_home_students` left the Overview 2026-09-10); `active_aspirants` — Stage 1: open lead conversations, native AND imported by a consultancy (imported leads have no Sentpo account, which is exactly why this can exceed `total_students`); `active_applicants` — Stage 2 journeys in progress; `completed_cases` — cases closed successfully, the same count as the Enrolled slice (2026-09-10; plan_complete cases before); `total_colleges`; `total_courses`; `median_days_to_enrol` — median days from a case opening to its successful close, null until one exists (`courses_missing_requirements` moved to Needs attention 2026-09-10). Cards where "added this month" is a real flow carry `trend`. Every card carries a one-line `hint` saying what it counts; the console links each key to the page where that population is managed. */
             stat_cards: {
                 key: string;
@@ -28264,6 +28269,8 @@ export interface components {
              * @enum {string}
              */
             payment_status: "owed" | "paid";
+            /** @description Finance's internal note on the referral (gate 12d, owner 2026-10-04; written by PATCH /freelancer-referrals/{id}, at most 2000 characters, null when none). Present on the Super Admin payout ledger (GET /freelancer-referrals) and in that PATCH's 200 ONLY. It is never sent to the freelancer: the key is omitted from the freelancer's own reads (GET /freelancer/referrals and GET /freelancer/referrals/{id}). Absent on the frozen mock. */
+            note?: string | null;
             /** @description Present only once the referred journey has an ACTIVE commission entry. The freelancer's entire money view — their own cut (their FreelancerRate % of the case's expected total, INR-normalized). The case's total commission, the consultancy's rate, and the platform's take are deliberately never exposed here. */
             readonly commission?: {
                 course_name: string | null;

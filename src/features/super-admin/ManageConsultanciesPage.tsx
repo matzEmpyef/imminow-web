@@ -1387,7 +1387,11 @@ export function ManageConsultanciesPage() {
   // `?status=` (review M5, 2026-09-12) — Needs attention's "Accounts never billed" card links
   // straight here with `?status=never_billed`, the same convention `?kind=`/`?search=` already
   // follow above.
-  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') ?? '')
+  // `?kyc=pending` is the link the server sends on Needs attention's "KYC to verify" card (gate
+  // 12d): it opens this list on the same `kyc_pending` filter the card counted.
+  const [statusFilter, setStatusFilter] = useState(
+    searchParams.get('status') ?? (searchParams.get('kyc') === 'pending' ? 'kyc_pending' : ''),
+  )
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   // Performance League links here with ?manage=<id> to open one account straight away.
   const [managingId, setManagingId] = useState<string | null>(searchParams.get('manage'))
@@ -1655,7 +1659,7 @@ export function ManageConsultanciesPage() {
                 <option value="">Any status</option>
                 <option value="active">Active</option>
                 <option value="suspended">Suspended</option>
-                <option value="kyc_pending">KYC pending</option>
+                <option value="kyc_pending">KYC to verify</option>
                 <option value="expiring">Subscription ending soon</option>
                 <option value="grace">In grace period</option>
                 <option value="lapsed">Subscription lapsed</option>

@@ -45,7 +45,23 @@ export function ReferralsTab({ payoutStatus }: { payoutStatus: 'owed' | 'not_due
 
   const columns: TableColumn<FreelancerReferral>[] = [
     { key: 'freelancer', header: 'Freelancer', render: (r) => <span className="font-medium text-text-primary">{r.freelancer_name}</span> },
-    { key: 'applicant', header: 'Student', render: (r) => r.applicant_name },
+    {
+      key: 'applicant',
+      header: 'Student',
+      // Finance's internal note (gate 12d) rides under the name, one line, full text on hover.
+      // Only the admin ledger carries it; a row without one renders exactly as before.
+      render: (r) =>
+        r.note ? (
+          <div className="flex flex-col">
+            <span>{r.applicant_name}</span>
+            <span className="max-w-[16rem] truncate text-caption text-text-secondary" title={r.note}>
+              Note: {r.note}
+            </span>
+          </div>
+        ) : (
+          r.applicant_name
+        ),
+    },
     {
       key: 'status',
       header: 'Case status',

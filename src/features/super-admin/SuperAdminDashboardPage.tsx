@@ -7,10 +7,15 @@ import { MonthlyBarChart } from '@/components/MonthlyBarChart'
 import { useAdminDashboard } from '@/queries/adminDashboard'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { formatMoney } from '@/lib/money'
+import { formatDemandAsOf } from '@/lib/time'
 
 // Where each stat card's number is actually managed. Aspirants live in each consultancy's lead
 // pool and demand shows on Supply & Demand; applicants and completed cases sit with their
 // consultancy in Manage Consultancies; catalog counts open Colleges & Courses.
+// The stat cards read from the demand rollup, which runs three days behind by design and so
+// carries its own date (`demand_as_of`, gate 12d) instead of the page's `as_of`.
+const DEMAND_STAT_CARDS = new Set(['study_abroad_students'])
+
 const STAT_CARD_LINKS: Record<string, string> = {
   total_consultancies: '/admin/consultancies?kind=consultancy',
   total_institutes: '/admin/consultancies?kind=institute',
@@ -214,6 +219,10 @@ export function SuperAdminDashboardPage() {
     )
   }
 
+  // Null unless the response carries `demand_as_of` a day or more off `as_of` — absent on the
+  // frozen mock and on a backend that predates gate 12d, where the cards render as before.
+  const demandAsOf = formatDemandAsOf(dashboard.data.demand_as_of, dashboard.data.as_of)
+
   return (
     <AdminShell>
       <div className="flex flex-col gap-lg">
@@ -246,6 +255,9 @@ export function SuperAdminDashboardPage() {
                 </p>
                 {card.trend && <TrendLine thisMonth={card.trend.this_month} lastMonth={card.trend.last_month} />}
                 {card.hint && <p className="mt-xs text-caption text-text-secondary">{card.hint}</p>}
+                {demandAsOf && card.key && DEMAND_STAT_CARDS.has(card.key) && (
+                  <p className="mt-xs text-caption text-text-secondary">Demand figures {demandAsOf}</p>
+                )}
               </Card>
             )
           })}

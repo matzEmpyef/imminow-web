@@ -207,3 +207,23 @@ export function formatAsOf(iso: string | null | undefined): string | null {
   if (Number.isNaN(d.getTime())) return null
   return `as of ${pad(d.getHours())}:00`
 }
+
+/**
+ * The demand rollup's own stamp (contract gate 12d, owner 2026-10-04). Demand deliberately runs
+ * three days behind, so it carries its own `demand_as_of` beside the page's `as_of` — and at that
+ * distance the claim is a DATE, not an hour: "as of 01/10/2026". Returns null (no caption) when the
+ * stamp is missing or unparseable, or when it sits less than a day from the page's own `as_of`
+ * (from now, when the page has none) — nothing worth saying then.
+ */
+export function formatDemandAsOf(
+  demandAsOf: string | null | undefined,
+  asOf: string | null | undefined,
+): string | null {
+  if (!demandAsOf) return null
+  const demand = new Date(demandAsOf)
+  if (Number.isNaN(demand.getTime())) return null
+  const page = asOf ? new Date(asOf).getTime() : Number.NaN
+  const reference = Number.isNaN(page) ? Date.now() : page
+  if (Math.abs(reference - demand.getTime()) < MS_PER_DAY) return null
+  return `as of ${formatDate(demand)}`
+}
