@@ -14,6 +14,7 @@ import { usePermission } from '@/lib/permissions'
 import { formatDate } from '@/lib/time'
 import { formatMoneyAmount } from '@/lib/money'
 import { showToast } from '@/lib/toast'
+import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 type Receipt = NonNullable<ReturnType<typeof useReceipts>['data']>['items'][number]
 
@@ -24,7 +25,7 @@ function RecordReceiptForm({ onClose }: { onClose: () => void }) {
   const invoices = useInvoices({ limit: 100 })
   const createReceipt = useCreateReceipt()
   // T1: one key per modal open.
-  const [idempotencyKey] = useState(() => crypto.randomUUID())
+  const { key: idempotencyKey, settle } = useIdempotencyKey()
   const [invoiceId, setInvoiceId] = useState('')
   const [amount, setAmount] = useState('')
 
@@ -38,6 +39,7 @@ function RecordReceiptForm({ onClose }: { onClose: () => void }) {
     createReceipt.mutate(
       { invoice_id: invoiceId, amount: Number(amount), idempotencyKey },
       {
+        onError: settle,
         onSuccess: () => {
           showToast(invoice ? `Payment recorded for ${invoice.applicant_name}` : 'Payment recorded')
           onClose()

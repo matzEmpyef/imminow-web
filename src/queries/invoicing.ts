@@ -57,11 +57,11 @@ export function useCreateInvoice() {
       line_items: { description: string; amount: number }[]
       idempotencyKey: string
     }) => {
-      const { data, error } = await api.POST('/invoices', {
+      const { data, error, response } = await api.POST('/invoices', {
         params: { header: { 'Idempotency-Key': idempotencyKey } },
         body,
       })
-      if (error) throw new ApiError('Could not create this invoice.', error)
+      if (error) throw new ApiError('Could not create this invoice.', error, response?.status)
       return data
     },
     onSuccess: (data) => invalidateInvoicing(queryClient, data?.journey_id),
@@ -130,11 +130,11 @@ export function useCreateReceipt() {
       amount: number
       idempotencyKey: string
     }) => {
-      const { data, error } = await api.POST('/receipts', {
+      const { data, error, response } = await api.POST('/receipts', {
         params: { header: { 'Idempotency-Key': idempotencyKey } },
         body,
       })
-      if (error) throw new ApiError('Could not record this receipt.', error)
+      if (error) throw new ApiError('Could not record this receipt.', error, response?.status)
       return data
     },
     onSuccess: () => invalidateInvoicing(queryClient),

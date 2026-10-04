@@ -20,6 +20,7 @@ import { usePermission } from '@/lib/permissions'
 import { formatDate } from '@/lib/time'
 import { formatMoneyAmount } from '@/lib/money'
 import { showToast } from '@/lib/toast'
+import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 // C4 (2026-09-13): `part_paid` is derived by the server from the receipts recorded against the
 // invoice, so the list now has a fourth thing to say between "sent" and "paid" — warning, because
@@ -219,7 +220,7 @@ function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
   const clients = useClients({ limit: 100 })
   const createInvoice = useCreateInvoice()
   // T1: one key per modal open.
-  const [idempotencyKey] = useState(() => crypto.randomUUID())
+  const { key: idempotencyKey, settle } = useIdempotencyKey()
   // Display only — the server derives the real currency from consultancy.country. Shown so the
   // consultant knows what they are billing in before they submit.
   const consultancy = useMyConsultancy()
@@ -245,6 +246,7 @@ function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
     createInvoice.mutate(
       { journey_id: journeyId, line_items: items, idempotencyKey },
       {
+        onError: settle,
         onSuccess: () => {
           showToast(applicant ? `Invoice created for ${applicant.student.first_name} ${applicant.student.last_name}` : 'Invoice created')
           onClose()
