@@ -7,6 +7,7 @@ import type { FreelancerReferral } from '@/queries/freelancerReferrals'
 import { localDateISO } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { inr } from '@/lib/money'
+import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 /** Records one payout against one referral — money moves outside the platform; this just records that it happened. */
 export function RecordPayoutModal({ referral, onClose }: { referral: FreelancerReferral; onClose: () => void }) {
@@ -16,7 +17,8 @@ export function RecordPayoutModal({ referral, onClose }: { referral: FreelancerR
   const [paidOn, setPaidOn] = useState(localDateISO())
   const [reference, setReference] = useState('')
   const [attempted, setAttempted] = useState(false)
-  const [idempotencyKey] = useState(() => crypto.randomUUID())
+  // One key per open modal; a refused attempt gets a fresh one (see useIdempotencyKey).
+  const { key: idempotencyKey, settle } = useIdempotencyKey()
 
   const amountValue = Number(amount)
   const valid = amountValue >= 1 && amountValue <= owed && Boolean(paidOn)
@@ -41,6 +43,7 @@ export function RecordPayoutModal({ referral, onClose }: { referral: FreelancerR
           showToast(`Payout recorded for ${referral.applicant_name}`)
           onClose()
         },
+        onError: settle,
       },
     )
   }

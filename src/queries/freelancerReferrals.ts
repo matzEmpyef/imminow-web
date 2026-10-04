@@ -186,17 +186,25 @@ export function useRecordFreelancerPayout() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ referralId, idempotencyKey, ...body }: RecordPayoutInput) => {
-      const { data, error } = await api.POST('/freelancer-referrals/{id}/payouts', {
+      const { data, error, response } = await api.POST('/freelancer-referrals/{id}/payouts', {
         params: { path: { id: referralId }, header: { 'Idempotency-Key': idempotencyKey ?? crypto.randomUUID() } },
         body,
       })
-      if (error) throw new ApiError('Could not record this payout.', error)
+      if (error) throw new ApiError('Could not record this payout.', error, response?.status)
       return data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['freelancer-referrals-admin'] })
       queryClient.invalidateQueries({ queryKey: ['freelancer-payouts-admin'] })
       queryClient.invalidateQueries({ queryKey: ['freelancers'] })
+    },
+    // 409 more_than_owed: what is owed moved since the list loaded (another payout, a correction).
+    // Refetch so the next attempt is checked against the real figure.
+    onError: (err) => {
+      if (err instanceof ApiError && err.code === 'more_than_owed') {
+        queryClient.invalidateQueries({ queryKey: ['freelancer-referrals-admin'] })
+        queryClient.invalidateQueries({ queryKey: ['freelancers'] })
+      }
     },
   })
 }

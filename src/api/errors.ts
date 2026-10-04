@@ -29,8 +29,13 @@ export class ApiError extends Error {
   readonly requestId?: string
   /** Field-level/structured extras some codes carry — e.g. `in_use`'s `college_names` (2026-09-12). */
   readonly details?: Record<string, unknown>
+  /**
+   * The HTTP status, when the caller passed it. Needed where 4xx and 5xx must be told apart — an
+   * `Idempotency-Key` replays the stored answer to a refused (4xx) write, but a 5xx is not stored.
+   */
+  readonly status?: number
 
-  constructor(fallback: string, body?: unknown) {
+  constructor(fallback: string, body?: unknown, status?: number) {
     const envelope = (body as ApiErrorEnvelope | undefined)?.error
     const message = envelope?.message?.trim()
     super(message && message.length > 0 ? message : fallback)
@@ -38,5 +43,6 @@ export class ApiError extends Error {
     this.code = envelope?.code
     this.requestId = envelope?.request_id
     this.details = envelope?.details
+    this.status = status
   }
 }
