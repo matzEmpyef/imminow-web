@@ -1,7 +1,9 @@
+import fs from 'node:fs'
 import path from 'node:path'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { checkConnectSrc, cspFromVercelConfig } from './src/lib/cspCoverage.ts'
 
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
@@ -39,6 +41,35 @@ export default defineConfig(({ command, mode }) => {
       '\n[build] VITE_API_BASE_URL is not set — this bundle would call its own origin.\n' +
         '        Fine for a local compile check; a hosted build would be refused.\n',
     )
+  }
+
+  // Fail the build rather than ship a console its own security policy blocks (review F-031).
+  //
+  // `vercel.json`'s `connect-src` is a hand-written list. An API origin that is not on it (or is
+  // there only as https, which does not cover the live connection's wss form) or a storage origin
+  // that is not on it gives a deployed console whose requests the browser refuses, with nothing in
+  // the build to say so. Hosted builds only, for the same reason as the check above. The storage
+  // origin is checked when `VITE_UPLOAD_ORIGIN` is set; until then it can only be warned about —
+  // see src/lib/cspCoverage.ts for what DevOps has to supply.
+  if (isHostedBuild) {
+    const policy = cspFromVercelConfig(JSON.parse(fs.readFileSync(path.resolve(__dirname, 'vercel.json'), 'utf8')))
+    if (policy) {
+      const { errors, warnings } = checkConnectSrc({
+        policy,
+        apiBaseUrl: env.VITE_API_BASE_URL,
+        uploadOrigin: env.VITE_UPLOAD_ORIGIN,
+      })
+      // eslint-disable-next-line no-console -- build-time diagnostic in the Vite config, as above
+      for (const warning of warnings) console.warn(`\n[build] Content-Security-Policy: ${warning}\n`)
+      if (errors.length > 0) {
+        throw new Error(
+          'The Content-Security-Policy in vercel.json would block this build\'s own requests.\n\n' +
+            errors.map((e) => `  - ${e}`).join('\n') +
+            '\n\nAdd the missing origin(s) to connect-src in vercel.json (or correct the environment\n' +
+            'variable), then redeploy.\n',
+        )
+      }
+    }
   }
 
   return {

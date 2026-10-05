@@ -337,6 +337,37 @@ describe('RealtimeConnectionManager', () => {
     await vi.waitFor(() => expect(sockets).toHaveLength(3))
   })
 
+  it('falls back to polling, and retries much later, when the browser refuses to create the socket', async () => {
+    // What a Content-Security-Policy without the wss origin does: the constructor itself throws.
+    let refuse = true
+    const manager = makeManager({
+      wsFactory: () => {
+        if (refuse) throw new DOMException('Refused to connect', 'SecurityError')
+        const socket = new FakeSocket()
+        sockets.push(socket)
+        return socket
+      },
+    })
+
+    manager.start()
+    await vi.advanceTimersByTimeAsync(0) // let the ticket answer land; no time passes
+    expect(fetchTicket).toHaveBeenCalledTimes(1)
+    expect(manager.getStatus()).toBe('disabled') // not stuck in "connecting"
+    expect(useRealtimeStore.getState().status).toBe('disabled')
+    expect(useRealtimeStore.getState().disabledUntil).toBe(300_000)
+
+    // No quick-retry loop of ticket requests while the fault stands.
+    await vi.advanceTimersByTimeAsync(299_999)
+    expect(fetchTicket).toHaveBeenCalledTimes(1)
+
+    // And it recovers by itself if a later attempt is allowed.
+    refuse = false
+    await vi.advanceTimersByTimeAsync(1)
+    await vi.waitFor(() => expect(sockets).toHaveLength(1))
+    sockets[0].emitMessage(helloFrame())
+    expect(manager.getStatus()).toBe('open')
+  })
+
   it('stop() closes the socket and cancels every pending timer', async () => {
     const manager = makeManager()
     manager.start()

@@ -63,6 +63,9 @@ export interface RealtimeConnectionManagerDeps {
    * `disabled` before trying again, per asyncapi.yaml: "take a new ticket once; poll if it happens
    * again." */
   repeatedForbiddenRetryS?: number
+  /** Default 300s — how long the manager stays in `disabled` (polling) after the browser refused
+   * to even create the socket, before trying again. */
+  refusedSocketRetryS?: number
 }
 
 /**
@@ -205,7 +208,18 @@ export class RealtimeConnectionManager {
 
   private openSocket(url: string) {
     const factory = this.deps.wsFactory ?? defaultWsFactory
-    const socket = factory(url)
+    let socket: RealtimeSocketLike
+    try {
+      socket = factory(url)
+    } catch {
+      // `new WebSocket` throws synchronously when the browser will not open the address at all —
+      // the page's Content-Security-Policy does not list it, mixed content, a malformed URL. That
+      // is a configuration fault, not a dropped connection: no close event will ever follow, and a
+      // quick retry cannot succeed. Park in `disabled` (fallback polling carries on) and try again
+      // much later, instead of stalling in `connecting` for good.
+      this.scheduleDisabledRetry(this.deps.refusedSocketRetryS ?? 300)
+      return
+    }
     this.socket = socket
     const gen = this.generation
     socket.onmessage = (ev) => {
