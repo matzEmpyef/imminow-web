@@ -11,6 +11,7 @@ import { Table, type TableColumn } from '@/components/Table'
 import { Modal } from '@/components/Modal'
 import { ImageUploadField } from '@/components/ImageUploadField'
 import { SearchSelect, type SearchSelectOption } from '@/components/SearchSelect'
+import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { TargetingFilter } from '@/features/super-admin/TargetingFilter'
 import { hasAnyTargeting } from '@/lib/targeting'
 import { useCursorPagination } from '@/lib/pagination'
@@ -26,11 +27,14 @@ import {
 import { PersonListModal } from '@/features/super-admin/PersonListModal'
 import { useAdminEvents } from '@/queries/eventsAdmin'
 import { useAdminBlogArticles } from '@/queries/blogArticles'
-import { useAdminConsultancies } from '@/queries/adminConsultancies'
+import { useAdminConsultancies, useAdminConsultancy } from '@/queries/adminConsultancies'
+import { consultancySource } from '@/queries/pickerSources'
 import { useCountries } from '@/queries/countries'
 import { formatEventDateTime, formatDateTime, formatDate } from '@/lib/time'
 import type { components } from '@/api/schema'
 import { mediaUrl } from '@/lib/mediaUrl'
+
+const ALL_ACCOUNTS = consultancySource()
 
 type AdBanner = components['schemas']['AdBanner']
 type DestinationType = AdBanner['destination_type']
@@ -73,7 +77,6 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
   const createAd = useCreateAd()
   const updateAd = useUpdateAd(editingAd?.id ?? '')
   const events = useAdminEvents()
-  const consultancies = useAdminConsultancies({ limit: 100 })
   // Published only — the server refuses an ad for a hidden article, and stops serving one whose
   // article is hidden later (2026-09-15).
   const articles = useAdminBlogArticles({ status: 'published', limit: 100 })
@@ -113,10 +116,10 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
     sublabel: formatEventDateTime(e) || undefined,
     group: e.type ? eventTypeLabels[e.type] : undefined,
   }))
-  const consultancyOptions: SearchSelectOption[] = (consultancies.data?.items ?? []).map((c) => ({
-    id: c.id!,
-    label: c.name ?? '',
-  }))
+  // The consultancy destination is searched on the server (F-038), so its name for the "Opens:"
+  // line and for the picker itself is read by id rather than looked up in a loaded page.
+  const destinationConsultancy = useAdminConsultancy(destinationType === 'internal' && destinationId ? destinationId : null)
+  const destinationConsultancyName = destinationConsultancy.data?.name
   const articleOptions: SearchSelectOption[] = (articles.data?.items ?? []).map((a) => ({
     id: a.id!,
     label: a.title ?? '',
@@ -163,7 +166,7 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
         ? eventOptions.find((o) => o.id === destinationId)?.label || 'No event selected yet'
         : destinationType === 'blog'
           ? articleOptions.find((o) => o.id === destinationId)?.label || 'No article selected yet'
-          : consultancyOptions.find((o) => o.id === destinationId)?.label || 'No consultancy selected yet'
+          : destinationConsultancyName || (destinationId ? 'Loading…' : 'No consultancy selected yet')
 
   function handleNext() {
     if (!step1Valid) {
@@ -339,14 +342,19 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
             )}
             {destinationType === 'internal' && (
               <div className="flex flex-col gap-xs">
-                <SearchSelect
+                <ServerSearchSelect
                   id="dest-consultancy"
                   label="Consultancy"
                   required
-                  options={consultancyOptions}
+                  source={ALL_ACCOUNTS}
                   value={destinationId}
-                  onChange={setDestinationId}
-                  placeholder={consultancies.isLoading ? 'Loading consultancies…' : 'Search consultancy…'}
+                  selectedOption={
+                    destinationId && destinationConsultancyName
+                      ? { id: destinationId, label: destinationConsultancyName }
+                      : null
+                  }
+                  onChange={(id) => setDestinationId(id)}
+                  placeholder="Search consultancy…"
                 />
               </div>
             )}

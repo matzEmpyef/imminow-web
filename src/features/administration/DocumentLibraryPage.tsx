@@ -16,7 +16,6 @@ import {
   useShareLibraryDocument,
   useUploadLibraryDocument,
 } from '@/queries/documentLibrary'
-import { useClients } from '@/queries/clients'
 import { useCreateTag, useTags } from '@/queries/tags'
 import { useListCeiling } from '@/lib/listCeilings'
 import { useCursorPagination } from '@/lib/pagination'
@@ -45,12 +44,10 @@ function mimeLabel(mimeType: string | null | undefined) {
 // FormsPage.tsx's FormRowActions.
 function DocumentRowActions({
   doc,
-  clients,
   onShare,
 }: {
   doc: LibraryDocument
-  clients: { id: string; name: string }[]
-  onShare: (journeyId: string) => void
+  onShare: (journeyId: string, name: string | undefined) => void
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const downloadUrl = useDownloadLibraryDocumentUrl()
@@ -84,7 +81,7 @@ function DocumentRowActions({
 
   return (
     <div className="flex justify-end">
-      <ShareDocumentMenu clients={clients} onSelect={onShare} label={`Share ${doc.filename} with an applicant`} />
+      <ShareDocumentMenu onSelect={onShare} label={`Share ${doc.filename} with an applicant`} />
       <button
         type="button"
         onClick={openDocument}
@@ -156,9 +153,6 @@ export function DocumentLibraryPage() {
     cursor: paging.cursor,
     limit: 20,
   })
-  // T2: the share menu offers the complete applicant roster — default limit 20 made
-  // applicant 21 unshareable.
-  const clients = useClients({ limit: 100 })
   const tags = useTags()
   const createTag = useCreateTag()
   // At the tag ceiling the editor still picks existing tags but won't create one (2026-09-25).
@@ -166,11 +160,6 @@ export function DocumentLibraryPage() {
   const setDocumentTags = useSetLibraryDocumentTags()
   const shareDocument = useShareLibraryDocument()
   const uploadDocument = useUploadLibraryDocument()
-
-  const clientOptions = (clients.data?.items ?? []).map((c) => ({
-    id: c.id,
-    name: `${c.student.first_name} ${c.student.last_name}`,
-  }))
 
   function resetPaging() {
     paging.reset()
@@ -242,12 +231,10 @@ export function DocumentLibraryPage() {
       render: (doc) => (
         <DocumentRowActions
           doc={doc}
-          clients={clientOptions}
-          onShare={(journeyId) => {
-            const client = clientOptions.find((c) => c.id === journeyId)
+          onShare={(journeyId, name) => {
             shareDocument.mutate(
               { id: doc.id, journeyId },
-              { onSuccess: () => showToast(`${doc.filename} shared with ${client?.name ?? 'applicant'}`) },
+              { onSuccess: () => showToast(`${doc.filename} shared with ${name ?? 'applicant'}`) },
             )
           }}
         />

@@ -4,7 +4,7 @@ import { SelectField } from '@/components/SelectField'
 import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
 import { TextField } from '@/components/TextField'
-import { SearchSelect } from '@/components/SearchSelect'
+import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { CountrySelect } from '@/components/CountrySelect'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { BranchPlaceFields } from '@/features/administration/BranchPlaceFields'
@@ -17,7 +17,7 @@ import {
 } from '@/features/administration/branchLocation'
 import { useAuthStore } from '@/stores/authStore'
 import { useCreateConsultancy } from '@/queries/adminConsultancies'
-import { useAdminColleges } from '@/queries/adminColleges'
+import { collegeWithCoursesSource } from '@/queries/pickerSources'
 import { useUserSearch } from '@/queries/supportTools'
 import { EMAIL_ERROR, isValidEmail } from '@/lib/validation'
 import { showToast } from '@/lib/toast'
@@ -118,14 +118,9 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
   const isInstitute = kind === 'institute'
   // The same catalogue Colleges & Courses manages — an institute account never invents a college,
   // it claims one that already exists (D8).
-  const colleges = useAdminColleges({ limit: 100 })
-  const collegeOptions = (colleges.data?.items ?? []).map((c) => ({
-    id: c.id,
-    label: c.name,
-    // The course count is the fact that matters here: it becomes the entire catalogue this
-    // account can ever see, so linking a college with none is worth noticing before submitting.
-    sublabel: c.course_count != null ? `${c.course_count} course${c.course_count === 1 ? '' : 's'}` : undefined,
-  }))
+  // Searched on the server (F-038) — one page of 100 was all this picker could reach. Each option
+  // carries the course count: it becomes the entire catalogue this account can ever see, so
+  // linking a college with none is worth noticing before submitting.
 
   // Auto-suggests from the name (first 3 letters, uppercased) until the admin types their own —
   // user-requested, 2026-08-15: "let admin decide what it is... Default derive from consultancy
@@ -327,14 +322,13 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
           <div className="flex flex-col gap-md border-t border-border pt-md">
             <p className="text-body-sm font-medium text-text-primary">College</p>
             <div className="flex flex-col gap-xs">
-              <SearchSelect
+              <ServerSearchSelect
                 id="institute-college"
                 label="College this institute speaks for"
-                options={collegeOptions}
+                source={collegeWithCoursesSource}
                 value={collegeId}
                 onChange={setCollegeId}
-                placeholder={colleges.isLoading ? 'Loading colleges…' : 'Search the catalogue…'}
-                disabled={colleges.isLoading}
+                placeholder="Search the catalogue…"
               />
               <p className="text-caption text-text-secondary">
                 Optional. Leave it empty to create the login now and attach the college later from Manage — in practice

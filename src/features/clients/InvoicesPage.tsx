@@ -8,11 +8,11 @@ import { Drawer } from '@/components/Drawer'
 import { TextField } from '@/components/TextField'
 import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
-import { SearchSelect } from '@/components/SearchSelect'
+import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { StopPropagation } from '@/components/StopPropagation'
 import { Modal } from '@/components/Modal'
 import { ErrorState, Skeleton } from '@/components/QueryState'
-import { useClients } from '@/queries/clients'
+import { clientSource, type Client } from '@/queries/pickerSources'
 import { useMyConsultancy } from '@/queries/consultancy'
 import { useCreateInvoice, useInvoices, useReceipts, useVoidInvoice } from '@/queries/invoicing'
 import { useCursorPagination } from '@/lib/pagination'
@@ -215,9 +215,9 @@ interface LineItem {
 // User-requested (2026-08-15) — "wherever there is add button, use popup, instead of inline
 // form." Was an inline Card that expanded below the page header; now a Modal, same fields.
 function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
-  // T2: this SearchSelect is the complete billing roster, not page one of it — the default
-  // limit of 20 made applicant 21 unbillable from this modal.
-  const clients = useClients({ limit: 100 })
+  // F-038: searched on the server, so every applicant is billable from this modal — one page of
+  // the roster filtered in the browser stopped at applicant 100.
+  const [applicant, setApplicant] = useState<Client>()
   const createInvoice = useCreateInvoice()
   // T1: one key per modal open.
   const { key: idempotencyKey, settle } = useIdempotencyKey()
@@ -242,7 +242,6 @@ function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
       .filter((li) => li.description && li.amount)
       .map((li) => ({ description: li.description, amount: Number(li.amount) }))
     if (!journeyId || items.length === 0) return
-    const applicant = clients.data?.items.find((c) => c.id === journeyId)
     createInvoice.mutate(
       { journey_id: journeyId, line_items: items, idempotencyKey },
       {
@@ -273,15 +272,15 @@ function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
     >
       <form id="create-invoice-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <div className="flex flex-col gap-xs">
-          <SearchSelect
+          <ServerSearchSelect
             id="invoice-applicant"
             label="Applicant"
-            options={(clients.data?.items ?? []).map((c) => ({
-              id: c.id,
-              label: `${c.student.first_name} ${c.student.last_name}`,
-            }))}
+            source={clientSource}
             value={journeyId}
-            onChange={setJourneyId}
+            onChange={(id, client) => {
+              setJourneyId(id)
+              setApplicant(client)
+            }}
             placeholder="Search applicants…"
           />
         </div>

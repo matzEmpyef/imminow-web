@@ -13,9 +13,10 @@ import { Toggle } from '@/components/Toggle'
 import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
-import { SearchSelect } from '@/components/SearchSelect'
+import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { PartnerCollegesPanel } from '@/features/administration/PartnerCollegesPanel'
-import { useAdminColleges, useCollegeDetail } from '@/queries/adminColleges'
+import { useCollegeDetail } from '@/queries/adminColleges'
+import { collegeWithCoursesSource } from '@/queries/pickerSources'
 import {
   type ConsultancyFilters,
   useAdminConsultancies,
@@ -527,14 +528,7 @@ function KycSection({ consultancyId, kycVerified }: { consultancyId: string; kyc
 function InstituteCollegeSection({ consultancy }: { consultancy: Consultancy }) {
   const linkCollege = useLinkCollege(consultancy.id!)
   const linkedCollege = useCollegeDetail(consultancy.college_id ?? undefined)
-  const colleges = useAdminColleges({ limit: 100 })
   const [collegeId, setCollegeId] = useState('')
-
-  const collegeOptions = (colleges.data?.items ?? []).map((c) => ({
-    id: c.id,
-    label: c.name,
-    sublabel: c.course_count != null ? `${c.course_count} course${c.course_count === 1 ? '' : 's'}` : undefined,
-  }))
 
   return (
     <div className="flex flex-col gap-sm p-md">
@@ -556,14 +550,15 @@ function InstituteCollegeSection({ consultancy }: { consultancy: Consultancy }) 
           </p>
           <div className="flex flex-wrap items-end gap-sm">
             <div className="min-w-[16rem] flex-1">
-              <SearchSelect
+              {/* F-038: searched on the server — the attach is permanent, and the right college
+                  was not reachable past the first 100. */}
+              <ServerSearchSelect
                 id="institute-link-college"
                 label="College"
-                options={collegeOptions}
+                source={collegeWithCoursesSource}
                 value={collegeId}
                 onChange={setCollegeId}
-                placeholder={colleges.isLoading ? 'Loading colleges…' : 'Search the catalogue…'}
-                disabled={colleges.isLoading}
+                placeholder="Search the catalogue…"
               />
             </div>
             <Button

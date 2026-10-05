@@ -1,5 +1,9 @@
+import { useCallback, useState } from 'react'
 import type { Targeting } from '@/lib/targeting'
-import { useInstitutions, institutionLabel } from '@/queries/institutions'
+import { institutionLabel } from '@/queries/institutions'
+import { institutionSource } from '@/queries/pickerSources'
+import { useDebouncedValue } from '@/lib/useDebounce'
+import { useServerSearch } from '@/lib/useServerSearch'
 import { useStatesForCountries } from '@/queries/countries'
 import { MultiSelect } from '@/components/MultiSelect'
 import { SelectField } from '@/components/SelectField'
@@ -39,10 +43,20 @@ interface TargetingFilterProps {
  * Adding a dimension now means adding it here once, and all three surfaces get it.
  */
 export function TargetingFilter({ value, onChange, countries, unknownDataPolicy, lifecycle = false }: TargetingFilterProps) {
-  const institutions = useInstitutions()
+  // Searched on the server (review F-038): the list was the first 100 schools with no query sent,
+  // so a school past them could not be targeted. What is typed goes to `q` (name and city
+  // together) after the usual pause, and further pages load with the list's cursor.
+  const [institutionSearch, setInstitutionSearch] = useState('')
+  const institutionTerm = useDebouncedValue(institutionSearch)
+  const institutions = useServerSearch(institutionSource, institutionTerm)
+  const onInstitutionSearch = useCallback((text: string) => setInstitutionSearch(text), [])
   // Keyed by id, labelled "Name — City": two schools share the name "The Choice School", so a
-  // label without its city would make the two rows indistinguishable in this list.
-  const institutionById = new Map((institutions.data?.items ?? []).map((i) => [i.id, institutionLabel(i)]))
+  // label without its city would make the two rows indistinguishable in this list. Every row
+  // seen while this filter is open is remembered, so a school keeps its name once the results
+  // move on. There is no route that reads one institution by id, so a saved id that no loaded
+  // page has contained still shows as the id, as it did before.
+  const [institutionById] = useState(() => new Map<string, string>())
+  for (const { row } of institutions.entries) institutionById.set(row.id, institutionLabel(row))
   const studyLevels = useStudyLevels().data ?? []
   const studyLevelLabels = new Map(studyLevels.map((level) => [level.code, level.label]))
   // State/Province options follow whichever residence countries are picked above — a state
@@ -127,10 +141,20 @@ export function TargetingFilter({ value, onChange, countries, unknownDataPolicy,
       <div className="flex flex-col gap-xs">
         <MultiSelect
           label="School / college"
-          options={(institutions.data?.items ?? []).map((i) => i.id)}
+          options={institutions.entries.map((e) => e.row.id)}
           selected={value.institution_id ?? []}
           onChange={(next) => set({ institution_id: list(next) })}
           renderLabel={(id) => institutionById.get(id) ?? id}
+          server={{
+            onSearch: onInstitutionSearch,
+            // The rows on screen belong to the previous term until the pause has passed.
+            loading: institutions.isLoading || institutionSearch.trim() !== institutionTerm.trim(),
+            error: institutions.isError,
+            retry: institutions.retry,
+            hasMore: institutions.hasMore,
+            loadingMore: institutions.isLoadingMore,
+            loadMore: institutions.loadMore,
+          }}
         />
         <p className="text-caption text-text-secondary">
           The student&rsquo;s own school or college in India — not a destination abroad. Students whose typed-in school

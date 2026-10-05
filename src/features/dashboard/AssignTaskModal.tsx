@@ -3,10 +3,10 @@ import { SelectField } from '@/components/SelectField'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
-import { SearchSelect } from '@/components/SearchSelect'
+import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { useAssignActivityTask } from '@/queries/activity'
 import { useEmployees } from '@/queries/staff'
-import { usePersonPicker } from '@/lib/usePersonPicker'
+import { personSource, type PersonRow } from '@/queries/pickerSources'
 import { showToast } from '@/lib/toast'
 
 // User-requested (2026-08-15) — "Assign Task needs to be a popup... Also the client selection...
@@ -16,10 +16,9 @@ import { showToast } from '@/lib/toast'
 // lists (mirroring GlobalSearch's own Applicant/Lead tagging) instead of a client-only <select>.
 export function AssignTaskModal({ onClose }: { onClose: () => void }) {
   const employees = useEmployees()
-  // Shared with CourseFinderPage.tsx via usePersonPicker() (2026-08-24) — this field used to
-  // fetch and filter the same applicant/lead lists as its own copy, and a fix applied to one
-  // (page size, case_type, allocation) silently didn't reach the other. See that hook's comment.
-  const { clientRows, leadRows } = usePersonPicker()
+  // Shared with Course Finder through `personSource` — one definition of "every applicant, every
+  // active allocated lead", searched on the server (F-038) rather than two capped pages.
+  const [related, setRelated] = useState<PersonRow>()
   const assignTask = useAssignActivityTask()
 
   const [relatedId, setRelatedId] = useState('')
@@ -31,20 +30,7 @@ export function AssignTaskModal({ onClose }: { onClose: () => void }) {
   // self-assigned reminder does.
   const [dueTime, setDueTime] = useState('')
 
-  const isRelatedLead = leadRows.some((l) => l.id === relatedId)
-  const relatedOptions = [
-    { id: '', label: 'None' },
-    ...clientRows.map((c) => ({
-      id: c.id,
-      label: `${c.student.first_name} ${c.student.last_name}`,
-      group: 'Applicant',
-    })),
-    ...leadRows.map((l) => ({
-      id: l.id,
-      label: l.name,
-      group: 'Lead',
-    })),
-  ]
+  const isRelatedLead = related?.kind === 'lead'
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -92,12 +78,15 @@ export function AssignTaskModal({ onClose }: { onClose: () => void }) {
     >
       <form id="assign-task-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <div className="flex flex-col gap-xs">
-          <SearchSelect
+          <ServerSearchSelect
             id="task-related"
             label="Related client or lead"
-            options={relatedOptions}
+            source={personSource}
             value={relatedId}
-            onChange={setRelatedId}
+            onChange={(id, person) => {
+              setRelatedId(id)
+              setRelated(person)
+            }}
             placeholder="Search applicants and leads…"
           />
         </div>

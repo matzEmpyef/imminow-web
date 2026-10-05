@@ -1,9 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { useQueries } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, X } from 'lucide-react'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { SearchSelect } from '@/components/SearchSelect'
-import { useAdminConsultancies } from '@/queries/adminConsultancies'
+import { ServerSearchSelect } from '@/components/ServerSearchSelect'
+import { consultancySource, type Consultancy } from '@/queries/pickerSources'
+import type { ServerSearchSource } from '@/lib/useServerSearch'
 import { useAdminJobs } from '@/queries/jobsAdmin'
 import { usePlatformSettings, useUpdatePlatformSettings } from '@/queries/catalogSettings'
 import { showToast } from '@/lib/toast'
@@ -50,9 +53,10 @@ interface FeaturedOption {
  */
 function FeaturedPickerCard({
   settingKey,
-  options: allOptions,
-  loading,
-  error,
+  options: allOptions = [],
+  source,
+  loading = false,
+  error = false,
   heading,
   intro,
   emptyState,
@@ -63,9 +67,15 @@ function FeaturedPickerCard({
 }: {
   settingKey: SettingKey
   /** Everything that may be picked, already narrowed to what is eligible. */
-  options: FeaturedOption[]
-  loading: boolean
-  error: boolean
+  options?: FeaturedOption[]
+  /**
+   * Given instead of `options` for a list too long to hand over whole (the accounts, review
+   * F-038): the picker searches it on the server, and the names of what is already featured are
+   * read by id.
+   */
+  source?: ServerSearchSource<Consultancy>
+  loading?: boolean
+  error?: boolean
   heading: string
   intro: ReactNode
   /** Shown in place of the list when nothing is picked — says what the app does with none. */
@@ -89,12 +99,30 @@ function FeaturedPickerCard({
 
   const saved = settings.data?.[settingKey] ?? []
   const current = selected ?? saved
-  const byId = new Map(allOptions.map((o) => [o.id, o]))
+  // With a `source`: what was added here is remembered, and anything else featured (at most
+  // three) is read by id — neither depends on which page of the list happens to be loaded.
+  const [added, setAdded] = useState<FeaturedOption[]>([])
+  const unnamed = source ? current.filter((id) => !added.some((o) => o.id === id)) : []
+  const fetched = useQueries({
+    queries: unnamed.map((id) => ({
+      queryKey: [...(source?.queryKey ?? []), 'selected', id],
+      queryFn: ({ signal }: { signal: AbortSignal }) => source!.fetchById!(id, signal),
+      staleTime: 5 * 60 * 1000,
+    })),
+  })
+  const byId = new Map(
+    [
+      ...allOptions,
+      ...added,
+      ...fetched.flatMap((q) => (q.data && source ? [source.toOption(q.data) as FeaturedOption] : [])),
+    ].map((o) => [o.id, o]),
+  )
   const options = allOptions.filter((o) => !current.includes(o.id))
 
   const dirty = JSON.stringify(current) !== JSON.stringify(saved)
   const atCap = current.length >= MAX_FEATURED
-  const noneAvailable = allOptions.length === 0
+  // A searched list cannot be known to be empty up front; the picker says "No matches" itself.
+  const noneAvailable = !source && allOptions.length === 0
 
   function move(index: number, delta: number) {
     const target = index + delta
@@ -175,14 +203,30 @@ function FeaturedPickerCard({
             </p>
           ) : (
             <div className="max-w-[24rem]">
-              <SearchSelect
-                id={`${settingKey}-add`}
-                label={addLabel}
-                options={options}
-                value=""
-                onChange={(id) => id && setSelected([...current, id])}
-                placeholder={addPlaceholder}
-              />
+              {source ? (
+                <ServerSearchSelect
+                  id={`${settingKey}-add`}
+                  label={addLabel}
+                  source={source}
+                  exclude={(c) => current.includes(c.id!)}
+                  value=""
+                  onChange={(id, account) => {
+                    if (!id || !account) return
+                    setAdded((prev) => [...prev.filter((o) => o.id !== id), source.toOption(account)])
+                    setSelected([...current, id])
+                  }}
+                  placeholder={addPlaceholder}
+                />
+              ) : (
+                <SearchSelect
+                  id={`${settingKey}-add`}
+                  label={addLabel}
+                  options={options}
+                  value=""
+                  onChange={(id) => id && setSelected([...current, id])}
+                  placeholder={addPlaceholder}
+                />
+              )}
             </div>
           )}
 
@@ -206,28 +250,26 @@ function FeaturedPickerCard({
 }
 
 /**
- * The account pickers' shared option source — every account of one kind, not a page of them: the
- * picker is a choice among a manageable list, and `kind` is the server-side filter D10 added to
- * this same list endpoint.
+ * The account pickers' shared source — every account of one kind, searched on the server (review
+ * F-038; it was one page of 100). `kind` is the server-side filter D10 added to this same list
+ * endpoint.
  */
-function useAccountOptions(kind: 'consultancy' | 'institute') {
-  const accounts = useAdminConsultancies({ kind, limit: 100 })
+function accountSource(kind: 'consultancy' | 'institute'): ServerSearchSource<Consultancy> {
   return {
-    options: (accounts.data?.items ?? []).map((c) => ({ id: c.id!, label: c.name!, sublabel: c.city ?? undefined })),
-    loading: accounts.isLoading,
-    error: accounts.isError,
+    ...consultancySource({ kind }),
+    toOption: (c) => ({ id: c.id!, label: c.name!, sublabel: c.city ?? undefined }),
   }
 }
 
+const INSTITUTE_ACCOUNTS = accountSource('institute')
+const CONSULTANCY_ACCOUNTS = accountSource('consultancy')
+
 /** Top Institutes on Sentpo Home (INSTITUTE_ACCOUNT_PLAN D15, 2026-09-10). */
 export function FeaturedInstitutesCard() {
-  const { options, loading, error } = useAccountOptions('institute')
   return (
     <FeaturedPickerCard
       settingKey="featured_institutes"
-      options={options}
-      loading={loading}
-      error={error}
+      source={INSTITUTE_ACCOUNTS}
       heading="Featured institutes — Sentpo Home"
       intro={
         <>
@@ -252,13 +294,10 @@ export function FeaturedInstitutesCard() {
  * copy here says that rather than implying the section disappears.
  */
 export function FeaturedConsultanciesCard() {
-  const { options, loading, error } = useAccountOptions('consultancy')
   return (
     <FeaturedPickerCard
       settingKey="featured_consultancies"
-      options={options}
-      loading={loading}
-      error={error}
+      source={CONSULTANCY_ACCOUNTS}
       heading="Featured consultancies on Home"
       intro={
         <>

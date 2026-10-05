@@ -23,9 +23,8 @@ import {
   sharedSearchFiltersFrom,
   type SelectedPerson,
 } from './courseFinderState'
-import { useApplications, useAddApplication, useClientMessages } from '@/queries/clients'
-import { useSuggestCourseToLead, useLeadMessages } from '@/queries/leads'
-import { usePersonPicker } from '@/lib/usePersonPicker'
+import { useApplications, useAddApplication, useClient, useClientMessages } from '@/queries/clients'
+import { useLead, useSuggestCourseToLead, useLeadMessages } from '@/queries/leads'
 import { useCourseFinder } from '@/queries/courseFinder'
 import { useMyConsultancy } from '@/queries/consultancy'
 import { useAccountWords } from '@/lib/accountWords'
@@ -45,11 +44,8 @@ type Course = components['schemas']['Course']
 // now pure wiring: state machine in courseFinderState.ts, filter Card in CourseFinderFilters,
 // columns in CourseFinderColumns, drawer/confirm-modal in their own files.
 export function CourseFinderPage() {
-  // Shared with AssignTaskModal.tsx via usePersonPicker() (2026-08-24) — see that hook's own
-  // comment for why this moved out of being two separate copies.
-  const { clientRows, leadRows } = usePersonPicker()
   const { state, setState, shortlist, setShortlist, drawerOpen, setDrawerOpen, handlePersonChange, toggleShortlist } =
-    useCourseFinderState(clientRows, leadRows)
+    useCourseFinderState()
   // A shared search card opened this page with its filters in the URL; the state has read them,
   // so drop them — otherwise a refresh would throw away whatever the consultant changed since.
   const [searchParams, setSearchParams] = useSearchParams()
@@ -71,8 +67,13 @@ export function CourseFinderPage() {
   const [confirmSuggest, setConfirmSuggest] = useState<{ id: string; name: string } | null>(null)
   const [confirmSendSearch, setConfirmSendSearch] = useState(false)
 
-  const selectedClient = state.personKind === 'client' ? clientRows.find((c) => c.id === state.personId) : undefined
-  const selectedLead = state.personKind === 'lead' ? leadRows.find((l) => l.id === state.personId) : undefined
+  // The selected person is read by id (F-038) — it used to be looked up in the picker's one loaded
+  // page of 100, so a person past it could be restored from the cache but never shown. The picker's
+  // own rules still apply: student cases only, and leads that are still active.
+  const personClient = useClient(state.personKind === 'client' && state.personId ? state.personId : undefined)
+  const personLead = useLead(state.personKind === 'lead' && state.personId ? state.personId : undefined)
+  const selectedClient = personClient.data?.case_type === 'student' ? personClient.data : undefined
+  const selectedLead = personLead.data?.status === 'active' ? personLead.data : undefined
   const selectedPerson: SelectedPerson = selectedClient
     ? { id: selectedClient.id!, kind: 'client' }
     : selectedLead
@@ -291,8 +292,7 @@ export function CourseFinderPage() {
         <CourseFinderFilters
           state={state}
           onChange={(patch) => setState((s) => ({ ...s, ...patch }))}
-          clientRows={clientRows}
-          leadRows={leadRows}
+          personLabel={personLabel}
           onPersonChange={handlePersonChange}
           canCheckFit={canCheckFit}
           personName={selectedClient?.student.first_name ?? selectedLead?.name}

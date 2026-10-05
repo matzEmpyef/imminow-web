@@ -15,6 +15,18 @@ interface MultiSelectProps {
   // prose (study_level's 'bachelors'). Omitted, values render as-is, which is what every other
   // consumer wants.
   renderLabel?: (value: string) => string
+  // For a catalog too long to hand over whole (review F-038): the caller searches it on the
+  // server and passes the matching page as `options`, so nothing is filtered here. `onSearch`
+  // receives what is typed (the caller debounces); the rest drive the list's own states.
+  server?: {
+    onSearch: (text: string) => void
+    loading: boolean
+    error: boolean
+    retry: () => void
+    hasMore: boolean
+    loadingMore: boolean
+    loadMore: () => void
+  }
 }
 
 // Chips + search-to-add, closed to a fixed `options` list (no free-text create, unlike
@@ -23,31 +35,39 @@ interface MultiSelectProps {
 // (flagged as likely for a future "colleges served" field). No portal: unlike Combobox.tsx,
 // nothing renders this inside a Modal today, so a plain absolute dropdown doesn't get clipped —
 // revisit with the same portal fix if that changes.
-export function MultiSelect({ label, options, selected, onChange, allowCustom, required, renderLabel }: MultiSelectProps) {
+export function MultiSelect({ label, options, selected, onChange, allowCustom, required, renderLabel, server }: MultiSelectProps) {
   const display = renderLabel ?? ((value: string) => value)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const inputId = useId()
   const [open, setOpen] = useState(false)
-  const [search, setSearch] = useState('')
+  const [search, setSearchText] = useState('')
+  const onServerSearch = server?.onSearch
+  function setSearch(text: string) {
+    setSearchText(text)
+    onServerSearch?.(text)
+  }
 
   useEffect(() => {
     if (!open) return
     function handleClickOutside(e: MouseEvent) {
       if (!containerRef.current?.contains(e.target as Node)) {
         setOpen(false)
-        setSearch('')
+        setSearchText('')
+        onServerSearch?.('')
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [open])
+  }, [open, onServerSearch])
 
   const needle = search.toLowerCase()
   // Matches the label as well as the value, or typing "Bachelors" finds nothing when the
   // stored value is the slug 'bachelors'.
   const available = options.filter(
-    (o) => !selected.includes(o) && (o.toLowerCase().includes(needle) || display(o).toLowerCase().includes(needle)),
+    (o) =>
+      !selected.includes(o) &&
+      (Boolean(server) || o.toLowerCase().includes(needle) || display(o).toLowerCase().includes(needle)),
   )
   const trimmedSearch = search.trim()
   const canAddCustom =
@@ -126,10 +146,19 @@ export function MultiSelect({ label, options, selected, onChange, allowCustom, r
 
       {open && (
         <div className="absolute top-full z-10 mt-xs max-h-56 w-full overflow-y-auto rounded-lg border border-border bg-surface py-xs shadow-card">
-          {available.length === 0 && !canAddCustom && (
+          {server?.loading && <p className="px-md py-sm text-body-sm text-text-secondary">Searching…</p>}
+          {server?.error && !server.loading && (
+            <p className="px-md py-sm text-body-sm text-error">
+              Could not load results.{' '}
+              <button type="button" onClick={server.retry} className="font-medium text-primary hover:underline">
+                Retry
+              </button>
+            </p>
+          )}
+          {available.length === 0 && !canAddCustom && !server?.loading && !server?.error && !server?.hasMore && (
             <p className="px-md py-sm text-body-sm text-text-secondary">No matches.</p>
           )}
-          {available.map((option) => (
+          {(server?.loading || server?.error ? [] : available).map((option) => (
             <button
               key={option}
               type="button"
@@ -139,6 +168,16 @@ export function MultiSelect({ label, options, selected, onChange, allowCustom, r
               {display(option)}
             </button>
           ))}
+          {server?.hasMore && !server.loading && !server.error && (
+            <button
+              type="button"
+              onClick={server.loadMore}
+              disabled={server.loadingMore}
+              className="block w-full px-md py-sm text-left text-body-sm font-medium text-primary hover:bg-background disabled:text-text-secondary"
+            >
+              {server.loadingMore ? 'Loading more…' : 'Load more'}
+            </button>
+          )}
           {canAddCustom && (
             <button
               type="button"

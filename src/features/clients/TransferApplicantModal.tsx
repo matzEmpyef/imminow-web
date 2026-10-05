@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
-import { SearchSelect } from '@/components/SearchSelect'
+import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { useTransferApplicant } from '@/queries/clients'
 import { useMyConsultancy } from '@/queries/consultancy'
-import { useAdminConsultancies } from '@/queries/adminConsultancies'
+import { consultancySource } from '@/queries/pickerSources'
 import { showToast } from '@/lib/toast'
 
 // Cross-consultancy Transfer Applicant (restored 2026-08-20 — user: "Transfer Applicant is
@@ -13,6 +13,10 @@ import { showToast } from '@/lib/toast'
 // reassignment on Clients List): this closes the journey as closed_switched and hands the case
 // to another consultancy entirely, so it's deliberately buried behind a muted footer link on the
 // client Overview, gated by its own permission, and requires typing TRANSFER to confirm.
+// GET /consultancies is plain-auth (the student Discovery list) — active ones only, searched on
+// the server (F-038); our own consultancy, where the case already lives, is left out of the list.
+const TRANSFER_TARGETS = consultancySource({ active: true })
+
 export function TransferApplicantModal({
   clientId,
   clientName,
@@ -26,17 +30,10 @@ export function TransferApplicantModal({
 }) {
   const transfer = useTransferApplicant(clientId)
   const myConsultancy = useMyConsultancy()
-  // GET /consultancies is plain-auth (the student Discovery list) — active ones only, minus our
-  // own consultancy, which is where the case already lives.
-  const consultancies = useAdminConsultancies({ active: true, limit: 100 })
   const [newConsultancyId, setNewConsultancyId] = useState('')
   const [reason, setReason] = useState('')
   const [transferCode, setTransferCode] = useState('')
   const [confirmText, setConfirmText] = useState('')
-
-  const options = (consultancies.data?.items ?? [])
-    .filter((c) => c.id !== myConsultancy.data?.id)
-    .map((c) => ({ id: c.id!, label: c.name, sublabel: c.city ?? undefined }))
 
   const ready =
     Boolean(newConsultancyId) &&
@@ -89,10 +86,11 @@ export function TransferApplicantModal({
           here closes as switched and drops out of your Clients List — this cannot be undone from your side.
         </p>
         <div className="flex flex-col gap-xs">
-          <SearchSelect
+          <ServerSearchSelect
             id="transfer-consultancy"
             label="New consultancy"
-            options={options}
+            source={{ ...TRANSFER_TARGETS, toOption: (c) => ({ id: c.id!, label: c.name, sublabel: c.city ?? undefined }) }}
+            exclude={(c) => c.id === myConsultancy.data?.id}
             value={newConsultancyId}
             onChange={setNewConsultancyId}
             placeholder="Search consultancies…"

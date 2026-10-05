@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { usePersonPicker } from '@/lib/usePersonPicker'
+import type { PersonRow } from '@/queries/pickerSources'
 import type { components } from '@/api/schema'
 import { humaniseCode } from '@/lib/humanise'
 import { INTAKE_GROUPS, INTAKE_MONTHS } from '@/lib/intake'
@@ -213,10 +213,7 @@ function loadShortlist(personId: string): ShortlistEntry[] {
 // localStorage persistence effects, and the applicant-switch seeding rules — extracted out of
 // CourseFinderPage's body so the page reads as composition (frontend re-audit, 2026-08-25:
 // the exported component spanned ~600 lines as a single function).
-export function useCourseFinderState(
-  clientRows: ReturnType<typeof usePersonPicker>['clientRows'],
-  leadRows: ReturnType<typeof usePersonPicker>['leadRows'],
-) {
+export function useCourseFinderState() {
   // A shared search card links here with its filters in the URL; that wins over the cache.
   const [state, setState] = useState<FinderState>(() => finderStateFromUrl() ?? loadInitialState())
   const [shortlist, setShortlist] = useState<ShortlistEntry[]>(() =>
@@ -264,7 +261,9 @@ export function useCourseFinderState(
   // country first, else the journey's target country + study level) — the consultant then
   // adjusts from there rather than starting blank. A lead's own `preferences` (only ever set
   // for `origin: sentpo`) seeds the same two fields the same way.
-  function handlePersonChange(personId: string, kind: 'client' | 'lead') {
+  // `picked` is the record the picker just handed over (F-038): the picker is searched on the
+  // server now, so there is no loaded list here to look the id up in.
+  function handlePersonChange(personId: string, kind: 'client' | 'lead', picked?: PersonRow) {
     // The clear ("x") button on SearchSelect fires this with an empty id — genuinely back to no
     // one selected, not "a lead with an empty id". Handled explicitly rather than falling through
     // to the fresh-pick branch below, which would work by coincidence (both lookups miss) but
@@ -283,7 +282,7 @@ export function useCourseFinderState(
       // applicant's state (caught live 2026-08-22: spreading `...s` here leaked the prior
       // applicant's free-text filters into the new applicant's cache).
       if (kind === 'client') {
-        const client = clientRows.find((c) => c.id === personId)
+        const client = picked?.kind === 'client' ? picked.client : undefined
         // `study_preferences` is the JOURNEY's own case data the consultancy captured, not the
         // student's preference store, and it still carries an array (assumptions audit M8 changed
         // the student's own field, not this one). The finalized country wins where there is one.
@@ -296,7 +295,7 @@ export function useCourseFinderState(
           level: client?.study_preferences?.study_level ?? '',
         })
       } else {
-        const lead = leadRows.find((l) => l.id === personId)
+        const lead = picked?.kind === 'lead' ? picked.lead : undefined
         // ONE destination (assumptions audit M8, product owner 2026-09-19) — `[0]` of the derived
         // array was array position standing in for a decision nobody made.
         const country = lead?.preferences?.target_country ?? ''

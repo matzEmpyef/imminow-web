@@ -6,14 +6,14 @@ import { SelectField } from '@/components/SelectField'
 import { MultiSelect } from '@/components/MultiSelect'
 import { Toggle } from '@/components/Toggle'
 import { FilterChip } from '@/components/FilterChip'
-import { SearchSelect } from '@/components/SearchSelect'
+import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { CompactSelect } from '@/components/CompactSelect'
 import { useCourseFields, useCourseLevels, useCourseLanguages } from '@/queries/courseFinder'
 import { useCountries } from '@/queries/countries'
 import { useMyConsultancy } from '@/queries/consultancy'
 import { useLevelLadder } from '@/lib/studyLevels'
 import { INTAKE_GROUPS, intakeMonthName } from '@/lib/intake'
-import type { usePersonPicker } from '@/lib/usePersonPicker'
+import { personSource, type PersonRow } from '@/queries/pickerSources'
 import {
   DURATION_BUCKETS,
   STUDY_MODE_OPTIONS,
@@ -24,9 +24,9 @@ import {
 interface CourseFinderFiltersProps {
   state: FinderState
   onChange: (patch: Partial<FinderState>) => void
-  clientRows: ReturnType<typeof usePersonPicker>['clientRows']
-  leadRows: ReturnType<typeof usePersonPicker>['leadRows']
-  onPersonChange: (personId: string, kind: 'client' | 'lead') => void
+  /** The selected applicant or lead's full name, shown in the picker. */
+  personLabel: string | undefined
+  onPersonChange: (personId: string, kind: 'client' | 'lead', picked?: PersonRow) => void
   canCheckFit: boolean
   /** First name of the selected applicant/lead, for the eligibility toggle's label. */
   personName: string | undefined
@@ -40,8 +40,7 @@ interface CourseFinderFiltersProps {
 export function CourseFinderFilters({
   state,
   onChange,
-  clientRows,
-  leadRows,
+  personLabel,
   onPersonChange,
   canCheckFit,
   personName,
@@ -126,31 +125,28 @@ export function CourseFinderFilters({
             </option>
           ))}
         </SelectField>
-        <SearchSelect
+        <ServerSearchSelect
           id="cf-client"
           label="Applicant or lead (optional)"
           // Both kinds in one list (user, 2026-08-23: "we need the ability to select leads
-          // also"), told apart by the `group` badge SearchSelect already renders for exactly
-          // this case (Activity's "Related client or lead" field uses the same idiom).
-          // SearchSelect's onChange only carries an id, not which list it came from, so
-          // `onChange` below re-derives the kind with a membership check against clientRows —
-          // ids never collide between the two kinds, so this is unambiguous.
-          options={[
-            ...clientRows.map((c) => ({
-              id: c.id!,
-              label: `${c.student.first_name} ${c.student.last_name}`,
-              sublabel: c.file_number ?? undefined,
-              group: 'Applicant',
-            })),
-            ...leadRows.map((l) => ({
-              id: l.id,
-              label: l.name,
-              sublabel: l.origin === 'imported' ? 'Self-sourced' : undefined,
-              group: 'Lead',
-            })),
-          ]}
+          // also"), told apart by the `group` badge (Activity's "Related client or lead" field
+          // uses the same idiom). Searched on the server (F-038): both lists used to be one page
+          // of 100 filtered here, so the rest of a long roster could not be chosen.
+          source={{
+            ...personSource,
+            toOption: (p) => ({
+              ...personSource.toOption(p),
+              sublabel:
+                p.kind === 'client'
+                  ? (p.client.file_number ?? undefined)
+                  : p.lead.origin === 'imported'
+                    ? 'Self-sourced'
+                    : undefined,
+            }),
+          }}
           value={state.personId}
-          onChange={(id) => onPersonChange(id, clientRows.some((c) => c.id === id) ? 'client' : 'lead')}
+          selectedOption={state.personId && personLabel ? { id: state.personId, label: personLabel } : null}
+          onChange={(id, picked) => onPersonChange(id, picked?.kind ?? 'lead', picked)}
           placeholder="Search applicants or leads…"
         />
       </div>

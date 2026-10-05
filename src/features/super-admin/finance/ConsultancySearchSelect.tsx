@@ -1,14 +1,15 @@
-import { useMemo } from 'react'
-import { SearchSelect } from '@/components/SearchSelect'
-import { useAdminConsultancies } from '@/queries/adminConsultancies'
+import { ServerSearchSelect } from '@/components/ServerSearchSelect'
+import { consultancySource } from '@/queries/pickerSources'
+
+const ALL_ACCOUNTS = consultancySource()
 
 /**
  * The Consultancy filter shared by the Cases, Awaiting and Payment History tabs (2026-09-11).
  *
- * Fetches up to 100 consultancies once — the old page's plain `<select>` read whatever page
- * useAdminConsultancies() happened to default to (20), so any consultancy past the first page was
- * simply unreachable as a filter. SearchSelect itself narrows the list client-side as the admin
- * types, same as every other consumer of this component.
+ * Searched on the server (review F-038). It used to load 100 consultancies once and narrow them
+ * in the browser, so with more accounts than that the rest could not be chosen as a filter. A
+ * value that is not among the loaded results (a filter restored from the address, a rate being
+ * edited) is shown by reading that one account by id.
  */
 export function ConsultancySearchSelect({
   value,
@@ -19,12 +20,13 @@ export function ConsultancySearchSelect({
   onChange: (id: string) => void
   placeholder?: string
 }) {
-  const consultancies = useAdminConsultancies({ limit: 100 })
-  const options = useMemo(
-    () => (consultancies.data?.items ?? []).map((c) => ({ id: c.id, label: c.name })),
-    [consultancies.data],
-  )
   return (
-    <SearchSelect options={options} value={value} onChange={onChange} placeholder={placeholder} ariaLabel="Consultancy" />
+    <ServerSearchSelect
+      source={ALL_ACCOUNTS}
+      value={value}
+      onChange={(id) => onChange(id)}
+      placeholder={placeholder}
+      ariaLabel="Consultancy"
+    />
   )
 }

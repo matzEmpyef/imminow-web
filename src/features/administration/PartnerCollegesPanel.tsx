@@ -6,11 +6,10 @@ import { Button } from '@/components/Button'
 import { CountryLabel } from '@/components/CountryLabel'
 import { Modal } from '@/components/Modal'
 import { TextField } from '@/components/TextField'
-import { SearchSelect } from '@/components/SearchSelect'
+import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
-import { useAdminColleges } from '@/queries/adminColleges'
-import { useCourses } from '@/queries/courseSuggestions'
+import { collegeSource, courseSource } from '@/queries/pickerSources'
 import {
   usePartnerColleges,
   useAddPartnerCollege,
@@ -20,6 +19,8 @@ import {
   type PayerMethod,
 } from '@/queries/partnerColleges'
 import { showToast } from '@/lib/toast'
+import { useDebouncedValue } from '@/lib/useDebounce'
+import { useServerSearch } from '@/lib/useServerSearch'
 
 const PAYER_LABEL: Record<PayerMethod, string> = { college: 'College', applicant: 'Applicant', split: 'Split' }
 const ALL_PAYERS: PayerMethod[] = ['college', 'applicant', 'split']
@@ -56,7 +57,6 @@ export function PartnerCollegesPanel({
   const addRelation = useAddPartnerCollege(consultancyId)
   const updateRelation = useUpdatePartnerCollege(consultancyId)
   const removeRelation = useRemovePartnerCollege(consultancyId)
-  const colleges = useAdminColleges({ limit: 100 })
   // All three payer methods are offered everywhere (user decision, 2026-08-29 — "it should
   // show 3 options"). The old behavior filtered to methods with a Commission Rates row for the
   // college's country, which turned a missing rate into a mysteriously short dropdown; an
@@ -65,12 +65,14 @@ export function PartnerCollegesPanel({
 
   const [adding, setAdding] = useState(false)
   const [addCollegeId, setAddCollegeId] = useState('')
+  const [addCollegeName, setAddCollegeName] = useState<string>()
   const [addPayer, setAddPayer] = useState<PayerMethod | ''>('')
   const [addCommissionPercent, setAddCommissionPercent] = useState('')
 
   function closeAdd() {
     setAdding(false)
     setAddCollegeId('')
+    setAddCollegeName(undefined)
     setAddPayer('')
     setAddCommissionPercent('')
   }
@@ -84,9 +86,6 @@ export function PartnerCollegesPanel({
   const [editingCommission, setEditingCommission] = useState<PartnerCollege | null>(null)
 
   const partneredIds = new Set((relations.data ?? []).map((r) => r.college_id))
-  const collegeOptions = (colleges.data?.items ?? [])
-    .filter((c) => !partneredIds.has(c.id))
-    .map((c) => ({ id: c.id, label: c.name }))
 
   const columns: TableColumn<PartnerCollege>[] = [
     {
@@ -240,7 +239,7 @@ export function PartnerCollegesPanel({
                 }
                 loading={addRelation.isPending}
                 onClick={() => {
-                  const collegeName = collegeOptions.find((c) => c.id === addCollegeId)?.label ?? 'Partner college'
+                  const collegeName = addCollegeName ?? 'Partner college'
                   addRelation.mutate(
                     {
                       college_id: addCollegeId,
@@ -262,14 +261,17 @@ export function PartnerCollegesPanel({
           }
         >
           <div className="flex flex-col gap-md">
-            <SearchSelect
+            {/* F-038: searched on the server; colleges already partnered are left out of the list. */}
+            <ServerSearchSelect
               id="pc-college"
               label="College"
               required
-              options={collegeOptions}
+              source={collegeSource}
+              exclude={(c) => partneredIds.has(c.id)}
               value={addCollegeId}
-              onChange={(id) => {
+              onChange={(id, college) => {
                 setAddCollegeId(id)
+                setAddCollegeName(college?.name)
                 setAddPayer('')
               }}
               placeholder="Search colleges…"
@@ -471,7 +473,12 @@ function ManageCoursesModal({
   onSave: (excludedIds: string[]) => void
   saving: boolean
 }) {
-  const courses = useCourses({ collegeId: relation.college_id, limit: 100 })
+  // F-038: this list was the college's first 100 courses, so the rest could never be excluded.
+  // It now pages with the list's cursor and can be searched on the server. Exclusions are kept by
+  // id, so one made on a row that is no longer on screen is still saved.
+  const [search, setSearch] = useState('')
+  const term = useDebouncedValue(search)
+  const courses = useServerSearch(courseSource(relation.college_id), term)
   const [excluded, setExcluded] = useState<Set<string>>(new Set(relation.excluded_course_ids ?? []))
 
   return (
@@ -480,8 +487,11 @@ function ManageCoursesModal({
         Unchecked courses are excluded for this consultancy. New courses the college adds later are included
         automatically.
       </p>
+      <div className="mt-md">
+        <TextField label="Search courses" value={search} onChange={(e) => setSearch(e.target.value)} />
+      </div>
       <div className="mt-md flex max-h-80 flex-col gap-xs overflow-y-auto">
-        {(courses.data?.items ?? []).map((c) => (
+        {courses.entries.map(({ row: c }) => (
           <label key={c.id} className="flex items-center gap-sm text-body-sm text-text-primary">
             <input
               type="checkbox"
@@ -499,8 +509,28 @@ function ManageCoursesModal({
           </label>
         ))}
         {courses.isLoading && <p className="text-body-sm text-text-secondary">Loading courses…</p>}
-        {!courses.isLoading && (courses.data?.items ?? []).length === 0 && (
-          <p className="text-body-sm text-text-secondary">This college has no courses yet.</p>
+        {courses.isError && (
+          <p className="text-body-sm text-error">
+            Could not load courses.{' '}
+            <button type="button" onClick={courses.retry} className="font-medium text-primary hover:underline">
+              Retry
+            </button>
+          </p>
+        )}
+        {!courses.isLoading && !courses.isError && courses.entries.length === 0 && (
+          <p className="text-body-sm text-text-secondary">
+            {term.trim() ? 'No courses match this search.' : 'This college has no courses yet.'}
+          </p>
+        )}
+        {courses.hasMore && (
+          <button
+            type="button"
+            onClick={courses.loadMore}
+            disabled={courses.isLoadingMore}
+            className="self-start text-body-sm font-medium text-primary hover:underline disabled:text-text-secondary"
+          >
+            {courses.isLoadingMore ? 'Loading more…' : 'Load more courses'}
+          </button>
         )}
       </div>
       <div className="mt-lg flex justify-end gap-sm">

@@ -2,16 +2,12 @@ import { useState } from 'react'
 import { Share2 } from 'lucide-react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
-import { SearchSelect } from '@/components/SearchSelect'
-
-interface ClientOption {
-  id: string
-  name: string
-}
+import { ServerSearchSelect } from '@/components/ServerSearchSelect'
+import { clientName, clientSource, type Client } from '@/queries/pickerSources'
 
 interface ShareDocumentMenuProps {
-  clients: ClientOption[]
-  onSelect: (journeyId: string) => void
+  /** `name` is the chosen applicant's, for the caller's confirmation message. */
+  onSelect: (journeyId: string, name: string | undefined) => void
   label: string
   disabled?: boolean
 }
@@ -20,18 +16,20 @@ interface ShareDocumentMenuProps {
 // + stopPropagation wrapper since Modal isn't a portal) — user-requested (2026-08-15) "share with
 // an applicant" action for Document Library. Confirming copies the document into that applicant's
 // own Documents tab (Client Profile), same as a consultant uploading it there directly.
-export function ShareDocumentMenu({ clients, onSelect, label, disabled }: ShareDocumentMenuProps) {
+export function ShareDocumentMenu({ onSelect, label, disabled }: ShareDocumentMenuProps) {
   const [open, setOpen] = useState(false)
   const [choice, setChoice] = useState('')
+  const [chosen, setChosen] = useState<Client>()
 
   function openMenu() {
     setChoice('')
+    setChosen(undefined)
     setOpen(true)
   }
 
   function handleConfirm() {
     if (!choice) return
-    onSelect(choice)
+    onSelect(choice, chosen ? clientName(chosen) : undefined)
     setOpen(false)
   }
 
@@ -63,11 +61,16 @@ export function ShareDocumentMenu({ clients, onSelect, label, disabled }: ShareD
             <p className="text-body-sm text-text-secondary">
               Choose which applicant this document should be shared with. It'll be added to their own Documents tab.
             </p>
-            <SearchSelect
-              options={clients.map((c) => ({ id: c.id, label: c.name }))}
+            {/* F-038: searched on the server — the menu used to be handed one page of 100 applicants. */}
+            <ServerSearchSelect
+              source={clientSource}
               value={choice}
-              onChange={setChoice}
+              onChange={(id, client) => {
+                setChoice(id)
+                setChosen(client)
+              }}
               placeholder="Search applicants…"
+              ariaLabel="Applicant"
             />
           </div>
         </Modal>
