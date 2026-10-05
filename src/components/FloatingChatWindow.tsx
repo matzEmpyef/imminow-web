@@ -71,7 +71,7 @@ export function FloatingChatWindow() {
   if (!conversation) return null
 
   const messages = isLead
-    ? leadMessages.data?.items?.map((m) => ({
+    ? leadMessages.items?.map((m) => ({
         ...m,
         fromMe: m.sender === 'consultant',
         sharedCourses: m.shared_courses,
@@ -84,7 +84,7 @@ export function FloatingChatWindow() {
         isCallInitiated: m.type === 'call_initiated',
       }))
     : isClient
-      ? clientMessages.data?.items?.map((m) => ({
+      ? clientMessages.items?.map((m) => ({
           ...m,
           fromMe: m.sender === 'consultant',
           sharedCourses: m.shared_courses,
@@ -199,9 +199,20 @@ export function FloatingChatWindow() {
           chatPerson ? <SuggestCourseInChat person={chatPerson} onShareError={setComposerError} /> : undefined
         }
         onUnsend={isInternal ? (messageId) => unsendInternalMessage.mutateAsync(messageId) : undefined}
-        onLoadEarlier={isInternal ? () => internalMessages.fetchNextPage() : undefined}
-        hasEarlier={isInternal ? internalMessages.hasNextPage : undefined}
-        loadingEarlier={isInternal ? internalMessages.isFetchingNextPage : undefined}
+        // Every kind of thread pages from the newest end (lead and client since review F-029).
+        onLoadEarlier={
+          isInternal ? () => internalMessages.fetchNextPage() : isLead ? leadMessages.loadEarlier : clientMessages.loadEarlier
+        }
+        hasEarlier={
+          isInternal ? internalMessages.hasNextPage : isLead ? leadMessages.hasEarlier : clientMessages.hasEarlier
+        }
+        loadingEarlier={
+          isInternal
+            ? internalMessages.isFetchingNextPage
+            : isLead
+              ? leadMessages.loadingEarlier
+              : clientMessages.loadingEarlier
+        }
         className="shadow-lg"
         headerActions={
           <>

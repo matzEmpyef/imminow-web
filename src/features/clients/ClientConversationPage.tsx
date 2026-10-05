@@ -79,7 +79,7 @@ export function ClientConversationPage() {
         <ChatPanel
           name={`${client.data.student.first_name} ${client.data.student.last_name}`}
           typeLabel="Applicant"
-          messages={messages.data?.items?.map((m) => ({
+          messages={messages.items?.map((m) => ({
             ...m,
             fromMe: m.sender === 'consultant',
             sharedCourses: m.shared_courses,
@@ -94,6 +94,11 @@ export function ClientConversationPage() {
           isLoading={messages.isLoading}
           isError={messages.isError}
           onRetryMessages={() => messages.refetch()}
+          // The thread pages from the newest end (review F-029). For a converted client the
+          // earlier pages run on into the session break and the lead conversation before it.
+          onLoadEarlier={messages.loadEarlier}
+          hasEarlier={messages.hasEarlier}
+          loadingEarlier={messages.loadingEarlier}
           draft={draft}
           onDraftChange={(value) => {
             setDraft(value)

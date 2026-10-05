@@ -1,8 +1,9 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
-import { useRealtimeOpen } from '@/lib/realtime'
+import { applyChatMessage } from '@/lib/realtime/queryCache'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { useThreadMessages } from './threadMessages'
 import type { components } from '@/api/schema'
 
 type InternalNote = components['schemas']['InternalNote']
@@ -400,24 +401,11 @@ export function useCommissions(clientId: string | undefined) {
   })
 }
 
-// Polls every 5s as a fallback only — see the identical note on `useLeadMessages`
-// (queries/leads.ts): while the realtime socket is open, frames patch this cache directly and the
-// poll switches itself off, resuming the instant the socket isn't.
+// Paged from the newest end with "Load earlier" (review F-029) — see `useThreadMessages`, shared
+// with `useLeadMessages`. For a converted client the earlier pages run on into the `session_break`
+// marker and the origin lead's conversation.
 export function useClientMessages(clientId: string | undefined) {
-  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
-  const realtimeOpen = useRealtimeOpen()
-  return useQuery({
-    queryKey: ['clients', clientId, 'messages'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/clients/{id}/messages', {
-        params: { path: { id: clientId! } },
-      })
-      if (error) throw new ApiError('Could not load messages.', error)
-      return data
-    },
-    enabled: isAuthed && Boolean(clientId),
-    refetchInterval: realtimeOpen ? false : 5000,
-  })
+  return useThreadMessages('client', clientId)
 }
 
 export function useSendClientMessage(clientId: string) {
@@ -431,8 +419,10 @@ export function useSendClientMessage(clientId: string) {
       if (error) throw new ApiError('Could not send this message.', error)
       return data
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'messages'] })
+    // Into the newest page rather than a refetch of every loaded page — see `useSendLeadMessage`.
+    onSuccess: (message) => {
+      if (message) applyChatMessage(queryClient, { type: 'client', id: clientId }, message)
+      else queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'messages'] })
     },
   })
 }
@@ -444,8 +434,11 @@ export function useMarkClientRead() {
       const { error } = await api.POST('/clients/{id}/read', { params: { path: { id } } })
       if (error) throw new ApiError('Could not mark this conversation read.', error)
     },
+    // Exact (review F-029) — as a prefix this refetched the thread's every loaded page, and the
+    // client's plans, applications, commissions, notes, documents and activity, for one read
+    // marker. See `useMarkLeadRead`.
     onSuccess: (_data, id) => {
-      queryClient.invalidateQueries({ queryKey: ['clients', id] })
+      queryClient.invalidateQueries({ queryKey: ['clients', id], exact: true })
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
     },
   })

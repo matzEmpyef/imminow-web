@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query'
+import { QueryClient, type InfiniteData } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   applyChatMessage,
@@ -7,6 +7,8 @@ import {
   applyNotificationCreated,
   applyResync,
   applyUnreadChanged,
+  mergeNewestMessages,
+  type MessagesPage,
 } from './queryCache'
 import type { components } from '@/api/schema'
 
@@ -21,6 +23,11 @@ function message(overrides: Partial<LeadMessage> = {}): LeadMessage {
     created_at: '2026-09-26T10:00:00Z',
     ...overrides,
   }
+}
+
+/** The thread cache as `useThreadMessages` holds it: newest page first, older pages after it. */
+function thread(...pages: LeadMessage[][]): InfiniteData<MessagesPage> {
+  return { pages: pages.map((items) => ({ items, meta: {} })), pageParams: pages.map(() => undefined) }
 }
 
 function conversation(overrides: Partial<Conversation> = {}): Conversation {
@@ -44,22 +51,36 @@ describe('realtime query cache patches', () => {
 
   describe('applyChatMessage', () => {
     it('appends the new message to a cached thread', () => {
-      queryClient.setQueryData(['leads', 'lead-1', 'messages'], { items: [message({ id: 'm0' })], meta: {} })
+      queryClient.setQueryData(['leads', 'lead-1', 'messages'], thread([message({ id: 'm0' })]))
 
       applyChatMessage(queryClient, { type: 'lead', id: 'lead-1' }, message({ id: 'm1' }))
 
-      expect(queryClient.getQueryData(['leads', 'lead-1', 'messages'])).toEqual({
-        items: [message({ id: 'm0' }), message({ id: 'm1' })],
-        meta: {},
-      })
+      expect(queryClient.getQueryData(['leads', 'lead-1', 'messages'])).toEqual(
+        thread([message({ id: 'm0' }), message({ id: 'm1' })]),
+      )
     })
 
-    it('de-dupes by id — a message already in the cache is not appended twice', () => {
-      queryClient.setQueryData(['clients', 'client-1', 'messages'], { items: [message({ id: 'm1' })], meta: {} })
+    // F-029: the thread is paged. A live message belongs at the end of the NEWEST page
+    // (`pages[0]`), whatever older pages have been loaded after it.
+    it('appends to the newest page and leaves the older pages alone', () => {
+      const older = [message({ id: 'm0' })]
+      queryClient.setQueryData(['leads', 'lead-1', 'messages'], thread([message({ id: 'm5' })], older))
+
+      applyChatMessage(queryClient, { type: 'lead', id: 'lead-1' }, message({ id: 'm6' }))
+
+      const data = queryClient.getQueryData(['leads', 'lead-1', 'messages']) as InfiniteData<MessagesPage>
+      expect(data.pages[0].items.map((m) => m.id)).toEqual(['m5', 'm6'])
+      expect(data.pages[1].items).toBe(older)
+    })
+
+    it('de-dupes by id — a message already in any loaded page is not appended twice', () => {
+      const cached = thread([message({ id: 'm2' })], [message({ id: 'm1' })])
+      queryClient.setQueryData(['clients', 'client-1', 'messages'], cached)
 
       applyChatMessage(queryClient, { type: 'client', id: 'client-1' }, message({ id: 'm1' }))
+      applyChatMessage(queryClient, { type: 'client', id: 'client-1' }, message({ id: 'm2' }))
 
-      expect((queryClient.getQueryData(['clients', 'client-1', 'messages']) as { items: LeadMessage[] }).items).toHaveLength(1)
+      expect(queryClient.getQueryData(['clients', 'client-1', 'messages'])).toBe(cached)
     })
 
     it('does nothing when the thread is not currently cached (nobody has it open)', () => {
@@ -70,35 +91,76 @@ describe('realtime query cache patches', () => {
 
   describe('applyChatStatus', () => {
     it('marks the OTHER side\'s messages read up to the given time, never the viewer\'s own', () => {
-      queryClient.setQueryData(['leads', 'lead-1', 'messages'], {
-        items: [
-          message({ id: 'm1', sender: 'consultant', created_at: '2026-09-26T09:00:00Z', status: 'sent' }),
-          message({ id: 'm2', sender: 'student', created_at: '2026-09-26T09:00:00Z', status: 'sent' }),
-          message({ id: 'm3', sender: 'consultant', created_at: '2026-09-26T11:00:00Z', status: 'sent' }),
-        ],
-        meta: {},
-      })
+      // m1 sits on an older page: the marker reaches every loaded page, not only the newest.
+      queryClient.setQueryData(
+        ['leads', 'lead-1', 'messages'],
+        thread(
+          [
+            message({ id: 'm2', sender: 'student', created_at: '2026-09-26T09:00:00Z', status: 'sent' }),
+            message({ id: 'm3', sender: 'consultant', created_at: '2026-09-26T11:00:00Z', status: 'sent' }),
+          ],
+          [message({ id: 'm1', sender: 'consultant', created_at: '2026-09-26T09:00:00Z', status: 'sent' })],
+        ),
+      )
 
       // side: 'student' — the student's read marker moved, so messages the CONSULTANT sent (up to
       // up_to) are now read by them; the student's own message (m2) and the too-new m3 are untouched.
       applyChatStatus(queryClient, { type: 'lead', id: 'lead-1' }, 'read', 'student', '2026-09-26T10:00:00Z')
 
-      const items = (queryClient.getQueryData(['leads', 'lead-1', 'messages']) as { items: LeadMessage[] }).items
+      const items = (
+        queryClient.getQueryData(['leads', 'lead-1', 'messages']) as InfiniteData<MessagesPage>
+      ).pages.flatMap((p) => p.items)
       expect(items.find((m) => m.id === 'm1')?.status).toBe('read')
       expect(items.find((m) => m.id === 'm2')?.status).toBe('sent')
       expect(items.find((m) => m.id === 'm3')?.status).toBe('sent')
     })
 
     it('never downgrades read back to delivered', () => {
-      queryClient.setQueryData(['leads', 'lead-1', 'messages'], {
-        items: [message({ id: 'm1', sender: 'consultant', created_at: '2026-09-26T09:00:00Z', status: 'read' })],
-        meta: {},
-      })
+      queryClient.setQueryData(
+        ['leads', 'lead-1', 'messages'],
+        thread([message({ id: 'm1', sender: 'consultant', created_at: '2026-09-26T09:00:00Z', status: 'read' })]),
+      )
 
       applyChatStatus(queryClient, { type: 'lead', id: 'lead-1' }, 'delivered', 'student', '2026-09-26T12:00:00Z')
 
-      const items = (queryClient.getQueryData(['leads', 'lead-1', 'messages']) as { items: LeadMessage[] }).items
-      expect(items[0].status).toBe('read')
+      const data = queryClient.getQueryData(['leads', 'lead-1', 'messages']) as InfiniteData<MessagesPage>
+      expect(data.pages[0].items[0].status).toBe('read')
+    })
+  })
+
+  // F-029: the fallback poll's patch once older pages are loaded — the newest page only is asked
+  // for, and folded in without moving anything that is already there.
+  describe('mergeNewestMessages', () => {
+    it('appends what is new to the newest page and updates a status in place, on whichever page', () => {
+      const untouched = message({ id: 'm1' })
+      queryClient.setQueryData(
+        ['leads', 'lead-1', 'messages'],
+        thread([message({ id: 'm3', status: 'sent' })], [untouched, message({ id: 'm2', status: 'sent' })]),
+      )
+
+      mergeNewestMessages(queryClient, { type: 'lead', id: 'lead-1' }, [
+        message({ id: 'm2', status: 'read' }),
+        message({ id: 'm3', status: 'sent' }),
+        message({ id: 'm4' }),
+        message({ id: 'm5' }),
+      ])
+
+      const data = queryClient.getQueryData(['leads', 'lead-1', 'messages']) as InfiniteData<MessagesPage>
+      expect(data.pages[0].items.map((m) => m.id)).toEqual(['m3', 'm4', 'm5'])
+      expect(data.pages[1].items.map((m) => [m.id, m.status])).toEqual([
+        ['m1', undefined],
+        ['m2', 'read'],
+      ])
+      expect(data.pages[1].items[0]).toBe(untouched)
+    })
+
+    it('changes nothing when the newest page holds nothing new', () => {
+      const cached = thread([message({ id: 'm2' })], [message({ id: 'm1' })])
+      queryClient.setQueryData(['leads', 'lead-1', 'messages'], cached)
+
+      mergeNewestMessages(queryClient, { type: 'lead', id: 'lead-1' }, [message({ id: 'm1' }), message({ id: 'm2' })])
+
+      expect(queryClient.getQueryData(['leads', 'lead-1', 'messages'])).toBe(cached)
     })
   })
 

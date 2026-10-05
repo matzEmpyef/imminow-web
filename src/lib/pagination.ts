@@ -49,6 +49,25 @@ export function chronologicalPages<T>(pages: { items: T[] }[] | undefined): T[] 
   return out
 }
 
+// Flattens a chat thread's `useInfiniteQuery` pages (lead, client and internal threads: `pages[0]`
+// is the newest page, each page oldest-to-newest within itself) into one oldest-first list.
+// De-duplicated by id: a message that arrives between two page requests moves the page boundary,
+// so the same row can come back at the end of one page and the start of the next, and a converted
+// client's `session_break` marker keeps one stable id wherever the boundary falls (review F-029).
+export function threadPagesOldestFirst<T extends { id: string }>(pages: { items: T[] }[] | undefined): T[] | undefined {
+  if (!pages) return undefined
+  const seen = new Set<string>()
+  const out: T[] = []
+  for (let p = pages.length - 1; p >= 0; p -= 1) {
+    for (const item of pages[p].items) {
+      if (seen.has(item.id)) continue
+      seen.add(item.id)
+      out.push(item)
+    }
+  }
+  return out
+}
+
 // Walks a paged list to its end and returns every row (contract gate 7). The notes, a case's files
 // and its activity were unpaged until then, and their screens still show every row — the paging
 // UI for them is later work — so their hooks read all pages, 100 rows a request. Per-record lists,

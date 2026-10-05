@@ -100,9 +100,10 @@ interface ChatPanelProps {
    * typed is left alone; nothing is retried.
    */
   composerError?: ReactNode
-  // Contract gate 9, K12 — internal-messaging threads page from the newest end (`before`/`limit`).
-  // Optional: Lead/Client conversations don't pass it and render exactly as before. When set, a
-  // "Load earlier messages" affordance appears above the oldest loaded message.
+  // Every thread pages from the newest end (`before`/`limit`): internal messaging since contract
+  // gate 9 (K12), lead and client conversations since review F-029. When set, a "Load earlier
+  // messages" affordance appears above the oldest loaded message, and "Start of conversation"
+  // once there is nothing older.
   onLoadEarlier?: () => void
   hasEarlier?: boolean
   loadingEarlier?: boolean

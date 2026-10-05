@@ -6,7 +6,7 @@ type LeadMessage = components['schemas']['LeadMessage']
 type Conversation = components['schemas']['Conversation']
 type InternalChatMessage = components['schemas']['InternalChatMessage']
 
-interface MessagesPage {
+export interface MessagesPage {
   items: LeadMessage[]
   meta: { next_cursor?: string | null; total?: number | null }
 }
@@ -21,26 +21,67 @@ interface ConversationsPage {
   meta: { next_cursor?: string | null; total: number; unread_count: number }
 }
 
-/** `['leads', id, 'messages']` or `['clients', id, 'messages']` — the same key `useLeadMessages` /
- * `useClientMessages` (queries/leads.ts, queries/clients.ts) already read and poll. */
+/** `['leads', id, 'messages']` or `['clients', id, 'messages']` — the `useInfiniteQuery` key
+ * `useLeadMessages` / `useClientMessages` (queries/threadMessages.ts) read and page with
+ * `before`/`limit` (review F-029), newest page first like the internal threads below. */
 export function threadMessagesKey(thread: RealtimeThreadRef): [string, string, string] {
   return [thread.type === 'lead' ? 'leads' : 'clients', thread.id, 'messages']
 }
 
 /**
- * `chat.message` — append the new message to the open thread's cached page, if it's cached at all
- * (nothing to patch when nobody has that thread open). De-duped by id: a message the CURRENT
- * console user just sent arrives back over the socket too (every recipient, including the sender's
- * other connections, gets the fan-out), and `useSendLeadMessage`/`useSendClientMessage` already
- * invalidate this key on their own success — without the check, a slow invalidate racing a fast
- * frame could show it twice for one render.
+ * `chat.message` — append the new message to the NEWEST loaded page of the open thread
+ * (`pages[0]`: `fetchNextPage` only ever adds OLDER pages after it), if the thread is cached at
+ * all (nothing to patch when nobody has it open). De-duped by id across every loaded page: a
+ * message the CURRENT console user just sent arrives back over the socket too (every recipient,
+ * including the sender's other connections, gets the fan-out), and `useSendLeadMessage` /
+ * `useSendClientMessage` put their own answer into this cache through this same function —
+ * whichever lands second is a no-op.
  */
 export function applyChatMessage(queryClient: QueryClient, thread: RealtimeThreadRef, message: LeadMessage): void {
   const key = threadMessagesKey(thread)
-  queryClient.setQueryData<MessagesPage>(key, (old) => {
-    if (!old) return old
-    if (old.items.some((m) => m.id === message.id)) return old
-    return { ...old, items: [...old.items, message] }
+  queryClient.setQueryData<InfiniteData<MessagesPage>>(key, (old) => {
+    if (!old || old.pages.length === 0) return old
+    if (old.pages.some((page) => page.items.some((m) => m.id === message.id))) return old
+    const pages = [...old.pages]
+    pages[0] = { ...pages[0], items: [...pages[0].items, message] }
+    return { ...old, pages }
+  })
+}
+
+/**
+ * The fallback poll's patch once older pages are loaded (review F-029). Refetching an infinite
+ * query refetches every loaded page, so a consultant who had scrolled back ten pages would ask for
+ * ten pages every five seconds while the socket is down. The poll asks for the newest page only
+ * and this folds it in: a message already loaded is replaced in place (its status may have moved),
+ * a new one is appended to the newest page. Nothing is removed and no page boundary moves.
+ */
+export function mergeNewestMessages(queryClient: QueryClient, thread: RealtimeThreadRef, newest: LeadMessage[]): void {
+  const key = threadMessagesKey(thread)
+  queryClient.setQueryData<InfiniteData<MessagesPage>>(key, (old) => {
+    if (!old || old.pages.length === 0) return old
+    const fresh = new Map(newest.map((m) => [m.id, m]))
+    let changed = false
+    const pages = old.pages.map((page) => {
+      let pageChanged = false
+      const items = page.items.map((m) => {
+        const update = fresh.get(m.id)
+        if (!update) return m
+        fresh.delete(m.id)
+        if (update.status === m.status) return m
+        pageChanged = true
+        return update
+      })
+      if (!pageChanged) return page
+      changed = true
+      return { ...page, items }
+    })
+    // What is left in `fresh` was in no loaded page: it is new, and `newest` is oldest-to-newest.
+    const added = newest.filter((m) => fresh.has(m.id))
+    if (added.length > 0) {
+      changed = true
+      pages[0] = { ...pages[0], items: [...pages[0].items, ...added] }
+    }
+    return changed ? { ...old, pages } : old
   })
 }
 
@@ -112,18 +153,25 @@ export function applyChatStatus(
 ): void {
   const key = threadMessagesKey(thread)
   const upToMs = new Date(upTo).getTime()
-  queryClient.setQueryData<MessagesPage>(key, (old) => {
+  // Every loaded page: a read marker reaches back past the newest page as far as it reaches.
+  queryClient.setQueryData<InfiniteData<MessagesPage>>(key, (old) => {
     if (!old) return old
     let changed = false
-    const items = old.items.map((m) => {
-      if (m.sender === side) return m
-      if (new Date(m.created_at).getTime() > upToMs) return m
-      const currentRank = STATUS_RANK[m.status ?? 'sent']
-      if (currentRank >= STATUS_RANK[targetStatus]) return m
+    const pages = old.pages.map((page) => {
+      let pageChanged = false
+      const items = page.items.map((m) => {
+        if (m.sender === side) return m
+        if (new Date(m.created_at).getTime() > upToMs) return m
+        const currentRank = STATUS_RANK[m.status ?? 'sent']
+        if (currentRank >= STATUS_RANK[targetStatus]) return m
+        pageChanged = true
+        return { ...m, status: targetStatus }
+      })
+      if (!pageChanged) return page
       changed = true
-      return { ...m, status: targetStatus }
+      return { ...page, items }
     })
-    return changed ? { ...old, items } : old
+    return changed ? { ...old, pages } : old
   })
 }
 

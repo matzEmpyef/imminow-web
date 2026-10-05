@@ -41,7 +41,15 @@ function renderConversation() {
 }
 
 beforeEach(() => {
-  mockedMessages.mockReturnValue(query({ items: [] }))
+  mockedMessages.mockReturnValue({
+    items: [],
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+    hasEarlier: false,
+    loadingEarlier: false,
+    loadEarlier: vi.fn(),
+  } as never)
   mockedSend.mockReturnValue({ mutate: vi.fn(), isPending: false } as never)
   mockedMarkRead.mockReturnValue({ mutate: vi.fn() } as never)
   mockedChatWindowStore.mockReturnValue(vi.fn())

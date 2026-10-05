@@ -156,7 +156,7 @@ export function CourseFinderPage() {
   const suggestedCourseIds = new Set(
     (selectedClient
       ? (applications.data ?? []).map((sc) => sc.course?.id)
-      : (leadMessages.data?.items ?? [])
+      : (leadMessages.items ?? [])
           .filter((m) => m.type === 'course_share' && m.sender === 'consultant')
           .map((m) => m.shared_course?.id)
     ).filter((id): id is string => Boolean(id)),
@@ -176,7 +176,7 @@ export function CourseFinderPage() {
   // the refusal becomes something only a race can produce. A client's thread needs its own fetch;
   // a lead's is already loaded above for the "already suggested" check.
   const clientMessages = useClientMessages(selectedClient?.id)
-  const threadMessages = selectedClient ? clientMessages.data?.items : leadMessages.data?.items
+  const threadMessages = selectedClient ? clientMessages.items : leadMessages.items
   const outgoingShare = sharedSearchFiltersFrom(state, state.feeCurrency || feeCurrency)
   const alreadySentThisSearch = isRepeatOfLastShare(threadMessages, 'consultant', {
     kind: 'search',

@@ -1,8 +1,9 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
-import { useRealtimeOpen } from '@/lib/realtime'
+import { applyChatMessage } from '@/lib/realtime/queryCache'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { useThreadMessages } from './threadMessages'
 import type { components } from '@/api/schema'
 
 type InternalNote = components['schemas']['InternalNote']
@@ -250,24 +251,10 @@ export function useRequestRating() {
   })
 }
 
-// Polls every 5s as a fallback only — while the realtime socket is open, `chat.message` /
-// `chat.delivered` / `chat.read` frames patch this same cache directly (contract gate 8, Wave 3
-// plan §6.6) and the poll switches itself off; it resumes the instant the socket isn't open
-// (reconnecting, disabled against the mock, or an outage), so nothing here changes when the socket
-// is down.
+// Paged from the newest end with "Load earlier" (review F-029) — see `useThreadMessages`, shared
+// with `useClientMessages`, for the paging, the fallback poll and what `items` holds.
 export function useLeadMessages(id: string | undefined) {
-  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
-  const realtimeOpen = useRealtimeOpen()
-  return useQuery({
-    queryKey: ['leads', id, 'messages'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/leads/{id}/messages', { params: { path: { id: id! } } })
-      if (error) throw new ApiError('Could not load messages.', error)
-      return data
-    },
-    enabled: isAuthed && Boolean(id),
-    refetchInterval: realtimeOpen ? false : 5000,
-  })
+  return useThreadMessages('lead', id)
 }
 
 export function useSendLeadMessage(id: string) {
@@ -281,9 +268,14 @@ export function useSendLeadMessage(id: string) {
       if (error) throw new ApiError('Could not send this message.', error)
       return data
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads', id, 'messages'] })
-      queryClient.invalidateQueries({ queryKey: ['leads', id] })
+    // The answer IS the new message, so it goes straight into the thread's newest page (the
+    // realtime frame for it lands in the same function and is de-duplicated there). Invalidating
+    // the thread instead would refetch every page the consultant has loaded (review F-029), and
+    // so would the lead's key as a prefix — only the lead itself is refreshed.
+    onSuccess: (message) => {
+      if (message) applyChatMessage(queryClient, { type: 'lead', id }, message)
+      else queryClient.invalidateQueries({ queryKey: ['leads', id, 'messages'] })
+      queryClient.invalidateQueries({ queryKey: ['leads', id], exact: true })
     },
   })
 }
@@ -295,8 +287,11 @@ export function useMarkLeadRead() {
       const { error } = await api.POST('/leads/{id}/read', { params: { path: { id } } })
       if (error) throw new ApiError('Could not mark this conversation read.', error)
     },
+    // Exact (review F-029): `['leads', id]` is also the prefix of the thread's own key, and this
+    // runs for every message that arrives while the conversation is open — as a prefix it
+    // refetched every loaded page of the thread, and the lead's notes with it, each time.
     onSuccess: (_data, id) => {
-      queryClient.invalidateQueries({ queryKey: ['leads', id] })
+      queryClient.invalidateQueries({ queryKey: ['leads', id], exact: true })
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
     },
   })

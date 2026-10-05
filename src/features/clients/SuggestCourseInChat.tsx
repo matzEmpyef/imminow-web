@@ -87,7 +87,7 @@ function SuggestCourseModal({
   // thread, a client's are rows on their Applications tab.
   const suggestedIds = new Set(
     (isLead
-      ? (leadMessages.data?.items ?? [])
+      ? (leadMessages.items ?? [])
           .filter((m) => m.type === 'course_share' && m.sender === 'consultant')
           .map((m) => m.shared_course?.id)
       : (applications.data ?? []).map((a) => a.course?.id)
@@ -99,7 +99,7 @@ function SuggestCourseModal({
   // message is this same course from this same sender — so the refusal is not something a
   // consultant meets by clicking a button that looked available.
   const repeatsLastShare = (courseId: string) =>
-    isRepeatOfLastShare(leadMessages.data?.items, 'consultant', { kind: 'course', id: courseId })
+    isRepeatOfLastShare(leadMessages.items, 'consultant', { kind: 'course', id: courseId })
 
   function confirm() {
     if (!picked) return

@@ -438,7 +438,7 @@ export function LeadConversationPage() {
                 )}
 
                 {(() => {
-                  const state = shortlistState(messages.data?.items)
+                  const state = shortlistState(messages.items)
                   return state === 'shared' ? (
                     <Button variant="secondary" onClick={() => setShowShortlistView(true)}>
                       View Shortlist
@@ -484,7 +484,7 @@ export function LeadConversationPage() {
           <ReopenLeadModal leadId={id} leadName={data.name} onClose={() => setShowReopenModal(false)} />
         )}
         {showShortlistView && (
-          <ShortlistViewModal messages={messages.data?.items} onClose={() => setShowShortlistView(false)} />
+          <ShortlistViewModal messages={messages.items} onClose={() => setShowShortlistView(false)} />
         )}
 
         <div className="grid min-h-0 flex-1 grid-cols-3 gap-lg">
@@ -493,7 +493,7 @@ export function LeadConversationPage() {
               name={data.name}
               typeLabel="Aspirant"
               typeLabelTone="primary"
-              messages={messages.data?.items?.map((m) => ({
+              messages={messages.items?.map((m) => ({
                 ...m,
                 fromMe: m.sender === 'consultant',
                 sharedCourses: m.shared_courses,
@@ -507,6 +507,10 @@ export function LeadConversationPage() {
               isLoading={messages.isLoading}
               isError={messages.isError}
               onRetryMessages={() => messages.refetch()}
+              // The thread pages from the newest end (review F-029).
+              onLoadEarlier={messages.loadEarlier}
+              hasEarlier={messages.hasEarlier}
+              loadingEarlier={messages.loadingEarlier}
               draft={draft}
               onDraftChange={(value) => {
                 setDraft(value)
