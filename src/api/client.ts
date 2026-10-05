@@ -1,5 +1,5 @@
 import createClient from 'openapi-fetch'
-import type { paths } from './schema'
+import type { components, paths } from './schema'
 import { useAuthStore } from '@/stores/authStore'
 import { endSession } from '@/lib/session'
 
@@ -54,10 +54,12 @@ export async function requestNewAccessToken(): Promise<string | null> {
       body: JSON.stringify({ refresh_token: refreshToken }),
     })
     if (!response.ok) return null
-    const body = (await response.json()) as { access_token?: string }
+    const body = (await response.json()) as Partial<components['schemas']['TokenRefresh']>
     const accessToken = body.access_token
     if (!accessToken) return null
-    useAuthStore.getState().setAccessToken(accessToken)
+    // `refresh_token` is present only when the server rotated it; the store keeps the one it
+    // already holds otherwise.
+    useAuthStore.getState().setAccessToken(accessToken, body.refresh_token)
     return accessToken
   } catch {
     // Network failure during refresh is not proof the session is dead, but there is nothing else

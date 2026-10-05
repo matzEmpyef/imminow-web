@@ -11,11 +11,13 @@ interface AuthState {
   setSession: (session: { access_token: string; refresh_token: string; user: User }) => void
   setUser: (user: User) => void
   /**
-   * Replaces the access token alone, leaving the refresh token and user untouched — what
-   * `/auth/refresh` returns. Deliberately separate from `setSession`, which requires all three and
-   * would force the refresh path to re-supply a user it never fetched.
+   * Stores what `/auth/refresh` returns (`TokenRefresh`): always a new access token, and a new
+   * refresh token only when the server rotated it — then the old one is spent and MUST be replaced
+   * (openapi.yaml, TokenRefresh.refresh_token). Without one, the refresh token already held stays.
+   * The user is untouched either way. Deliberately separate from `setSession`, which requires all
+   * three and would force the refresh path to re-supply a user it never fetched.
    */
-  setAccessToken: (accessToken: string) => void
+  setAccessToken: (accessToken: string, rotatedRefreshToken?: string) => void
   clear: () => void
 }
 
@@ -31,7 +33,8 @@ export const useAuthStore = create<AuthState>()(
       setSession: ({ access_token, refresh_token, user }) =>
         set({ accessToken: access_token, refreshToken: refresh_token, user }),
       setUser: (user) => set({ user }),
-      setAccessToken: (accessToken) => set({ accessToken }),
+      setAccessToken: (accessToken, rotatedRefreshToken) =>
+        set((state) => ({ accessToken, refreshToken: rotatedRefreshToken || state.refreshToken })),
       clear: () => set({ accessToken: null, refreshToken: null, user: null }),
     }),
     {
