@@ -827,14 +827,23 @@ function CountryActiveToggle({ row }: { row: CountrySetting }) {
   )
 }
 
-// One row's currency control. Saves on change — a per-row "Save" button for a single select is
-// more chrome than the decision deserves.
+// One row's currency control. Choosing a currency asks first (owner decision 11, review W2-C05):
+// it used to save the moment the select changed, and this is the currency every consultancy based
+// in the country invoices in — one mis-pick or stray scroll on a table of about 120 rows changed
+// it for the whole country, and a refusal showed only "Not saved". The select keeps showing the
+// saved currency until the change is confirmed, so Cancel leaves nothing to undo.
 //
 // "No rate" (2026-09-11): 91 of 119 countries were seeded with a currency the rate table does not
 // hold, so a student living in one gets no "≈" amount anywhere. Exchange Rates lists them too,
 // ranked by who they affect; this chip is the same fact at the row it applies to.
-function DefaultCurrencyCell({ row, hasRate }: { row: CountrySetting; hasRate: boolean | null }) {
+export function DefaultCurrencyCell({ row, hasRate }: { row: CountrySetting; hasRate: boolean | null }) {
   const update = useUpdateCountryCurrency()
+  const [pending, setPending] = useState<string | null>(null)
+
+  function cancel() {
+    setPending(null)
+    update.reset()
+  }
   // Only currencies the Exchange Rates tab holds (2026-09-10, was a fixed list of 33 codes, most
   // without a rate): a default with no rate would give that country's users no "≈" anywhere. A
   // currency added there shows up here straight away. INR is the fallback for a country nobody set.
@@ -848,7 +857,9 @@ function DefaultCurrencyCell({ row, hasRate }: { row: CountrySetting; hasRate: b
         dense
         value={row.default_currency}
         disabled={update.isPending}
-        onChange={(e) => update.mutate({ name: row.name, currency: e.target.value })}
+        onChange={(e) => {
+          if (e.target.value !== row.default_currency) setPending(e.target.value)
+        }}
       >
         {options.map((code) => (
           <option key={code} value={code}>
@@ -864,7 +875,54 @@ function DefaultCurrencyCell({ row, hasRate }: { row: CountrySetting; hasRate: b
           <Badge color="warning">No rate</Badge>
         </span>
       )}
-      {update.isError && <span className="text-caption text-error">Not saved</span>}
+      {pending && (
+        <Modal
+          onClose={cancel}
+          title={`Change the default currency for ${row.name}?`}
+          widthRem={28}
+          footer={
+            <>
+              <Button variant="secondary" onClick={cancel} disabled={update.isPending}>
+                Cancel
+              </Button>
+              <Button
+                loading={update.isPending}
+                onClick={() =>
+                  update.mutate(
+                    { name: row.name, currency: pending },
+                    {
+                      onSuccess: () => {
+                        setPending(null)
+                        showToast(`${row.name} now defaults to ${pending}`)
+                      },
+                    },
+                  )
+                }
+              >
+                Confirm
+              </Button>
+            </>
+          }
+        >
+          <div className="flex flex-col gap-sm">
+            <dl className="grid grid-cols-[auto_1fr] gap-x-md gap-y-xs text-body-sm">
+              <dt className="text-text-secondary">Country</dt>
+              <dd className="font-medium text-text-primary">{row.name}</dd>
+              <dt className="text-text-secondary">Current currency</dt>
+              <dd className="font-medium text-text-primary">{row.default_currency}</dd>
+              <dt className="text-text-secondary">New currency</dt>
+              <dd className="font-medium text-text-primary">{pending}</dd>
+            </dl>
+            <p className="text-body-sm text-text-secondary">
+              This becomes the invoice currency for every consultancy based in {row.name}: each new invoice they issue
+              will be in {pending}. Invoices already issued keep their currency. It is also the currency students
+              living in {row.name} see their &ldquo;≈&rdquo; amounts in.
+            </p>
+            {/* The server's own words when it refuses (a currency with no rate, a missing permission). */}
+            {update.isError && <p className="text-body-sm text-error">{update.error.message}</p>}
+          </div>
+        </Modal>
+      )}
     </StopPropagation>
   )
 }
@@ -1719,6 +1777,26 @@ function agoLabel(days: number) {
 
 type MissingRate = components['schemas']['MissingExchangeRate']
 
+// The rupee is what every rate is measured in, so it has no rate of its own to set: one rupee is
+// one rupee (owner decision 11). The server refuses a write to it; here it is shown as a fixed row
+// with no edit control, whether or not the server's table happens to hold a row for it.
+const BASE_CURRENCY = 'INR'
+
+// A saved rate that moves by more than this, either way, has to be confirmed (owner decision 11,
+// review W2-C05): the only check used to be "greater than zero", so 6.2 typed for 62 was accepted
+// and frozen onto every payment declared until someone noticed.
+const RATE_CONFIRM_PERCENT = 10
+
+/** The change from `from` to `to` as a percentage of `from`; positive is a rise. */
+function rateChangePercent(from: number, to: number) {
+  return Math.round(((to - from) / from) * 100 * 1e6) / 1e6
+}
+
+function signedPercent(percent: number) {
+  const size = Math.abs(percent)
+  return `${percent < 0 ? '−' : '+'}${size >= 100 ? Math.round(size) : Number(size.toFixed(1))}%`
+}
+
 // "2 students · 1 consultancy · Japan" — who is going without an "≈" today, most affected first.
 function missingRateReach(m: MissingRate) {
   const parts: string[] = []
@@ -1729,16 +1807,19 @@ function missingRateReach(m: MissingRate) {
   return parts.join(' · ')
 }
 
-function ExchangeRatesTab() {
+export function ExchangeRatesTab() {
   const rates = useExchangeRates()
   const missing = useMissingExchangeRates()
   const [editing, setEditing] = useState<ExchangeRate | null>(null)
   // null = closed; '' = a blank Add Currency; a code = "Add rate" from the missing list.
   const [adding, setAdding] = useState<string | null>(null)
   const [showAllMissing, setShowAllMissing] = useState(false)
-  const missingRows = missing.data ?? []
+  // The rupee never needs a rate, so it is never "missing" one either.
+  const missingRows = (missing.data ?? []).filter((m) => m.currency !== BASE_CURRENCY)
   const shownMissing = showAllMissing ? missingRows : missingRows.slice(0, 5)
-  const staleCount = (rates.data ?? []).filter((r) => (rateAgeDays(r.updated_at) ?? 0) > STALE_RATE_DAYS).length
+  const editableRates = (rates.data ?? []).filter((r) => r.currency !== BASE_CURRENCY)
+  const staleCount = editableRates.filter((r) => (rateAgeDays(r.updated_at) ?? 0) > STALE_RATE_DAYS).length
+  const rows: ExchangeRate[] = rates.data ? [{ currency: BASE_CURRENCY, inr_per_unit: 1 }, ...editableRates] : []
 
   const columns: TableColumn<ExchangeRate>[] = [
     {
@@ -1756,6 +1837,7 @@ function ExchangeRatesTab() {
       header: 'Last updated',
       hideBelow: 'sm',
       render: (r) => {
+        if (r.currency === BASE_CURRENCY) return <span className="text-text-secondary">—</span>
         const days = rateAgeDays(r.updated_at)
         if (days == null) return <span className="text-text-secondary">—</span>
         const stale = days > STALE_RATE_DAYS
@@ -1773,17 +1855,20 @@ function ExchangeRatesTab() {
       key: 'actions',
       header: '',
       align: 'right',
-      render: (r) => (
-        <button
-          type="button"
-          onClick={() => setEditing(r)}
-          aria-label={`Edit ${r.currency} rate`}
-          title="Edit"
-          className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
-      ),
+      render: (r) =>
+        r.currency === BASE_CURRENCY ? (
+          <span className="text-caption text-text-secondary">Base currency · fixed at 1</span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditing(r)}
+            aria-label={`Edit ${r.currency} rate`}
+            title="Edit"
+            className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        ),
     },
   ]
 
@@ -1853,7 +1938,7 @@ function ExchangeRatesTab() {
       )}
       <Table
         columns={columns}
-        rows={rates.data ?? []}
+        rows={rows}
         rowKey={(r) => r.currency}
         loading={rates.isLoading}
         error={rates.isError ? 'Could not load exchange rates.' : undefined}
@@ -1883,23 +1968,41 @@ function RateFormModal({
   onClose: () => void
 }) {
   const upsert = useUpsertExchangeRate()
+  const rates = useExchangeRates()
   const [currency, setCurrency] = useState(rate?.currency ?? presetCurrency ?? '')
   const [inrPerUnit, setInrPerUnit] = useState(rate ? String(rate.inr_per_unit) : '')
-  const valid = currency.trim().length === 3 && Number(inrPerUnit) > 0
+  const [confirming, setConfirming] = useState(false)
+  const code = currency.trim().toUpperCase()
+  const isBase = code === BASE_CURRENCY
+  const next = Number(inrPerUnit)
+  const valid = code.length === 3 && next > 0 && !isBase
+  // The rate being replaced: the row being edited, or — when "Add Currency" is given a code the
+  // table already holds — that row, since saving it is an overwrite all the same.
+  const current = rate ?? (rates.data ?? []).find((r) => r.currency === code)
+  const changePercent = current && current.inr_per_unit > 0 ? rateChangePercent(current.inr_per_unit, next) : null
+
+  function save() {
+    upsert.mutate(
+      { currency: code, inr_per_unit: next },
+      {
+        onSuccess: () => {
+          onClose()
+          showToast(current ? `${code} rate updated` : `${code} rate added`)
+        },
+        // Back to the form, where the server's refusal is shown beside Save.
+        onError: () => setConfirming(false),
+      },
+    )
+  }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!valid) return
-    const code = currency.trim().toUpperCase()
-    upsert.mutate(
-      { currency: code, inr_per_unit: Number(inrPerUnit) },
-      {
-        onSuccess: () => {
-          onClose()
-          showToast(rate ? `${code} rate updated` : `${code} rate added`)
-        },
-      },
-    )
+    if (changePercent !== null && Math.abs(changePercent) > RATE_CONFIRM_PERCENT) {
+      setConfirming(true)
+      return
+    }
+    save()
   }
 
   return (
@@ -1924,6 +2027,7 @@ function RateFormModal({
           onChange={(e) => setCurrency(e.target.value.toUpperCase())}
           placeholder="e.g. CAD"
           disabled={Boolean(rate || presetCurrency)}
+          error={isBase ? 'The rupee is the base currency. It is fixed at 1 and has no rate to set.' : undefined}
         />
         {/* `step="any"`: most of the currencies missing a rate are worth under ₹1 (ALL ≈ 0.9,
             VND ≈ 0.0033), and a number input's default step of 1 refused every one of them. */}
@@ -1937,6 +2041,40 @@ function RateFormModal({
           onChange={(e) => setInrPerUnit(e.target.value)}
         />
       </form>
+      {confirming && current && changePercent !== null && (
+        <Modal
+          onClose={() => setConfirming(false)}
+          title={`Change the ${code} rate by ${signedPercent(changePercent)}?`}
+          widthRem={26}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setConfirming(false)} disabled={upsert.isPending}>
+                Cancel
+              </Button>
+              <Button loading={upsert.isPending} onClick={save}>
+                Confirm
+              </Button>
+            </>
+          }
+        >
+          <div className="flex flex-col gap-sm">
+            <dl className="grid grid-cols-[auto_1fr] gap-x-md gap-y-xs text-body-sm">
+              <dt className="text-text-secondary">Currency</dt>
+              <dd className="font-medium text-text-primary">{code}</dd>
+              <dt className="text-text-secondary">Current rate</dt>
+              <dd className="font-medium tabular-nums text-text-primary">₹{current.inr_per_unit}</dd>
+              <dt className="text-text-secondary">New rate</dt>
+              <dd className="font-medium tabular-nums text-text-primary">₹{next}</dd>
+              <dt className="text-text-secondary">Change</dt>
+              <dd className="font-medium tabular-nums text-text-primary">{signedPercent(changePercent)}</dd>
+            </dl>
+            <p className="text-body-sm text-text-secondary">
+              A change of more than {RATE_CONFIRM_PERCENT}% is unusual for a rate kept by hand. It applies straight
+              away, to every &ldquo;≈&rdquo; amount and to every payment declared from now on.
+            </p>
+          </div>
+        </Modal>
+      )}
     </Modal>
   )
 }
