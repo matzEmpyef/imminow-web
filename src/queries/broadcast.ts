@@ -75,17 +75,22 @@ export function useBroadcastAudienceCount(audience: Audience, targeting: Targeti
 export function useSendBroadcast() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (body: BroadcastInput) => {
-      // Required since contract gate 9 — a retried send must never double-notify everyone.
-      const { data, error } = await api.POST('/broadcast', {
+    // Required since contract gate 9 — a retried send must never double-notify everyone. The key
+    // comes from the caller (one per opened dialog and content, `usePayloadIdempotencyKey`): made
+    // here it would be new on every attempt, and a retry after a lost response would send twice.
+    mutationFn: async ({ body, idempotencyKey }: { body: BroadcastInput; idempotencyKey: string }) => {
+      const { data, error, response } = await api.POST('/broadcast', {
         body,
-        params: { header: { 'Idempotency-Key': crypto.randomUUID() } },
+        params: { header: { 'Idempotency-Key': idempotencyKey } },
       })
       // The server's own message names the problem — an unroutable destination, most likely —
-      // and swallowing it would leave the sender guessing at a form they can still fix.
-      if (error) throw new ApiError(error.error?.message ?? 'Could not send this broadcast.')
+      // and swallowing it would leave the sender guessing at a form they can still fix. The status
+      // goes along so the dialog can tell a refusal (4xx) from "may have been sent" (5xx).
+      if (error) throw new ApiError('Could not send this broadcast.', error, response.status)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['broadcast-history'] }),
+    // Settled, not only success: after a failed or unanswered send the history is the one place
+    // that shows whether it went out.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['broadcast-history'] }),
   })
 }

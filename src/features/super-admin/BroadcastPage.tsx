@@ -21,6 +21,7 @@ import { useAdminEvents } from '@/queries/eventsAdmin'
 import { useCountries } from '@/queries/countries'
 import { useBroadcastAudienceCount, useBroadcastHistory, useSendBroadcast } from '@/queries/broadcast'
 import { ApiError } from '@/api/errors'
+import { isClearRefusal, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDateTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
@@ -89,8 +90,36 @@ function describeAudience(audience: Audience, targeting: BroadcastTargeting): st
   return describeSegment(targeting)
 }
 
-function SendBroadcastModal({ onClose }: { onClose: () => void }) {
+// What the sender is shown when a send got no clear answer (F-037): the newest rows of the send
+// history, fetched fresh, so they can see whether it went out before deciding to send again —
+// without closing the dialog and losing the draft.
+function RecentBroadcasts() {
+  const recent = useBroadcastHistory({ limit: 3 })
+  if (recent.isError) return <p className="text-body-sm text-error">Could not load the send history.</p>
+  if (!recent.data || !recent.isFetchedAfterMount) return <p className="text-body-sm text-text-secondary">Checking the send history…</p>
+  if (recent.data.items.length === 0) return <p className="text-body-sm text-text-secondary">No broadcasts in the send history.</p>
+  return (
+    <ul className="flex flex-col gap-xs">
+      {recent.data.items.map((b) => (
+        <li key={b.id} className="flex items-center justify-between gap-sm rounded-md border border-border bg-background p-sm">
+          <span className="min-w-0 truncate text-body-sm font-medium text-text-primary">{b.title}</span>
+          <span className="flex shrink-0 items-center gap-sm text-caption text-text-secondary">
+            {formatDateTime(b.created_at)}
+            {b.status && <Badge color={STATUS_COLORS[b.status]}>{STATUS_LABELS[b.status]}</Badge>}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+const MAY_HAVE_SENT = 'An earlier attempt may already have been sent. Check the send history before sending again.'
+
+export function SendBroadcastModal({ onClose }: { onClose: () => void }) {
   const sendBroadcast = useSendBroadcast()
+  // One key for this opened dialog and its content — every attempt to send the same draft carries
+  // it, so the server replays its first answer instead of notifying everyone twice.
+  const idempotency = usePayloadIdempotencyKey()
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [composeAudience, setComposeAudience] = useState<Audience>('all_students')
@@ -109,6 +138,11 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
   // Confirmation gate before Send actually fires (review C3, 2026-09-12) — a broadcast can't be
   // unsent, so the sender sees the reach and a preview before it's irreversible.
   const [confirming, setConfirming] = useState(false)
+  // Set when a send ended with no clear answer (network failure, timeout, 5xx): it may have gone
+  // out. `unclear` is the screen that says so; `mayHaveSent` keeps the warning on the draft and
+  // the confirmation for as long as this dialog stays open.
+  const [unclear, setUnclear] = useState(false)
+  const [mayHaveSent, setMayHaveSent] = useState(false)
 
   const isSegment = composeAudience === 'segment'
   const hasFilters = hasAnyTargeting(targeting)
@@ -136,21 +170,68 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
     // Targeting is sent only for `segment`; the other two audiences ignore it server-side, and
     // posting a stale object from a switched-away segment draft would be recorded as the
     // broadcast's segment in send history even though it filtered nothing.
+    const draft = {
+      title,
+      body,
+      audience: composeAudience,
+      category,
+      targeting: isSegment ? targeting : undefined,
+      deep_link: deepLink || undefined,
+    }
     sendBroadcast.mutate(
-      {
-        title,
-        body,
-        audience: composeAudience,
-        category,
-        targeting: isSegment ? targeting : undefined,
-        deep_link: deepLink || undefined,
-      },
+      { body: draft, idempotencyKey: idempotency.keyFor(draft) },
       {
         onSuccess: () => {
           onClose()
           showToast('Broadcast sent')
         },
+        onError: (err) => {
+          idempotency.settle(err)
+          if (!isClearRefusal(err)) {
+            setUnclear(true)
+            setMayHaveSent(true)
+          }
+        },
       },
+    )
+  }
+
+  if (unclear) {
+    return (
+      <Modal
+        onClose={onClose}
+        title="This broadcast may have been sent"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setUnclear(false)
+                setConfirming(false)
+              }}
+            >
+              Back to draft
+            </Button>
+            <Button onClick={onClose}>Close and view send history</Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-md">
+          <p className="text-body-sm text-text-primary">
+            The server did not confirm this send, so it may or may not have gone out. Check the send history before
+            sending it again — a second send notifies everyone twice.
+          </p>
+          <div className="flex flex-col gap-xs">
+            <p className="text-caption font-medium text-text-secondary">Most recent broadcasts</p>
+            <RecentBroadcasts />
+          </div>
+          <div className="flex flex-col gap-xs rounded-md border border-border bg-background p-sm">
+            <p className="text-caption text-text-secondary">Your draft</p>
+            <p className="text-body font-medium text-text-primary">{title}</p>
+            <p className="whitespace-pre-wrap text-body-sm text-text-secondary">{body}</p>
+          </div>
+        </div>
+      </Modal>
     )
   }
 
@@ -161,7 +242,9 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
         title={reach == null ? 'Send broadcast?' : `Send to ${reach} ${audienceNoun}?`}
         footer={
           <>
-            {sendBroadcast.isError && (
+            {/* A refusal only — an unclear failure has its own screen, and its raw text
+                ("Failed to fetch") must not reappear here on the next attempt. */}
+            {sendBroadcast.isError && isClearRefusal(sendBroadcast.error) && (
               <p className="mr-auto self-center text-body-sm text-error">
                 {sendBroadcast.error.message}
                 {/* 429 rate_limited (contract gate 10, lane N3) — more than 10 sends in an hour. */}
@@ -185,6 +268,7 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
             <p className="text-body font-medium text-text-primary">{title}</p>
             <p className="whitespace-pre-wrap text-body-sm text-text-secondary">{body}</p>
           </div>
+          {mayHaveSent && <p className="text-body-sm text-warning">{MAY_HAVE_SENT}</p>}
           <p className="text-caption text-text-secondary">This cannot be undone once sent.</p>
         </div>
       </Modal>
@@ -203,6 +287,7 @@ function SendBroadcastModal({ onClose }: { onClose: () => void }) {
           {nobodyMatches && (
             <p className="mr-auto self-center text-body-sm text-error">Nobody matches these filters.</p>
           )}
+          {mayHaveSent && !nobodyMatches && <p className="mr-auto self-center text-body-sm text-warning">{MAY_HAVE_SENT}</p>}
           <Button
             type="submit"
             form="broadcast-form"

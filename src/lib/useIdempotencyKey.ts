@@ -17,9 +17,63 @@ import { ApiError } from '@/api/errors'
 export function useIdempotencyKey() {
   const [key, setKey] = useState(() => crypto.randomUUID())
   const settle = useCallback((err: unknown) => {
-    if (!(err instanceof ApiError)) return
-    const refused = err.status !== undefined && err.status >= 400 && err.status < 500
-    if (refused && err.code !== 'request_in_progress') setKey(crypto.randomUUID())
+    if (isClearRefusal(err)) setKey(crypto.randomUUID())
   }, [])
   return { key, settle }
+}
+
+/**
+ * True when the server definitely did NOT perform the write: it answered with a 4xx other than
+ * `request_in_progress`. Everything else — a network failure, a timeout, a 5xx, or a duplicate of
+ * a call that is still running — is unclear: the first attempt may have landed.
+ */
+export function isClearRefusal(err: unknown): boolean {
+  if (!(err instanceof ApiError)) return false
+  const refused = err.status !== undefined && err.status >= 400 && err.status < 500
+  return refused && err.code !== 'request_in_progress'
+}
+
+/** JSON with object keys in sorted order, so the same content always reads the same whatever
+ * order its fields were set in. */
+function fingerprint(payload: unknown): string {
+  return JSON.stringify(payload, (_key, value: unknown) =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : value,
+  )
+}
+
+/**
+ * `useIdempotencyKey` with the key tied to WHAT is submitted: the key is made when the form opens
+ * and `keyFor(payload)` returns that same key for every attempt with the same content, so a retry
+ * after a lost response replays the first answer. A different payload gets a new key — the server
+ * replays the first answer for a known key even when the body differs, so reusing it for edited
+ * content would report a success for something that was never written.
+ *
+ * `settle` is as above: a clear refusal renews the key, an unclear failure keeps it.
+ */
+export function usePayloadIdempotencyKey() {
+  // A mutable slot rather than state: the key is read at submit time, never rendered.
+  const [slot] = useState<{ key: string; payload: string | null }>(() => ({
+    key: crypto.randomUUID(),
+    payload: null,
+  }))
+  const keyFor = useCallback(
+    (payload: unknown) => {
+      const print = fingerprint(payload)
+      if (slot.payload !== null && slot.payload !== print) slot.key = crypto.randomUUID()
+      slot.payload = print
+      return slot.key
+    },
+    [slot],
+  )
+  const settle = useCallback(
+    (err: unknown) => {
+      if (!isClearRefusal(err)) return
+      slot.key = crypto.randomUUID()
+      slot.payload = null
+    },
+    [slot],
+  )
+  return { keyFor, settle }
 }
