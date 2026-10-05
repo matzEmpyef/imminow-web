@@ -115,6 +115,7 @@ export class RealtimeConnectionManager {
     this.started = false
     this.generation++
     this.clearTimers()
+    this.serverReconnectPending = false
     this.outQueue = []
     this.closeSocketSilently()
     this.setStatus('stopped')
@@ -299,6 +300,10 @@ export class RealtimeConnectionManager {
         const gen = this.generation
         this.reconnectFrameTimer = setTimeout(() => {
           if (gen !== this.generation) return
+          // The redial this flag was announcing is happening now. Left set, it would swallow the
+          // NEXT socket's first close (the old socket's handlers are removed just below, so its
+          // 1012 never arrives to clear it) and that drop would never be redialed.
+          this.serverReconnectPending = false
           this.closeSocketSilently()
           void this.connect()
         }, Math.max(0, data.after_ms))
@@ -334,8 +339,10 @@ export class RealtimeConnectionManager {
     this.consecutiveForbidden = 0
     if (this.serverReconnectPending) {
       // Already being redialed by the `reconnect` frame's own timer (1012 follows it ~20s later);
-      // scheduling a second reconnect here would race it.
+      // scheduling a second reconnect here would race it. The socket is gone until that timer
+      // fires, though, so the status must say so — fallback polling keys off "not open".
       this.serverReconnectPending = false
+      this.setStatus('reconnecting')
       return
     }
     // 4408 slow_consumer, 4429 rate_limited, 1012 restart, 1000/1001, or anything else — reconnect

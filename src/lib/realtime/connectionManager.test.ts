@@ -280,7 +280,7 @@ describe('RealtimeConnectionManager', () => {
     await vi.waitFor(() => expect(sockets).toHaveLength(2))
   })
 
-  it('honours a `reconnect` frame\'s after_ms without double-scheduling on the 1012 that follows', async () => {
+  it('honours a `reconnect` frame\'s after_ms, then still redials when the NEW socket drops', async () => {
     const manager = makeManager()
     manager.start()
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
@@ -291,10 +291,50 @@ describe('RealtimeConnectionManager', () => {
     expect(sockets).toHaveLength(1)
     await vi.advanceTimersByTimeAsync(1)
     await vi.waitFor(() => expect(sockets).toHaveLength(2)) // redialed by the reconnect frame's own timer
+    sockets[1].emitMessage(helloFrame())
+    expect(manager.getStatus()).toBe('open')
 
-    // The close the server sends ~20s later must not ALSO schedule a reconnect on top of it.
+    // Any later drop of the replacement socket (Wi-Fi change, laptop sleep) is an ordinary close
+    // and must be redialed — the "reconnect pending" flag must not have outlived its own timer.
+    sockets[1].emitClose(1006)
+    expect(manager.getStatus()).toBe('reconnecting') // polling resumes while we're not open
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => expect(sockets).toHaveLength(3))
+  })
+
+  it('does not double-schedule when the 1012 arrives before the `reconnect` frame\'s timer fires', async () => {
+    const manager = makeManager()
+    manager.start()
+    await vi.waitFor(() => expect(sockets).toHaveLength(1))
+    sockets[0].emitMessage(helloFrame())
+
+    sockets[0].emitMessage({ v: 1, type: 'reconnect', id: null, ts: '2026-09-26T00:00:04Z', data: { after_ms: 5000 } })
+    // Handlers are still attached here, so this close really reaches the manager.
     sockets[0].emitClose(1012)
-    expect(sockets).toHaveLength(2)
+    expect(manager.getStatus()).toBe('reconnecting') // no socket until the timer fires — poll meanwhile
+    await vi.advanceTimersByTimeAsync(4999)
+    expect(sockets).toHaveLength(1) // no backoff reconnect raced the frame's own timer
+    await vi.advanceTimersByTimeAsync(1)
+    await vi.waitFor(() => expect(sockets).toHaveLength(2))
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(sockets).toHaveLength(2) // exactly one redial
+  })
+
+  it('a `reconnect` frame cut short by stop() does not swallow the next session\'s first drop', async () => {
+    const manager = makeManager()
+    manager.start()
+    await vi.waitFor(() => expect(sockets).toHaveLength(1))
+    sockets[0].emitMessage(helloFrame())
+    sockets[0].emitMessage({ v: 1, type: 'reconnect', id: null, ts: '2026-09-26T00:00:04Z', data: { after_ms: 5000 } })
+
+    manager.stop()
+    manager.start()
+    await vi.waitFor(() => expect(sockets).toHaveLength(2))
+    sockets[1].emitMessage(helloFrame())
+
+    sockets[1].emitClose(1006)
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => expect(sockets).toHaveLength(3))
   })
 
   it('stop() closes the socket and cancels every pending timer', async () => {
