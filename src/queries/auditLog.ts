@@ -29,7 +29,7 @@ export function useAuditLog(filters: AuditLogFilters) {
       if (filters.from) filter.from = filters.from
       if (filters.to) filter.to = filters.to
 
-      const { data, error } = await api.GET('/audit-log', {
+      const { data, error, response } = await api.GET('/audit-log', {
         params: {
           query: {
             filter: Object.keys(filter).length > 0 ? filter : undefined,
@@ -40,7 +40,11 @@ export function useAuditLog(filters: AuditLogFilters) {
           },
         },
       })
-      if (error) throw new ApiError('Could not load the audit log.', error)
+      // The status goes with it: a 403 is "not yours to read", which the page says plainly rather
+      // than showing a failure to load (review F-021). Read before the check below: the contract
+      // lists no error answer for this route, so inside it the response has no type left to read.
+      const status = response.status
+      if (error) throw new ApiError('Could not load the audit log.', error, status)
       return data
     },
     enabled: isAuthed,

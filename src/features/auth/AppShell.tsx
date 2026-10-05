@@ -44,6 +44,8 @@ interface GatedSubLink extends SidebarSubLink {
   feature?: string
   /** Consultancy permission key required to see this link, e.g. `staff.manage_employees`. */
   permission?: string
+  /** Shown to the consultancy's Owner/Admin only — for a page no permission key can grant. */
+  adminOnly?: boolean
   /**
    * Hidden on an `institute` account (H3, 2026-09-13). Not a feature flag: that is a property of
    * the account kind, not something a Super Admin should be able to switch on for one college and
@@ -193,7 +195,9 @@ const SECTIONS: GatedSection[] = [
         icon: Star,
         permission: 'settings.edit_profile',
       },
-      { label: 'Audit Log', path: '/administration/audit-log', icon: History, feature: 'audit_log' },
+      // Owner/Admin only (review F-021): the log is every change in the consultancy, with the
+      // personal data in each entry, and the server refuses anyone else. No permission key grants it.
+      { label: 'Audit Log', path: '/administration/audit-log', icon: History, feature: 'audit_log', adminOnly: true },
     ],
   },
 ]
@@ -210,7 +214,7 @@ const SECTIONS: GatedSection[] = [
 // endpoints.
 export function AppShell({ children }: { children: ReactNode }) {
   const { data: features } = useFeatures()
-  const { can } = usePermissionChecker()
+  const { can, isAdmin } = usePermissionChecker()
   const { isInstitute } = useAccountWords()
   // User-requested (2026-08-19) — "show number of activities that need action today as a counter
   // in Activities side menu." Only fetched once Activity is actually visible (the
@@ -228,6 +232,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const sidebarLinks = section.sidebarLinks
       .filter((link) => !link.feature || features[link.feature])
       .filter((link) => !link.permission || can(link.permission))
+      .filter((link) => !link.adminOnly || isAdmin)
       .filter((link) => !link.consultancyOnly || !isInstitute)
       .map((link) =>
         link.label === 'Activity' ? { ...link, badge: activityFeed.data?.needs_action_today_count } : link,

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Badge } from '@/components/Badge'
+import { Card } from '@/components/Card'
+import { ApiError } from '@/api/errors'
 import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
 import { useAuditLog, type AuditLogFilters } from '@/queries/auditLog'
@@ -88,6 +90,22 @@ export function AuditLogPage() {
     },
     { key: 'created_at', header: 'When', sortable: true, render: (e) => formatDateTime(e.created_at) },
   ]
+
+  // The server reads this log to the consultancy's Owner/Admin only (review F-021). The link and
+  // the route are hidden from everyone else, but that is decided from the roster this browser
+  // holds; when the server says no, that is the answer, and it is not a failure to load.
+  if (entries.error instanceof ApiError && entries.error.status === 403) {
+    return (
+      <AppShell>
+        <Card>
+          <p className="text-body text-text-primary">You don&rsquo;t have access to this page.</p>
+          <p className="mt-xs text-body-sm text-text-secondary">
+            The audit log is open to the {words.org}&rsquo;s admin only.
+          </p>
+        </Card>
+      </AppShell>
+    )
+  }
 
   return (
     <AppShell>

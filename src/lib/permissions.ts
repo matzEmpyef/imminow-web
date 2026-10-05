@@ -205,6 +205,12 @@ export function useAvailablePermissions(): string[] | undefined {
 // denial copy need `isError`.
 export function usePermissionChecker(): {
   can: (key: string) => boolean
+  /**
+   * The caller is the consultancy's Owner/Admin (`is_consultancy_admin` on their employee row) —
+   * for the few things no permission key can grant, such as the audit log (review F-021). Fails
+   * closed like `can`: false while loading and when the check failed.
+   */
+  isAdmin: boolean
   isLoading: boolean
   isError: boolean
   refetch: () => void
@@ -223,6 +229,7 @@ export function usePermissionChecker(): {
   }
   return {
     can,
+    isAdmin: employee?.is_consultancy_admin === true,
     isLoading: employees.isLoading || designations.isLoading,
     // Deliberately NOT `employees.isError || designations.isError`. React Query reports isError
     // for a failed BACKGROUND refetch too, while keeping the previous data — and in that case we

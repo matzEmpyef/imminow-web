@@ -486,7 +486,9 @@ function App() {
             path="/administration/audit-log"
             element={
               <FeatureGate feature={FEATURE_BY_KEY.audit_log}>
-                <AuditLogPage />
+                <PermissionGate adminOnly area="the Audit Log">
+                  <AuditLogPage />
+                </PermissionGate>
               </FeatureGate>
             }
           />

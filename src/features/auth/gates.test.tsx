@@ -50,6 +50,7 @@ describe('FeatureGate', () => {
     // Default: an ordinary consultant, who keeps the "ask your admin" copy.
     mockedChecker.mockReturnValue({
       can: () => false,
+      isAdmin: false,
       isLoading: false,
       isError: false,
       refetch: vi.fn(),
@@ -76,6 +77,7 @@ describe('FeatureGate', () => {
     mockedFeatures.mockReturnValue({ data: { phonebook: false }, isLoading: false, isError: false })
     mockedChecker.mockReturnValue({
       can: (key: string) => key === 'settings.edit_profile',
+      isAdmin: true,
       isLoading: false,
       isError: false,
       refetch: vi.fn(),
@@ -107,7 +109,7 @@ describe('FeatureGate', () => {
 
 describe('PermissionGate', () => {
   function checker(overrides: Partial<ReturnType<typeof usePermissionChecker>>) {
-    mockedChecker.mockReturnValue({ can: () => false, isLoading: false, isError: false, refetch: vi.fn(), ...overrides } as ReturnType<typeof usePermissionChecker>)
+    mockedChecker.mockReturnValue({ can: () => false, isAdmin: false, isLoading: false, isError: false, refetch: vi.fn(), ...overrides } as ReturnType<typeof usePermissionChecker>)
   }
 
   it('renders the page when the permission is granted', () => {
@@ -133,5 +135,32 @@ describe('PermissionGate', () => {
     rerender(<PermissionGate permission="x" area="X"><p>Page</p></PermissionGate>)
     expect(screen.getByText('Could not check your permissions.')).toBeInTheDocument()
     expect(screen.queryByText(/don't have access/)).not.toBeInTheDocument()
+  })
+
+  // F-021: the audit log route. No permission key grants it — a consultant holding every key is
+  // still refused, and only the consultancy's Owner/Admin gets the page.
+  describe('adminOnly', () => {
+    const renderAuditRoute = () =>
+      render(<PermissionGate adminOnly area="the Audit Log"><p>Audit log page</p></PermissionGate>)
+
+    it('renders the page for the consultancy admin', () => {
+      checker({ isAdmin: true, can: () => true })
+      renderAuditRoute()
+      expect(screen.getByText('Audit log page')).toBeInTheDocument()
+    })
+
+    it('denies an employee who is not the admin, whatever permissions they hold', () => {
+      checker({ isAdmin: false, can: () => true })
+      renderAuditRoute()
+      expect(screen.queryByText('Audit log page')).not.toBeInTheDocument()
+      expect(screen.getByText("You don't have access to the Audit Log.")).toBeInTheDocument()
+    })
+
+    it('holds the skeleton while the roster is loading rather than denying the admin', () => {
+      checker({ isAdmin: false, isLoading: true })
+      renderAuditRoute()
+      expect(screen.queryByText('Audit log page')).not.toBeInTheDocument()
+      expect(screen.queryByText(/don't have access/)).not.toBeInTheDocument()
+    })
   })
 })

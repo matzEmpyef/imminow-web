@@ -18,15 +18,23 @@ import { ErrorState, Skeleton } from '@/components/QueryState'
  */
 export function PermissionGate({
   permission,
+  adminOnly,
   area,
   children,
 }: {
-  permission: string
+  /** The permission key the page needs. Omitted only with `adminOnly`. */
+  permission?: string
+  /**
+   * For a page no permission key can grant: the consultancy's Owner/Admin only. The audit log is
+   * the one (review F-021) — it shows every change in the consultancy with the personal data in
+   * it, and the server answers anyone else 403.
+   */
+  adminOnly?: boolean
   /** Named in the denial copy, e.g. "Staff Administration". */
   area: string
   children: ReactNode
 }) {
-  const { can, isLoading, isError, refetch } = usePermissionChecker()
+  const { can, isAdmin, isLoading, isError, refetch } = usePermissionChecker()
 
   // A permission can't be resolved until the employee and designation queries land, and until
   // then every key answers false. Rendering the denial card during that window flashes "you don't
@@ -51,7 +59,7 @@ export function PermissionGate({
     )
   }
 
-  if (!can(permission)) {
+  if (adminOnly ? !isAdmin : !permission || !can(permission)) {
     return (
       <AppShell>
         <Card>
