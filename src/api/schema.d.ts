@@ -22001,61 +22001,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/commission/finance-dashboard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Legacy (gate 11, Q10) — kept, served from the same figures as the newer `/commission/ finance/*` reads, until the console stops calling it; no new console work targets it. Every ACTIVE commission entry (not "completed cases" — the stale wording this corrects; an entry stays active whether its case's share is fully paid or still outstanding), filterable by consultancy/date/country/payer (admin). Cursor-paged (gate 11) — dormant against the frozen mock, which still returns the full unpaged `items` array (`meta` omitted there). */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
-                    cursor?: components["parameters"]["CursorParam"];
-                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
-                    limit?: components["parameters"]["LimitParam"];
-                    consultancy_id?: string;
-                    from?: string;
-                    to?: string;
-                    destination_country?: string;
-                    payer_method?: "college" | "applicant" | "split" | "pr";
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            items: components["schemas"]["FinanceDashboardEntry"][];
-                            /** @description Absent on the frozen mock (gate 11) — `items` is returned unpaged there. */
-                            meta?: components["schemas"]["PaginatedMeta"];
-                            running_total: components["schemas"]["Money"];
-                            /** @description Consultancy-declared platform payments awaiting the finance Confirm action (all payment things in one place, user-requested 2026-08-28). */
-                            declared_payments?: components["schemas"]["CommissionPayment"][];
-                            /** @description Confirmed payments, newest first. */
-                            payment_history?: components["schemas"]["CommissionPayment"][];
-                        };
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/invoices": {
         parameters: {
             query?: never;
@@ -23721,7 +23666,7 @@ export interface components {
             /**
              * @description When the student wants to start (assumptions audit M9, product owner 2026-09-19).
              *     **Replaces `intended_intake`**, the `first_half`/`second_half` calendar halves that began 1 January and 1 July. Those were wrong twice over: a September start was filed as "second half" and therefore measured from 1 July, three months early, and six-month calendar blocks match no admissions cycle anyone on this platform runs. The halves no longer appear in any response.
-             *     A request may still send `intended_intake` + `intended_year` — app builds already in students' hands do — and they are folded into this shape: `first_half` becomes the **Jan–Jul** group anchored on January, `second_half` the **Aug–Dec** group anchored on August, both with `any_in_group: true`. Writing the intake deletes the old fields from the row for good.
+             *     `intended_intake` and `intended_year` are NOT request fields (gate 12e, owner 2026-10-05 — no released app build sends them): like any field that is not writable they are ignored, and the intake stays as it was. Send `intake`. (The frozen mock still folds a `first_half`/`second_half` into the Jan–Jul / Aug–Dec group.)
              *
              *     NULL NO LONGER MEANS ONE THING (product owner, 2026-09-21). It means "no intake", and `intake_undecided` says whether that is an ANSWER ("I haven't decided yet") or a GAP (never asked, never answered). This field itself is unchanged for every client in the field: a student who declared themselves undecided still reads `intake: null`, so nothing that tests `if (prefs.intake)` starts behaving differently. Sending a non-null intake together with `intake_undecided: true` is refused 422 — a student who has named a month has decided.
              */
@@ -25986,7 +25931,7 @@ export interface components {
         };
         /**
          * @description One case's money agreement, snapshotted at acceptance (or at PR contribution entry). The platform's own cut is deliberately NOT part of this shape — it appears only in the Commission Details / Finance Dashboard read models.
-         *     **A channel-B entry is a bookkeeping entry (gate 12b, owner §15 Q5 — read this before building F1/F2).** For a case whose journey is channel B, accepting a college (or recording a PR contribution) creates an entry exactly as for any case — same endpoint, same `commission` body, same `expected_from_*`, same installments, same void/revert/ reversal states — with `channel: 'B'`, and the backend skips everything that is Sentpo's: no rate lookup (so a missing Commission Rates row never blocks acceptance), `rate_percent` 0, `rate_source` `none`, `platform_due_inr` 0, `freelancer_sourced` false, and NO `commission_dues`, `commission_payment_allocations` or `commission_entry_balances` rows, ever. `channel` is stamped from the journey when the entry is created and never changes (an erased student cannot change it). Only `B` is bookkeeping-only; `A`, `C` and null (unknown, legacy) are commissionable as before. Consequences, all server-enforced: (1) every Finance read — `/commission/finance/*`, `/commission/finance-dashboard`, the consultancy's `GET /commission` dues and payment history, `/dashboard`'s commission figures, analytics revenue, the follow-up signals (`/case-followups`) — excludes channel B (`channel IS DISTINCT FROM 'B'`); (2) a Finance operation addressed to a channel-B entry (`/commission-entries/{id}/dues`, `/original-due`, `/receive`, `/waive`, `/dues/{changeId}/void`, `/commission/payments/…`) is 404 `not_found` — to Finance the entry does not exist; (3) `POST /commission/payments` (the consultancy declaring a payment to Sentpo) against one is 409 `bookkeeping_only`; (4) `POST /commission-entries/{id}/installments` and its void work as for any entry, with nothing allocated (so `part_settled` never applies); (5) `GET /me/commissions` (the student's own view) reports `has_commission: false` for it; (6) a switch or dispute move leaves it with the old consultancy (§15 Q1) and the new consultancy's own acceptance creates its own channel-B entry; (7) the database enforces it — a trigger refuses an entry insert whose `channel` disagrees with its journey's, and refuses a `commission_dues`/ allocation/balance row that points at a channel-B entry. Absent on the frozen mock, which creates no entry for a channel-B case at all (the console then shows today's behaviour).
+         *     **A channel-B entry is a bookkeeping entry (gate 12b, owner §15 Q5 — read this before building F1/F2).** For a case whose journey is channel B, accepting a college (or recording a PR contribution) creates an entry exactly as for any case — same endpoint, same `commission` body, same `expected_from_*`, same installments, same void/revert/ reversal states — with `channel: 'B'`, and the backend skips everything that is Sentpo's: no rate lookup (so a missing Commission Rates row never blocks acceptance), `rate_percent` 0, `rate_source` `none`, `platform_due_inr` 0, `freelancer_sourced` false, and NO `commission_dues`, `commission_payment_allocations` or `commission_entry_balances` rows, ever. `channel` is stamped from the journey when the entry is created and never changes (an erased student cannot change it). Only `B` is bookkeeping-only; `A`, `C` and null (unknown, legacy) are commissionable as before. Consequences, all server-enforced: (1) every Finance read — `/commission/finance/*`, the consultancy's `GET /commission` dues and payment history, `/dashboard`'s commission figures, analytics revenue, the follow-up signals (`/case-followups`) — excludes channel B (`channel IS DISTINCT FROM 'B'`); (2) a Finance operation addressed to a channel-B entry (`/commission-entries/{id}/dues`, `/original-due`, `/receive`, `/waive`, `/dues/{changeId}/void`, `/commission/payments/…`) is 404 `not_found` — to Finance the entry does not exist; (3) `POST /commission/payments` (the consultancy declaring a payment to Sentpo) against one is 409 `bookkeeping_only`; (4) `POST /commission-entries/{id}/installments` and its void work as for any entry, with nothing allocated (so `part_settled` never applies); (5) `GET /me/commissions` (the student's own view) reports `has_commission: false` for it; (6) a switch or dispute move leaves it with the old consultancy (§15 Q1) and the new consultancy's own acceptance creates its own channel-B entry; (7) the database enforces it — a trigger refuses an entry insert whose `channel` disagrees with its journey's, and refuses a `commission_dues`/ allocation/balance row that points at a channel-B entry. Absent on the frozen mock, which creates no entry for a channel-B case at all (the console then shows today's behaviour).
          */
         CommissionEntryDetail: {
             id: components["schemas"]["UUID"];
@@ -28014,34 +27959,6 @@ export interface components {
             /** @description Set if the underlying plan was reopened after recognition. */
             reopened_flag?: boolean;
         };
-        /** @description Admin-facing view of a completed case's recognized commission (build reference 1.17/1.23) — a display-shaped read of `commission_entries`, joined with the fields Finance Dashboard filters/shows that the consultancy-scoped `CommissionEntry` doesn't carry (consultancy identity, destination country, payer method). */
-        FinanceDashboardEntry: {
-            id: components["schemas"]["UUID"];
-            journey_id: components["schemas"]["UUID"];
-            consultancy_id: components["schemas"]["UUID"];
-            consultancy_name: string;
-            applicant_name: string;
-            destination_country: string;
-            /** @enum {string} */
-            payer_method: "college" | "applicant" | "split";
-            /** @enum {string} */
-            case_type: "student" | "pr";
-            college_name: string | null;
-            /** @description The platform's due for this entry (INR, snapshotted at acceptance). */
-            amount: components["schemas"]["Money"];
-            /** @description INR-normalized agreed total for the case. */
-            expected_total: components["schemas"]["Money"];
-            /** @description INR-normalized installments received by the consultancy so far. */
-            received_total: components["schemas"]["Money"];
-            /** Format: double */
-            rate_percent: number;
-            /** @enum {string} */
-            rate_source: "configured" | "fallback_default";
-            /** @description Days after a part falls due within which it is payable — snapshotted from the platform defaults at acceptance (2026-09-19, assumptions audit C12), exactly as `rate_percent` is. Before this the live default was read at render time, so shortening the terms moved every existing case's due dates backwards and fired overdue signals on money that was not late the day before. */
-            payment_terms_days?: number;
-            /** Format: date-time */
-            recognized_at: string;
-        };
         /** @description Consultancy Commission Table (build reference 1.17) — one row per (consultancy, destination country, payer method), the total the consultancy pays out whether the case was Sentpo-direct or freelancer-sourced. */
         CommissionRate: {
             id: components["schemas"]["UUID"];
@@ -28706,7 +28623,7 @@ export interface components {
         /**
          * @description The console permission flags (build reference 1.23; split from eight to eighteen on 2026-09-10 so each area can be handed to one person). Each flag gates one area of the platform console, both as route access in the React shell and as server-side enforcement on that area's admin endpoints. Super Admin resolves to every flag true, permanently. The console dashboard is deliberately not behind any flag — any active platform account sees it.
          *
-         *     Pre-split flags map onto their parts, so nobody gained or lost access: content → events, jobs, blog; platform_staff_administration → team_management, user_directory, notifications, app_config, audit_log; consultancy_approval also grants applicant_allocation, catalog also catalog_settings, finance also freelancers, support also support_tools — unless that part has been set explicitly since.
+         *     Only these eighteen flags are stored and read (gate 12e, owner 2026-10-05): a flag that is not set is off, and the retired pre-split keys `content` and `platform_staff_administration` grant nothing and are ignored on write. One flag never implies another — consultancy_approval does not grant applicant_allocation, nor catalog catalog_settings, finance freelancers, or support support_tools. (The frozen mock still widens a pre-split set on read.)
          */
         PlatformPermissions: {
             /** @description Manage Consultancies — create/approve/suspend consultancies, plans and features, KYC verification, rating overrides, Performance League. */
