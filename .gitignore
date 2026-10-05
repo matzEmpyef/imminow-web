@@ -23,7 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 
-# Local env overrides — .env.development is intentionally tracked (localhost only)
+# Local env overrides — .env.development, .env.mock and .env.fastapi are intentionally tracked (localhost only)
 .env
 .env.local
 .env.production
