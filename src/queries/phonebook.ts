@@ -1,50 +1,43 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
-import type { components } from '@/api/schema'
 
-type PhonebookContact = components['schemas']['PhonebookContact']
-
-export interface PhonebookResult {
-  items: PhonebookContact[]
-  /** Every category value in use across the caller's whole list (contract gate 9, K13, owner
-   * Q10) — from `meta.categories` once the backend sends it; derived from the fetched page as a
-   * fallback against the mock, which still answers the pre-gate-9 bare array (see below). */
-  categories: string[]
+export interface PhonebookFilters {
+  search?: string
+  category?: string
+  cursor?: string
 }
 
 /**
- * Contract gate 9, K13 paged this endpoint (`{items, meta}`, `meta.categories`) — the mock (frozen
- * post-Wave-3) still answers the pre-gate-9 bare array unconditionally, ignoring
- * `limit`/`cursor`/`search`/`filter[category]` entirely (it only honours the deprecated bare
- * `category` param, and even that only when nothing paginated is asked for). `limit` is sent to
- * opt into the new response shape per the contract's own "transition" note; both response shapes
- * are unwrapped. `PhonebookPage` still filters/searches/sorts client-side over the result — the
- * mock narrows nothing server-side regardless of what's sent, so that's what makes search and the
- * category filter actually work today (harmless once a real backend narrows it too: filtering an
- * already-filtered list is a no-op). True cursor paging ("load more") is left for whenever the
- * backend actually honours `limit` — an endpoint that always returns everything has nothing to
- * page yet.
+ * Contract gate 9, K13 — `GET /phonebook` is paged (`{items, meta}`) and narrows on the server:
+ * `search` matches name, phone and email, `filter[category]` is an exact match. `meta.categories`
+ * is every category in use across the caller's whole list (owner Q10), so the picker stays
+ * complete on a filtered or paged result. The list has no `sort` param (it comes back by name);
+ * `PhonebookPage` orders the page it holds, hence the largest page the contract allows.
  */
-export function usePhonebook() {
+export function usePhonebook(filters: PhonebookFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
-    queryKey: ['phonebook'],
-    queryFn: async (): Promise<PhonebookResult> => {
-      const { data, error } = await api.GET('/phonebook', { params: { query: { limit: 100 } } })
+    queryKey: ['phonebook', filters],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/phonebook', {
+        params: {
+          query: {
+            search: filters.search,
+            'filter[category]': filters.category,
+            cursor: filters.cursor,
+            limit: 100,
+          },
+        },
+      })
       if (error) throw new ApiError('Could not load the phonebook.', error)
-      const payload: unknown = data
-      const items = Array.isArray(payload)
-        ? (payload as PhonebookContact[])
-        : ((payload as { items?: PhonebookContact[] })?.items ?? [])
-      const serverCategories = !Array.isArray(payload)
-        ? (payload as { meta?: { categories?: string[] } })?.meta?.categories
-        : undefined
-      const categories = serverCategories ?? [...new Set(items.map((c) => c.category))]
-      return { items, categories }
+      return data
     },
     enabled: isAuthed,
+    // The category picker is built from the reply; keep the last one while the next loads so the
+    // picker (and the rows) don't blink out on every keystroke or filter change.
+    placeholderData: keepPreviousData,
   })
 }
 

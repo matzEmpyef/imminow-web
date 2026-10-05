@@ -9,24 +9,31 @@ import { CompactSelect } from '@/components/CompactSelect'
 import { useDeletePhonebookContact, usePhonebook } from '@/queries/phonebook'
 import { AddPhonebookContactModal } from './AddPhonebookContactModal'
 import { useAccountWords } from '@/lib/accountWords'
+import { useCursorPagination } from '@/lib/pagination'
 
 type Contact = NonNullable<ReturnType<typeof usePhonebook>['data']>['items'][number]
 
 export function PhonebookPage() {
   // H2 (2026-09-13) — an institute is not a consultancy; the nouns follow `kind`.
   const words = useAccountWords()
-  const contacts = usePhonebook()
   const deleteContact = useDeletePhonebookContact()
   const [showAddModal, setShowAddModal] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState('')
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
   const [deletingContact, setDeletingContact] = useState<Contact | null>(null)
+  const paging = useCursorPagination()
+
+  // Search and the category filter are narrowed by the server (contract gate 9, K13).
+  const contacts = usePhonebook({
+    search: search.trim() || undefined,
+    category: categoryFilter || undefined,
+    cursor: paging.cursor,
+  })
 
   // Contract gate 9, K13 — the full set of categories in use across the whole list, not just
-  // whatever happens to be loaded (`meta.categories`, owner Q10); `usePhonebook` falls back to
-  // deriving it from the fetched page when the mock doesn't send it.
-  const categories = contacts.data?.categories ?? []
+  // whatever happens to be loaded (`meta.categories`, owner Q10).
+  const categories = contacts.data?.meta.categories ?? []
   // "Other" is always offered, even on an empty phonebook (console review M9, 2026-09-13). The
   // dropdown is seeded from categories already in use, so the very first contact — and anyone
   // filing someone who fits none of the existing groups — faced a required field with nothing
@@ -34,18 +41,9 @@ export function PhonebookPage() {
   // (no whitelist on POST/PATCH /phonebook), so this needs nothing server-side.
   const addModalCategories = categories.includes('Other') ? categories : [...categories, 'Other']
 
+  // The list has no `sort` param — it arrives by name — so a column sort orders the loaded page.
   const rows = useMemo(() => {
     let items = contacts.data?.items ?? []
-    if (categoryFilter) items = items.filter((c) => c.category === categoryFilter)
-    if (search) {
-      const q = search.toLowerCase()
-      items = items.filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          c.phone.toLowerCase().includes(q) ||
-          (c.email ?? '').toLowerCase().includes(q),
-      )
-    }
     if (sort) {
       const dir = sort.direction === 'desc' ? -1 : 1
       items = [...items].sort((a, b) => {
@@ -55,7 +53,7 @@ export function PhonebookPage() {
       })
     }
     return items
-  }, [contacts.data, categoryFilter, search, sort])
+  }, [contacts.data, sort])
 
   const columns: TableColumn<Contact>[] = [
     {
@@ -151,12 +149,22 @@ export function PhonebookPage() {
           }
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
-          search={{ value: search, onChange: setSearch, placeholder: 'Search contacts…' }}
+          search={{
+            value: search,
+            onChange: (value) => {
+              setSearch(value)
+              paging.reset()
+            },
+            placeholder: 'Search contacts…',
+          }}
           filters={
             categories.length > 0 ? (
               <CompactSelect
                 value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
+                onChange={(e) => {
+                  setCategoryFilter(e.target.value)
+                  paging.reset()
+                }}
                 label="Category"
                 className="ml-auto"
               >
@@ -169,6 +177,12 @@ export function PhonebookPage() {
               </CompactSelect>
             ) : undefined
           }
+          pagination={{
+            hasNext: Boolean(contacts.data?.meta.next_cursor),
+            hasPrevious: paging.hasPrevious,
+            onNext: () => contacts.data?.meta.next_cursor && paging.next(contacts.data.meta.next_cursor),
+            onPrevious: paging.previous,
+          }}
         />
       </div>
     </AppShell>
