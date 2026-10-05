@@ -1,5 +1,6 @@
 import {
   clearIdleChannel,
+  pruneStaleIdleClocks,
   readLastActivity,
   readSessionStart,
   subscribeToActivityFromOtherTabs,
@@ -37,6 +38,10 @@ export interface IdleLockManagerDeps {
    * so a refresh made here, before that mark, is itself the activity signal. Failures are the
    * caller's problem to ignore; this manager doesn't need to know why a refresh didn't land. */
   refreshSession: () => Promise<void>
+  /** Which session this tab is signed in to — `sessionKeyFromRefreshToken` of the stored refresh
+   * token in `bootstrap.ts`. Read once per `start()`; the shared clock is kept under it, so values
+   * left behind by an earlier session are never mistaken for this one's. */
+  sessionKey: () => string | null
   /** Defaults to `Date.now`; tests inject a controllable clock. */
   now?: () => number
 }
@@ -61,6 +66,11 @@ export class IdleLockManager {
    * instant it sees its own activity rather than waiting on its own throttle window. */
   private lastLocalActivity = 0
   private lastWrittenActivity = 0
+  private sessionKey: string | null = null
+  /** This tab's own copy of the session's start time — what the 12-hour cap falls back on when
+   * the shared value is gone (storage unavailable, or another tab of this session signed out and
+   * cleared it), so the cap can never silently stop applying. */
+  private sessionStart = 0
   private warning = false
 
   constructor(deps: IdleLockManagerDeps) {
@@ -73,27 +83,33 @@ export class IdleLockManager {
     this.now = deps.now ?? (() => Date.now())
   }
 
-  /** Idempotent — matches `RealtimeConnectionManager.start()`'s shape. */
-  start(): void {
+  /** Idempotent — matches `RealtimeConnectionManager.start()`'s shape. `fresh` is the sign-in
+   * edge: the clock always starts from now, whatever storage holds. Without it (a reload, or a
+   * duplicated tab joining mid-session) the session's existing shared clock is adopted. */
+  start({ fresh = false }: { fresh?: boolean } = {}): void {
     if (this.running) return
     this.running = true
     const now = this.now()
-    this.lastLocalActivity = readLastActivity() ?? now
+    this.sessionKey = this.deps.sessionKey()
+    pruneStaleIdleClocks(this.sessionKey, now, ABSOLUTE_CAP_MS)
+    if (fresh) clearIdleChannel(this.sessionKey)
+    this.sessionStart = readSessionStart(this.sessionKey) ?? now
+    this.lastLocalActivity = readLastActivity(this.sessionKey) ?? now
     this.lastWrittenActivity = this.lastLocalActivity
     // Seeds the channel for the very first tab of a session, and re-confirms it for a second tab
     // opening mid-session — harmless either way since it's the same value already there.
-    writeLastActivity(this.lastLocalActivity)
-    if (readSessionStart() == null) writeSessionStart(now)
+    writeLastActivity(this.sessionKey, this.lastLocalActivity)
+    writeSessionStart(this.sessionKey, this.sessionStart)
     this.warning = false
     setIdleWarning(false, 0)
     this.attachActivityListeners()
-    this.unsubscribeStorage = subscribeToActivityFromOtherTabs(() => this.onSharedActivity())
+    this.unsubscribeStorage = subscribeToActivityFromOtherTabs(this.sessionKey, () => this.onSharedActivity())
     this.tickTimer = setInterval(() => this.tick(), TICK_MS)
   }
 
   /** Stops for good until the next `start()` — signed out, or this manager just locked the
-   * session. Clears the shared channel too: the next sign-in (this tab or another) starts a fresh
-   * 12-hour clock rather than inheriting a stale one. */
+   * session. Clears this session's shared clock too (other tabs of the same session keep their own
+   * in-memory copy of its start and end on the same sign-out or lock). */
   stop(): void {
     if (!this.running) return
     this.running = false
@@ -104,7 +120,7 @@ export class IdleLockManager {
     this.detachActivityListeners()
     this.warning = false
     setIdleWarning(false, 0)
-    clearIdleChannel()
+    clearIdleChannel(this.sessionKey)
   }
 
   /** The warning modal's "Stay signed in" button: counts as activity in every tab right away (not
@@ -120,7 +136,7 @@ export class IdleLockManager {
     this.lastLocalActivity = now
     if (forceWrite || now - this.lastWrittenActivity >= ACTIVITY_WRITE_THROTTLE_MS) {
       this.lastWrittenActivity = now
-      writeLastActivity(now)
+      writeLastActivity(this.sessionKey, now)
     }
     if (this.warning) {
       this.warning = false
@@ -131,7 +147,7 @@ export class IdleLockManager {
   /** Another tab wrote a newer activity timestamp than we've observed. Adopt it and clear our own
    * warning immediately, without waiting for the next tick. */
   private onSharedActivity(): void {
-    const shared = readLastActivity()
+    const shared = readLastActivity(this.sessionKey)
     if (shared != null && shared > this.lastLocalActivity) this.lastLocalActivity = shared
     if (this.warning) {
       this.warning = false
@@ -167,7 +183,7 @@ export class IdleLockManager {
 
     // The 12-hour cap wins outright — it fires regardless of activity, including while the idle
     // warning is already showing.
-    const sessionStart = readSessionStart() ?? now
+    const sessionStart = readSessionStart(this.sessionKey) ?? this.sessionStart
     if (now - sessionStart >= ABSOLUTE_CAP_MS) {
       this.triggerLock('absolute')
       return
@@ -175,7 +191,7 @@ export class IdleLockManager {
 
     // Adopt whatever the shared channel has in case another tab wrote more recently than we've
     // observed via the storage event (e.g. this tab was backgrounded and throttled by the browser).
-    const shared = readLastActivity()
+    const shared = readLastActivity(this.sessionKey)
     if (shared != null && shared > this.lastLocalActivity) this.lastLocalActivity = shared
 
     const idleFor = now - this.lastLocalActivity

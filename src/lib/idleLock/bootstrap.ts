@@ -2,6 +2,7 @@ import { requestNewAccessToken } from '@/api/client'
 import { endSession } from '@/lib/session'
 import { showToast } from '@/lib/toast'
 import { useAuthStore } from '@/stores/authStore'
+import { sessionKeyFromRefreshToken } from './activityChannel'
 import { IdleLockManager, type IdleLockReason } from './idleLockManager'
 
 const LOCK_MESSAGES: Record<IdleLockReason, string> = {
@@ -35,13 +36,15 @@ export const idleLockManager = new IdleLockManager({
   refreshSession: async () => {
     await requestNewAccessToken()
   },
+  sessionKey: () => sessionKeyFromRefreshToken(useAuthStore.getState().refreshToken),
 })
 
 /**
  * Starts the manager if a session already exists (a page reload mid-session), and from then on
  * starts/stops it exactly on the sign-in/sign-out edges of `authStore` — the same shape as
  * `lib/realtime/bootstrap.ts`'s `startRealtime()`, and for the same reason: a same-session token
- * refresh (`setAccessToken`) must not restart the idle clock. Call once, from `main.tsx`.
+ * refresh (`setAccessToken`) must not restart the idle clock. A reload continues the session's
+ * existing clock; a sign-in always starts a fresh one. Call once, from `main.tsx`.
  */
 export function startIdleLock(): void {
   let wasSignedIn = Boolean(useAuthStore.getState().accessToken)
@@ -49,7 +52,7 @@ export function startIdleLock(): void {
 
   useAuthStore.subscribe((state) => {
     const isSignedIn = Boolean(state.accessToken)
-    if (isSignedIn && !wasSignedIn) idleLockManager.start()
+    if (isSignedIn && !wasSignedIn) idleLockManager.start({ fresh: true })
     if (!isSignedIn && wasSignedIn) idleLockManager.stop()
     wasSignedIn = isSignedIn
   })

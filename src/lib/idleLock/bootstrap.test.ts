@@ -24,10 +24,10 @@ import { idleLockManager, startIdleLock } from './bootstrap'
 import { ABSOLUTE_CAP_MS, IDLE_LOCK_MS, IDLE_WARNING_MS } from './idleLockManager'
 import { useIdleLockStore } from './store'
 
-function signIn() {
+function signIn(refreshToken = 'r1') {
   useAuthStore.getState().setSession({
     access_token: 'a1',
-    refresh_token: 'r1',
+    refresh_token: refreshToken,
     user: { id: 'u1', email: 'x@y.z', first_name: 'A', last_name: 'B', role: 'consultancy_admin' } as never,
   })
 }
@@ -98,6 +98,24 @@ describe('idle lock bootstrap', () => {
     expect(requestNewAccessToken).toHaveBeenCalledTimes(1)
     expect(useIdleLockStore.getState().warning).toBe(false)
     expect(useAuthStore.getState().accessToken).toBe('a1')
+  })
+
+  it('a returning user is not signed out by the clock their previous session left behind', () => {
+    // Yesterday: signed in, worked, closed the browser — no sign-out ever ran.
+    signIn('v1.session-yesterday.idp-token')
+    vi.advanceTimersByTime(60_000)
+    const left = Object.entries(localStorage)
+    expect(left).toHaveLength(2)
+    // Simulate the closed tab: the auth store empties WITHOUT the manager's stop() tidying up.
+    useAuthStore.getState().clear()
+    for (const [key, value] of left) localStorage.setItem(key, value)
+
+    vi.advanceTimersByTime(20 * 60 * 60 * 1000)
+    signIn('v1.session-today.idp-token')
+    vi.advanceTimersByTime(5000)
+
+    expect(useAuthStore.getState().accessToken).toBe('a1')
+    expect(useToastStore.getState().toasts).toHaveLength(0)
   })
 
   it('does not run the idle clock at all while signed out', () => {

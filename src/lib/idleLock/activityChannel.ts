@@ -5,6 +5,14 @@
 // keep tab A alive, and a lock decided in one tab apply to all of them (each tab runs its own
 // `IdleLockManager`, reading the same shared clock).
 //
+// Both timestamps are stored PER SESSION (the key carries the session's own key, see
+// `sessionKeyFromRefreshToken`): closing the tab or the browser never runs a sign-out, so whatever
+// one session left behind must not be read as the next session's clock — that ended every returning
+// user's first sign-in a second later with "signed out for security". Tabs that share a session (a
+// duplicated tab) still share one clock; tabs signed in separately each keep their own, matching
+// the server, which tracks idle time per session too. A `null` session key (a refresh token that
+// isn't in the `v1.<session id>.<token>` form) means nothing is shared and nothing is stored.
+//
 // Every access is wrapped in try/catch: `localStorage` can throw in a private window with storage
 // blocked or full, and losing this channel should degrade to "each tab tracks only its own
 // activity," never break the console.
@@ -40,36 +48,84 @@ function clearKey(key: string): void {
   }
 }
 
-export function readLastActivity(): number | null {
-  return readNumber(LAST_ACTIVITY_KEY)
+function scoped(key: string, sessionKey: string): string {
+  return `${key}:${sessionKey}`
 }
 
-export function writeLastActivity(atMs: number): void {
-  writeNumber(LAST_ACTIVITY_KEY, atMs)
+/** The stable per-session part of the console's refresh token, `v1.<session id>.<token>` — an
+ * identifier, not a secret (the secret is the third part), and unchanged when the token rotates.
+ * `null` for anything not in that form. */
+export function sessionKeyFromRefreshToken(refreshToken: string | null): string | null {
+  if (!refreshToken) return null
+  const [version, sessionId, ...rest] = refreshToken.split('.')
+  if (version !== 'v1' || !sessionId || rest.length === 0) return null
+  return sessionId
 }
 
-export function readSessionStart(): number | null {
-  return readNumber(SESSION_START_KEY)
+export function readLastActivity(sessionKey: string | null): number | null {
+  return sessionKey ? readNumber(scoped(LAST_ACTIVITY_KEY, sessionKey)) : null
 }
 
-export function writeSessionStart(atMs: number): void {
-  writeNumber(SESSION_START_KEY, atMs)
+export function writeLastActivity(sessionKey: string | null, atMs: number): void {
+  if (sessionKey) writeNumber(scoped(LAST_ACTIVITY_KEY, sessionKey), atMs)
+}
+
+export function readSessionStart(sessionKey: string | null): number | null {
+  return sessionKey ? readNumber(scoped(SESSION_START_KEY, sessionKey)) : null
+}
+
+export function writeSessionStart(sessionKey: string | null, atMs: number): void {
+  if (sessionKey) writeNumber(scoped(SESSION_START_KEY, sessionKey), atMs)
 }
 
 /** Called when a session ends, from whichever tab noticed first (idle lock, absolute cap, Log out,
- * or the 401 interceptor) — the next sign-in should start a fresh clock, not inherit a stale one. */
-export function clearIdleChannel(): void {
-  clearKey(LAST_ACTIVITY_KEY)
-  clearKey(SESSION_START_KEY)
+ * or the 401 interceptor). Removes that session's clock only — another session signed in in a
+ * different tab keeps its own. */
+export function clearIdleChannel(sessionKey: string | null): void {
+  if (!sessionKey) return
+  clearKey(scoped(LAST_ACTIVITY_KEY, sessionKey))
+  clearKey(scoped(SESSION_START_KEY, sessionKey))
+}
+
+/** Housekeeping at sign-in/reload: a session that ended by closing the tab leaves its two entries
+ * behind for good. Removes every OTHER session's clock that started `maxAgeMs` or more ago (or has
+ * no readable start) — such a session is past the absolute cap, so no live tab can still be using
+ * it — plus the un-scoped keys older builds wrote. */
+export function pruneStaleIdleClocks(currentSessionKey: string | null, nowMs: number, maxAgeMs: number): void {
+  try {
+    const found = new Set<string>()
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (!key) continue
+      for (const base of [LAST_ACTIVITY_KEY, SESSION_START_KEY]) {
+        if (key === base) found.add('')
+        else if (key.startsWith(`${base}:`)) found.add(key.slice(base.length + 1))
+      }
+    }
+    for (const sessionKey of found) {
+      if (sessionKey === '') {
+        clearKey(LAST_ACTIVITY_KEY)
+        clearKey(SESSION_START_KEY)
+        continue
+      }
+      if (sessionKey === currentSessionKey) continue
+      const start = readSessionStart(sessionKey)
+      if (start == null || nowMs - start >= maxAgeMs) clearIdleChannel(sessionKey)
+    }
+  } catch {
+    /* storage unavailable — nothing to tidy */
+  }
 }
 
 /** Fires `onChange` when another tab records activity — lets a tab currently showing the 28-minute
  * warning clear it the instant someone moves the mouse in a different tab, rather than waiting for
  * this tab's own next tick (at most `TICK_MS`, but why make it wait at all). Ignores every other
- * storage key, including `imminow-auth` itself. */
-export function subscribeToActivityFromOtherTabs(onChange: () => void): () => void {
+ * storage key, including `imminow-auth` itself and other sessions' clocks. */
+export function subscribeToActivityFromOtherTabs(sessionKey: string | null, onChange: () => void): () => void {
+  if (!sessionKey) return () => {}
+  const ownKey = scoped(LAST_ACTIVITY_KEY, sessionKey)
   const handler = (e: StorageEvent) => {
-    if (e.key === LAST_ACTIVITY_KEY) onChange()
+    if (e.key === ownKey) onChange()
   }
   try {
     window.addEventListener('storage', handler)
