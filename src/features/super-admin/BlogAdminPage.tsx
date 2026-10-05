@@ -530,6 +530,7 @@ function AddArticleModal({ onClose }: { onClose: () => void }) {
                 // restricted to http(s) — see mock-server/lib/articleContent.js. Review Triage
                 // item 6 (web M4): DOMPurify runs a second, independent pass client-side before
                 // this ever reaches dangerouslySetInnerHTML, rather than trusting that alone.
+                // eslint-disable-next-line react/no-danger -- cleaned by sanitizeArticleHtml on this line
                 dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(preview.content) }}
               />
             </div>

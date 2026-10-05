@@ -2,6 +2,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { ExternalLink, GripVertical, Link2, Pencil, X } from 'lucide-react'
 import { COMPONENT_TYPE_ICONS, COMPONENT_TYPE_LABELS, type ComponentInput } from '@/lib/planComponents'
+import { sanitizeRichTextForDisplay } from '@/lib/sanitizeHtml'
 
 // Shared between Plan Templates' step-builder and the live client Plan editor (both build the
 // same kind of step out of the same component types) — extracted here rather than duplicated so
@@ -37,14 +38,22 @@ function textSnippet(component: ComponentInput): string {
 
 /**
  * A Text component's content as the student reads it. Rich text (format 'html', 2026-09-10) is
- * drawn with the same prose styles as the blog preview; the server has already cleaned it to the
- * blog allowlist. Older plain-text components keep their line breaks.
+ * drawn with the same prose styles as the blog preview. The server cleans it on save, but this is
+ * also what the builders preview BEFORE a save, and the server's cleaner is not to be the only
+ * defence (review F-032) — so it is cleaned here too, to the editor's own narrow allow-list. Older
+ * plain-text components keep their line breaks.
  */
 export function TextComponentContent({ payload }: { payload: Record<string, unknown> }) {
   const content = typeof payload.content === 'string' ? payload.content : ''
   if (!content) return <p className="text-body-sm italic text-text-secondary">No content yet.</p>
   if (payload.format === 'html') {
-    return <div className="prose-preview text-body-sm text-text-primary" dangerouslySetInnerHTML={{ __html: content }} />
+    return (
+      <div
+        className="prose-preview text-body-sm text-text-primary"
+        // eslint-disable-next-line react/no-danger -- cleaned by sanitizeRichTextForDisplay on this line
+        dangerouslySetInnerHTML={{ __html: sanitizeRichTextForDisplay(content) }}
+      />
+    )
   }
   return <p className="whitespace-pre-line text-body-sm text-text-secondary">{content}</p>
 }

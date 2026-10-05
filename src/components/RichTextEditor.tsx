@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Bold, Italic, Heading2, Heading3, List, ListOrdered, Quote, Link2, Eraser } from 'lucide-react'
+import { sanitizeRichText } from '@/lib/sanitizeHtml'
 
 interface RichTextEditorProps {
   value: string
@@ -27,6 +28,11 @@ interface RichTextEditorProps {
  * The value is applied to the DOM only when it differs from what this component last EMITTED.
  * Writing `innerHTML` on every render would reset the caret to the start of the document on every
  * keystroke, which is the classic way a controlled contentEditable becomes unusable.
+ *
+ * An incoming value is stored content (or an unsaved draft) and is cleaned to the editor's own
+ * allow-list before it touches the DOM (review F-032) — the server's cleaning is not the only
+ * defence. What the editor EMITS is left as the browser produced it; the server decides what is
+ * stored.
  */
 export function RichTextEditor({
   value,
@@ -46,7 +52,8 @@ export function RichTextEditor({
     const el = ref.current
     if (!el) return
     if (value !== lastEmitted.current) {
-      el.innerHTML = value
+      // eslint-disable-next-line no-restricted-properties -- cleaned by sanitizeRichText on this line
+      el.innerHTML = sanitizeRichText(value)
       lastEmitted.current = value
       setIsEmpty(!el.textContent?.trim())
     }
@@ -55,6 +62,7 @@ export function RichTextEditor({
   function emit() {
     const el = ref.current
     if (!el) return
+    // eslint-disable-next-line no-restricted-properties -- a read of the editor's own DOM, not a sink
     const html = el.innerHTML
     lastEmitted.current = html
     setIsEmpty(!el.textContent?.trim())

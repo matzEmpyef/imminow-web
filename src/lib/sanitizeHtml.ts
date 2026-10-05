@@ -46,3 +46,53 @@ export function sanitizeArticleHtml(html: string | null | undefined): string {
   if (!html) return ''
   return DOMPurify.sanitize(html, { ALLOWED_TAGS, ALLOWED_ATTR })
 }
+
+// ── Rich text written in the console's own editor (plan and plan-template text, country
+// write-ups) ──────────────────────────────────────────────────────────────────────────────────
+// Narrower than articles on purpose (review F-032): `RichTextEditor` has no image or table tool,
+// so those tags can only arrive in this content by a crafted request. The list is what the editor
+// can put in its own DOM — the stored tags (h2/h3/h4, p, strong/em, lists, blockquote, a, br) plus
+// what browsers emit before the server normalises it on save (`b`/`i` for bold/italic, `div` for
+// a new line), so an unsaved draft handed back to the editor or shown in a builder preview keeps
+// its shape. `href` is the only attribute, and only http(s) or protocol-relative — the server's
+// own rule for this content (`backend/app/core/html.py`). No `style`, no `class`, no `data-*`.
+const RICH_TEXT_TAGS = ['h2', 'h3', 'h4', 'p', 'div', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'blockquote', 'a']
+const RICH_TEXT_URI = /^(?:https?:)?\/\//i
+const RICH_TEXT_CONFIG = {
+  ALLOWED_TAGS: RICH_TEXT_TAGS,
+  ALLOWED_ATTR: ['href'],
+  ALLOWED_URI_REGEXP: RICH_TEXT_URI,
+  ALLOW_DATA_ATTR: false,
+  ALLOW_ARIA_ATTR: false,
+}
+
+/**
+ * Cleans rich text before it is written into the editor's own DOM (`RichTextEditor`). Scripts,
+ * event handlers, `style`, embeds (iframe/svg/object/embed/meta/form/img/table) and unsafe link
+ * schemes are removed; text inside a removed formatting tag is kept. Nothing is added — what the
+ * editor later emits is still for the server to decide.
+ */
+export function sanitizeRichText(html: string | null | undefined): string {
+  if (!html) return ''
+  return DOMPurify.sanitize(html, RICH_TEXT_CONFIG)
+}
+
+// Its own DOMPurify instance, so the link hook below applies to this one function and to nothing
+// else that sanitises (hooks are per instance).
+const displayPurify = DOMPurify(window)
+displayPurify.addHook('afterSanitizeAttributes', (node) => {
+  if (node.nodeName === 'A' && node.hasAttribute('href')) {
+    node.setAttribute('target', '_blank')
+    node.setAttribute('rel', 'noopener noreferrer')
+  }
+})
+
+/**
+ * `sanitizeRichText` for READ-ONLY display (`TextComponentContent`): the same cleaning, and every
+ * link opens in a new tab without a handle on the console's window — a link in a plan must not
+ * navigate the console away from the record the consultant has open.
+ */
+export function sanitizeRichTextForDisplay(html: string | null | undefined): string {
+  if (!html) return ''
+  return displayPurify.sanitize(html, RICH_TEXT_CONFIG)
+}

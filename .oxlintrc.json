@@ -7,6 +7,18 @@
     "eqeqeq": ["warn", "smart"],
     "no-console": "warn",
     "no-unused-vars": "warn",
+    // Raw-HTML sinks (review F-032). Stored HTML reaches the DOM only through the helpers in
+    // src/lib/sanitizeHtml.ts; a new sink has to carry its own disable comment naming the helper
+    // that cleaned the value (or why none is needed), so it cannot arrive unnoticed.
+    "react/no-danger": "error",
+    "no-restricted-properties": [
+      "error",
+      { "property": "innerHTML", "message": "Raw HTML sink — pass the value through src/lib/sanitizeHtml.ts and say so in a disable comment." },
+      { "property": "outerHTML", "message": "Raw HTML sink — pass the value through src/lib/sanitizeHtml.ts and say so in a disable comment." },
+      { "property": "insertAdjacentHTML", "message": "Raw HTML sink — pass the value through src/lib/sanitizeHtml.ts and say so in a disable comment." },
+      { "object": "document", "property": "write", "message": "Raw HTML sink — do not write markup into the document." },
+      { "object": "document", "property": "writeln", "message": "Raw HTML sink — do not write markup into the document." }
+    ],
     // Off deliberately (2026-08-25, narrowed 2026-09-01): every firing in this codebase is a
     // documented false positive — Modal/Drawer's role="dialog" backs useDialogA11y's own
     // focus-trap design (native <dialog>'s showModal()/::backdrop model would conflict with it
