@@ -83,11 +83,3 @@ export function scanStatusLabel(status: string | null | undefined): string | nul
   if (status === 'quarantined') return 'Failed virus check'
   return null
 }
-
-/** The clear, consistent text for a download's 409 `file_not_ready` / `file_quarantined` — used
- * wherever `ApiError`'s own server message isn't specific enough to fall back on. */
-export function describeDownloadError(code: string | undefined): string | undefined {
-  if (code === 'file_not_ready') return 'This file is still being checked. Try again in a moment.'
-  if (code === 'file_quarantined') return 'This file failed the virus check and cannot be opened.'
-  return undefined
-}

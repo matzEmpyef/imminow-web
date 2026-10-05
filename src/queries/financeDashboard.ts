@@ -4,31 +4,6 @@ import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 import type { components } from '@/api/schema'
 
-export interface FinanceDashboardFilters {
-  consultancy_id?: string
-  from?: string
-  to?: string
-  destination_country?: string
-  payer_method?: 'college' | 'applicant' | 'split'
-}
-
-// Kept working (other code may still import it) even though FinanceDashboardPage itself moved to
-// the paged /commission/finance/* endpoints below (2026-09-11) — the old /commission/finance-
-// dashboard endpoint loaded every case and every payment in one response, which does not scale to
-// hundreds of payments.
-export function useFinanceDashboard(filters: FinanceDashboardFilters = {}) {
-  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
-  return useQuery({
-    queryKey: ['finance-dashboard', filters],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/commission/finance-dashboard', { params: { query: filters } })
-      if (error) throw new ApiError('Could not load the finance dashboard.', error)
-      return data
-    },
-    enabled: isAuthed,
-  })
-}
-
 // Shared key prefix (2026-09-11) — every finance mutation (confirm, reject) invalidates this whole
 // prefix so the summary tiles, chart, balances, cases and payments tables all pick up the change
 // in one call rather than each mutation having to know every finance query key by hand.
