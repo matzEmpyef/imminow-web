@@ -75,14 +75,8 @@ function draftFor(component: ComponentInput | undefined, type: ComponentType): D
     // Answer options for a questionnaire (2026-08-23). Yes/No was hardcoded in the app until then,
     // so an existing component with no `options` falls back to that pair, as does a new one.
     options: list('options').length >= 2 ? list('options') : DEFAULT_OPTIONS,
-    // `form_template_id` is the CONTRACT key; `form_id` is a legacy key read as a fallback so old
-    // components stay editable, never written again.
-    formId:
-      typeof payload.form_template_id === 'string'
-        ? payload.form_template_id
-        : typeof payload.form_id === 'string'
-          ? payload.form_id
-          : '',
+    // `form_template_id` is the contract key; the server refuses a form_link without one.
+    formId: typeof payload.form_template_id === 'string' ? payload.form_template_id : '',
     // Web Link (2026-09-10): the address the student's phone opens, and optional button wording.
     url: typeof payload.url === 'string' ? payload.url : '',
     buttonText: typeof payload.button_text === 'string' ? payload.button_text : '',

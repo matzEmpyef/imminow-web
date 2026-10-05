@@ -123,22 +123,13 @@ export const INTAKE_OPTIONS: Record<string, string> = {
   ...Object.fromEntries(INTAKE_MONTHS.map((m) => [m.name, m.name])),
 }
 
-// Links minted before 2026-09-19 carry the old halves. The server folds them the same way for a
-// student's own intake — `first_half` is the Jan–Jul group, `second_half` the Aug–Dec one — so
-// an old shared search opens on the group the sender meant rather than being dropped.
-const LEGACY_INTAKE_HALVES: Record<string, string> = {
-  first_half: 'jan_jul',
-  second_half: 'aug_dec',
-}
-
 /** A shared link's `intake` value as this console will use it, or '' when it names nothing. */
 export function resolveSharedIntake(raw: string): string {
-  const value = LEGACY_INTAKE_HALVES[raw] ?? raw
-  if (INTAKE_OPTIONS[value]) return value
+  if (INTAKE_OPTIONS[raw]) return raw
   // A month name in any casing, or a bare 1–12, both of which the contract accepts.
-  const byName = INTAKE_MONTHS.find((m) => m.name.toLowerCase() === value.trim().toLowerCase())
+  const byName = INTAKE_MONTHS.find((m) => m.name.toLowerCase() === raw.trim().toLowerCase())
   if (byName) return byName.name
-  const byNumber = INTAKE_MONTHS.find((m) => String(m.value) === value.trim())
+  const byNumber = INTAKE_MONTHS.find((m) => String(m.value) === raw.trim())
   return byNumber ? byNumber.name : ''
 }
 
@@ -166,22 +157,11 @@ function loadPersonState(personId: string, personKind: 'client' | 'lead'): Finde
       : typeof parsed.fieldOfStudy === 'string' && parsed.fieldOfStudy
         ? [parsed.fieldOfStudy]
         : DEFAULT_STATE.fieldOfStudy
-    // Pre-2026-09-18 caches stored `country` as a single string (Course Finder's old single-select).
-    // Migrated to `countries: string[]` here rather than crashing the new multi-select or silently
-    // dropping the consultant's cached filter — a cache written by THIS build already has
-    // `countries` as an array, so that shape wins when present.
-    const countries = Array.isArray(parsed.countries)
-      ? (parsed.countries as string[])
-      : typeof parsed.country === 'string' && parsed.country
-        ? [parsed.country]
-        : DEFAULT_STATE.countries
-    // Drop the legacy `country` key explicitly rather than let it ride through the spread below —
-    // otherwise it survives as a stray property on every subsequent save (it is not part of
-    // FinderState, so nothing ever overwrites or clears it again).
-    const { country: _legacyCountry, ...parsedRest } = parsed
+    // A cache that is not the array this build writes must not reach the multi-select.
+    const countries = Array.isArray(parsed.countries) ? (parsed.countries as string[]) : DEFAULT_STATE.countries
     return {
       ...DEFAULT_STATE,
-      ...(parsedRest as Partial<FinderState>),
+      ...(parsed as Partial<FinderState>),
       fieldOfStudy,
       countries,
       personId,

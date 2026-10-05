@@ -68,14 +68,6 @@ describe('consoleDroppedFilters', () => {
     ).toEqual([])
   })
 
-  // Assumptions audit M9 (product owner, 2026-09-19): intake names a MONTH now. A link minted
-  // before that carries a calendar half, and it is folded onto the group the sender meant — the
-  // same fold the server applies to a student's own stored intake — rather than being dropped.
-  it('folds a pre-M9 calendar half onto its month group instead of dropping it', () => {
-    expect(consoleDroppedFilters({ intake: 'first_half' }, levels)).toEqual([])
-    expect(consoleDroppedFilters({ intake: 'second_half' }, levels)).toEqual([])
-  })
-
   it('takes a month by name in any case, or by number', () => {
     expect(consoleDroppedFilters({ intake: 'september' }, levels)).toEqual([])
     expect(consoleDroppedFilters({ intake: '9' }, levels)).toEqual([])

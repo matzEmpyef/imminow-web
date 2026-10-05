@@ -325,14 +325,13 @@ export function FormsTab({ clientId }: { clientId: string }) {
       step.components
         .filter((c) => c.type === 'form_link')
         .map((c) => {
-          // `form_template_id` is the contract key (openapi.yaml, mobile, mock server); this tab
-          // briefly read a drifted `form_id` and silently showed "No forms linked" for every
-          // correctly-seeded plan (user, 2026-08-20: "I cannot see the Form associated with the
-          // plan"). Legacy `form_id` stays as a fallback for components written during the drift.
-          const payload = (c.payload ?? {}) as { form_template_id?: string; form_id?: string; form_name?: string }
+          // `form_template_id` is the contract key (openapi.yaml, mobile); this tab briefly read
+          // a drifted `form_id` and silently showed "No forms linked" for every correctly-seeded
+          // plan (user, 2026-08-20: "I cannot see the Form associated with the plan").
+          const payload = (c.payload ?? {}) as { form_template_id?: string; form_name?: string }
           return {
             stepTitle: step.title,
-            formId: payload.form_template_id ?? payload.form_id ?? '',
+            formId: payload.form_template_id ?? '',
             formName: payload.form_name || c.label || 'Untitled form',
           }
         }),
