@@ -5,7 +5,7 @@ import { AppShell } from '@/features/auth/AppShell'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
-import { SearchSelect, type SearchSelectOption } from '@/components/SearchSelect'
+import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { Table, type TableColumn } from '@/components/Table'
 import { CountryLabel } from '@/components/CountryLabel'
 import { FilterChip } from '@/components/FilterChip'
@@ -23,10 +23,11 @@ import { useFeature } from '@/lib/features'
 import { useCreateTag, useTags } from '@/queries/tags'
 import { useListCeiling } from '@/lib/listCeilings'
 import { useCountries } from '@/queries/countries'
-import { useBranches, useEmployees } from '@/queries/staff'
+import { useBranches } from '@/queries/staff'
+import { activeEmployeeSource } from '@/queries/pickerSources'
 import { usePermissionChecker } from '@/lib/permissions'
 import { useAccountWords } from '@/lib/accountWords'
-import { useMyUserId } from '@/lib/me'
+import { useMeStaff } from '@/lib/me'
 import { useCursorPagination } from '@/lib/pagination'
 import { showToast } from '@/lib/toast'
 import { CASE_MOVED_ACTION_REASON, isCaseMoved } from '@/lib/clientStatus'
@@ -40,18 +41,19 @@ type Client = NonNullable<ReturnType<typeof useClients>['data']>['items'][number
 // always an unconditional reassignment server-side, so this one trigger now covers both the
 // first assignment and later reassignment ("Transfer Consultant"), retiring the separate
 // Transfer Applicant modal/endpoint outright instead of keeping two triggers side by side.
-// `employeeOptions` is passed in rather than fetched per-row, same reasoning as
-// ApplicantAllocationPage.tsx's AllocateAction.
+// The picker searches the roster on the server once the dialog is open (review F-036, lane x): the
+// rows used to share one list of the first hundred employees, leavers included.
 function AssignClientTrigger({
   clientId,
   clientName,
   isAssigned,
-  employeeOptions,
+  assignedEmployeeId,
 }: {
   clientId: string
   clientName: string
   isAssigned: boolean
-  employeeOptions: SearchSelectOption[]
+  /** The consultant who holds the case now: not offered as someone to transfer it to. */
+  assignedEmployeeId?: string | null
 }) {
   const [open, setOpen] = useState(false)
   const [employeeId, setEmployeeId] = useState('')
@@ -100,14 +102,16 @@ function AssignClientTrigger({
               to which consultant?
             </p>
             <div className="flex flex-col gap-xs">
-              <SearchSelect
+              <ServerSearchSelect
                 id="assign-employee"
                 label="Consultant"
                 required
-                options={employeeOptions}
+                source={activeEmployeeSource}
                 value={employeeId}
-                onChange={setEmployeeId}
-                placeholder="Search consultants…"
+                onChange={(id) => setEmployeeId(id)}
+                exclude={assignedEmployeeId ? (e) => e.id === assignedEmployeeId : undefined}
+                placeholder="Search by name…"
+                emptyText="No one matches that name."
               />
             </div>
           </div>
@@ -151,19 +155,14 @@ export function ClientsListPage() {
   const tagCeiling = useListCeiling('tags', tags.data?.length)
   const setClientTags = useSetClientTags()
   const countries = useCountries()
-  const employees = useEmployees()
   const branches = useBranches()
   // H7 (2026-09-13): the same branch note Active Leads carries — a viewer scoped to specific
   // branches should be told that is what they are looking at. Admins cover every branch.
-  const userId = useMyUserId()
-  const me = employees.data?.items.find((e) => e.user!.id === userId)
-  const myBranchNames = me?.is_consultancy_admin
+  // The viewer's own branches come from `GET /me` (lane x), not from a row found in the roster.
+  const me = useMeStaff()
+  const myBranchNames = !me || me.is_admin
     ? []
-    : (branches.data ?? []).filter((b) => me?.branch_ids?.includes(b.id!)).map((b) => b.name)
-  const employeeOptions: SearchSelectOption[] = (employees.data?.items ?? []).map((e) => ({
-    id: e.id!,
-    label: `${e.user!.first_name} ${e.user!.last_name}`,
-  }))
+    : (branches.data ?? []).filter((b) => me.branch_ids.includes(b.id!)).map((b) => b.name)
 
   const clients = useClients({
     assignedToMe,
@@ -348,7 +347,7 @@ export function ClientsListPage() {
                     clientId={client.id}
                     clientName={clientName}
                     isAssigned={Boolean(client.assigned_employee_id)}
-                    employeeOptions={employeeOptions}
+                    assignedEmployeeId={client.assigned_employee_id}
                   />
                 )}
               </>

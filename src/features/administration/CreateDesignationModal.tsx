@@ -1,15 +1,15 @@
 import { useState, type FormEvent } from 'react'
-import { SelectField } from '@/components/SelectField'
+import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
-import { useCreateDesignation, useEmployees } from '@/queries/staff'
+import { useCreateDesignation } from '@/queries/staff'
+import { activeEmployeeSource } from '@/queries/pickerSources'
 import { showToast } from '@/lib/toast'
 
 // User-requested — was an inline Card+form toggled below the page header, same move already
 // made for Create Applicant/Add Lead/Invite Employee/Add Branch.
 export function CreateDesignationModal({ onClose }: { onClose: () => void }) {
-  const employees = useEmployees()
   const createDesignation = useCreateDesignation()
   const [name, setName] = useState('')
   const [duplicateFrom, setDuplicateFrom] = useState('')
@@ -46,19 +46,22 @@ export function CreateDesignationModal({ onClose }: { onClose: () => void }) {
     >
       <form id="create-designation-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <TextField label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
-        <SelectField
-          label="Duplicate as new Designation from"
-          id="duplicate-from"
-          value={duplicateFrom}
-          onChange={(e) => setDuplicateFrom(e.target.value)}
-        >
-          <option value="">Start from scratch</option>
-          {employees.data?.items.map((emp) => (
-            <option key={emp.id} value={emp.id}>
-              {emp.user!.first_name} {emp.user!.last_name}&apos;s current access
-            </option>
-          ))}
-        </SelectField>
+        {/* Optional. Searched on the server (review F-036, lane x), so any colleague can be the
+            starting point, not only the first hundred on the roster. */}
+        <div className="flex flex-col gap-xs">
+          <ServerSearchSelect
+            label="Copy access from"
+            id="duplicate-from"
+            source={activeEmployeeSource}
+            value={duplicateFrom}
+            onChange={(id) => setDuplicateFrom(id)}
+            placeholder="Start from scratch, or search by name…"
+            emptyText="No one matches that name."
+          />
+          <p className="text-caption text-text-secondary">
+            Leave this empty to start from scratch. Choose a colleague to begin with the access they have now.
+          </p>
+        </div>
       </form>
     </Modal>
   )

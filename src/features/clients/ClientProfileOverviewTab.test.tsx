@@ -20,7 +20,7 @@ vi.mock('@/queries/clients', () => ({
 }))
 vi.mock('@/queries/consultancy', () => ({ useMyConsultancy: vi.fn() }))
 vi.mock('@/lib/features', () => ({ useFeature: vi.fn() }))
-vi.mock('@/queries/staff', () => ({ useBranches: vi.fn(), useEmployees: vi.fn() }))
+vi.mock('@/queries/staff', () => ({ useBranches: vi.fn(), useEmployee: vi.fn() }))
 vi.mock('@/queries/tags', () => ({ useCreateTag: vi.fn(), useTags: vi.fn() }))
 vi.mock('@/lib/permissions', () => ({ usePermission: vi.fn() }))
 vi.mock('@/queries/plans', () => ({ usePlans: vi.fn(), useLinkedFormResponses: vi.fn() }))
@@ -33,7 +33,7 @@ import {
 } from '@/queries/clients'
 import { useMyConsultancy } from '@/queries/consultancy'
 import { useFeature } from '@/lib/features'
-import { useBranches, useEmployees } from '@/queries/staff'
+import { useBranches, useEmployee } from '@/queries/staff'
 import { useCreateTag, useTags } from '@/queries/tags'
 import { usePermission } from '@/lib/permissions'
 import { usePlans, useLinkedFormResponses } from '@/queries/plans'
@@ -89,7 +89,7 @@ beforeEach(() => {
   vi.mocked(useSetFinalizedCountry).mockReturnValue({ mutate: vi.fn(), isPending: false } as never)
   vi.mocked(useMyConsultancy).mockReturnValue(query({ countries_served: [] }))
   vi.mocked(useBranches).mockReturnValue(query([]))
-  vi.mocked(useEmployees).mockReturnValue(query({ items: [] }))
+  vi.mocked(useEmployee).mockReturnValue(query(null))
   vi.mocked(useCreateTag).mockReturnValue({ mutateAsync: vi.fn() } as never)
   vi.mocked(useTags).mockReturnValue(query([]))
 })

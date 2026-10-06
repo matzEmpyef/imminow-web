@@ -11,14 +11,14 @@ import { RequestedBranchBadge, RequestedBranchNote } from '@/components/Requeste
 import { ReopenLeadModal } from './ReopenLeadModal'
 import { ReopenTrigger } from '@/components/ReopenTrigger'
 import { canOfferLeadReopen, useCanReopen } from '@/lib/reopenRules'
-import { useBranches, useEmployees } from '@/queries/staff'
+import { useBranches } from '@/queries/staff'
 import { useAllocateLead, useLeads, useSetLeadTags } from '@/queries/leads'
 import { useCreateTag, useTags } from '@/queries/tags'
 import { useListCeiling } from '@/lib/listCeilings'
 import { useCursorPagination } from '@/lib/pagination'
 import { usePermission } from '@/lib/permissions'
 import { useAccountWords } from '@/lib/accountWords'
-import { useMyUserId } from '@/lib/me'
+import { useMeStaff } from '@/lib/me'
 import { FilterChip } from '@/components/FilterChip'
 import { Toggle } from '@/components/Toggle'
 import { timeAgo } from '@/lib/time'
@@ -51,7 +51,6 @@ export function ActiveLeadsPage() {
     cursor: paging.cursor,
     limit: 20,
   })
-  const employees = useEmployees()
   const branches = useBranches()
   const reassign = useAllocateLead()
   // H2 (2026-09-13) — an institute's staff are not "consultants". The column now says what it
@@ -59,11 +58,12 @@ export function ActiveLeadsPage() {
   const words = useAccountWords()
   // H7 (2026-09-13): branch scoping decided what this list showed and said so nowhere. The note
   // is for the viewer it actually narrows — an admin covers every branch, so it would be noise.
-  const userId = useMyUserId()
-  const me = employees.data?.items.find((e) => e.user!.id === userId)
-  const myBranchNames = me?.is_consultancy_admin
+  // Who the viewer is comes from `GET /me` (lane x): their own row used to be looked up in the
+  // first hundred employees, so the note went missing for the newest staff of a large consultancy.
+  const me = useMeStaff()
+  const myBranchNames = !me || me.is_admin
     ? []
-    : (branches.data ?? []).filter((b) => me?.branch_ids?.includes(b.id!)).map((b) => b.name)
+    : (branches.data ?? []).filter((b) => me.branch_ids.includes(b.id!)).map((b) => b.name)
   const multiBranch = (branches.data?.length ?? 0) > 1
   const tags = useTags()
   const createTag = useCreateTag()
@@ -167,9 +167,7 @@ export function ActiveLeadsPage() {
           ) : null
         ) : !canReassign ? null : (
           <AssignConsultantMenu
-            employees={(employees.data?.items ?? [])
-              .filter((e) => e.id !== lead.assigned_employee_id)
-              .map((e) => ({ id: e.id, name: `${e.user.first_name} ${e.user.last_name}` }))}
+            excludeEmployeeId={lead.assigned_employee_id}
             onSelect={(employeeId) => reassign.mutate({ id: lead.id, employeeId })}
             label={`Reassign ${lead.name}`}
             description="Choose which consultant this should be reassigned to."

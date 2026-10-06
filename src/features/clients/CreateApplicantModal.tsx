@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from 'react'
-import { SelectField } from '@/components/SelectField'
+import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { useNavigate } from 'react-router-dom'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
-import { useEmployees } from '@/queries/staff'
+import { activeEmployeeSource } from '@/queries/pickerSources'
 import { useCreateApplicant } from '@/queries/clients'
 import type { ApplicantRequest } from '@/queries/applicantRequests'
 import { createApplicantErrorMessage, dailyLimitLine } from '@/lib/applicantRequestWords'
@@ -29,7 +29,6 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
   // H2 (2026-09-13) — an institute is not a consultancy; the nouns follow `kind`.
   const words = useAccountWords()
   const navigate = useNavigate()
-  const employees = useEmployees()
   const createApplicant = useCreateApplicant()
   // One key per opened form and content: a retry of the same applicant replays the first answer
   // instead of creating a second account or sending a second request; edited details are new.
@@ -191,19 +190,18 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
           </div>
         </fieldset>
 
-        <SelectField
+        {/* Searched on the server (review F-036, lane x): every colleague who works here now can be
+            chosen, however large the roster. */}
+        <ServerSearchSelect
           label={words.isInstitute ? 'Assigned team member' : 'Assigned Consultant'}
+          required
           id="assigned-consultant"
+          source={activeEmployeeSource}
           value={employeeId}
-          onChange={(e) => setEmployeeId(e.target.value)}
-        >
-          <option value="">Select…</option>
-          {employees.data?.items.map((emp) => (
-            <option key={emp.id} value={emp.id}>
-              {emp.user.first_name} {emp.user.last_name}
-            </option>
-          ))}
-        </SelectField>
+          onChange={(id) => setEmployeeId(id)}
+          placeholder="Search by name…"
+          emptyText="No one matches that name."
+        />
         <p className="text-caption text-text-secondary">Branch auto-fills from the assigned {words.person}.</p>
       </form>
     </Modal>

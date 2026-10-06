@@ -9,7 +9,7 @@ import { Card } from '@/components/Card'
 import { Skeleton } from '@/components/QueryState'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
-import { useEmployees } from '@/queries/staff'
+import { useAllEmployees } from '@/queries/staff'
 import { useAllocationRule, useUpdateAllocationRule } from '@/queries/allocationRules'
 import { usePlatformSettings } from '@/queries/catalogSettings'
 import { ApiError } from '@/api/errors'
@@ -57,7 +57,8 @@ function ModeCard({
 
 export function AllocationTab({ enabled }: { enabled: boolean }) {
   const rule = useAllocationRule()
-  const employees = useEmployees()
+  // The whole active roster, however long (lane x): the server leaves out people who have left.
+  const employees = useAllEmployees('true')
   const updateRule = useUpdateAllocationRule()
 
   const [mode, setMode] = useState<Mode>('manual')
@@ -83,7 +84,7 @@ export function AllocationTab({ enabled }: { enabled: boolean }) {
     })
   }
 
-  const activeEmployees = (employees.data?.items ?? []).filter((e) => e.active !== false)
+  const activeEmployees = employees.data?.items ?? []
   const noOneChosen = mode === 'round_robin' && selected.size === 0
   // The platform's own figure, shown as the placeholder so the admin can see what "blank" means
   // rather than having to ask (C11).

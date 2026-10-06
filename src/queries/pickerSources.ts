@@ -15,6 +15,7 @@ export type Course = components['schemas']['Course']
 export type College = components['schemas']['College']
 export type Consultancy = components['schemas']['Consultancy']
 export type Institution = components['schemas']['Institution']
+export type Employee = components['schemas']['Employee']
 
 const PAGE = 30
 
@@ -194,3 +195,68 @@ export const institutionSource: ServerSearchSource<Institution> = {
   },
   toOption: (i) => ({ id: i.id, label: i.name }),
 }
+
+export const employeeName = (e: Employee) => `${e.user.first_name} ${e.user.last_name}`.trim()
+
+/** Which part of the roster: people who work here now (the server's default), or leavers too. */
+export type EmployeeActiveFilter = 'true' | 'all'
+
+/** One page of the caller's own roster (`GET /staff/employees`): `search` matches the name. */
+export async function fetchEmployeePage({
+  search,
+  cursor,
+  limit = PAGE,
+  active = 'true',
+  signal,
+}: {
+  search?: string
+  cursor?: string
+  limit?: number
+  active?: EmployeeActiveFilter
+  signal?: AbortSignal
+}) {
+  const { data, error } = await api.GET('/staff/employees', {
+    params: { query: { search: search || undefined, cursor, limit, 'filter[active]': active } },
+    signal,
+  })
+  if (error) throw new ApiError('Could not load employees.', error)
+  return data
+}
+
+/** One roster row by id (`GET /staff/employees/{id}`), active or not. */
+export async function fetchEmployee(id: string, signal?: AbortSignal) {
+  const { data, error } = await api.GET('/staff/employees/{id}', { params: { path: { id } }, signal })
+  if (error) throw new ApiError('Could not load this employee.', error)
+  return data ?? null
+}
+
+/**
+ * The consultancy's own staff (review F-036, lane x): every assign, transfer and recipient picker
+ * reads this. The server searches the whole roster by name and pages by cursor, so a colleague is
+ * reachable however large the consultancy is; a saved value comes from `GET /staff/employees/{id}`.
+ * A colleague's row may be a summary (`detail: "summary"`): the name and the job title are all a
+ * picker shows, and both are in it.
+ *
+ * `active: 'all'` adds people who have left (the audit log's "who did it" filter); they are marked.
+ */
+export function employeeSource(active: EmployeeActiveFilter = 'true'): ServerSearchSource<Employee> {
+  return {
+    queryKey: ['picker', 'employees', active],
+    fetchPage: async ({ search, cursor, signal }) => {
+      const data = await fetchEmployeePage({ search, cursor, active, signal })
+      return { items: data.items, nextCursor: data.meta.next_cursor }
+    },
+    fetchById: (id, signal) => fetchEmployee(id, signal),
+    toOption: (e) => ({
+      id: e.id,
+      label: employeeName(e),
+      sublabel: e.user.designation ?? undefined,
+      group: e.active === false ? 'Disabled' : undefined,
+    }),
+  }
+}
+
+/** People who work here now: what an assign, transfer or recipient picker offers. */
+export const activeEmployeeSource = employeeSource('true')
+/** Everyone who has ever been on the roster. */
+export const anyEmployeeSource = employeeSource('all')

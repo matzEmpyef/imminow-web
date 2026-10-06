@@ -1,27 +1,68 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useMutation } from '@/lib/useSave'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 import type { components } from '@/api/schema'
+import { fetchEmployee, fetchEmployeePage, type Employee, type EmployeeActiveFilter } from './pickerSources'
 
 type EmployeeInput = components['schemas']['EmployeeInput']
 type EmployeePatchInput = components['schemas']['EmployeePatchInput']
 type DesignationInput = components['schemas']['DesignationInput']
 type BranchInput = components['schemas']['BranchInput']
 
-export function useEmployees() {
+/** Every write to the roster refreshes the screens' lists and what the pickers hold. */
+function invalidateEmployees(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: ['employees'] })
+  queryClient.invalidateQueries({ queryKey: ['picker', 'employees'] })
+}
+
+/**
+ * The WHOLE roster, for the two screens that show all of it at once: the Employees management
+ * page (`active: 'all'`, leavers included) and the allocation rule's checklist of who receives
+ * leads (`'true'`, people who work here now). Follows the cursor to the end, so nobody is cut off
+ * at the hundredth row (review F-036). Pickers never use this: they search on the server through
+ * `employeeSource`.
+ */
+export function useAllEmployees(active: EmployeeActiveFilter = 'true') {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
-    queryKey: ['employees'],
+    queryKey: ['employees', 'all', active],
     queryFn: async ({ signal }) => {
-      // T2 (third-pass review): every consumer treats this as the COMPLETE roster (Lead Pool
-      // allocate menu, seat counts) — the contract default of 20 silently truncated it at the
-      // 21st employee. The mock returns everything regardless, which is why this never showed
-      // in QA; the contract caps at 100 (seat ceilings top out at 50, so 100 covers every tier).
-      const { data, error } = await api.GET('/staff/employees', { signal, params: { query: { limit: 100 } } })
-      if (error) throw new ApiError('Could not load employees.', error)
-      return data
+      const items: Employee[] = []
+      let cursor: string | undefined
+      do {
+        const page = await fetchEmployeePage({ cursor, limit: 100, active, signal })
+        items.push(...page.items)
+        cursor = page.meta.next_cursor ?? undefined
+      } while (cursor)
+      return { items }
+    },
+    enabled: isAuthed,
+  })
+}
+
+/** One colleague by id: the consultant a case is assigned to, a saved choice. */
+export function useEmployee(id: string | null | undefined) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['employees', 'one', id],
+    queryFn: ({ signal }) => fetchEmployee(id!, signal),
+    enabled: isAuthed && Boolean(id),
+  })
+}
+
+/**
+ * How many people work here now: what the plan's seat limit counts (the server counts active
+ * employees). One row is asked for; the answer is the list's own total.
+ */
+export function useActiveEmployeeCount() {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['employees', 'count'],
+    queryFn: async ({ signal }) => {
+      const page = await fetchEmployeePage({ limit: 1, signal })
+      return page.meta.total ?? page.items.length
     },
     enabled: isAuthed,
   })
@@ -35,7 +76,7 @@ export function useInviteEmployee() {
       if (error) throw new ApiError('Could not invite this employee.', error)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['employees'] }),
+    onSuccess: () => invalidateEmployees(queryClient),
   })
 }
 
@@ -47,7 +88,7 @@ export function useUpdateEmployee(id: string) {
       if (error) throw new ApiError('Could not update this employee.', error)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['employees'] }),
+    onSuccess: () => invalidateEmployees(queryClient),
   })
 }
 
@@ -65,7 +106,7 @@ export function useDisableEmployee() {
       if (error) throw new ApiError('Could not disable this employee.', error)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] })
+      invalidateEmployees(queryClient)
       // The handover moves records onto someone else's list — leave the stale ones behind and
       // the reassigned work stays invisible until a manual refresh.
       queryClient.invalidateQueries({ queryKey: ['leads'] })

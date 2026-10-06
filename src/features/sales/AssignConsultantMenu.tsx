@@ -3,16 +3,14 @@ import { UserPlus, type LucideIcon } from 'lucide-react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { StopPropagation } from '@/components/StopPropagation'
-import { SelectField } from '@/components/SelectField'
-
-interface ConsultantOption {
-  id: string
-  name: string
-}
+import { ServerSearchSelect } from '@/components/ServerSearchSelect'
+import { activeEmployeeSource, employeeName, type Employee } from '@/queries/pickerSources'
 
 interface AssignConsultantMenuProps {
-  employees: ConsultantOption[]
-  onSelect: (employeeId: string) => void
+  /** `name` is the chosen colleague's name, for the caller's confirmation message. */
+  onSelect: (employeeId: string, name: string | undefined) => void
+  /** Left out of the choices: the consultant who already holds the lead being reassigned. */
+  excludeEmployeeId?: string | null
   label: string
   description?: string
   variant?: 'icon' | 'button'
@@ -27,11 +25,15 @@ interface AssignConsultantMenuProps {
 // action (icon trigger) and the bulk Allocate Selected action (labeled button trigger), so both
 // share one consistent picker instead of two different affordances for the same choice. Opens as
 // a centered `Modal` (user-requested, not an inline dropdown panel) with a one-line explanation,
-// a `<select>` to choose the consultant, and an explicit Confirm step — picking a name in the
+// a picker to choose the consultant, and an explicit Confirm step — picking a name in the
 // dropdown no longer allocates immediately, only Confirm does.
+//
+// The picker searches the roster on the server (review F-036, lane x): it used to be handed the
+// first hundred employees, leavers included, so in a large consultancy the newest staff could not
+// be chosen. Only people who work here now are offered.
 export function AssignConsultantMenu({
-  employees,
   onSelect,
+  excludeEmployeeId,
   label,
   description = 'Choose which consultant this should be allocated to.',
   variant = 'icon',
@@ -41,15 +43,17 @@ export function AssignConsultantMenu({
 }: AssignConsultantMenuProps) {
   const [open, setOpen] = useState(false)
   const [choice, setChoice] = useState('')
+  const [chosen, setChosen] = useState<Employee>()
 
   function openMenu() {
     setChoice('')
+    setChosen(undefined)
     setOpen(true)
   }
 
   function handleConfirm() {
     if (!choice) return
-    onSelect(choice)
+    onSelect(choice, chosen ? employeeName(chosen) : undefined)
     setOpen(false)
   }
 
@@ -95,16 +99,20 @@ export function AssignConsultantMenu({
         >
           <div className="flex flex-col gap-md">
             <p className="text-body-sm text-text-secondary">{description}</p>
-            <SelectField label="Consultant" value={choice} onChange={(e) => setChoice(e.target.value)}>
-              <option value="" disabled>
-                Select a consultant…
-              </option>
-              {employees.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.name}
-                </option>
-              ))}
-            </SelectField>
+            <ServerSearchSelect
+              id="assign-consultant"
+              label="Consultant"
+              required
+              source={activeEmployeeSource}
+              value={choice}
+              onChange={(id, employee) => {
+                setChoice(id)
+                setChosen(employee)
+              }}
+              exclude={excludeEmployeeId ? (e) => e.id === excludeEmployeeId : undefined}
+              placeholder="Search by name…"
+              emptyText="No one matches that name."
+            />
           </div>
         </Modal>
       )}

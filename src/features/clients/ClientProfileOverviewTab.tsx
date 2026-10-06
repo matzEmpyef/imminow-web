@@ -16,7 +16,7 @@ import { CountryLabel } from '@/components/CountryLabel'
 import { useClient, useSetClientBranch, useSetClientTags, useSetFinalizedCountry } from '@/queries/clients'
 import { useMyConsultancy } from '@/queries/consultancy'
 import { useFeature } from '@/lib/features'
-import { useBranches, useEmployees } from '@/queries/staff'
+import { useBranches, useEmployee } from '@/queries/staff'
 import { useCreateTag, useTags } from '@/queries/tags'
 import { useListCeiling } from '@/lib/listCeilings'
 import { usePermission } from '@/lib/permissions'
@@ -65,7 +65,9 @@ export function OverviewTab({
   // At the tag ceiling the editor still picks existing tags but won't create one (2026-09-25).
   const tagCeiling = useListCeiling('tags', tags.data?.length)
   const setClientTags = useSetClientTags()
-  const employees = useEmployees()
+  // The assigned consultant's own row, by id (lane x): it used to be looked for in the first
+  // hundred employees, where the newest staff of a large consultancy were missing.
+  const assigned = useEmployee(client.data?.assigned_employee_id)
   const branches = useBranches()
   const setClientBranch = useSetClientBranch()
   const consultancy = useMyConsultancy()
@@ -112,8 +114,13 @@ export function OverviewTab({
   // including its admin bypass — consultancy admins cover every branch by default (user-requested
   // follow-up, "Consultancy admin should have access to all branch by default"), regardless of
   // what's actually stored in their own branch_ids.
-  const assignedEmployee = employees.data?.items.find((e) => e.id === data.assigned_employee_id)
-  const employeeBranches = assignedEmployee?.is_consultancy_admin
+  //
+  // A colleague's row can be a summary (`detail: "summary"`), which leaves `is_consultancy_admin`
+  // out; the role, which a summary does carry, answers the same question there. This only decides
+  // which branches are OFFERED: the server checks the move itself.
+  const assignedEmployee = assigned.data ?? undefined
+  const assignedIsAdmin = assignedEmployee?.is_consultancy_admin ?? assignedEmployee?.user.role === 'consultancy_admin'
+  const employeeBranches = assignedIsAdmin
     ? (branches.data ?? [])
     : (branches.data ?? []).filter((b) => assignedEmployee?.branch_ids?.includes(b.id!))
   // Transfer's own 409 `case_has_accepted_college` (product owner 2026-09-24) — a college already

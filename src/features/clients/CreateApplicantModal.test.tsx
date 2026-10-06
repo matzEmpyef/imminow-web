@@ -14,8 +14,13 @@ vi.mock('react-router-dom', async (importOriginal) => ({
 }))
 vi.mock('@/api/client', () => ({ api: { GET: vi.fn(), POST: vi.fn() } }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
-vi.mock('@/queries/staff', () => ({
-  useEmployees: () => ({ data: { items: [{ id: 'e1', user: { first_name: 'Meera', last_name: 'Iyer' } }] } }),
+// The consultant picker searches the roster on the server (its own tests: components/
+// ServerSearchSelect.test.tsx and queries/employeePickers.test.tsx). Here it is a plain field, so
+// these tests stay about what Create Applicant does with the answer.
+vi.mock('@/components/ServerSearchSelect', () => ({
+  ServerSearchSelect: ({ label, value, onChange }: { label: string; value: string; onChange: (id: string) => void }) => (
+    <input aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} />
+  ),
 }))
 vi.mock('@/lib/accountWords', () => ({ useAccountWords: () => ({ isInstitute: false, person: 'consultant' }) }))
 

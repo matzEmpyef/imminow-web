@@ -14,7 +14,6 @@ vi.mock('@/queries/staff', () => ({
   useInviteEmployee: vi.fn(),
   useUpdateEmployee: vi.fn(),
   useDisableEmployee: vi.fn(),
-  useEmployees: vi.fn(),
   useUpdateDesignation: vi.fn(),
   useCreateDesignation: vi.fn(),
   useDesignations: vi.fn(),
@@ -30,7 +29,6 @@ vi.mock('@/features/auth/AppShell', () => ({ AppShell: ({ children }: { children
 import {
   useDesignations,
   useDisableEmployee,
-  useEmployees,
   useInviteEmployee,
   useUpdateDesignation,
   useUpdateEmployee,
@@ -80,7 +78,6 @@ beforeEach(() => {
   vi.mocked(useUpdateEmployee).mockReturnValue(mutation(updateEmployeeMutate))
   vi.mocked(useDisableEmployee).mockReturnValue(mutation(vi.fn()))
   vi.mocked(useUpdateDesignation).mockReturnValue(mutation(updateDesignationMutate))
-  vi.mocked(useEmployees).mockReturnValue({ data: { items: [] }, isLoading: false, isError: false } as never)
   vi.mocked(useMyConsultancy).mockReturnValue({
     data: { kind: 'consultancy', available_permissions: AVAILABLE, limits: { tags: 100, designations: 50, branches: 100 } },
   } as never)

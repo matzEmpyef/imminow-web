@@ -6,7 +6,8 @@ import { ApiError } from '@/api/errors'
 import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
 import { useAuditLog, type AuditLogFilters } from '@/queries/auditLog'
-import { useEmployees } from '@/queries/staff'
+import { ServerSearchSelect } from '@/components/ServerSearchSelect'
+import { anyEmployeeSource } from '@/queries/pickerSources'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDateTime } from '@/lib/time'
 import { useAccountWords } from '@/lib/accountWords'
@@ -28,7 +29,6 @@ type Entry = NonNullable<ReturnType<typeof useAuditLog>['data']>['items'][number
 export function AuditLogPage() {
   // H2 (2026-09-13) — an institute is not a consultancy; the nouns follow `kind`.
   const words = useAccountWords()
-  const employees = useEmployees()
   const [actorId, setActorId] = useState('')
   const [actionType, setActionType] = useState<AuditLogFilters['action_type'] | ''>('')
   const [area, setArea] = useState<AuditLogFilters['area'] | ''>('')
@@ -146,21 +146,21 @@ export function AuditLogPage() {
           }}
           filters={
             <>
-              <CompactSelect
-                value={actorId}
-                onChange={(e) => {
-                  setActorId(e.target.value)
-                  resetPaging()
-                }}
-                label="Actor"
-              >
-                <option value="">Anyone</option>
-                {employees.data?.items.map((emp) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.user!.first_name} {emp.user!.last_name}
-                  </option>
-                ))}
-              </CompactSelect>
+              {/* Who did it, searched on the server across the whole roster (lane x), people who
+                  have left included: their entries are still in the log. */}
+              <div className="w-56">
+                <ServerSearchSelect
+                  ariaLabel="Actor"
+                  source={anyEmployeeSource}
+                  value={actorId}
+                  onChange={(id) => {
+                    setActorId(id)
+                    resetPaging()
+                  }}
+                  placeholder="Actor: anyone"
+                  emptyText="No one matches that name."
+                />
+              </div>
               <CompactSelect
                 value={actionType}
                 onChange={(e) => {

@@ -17,7 +17,7 @@ vi.mock('@/queries/leads', () => ({
   useAllocateLead: vi.fn(),
   useBulkAllocateLeads: vi.fn(),
 }))
-vi.mock('@/queries/staff', () => ({ useEmployees: vi.fn(), useBranches: vi.fn() }))
+vi.mock('@/queries/staff', () => ({ useBranches: vi.fn() }))
 vi.mock('@/lib/features', () => ({ useFeature: vi.fn(() => false) }))
 vi.mock('@/lib/permissions', () => ({ usePermissionChecker: vi.fn(() => ({ can: () => true })) }))
 vi.mock('@/lib/accountWords', () => ({ useAccountWords: vi.fn(() => ({ person: 'consultant', org: 'consultancy' })) }))
@@ -27,7 +27,7 @@ vi.mock('./CloseLeadModal', () => ({ CloseLeadModal: () => null }))
 vi.mock('@/features/clients/LeadDetailModal', () => ({ LeadDetailModal: () => null }))
 
 import { useAllocateLead, useBulkAllocateLeads, useLeads } from '@/queries/leads'
-import { useBranches, useEmployees } from '@/queries/staff'
+import { useBranches } from '@/queries/staff'
 import { LeadPoolPage } from './LeadPoolPage'
 
 const MUMBAI = { id: 'branch-mumbai', name: 'Head Office — Mumbai', address: '14th Floor', active: true }
@@ -68,7 +68,6 @@ function renderPool(branches: typeof MUMBAI[]) {
 
 beforeEach(() => {
   vi.mocked(useLeads).mockReturnValue(query({ items: LEADS, meta: { total: LEADS.length } }))
-  vi.mocked(useEmployees).mockReturnValue(query({ items: [], meta: { total: 0 } }))
   vi.mocked(useAllocateLead).mockReturnValue({ mutate: vi.fn(), isPending: false } as never)
   vi.mocked(useBulkAllocateLeads).mockReturnValue({ mutate: vi.fn(), isPending: false } as never)
 })

@@ -5,7 +5,9 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { Toggle } from '@/components/Toggle'
-import { useDisableEmployee, useEmployees, useUpdateEmployee } from '@/queries/staff'
+import { useDisableEmployee, useUpdateEmployee } from '@/queries/staff'
+import { ServerSearchSelect } from '@/components/ServerSearchSelect'
+import { activeEmployeeSource } from '@/queries/pickerSources'
 import { BranchAccessPicker } from './BranchAccessPicker'
 import { branchAccessChanged, primaryBranchError, type BranchAccess } from './branchAccess'
 import { permissionKeys, pickPermissions, useAvailablePermissions, visiblePermissionGroups } from '@/lib/permissions'
@@ -90,10 +92,7 @@ function AccessModalBody({
   // Who inherits this employee's leads and clients. Only asked for when they actually hold some
   // — the server's own rule, mirrored here so the dialog isn't padded with an irrelevant field.
   const [successorId, setSuccessorId] = useState('')
-  const allEmployees = useEmployees()
   const assignedWork = employee.assigned_work_count ?? 0
-  // Read from the same cached list the page above already fetched, not a second request.
-  const successorOptions = (allEmployees.data?.items ?? []).filter((e) => e.id !== employee.id && e.active !== false)
 
   const designation = designations.find((d) => d.id === designationId)
   const baseline = designation?.permissions ?? {}
@@ -286,14 +285,19 @@ function AccessModalBody({
                   Reassign their {assignedWork} lead{assignedWork === 1 ? '' : 's'}/client
                   {assignedWork === 1 ? '' : 's'} to
                 </p>
-                <SelectField label="Reassign to" value={successorId} onChange={(e) => setSuccessorId(e.target.value)}>
-                  <option value="">Select an employee…</option>
-                  {successorOptions.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.user!.first_name} {e.user!.last_name}
-                    </option>
-                  ))}
-                </SelectField>
+                {/* Searched on the server (review F-036, lane x): anyone who works here now, never
+                    the person being disabled. */}
+                <ServerSearchSelect
+                  id={`successor-${employee.id}`}
+                  label="Reassign to"
+                  required
+                  source={activeEmployeeSource}
+                  value={successorId}
+                  onChange={(id) => setSuccessorId(id)}
+                  exclude={(e) => e.id === employee.id}
+                  placeholder="Search by name…"
+                  emptyText="No one matches that name."
+                />
                 <p className="text-caption text-text-secondary">
                   Work left on a disabled account shows up on nobody's list, so this can't be skipped.
                 </p>

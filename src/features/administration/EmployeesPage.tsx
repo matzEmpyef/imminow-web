@@ -8,7 +8,7 @@ import { EmployeeAccessModal } from './EmployeeAccessModal'
 import { EditEmployeeModal } from './EditEmployeeModal'
 import { useFeature } from '@/lib/features'
 import { useAccountWords } from '@/lib/accountWords'
-import { useBranches, useDesignations, useEmployees } from '@/queries/staff'
+import { useAllEmployees, useBranches, useDesignations } from '@/queries/staff'
 import type { components } from '@/api/schema'
 
 type Employee = components['schemas']['Employee']
@@ -21,7 +21,10 @@ export function EmployeesPage() {
   const hasDesignations = useFeature('designations')
   const hasMultiBranch = useFeature('multi_branch')
   const words = useAccountWords()
-  const employees = useEmployees()
+  // Everyone who has ever worked here, leavers included (`filter[active]=all`, lane x): the server
+  // now hides deactivated staff unless asked, and this is the page where they are re-read. The
+  // whole roster is loaded, page after page, so search and sort below cover all of it.
+  const employees = useAllEmployees('all')
   const designations = useDesignations()
   const branches = useBranches()
 
@@ -70,12 +73,20 @@ export function EmployeesPage() {
       header: 'Contact',
       // One column, email above phone (user, 2026-09-10) — same as the Clients list: they are read
       // together, and two columns spent the table's width on one piece of information.
-      render: (employee) => (
-        <div className="flex flex-col">
-          <span className="text-text-secondary">{employee.user!.email}</span>
-          <span className="text-text-secondary">{employee.user!.phone ?? '—'}</span>
-        </div>
-      ),
+      //
+      // A row the server sent as a summary carries no contact details at all (lane x). That means
+      // "not shown to you", never "this person has no email", so it is said in those words. This
+      // page is for holders of "Manage employees", who get every row in full; the guard is for the
+      // moment that permission has just been taken away.
+      render: (employee) =>
+        employee.detail === 'summary' ? (
+          <span className="text-text-secondary">Not shown to you</span>
+        ) : (
+          <div className="flex flex-col">
+            <span className="text-text-secondary">{employee.user!.email ?? '—'}</span>
+            <span className="text-text-secondary">{employee.user!.phone ?? '—'}</span>
+          </div>
+        ),
     },
     {
       key: 'designation',
@@ -99,6 +110,10 @@ export function EmployeesPage() {
               const branchNames = (branches.data ?? [])
                 .filter((b) => employee.branch_ids?.includes(b.id!))
                 .map((b) => (b.id === primaryId ? `${b.name} (primary)` : b.name))
+              // A summary row has no access rights in it: "not shown", never "none" (lane x).
+              if (employee.detail === 'summary') {
+                return <span className="text-text-secondary">Not shown to you</span>
+              }
               return (
                 <span className="text-text-secondary">
                   {/* The owner carries every permission by definition — `usePermissionChecker`
@@ -127,7 +142,8 @@ export function EmployeesPage() {
     {
       key: 'actions',
       header: '',
-      render: (employee) => (
+      // Nothing to edit on a summary row: its details were not sent, and the server would refuse.
+      render: (employee) => employee.detail === 'summary' ? null : (
         <div className="flex justify-end">
           <EditEmployeeModal employee={employee} designations={designations.data ?? []} />
           {/* Branches moved to Starter on 2026-09-21, which left this modal — the ONLY place an

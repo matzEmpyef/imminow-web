@@ -14,7 +14,7 @@ import {
   useRequestUpgrade,
   useWithdrawUpgrade,
 } from '@/queries/consultancy'
-import { useEmployees } from '@/queries/staff'
+import { useActiveEmployeeCount } from '@/queries/staff'
 import { humaniseCode } from '@/lib/humanise'
 import { daysUntil, formatDate } from '@/lib/time'
 import { FEATURE_REGISTRY, STARTER_CORE_FEATURES, TIER_ORDER, TIER_LABEL } from '@/lib/features'
@@ -30,7 +30,7 @@ type Consultancy = NonNullable<ReturnType<typeof useMyConsultancy>['data']>
 export function SubscriptionTab({ consultancy }: { consultancy: Consultancy }) {
   const requestUpgrade = useRequestUpgrade(consultancy.id)
   const withdrawUpgrade = useWithdrawUpgrade(consultancy.id)
-  const employees = useEmployees()
+  const activeEmployees = useActiveEmployeeCount()
   // H13 (2026-09-13): "Upgrade to Ultimate" fired a real request to immiNow on one click, with
   // nothing said about what happens next. It asks first now.
   const [confirmUpgrade, setConfirmUpgrade] = useState(false)
@@ -40,9 +40,9 @@ export function SubscriptionTab({ consultancy }: { consultancy: Consultancy }) {
   const tier = consultancy.tier ?? 'starter'
   const tierIndex = TIER_ORDER.indexOf(tier)
   const nextTier = TIER_ORDER[tierIndex + 1]
-  // T2: meta.total when the server provides it — items.length is only ever one page, so a
-  // consultancy over one page of employees under-reported its own seat usage.
-  const seatsUsed = employees.data?.meta.total ?? employees.data?.items.length ?? 0
+  // A seat is taken by someone who works here now (the server counts active employees against
+  // the limit), so this is the active roster's own total, not the length of one page (lane x).
+  const seatsUsed = activeEmployees.data ?? 0
   // Always present on the consultancy's own record; optional in the contract only because other
   // callers get the public projection without it (contract gate 4).
   const seatLimit = consultancy.seat_limit ?? 0

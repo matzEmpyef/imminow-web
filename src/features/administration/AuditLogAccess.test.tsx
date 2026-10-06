@@ -31,7 +31,6 @@ vi.mock('@/components/GlobalChatDrawer', () => ({ GlobalChatDrawer: () => null }
 vi.mock('@/components/NotificationsDropdown', () => ({ NotificationsDropdown: () => null }))
 vi.mock('@/features/auth/SubscriptionBanner', () => ({ SubscriptionBanner: () => null }))
 vi.mock('@/queries/activity', () => ({ useActivityFeed: () => ({ data: undefined }) }))
-vi.mock('@/queries/staff', () => ({ useEmployees: () => ({ data: { items: [] } }) }))
 vi.mock('@/lib/features', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/features')>()),
   useFeatures: () => ({ data: { audit_log: true }, isLoading: false, isError: false }),

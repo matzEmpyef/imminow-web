@@ -11,10 +11,10 @@ vi.mock('@/queries/me', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/queries/me')>()),
   useMe: vi.fn(),
 }))
-vi.mock('@/queries/staff', () => ({ useEmployees: vi.fn(), useDesignations: vi.fn() }))
+vi.mock('@/queries/staff', () => ({ useAllEmployees: vi.fn(), useDesignations: vi.fn() }))
 
 import { useMe } from '@/queries/me'
-import { useEmployees, useDesignations } from '@/queries/staff'
+import { useAllEmployees, useDesignations } from '@/queries/staff'
 import { meAnswered, meFailed, meLoading, meRefused, meSignedOut, plainMe, platformMe, staffMe } from '@/test/me'
 import {
   PERMISSION_GROUPS,
@@ -54,7 +54,7 @@ describe('usePermissionChecker', () => {
     expect(can('clients.view_own')).toBe(true)
     expect(isLoading).toBe(false)
     expect(isError).toBe(false)
-    expect(useEmployees).not.toHaveBeenCalled()
+    expect(useAllEmployees).not.toHaveBeenCalled()
     expect(useDesignations).not.toHaveBeenCalled()
   })
 

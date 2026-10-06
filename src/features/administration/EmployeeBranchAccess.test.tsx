@@ -17,7 +17,6 @@ vi.mock('@/queries/staff', () => ({
   useInviteEmployee: vi.fn(),
   useUpdateEmployee: vi.fn(),
   useDisableEmployee: vi.fn(),
-  useEmployees: vi.fn(),
 }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
 // The access editor reads the plan's visible permissions and features off `GET /me`. Left
@@ -27,7 +26,7 @@ vi.mock('@/queries/me', async (importOriginal) => ({
   useMe: vi.fn(),
 }))
 
-import { useDisableEmployee, useEmployees, useInviteEmployee, useUpdateEmployee } from '@/queries/staff'
+import { useDisableEmployee, useInviteEmployee, useUpdateEmployee } from '@/queries/staff'
 import { useMe } from '@/queries/me'
 import { meSignedOut } from '@/test/me'
 import { InviteEmployeeModal } from './InviteEmployeeModal'
@@ -62,7 +61,6 @@ beforeEach(() => {
   vi.mocked(useInviteEmployee).mockReturnValue(mutation(inviteMutate))
   vi.mocked(useUpdateEmployee).mockReturnValue(mutation(updateMutate))
   vi.mocked(useDisableEmployee).mockReturnValue(mutation(vi.fn()))
-  vi.mocked(useEmployees).mockReturnValue({ data: { items: [] }, isLoading: false, isError: false } as never)
   vi.mocked(useMe).mockReturnValue(meSignedOut())
 })
 

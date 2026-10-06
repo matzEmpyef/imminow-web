@@ -32,7 +32,7 @@ import { useConversations } from './conversations'
 import { useDashboard } from './dashboard'
 import { useFinanceSummary } from './financeDashboard'
 import { useAllocateLead, useCloseLead, useLeads, useReopenLead, useSendLeadMessage } from './leads'
-import { useEmployees, useUpdateBranch } from './staff'
+import { useEmployee, useUpdateBranch } from './staff'
 import { useDeleteTag } from './tags'
 
 const mockedGet = vi.mocked(api.GET)
@@ -174,7 +174,8 @@ describe('other saves that left a screen stale', () => {
   it.each([
     ['the leads list', '/leads', () => useLeads({})],
     ['the clients list', '/clients', () => useClients({})],
-    ['the employees list', '/staff/employees', () => useEmployees()],
+    // Every roster read shares the `employees` key prefix; one row stands for them here.
+    ['the employee records', '/staff/employees/{id}', () => useEmployee('e1')],
   ] as const)('renaming a branch refreshes %s, which named the branch', async (_name, path, read) => {
     await expectRefetch(path, read, () => useUpdateBranch('b1'), (w) => w.mutateAsync({ name: 'Kochi Central' } as never))
   })

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Button } from '@/components/Button'
 import { Table, type TableColumn } from '@/components/Table'
@@ -6,7 +6,7 @@ import { AssignConsultantMenu } from '@/features/sales/AssignConsultantMenu'
 import { AddLeadModal, ImportLeadsModal } from './ImportLeadsModal'
 import { RequestedBranchBadge, RequestedBranchNote } from '@/components/RequestedBranch'
 import { useFeature } from '@/lib/features'
-import { useBranches, useEmployees } from '@/queries/staff'
+import { useBranches } from '@/queries/staff'
 import { useAllocateLead, useBulkAllocateLeads, useLeads } from '@/queries/leads'
 import { useCursorPagination } from '@/lib/pagination'
 import { usePermissionChecker } from '@/lib/permissions'
@@ -47,7 +47,6 @@ export function LeadPoolPage() {
     cursor: paging.cursor,
     limit: 20,
   })
-  const employees = useEmployees()
   // Only worth a column when there is more than one branch to have asked for — on a single-branch
   // consultancy every answer is the same branch, which is no information at all.
   const branches = useBranches()
@@ -67,11 +66,6 @@ export function LeadPoolPage() {
   const canImport = hasOwnLeads && can('leads.import')
   const canAllocate = can('leads.allocate_from_pool')
 
-  const consultantOptions = useMemo(
-    () => (employees.data?.items ?? []).map((e) => ({ id: e.id, name: `${e.user.first_name} ${e.user.last_name}` })),
-    [employees.data],
-  )
-
   // The lead whose study preference popup is open, or null.
   const [prefsLead, setPrefsLead] = useState<Lead | null>(null)
   // The lead being closed from its row, or null.
@@ -81,12 +75,11 @@ export function LeadPoolPage() {
   // 2026-09-13); `leads.close` never existed server-side, so this row control was always shown.
   const canClose = can('clients.close')
 
-  function handleBulkAllocate(employeeId: string) {
+  function handleBulkAllocate(employeeId: string, consultantName: string | undefined) {
     // T8: pending guard + one key per confirmed selection — a double-fire of the same
     // confirmation is one allocation, not two.
     if (bulkAllocate.isPending) return
     const count = selected.size
-    const consultantName = consultantOptions.find((c) => c.id === employeeId)?.name
     bulkAllocate.mutate(
       { lead_ids: [...selected], employee_id: employeeId, idempotencyKey: crypto.randomUUID() },
       {
@@ -181,9 +174,7 @@ export function LeadPoolPage() {
             header: 'Allocate',
             render: (lead) => (
               <AssignConsultantMenu
-                employees={consultantOptions}
-                onSelect={(employeeId) => {
-                  const consultantName = consultantOptions.find((c) => c.id === employeeId)?.name
+                onSelect={(employeeId, consultantName) => {
                   allocate.mutate(
                     { id: lead.id, employeeId },
                     {
@@ -279,7 +270,6 @@ export function LeadPoolPage() {
               // it will do and to how many is one thing to read.
               <div className="flex items-center gap-sm">
                 <AssignConsultantMenu
-                  employees={consultantOptions}
                   onSelect={handleBulkAllocate}
                   label={`Allocate ${selected.size} lead${selected.size === 1 ? '' : 's'}`}
                   buttonText={`Allocate ${selected.size} selected`}

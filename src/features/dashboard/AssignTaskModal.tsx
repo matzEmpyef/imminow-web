@@ -1,12 +1,10 @@
 import { useState, type FormEvent } from 'react'
-import { SelectField } from '@/components/SelectField'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { useAssignActivityTask } from '@/queries/activity'
-import { useEmployees } from '@/queries/staff'
-import { personSource, type PersonRow } from '@/queries/pickerSources'
+import { activeEmployeeSource, employeeName, personSource, type Employee, type PersonRow } from '@/queries/pickerSources'
 import { showToast } from '@/lib/toast'
 
 // User-requested (2026-08-15) — "Assign Task needs to be a popup... Also the client selection...
@@ -15,7 +13,6 @@ import { showToast } from '@/lib/toast'
 // "Related client" is now "Related client or lead," a single searchable field spanning both
 // lists (mirroring GlobalSearch's own Applicant/Lead tagging) instead of a client-only <select>.
 export function AssignTaskModal({ onClose }: { onClose: () => void }) {
-  const employees = useEmployees()
   // Shared with Course Finder through `personSource` — one definition of "every applicant, every
   // active allocated lead", searched on the server (F-038) rather than two capped pages.
   const [related, setRelated] = useState<PersonRow>()
@@ -23,6 +20,8 @@ export function AssignTaskModal({ onClose }: { onClose: () => void }) {
 
   const [relatedId, setRelatedId] = useState('')
   const [assignedTo, setAssignedTo] = useState('')
+  // The colleague chosen, searched on the server (review F-036, lane x); kept for the confirmation.
+  const [assignee, setAssignee] = useState<Employee>()
   const [note, setNote] = useState('')
   const [dueDate, setDueDate] = useState('')
   // Optional, unlike the self-assigned lead-reminder flow's required due_time (2026-08-29
@@ -35,8 +34,7 @@ export function AssignTaskModal({ onClose }: { onClose: () => void }) {
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!assignedTo || !note || !dueDate) return
-    const assignee = employees.data?.items.find((emp) => emp.id === assignedTo)
-    const assigneeName = assignee ? `${assignee.user!.first_name} ${assignee.user!.last_name}` : undefined
+    const assigneeName = assignee ? employeeName(assignee) : undefined
     assignTask.mutate(
       {
         journey_id: relatedId && !isRelatedLead ? relatedId : undefined,
@@ -90,20 +88,19 @@ export function AssignTaskModal({ onClose }: { onClose: () => void }) {
             placeholder="Search applicants and leads…"
           />
         </div>
-        <SelectField
+        <ServerSearchSelect
           label="Assign to"
           required
           id="task-assignee"
+          source={activeEmployeeSource}
           value={assignedTo}
-          onChange={(e) => setAssignedTo(e.target.value)}
-        >
-          <option value="">Select…</option>
-          {employees.data?.items.map((emp) => (
-            <option key={emp.id} value={emp.id}>
-              {emp.user!.first_name} {emp.user!.last_name}
-            </option>
-          ))}
-        </SelectField>
+          onChange={(id, employee) => {
+            setAssignedTo(id)
+            setAssignee(employee)
+          }}
+          placeholder="Search by name…"
+          emptyText="No one matches that name."
+        />
         <TextField label="Note" required value={note} onChange={(e) => setNote(e.target.value)} />
         <div className="grid grid-cols-2 gap-md">
           <TextField
