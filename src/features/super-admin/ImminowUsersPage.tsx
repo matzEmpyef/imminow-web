@@ -20,7 +20,6 @@ type Row = NonNullable<ReturnType<typeof useImminowUserDirectory>['data']>['item
 const IMMINOW_USERS_CSV_COLUMNS: CsvColumn<Row>[] = [
   { header: 'Name', value: (r) => r.name },
   { header: 'Email', value: (r) => r.email },
-  { header: 'Kind', value: (r) => (r.kind === 'platform_staff' ? 'Platform Staff' : 'Consultancy Staff') },
   { header: 'Consultancy', value: (r) => r.consultancy_name ?? '' },
   { header: 'Designation', value: (r) => r.designation ?? '' },
   { header: 'Status', value: (r) => (r.active ? 'Active' : 'Disabled') },
@@ -29,9 +28,11 @@ const IMMINOW_USERS_CSV_COLUMNS: CsvColumn<Row>[] = [
   { header: 'Last login', value: (r) => r.last_login_at ?? '' },
 ]
 
-// This is the immiNow (console) directory — every consultancy's employees plus platform staff,
-// distinguished by `kind`, never blended with the Sentpo student directory (SentpoUsersPage.tsx /
-// GET /admin/users/sentpo). See docs/PROGRESS.md §4 Step 3.
+// This is the immiNow (console) directory — consultancy and institute staff only (owner, 2026-10-06:
+// the platform's own staff are on PlatformTeamPage, which opens the same sign-in history), never
+// blended with the Sentpo student directory (SentpoUsersPage.tsx / GET /admin/users/sentpo). The
+// server does the cut, so paging, totals and the CSV all agree; `kind` is still on each row but is
+// always `consultancy_staff` now, so nothing here shows it. See docs/PROGRESS.md §4 Step 3.
 export function ImminowUsersPage() {
   // `?search=<name>` (2026-09-12, product review H7) — Support surfaces link a consultant's name
   // straight here with a name to search, the same way ManageConsultanciesPage does for a company.
@@ -89,15 +90,6 @@ export function ImminowUsersPage() {
       ),
     },
     {
-      key: 'kind',
-      header: 'Kind',
-      render: (r) => (
-        <Badge color={r.kind === 'platform_staff' ? 'secondary' : 'primary'}>
-          {r.kind === 'platform_staff' ? 'Platform Staff' : 'Consultancy Staff'}
-        </Badge>
-      ),
-    },
-    {
       key: 'consultancy_name',
       header: 'Consultancy',
       render: (r) => r.consultancy_name ?? <span className="text-text-secondary">—</span>,
@@ -140,7 +132,7 @@ export function ImminowUsersPage() {
           <div>
             <h1 className="text-h1 text-text-primary">immiNow Users</h1>
             <p className="text-body-sm text-text-secondary">
-              Every consultancy's employees plus Sentpo's own platform staff. Select a person to see their sign-in history.
+              Every consultancy's and institute's employees. Select a person to see their sign-in history. Sentpo's own platform staff are under Platform Team.
             </p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-xs">
@@ -194,7 +186,6 @@ export function ImminowUsersPage() {
                   setConsultancyId(id)
                   resetPaging()
                 }}
-                placeholder="Any (incl. platform staff)"
               />
               <CompactSelect
                 value={active}

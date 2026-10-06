@@ -23188,7 +23188,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** immiNow console user directory (docs/PROGRESS.md §4 Step 3) — every consultancy's employees plus platform staff, distinguished by `kind`, never blended with the Sentpo student directory (see /admin/users/sentpo). Gated to user_directory (platform_staff_administration before the 2026-09-10 split). Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, invited_at, last_login_at. filter[x]= accepts consultancy_id, active=true|false, never_active=true (invited or accepted but last_login_at null). search matches name and email. */
+        /** immiNow console user directory (docs/PROGRESS.md §4 Step 3) — consultancy and institute staff only (2026-10-06: platform staff are on the Platform Team page, so every row's `kind` is `consultancy_staff`), never blended with the Sentpo student directory (see /admin/users/sentpo). Gated to user_directory (platform_staff_administration before the 2026-09-10 split). Default sort name asc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts name, invited_at, last_login_at. filter[x]= accepts consultancy_id, active=true|false, never_active=true (invited or accepted but last_login_at null). search matches name and email. */
         get: {
             parameters: {
                 query?: {
@@ -29101,17 +29101,20 @@ export interface components {
             consultancy_name: string | null;
             points_balance: number;
         };
-        /** @description One row of GET /admin/users/imminow (docs/PROGRESS.md §4 Step 3) — every consultancy's employees plus platform staff, distinguished by `kind` so the two never blend in the UI either. */
+        /** @description One row of GET /admin/users/imminow (docs/PROGRESS.md §4 Step 3) — one consultancy or institute employee. Platform staff are not listed here (owner, 2026-10-06); they are on the Platform Team page (GET /platform-staff). */
         ImminowUserDirectoryRow: {
             id: components["schemas"]["UUID"];
-            /** @enum {string} */
+            /**
+             * @description Always `consultancy_staff` since 2026-10-06 — platform staff are no longer listed. Kept so a client built on it keeps working; the console no longer shows it.
+             * @enum {string}
+             */
             kind: "consultancy_staff" | "platform_staff";
             name: string;
             /** Format: email */
             email: string;
-            /** @description Null for platform_staff rows. */
+            /** @description The employee's consultancy or institute. */
             consultancy_name: string | null;
-            /** @description Employee designation name for consultancy_staff; "Super Admin" or "Platform Staff" for platform_staff. */
+            /** @description Employee designation name, or "Owner/Admin" for the consultancy's admin. */
             designation: string | null;
             active: boolean;
             /**

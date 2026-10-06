@@ -8,6 +8,8 @@ import { Table, type TableColumn } from '@/components/Table'
 import { Modal } from '@/components/Modal'
 import { Drawer } from '@/components/Drawer'
 import { FilterChip } from '@/components/FilterChip'
+import { StopPropagation } from '@/components/StopPropagation'
+import { PersonSignInDrawer, type SignInHistoryPerson } from './PersonSignInDrawer'
 import {
   useCreatePlatformStaff,
   useDisablePlatformStaff,
@@ -20,7 +22,7 @@ import { useAuthStore } from '@/stores/authStore'
 import type { components } from '@/api/schema'
 import type { PlatformPermissionKey } from '@/features/auth/PlatformRoute'
 import { EMAIL_ERROR, isValidEmail } from '@/lib/validation'
-import { formatDateTime, relativeTime } from '@/lib/time'
+import { formatDate, formatDateTime, relativeTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 
 type PlatformStaff = components['schemas']['PlatformStaff']
@@ -573,11 +575,15 @@ function StaffDrawerBody({ staff, currentUserId }: { staff: PlatformStaff; curre
 export function PlatformTeamPage() {
   const staff = usePlatformStaff()
   const currentUserId = useAuthStore((s) => s.user?.id)
+  // Sign-in history is the user directory's (`user_directory`), not Team management's: the server
+  // refuses it without that flag, so the control is only offered to someone who holds it.
+  const canSeeHistory = useAuthStore((s) => Boolean(s.user?.platform_permissions?.user_directory))
   const [showAdd, setShowAdd] = useState(false)
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StaffStatus | 'all'>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [historyFor, setHistoryFor] = useState<SignInHistoryPerson | null>(null)
 
   const searched = useMemo(() => {
     let items = staff.data ?? []
@@ -615,6 +621,28 @@ export function PlatformTeamPage() {
 
   const selected = staff.data?.find((s) => s.id === selectedId) ?? null
 
+  // The same drawer immiNow Users opens from a row (it is keyed by the user id). Someone still
+  // invited has no account yet — `user_id` is left out of their row — so there is nothing to show.
+  const historyColumn: TableColumn<PlatformStaff> = {
+    key: 'history',
+    header: 'Sign-in history',
+    align: 'right',
+    render: (s) =>
+      s.user_id ? (
+        <StopPropagation>
+          <button
+            type="button"
+            onClick={() => setHistoryFor({ id: s.user_id!, name: s.name, email: s.email, kind: 'platform_staff' })}
+            className="text-caption font-medium text-primary hover:underline"
+          >
+            View history
+          </button>
+        </StopPropagation>
+      ) : (
+        <span className="text-caption text-text-secondary">No account yet</span>
+      ),
+  }
+
   const columns: TableColumn<PlatformStaff>[] = [
     {
       key: 'name',
@@ -640,11 +668,22 @@ export function PlatformTeamPage() {
     },
     { key: 'access', header: 'Access', render: (s) => <span className="text-text-secondary">{accessSummary(s)}</span> },
     {
+      key: 'invited_joined',
+      header: 'Invited / Joined',
+      hideBelow: 'md',
+      render: (s) => (
+        <span className="text-text-primary">
+          {s.invited_at ? formatDate(s.invited_at) : '—'} / {s.joined_at ? formatDate(s.joined_at) : '—'}
+        </span>
+      ),
+    },
+    {
       key: 'last_sign_in',
       header: 'Last sign-in',
       sortable: true,
       render: (s) => <span className="text-text-secondary">{lastSignInLabel(s)}</span>,
     },
+    ...(canSeeHistory ? [historyColumn] : []),
   ]
 
   return (
@@ -695,7 +734,7 @@ export function PlatformTeamPage() {
         <Drawer open={selected != null} onClose={() => setSelectedId(null)} title="Platform staff">
           {selected && <StaffDrawerBody key={selected.id} staff={selected} currentUserId={currentUserId} />}
         </Drawer>
-
+        <PersonSignInDrawer person={historyFor} onClose={() => setHistoryFor(null)} />
       </div>
     </AdminShell>
   )
