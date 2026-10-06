@@ -13,6 +13,7 @@ import { usePermission } from '@/lib/permissions'
 import { showToast } from '@/lib/toast'
 import { CloseClientModal } from './CloseClientModal'
 import { RaiseIssueModal } from './RaiseIssueModal'
+import { CLIENT_TABS, isClientTab, type ClientTab } from '@/lib/clientTabs'
 import { canOfferCaseReopen } from '@/lib/reopenRules'
 import { ReopenClientModal } from './ReopenClientModal'
 import { OverviewTab } from './ClientProfileOverviewTab'
@@ -25,17 +26,10 @@ import { ActivityTab } from './ClientProfileActivityTab'
 import { FormsTab } from './ClientProfileFormsTab'
 import { caseMovedBannerMessage, clientStatusLabel, isCaseMoved, accountDeletedBannerMessage, closeSubReasonLabel } from '@/lib/clientStatus'
 
-const TABS = [
-  'Overview',
-  'Plan',
-  'Forms',
-  'Commissions',
-  'Applications',
-  'Documents',
-  'Internal Notes',
-  'Activity',
-] as const
-type Tab = (typeof TABS)[number]
+// The tab names live in `lib/clientTabs.ts`, shared with every screen that links to one of them
+// (review F-164), so a rename here cannot leave a link elsewhere pointing at a tab that is gone.
+const TABS = CLIENT_TABS
+type Tab = ClientTab
 
 export function ClientProfilePage() {
   const { id = '' } = useParams()
@@ -62,7 +56,7 @@ export function ClientProfilePage() {
   // filling in the modal and collecting a 403. Same key now gates Close Lead (LeadConversationPage).
   const canCloseCase = usePermission('clients.close')
   const tabParam = searchParams.get('tab')
-  const activeTab: Tab = (TABS as readonly string[]).includes(tabParam ?? '') ? (tabParam as Tab) : 'Overview'
+  const activeTab: Tab = isClientTab(tabParam) ? tabParam : 'Overview'
   // Which plan the Plan tab should open, when the consultant arrived by clicking one on
   // Overview (2026-09-09). Lives in the URL for the same reason the tab does: a refresh
   // mid-review should not lose their place.

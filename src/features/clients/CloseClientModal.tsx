@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { clientTabPath } from '@/lib/clientTabs'
 import { Link } from 'react-router-dom'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
@@ -164,7 +165,7 @@ export function CloseClientModal({
             )}
             {(!isPr || canOpenCommissions) && (
               <Link
-                to={`/clients/${clientId}?tab=${isPr ? 'Commissions' : 'Applications'}`}
+                to={clientTabPath(clientId, isPr ? 'Commissions' : 'Applications')}
                 onClick={onClose}
                 className="mt-xs inline-block font-medium text-primary hover:underline"
               >

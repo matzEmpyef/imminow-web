@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { clientTabPath } from '@/lib/clientTabs'
 import { AppShell } from '@/features/auth/AppShell'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
@@ -117,7 +118,7 @@ export function ActivityPage() {
       key: `step-${s.step_id}`,
       date: s.expected_end_date,
       kind: 'Step' as const,
-      to: `/clients/${s.journey_id}?tab=Plan&step=${s.step_id}`,
+      to: clientTabPath(s.journey_id, 'Plan', { step: s.step_id }),
       label: (
         <>
           {s.client_name} — {s.step_title}
@@ -128,7 +129,7 @@ export function ActivityPage() {
       key: `deadline-${d.journey_id}-${d.deadline}`,
       date: d.deadline,
       kind: 'Deadline' as const,
-      to: `/clients/${d.journey_id}?tab=Selected Colleges`,
+      to: clientTabPath(d.journey_id, 'Applications'),
       label: (
         <>
           {d.client_name} — {d.course_name}
@@ -182,7 +183,7 @@ export function ActivityPage() {
             {data.pending_step_approvals.length > 0 && (
               <ActionSection title="Steps to review" count={data.pending_step_approvals.length}>
                 {data.pending_step_approvals.map((item) => (
-                  <ActionRow key={item.step_id} to={`/clients/${item.journey_id}?tab=Plan&step=${item.step_id}`}>
+                  <ActionRow key={item.step_id} to={clientTabPath(item.journey_id, 'Plan', { step: item.step_id })}>
                     <div>
                       <p className="text-body-sm text-text-primary">
                         {item.client_name} — {item.step_title}
@@ -222,7 +223,7 @@ export function ActivityPage() {
             {data.overdue_steps.length > 0 && (
               <ActionSection title="Overdue steps" count={data.overdue_steps.length}>
                 {data.overdue_steps.map((item) => (
-                  <ActionRow key={item.step_id} to={`/clients/${item.journey_id}?tab=Plan&step=${item.step_id}`}>
+                  <ActionRow key={item.step_id} to={clientTabPath(item.journey_id, 'Plan', { step: item.step_id })}>
                     <p className="text-body-sm text-text-primary">
                       {item.client_name} — {item.step_title}
                     </p>
@@ -235,7 +236,7 @@ export function ActivityPage() {
             {data.offers_awaiting_decision.length > 0 && (
               <ActionSection title="Offers awaiting decision" count={data.offers_awaiting_decision.length}>
                 {data.offers_awaiting_decision.map((item) => (
-                  <ActionRow key={item.journey_id + item.since} to={`/clients/${item.journey_id}?tab=Selected Colleges`}>
+                  <ActionRow key={item.journey_id + item.since} to={clientTabPath(item.journey_id, 'Applications')}>
                     <p className="text-body-sm text-text-primary">
                       {item.client_name} — {item.course_name}
                       {item.college_name ? ` @ ${item.college_name}` : ''}
@@ -249,7 +250,7 @@ export function ActivityPage() {
             {data.ready_to_apply.length > 0 && (
               <ActionSection title="Ready to apply" count={data.ready_to_apply.length}>
                 {data.ready_to_apply.map((item) => (
-                  <ActionRow key={item.journey_id + item.since} to={`/clients/${item.journey_id}?tab=Selected Colleges`}>
+                  <ActionRow key={item.journey_id + item.since} to={clientTabPath(item.journey_id, 'Applications')}>
                     <p className="text-body-sm text-text-primary">
                       {item.client_name} — {item.course_name}
                       {item.college_name ? ` @ ${item.college_name}` : ''}
