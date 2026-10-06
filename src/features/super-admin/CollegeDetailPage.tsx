@@ -20,7 +20,15 @@ import {
   useUpdateCampus,
   useUpdateCollege,
 } from '@/queries/adminColleges'
-import { useCourse, useCourses, useCreateCourse, useUpdateCourse } from '@/queries/courseSuggestions'
+import {
+  useCourse,
+  useCourses,
+  useCreateCourse,
+  useUpdateCourse,
+  type CourseHiddenBy,
+} from '@/queries/courseSuggestions'
+import { usePlatformPermission } from '@/lib/me'
+import { formatDate } from '@/lib/time'
 import { useExams } from '@/queries/catalogSettings'
 import { useStudyLevels } from '@/queries/studyLevels'
 import { useCursorPagination } from '@/lib/pagination'
@@ -443,6 +451,26 @@ function DeactivateConfirmModal({
   )
 }
 
+/**
+ * Who switched a course off, and when (owner decision 18). Blank while the course is on; "Draft"
+ * for one that is off and was never published (nobody hid it). The person's name is immiNow's own
+ * staff member, or the member of the college's staff who used their switch; null once that
+ * account no longer exists.
+ */
+export function HiddenByCell({ course }: { course: Course }) {
+  if (course.active !== false) return null
+  if (!course.hidden_by) return <Badge color="secondary">Draft</Badge>
+  const detail = [course.hidden_by_name, course.hidden_at ? formatDate(course.hidden_at) : null].filter(Boolean).join(' · ')
+  return (
+    <div className="flex flex-col items-start gap-0.5">
+      <Badge color={course.hidden_by === 'institute' ? 'info' : 'warning'}>
+        {course.hidden_by === 'institute' ? 'College' : 'immiNow'}
+      </Badge>
+      {detail && <span className="text-caption text-text-secondary">{detail}</span>}
+    </div>
+  )
+}
+
 function CourseRowActions({ college, course }: { college: College; course: Course }) {
   const updateCourse = useUpdateCourse(course.id!)
   const [editing, setEditing] = useState(false)
@@ -571,6 +599,11 @@ export function CollegeDetailPage() {
   const [fieldFilter, setFieldFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('')
   const [healthFilter, setHealthFilter] = useState<'' | 'needs_details' | 'complete'>('')
+  // Who switched a course off (owner decision 18). Only platform staff holding `catalog` are sent
+  // the fields, so only they get the column and the filter: for anyone else the fields are absent,
+  // and an absent value must not read as "Draft".
+  const [hiddenByFilter, setHiddenByFilter] = useState<'' | CourseHiddenBy>('')
+  const seesHiddenBy = usePlatformPermission('catalog')
   const coursePaging = useCursorPagination()
 
   const courses = useCourses({
@@ -580,6 +613,7 @@ export function CollegeDetailPage() {
     fieldOfStudy: fieldFilter || undefined,
     active: statusFilter ? statusFilter === 'active' : undefined,
     health: healthFilter || undefined,
+    hiddenBy: (seesHiddenBy && hiddenByFilter) || undefined,
     sort: courseSort ? (courseSort.direction === 'desc' ? `-${courseSort.field}` : courseSort.field) : undefined,
     cursor: coursePaging.cursor,
     limit: 20,
@@ -614,7 +648,7 @@ export function CollegeDetailPage() {
   ].filter(Boolean)
   const partners = record.partner_consultancies ?? []
   const campusCount = (record.campuses ?? []).length
-  const filtered = Boolean(courseSearch || levelFilter || fieldFilter || statusFilter || healthFilter)
+  const filtered = Boolean(courseSearch || levelFilter || fieldFilter || statusFilter || healthFilter || hiddenByFilter)
 
   function resetCoursePaging() {
     coursePaging.reset()
@@ -690,6 +724,16 @@ export function CollegeDetailPage() {
         )
       },
     },
+    ...(seesHiddenBy
+      ? [
+          {
+            key: 'hidden_by',
+            header: 'Hidden by',
+            hideBelow: 'md',
+            render: (course: Course) => <HiddenByCell course={course} />,
+          } satisfies TableColumn<Course>,
+        ]
+      : []),
     {
       key: 'actions',
       header: '',
@@ -873,6 +917,20 @@ export function CollegeDetailPage() {
                 <option value="needs_details">Needs details</option>
                 <option value="complete">Complete</option>
               </CompactSelect>
+              {seesHiddenBy && (
+                <CompactSelect
+                  value={hiddenByFilter}
+                  onChange={(e) => {
+                    setHiddenByFilter(e.target.value as '' | CourseHiddenBy)
+                    resetCoursePaging()
+                  }}
+                  label="Hidden by"
+                >
+                  <option value="">Hidden by anyone</option>
+                  <option value="platform">Hidden by immiNow</option>
+                  <option value="institute">Hidden by the college</option>
+                </CompactSelect>
+              )}
             </>
           }
           pagination={{

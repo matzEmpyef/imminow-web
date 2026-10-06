@@ -10,6 +10,9 @@ type CourseSuggestion = components['schemas']['CourseSuggestion']
 
 export type CourseHealthFilter = 'needs_details' | 'complete' | 'missing_requirements'
 
+export type Course = components['schemas']['Course']
+export type CourseHiddenBy = 'platform' | 'institute'
+
 interface CourseListFilters {
   search?: string
   collegeId?: string
@@ -21,6 +24,11 @@ interface CourseListFilters {
   /** `missing_requirements` = no entry requirements published at all — the Needs-attention
    * card's own definition, narrower than `needs_details` (2026-09-20). */
   health?: CourseHealthFilter
+  /**
+   * Who switched the course off (owner decision 18): immiNow's catalogue staff, or the college's
+   * own institute account. For callers who see hidden courses; ignored by the server otherwise.
+   */
+  hiddenBy?: CourseHiddenBy
   sort?: string
   cursor?: string
   limit?: number
@@ -42,6 +50,7 @@ export function useCourses(filters: CourseListFilters = {}) {
       if (filters.fieldOfStudy) filter.field_of_study = filters.fieldOfStudy
       if (filters.active !== undefined) filter.active = String(filters.active)
       if (filters.health) filter.health = filters.health
+      if (filters.hiddenBy) filter.hidden_by = filters.hiddenBy
 
       const { data, error } = await api.GET('/courses', {
         signal,
@@ -59,6 +68,41 @@ export function useCourses(filters: CourseListFilters = {}) {
       return data
     },
     enabled: isAuthed,
+  })
+}
+
+/**
+ * A college's own institute account switches one of its own courses off or on (owner decision 18,
+ * `POST /courses/{id}/switch`). The answer is the course as it now stands, which replaces the row
+ * in every course list this browser holds, so the switch shows its new state without a reload.
+ *
+ * Refusals carry the server's own sentence: 409 `hidden_by_platform` (immiNow switched it off, or
+ * it was never published), 409 `course_incomplete` (`details.missing` lists what is missing), 429
+ * `rate_limited` (`details.retry_after_seconds`), 404 (no longer one of this college's courses).
+ * Each of them means the list on screen may be out of date, so it is read again.
+ */
+export function useSwitchCourse() {
+  const queryClient = useQueryClient()
+  const refreshLists = () => queryClient.invalidateQueries({ queryKey: ['courses'] })
+  return useMutation({
+    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
+      const { data, error, response } = await api.POST('/courses/{id}/switch', {
+        params: { path: { id } },
+        body: { active },
+      })
+      if (error) throw new ApiError('Could not switch this course.', error, (response as Response | undefined)?.status)
+      return data
+    },
+    onSuccess: (course) => {
+      if (!course) return void refreshLists()
+      queryClient.setQueriesData<{ items: Course[] }>({ queryKey: ['courses'] }, (old) =>
+        old?.items ? { ...old, items: old.items.map((row) => (row.id === course.id ? course : row)) } : old,
+      )
+      // What the finder and the course pickers offer has changed with it.
+      queryClient.invalidateQueries({ queryKey: ['course-finder'] })
+      queryClient.invalidateQueries({ queryKey: ['picker', 'courses'] })
+    },
+    onError: () => void refreshLists(),
   })
 }
 

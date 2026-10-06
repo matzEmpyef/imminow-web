@@ -91,6 +91,9 @@ const FormsPage = lazyPage(() => import('@/features/administration/FormsPage').t
 const FormBuilderPage = lazyPage(() =>
   import('@/features/administration/FormBuilderPage').then((m) => ({ default: m.FormBuilderPage })),
 )
+const InstituteCoursesPage = lazyPage(() =>
+  import('@/features/administration/InstituteCoursesPage').then((m) => ({ default: m.InstituteCoursesPage })),
+)
 const BranchesPage = lazyPage(() =>
   import('@/features/administration/BranchesPage').then((m) => ({ default: m.BranchesPage })),
 )
@@ -433,6 +436,16 @@ function App() {
             element={
               <PermissionGate permission="settings.manage_course_suggestions" area="Course Suggestions">
                 <CourseSuggestionsPage />
+              </PermissionGate>
+            }
+          />
+          {/* A college's own courses with their on/off switch (owner decision 18). The page itself
+              turns away an account that is not an institute. */}
+          <Route
+            path="/administration/courses"
+            element={
+              <PermissionGate permission="settings.manage_course_suggestions" area="Your Courses">
+                <InstituteCoursesPage />
               </PermissionGate>
             }
           />

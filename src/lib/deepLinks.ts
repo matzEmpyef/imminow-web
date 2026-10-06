@@ -36,6 +36,9 @@ const ALLOWED_EXACT = [
 
 const ALLOWED_PREFIXES = [
   '/admin/applicants/',
+  // `institute_course_switched` (owner decision 18): a college switched one of its own courses
+  // off or on; the notice opens that college's page, `/admin/colleges/{college_id}`.
+  '/admin/colleges/',
   '/admin/consultancies?',
   '/admin/ratings?',
   '/administration/consultancy-profile?',

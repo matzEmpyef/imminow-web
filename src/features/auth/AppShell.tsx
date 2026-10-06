@@ -8,6 +8,7 @@ import {
   FileStack,
   FileText,
   FolderOpen,
+  BookOpen,
   GraduationCap,
   History,
   IdCard,
@@ -53,6 +54,12 @@ interface GatedSubLink extends SidebarSubLink {
    * owes the platform its share like any tenant, so it now shows there under `instituteLabel`.)
    */
   consultancyOnly?: boolean
+  /**
+   * Shown on an `institute` account only: a page a consultancy has no use for. "Your Courses" is
+   * the one (owner decision 18) — a college switches its OWN courses on and off; a consultancy
+   * has no courses of its own.
+   */
+  instituteOnly?: boolean
   /** What an `institute` account calls this link — the same page, worded for a college. */
   instituteLabel?: string
 }
@@ -168,6 +175,15 @@ const SECTIONS: GatedSection[] = [
         icon: GraduationCap,
         permission: 'settings.manage_course_suggestions',
       },
+      // A college's own courses, each with its on/off switch (owner decision 18). The same
+      // permission as Course Suggestions: the server checks it on `POST /courses/{id}/switch`.
+      {
+        label: 'Your Courses',
+        path: '/administration/courses',
+        icon: BookOpen,
+        permission: 'settings.manage_course_suggestions',
+        instituteOnly: true,
+      },
       {
         label: 'Branches',
         path: '/administration/branches',
@@ -234,6 +250,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       .filter((link) => !link.permission || can(link.permission))
       .filter((link) => !link.adminOnly || isAdmin)
       .filter((link) => !link.consultancyOnly || !isInstitute)
+      .filter((link) => !link.instituteOnly || isInstitute)
       .map((link) =>
         link.label === 'Activity' ? { ...link, badge: activityFeed.data?.needs_action_today_count } : link,
       )
