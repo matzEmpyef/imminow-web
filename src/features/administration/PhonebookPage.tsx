@@ -8,6 +8,7 @@ import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
 import { CopyButton } from '@/components/CopyButton'
 import { useDeletePhonebookContact, usePhonebook } from '@/queries/phonebook'
+import { usePermissionChecker } from '@/lib/permissions'
 import { AddPhonebookContactModal } from './AddPhonebookContactModal'
 import { useAccountWords } from '@/lib/accountWords'
 import { useCursorPagination } from '@/lib/pagination'
@@ -36,6 +37,10 @@ export function PhonebookPage() {
   // H2 (2026-09-13) — an institute is not a consultancy; the nouns follow `kind`.
   const words = useAccountWords()
   const deleteContact = useDeletePhonebookContact()
+  // Everyone on the plan reads the phonebook and may add to it; removing a contact is the
+  // Owner/Admin's alone (owner decision 7, review F-146). There is no bulk export on this page;
+  // one added later belongs behind the same check.
+  const { isAdmin } = usePermissionChecker()
   const [showAddModal, setShowAddModal] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState('')
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
@@ -98,21 +103,26 @@ export function PhonebookPage() {
       render: (c) =>
         c.email ? <CopyableValue value={c.email} kind="email" /> : <span className="text-text-secondary">—</span>,
     },
-    {
-      key: 'actions',
-      header: '',
-      render: (c) => (
-        <div className="flex justify-end">
-          <button
-            onClick={() => setDeletingContact(c)}
-            aria-label={`Remove ${c.name}`}
-            className="flex h-9 w-9 items-center justify-center rounded-md text-error hover:bg-error/10"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
-      ),
-    },
+    // The whole column goes for everyone else, rather than leaving an empty one behind.
+    ...(isAdmin
+      ? [
+          {
+            key: 'actions',
+            header: '',
+            render: (c: Contact) => (
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setDeletingContact(c)}
+                  aria-label={`Remove ${c.name}`}
+                  className="flex h-9 w-9 items-center justify-center rounded-md text-error hover:bg-error/10"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ),
+          },
+        ]
+      : []),
   ]
 
   return (

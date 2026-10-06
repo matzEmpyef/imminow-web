@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 // what is pinned here is the markup that does it, plus presence, absence and the click.
 vi.mock('@/features/auth/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => <div>{children}</div> }))
 vi.mock('@/lib/accountWords', () => ({ useAccountWords: () => ({ isInstitute: false }) }))
+const access = vi.hoisted(() => ({ isAdmin: true }))
+vi.mock('@/lib/permissions', () => ({ usePermissionChecker: () => ({ can: () => true, isAdmin: access.isAdmin }) }))
 vi.mock('./AddPhonebookContactModal', () => ({ AddPhonebookContactModal: () => null }))
 vi.mock('@/queries/phonebook', () => ({
   usePhonebook: () => ({
@@ -76,5 +78,28 @@ describe('Phonebook copy buttons', () => {
     expect(writeText).toHaveBeenNthCalledWith(1, 'anand@example.com')
     expect(writeText).toHaveBeenNthCalledWith(2, '+91 98765 43210')
     expect(screen.queryByText('Delete Contact')).toBeNull()
+  })
+})
+
+// Owner decision 7 (review F-146): everyone reads the phonebook; only the Owner/Admin removes a
+// contact.
+describe('removing a phonebook contact', () => {
+  afterEach(() => {
+    access.isAdmin = true
+  })
+
+  it('is offered to the Owner/Admin', () => {
+    access.isAdmin = true
+    render(<PhonebookPage />)
+    expect(screen.getByRole('button', { name: 'Remove Anand Travels' })).toBeTruthy()
+  })
+
+  it('is not offered to anyone else, who still sees and copies every contact', () => {
+    access.isAdmin = false
+    render(<PhonebookPage />)
+    expect(screen.queryByRole('button', { name: /^Remove / })).toBeNull()
+    const row = rowOf('Anand Travels')
+    expect(within(row).getByText('+91 98765 43210')).toBeTruthy()
+    expect(within(row).getByRole('button', { name: 'Copy phone number' })).toBeTruthy()
   })
 })

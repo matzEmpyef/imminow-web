@@ -172,6 +172,22 @@ export function protectedDesignationReason(name: string): string {
 }
 
 /**
+ * Why the designation someone is on opens read-only for them (review F-146). A holder of "manage
+ * designations" could otherwise tick more permissions onto their own designation, raising
+ * themselves; the server refuses it (403), in these words. The Owner/Admin already holds
+ * everything and edits any designation.
+ */
+export const OWN_DESIGNATION_REASON = 'You cannot edit the designation you are on. Ask the Owner/Admin.'
+
+/** True when `designationId` is the caller's own and the caller is not the Owner/Admin. */
+export function isOwnDesignation(
+  staff: { is_admin?: boolean; designation_id?: string | null } | null | undefined,
+  designationId: string | null | undefined,
+): boolean {
+  return Boolean(staff && !staff.is_admin && designationId && staff.designation_id === designationId)
+}
+
+/**
  * The plan's visible permission keys, from `GET /me` (`staff.available_permissions`: the same
  * list as `Consultancy.available_permissions`). Undefined until `/me` has answered, and for anyone
  * who is not consultancy or institute staff.

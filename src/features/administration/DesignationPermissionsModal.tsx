@@ -6,11 +6,14 @@ import { TextField } from '@/components/TextField'
 import { Toggle } from '@/components/Toggle'
 import { useUpdateDesignation } from '@/queries/staff'
 import {
+  OWN_DESIGNATION_REASON,
+  isOwnDesignation,
   permissionKeys,
   protectedDesignationReason,
   useAvailablePermissions,
   visiblePermissionGroups,
 } from '@/lib/permissions'
+import { useMeStaff } from '@/lib/me'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
@@ -41,7 +44,10 @@ export function DesignationPermissionsModal({ designation }: { designation: Desi
 
 function PermissionsModalBody({ designation, onClose }: { designation: Designation; onClose: () => void }) {
   const updateDesignation = useUpdateDesignation(designation.id!)
-  const readOnly = Boolean(designation.protected)
+  // Read-only for a built-in designation, and for the one the caller is on themselves (review
+  // F-146): the server refuses both, so the switches say so up front instead of failing on Save.
+  const ownDesignation = isOwnDesignation(useMeStaff(), designation.id)
+  const readOnly = Boolean(designation.protected) || ownDesignation
   const stored = designation.permissions ?? {}
   // Only what the plan gives meaning to, in the server's order (2026-09-25). Includes any key the
   // server already holds that this build's registry lacks (M34) when the record predates the field.
@@ -95,7 +101,7 @@ function PermissionsModalBody({ designation, onClose }: { designation: Designati
             edited: the server refuses any change 409, so the switches say so up front. */}
         {readOnly && (
           <p className="rounded-md bg-background px-md py-sm text-body-sm text-text-secondary">
-            {protectedDesignationReason(designation.name)}
+            {designation.protected ? protectedDesignationReason(designation.name) : OWN_DESIGNATION_REASON}
           </p>
         )}
         {groups.map((group) => (
