@@ -109,6 +109,46 @@ describe('an audit entry, opened', () => {
     expect(screen.getByText('Referral code:').closest('p')).toHaveTextContent('Referral code: RAVI24 → RAVI25')
   })
 
+  it('reads out the operator’s reason of an erasure from the diff as a line', () => {
+    render(
+      <AuditEntryDetail
+        entry={{
+          reason: 'Erasure requested by support',
+          diff: { status: [null, 'pending'], operator_reason: 'Court order 114/2026, Kochi district court.', holder_reason: null },
+        }}
+      />,
+    )
+    expect(screen.getByText('Reason given by support:').closest('p')).toHaveTextContent(
+      'Reason given by support: Court order 114/2026, Kochi district court.',
+    )
+    // No line for a reason the entry does not have.
+    expect(screen.queryByText('Reason given by the person:')).not.toBeInTheDocument()
+    expect(screen.queryByText(/was erased/)).not.toBeInTheDocument()
+  })
+
+  it('a pair [before, after] for the operator’s reason reads as the later value', () => {
+    render(<AuditEntryDetail entry={{ reason: null, diff: { operator_reason: [null, 'Ticket 4411'] } }} />)
+    expect(screen.getByText('Reason given by support:').closest('p')).toHaveTextContent('Reason given by support: Ticket 4411')
+  })
+
+  it('shows the person’s own reason as given, and "[erased]" with what it means', () => {
+    const { rerender } = render(
+      <AuditEntryDetail entry={{ reason: 'Requested by the person', diff: { holder_reason: [null, 'I moved abroad.'] } }} />,
+    )
+    expect(screen.getByText('Reason given by the person:').closest('p')).toHaveTextContent('Reason given by the person: I moved abroad.')
+    expect(screen.queryByText(/was erased/)).not.toBeInTheDocument()
+    rerender(<AuditEntryDetail entry={{ reason: 'Requested by the person', diff: { holder_reason: '[erased]' } }} />)
+    expect(screen.getByText('Reason given by the person:').closest('p')).toHaveTextContent('Reason given by the person: [erased]')
+    expect(screen.getByText('This reason was removed when the person’s account was erased.')).toBeInTheDocument()
+  })
+
+  it('says what kind of contact a transfer code was issued for, never an address', () => {
+    const { rerender } = render(<AuditEntryDetail entry={{ reason: 'Consent', diff: { issued_for: [null, 'email'] } }} />)
+    expect(screen.getByText('Issued for:').closest('p')).toHaveTextContent('Issued for: email')
+    rerender(<AuditEntryDetail entry={{ reason: 'Consent', diff: { issued_for: [null, 'phone'] } }} />)
+    expect(screen.getByText('Issued for:').closest('p')).toHaveTextContent('Issued for: phone')
+  })
+
   it('an entry with neither says so', () => {
     render(<AuditEntryDetail entry={{ reason: null, diff: null }} />)
     expect(screen.getByText('No further detail recorded.')).toBeInTheDocument()

@@ -38,9 +38,17 @@ const asText = (v: unknown) => (typeof v === 'string' && v ? v : typeof v === 'n
  * (lane w): the amount of a payout, and the referral code of an invite or a code change. Read out
  * as plain lines so nobody has to find them in the raw change below.
  */
+const asIssuedFor = (v: unknown) => (v === 'email' || v === 'phone' ? v : asText(v))
+
 const KNOWN_FACTS: { key: string; label: string; format: (v: unknown) => string | null }[] = [
   { key: 'amount_inr', label: 'Amount', format: asMoney },
   { key: 'referral_code', label: 'Referral code', format: asText },
+  // An erasure's own reasons (second erasure review): the operator's is kept readable for good; the
+  // person's own reads "[erased]" once their account is erased, and is shown as the server gives it.
+  { key: 'operator_reason', label: 'Reason given by support', format: asText },
+  { key: 'holder_reason', label: 'Reason given by the person', format: asText },
+  // A transfer code's audit entry says which kind of contact it was issued for, never the address.
+  { key: 'issued_for', label: 'Issued for', format: asIssuedFor },
 ]
 
 /**
@@ -75,9 +83,16 @@ export function AuditEntryDetail({ entry }: { entry: Pick<AuditLogEntry, 'reason
         </div>
       )}
       {facts.map((fact) => (
-        <p key={fact.label} className="text-body-sm text-text-primary">
-          <span className="font-medium">{fact.label}:</span> {fact.text}
-        </p>
+        <div key={fact.label} className="flex flex-col gap-0.5">
+          <p className="text-body-sm text-text-primary">
+            <span className="font-medium">{fact.label}:</span> {fact.text}
+          </p>
+          {fact.text === ERASED_REASON && (
+            <p className="text-caption text-text-secondary">
+              This reason was removed when the person&rsquo;s account was erased.
+            </p>
+          )}
+        </div>
       ))}
       {diff && (
         <pre className="overflow-x-auto rounded-md bg-surface p-sm text-caption text-text-secondary">

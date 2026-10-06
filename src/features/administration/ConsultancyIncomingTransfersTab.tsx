@@ -162,7 +162,10 @@ export function IncomingTransfersTab({ isInstitute = false }: { isInstitute?: bo
       key: 'student',
       header: 'Student',
       // Bound to exactly one of email/phone (contract gate 7, erd Open 35) — the other is null.
-      render: (c) => c.student_email ?? c.student_phone ?? '—',
+      // Both null: the student's contact was removed afterwards (second erasure review). Not an
+      // error and not blank; such a code reads `expired`.
+      render: (c) =>
+        c.student_email ?? c.student_phone ?? <span className="text-text-secondary">Contact removed</span>,
     },
     {
       key: 'status',
