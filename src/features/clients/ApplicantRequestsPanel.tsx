@@ -7,6 +7,7 @@ import { Table, type TableColumn } from '@/components/Table'
 import { CancelProposalModal } from '@/features/sales/CancelProposalModal'
 import { useApplicantRequests, type ApplicantRequest, type ApplicantRequestView } from '@/queries/applicantRequests'
 import { requestStatusLabel } from '@/lib/applicantRequestWords'
+import { useMeStaff } from '@/lib/me'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
 
@@ -63,6 +64,7 @@ function CancelRequestTrigger({ request, onCancelled }: { request: ApplicantRequ
  */
 export function ApplicantRequestsPanel() {
   const [view, setView] = useState<ApplicantRequestView>('pending')
+  const myEmployeeId = useMeStaff()?.employee_id
   const pendingPaging = useCursorPagination()
   const endedPaging = useCursorPagination()
   const paging = view === 'pending' ? pendingPaging : endedPaging
@@ -109,7 +111,18 @@ export function ApplicantRequestsPanel() {
     {
       key: 'sent_at',
       header: 'Sent',
-      render: (request) => <span className="text-text-secondary">{formatDate(request.sent_at)}</span>,
+      render: (request) => {
+        // "By you" only from the sender's employee id matching the viewer's own (`GET /me`); a
+        // matching name could be a namesake.
+        const sentByMe = Boolean(myEmployeeId) && request.created_by_employee_id === myEmployeeId
+        const sender = sentByMe ? 'By you' : request.created_by_name ? `By ${request.created_by_name}` : null
+        return (
+          <div className="flex flex-col">
+            <span className="text-text-secondary">{formatDate(request.sent_at)}</span>
+            {sender && <span className="text-caption text-text-secondary">{sender}</span>}
+          </div>
+        )
+      },
     },
     waiting
       ? {
@@ -141,19 +154,12 @@ export function ApplicantRequestsPanel() {
             key: 'actions',
             header: '',
             align: 'right',
-            // The server lets the sender, the chosen consultant and an admin cancel. A row does not
-            // say who sent it in a way that can be matched to the viewer, so the button is always
-            // offered and a refusal (404) is answered in the confirm.
-            //
-            // Checked again against the merged contract on 2026-10-06 (gate 12f): the row still
-            // carries `created_by_name` only, no sender id. `GET /me` now gives the viewer's own
-            // employee id and whether they are the admin, and the row gives the chosen consultant,
-            // but without the sender's id "may this person cancel" cannot be answered here for
-            // everyone, and hiding the button from a sender would take away something they may do.
-            // It stays as it is until the row carries the sender's id.
-            render: (request: ApplicantRequest) => (
-              <CancelRequestTrigger request={request} onCancelled={pendingPaging.reset} />
-            ),
+            // "Cancel request" exactly when the server says this viewer may take the request back
+            // (`can_cancel`, lane x): the sender, the consultant it names, or an Owner/Admin, while
+            // it is still waiting. The rule is the server's and is never worked out here; a
+            // colleague who can only see the request gets no button.
+            render: (request: ApplicantRequest) =>
+              request.can_cancel ? <CancelRequestTrigger request={request} onCancelled={pendingPaging.reset} /> : null,
           } satisfies TableColumn<ApplicantRequest>,
         ]
       : []),

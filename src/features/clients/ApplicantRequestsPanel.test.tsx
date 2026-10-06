@@ -9,12 +9,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // row whose typed details were erased reads "Expired" with no name; the lists page by cursor.
 vi.mock('@/api/client', () => ({ api: { GET: vi.fn(), DELETE: vi.fn() } }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
+vi.mock('@/queries/me', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/queries/me')>()),
+  useMe: vi.fn(),
+}))
 
 import { api } from '@/api/client'
 import { showToast } from '@/lib/toast'
 import { formatDate } from '@/lib/time'
 import { useAuthStore } from '@/stores/authStore'
 import { alreadyApplied } from '@/test/writeAnswers'
+import { useMe } from '@/queries/me'
+import { meAnswered, staffMe } from '@/test/me'
 import { ApplicantRequestsPanel } from './ApplicantRequestsPanel'
 import type { ApplicantRequest } from '@/queries/applicantRequests'
 
@@ -71,6 +77,7 @@ beforeEach(() => {
   mockedDelete.mockReset()
   vi.mocked(showToast).mockClear()
   useAuthStore.setState({ accessToken: 'test-token' })
+  vi.mocked(useMe).mockReturnValue(meAnswered(staffMe({ employee_id: 'e7' })))
   mockedGet.mockImplementation((async (_path: string, init: { params: { query: { filter: { status: 'pending' | 'ended' }; cursor?: string } } }) => {
     const { filter, cursor } = init.params.query
     const page = pages[filter.status][cursor ?? ''] ?? { items: [] }
@@ -132,6 +139,61 @@ describe('ApplicantRequestsPanel — waiting rows', () => {
       'Expires',
       '',
     ])
+  })
+
+  // Lane x: the server decides who may take a request back, and says so on the row.
+  it('offers "Cancel request" exactly on the rows the server marks can_cancel', async () => {
+    pages.pending[''] = {
+      items: [
+        request({ id: 'p1', can_cancel: true }),
+        request({
+          id: 'p2',
+          can_cancel: false,
+          requested: { first_name: 'Bina', last_name: 'Das', email: 'bina@example.com' },
+        }),
+      ],
+    }
+    renderPanel()
+
+    const mine = (await screen.findByText('Asha Rao')).closest('tr')!
+    expect(within(mine).getByRole('button', { name: 'Cancel request to Asha Rao' })).toBeInTheDocument()
+    const theirs = screen.getByText('Bina Das').closest('tr')!
+    expect(within(theirs).queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('does not work the rule out itself: an admin whose row says can_cancel false gets no button', async () => {
+    vi.mocked(useMe).mockReturnValue(meAnswered(staffMe({ employee_id: 'e1', is_admin: true })))
+    pages.pending[''] = { items: [request({ can_cancel: false, created_by_employee_id: 'e1' })] }
+    renderPanel()
+    const row = (await screen.findByText('Asha Rao')).closest('tr')!
+    expect(within(row).queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('says "By you" from the employee id of the sender, and the name of the colleague otherwise', async () => {
+    pages.pending[''] = {
+      items: [
+        request({ id: 'p1', created_by_employee_id: 'e7', created_by_name: 'Asha Nair' }),
+        request({
+          id: 'p2',
+          created_by_employee_id: 'e9',
+          created_by_name: 'Dev Shah',
+          requested: { first_name: 'Bina', last_name: 'Das', email: 'bina@example.com' },
+        }),
+        // A namesake of the viewer with no sender id is never "you".
+        request({
+          id: 'p3',
+          created_by_employee_id: null,
+          created_by_name: 'Asha Nair',
+          requested: { first_name: 'Chitra', last_name: 'Pai', email: 'chitra@example.com' },
+        }),
+      ],
+    }
+    renderPanel()
+    expect(within((await screen.findByText('Asha Rao')).closest('tr')!).getByText('By you')).toBeInTheDocument()
+    expect(within(screen.getByText('Bina Das').closest('tr')!).getByText('By Dev Shah')).toBeInTheDocument()
+    const namesake = screen.getByText('Chitra Pai').closest('tr')!
+    expect(within(namesake).getByText('By Asha Nair')).toBeInTheDocument()
+    expect(within(namesake).queryByText('By you')).not.toBeInTheDocument()
   })
 
   it('cancels after a confirm and the row leaves the list without a reload', async () => {
