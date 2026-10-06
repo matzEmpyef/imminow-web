@@ -172,7 +172,7 @@ export function RatingsPage() {
           rows={rows}
           rowKey={(r) => r.id}
           loading={ratings.isLoading}
-          error={ratings.isError ? ratings.error.message : undefined}
+          error={ratings.isError ? ratings.error.message : undefined} errorSource={ratings.error}
           emptyMessage={studentId ? 'This account has not rated anyone.' : EMPTY_MESSAGE[view]}
           onRowClick={(r) => {
             setUpdated(null)

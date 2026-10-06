@@ -324,7 +324,7 @@ export function LeadConversationPage() {
   if (lead.isError || !lead.data) {
     return (
       <AppShell>
-        <ErrorState message="Could not load this lead." onRetry={() => lead.refetch()} />
+        <ErrorState message="Could not load this lead." onRetry={() => lead.refetch()} error={lead.error} />
       </AppShell>
     )
   }

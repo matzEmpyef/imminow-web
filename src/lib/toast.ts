@@ -20,11 +20,13 @@ export interface ToastItem {
   id: number
   message: string
   tone: ToastTone
+  /** The server's reference for the failed request, shown under an error (review F-162). */
+  reference?: string
 }
 
 interface ToastState {
   toasts: ToastItem[]
-  push: (message: string, tone: ToastTone) => void
+  push: (message: string, tone: ToastTone, reference?: string) => void
   dismiss: (id: number) => void
 }
 
@@ -35,11 +37,11 @@ let nextId = 1
 
 export const useToastStore = create<ToastState>()((set) => ({
   toasts: [],
-  push: (message, tone) =>
-    set((state) => ({ toasts: [...state.toasts, { id: nextId++, message, tone }].slice(-MAX_VISIBLE) })),
+  push: (message, tone, reference) =>
+    set((state) => ({ toasts: [...state.toasts, { id: nextId++, message, tone, reference }].slice(-MAX_VISIBLE) })),
   dismiss: (id) => set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
 }))
 
-export function showToast(message: string, tone: ToastTone = 'success') {
-  useToastStore.getState().push(message, tone)
+export function showToast(message: string, tone: ToastTone = 'success', options: { reference?: string } = {}) {
+  useToastStore.getState().push(message, tone, options.reference)
 }

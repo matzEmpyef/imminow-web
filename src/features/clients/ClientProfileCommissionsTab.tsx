@@ -63,7 +63,7 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
   const [voiding, setVoiding] = useState<components['schemas']['CommissionInstallment'] | null>(null)
   if (commissions.isLoading) return <Skeleton className="h-24 rounded-lg" />
   if (commissions.isError || !commissions.data) {
-    return <ErrorState message="Could not load commissions." onRetry={() => commissions.refetch()} />
+    return <ErrorState message="Could not load commissions." onRetry={() => commissions.refetch()} error={commissions.error} />
   }
   const data = commissions.data
   const entry = data.entry

@@ -197,7 +197,7 @@ export function FreelancersPage() {
           rows={rows}
           rowKey={(f) => f.id}
           loading={freelancers.isLoading}
-          error={freelancers.isError ? 'Could not load freelancers.' : undefined}
+          error={freelancers.isError ? 'Could not load freelancers.' : undefined} errorSource={freelancers.error}
           emptyMessage="No freelancer accounts yet."
           onRowClick={(f) => setViewingId(f.id)}
           search={{ value: search, onChange: setSearch, placeholder: paged ? 'Search this page…' : 'Search name, email or code…' }}

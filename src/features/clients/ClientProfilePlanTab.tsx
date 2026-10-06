@@ -120,7 +120,7 @@ export function PlanTab({
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
 
   if (plans.isLoading) return <Skeleton className="h-24 rounded-lg" />
-  if (plans.isError) return <ErrorState message="Could not load this case's plans." onRetry={() => plans.refetch()} />
+  if (plans.isError) return <ErrorState message="Could not load this case's plans." onRetry={() => plans.refetch()} error={plans.error} />
 
   const items: Plan[] = plans.data?.items ?? []
   const summary = plans.data?.summary

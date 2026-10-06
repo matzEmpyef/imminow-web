@@ -327,7 +327,7 @@ export function CourseFinderPage() {
             rows={rows}
             rowKey={(c) => c.id}
             loading={courses.isLoading}
-            error={courses.isError ? 'Could not load courses.' : undefined}
+            error={courses.isError ? 'Could not load courses.' : undefined} errorSource={courses.error}
             emptyMessage={
               !hasFilters ? (
                 'Pick an applicant or search to browse the catalog.'

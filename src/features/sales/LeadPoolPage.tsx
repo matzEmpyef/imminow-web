@@ -253,7 +253,7 @@ export function LeadPoolPage() {
           rows={leads.data?.items ?? []}
           rowKey={(lead) => lead.id}
           loading={leads.isLoading}
-          error={leads.isError ? 'Could not load the lead pool.' : undefined}
+          error={leads.isError ? 'Could not load the lead pool.' : undefined} errorSource={leads.error}
           emptyMessage={
             search
               ? 'No leads in the pool match your search.'

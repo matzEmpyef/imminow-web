@@ -488,7 +488,7 @@ function KycCard() {
   if (kyc.isError) {
     return (
       <Card>
-        <ErrorState message="Could not load your KYC status." onRetry={() => kyc.refetch()} />
+        <ErrorState message="Could not load your KYC status." onRetry={() => kyc.refetch()} error={kyc.error} />
       </Card>
     )
   }

@@ -220,7 +220,7 @@ export function CasesTab() {
         rows={cases.data?.items ?? []}
         rowKey={(r) => r.id}
         loading={cases.isLoading}
-        error={cases.isError ? 'Could not load commission cases.' : undefined}
+        error={cases.isError ? 'Could not load commission cases.' : undefined} errorSource={cases.error}
         emptyMessage={anyFilter ? 'No cases match these filters.' : 'No active commission cases yet.'}
         onRowClick={(r) => setViewingRow(r)}
         sort={sort}

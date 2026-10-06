@@ -365,7 +365,7 @@ export function FieldsOfStudyTab() {
         rows={rows}
         rowKey={(f) => f.id}
         loading={fields.isLoading}
-        error={fields.isError ? 'Could not load the fields of study list.' : undefined}
+        error={fields.isError ? 'Could not load the fields of study list.' : undefined} errorSource={fields.error}
         emptyMessage={
           demandGapsOnly
             ? 'No demand gaps — every field with waiting students has at least one course.'

@@ -179,7 +179,7 @@ export function EmployeesPage() {
           rows={rows}
           rowKey={(employee) => employee.id!}
           loading={employees.isLoading}
-          error={employees.isError ? 'Could not load employees.' : undefined}
+          error={employees.isError ? 'Could not load employees.' : undefined} errorSource={employees.error}
           emptyMessage={
             search
               ? 'No employees match your search.'

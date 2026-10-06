@@ -182,7 +182,7 @@ export function DashboardPage() {
   if (dashboard.isError || !dashboard.data) {
     return (
       <AppShell>
-        <ErrorState message="Could not load the dashboard." onRetry={() => dashboard.refetch()} />
+        <ErrorState message="Could not load the dashboard." onRetry={() => dashboard.refetch()} error={dashboard.error} />
       </AppShell>
     )
   }

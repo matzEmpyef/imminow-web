@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, type ComponentProps } from 'react'
+import { Suspense, useEffect, type ComponentProps, type ReactNode } from 'react'
 import { Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { track } from '@/lib/analytics'
 import { LoginPage } from '@/features/auth/LoginPage'
@@ -11,6 +11,13 @@ import { FreelancerRoute } from '@/features/auth/FreelancerRoute'
 import { FEATURE_REGISTRY } from '@/lib/features'
 import { scopeHomePath } from '@/lib/roleHome'
 import { SessionGate } from '@/features/auth/SessionGate'
+import { AppShell } from '@/features/auth/AppShell'
+import { AdminShell } from '@/features/auth/AdminShell'
+import { FreelancerShell } from '@/features/auth/FreelancerShell'
+import { shellForScope } from '@/features/auth/shellForScope'
+import { PageErrorBoundary } from '@/components/AppErrorBoundary'
+import { lazyPage } from '@/lib/lazyPage'
+import { useMe } from '@/queries/me'
 
 // Lookup so route elements can pass a FeatureDef by key without importing/finding it inline at
 // every call site — see FEATURE_REGISTRY in @/lib/features for the definitions themselves.
@@ -25,222 +32,225 @@ import { Skeleton } from '@/components/QueryState'
 // trade for the single most-hit page in the app. Named-export form (`.then((m) => ({ default:
 // m.XPage }))`) rather than default exports, since that's this codebase's existing convention and
 // changing every page to a default export would be a much larger, unrelated diff.
-const ForgotPasswordPage = lazy(() =>
+//
+// `lazyPage`, not `React.lazy` (review F-162): after a deploy the old page files are gone, and a
+// tab still open on the previous build reloads itself once instead of showing an error.
+const ForgotPasswordPage = lazyPage(() =>
   import('@/features/auth/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })),
 )
-const GuardianApprovalPage = lazy(() =>
+const GuardianApprovalPage = lazyPage(() =>
   import('@/features/guardian/GuardianApprovalPage').then((m) => ({ default: m.GuardianApprovalPage })),
 )
-const ResetPasswordPage = lazy(() =>
+const ResetPasswordPage = lazyPage(() =>
   import('@/features/auth/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })),
 )
-const SetPasswordPage = lazy(() =>
+const SetPasswordPage = lazyPage(() =>
   import('@/features/auth/SetPasswordPage').then((m) => ({ default: m.SetPasswordPage })),
 )
-const MyAccountPage = lazy(() => import('@/features/auth/MyAccountPage').then((m) => ({ default: m.MyAccountPage })))
-const NotificationsPage = lazy(() =>
+const MyAccountPage = lazyPage(() => import('@/features/auth/MyAccountPage').then((m) => ({ default: m.MyAccountPage })))
+const NotificationsPage = lazyPage(() =>
   import('@/features/auth/NotificationsPage').then((m) => ({ default: m.NotificationsPage })),
 )
-const DashboardPage = lazy(() =>
+const DashboardPage = lazyPage(() =>
   import('@/features/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })),
 )
-const LeadPoolPage = lazy(() => import('@/features/sales/LeadPoolPage').then((m) => ({ default: m.LeadPoolPage })))
-const ActiveLeadsPage = lazy(() =>
+const LeadPoolPage = lazyPage(() => import('@/features/sales/LeadPoolPage').then((m) => ({ default: m.LeadPoolPage })))
+const ActiveLeadsPage = lazyPage(() =>
   import('@/features/sales/ActiveLeadsPage').then((m) => ({ default: m.ActiveLeadsPage })),
 )
-const LeadConversationPage = lazy(() =>
+const LeadConversationPage = lazyPage(() =>
   import('@/features/sales/LeadConversationPage').then((m) => ({ default: m.LeadConversationPage })),
 )
-const ClientsListPage = lazy(() =>
+const ClientsListPage = lazyPage(() =>
   import('@/features/clients/ClientsListPage').then((m) => ({ default: m.ClientsListPage })),
 )
-const ClientProfilePage = lazy(() =>
+const ClientProfilePage = lazyPage(() =>
   import('@/features/clients/ClientProfilePage').then((m) => ({ default: m.ClientProfilePage })),
 )
-const ClientConversationPage = lazy(() =>
+const ClientConversationPage = lazyPage(() =>
   import('@/features/clients/ClientConversationPage').then((m) => ({ default: m.ClientConversationPage })),
 )
-const CourseFinderPage = lazy(() =>
+const CourseFinderPage = lazyPage(() =>
   import('@/features/clients/CourseFinderPage').then((m) => ({ default: m.CourseFinderPage })),
 )
-const InvoicesPage = lazy(() => import('@/features/clients/InvoicesPage').then((m) => ({ default: m.InvoicesPage })))
-const ReceiptsPage = lazy(() => import('@/features/clients/ReceiptsPage').then((m) => ({ default: m.ReceiptsPage })))
-const CommissionDetailsPage = lazy(() =>
+const InvoicesPage = lazyPage(() => import('@/features/clients/InvoicesPage').then((m) => ({ default: m.InvoicesPage })))
+const ReceiptsPage = lazyPage(() => import('@/features/clients/ReceiptsPage').then((m) => ({ default: m.ReceiptsPage })))
+const CommissionDetailsPage = lazyPage(() =>
   import('@/features/administration/CommissionDetailsPage').then((m) => ({ default: m.CommissionDetailsPage })),
 )
-const ConsultancyProfilePage = lazy(() =>
+const ConsultancyProfilePage = lazyPage(() =>
   import('@/features/administration/ConsultancyProfilePage').then((m) => ({ default: m.ConsultancyProfilePage })),
 )
-const PlanTemplatesPage = lazy(() =>
+const PlanTemplatesPage = lazyPage(() =>
   import('@/features/administration/PlanTemplatesPage').then((m) => ({ default: m.PlanTemplatesPage })),
 )
-const CourseSuggestionsPage = lazy(() =>
+const CourseSuggestionsPage = lazyPage(() =>
   import('@/features/administration/CourseSuggestionsPage').then((m) => ({ default: m.CourseSuggestionsPage })),
 )
-const FormsPage = lazy(() => import('@/features/administration/FormsPage').then((m) => ({ default: m.FormsPage })))
-const FormBuilderPage = lazy(() =>
+const FormsPage = lazyPage(() => import('@/features/administration/FormsPage').then((m) => ({ default: m.FormsPage })))
+const FormBuilderPage = lazyPage(() =>
   import('@/features/administration/FormBuilderPage').then((m) => ({ default: m.FormBuilderPage })),
 )
-const BranchesPage = lazy(() =>
+const BranchesPage = lazyPage(() =>
   import('@/features/administration/BranchesPage').then((m) => ({ default: m.BranchesPage })),
 )
-const EmployeesPage = lazy(() =>
+const EmployeesPage = lazyPage(() =>
   import('@/features/administration/EmployeesPage').then((m) => ({ default: m.EmployeesPage })),
 )
-const DesignationsPage = lazy(() =>
+const DesignationsPage = lazyPage(() =>
   import('@/features/administration/DesignationsPage').then((m) => ({ default: m.DesignationsPage })),
 )
-const PhonebookPage = lazy(() =>
+const PhonebookPage = lazyPage(() =>
   import('@/features/administration/PhonebookPage').then((m) => ({ default: m.PhonebookPage })),
 )
-const DocumentLibraryPage = lazy(() =>
+const DocumentLibraryPage = lazyPage(() =>
   import('@/features/administration/DocumentLibraryPage').then((m) => ({ default: m.DocumentLibraryPage })),
 )
-const InternalMessagingPage = lazy(() =>
+const InternalMessagingPage = lazyPage(() =>
   import('@/features/administration/InternalMessagingPage').then((m) => ({ default: m.InternalMessagingPage })),
 )
-const AuditLogPage = lazy(() =>
+const AuditLogPage = lazyPage(() =>
   import('@/features/administration/AuditLogPage').then((m) => ({ default: m.AuditLogPage })),
 )
-const ActivityPage = lazy(() => import('@/features/dashboard/ActivityPage').then((m) => ({ default: m.ActivityPage })))
-const SuperAdminDashboardPage = lazy(() =>
+const ActivityPage = lazyPage(() => import('@/features/dashboard/ActivityPage').then((m) => ({ default: m.ActivityPage })))
+const SuperAdminDashboardPage = lazyPage(() =>
   import('@/features/super-admin/SuperAdminDashboardPage').then((m) => ({ default: m.SuperAdminDashboardPage })),
 )
-const ManageConsultanciesPage = lazy(() =>
+const ManageConsultanciesPage = lazyPage(() =>
   import('@/features/super-admin/ManageConsultanciesPage').then((m) => ({ default: m.ManageConsultanciesPage })),
 )
-const RatingsPage = lazy(() =>
+const RatingsPage = lazyPage(() =>
   import('@/features/super-admin/RatingsPage').then((m) => ({ default: m.RatingsPage })),
 )
-const ReviewsPage = lazy(() => import('@/features/super-admin/ReviewsPage').then((m) => ({ default: m.ReviewsPage })))
-const ConsultancyReviewsPage = lazy(() =>
+const ReviewsPage = lazyPage(() => import('@/features/super-admin/ReviewsPage').then((m) => ({ default: m.ReviewsPage })))
+const ConsultancyReviewsPage = lazyPage(() =>
   import('@/features/administration/ConsultancyReviewsPage').then((m) => ({ default: m.ConsultancyReviewsPage })),
 )
-const ApplicantAllocationPage = lazy(() =>
+const ApplicantAllocationPage = lazyPage(() =>
   import('@/features/super-admin/ApplicantAllocationPage').then((m) => ({ default: m.ApplicantAllocationPage })),
 )
-const SentpoUsersPage = lazy(() =>
+const SentpoUsersPage = lazyPage(() =>
   import('@/features/super-admin/SentpoUsersPage').then((m) => ({ default: m.SentpoUsersPage })),
 )
-const ImminowUsersPage = lazy(() =>
+const ImminowUsersPage = lazyPage(() =>
   import('@/features/super-admin/ImminowUsersPage').then((m) => ({ default: m.ImminowUsersPage })),
 )
-const SupplyDemandPage = lazy(() =>
+const SupplyDemandPage = lazyPage(() =>
   import('@/features/super-admin/SupplyDemandPage').then((m) => ({ default: m.SupplyDemandPage })),
 )
-const PlatformPulsePage = lazy(() =>
+const PlatformPulsePage = lazyPage(() =>
   import('@/features/super-admin/PlatformPulsePage').then((m) => ({ default: m.PlatformPulsePage })),
 )
-const NeedsAttentionPage = lazy(() =>
+const NeedsAttentionPage = lazyPage(() =>
   import('@/features/super-admin/NeedsAttentionPage').then((m) => ({ default: m.NeedsAttentionPage })),
 )
-const PerformanceLeaguePage = lazy(() =>
+const PerformanceLeaguePage = lazyPage(() =>
   import('@/features/super-admin/PerformanceLeaguePage').then((m) => ({ default: m.PerformanceLeaguePage })),
 )
-const CollegesCoursesPage = lazy(() =>
+const CollegesCoursesPage = lazyPage(() =>
   import('@/features/super-admin/CollegesCoursesPage').then((m) => ({ default: m.CollegesCoursesPage })),
 )
-const CollegeDetailPage = lazy(() =>
+const CollegeDetailPage = lazyPage(() =>
   import('@/features/super-admin/CollegeDetailPage').then((m) => ({ default: m.CollegeDetailPage })),
 )
-const InstitutionsPage = lazy(() =>
+const InstitutionsPage = lazyPage(() =>
   import('@/features/super-admin/InstitutionsPage').then((m) => ({ default: m.InstitutionsPage })),
 )
-const TrendingCoursesPage = lazy(() =>
+const TrendingCoursesPage = lazyPage(() =>
   import('@/features/super-admin/TrendingCoursesPage').then((m) => ({ default: m.TrendingCoursesPage })),
 )
-const CatalogSettingsPage = lazy(() =>
+const CatalogSettingsPage = lazyPage(() =>
   import('@/features/super-admin/CatalogSettingsPage').then((m) => ({ default: m.CatalogSettingsPage })),
 )
-const CourseSuggestionsReviewPage = lazy(() =>
+const CourseSuggestionsReviewPage = lazyPage(() =>
   import('@/features/super-admin/CourseSuggestionsReviewPage').then((m) => ({
     default: m.CourseSuggestionsReviewPage,
   })),
 )
-const AdsManagerPage = lazy(() =>
+const AdsManagerPage = lazyPage(() =>
   import('@/features/super-admin/AdsManagerPage').then((m) => ({ default: m.AdsManagerPage })),
 )
-const MarketingOverviewPage = lazy(() =>
+const MarketingOverviewPage = lazyPage(() =>
   import('@/features/super-admin/MarketingOverviewPage').then((m) => ({ default: m.MarketingOverviewPage })),
 )
-const EarnRulesPage = lazy(() =>
+const EarnRulesPage = lazyPage(() =>
   import('@/features/super-admin/EarnRulesPage').then((m) => ({ default: m.EarnRulesPage })),
 )
-const CouponsAdminPage = lazy(() =>
+const CouponsAdminPage = lazyPage(() =>
   import('@/features/super-admin/CouponsAdminPage').then((m) => ({ default: m.CouponsAdminPage })),
 )
-const RedemptionPartnersPage = lazy(() =>
+const RedemptionPartnersPage = lazyPage(() =>
   import('@/features/super-admin/RedemptionPartnersPage').then((m) => ({ default: m.RedemptionPartnersPage })),
 )
-const WebinarsPage = lazy(() =>
+const WebinarsPage = lazyPage(() =>
   import('@/features/super-admin/WebinarsPage').then((m) => ({ default: m.WebinarsPage })),
 )
-const QuizAdminPage = lazy(() =>
+const QuizAdminPage = lazyPage(() =>
   import('@/features/super-admin/QuizAdminPage').then((m) => ({ default: m.QuizAdminPage })),
 )
-const PhysicalMeetingsPage = lazy(() =>
+const PhysicalMeetingsPage = lazyPage(() =>
   import('@/features/super-admin/PhysicalMeetingsPage').then((m) => ({ default: m.PhysicalMeetingsPage })),
 )
-const JobsAdminPage = lazy(() =>
+const JobsAdminPage = lazyPage(() =>
   import('@/features/super-admin/JobsAdminPage').then((m) => ({ default: m.JobsAdminPage })),
 )
-const BlogAdminPage = lazy(() =>
+const BlogAdminPage = lazyPage(() =>
   import('@/features/super-admin/BlogAdminPage').then((m) => ({ default: m.BlogAdminPage })),
 )
-const CommissionRatesPage = lazy(() =>
+const CommissionRatesPage = lazyPage(() =>
   import('@/features/super-admin/CommissionRatesPage').then((m) => ({ default: m.CommissionRatesPage })),
 )
-const FreelancerPayoutsPage = lazy(() =>
+const FreelancerPayoutsPage = lazyPage(() =>
   import('@/features/super-admin/FreelancerPayoutsPage').then((m) => ({ default: m.FreelancerPayoutsPage })),
 )
-const ExchangeRatesPage = lazy(() =>
+const ExchangeRatesPage = lazyPage(() =>
   import('@/features/super-admin/ExchangeRatesPage').then((m) => ({ default: m.ExchangeRatesPage })),
 )
-const FinanceDashboardPage = lazy(() =>
+const FinanceDashboardPage = lazyPage(() =>
   import('@/features/super-admin/FinanceDashboardPage').then((m) => ({ default: m.FinanceDashboardPage })),
 )
-const SupportToolsPage = lazy(() =>
+const SupportToolsPage = lazyPage(() =>
   import('@/features/super-admin/SupportToolsPage').then((m) => ({ default: m.SupportToolsPage })),
 )
-const DisputesPage = lazy(() =>
+const DisputesPage = lazyPage(() =>
   import('@/features/super-admin/DisputesPage').then((m) => ({ default: m.DisputesPage })),
 )
-const CaseFollowupsPage = lazy(() =>
+const CaseFollowupsPage = lazyPage(() =>
   import('@/features/super-admin/CaseFollowupsPage').then((m) => ({ default: m.CaseFollowupsPage })),
 )
-const ServiceFollowupsPage = lazy(() =>
+const ServiceFollowupsPage = lazyPage(() =>
   import('@/features/super-admin/ServiceFollowupsPage').then((m) => ({ default: m.ServiceFollowupsPage })),
 )
-const ApplicantCaseViewPage = lazy(() =>
+const ApplicantCaseViewPage = lazyPage(() =>
   import('@/features/super-admin/ApplicantCaseViewPage').then((m) => ({ default: m.ApplicantCaseViewPage })),
 )
-const ComplaintsPage = lazy(() =>
+const ComplaintsPage = lazyPage(() =>
   import('@/features/super-admin/ComplaintsPage').then((m) => ({ default: m.ComplaintsPage })),
 )
-const VisitRequestsPage = lazy(() =>
+const VisitRequestsPage = lazyPage(() =>
   import('@/features/super-admin/VisitRequestsPage').then((m) => ({ default: m.VisitRequestsPage })),
 )
-const PlatformTeamPage = lazy(() =>
+const PlatformTeamPage = lazyPage(() =>
   import('@/features/super-admin/PlatformTeamPage').then((m) => ({ default: m.PlatformTeamPage })),
 )
-const NotificationChannelConfigPage = lazy(() =>
+const NotificationChannelConfigPage = lazyPage(() =>
   import('@/features/super-admin/NotificationChannelConfigPage').then((m) => ({
     default: m.NotificationChannelConfigPage,
   })),
 )
-const AppConfigPage = lazy(() =>
+const AppConfigPage = lazyPage(() =>
   import('@/features/super-admin/AppConfigPage').then((m) => ({ default: m.AppConfigPage })),
 )
-const BroadcastPage = lazy(() =>
+const BroadcastPage = lazyPage(() =>
   import('@/features/super-admin/BroadcastPage').then((m) => ({ default: m.BroadcastPage })),
 )
-const PlatformAuditLogPage = lazy(() =>
+const PlatformAuditLogPage = lazyPage(() =>
   import('@/features/super-admin/PlatformAuditLogPage').then((m) => ({ default: m.PlatformAuditLogPage })),
 )
-const FreelancersPage = lazy(() =>
+const FreelancersPage = lazyPage(() =>
   import('@/features/super-admin/FreelancersPage').then((m) => ({ default: m.FreelancersPage })),
 )
-const FreelancerDashboardPage = lazy(() =>
+const FreelancerDashboardPage = lazyPage(() =>
   import('@/features/freelancer/FreelancerDashboardPage').then((m) => ({ default: m.FreelancerDashboardPage })),
 )
 
@@ -280,18 +290,31 @@ function useScreenViewAnalytics() {
 // subtrees are grouped by console permission area, so the grouping itself now documents which
 // permission opens which pages.
 
+// Each layout also holds the page-crash boundary for its part of the console (review F-162):
+// inside the guard, around the pages, drawing that part's own shell — so a page that crashes
+// leaves the person their menu and their session.
 function ProtectedLayout() {
   return (
     <ProtectedRoute>
-      <Outlet />
+      <OwnShellBoundary>
+        <Outlet />
+      </OwnShellBoundary>
     </ProtectedRoute>
   )
+}
+
+/** My Account and Notifications belong to every kind of account: the shell follows the caller. */
+function OwnShellBoundary({ children }: { children: ReactNode }) {
+  const scope = useMe().data?.scope
+  return <PageErrorBoundary shell={shellForScope(scope)}>{children}</PageErrorBoundary>
 }
 
 function ConsultancyLayout() {
   return (
     <ConsultancyRoute>
-      <Outlet />
+      <PageErrorBoundary shell={AppShell}>
+        <Outlet />
+      </PageErrorBoundary>
     </ConsultancyRoute>
   )
 }
@@ -305,7 +328,9 @@ function PlatformLayout({
 }) {
   return (
     <PlatformRoute permission={permission} anyPermission={anyPermission}>
-      <Outlet />
+      <PageErrorBoundary shell={AdminShell}>
+        <Outlet />
+      </PageErrorBoundary>
     </PlatformRoute>
   )
 }
@@ -313,7 +338,9 @@ function PlatformLayout({
 function FreelancerLayout() {
   return (
     <FreelancerRoute>
-      <Outlet />
+      <PageErrorBoundary shell={FreelancerShell}>
+        <Outlet />
+      </PageErrorBoundary>
     </FreelancerRoute>
   )
 }

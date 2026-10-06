@@ -58,6 +58,11 @@ export async function withErrorEnvelope(response: Response): Promise<Response> {
   return new Response(JSON.stringify(envelope), { status: response.status, statusText: response.statusText, headers })
 }
 
+/** The server's reference for a failed request, when the error carries one (review F-162). */
+export function requestReference(error: unknown): string | undefined {
+  return error instanceof ApiError && error.requestId ? error.requestId : undefined
+}
+
 /**
  * Whether asking again could give a different answer (review F-149): no status at all (the
  * request never got an answer), too many requests, or a server-side failure such as the 502/503

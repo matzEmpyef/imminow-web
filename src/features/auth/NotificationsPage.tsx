@@ -1,9 +1,6 @@
+import { shellForScope } from '@/features/auth/shellForScope'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AppShell } from './AppShell'
-import { AdminShell } from './AdminShell'
-import { FreelancerShell } from './FreelancerShell'
-import { AccountShell } from './AccountShell'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
@@ -63,14 +60,7 @@ export function NotificationsPage() {
   // M12 fix (frontend review, 1 Sep 2026): this used to send `platform_staff` into the
   // consultancy shell (only `super_admin` got AdminShell) and never accounted for Freelancer at
   // all — every platform/freelancer role now gets its own shell here, same as everywhere else.
-  const Shell =
-    scope === 'platform'
-      ? AdminShell
-      : scope === 'freelancer'
-        ? FreelancerShell
-        : scope === 'student'
-          ? AccountShell
-          : AppShell
+  const Shell = shellForScope(scope)
 
   return (
     <Shell>
@@ -112,7 +102,7 @@ export function NotificationsPage() {
         )}
 
         {notifications.isError && (
-          <ErrorState message="Could not load notifications." onRetry={() => notifications.refetch()} />
+          <ErrorState message="Could not load notifications." onRetry={() => notifications.refetch()} error={notifications.error} />
         )}
 
         {notifications.data && notifications.data.items.length === 0 && (

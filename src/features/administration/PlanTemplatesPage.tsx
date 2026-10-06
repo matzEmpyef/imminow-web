@@ -678,7 +678,7 @@ export function PlanTemplatesPage() {
           rows={rows}
           rowKey={(t) => t.id}
           loading={templates.isLoading}
-          error={templates.isError ? 'Could not load plan templates.' : undefined}
+          error={templates.isError ? 'Could not load plan templates.' : undefined} errorSource={templates.error}
           emptyMessage={
             search
               ? 'No templates match your search.'

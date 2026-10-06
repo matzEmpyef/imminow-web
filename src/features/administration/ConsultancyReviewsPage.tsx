@@ -55,7 +55,7 @@ export function ConsultancyReviewsPage() {
   if (reviews.isError || !reviews.data) {
     return (
       <AppShell>
-        <ErrorState message="Could not load reviews." onRetry={() => reviews.refetch()} />
+        <ErrorState message="Could not load reviews." onRetry={() => reviews.refetch()} error={reviews.error} />
       </AppShell>
     )
   }

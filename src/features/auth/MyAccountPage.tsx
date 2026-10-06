@@ -1,9 +1,6 @@
+import { shellForScope } from '@/features/auth/shellForScope'
 import { useEffect, useState } from 'react'
 import { KeyRound, ShieldCheck } from 'lucide-react'
-import { AppShell } from './AppShell'
-import { AdminShell } from './AdminShell'
-import { FreelancerShell } from './FreelancerShell'
-import { AccountShell } from './AccountShell'
 import { Card } from '@/components/Card'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
@@ -103,14 +100,7 @@ export function MyAccountPage() {
   // M12 fix (frontend review, 1 Sep 2026): this page always rendered AppShell, so a platform or
   // freelancer account editing their own profile got the consultancy shell around it. Students
   // get the slim AccountShell (N2, second pass) — the consultancy nav bounced them anyway.
-  const Shell =
-    scope === 'platform'
-      ? AdminShell
-      : scope === 'freelancer'
-        ? FreelancerShell
-        : scope === 'student'
-          ? AccountShell
-          : AppShell
+  const Shell = shellForScope(scope)
   const isConsultancyStaff = isStaffScope(scope)
   const isPlatform = scope === 'platform'
   const isFreelancer = scope === 'freelancer'
@@ -152,7 +142,7 @@ export function MyAccountPage() {
   if (profile.isError || !profile.data) {
     return (
       <Shell>
-        <ErrorState message="Could not load your account." onRetry={() => profile.refetch()} />
+        <ErrorState message="Could not load your account." onRetry={() => profile.refetch()} error={profile.error} />
       </Shell>
     )
   }

@@ -112,7 +112,7 @@ export function AwaitingTab() {
         rows={rows}
         rowKey={(p) => p.id}
         loading={payments.isLoading}
-        error={payments.isError ? 'Could not load payments awaiting confirmation.' : undefined}
+        error={payments.isError ? 'Could not load payments awaiting confirmation.' : undefined} errorSource={payments.error}
         emptyMessage="Nothing awaiting confirmation."
         selection={{
           selectedIds: selected,

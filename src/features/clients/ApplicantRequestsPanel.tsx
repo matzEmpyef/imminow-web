@@ -179,7 +179,7 @@ export function ApplicantRequestsPanel() {
         rows={current.data?.items ?? []}
         rowKey={(request) => request.id}
         loading={current.isLoading}
-        error={current.isError ? 'Could not load the requests.' : undefined}
+        error={current.isError ? 'Could not load the requests.' : undefined} errorSource={current.error}
         emptyMessage={waiting ? 'No requests are waiting for a student to accept.' : 'No requests have ended recently.'}
         pagination={{
           hasNext: Boolean(current.data?.meta.next_cursor),

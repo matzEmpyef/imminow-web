@@ -181,7 +181,7 @@ export function ComplaintsPage() {
           rows={rows}
           rowKey={(c) => c.id}
           loading={complaints.isLoading}
-          error={complaints.isError ? 'Could not load complaints.' : undefined}
+          error={complaints.isError ? 'Could not load complaints.' : undefined} errorSource={complaints.error}
           emptyMessage="No complaints match these filters."
           onRowClick={(c) => setViewing(c)}
           search={{

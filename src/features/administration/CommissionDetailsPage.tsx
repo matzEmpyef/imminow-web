@@ -194,7 +194,7 @@ export function CommissionDetailsPage() {
   if (commission.isError || !commission.data) {
     return (
       <AppShell>
-        <ErrorState message="Could not load commission details." onRetry={() => commission.refetch()} />
+        <ErrorState message="Could not load commission details." onRetry={() => commission.refetch()} error={commission.error} />
       </AppShell>
     )
   }

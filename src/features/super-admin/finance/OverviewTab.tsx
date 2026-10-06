@@ -104,7 +104,7 @@ export function OverviewTab({
           rows={balances.data?.items ?? []}
           rowKey={(r) => r.consultancy_id}
           loading={balances.isLoading}
-          error={balances.isError ? 'Could not load consultancy balances.' : undefined}
+          error={balances.isError ? 'Could not load consultancy balances.' : undefined} errorSource={balances.error}
           emptyMessage={search || owingOnly ? 'No consultancies match these filters.' : 'No consultancies with active cases yet.'}
           onRowClick={(r) => {
             setViewingId(r.consultancy_id)

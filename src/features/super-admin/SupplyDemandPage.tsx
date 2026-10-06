@@ -207,7 +207,7 @@ export function SupplyDemandPage() {
   if (supplyDemand.isError || !supplyDemand.data) {
     return (
       <AdminShell>
-        <ErrorState message="Could not load supply/demand data." onRetry={() => supplyDemand.refetch()} />
+        <ErrorState message="Could not load supply/demand data." onRetry={() => supplyDemand.refetch()} error={supplyDemand.error} />
       </AdminShell>
     )
   }

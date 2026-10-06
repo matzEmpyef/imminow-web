@@ -293,7 +293,7 @@ export function QuizAdminPage() {
           rowKey={(e) => e.id!}
           loading={events.isLoading}
           // T9 (third-pass review): a failed list fetch used to render "No quizzes yet."
-          error={events.isError ? 'Could not load quizzes.' : undefined}
+          error={events.isError ? 'Could not load quizzes.' : undefined} errorSource={events.error}
           emptyMessage={
             search
               ? 'No quizzes match your search.'

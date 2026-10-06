@@ -317,7 +317,7 @@ export function FormsTab({ clientId }: { clientId: string }) {
   const plans = usePlans(clientId)
   const [index, setIndex] = useState(0)
   if (plans.isLoading) return <Skeleton className="h-24 rounded-lg" />
-  if (!plans.data) return <ErrorState message="Could not load the plans." onRetry={() => plans.refetch()} />
+  if (!plans.data) return <ErrorState message="Could not load the plans." onRetry={() => plans.refetch()} error={plans.error} />
 
   const links = (plans.data.items ?? [])
     .flatMap((plan) => [...plan.steps].sort((a, b) => a.position - b.position))

@@ -176,7 +176,7 @@ function InvoiceDrawer({
           {receipts.isLoading ? (
             <Skeleton className="mt-xs h-12 rounded-md" />
           ) : receipts.isError ? (
-            <ErrorState message="Could not load the payments against this invoice." onRetry={() => receipts.refetch()} />
+            <ErrorState message="Could not load the payments against this invoice." onRetry={() => receipts.refetch()} error={receipts.error} />
           ) : rows.length === 0 ? (
             <p className="mt-xs text-body-sm text-text-secondary">Nothing recorded against this invoice yet.</p>
           ) : (
@@ -437,7 +437,7 @@ export function InvoicesPage() {
             rowKey={(inv) => inv.id}
             onRowClick={(inv) => setOpenInvoiceId(inv.id)}
             loading={invoices.isLoading}
-            error={invoices.isError ? 'Could not load invoices.' : undefined}
+            error={invoices.isError ? 'Could not load invoices.' : undefined} errorSource={invoices.error}
             emptyMessage={
               search || status
                 ? 'No invoices match your search or status filter.'

@@ -798,7 +798,7 @@ export function AdsManagerPage() {
           rows={view === 'current' ? currentRows : archivedRows}
           rowKey={(ad) => ad.id!}
           loading={ads.isLoading}
-          error={ads.isError ? 'Could not load ads.' : undefined}
+          error={ads.isError ? 'Could not load ads.' : undefined} errorSource={ads.error}
           emptyMessage={
             view === 'archived'
               ? search

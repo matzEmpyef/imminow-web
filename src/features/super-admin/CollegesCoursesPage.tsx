@@ -151,7 +151,7 @@ function CoursesTab({ initialHealth }: { initialHealth: '' | CourseHealthFilter 
       rows={courses.data?.items ?? []}
       rowKey={(course) => course.id!}
       loading={courses.isLoading}
-      error={courses.isError ? 'Could not load courses.' : undefined}
+      error={courses.isError ? 'Could not load courses.' : undefined} errorSource={courses.error}
       emptyMessage={
         search || health || status ? 'No courses match these filters.' : 'No courses yet — add them from a college.'
       }
@@ -481,7 +481,7 @@ export function CollegesCoursesPage() {
           rows={colleges.data?.items ?? []}
           rowKey={(college) => college.id!}
           loading={colleges.isLoading}
-          error={colleges.isError ? 'Could not load colleges.' : undefined}
+          error={colleges.isError ? 'Could not load colleges.' : undefined} errorSource={colleges.error}
           emptyMessage={filtered ? 'No colleges match these filters.' : 'No colleges yet. Add the first one with Add College above.'}
           onRowClick={(college) => navigate(`/admin/colleges/${college.id}`)}
           sort={sort}

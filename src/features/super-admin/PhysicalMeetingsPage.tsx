@@ -434,7 +434,7 @@ export function PhysicalMeetingsPage() {
           rows={rows}
           rowKey={(e) => e.id!}
           loading={events.isLoading}
-          error={events.isError ? 'Could not load in-person meetings.' : undefined}
+          error={events.isError ? 'Could not load in-person meetings.' : undefined} errorSource={events.error}
           emptyMessage={
             search
               ? 'No meetings match your search.'

@@ -69,7 +69,7 @@ export function InternalNotesTab({ clientId }: { clientId: string }) {
 
       <div className="min-h-0 flex-1 overflow-y-auto px-lg py-md">
         {notes.isLoading && <Skeleton className="h-16 rounded-lg" />}
-        {notes.isError && <ErrorState message="Could not load notes." onRetry={() => notes.refetch()} />}
+        {notes.isError && <ErrorState message="Could not load notes." onRetry={() => notes.refetch()} error={notes.error} />}
         {!notes.isLoading && !notes.isError && items.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center gap-sm text-center">
             <NotebookPen className="h-8 w-8 text-text-secondary" aria-hidden />

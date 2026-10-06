@@ -207,7 +207,7 @@ export function IncomingTransfersTab({ isInstitute = false }: { isInstitute?: bo
         rows={codes.data?.items ?? []}
         rowKey={(c) => c.code}
         loading={codes.isLoading}
-        error={codes.isError ? 'Could not load transfer codes.' : undefined}
+        error={codes.isError ? 'Could not load transfer codes.' : undefined} errorSource={codes.error}
         emptyMessage="No transfer codes issued yet."
         pagination={{
           hasNext: Boolean(codes.data?.meta?.next_cursor),

@@ -1596,7 +1596,7 @@ export function ManageConsultanciesPage() {
           rows={consultancies.data?.items ?? []}
           rowKey={(c) => c.id!}
           loading={consultancies.isLoading}
-          error={consultancies.isError ? 'Could not load consultancies.' : undefined}
+          error={consultancies.isError ? 'Could not load consultancies.' : undefined} errorSource={consultancies.error}
           emptyMessage={
             search || tierFilter || kindFilter || statusFilter
               ? 'No accounts match these filters.'

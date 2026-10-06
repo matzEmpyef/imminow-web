@@ -108,7 +108,7 @@ export function NeedsAttentionPage() {
   if (attention.isError || !attention.data) {
     return (
       <AdminShell>
-        <ErrorState message="Could not load what needs attention." onRetry={() => attention.refetch()} />
+        <ErrorState message="Could not load what needs attention." onRetry={() => attention.refetch()} error={attention.error} />
       </AdminShell>
     )
   }

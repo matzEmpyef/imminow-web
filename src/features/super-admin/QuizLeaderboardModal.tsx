@@ -144,7 +144,7 @@ export function QuizLeaderboardModal({ event, onClose }: { event: Event; onClose
         rows={pageRows}
         rowKey={(r) => `${r.rank}-${r.student_name}`}
         loading={leaderboard.isLoading}
-        error={leaderboard.isError ? 'Could not load the leaderboard.' : undefined}
+        error={leaderboard.isError ? 'Could not load the leaderboard.' : undefined} errorSource={leaderboard.error}
         emptyMessage="No completed attempts yet."
         sort={sort}
         onSortChange={(field, direction) => {

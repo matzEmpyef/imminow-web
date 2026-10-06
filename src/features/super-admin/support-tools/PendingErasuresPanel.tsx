@@ -163,7 +163,7 @@ export function PendingErasuresPanel() {
         rows={rows}
         rowKey={(e) => e.id}
         loading={erasures.isLoading}
-        error={erasures.isError ? erasures.error.message : undefined}
+        error={erasures.isError ? erasures.error.message : undefined} errorSource={erasures.error}
         emptyMessage={ended ? 'No erasures ended in the last 90 days.' : 'No erasures are scheduled.'}
         pagination={{
           hasNext: Boolean(nextCursor),

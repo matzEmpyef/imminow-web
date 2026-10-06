@@ -460,7 +460,7 @@ export function WebinarsPage() {
           rows={rows}
           rowKey={(e) => e.id!}
           loading={events.isLoading}
-          error={events.isError ? 'Could not load webinars.' : undefined}
+          error={events.isError ? 'Could not load webinars.' : undefined} errorSource={events.error}
           emptyMessage={
             search
               ? 'No webinars match your search.'

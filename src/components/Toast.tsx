@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react'
 import { useToastStore, type ToastItem } from '@/lib/toast'
+import { ReferenceLine } from './ErrorReference'
 
 // Where `showToast()` (lib/toast.ts) messages appear — mounted once, in main.tsx.
 
@@ -35,7 +36,10 @@ function ToastCard({ toast }: { toast: ToastItem }) {
       className="flex max-w-[24rem] items-center gap-sm rounded-lg border border-border bg-surface px-md py-sm shadow-card"
     >
       <Icon className={`h-4 w-4 shrink-0 ${iconTone}`} />
-      <span className="break-words text-body-sm text-text-primary">{toast.message}</span>
+      <span className="min-w-0 break-words text-body-sm text-text-primary">
+        {toast.message}
+        {toast.reference && <ReferenceLine reference={toast.reference} className="mt-0.5" />}
+      </span>
       <button
         type="button"
         onClick={() => dismiss(toast.id)}

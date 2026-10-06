@@ -208,7 +208,7 @@ export function ReceiptsPage() {
             rows={receipts.data?.items ?? []}
             rowKey={(r) => r.id}
             loading={receipts.isLoading}
-            error={receipts.isError ? 'Could not load receipts.' : undefined}
+            error={receipts.isError ? 'Could not load receipts.' : undefined} errorSource={receipts.error}
             emptyMessage={
               search || status
                 ? 'No receipts match your search or status filter.'

@@ -542,7 +542,7 @@ export function CourseSuggestionsReviewPage() {
           rows={queue.data?.items ?? []}
           rowKey={(s) => s.id!}
           loading={queue.isLoading}
-          error={queue.isError ? 'Could not load course suggestions.' : undefined}
+          error={queue.isError ? 'Could not load course suggestions.' : undefined} errorSource={queue.error}
           emptyMessage={
             search || kind
               ? 'No suggestions match these filters.'

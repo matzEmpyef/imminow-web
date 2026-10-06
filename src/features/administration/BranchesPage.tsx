@@ -192,7 +192,7 @@ export function BranchesPage() {
           rows={rows}
           rowKey={(branch) => branch.id!}
           loading={branches.isLoading}
-          error={branches.isError ? 'Could not load branches.' : undefined}
+          error={branches.isError ? 'Could not load branches.' : undefined} errorSource={branches.error}
           emptyMessage={
             search
               ? 'No branches match your search.'

@@ -715,7 +715,7 @@ export function PlatformTeamPage() {
           rows={rows}
           rowKey={(s) => s.id!}
           loading={staff.isLoading}
-          error={staff.isError ? 'Could not load platform staff.' : undefined}
+          error={staff.isError ? 'Could not load platform staff.' : undefined} errorSource={staff.error}
           emptyMessage={
             search || statusFilter !== 'all'
               ? 'No staff match these filters.'

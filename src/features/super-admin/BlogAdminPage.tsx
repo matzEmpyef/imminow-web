@@ -215,7 +215,7 @@ function ArticlesTab() {
         rows={rows}
         rowKey={(a) => a.id}
         loading={articles.isLoading}
-        error={articles.isError ? 'Could not load articles.' : undefined}
+        error={articles.isError ? 'Could not load articles.' : undefined} errorSource={articles.error}
         emptyMessage={
           search || tagFilter || statusFilter !== 'all'
             ? 'No articles match these filters.'
@@ -640,7 +640,7 @@ function CategoryMappingTab() {
         rows={rows}
         rowKey={(m) => m.id!}
         loading={mappings.isLoading}
-        error={mappings.isError ? 'Could not load category mappings.' : undefined}
+        error={mappings.isError ? 'Could not load category mappings.' : undefined} errorSource={mappings.error}
         emptyMessage={newOnly ? 'No new website categories waiting.' : 'No category mappings yet.'}
         search={{ value: search, onChange: setSearch, placeholder: 'Search category or tag…' }}
         quickFilters={

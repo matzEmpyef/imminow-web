@@ -140,7 +140,7 @@ export function VisitRequestsPage() {
           rows={rows}
           rowKey={(v) => v.id}
           loading={requests.isLoading}
-          error={requests.isError ? 'Could not load visit requests.' : undefined}
+          error={requests.isError ? 'Could not load visit requests.' : undefined} errorSource={requests.error}
           emptyMessage={
             statusKey === 'pending'
               ? 'No pending visit requests.'

@@ -269,7 +269,7 @@ export function NotificationChannelConfigPage() {
           rows={rows}
           rowKey={(entry) => `${entry.audience}-${entry.notification_type}`}
           loading={config.isLoading}
-          error={config.isError ? 'Could not load the channel config.' : undefined}
+          error={config.isError ? 'Could not load the channel config.' : undefined} errorSource={config.error}
           emptyMessage={search ? 'No notification types match this search.' : 'No notification types configured.'}
           search={{ value: search, onChange: setSearch, placeholder: 'Search notification type…' }}
           quickFilters={AUDIENCE_CHIPS.map((chip) => (

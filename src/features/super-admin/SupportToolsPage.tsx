@@ -114,7 +114,7 @@ export function SupportToolsPage() {
           rows={rows}
           rowKey={(result) => result.id}
           loading={results.isLoading}
-          error={results.isError ? 'Could not run this search.' : undefined}
+          error={results.isError ? 'Could not run this search.' : undefined} errorSource={results.error}
           emptyMessage={
             search.trim().length < 2
               ? `Search by ${SEARCH_RULE}.`

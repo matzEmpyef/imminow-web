@@ -317,7 +317,7 @@ export function PartnerCollegesPanel({
         rows={relations.data ?? []}
         rowKey={(r) => r.id}
         loading={relations.isLoading}
-        error={relations.isError ? 'Could not load partner colleges.' : undefined}
+        error={relations.isError ? 'Could not load partner colleges.' : undefined} errorSource={relations.error}
         emptyMessage="No partner colleges yet — use Add partner college to add the first one."
       />
 

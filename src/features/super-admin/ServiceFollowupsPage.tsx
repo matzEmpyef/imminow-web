@@ -345,7 +345,7 @@ export function ServiceFollowupsPage() {
           rows={filtered}
           rowKey={(row) => row.student_id}
           loading={queue.isLoading}
-          error={queue.isError ? 'Could not load the follow-up queue.' : undefined}
+          error={queue.isError ? 'Could not load the follow-up queue.' : undefined} errorSource={queue.error}
           emptyMessage="Nothing needs chasing right now."
           onRowClick={(row) => setViewing(row)}
           search={{ value: search, onChange: setSearch, placeholder: paged ? 'Search this page…' : 'Search student, email or consultancy…' }}

@@ -477,7 +477,7 @@ export function FreelancerDashboardPage() {
             rowKey={(r) => r.id}
             onRowClick={(r) => setViewing(r)}
             loading={referrals.isLoading}
-            error={referrals.isError ? 'Could not load your referrals.' : undefined}
+            error={referrals.isError ? 'Could not load your referrals.' : undefined} errorSource={referrals.error}
             emptyMessage={anyFilter ? 'No referrals match these filters.' : 'No referrals yet.'}
             sort={sort}
             onSortChange={(field, direction) => {

@@ -205,7 +205,7 @@ export function CaseFollowupsPage() {
           rows={filtered}
           rowKey={(row) => row.journey_id ?? row.student_id ?? row.student_name ?? ''}
           loading={queue.isLoading}
-          error={queue.isError ? 'Could not load the follow-up queue.' : undefined}
+          error={queue.isError ? 'Could not load the follow-up queue.' : undefined} errorSource={queue.error}
           emptyMessage="Nothing needs chasing right now."
           onRowClick={(row) => setViewing(row)}
           search={{ value: search, onChange: setSearch, placeholder: paged ? 'Search this page…' : 'Search student or consultancy…' }}

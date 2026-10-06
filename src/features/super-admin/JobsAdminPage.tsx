@@ -649,7 +649,7 @@ export function JobsAdminPage() {
           rows={rows}
           rowKey={(j) => j.id!}
           loading={jobs.isLoading}
-          error={jobs.isError ? 'Could not load job listings.' : undefined}
+          error={jobs.isError ? 'Could not load job listings.' : undefined} errorSource={jobs.error}
           emptyMessage={
             search || statusFilter || typeFilter || workModeFilter || countryFilter || provinceFilter
               ? 'No listings match these filters.'

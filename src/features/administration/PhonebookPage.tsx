@@ -168,7 +168,7 @@ export function PhonebookPage() {
           rowKey={(c) => c.id}
           rowClassName={() => 'group'}
           loading={contacts.isLoading}
-          error={contacts.isError ? 'Could not load contacts.' : undefined}
+          error={contacts.isError ? 'Could not load contacts.' : undefined} errorSource={contacts.error}
           emptyMessage={
             search || categoryFilter
               ? 'No contacts match your search or category.'

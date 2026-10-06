@@ -137,7 +137,7 @@ export function ReviewsPage() {
           rows={rows}
           rowKey={(r) => r.id}
           loading={reviews.isLoading}
-          error={reviews.isError ? 'Could not load reviews.' : undefined}
+          error={reviews.isError ? 'Could not load reviews.' : undefined} errorSource={reviews.error}
           emptyMessage={EMPTY_MESSAGE[status]}
           onRowClick={(r) => setViewing(r)}
           quickFilters={

@@ -506,7 +506,7 @@ function StatesModal({ country, onClose }: { country: string; onClose: () => voi
           rows={visible}
           rowKey={(s) => s.name}
           loading={states.isLoading}
-          error={states.isError ? 'Could not load states.' : undefined}
+          error={states.isError ? 'Could not load states.' : undefined} errorSource={states.error}
           emptyMessage={
             rows.length === 0 ? `No states or provinces for ${country}. Add one if the country has them.` : 'No states match.'
           }
@@ -1263,7 +1263,7 @@ function ExamsTab() {
         rows={exams.data ?? []}
         rowKey={(e) => e.id!}
         loading={exams.isLoading}
-        error={exams.isError ? 'Could not load the exams catalog.' : undefined}
+        error={exams.isError ? 'Could not load the exams catalog.' : undefined} errorSource={exams.error}
         emptyMessage="No exams yet."
       />
       {adding && <ExamFormModal onClose={() => setAdding(false)} />}
@@ -1499,7 +1499,7 @@ function StudyLevelsTab() {
         rows={rows}
         rowKey={(row) => row.code}
         loading={levels.isLoading}
-        error={levels.isError ? 'Could not load the study levels ladder.' : undefined}
+        error={levels.isError ? 'Could not load the study levels ladder.' : undefined} errorSource={levels.error}
         emptyMessage="No study levels yet."
       />
       {adding && <StudyLevelFormModal onClose={() => setAdding(false)} />}

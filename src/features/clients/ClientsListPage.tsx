@@ -391,7 +391,7 @@ export function ClientsListPage() {
           rows={clients.data?.items ?? []}
           rowKey={(client) => client.id}
           loading={clients.isLoading}
-          error={clients.isError ? 'Could not load clients.' : undefined}
+          error={clients.isError ? 'Could not load clients.' : undefined} errorSource={clients.error}
           emptyMessage={
             search || tagFilter.length > 0 || destinationFilter.length > 0 || assignedToMe || unattendedOnly || unassignedOnly
               ? 'No clients match your search or filters.'

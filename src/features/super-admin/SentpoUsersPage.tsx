@@ -297,7 +297,7 @@ export function SentpoUsersPage() {
             })
           }
           loading={directory.isLoading}
-          error={directory.isError ? 'Could not load the Sentpo user directory.' : undefined}
+          error={directory.isError ? 'Could not load the Sentpo user directory.' : undefined} errorSource={directory.error}
           emptyMessage={
             search || stage || onboarding || dormantDays || platform || profile || joined
               ? 'No students match these filters.'

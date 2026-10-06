@@ -69,7 +69,7 @@ export function ApplicantCaseViewPage() {
   if (applicant.isError || !applicant.data) {
     return (
       <AdminShell>
-        <ErrorState message="Could not load this applicant." onRetry={() => applicant.refetch()} />
+        <ErrorState message="Could not load this applicant." onRetry={() => applicant.refetch()} error={applicant.error} />
       </AdminShell>
     )
   }
@@ -229,7 +229,7 @@ export function ApplicantCaseViewPage() {
             </Button>
           </div>
           {notes.isLoading && <Skeleton className="h-16 rounded-md" />}
-          {notes.isError && <ErrorState message="Could not load the call history." onRetry={() => notes.refetch()} />}
+          {notes.isError && <ErrorState message="Could not load the call history." onRetry={() => notes.refetch()} error={notes.error} />}
           {!notes.isLoading && !notes.isError && (notes.data?.length ?? 0) === 0 && (
             <p className="text-body-sm text-text-secondary">Nobody has reached out yet.</p>
           )}

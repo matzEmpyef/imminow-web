@@ -176,7 +176,7 @@ export function PersonSignInDrawer({ person, onClose }: { person: SignInHistoryP
           {history.isLoading ? (
             <Skeleton className="h-40 rounded-lg" />
           ) : history.isError || !history.data ? (
-            <ErrorState message="Could not load sign-in history." onRetry={() => history.refetch()} />
+            <ErrorState message="Could not load sign-in history." onRetry={() => history.refetch()} error={history.error} />
           ) : (
             <HistoryBody data={history.data} />
           )}

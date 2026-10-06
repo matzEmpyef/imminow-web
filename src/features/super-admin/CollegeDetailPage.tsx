@@ -596,7 +596,7 @@ export function CollegeDetailPage() {
   if (college.isError || !college.data) {
     return (
       <AdminShell>
-        <ErrorState message="Could not load this college." onRetry={() => college.refetch()} />
+        <ErrorState message="Could not load this college." onRetry={() => college.refetch()} error={college.error} />
       </AdminShell>
     )
   }
@@ -800,7 +800,7 @@ export function CollegeDetailPage() {
           rows={courses.data?.items ?? []}
           rowKey={(course) => course.id!}
           loading={courses.isLoading}
-          error={courses.isError ? 'Could not load courses.' : undefined}
+          error={courses.isError ? 'Could not load courses.' : undefined} errorSource={courses.error}
           emptyMessage={
             filtered ? 'No courses match these filters.' : 'No courses yet for this college. Add one with Add Course above.'
           }

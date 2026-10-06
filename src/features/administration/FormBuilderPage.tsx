@@ -138,7 +138,7 @@ export function FormBuilderPage() {
   if (!isNew && (existing.isError || !existing.data)) {
     return (
       <AppShell>
-        <ErrorState message="Could not load this form." onRetry={() => existing.refetch()} />
+        <ErrorState message="Could not load this form." onRetry={() => existing.refetch()} error={existing.error} />
       </AppShell>
     )
   }

@@ -1,5 +1,5 @@
 import type { Mutation } from '@tanstack/react-query'
-import { ApiError } from '@/api/errors'
+import { ApiError, requestReference } from '@/api/errors'
 import { showToast } from '@/lib/toast'
 
 /**
@@ -37,5 +37,5 @@ export function reportFailedSave(
   if (screenShowsIt(mutation.meta)) return
   if (error instanceof ApiError && error.status === 401) return
   const message = error instanceof Error ? error.message.trim() : ''
-  showToast(message || SAVE_FAILED_FALLBACK, 'error')
+  showToast(message || SAVE_FAILED_FALLBACK, 'error', { reference: requestReference(error) })
 }

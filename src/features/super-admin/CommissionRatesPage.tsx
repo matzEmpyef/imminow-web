@@ -195,7 +195,7 @@ export function CommissionRatesPage() {
           rows={rows.data?.items ?? []}
           rowKey={(r) => r.consultancy_id}
           loading={rows.isLoading}
-          error={rows.isError ? 'Could not load commission rate coverage.' : undefined}
+          error={rows.isError ? 'Could not load commission rate coverage.' : undefined} errorSource={rows.error}
           emptyMessage="No accounts match these filters."
           sort={sort}
           onSortChange={(field, direction) => {

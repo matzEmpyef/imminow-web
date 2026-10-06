@@ -55,7 +55,7 @@ export function ClientConversationPage() {
   if (client.isError || !client.data) {
     return (
       <AppShell>
-        <ErrorState message="Could not load this client." onRetry={() => client.refetch()} />
+        <ErrorState message="Could not load this client." onRetry={() => client.refetch()} error={client.error} />
       </AppShell>
     )
   }

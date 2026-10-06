@@ -229,7 +229,7 @@ export function PerformanceLeaguePage() {
             rows={rows}
             rowKey={(r) => r.consultancy_id}
             loading={league.isLoading}
-            error={league.isError ? 'Could not load the performance league.' : undefined}
+            error={league.isError ? 'Could not load the performance league.' : undefined} errorSource={league.error}
             emptyMessage={search ? 'No accounts match this search.' : `No active ${noun} yet.`}
             sort={sort}
             onSortChange={(field, direction) => setSort({ field, direction })}

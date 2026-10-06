@@ -1,5 +1,6 @@
 import { Card } from './Card'
 import { Button } from './Button'
+import { ErrorReference } from './ErrorReference'
 
 // The loading/error shape every full-page and full-section query guard used to hand-roll: an
 // `animate-pulse` block while fetching, then a `<Card><p className="text-error">Could not load
@@ -15,10 +16,15 @@ export function Skeleton({ className }: { className: string }) {
   return <div className={`animate-pulse bg-surface ${className}`} />
 }
 
-export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+// `error` is the failure itself, when the caller has it: its request reference is shown under the
+// message (review F-162), the one thing support needs to find the request in the server's log.
+export function ErrorState({ message, onRetry, error }: { message: string; onRetry?: () => void; error?: unknown }) {
   return (
     <Card className="flex items-center justify-between gap-md">
-      <p className="text-body-sm text-error">{message}</p>
+      <div className="min-w-0">
+        <p className="text-body-sm text-error">{message}</p>
+        <ErrorReference error={error} className="mt-0.5" />
+      </div>
       {onRetry && (
         <Button variant="secondary" onClick={onRetry}>
           Retry

@@ -215,7 +215,7 @@ export function ExchangeRatesTab({ readOnly = false }: { readOnly?: boolean }) {
         rows={rows}
         rowKey={(r) => r.currency}
         loading={rates.isLoading}
-        error={rates.isError ? 'Could not load exchange rates.' : undefined}
+        error={rates.isError ? 'Could not load exchange rates.' : undefined} errorSource={rates.error}
         emptyMessage="No rates yet."
       />
       {!readOnly && (editing || adding !== null) && (

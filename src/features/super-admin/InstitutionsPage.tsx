@@ -573,7 +573,7 @@ function QueueView() {
         rows={rows}
         rowKey={(g) => g.key}
         loading={suggestions.isLoading}
-        error={suggestions.isError ? 'Could not load the queue.' : undefined}
+        error={suggestions.isError ? 'Could not load the queue.' : undefined} errorSource={suggestions.error}
         emptyMessage={search ? 'Nothing in the queue matches.' : 'Nothing waiting — every student’s school is resolved.'}
         search={{
           value: search,
@@ -881,7 +881,7 @@ function AllInstitutionsView() {
         rows={list.data?.items ?? []}
         rowKey={(i) => i.id}
         loading={list.isLoading}
-        error={list.isError ? 'Could not load institutions.' : undefined}
+        error={list.isError ? 'Could not load institutions.' : undefined} errorSource={list.error}
         emptyMessage={
           search || typeFilter || cityFilter || stateFilter || statusFilter !== 'active'
             ? 'No institutions match these filters.'

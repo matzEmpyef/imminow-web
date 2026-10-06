@@ -66,7 +66,7 @@ export function ActivityPage() {
   if (feed.isError || !feed.data) {
     return (
       <AppShell>
-        <ErrorState message="Could not load your activity feed." onRetry={() => feed.refetch()} />
+        <ErrorState message="Could not load your activity feed." onRetry={() => feed.refetch()} error={feed.error} />
       </AppShell>
     )
   }

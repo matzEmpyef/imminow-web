@@ -440,7 +440,7 @@ export function ApplicantAllocationPage() {
           rows={rows}
           rowKey={(e) => e.id!}
           loading={queue.isLoading}
-          error={queue.isError ? 'Could not load the allocation queue.' : undefined}
+          error={queue.isError ? 'Could not load the allocation queue.' : undefined} errorSource={queue.error}
           emptyMessage={search || sourceFilter ? 'No applicants match these filters.' : 'Nothing awaiting allocation.'}
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}

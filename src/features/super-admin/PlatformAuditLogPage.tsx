@@ -184,7 +184,7 @@ export function PlatformAuditLogPage() {
           rows={entries.data?.items ?? []}
           rowKey={(e) => e.id}
           loading={entries.isLoading}
-          error={entries.isError ? 'Could not load the audit log.' : undefined}
+          error={entries.isError ? 'Could not load the audit log.' : undefined} errorSource={entries.error}
           emptyMessage={
             search || consultancyId || actionType || area || from || to
               ? 'No matching audit entries.'

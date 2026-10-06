@@ -133,7 +133,7 @@ export function ReferralsTab({ payoutStatus }: { payoutStatus: 'owed' | 'not_due
         rows={rows}
         rowKey={(r) => r.id}
         loading={referrals.isLoading}
-        error={referrals.isError ? 'Could not load referrals.' : undefined}
+        error={referrals.isError ? 'Could not load referrals.' : undefined} errorSource={referrals.error}
         emptyMessage={payable ? 'Nothing owed right now.' : 'Nothing awaiting collection right now.'}
         search={{
           value: search,

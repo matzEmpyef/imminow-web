@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react'
+import { ErrorReference } from './ErrorReference'
 import { Button } from './Button'
 import { useDebouncedValue } from '@/lib/useDebounce'
 import { countOf } from '@/lib/counts'
@@ -53,6 +54,11 @@ interface TableProps<T> {
   loading?: boolean
   error?: ReactNode
   /**
+   * The failure behind `error`, when the caller has it. Its request reference is shown under the
+   * message in the error row (review F-162).
+   */
+  errorSource?: unknown
+  /**
    * ReactNode, not string (console review M18, 2026-09-13) — an empty state that can say what to
    * do next needs to be able to link there, same as `error` above has always been able to.
    */
@@ -98,6 +104,7 @@ export function Table<T>({
   rowKey,
   loading,
   error,
+  errorSource,
   emptyMessage = 'No results.',
   sort,
   onSortChange,
@@ -226,6 +233,7 @@ export function Table<T>({
               <tr>
                 <td colSpan={columns.length + (selection ? 1 : 0)} className="px-md py-md text-error">
                   {error}
+                  <ErrorReference error={errorSource} className="mt-0.5" />
                 </td>
               </tr>
             )}

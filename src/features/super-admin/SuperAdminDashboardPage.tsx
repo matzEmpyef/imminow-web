@@ -214,7 +214,7 @@ export function SuperAdminDashboardPage() {
   if (dashboard.isError || !dashboard.data) {
     return (
       <AdminShell>
-        <ErrorState message="Could not load the platform dashboard." onRetry={() => dashboard.refetch()} />
+        <ErrorState message="Could not load the platform dashboard." onRetry={() => dashboard.refetch()} error={dashboard.error} />
       </AdminShell>
     )
   }

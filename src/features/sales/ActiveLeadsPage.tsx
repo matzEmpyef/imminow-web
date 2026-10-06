@@ -209,7 +209,7 @@ export function ActiveLeadsPage() {
           rows={leads.data?.items ?? []}
           rowKey={(lead) => lead.id}
           loading={leads.isLoading}
-          error={leads.isError ? 'Could not load active leads.' : undefined}
+          error={leads.isError ? 'Could not load active leads.' : undefined} errorSource={leads.error}
           emptyMessage={
             search || assignedToMe || unattendedOnly
               ? 'No leads match your search or filters.'

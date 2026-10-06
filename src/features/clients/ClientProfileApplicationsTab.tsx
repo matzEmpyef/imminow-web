@@ -50,7 +50,7 @@ export function ApplicationsTab({ clientId, readOnly = false }: { clientId: stri
   const [showAddCollege, setShowAddCollege] = useState(false)
   if (colleges.isLoading) return <Skeleton className="h-24 rounded-lg" />
   if (!colleges.data) {
-    return <ErrorState message="Could not load selected colleges." onRetry={() => colleges.refetch()} />
+    return <ErrorState message="Could not load selected colleges." onRetry={() => colleges.refetch()} error={colleges.error} />
   }
 
   const addCollegeButton = (

@@ -118,7 +118,7 @@ export function DesignationsPage() {
           rows={showBuiltIn ? builtInRows : rows}
           rowKey={(d) => d.id!}
           loading={designations.isLoading}
-          error={designations.isError ? 'Could not load designations.' : undefined}
+          error={designations.isError ? 'Could not load designations.' : undefined} errorSource={designations.error}
           emptyMessage={
             search
               ? 'No designations match your search.'

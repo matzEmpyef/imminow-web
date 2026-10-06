@@ -110,7 +110,7 @@ export function DocumentsTab({ clientId, readOnly = false }: { clientId: string;
   // sent yet." with no way to tell it apart from a genuinely empty tab.
   if (uploads.isLoading || studentDocs.isLoading) return <Skeleton className="h-24 rounded-lg" />
   if (uploads.isError) {
-    return <ErrorState message="Could not load documents." onRetry={() => uploads.refetch()} />
+    return <ErrorState message="Could not load documents." onRetry={() => uploads.refetch()} error={uploads.error} />
   }
 
   // "Shared by us" is one-way. A student's own step upload is not something this group can receive,
@@ -185,7 +185,7 @@ export function DocumentsTab({ clientId, readOnly = false }: { clientId: string;
           />
 
           {studentDocs.isError ? (
-            <ErrorState message="Could not load the student's documents." onRetry={() => studentDocs.refetch()} />
+            <ErrorState message="Could not load the student's documents." onRetry={() => studentDocs.refetch()} error={studentDocs.error} />
           ) : theirDocuments.length === 0 ? (
             <EmptyState>
               Nothing shared yet. Documents arrive when the student attaches one to a plan step, or when you upload one

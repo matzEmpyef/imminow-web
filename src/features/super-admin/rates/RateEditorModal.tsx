@@ -299,9 +299,9 @@ export function RateEditorModal({
             ))}
           </div>
         ) : consultancy.isError ? (
-          <ErrorState message="Could not load this account&rsquo;s settings, so the rates cannot be edited safely." onRetry={() => consultancy.refetch()} />
+          <ErrorState message="Could not load this account&rsquo;s settings, so the rates cannot be edited safely." onRetry={() => consultancy.refetch()} error={consultancy.error} />
         ) : ratesError ? (
-          <ErrorState message="Could not load this account&rsquo;s saved rates, so the rates cannot be edited safely." onRetry={() => ownRates.refetch()} />
+          <ErrorState message="Could not load this account&rsquo;s saved rates, so the rates cannot be edited safely." onRetry={() => ownRates.refetch()} error={ownRates.error} />
         ) : (
         <div className="flex flex-col gap-md rounded-md bg-background p-md">
           {RATE_GROUPS.map(({ key, label }) => (

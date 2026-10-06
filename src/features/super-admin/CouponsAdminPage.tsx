@@ -478,7 +478,7 @@ function VoucherCodesModal({ coupon, onClose }: { coupon: Coupon; onClose: () =>
           rows={items}
           rowKey={(c) => c.id!}
           loading={codes.isLoading}
-          error={codes.isError ? 'Could not load codes.' : undefined}
+          error={codes.isError ? 'Could not load codes.' : undefined} errorSource={codes.error}
           emptyMessage="No codes yet."
           bare
         />
@@ -945,7 +945,7 @@ export function CouponsAdminPage() {
           rows={rows}
           rowKey={(c) => c.id!}
           loading={coupons.isLoading}
-          error={coupons.isError ? 'Could not load coupons.' : undefined}
+          error={coupons.isError ? 'Could not load coupons.' : undefined} errorSource={coupons.error}
           emptyMessage="No coupons yet. Add one for students to claim with their points."
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}

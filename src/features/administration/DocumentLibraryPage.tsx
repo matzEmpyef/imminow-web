@@ -287,7 +287,7 @@ export function DocumentLibraryPage() {
           rows={documents.data?.items ?? []}
           rowKey={(doc) => doc.id}
           loading={documents.isLoading}
-          error={documents.isError ? 'Could not load the document library.' : undefined}
+          error={documents.isError ? 'Could not load the document library.' : undefined} errorSource={documents.error}
           emptyMessage={
             search || tagFilter.length > 0 || mimeType || from || to
               ? 'No documents match these filters.'

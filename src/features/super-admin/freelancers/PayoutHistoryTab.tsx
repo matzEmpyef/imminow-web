@@ -149,7 +149,7 @@ export function PayoutHistoryTab() {
         rows={payouts.data?.items ?? []}
         rowKey={(p) => p.id}
         loading={payouts.isLoading}
-        error={payouts.isError ? 'Could not load payout history.' : undefined}
+        error={payouts.isError ? 'Could not load payout history.' : undefined} errorSource={payouts.error}
         emptyMessage={anyFilter ? 'No payouts match these filters.' : 'No payouts recorded yet.'}
         search={{
           value: search,

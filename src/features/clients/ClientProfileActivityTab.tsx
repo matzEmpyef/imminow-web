@@ -27,7 +27,7 @@ export function ActivityTab({ clientId }: { clientId: string }) {
 
   if (activity.isLoading) return <Skeleton className="h-24 rounded-lg" />
   if (activity.isError || !activity.data)
-    return <ErrorState message="Could not load activity." onRetry={() => activity.refetch()} />
+    return <ErrorState message="Could not load activity." onRetry={() => activity.refetch()} error={activity.error} />
 
   // Already newest first off the server (contract gate 7) — the client-side sort this tab used
   // to need against the old unpaged read is gone with it.

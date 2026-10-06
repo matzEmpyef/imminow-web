@@ -65,7 +65,7 @@ export function ConsultancyProfilePage() {
   if (consultancy.isError || !consultancy.data) {
     return (
       <AppShell>
-        <ErrorState message="Could not load the consultancy profile." onRetry={() => consultancy.refetch()} />
+        <ErrorState message="Could not load the consultancy profile." onRetry={() => consultancy.refetch()} error={consultancy.error} />
       </AppShell>
     )
   }

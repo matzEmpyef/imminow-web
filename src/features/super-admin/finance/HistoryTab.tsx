@@ -200,7 +200,7 @@ export function HistoryTab() {
         rows={payments.data?.items ?? []}
         rowKey={(p) => p.id}
         loading={payments.isLoading}
-        error={payments.isError ? 'Could not load payment history.' : undefined}
+        error={payments.isError ? 'Could not load payment history.' : undefined} errorSource={payments.error}
         emptyMessage={anyFilter ? 'No payments match these filters.' : 'No settled payments yet.'}
         search={{
           value: search,

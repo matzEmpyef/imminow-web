@@ -157,7 +157,7 @@ export function ImminowUsersPage() {
             })
           }
           loading={directory.isLoading}
-          error={directory.isError ? 'Could not load the immiNow user directory.' : undefined}
+          error={directory.isError ? 'Could not load the immiNow user directory.' : undefined} errorSource={directory.error}
           emptyMessage={
             search || consultancyId || active || neverActive
               ? 'No users match these filters.'

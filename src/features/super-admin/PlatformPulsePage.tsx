@@ -288,7 +288,7 @@ export function PlatformPulsePage() {
   if (pulse.isError || !pulse.data) {
     return (
       <AdminShell>
-        <ErrorState message="Could not load Platform Pulse data." onRetry={() => pulse.refetch()} />
+        <ErrorState message="Could not load Platform Pulse data." onRetry={() => pulse.refetch()} error={pulse.error} />
       </AdminShell>
     )
   }

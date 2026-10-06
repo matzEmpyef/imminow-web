@@ -80,7 +80,7 @@ export function AssignPlanModal({ clientId, onClose }: { clientId: string; onClo
         </p>
         {templates.isLoading && <Skeleton className="h-40 rounded-lg" />}
         {templates.isError && (
-          <ErrorState message="Could not load plan templates." onRetry={() => templates.refetch()} />
+          <ErrorState message="Could not load plan templates." onRetry={() => templates.refetch()} error={templates.error} />
         )}
 
         <div className="grid grid-cols-2 gap-md">
