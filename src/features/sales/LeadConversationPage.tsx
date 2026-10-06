@@ -35,6 +35,7 @@ import {
 import { useBranches } from '@/queries/staff'
 import { chronologicalPages } from '@/lib/pagination'
 import { useFeature } from '@/lib/features'
+import { canOfferLeadReopen, useCanReopen } from '@/lib/reopenRules'
 import { usePermission } from '@/lib/permissions'
 import { formatDate, formatDateTime } from '@/lib/time'
 import { formatMoney } from '@/lib/money'
@@ -287,10 +288,10 @@ export function LeadConversationPage() {
   // button is now gated on the permission the SERVER enforces on POST /leads/{id}/close —
   // `clients.close`, the one key that guards closing a lead and closing a case alike. It used to
   // render for everyone, so a limited consultant clicked it and got a 403 for their trouble.
-  // Reopen is the `case_reopening` entitlement, same flag as Reopen Case/Reopen Plan on the
-  // client side.
+  // Reopen follows the one rule every Reopen control shares (`lib/reopenRules.ts`): the
+  // `case_reopening` plan feature, and never a lead that closed on the student's side.
   const canCloseLead = usePermission('clients.close')
-  const canReopenLead = useFeature('case_reopening')
+  const planIncludesReopening = useCanReopen()
 
   // Read on open, and again for each message that arrives while the consultant is looking at the
   // thread (review F-143; the shared hook all four chat screens use).
@@ -350,7 +351,7 @@ export function LeadConversationPage() {
                 <span className="rounded-full bg-background px-sm py-1.5 text-caption font-medium text-text-secondary">
                   Closed
                 </span>
-                {canReopenLead && (
+                {canOfferLeadReopen(data, planIncludesReopening) && (
                   <Button variant="secondary" onClick={() => setShowReopenModal(true)}>
                     Reopen Lead
                   </Button>

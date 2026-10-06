@@ -13,6 +13,7 @@ import { usePermission } from '@/lib/permissions'
 import { showToast } from '@/lib/toast'
 import { CloseClientModal } from './CloseClientModal'
 import { RaiseIssueModal } from './RaiseIssueModal'
+import { canOfferCaseReopen } from '@/lib/reopenRules'
 import { ReopenClientModal } from './ReopenClientModal'
 import { OverviewTab } from './ClientProfileOverviewTab'
 import { PlanTab } from './ClientProfilePlanTab'
@@ -190,7 +191,9 @@ export function ClientProfilePage() {
               // this consultancy's to reopen once it belongs to another one.
               null
             ) : data.status === 'closed' ? (
-              hasCaseReopening && (
+              // One rule for every Reopen control (`lib/reopenRules.ts`): the plan feature, and
+              // never a case that closed because the student deleted their account.
+              canOfferCaseReopen(data, hasCaseReopening) && (
                 <Button variant="secondary" onClick={() => setShowReopenCase(true)}>
                   Reopen Case
                 </Button>

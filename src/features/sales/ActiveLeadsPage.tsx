@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowRightLeft, RotateCcw } from 'lucide-react'
+import { ArrowRightLeft } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Badge } from '@/components/Badge'
 import { Table, type TableColumn } from '@/components/Table'
@@ -9,6 +9,8 @@ import { AssignConsultantMenu } from '@/features/sales/AssignConsultantMenu'
 import { StopPropagation } from '@/components/StopPropagation'
 import { RequestedBranchBadge, RequestedBranchNote } from '@/components/RequestedBranch'
 import { ReopenLeadModal } from './ReopenLeadModal'
+import { ReopenTrigger } from '@/components/ReopenTrigger'
+import { canOfferLeadReopen, useCanReopen } from '@/lib/reopenRules'
 import { useBranches, useEmployees } from '@/queries/staff'
 import { useAllocateLead, useLeads, useSetLeadTags } from '@/queries/leads'
 import { useCreateTag, useTags } from '@/queries/tags'
@@ -22,27 +24,6 @@ import { Toggle } from '@/components/Toggle'
 import { timeAgo } from '@/lib/time'
 
 type Lead = NonNullable<ReturnType<typeof useLeads>['data']>['items'][number]
-
-// Modal isn't a portal, so without StopPropagation a click inside the confirm popup would
-// bubble through this cell into the row's own onClick and navigate away — same wrapper
-// AssignConsultantMenu.tsx/TagEditorMenu.tsx already use.
-function ReopenLeadTrigger({ leadId, leadName }: { leadId: string; leadName: string }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <StopPropagation>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label={`Reopen ${leadName}`}
-        title={`Reopen ${leadName}`}
-        className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
-      >
-        <RotateCcw className="h-4 w-4" />
-      </button>
-      {open && <ReopenLeadModal leadId={leadId} leadName={leadName} onClose={() => setOpen(false)} />}
-    </StopPropagation>
-  )
-}
 
 export function ActiveLeadsPage() {
   const navigate = useNavigate()
@@ -90,8 +71,11 @@ export function ActiveLeadsPage() {
   const tagCeiling = useListCeiling('tags', tags.data?.length)
   const setLeadTags = useSetLeadTags()
   // Mirrors the leads.reassign enforcement on PATCH /leads/:id/assign. Only the reassign menu is
-  // gated — the closed-lead Reopen trigger in the same column is tier-gated separately and stays.
+  // gated on it — the closed-lead Reopen in the same column has its own rule, the plan feature
+  // the server checks (review F-147; `lib/reopenRules.ts`). It used to be shown on every closed
+  // row on every plan.
   const canReassign = usePermission('leads.reassign')
+  const planIncludesReopening = useCanReopen()
 
   function resetPaging() {
     paging.reset()
@@ -175,7 +159,12 @@ export function ActiveLeadsPage() {
       header: 'Reassign',
       render: (lead) =>
         lead.status === 'closed' ? (
-          <ReopenLeadTrigger leadId={lead.id} leadName={lead.name} />
+          canOfferLeadReopen(lead, planIncludesReopening) ? (
+            <ReopenTrigger
+              name={lead.name}
+              renderModal={(close) => <ReopenLeadModal leadId={lead.id} leadName={lead.name} onClose={close} />}
+            />
+          ) : null
         ) : !canReassign ? null : (
           <AssignConsultantMenu
             employees={(employees.data?.items ?? [])

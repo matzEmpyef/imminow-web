@@ -114,3 +114,27 @@ describe('ClientProfilePage — case moved to another consultancy', () => {
     expect(screen.getByRole('button', { name: 'Raise an Issue' })).toBeInTheDocument()
   })
 })
+
+// Review F-147 and the owner's ruling of 2026-10-06: "Reopen Case" follows the one shared rule.
+describe('ClientProfilePage — Reopen Case', () => {
+  it('is offered on a closed case when the plan includes reopening', () => {
+    mockedFeature.mockReturnValue(true)
+    mockedClient.mockReturnValue(query(baseClient({ status: 'closed', close_sub_reason: 'lost_contact' })))
+    renderProfile()
+    expect(screen.getByRole('button', { name: 'Reopen Case' })).toBeInTheDocument()
+  })
+
+  it('is hidden on a case that closed because the student deleted their account', () => {
+    mockedFeature.mockReturnValue(true)
+    mockedClient.mockReturnValue(query(baseClient({ status: 'closed', close_sub_reason: 'account_deleted' })))
+    renderProfile()
+    expect(screen.queryByRole('button', { name: 'Reopen Case' })).not.toBeInTheDocument()
+  })
+
+  it('is hidden on a plan without reopening', () => {
+    mockedFeature.mockReturnValue(false)
+    mockedClient.mockReturnValue(query(baseClient({ status: 'closed', close_sub_reason: 'lost_contact' })))
+    renderProfile()
+    expect(screen.queryByRole('button', { name: 'Reopen Case' })).not.toBeInTheDocument()
+  })
+})

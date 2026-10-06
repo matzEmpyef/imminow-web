@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowRightLeft, RotateCcw, UserPlus } from 'lucide-react'
+import { ArrowRightLeft, UserPlus } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
@@ -16,6 +16,8 @@ import { StopPropagation } from '@/components/StopPropagation'
 import { CreateApplicantModal } from './CreateApplicantModal'
 import { ApplicantRequestsPanel } from './ApplicantRequestsPanel'
 import { ReopenClientModal } from './ReopenClientModal'
+import { ReopenTrigger } from '@/components/ReopenTrigger'
+import { canOfferCaseReopen, useCanReopen } from '@/lib/reopenRules'
 import { useAssignClient, useClients, useSetClientTags } from '@/queries/clients'
 import { useFeature } from '@/lib/features'
 import { useCreateTag, useTags } from '@/queries/tags'
@@ -30,27 +32,6 @@ import { showToast } from '@/lib/toast'
 import { CASE_MOVED_ACTION_REASON, isCaseMoved } from '@/lib/clientStatus'
 
 type Client = NonNullable<ReturnType<typeof useClients>['data']>['items'][number]
-
-// Modal isn't a portal, so without StopPropagation a click inside the confirm popup would
-// bubble through this cell into the row's own onClick and navigate away — same wrapper
-// ActiveLeadsPage.tsx's own ReopenLeadTrigger uses.
-function ReopenClientTrigger({ clientId, clientName }: { clientId: string; clientName: string }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <StopPropagation>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label={`Reopen ${clientName}`}
-        title={`Reopen ${clientName}`}
-        className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
-      >
-        <RotateCcw className="h-4 w-4" />
-      </button>
-      {open && <ReopenClientModal clientId={clientId} clientName={clientName} onClose={() => setOpen(false)} />}
-    </StopPropagation>
-  )
-}
 
 // Closes a real gap (user-requested, 2026-08-18) — a client allocated from the Applicant
 // Allocation queue previously landed here with no way to assign it to a consultant. Generalized
@@ -162,6 +143,7 @@ export function ClientsListPage() {
   const { can } = usePermissionChecker()
   const { isInstitute } = useAccountWords()
   const canCreateApplicant = useFeature('create_applicant') && can('clients.create_applicant')
+  const planIncludesReopening = useCanReopen()
   const canAssign = can('clients.reassign')
   const tags = useTags()
   const createTag = useCreateTag()
@@ -349,7 +331,16 @@ export function ClientsListPage() {
                 plain `closed` case, there is no Reopen here: it belongs to another consultancy
                 now. The Moved pill in the Tags column already says so. */}
             {isCaseMoved(client.status) ? null : client.status === 'closed' ? (
-              <ReopenClientTrigger clientId={client.id} clientName={clientName} />
+              // Only where the plan includes reopening, and never on a case that closed because
+              // the student deleted their account (review F-147; `lib/reopenRules.ts`).
+              canOfferCaseReopen(client, planIncludesReopening) ? (
+                <ReopenTrigger
+                  name={clientName}
+                  renderModal={(close) => (
+                    <ReopenClientModal clientId={client.id} clientName={clientName} onClose={close} />
+                  )}
+                />
+              ) : null
             ) : (
               <>
                 {canAssign && (
