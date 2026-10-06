@@ -22,6 +22,13 @@ interface ModalProps {
    * popup is safe without anyone remembering to ask for it. The X always closes.
    */
   dismissible?: boolean
+  /**
+   * Takes the X away, and with it every way to close the popup, while something that must not be
+   * walked away from is in progress (review F-153): a batch of payments being confirmed one by
+   * one. The popup then closes only through its own buttons once that work has finished or been
+   * stopped. Use it for exactly that; a popup is otherwise always closable.
+   */
+  locked?: boolean
 }
 
 // Shared centered popup. Width is capped via inline style (not a `max-w-[Nrem]` class) since
@@ -36,15 +43,25 @@ interface ModalProps {
 // pair) never scrolls out of view. Callers move their trailing Button(s) here instead of leaving
 // them as the last element inside the scrollable `children`; omitting `footer` keeps the old
 // everything-scrolls-together behavior for short forms/read-only popups that don't need it.
-export function Modal({ onClose, title, children, widthRem = 32, footer, header, subheader, dismissible = false }: ModalProps) {
-  const dialogRef = useDialogA11y<HTMLDivElement>(onClose, true, { closeOnEscape: dismissible })
+export function Modal({
+  onClose,
+  title,
+  children,
+  widthRem = 32,
+  footer,
+  header,
+  subheader,
+  dismissible = false,
+  locked = false,
+}: ModalProps) {
+  const dialogRef = useDialogA11y<HTMLDivElement>(onClose, true, { closeOnEscape: dismissible && !locked })
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/40 px-md">
       {/* Both close controls are explicitly type="button" (keyboard pass, 2026-09-03): a bare
           <button> defaults to submit, and a Modal rendered inside a caller's <form> would
           otherwise submit it when the backdrop or X is activated. A protected popup's backdrop is
           inert — still there so the click lands on nothing behind it. */}
-      {dismissible ? (
+      {dismissible && !locked ? (
         <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0" />
       ) : (
         <div aria-hidden="true" className="absolute inset-0" />
@@ -67,14 +84,16 @@ export function Modal({ onClose, title, children, widthRem = 32, footer, header,
           }`}
         >
           {header ?? <h2 className="text-h2 text-text-primary">{title}</h2>}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          {!locked && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
         {subheader && <div className="shrink-0 border-b border-border px-lg">{subheader}</div>}
         <div className="min-h-0 flex-1 overflow-y-auto px-lg py-md">{children}</div>

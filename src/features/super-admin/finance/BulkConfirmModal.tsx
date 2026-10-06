@@ -1,17 +1,13 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
+import { BatchResultList } from '@/components/BatchResultList'
+import { batchSummary, useBatchRun } from '@/lib/useBatchRun'
 import { money, paymentInrNote, paymentMoney } from './money'
 import { useConfirmCommissionPayment, type CommissionPayment } from '@/queries/commission'
 
 const MIN_REASON_LENGTH = 3
-
-interface Result {
-  succeeded: number
-  failed: number
-}
-
 
 /**
  * Confirms a batch of declared payments (2026-09-11 Awaiting Confirmation bulk bar). Each row gets
@@ -19,8 +15,12 @@ interface Result {
  * currency — payments in a batch need not share a currency) — a row whose amount no longer matches
  * the declaration needs its own note, same rule ConfirmPaymentModal applies one at a time. The
  * endpoint only confirms one payment at a time, so this runs them in sequence with each row's own
- * body and reports how many landed — a partial failure (one payment already rejected by someone
- * else, say) shouldn't hide behind a single all-or-nothing error.
+ * body.
+ *
+ * While the batch runs the dialog cannot be closed (review F-153): closing it used to leave the
+ * loop running, unseen, so the remaining payments were confirmed anyway. "Stop after this one"
+ * ends the batch between two payments, and the result names every payment with what happened to
+ * it — confirmed, failed (with the reason), or not sent. See `useBatchRun`.
  */
 export function BulkConfirmModal({
   payments,
@@ -32,8 +32,6 @@ export function BulkConfirmModal({
   onDone: () => void
 }) {
   const confirm = useConfirmCommissionPayment()
-  const [running, setRunning] = useState(false)
-  const [result, setResult] = useState<Result | null>(null)
   const [amounts, setAmounts] = useState<Record<string, string>>(() =>
     Object.fromEntries(payments.map((p) => [p.id, String(p.amount.amount ?? 0)])),
   )
@@ -51,48 +49,57 @@ export function BulkConfirmModal({
     return true
   }
 
+  const { mutateAsync: confirmOne } = confirm
+  const batch = useBatchRun<CommissionPayment>(
+    useCallback(
+      (payment) => {
+        const parsed = Number(amounts[payment.id])
+        const differs = Number.isFinite(parsed) && parsed !== (payment.amount.amount ?? 0)
+        return confirmOne({
+          paymentId: payment.id,
+          receivedAmount: parsed,
+          note: differs ? notes[payment.id]?.trim() : undefined,
+        })
+      },
+      [amounts, notes, confirmOne],
+    ),
+  )
+
   const allValid = payments.every(rowValid)
   const currencies = new Set(payments.map((p) => p.amount.currency ?? 'INR'))
   const total = payments.reduce((sum, p) => sum + (p.amount.amount ?? 0), 0)
   const totalInr = payments.reduce((sum, p) => sum + (p.amount.currency === 'INR' || !p.amount.currency ? (p.amount.amount ?? 0) : (p.amount_inr ?? 0)), 0)
 
   async function handleConfirm() {
-    setRunning(true)
-    let succeeded = 0
-    let failed = 0
-    for (const payment of payments) {
-      try {
-        const parsed = Number(amounts[payment.id])
-        const differs = changedAmount(payment)
-        await confirm.mutateAsync({
-          paymentId: payment.id,
-          receivedAmount: parsed,
-          note: differs ? notes[payment.id]?.trim() : undefined,
-        })
-        succeeded++
-      } catch {
-        failed++
-      }
-    }
-    setRunning(false)
-    setResult({ succeeded, failed })
+    await batch.start(payments)
     onDone()
   }
+
+  const started = batch.running || batch.finished
+  const sentSoFar = batch.rows.filter((row) => row.status !== 'waiting').length
+  // Once started, the batch is what was started: the selection behind this dialog empties as
+  // payments are confirmed, and the title must not count down with it.
+  const count = started ? batch.rows.length : payments.length
 
   return (
     <Modal
       onClose={onClose}
-      title={`Confirm ${payments.length} selected payment${payments.length === 1 ? '' : 's'}`}
+      locked={batch.running}
+      title={`Confirm ${count} selected payment${count === 1 ? '' : 's'}`}
       widthRem={32}
       footer={
-        result ? (
+        batch.finished ? (
           <Button onClick={onClose}>Done</Button>
+        ) : batch.running ? (
+          <Button variant="secondary" onClick={batch.stop} disabled={batch.stopping}>
+            {batch.stopping ? 'Stopping…' : 'Stop after this one'}
+          </Button>
         ) : (
           <>
-            <Button variant="secondary" onClick={onClose} disabled={running}>
+            <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
-            <Button loading={running} disabled={!allValid} onClick={handleConfirm}>
+            <Button disabled={!allValid} onClick={handleConfirm}>
               Confirm received
             </Button>
           </>
@@ -100,10 +107,31 @@ export function BulkConfirmModal({
       }
     >
       <div className="flex flex-col gap-md">
-        {result ? (
-          <p className="text-body-sm text-text-primary">
-            {result.succeeded} confirmed{result.failed > 0 ? `, ${result.failed} failed — try those again individually.` : '.'}
-          </p>
+        {started ? (
+          <>
+            <p role="status" className="text-body-sm text-text-primary">
+              {batch.running
+                ? `Confirming ${Math.min(sentSoFar, batch.rows.length)} of ${batch.rows.length}… Keep this window open until it finishes.`
+                : batchSummary(batch.counts, 'confirmed')}
+            </p>
+            <BatchResultList
+              rows={batch.rows}
+              rowKey={(p) => p.id}
+              words={{ done: 'Confirmed', running: 'Confirming…' }}
+              renderLabel={(p) => (
+                <>
+                  <span className="font-medium">{p.consultancy_name ?? 'Unknown'}</span>
+                  <span className="text-text-secondary"> · {p.applicant_name ?? 'General'} · </span>
+                  <span className="tabular-nums">{paymentMoney(p)}</span>
+                </>
+              )}
+            />
+            {batch.finished && batch.counts.failed + batch.counts.skipped > 0 && (
+              <p className="text-body-sm text-text-secondary">
+                Payments marked Failed or Not sent are still awaiting confirmation. Confirm those one at a time.
+              </p>
+            )}
+          </>
         ) : (
           <>
             <p className="text-body-sm text-text-secondary">
