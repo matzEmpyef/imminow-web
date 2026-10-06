@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { ME_QUERY_KEY, type Me } from './me'
 
 interface ProfileEdits {
   first_name?: string
@@ -24,7 +25,6 @@ export function useProfile() {
 
 export function useUpdateProfile() {
   const queryClient = useQueryClient()
-  const setUser = useAuthStore((s) => s.setUser)
   return useMutation({
     mutationFn: async (body: ProfileEdits) => {
       const { data, error } = await api.PATCH('/profile', { body })
@@ -32,7 +32,9 @@ export function useUpdateProfile() {
       return data
     },
     onSuccess: (data) => {
-      if (data) setUser(data)
+      // The name in the shell comes from `GET /me`: show the edit at once, then ask again.
+      if (data) queryClient.setQueryData<Me>(ME_QUERY_KEY, (me) => (me ? { ...me, user: data } : me))
+      queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY })
       queryClient.invalidateQueries({ queryKey: ['profile'] })
     },
   })

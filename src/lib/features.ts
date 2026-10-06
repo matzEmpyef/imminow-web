@@ -1,4 +1,5 @@
-import { useMyConsultancy } from '@/queries/consultancy'
+import { useMemo } from 'react'
+import { useMe } from '@/queries/me'
 
 // Subscription tiers made real (build reference 1.16, 2026-08-29). Starter is the always-on
 // core — every one of these ships on every tier and is never toggleable, so it has no flag and
@@ -88,23 +89,25 @@ export const TIER_ORDER = ['starter', 'business', 'ultimate'] as const
 export type Features = Record<string, boolean>
 
 /**
- * The resolved feature map — tier preset merged with any Super Admin overrides, exactly as the
- * server computes it. Every consumer should gate on THIS, never on the raw `tier` enum, since a
- * per-flag override can grant or withhold a feature independent of tier.
+ * The plan features that are ON for the caller's consultancy, from `GET /me` (`staff.features`,
+ * review F-036): the tier preset merged with any Super Admin overrides, exactly the set the server
+ * decides `feature_locked` from. Every consumer gates on THIS, never on the raw `tier` enum, since
+ * a per-flag override can grant or withhold a feature independent of tier.
  *
- * Fails closed: while loading, or if the consultancy fetch failed, every key reads false. That's
- * correct for hiding a nav link or a button; a caller that needs to distinguish "still loading"
- * from "genuinely off" should read `useMyConsultancy()` itself instead.
+ * Served as a list of the keys that are on; handed out here as a lookup so a caller can write
+ * `features.phonebook`. A key that is absent is off.
+ *
+ * Fails closed: while loading, or if `/me` failed with nothing cached, every key reads false.
+ * That's correct for hiding a nav link or a button; a gate that renders a message reads
+ * `isLoading` / `isError` to tell "not known yet" from "genuinely off".
  */
 export function useFeatures(): { data: Features; isLoading: boolean; isError: boolean } {
-  const consultancy = useMyConsultancy()
-  return {
-    data: (consultancy.data?.features as Features | undefined) ?? {},
-    isLoading: consultancy.isLoading,
-    isError: consultancy.isError,
-  }
+  const me = useMe()
+  const on = me.data?.staff?.features
+  const data = useMemo<Features>(() => Object.fromEntries((on ?? []).map((key) => [key, true])), [on])
+  return { data, isLoading: me.isLoading, isError: me.isError && !me.data }
 }
 
 export function useFeature(key: string): boolean {
-  return useFeatures().data[key] === true
+  return useMe().data?.staff?.features.includes(key) ?? false
 }

@@ -4,6 +4,7 @@ import { Button } from '@/components/Button'
 import { useMyConsultancy, useRequestRenewal } from '@/queries/consultancy'
 import { usePermissionChecker } from '@/lib/permissions'
 import { formatDate } from '@/lib/time'
+import { useMeStaff } from '@/lib/me'
 
 // The consultancy console's subscription notice (2026-09-10, user: "14 days grace, keep serving
 // existing clients, super admin renews" and "after 14 days let only admin login"). The server
@@ -55,12 +56,18 @@ function RenewalAction({ requestedAt }: { requestedAt?: string | null }) {
 export function SubscriptionBanner() {
   const { data } = useMyConsultancy()
   const { can } = usePermissionChecker()
-  const status = data?.subscription_status
-  if (!data || !status || status === 'active' || status === 'none') return null
+  // `GET /me` says `staff.lapsed` to the one person who can still sign in to a lapsed consultancy,
+  // its admin (review F-036). That answer is enough to show the renewal notice on its own, before
+  // (or without) the consultancy record; the dates and the "already requested" line come from the
+  // record once it is here.
+  const lapsed = useMeStaff()?.lapsed === true
+  const status = lapsed ? 'lapsed' : data?.subscription_status
+  if (!status || status === 'active' || status === 'none') return null
+  if (!data && !lapsed) return null
 
   const isAdmin = can('settings.edit_profile')
-  const expires = data.subscription_expires_at ? formatDate(data.subscription_expires_at) : 'its end date'
-  const graceEnds = data.grace_ends_at ? formatDate(data.grace_ends_at) : 'the end of the grace period'
+  const expires = data?.subscription_expires_at ? formatDate(data.subscription_expires_at) : 'its end date'
+  const graceEnds = data?.grace_ends_at ? formatDate(data.grace_ends_at) : 'the end of the grace period'
   // One sentence for everyone who cannot act on this themselves, in every state — it was three
   // different sentences before, one of which told a consultant to contact immiNow directly.
   const askYourAdmin = 'Ask your admin to renew it with immiNow.'
@@ -70,7 +77,7 @@ export function SubscriptionBanner() {
     if (!isAdmin) return null
     return (
       <Notice tone="info">
-        Your subscription ends on <strong>{expires}</strong>. <RenewalAction requestedAt={data.renewal_requested_at} />
+        Your subscription ends on <strong>{expires}</strong>. <RenewalAction requestedAt={data?.renewal_requested_at} />
       </Notice>
     )
   }
@@ -79,7 +86,7 @@ export function SubscriptionBanner() {
       <Notice tone="warning">
         Your subscription expired on <strong>{expires}</strong>. Unless it is renewed by <strong>{graceEnds}</strong>,
         only admins will be able to sign in, and new leads and new clients will stop.{' '}
-        {isAdmin ? <RenewalAction requestedAt={data.renewal_requested_at} /> : askYourAdmin}
+        {isAdmin ? <RenewalAction requestedAt={data?.renewal_requested_at} /> : askYourAdmin}
       </Notice>
     )
   }
@@ -93,7 +100,8 @@ export function SubscriptionBanner() {
     <Notice tone="error">
       Your subscription has lapsed. Only admins can sign in, and new leads and new clients are paused — you can still
       serve your existing clients. Your team can sign in again as soon as it is renewed.{' '}
-      {isAdmin ? <RenewalAction requestedAt={data.renewal_requested_at} /> : askYourAdmin}
+      {/* The button waits for the record: it is what says whether renewal was already asked for. */}
+      {isAdmin ? data ? <RenewalAction requestedAt={data.renewal_requested_at} /> : null : askYourAdmin}
     </Notice>
   )
 }

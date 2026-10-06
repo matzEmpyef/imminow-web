@@ -20,12 +20,17 @@ vi.mock('@/queries/adminColleges', () => ({ useAdminColleges: vi.fn() }))
 vi.mock('@/queries/supportTools', () => ({ useUserSearch: vi.fn() }))
 vi.mock('@/queries/countries', () => ({ useCountries: vi.fn(), useStates: vi.fn(), useDistricts: vi.fn() }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
+vi.mock('@/queries/me', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/queries/me')>()),
+  useMe: vi.fn(),
+}))
 
 import { useCreateConsultancy } from '@/queries/adminConsultancies'
 import { useAdminColleges } from '@/queries/adminColleges'
 import { useUserSearch } from '@/queries/supportTools'
 import { useCountries, useDistricts, useStates } from '@/queries/countries'
-import { useAuthStore } from '@/stores/authStore'
+import { useMe } from '@/queries/me'
+import { meAnswered, platformMe } from '@/test/me'
 import { CreateConsultancyModal } from './CreateConsultancyModal'
 
 const mockedCreate = vi.mocked(useCreateConsultancy)
@@ -59,7 +64,7 @@ beforeEach(() => {
   mockedDistricts.mockImplementation((country?: string, state?: string) =>
     query(country === 'India' && state === 'Kerala' ? KERALA_DISTRICTS : []),
   )
-  useAuthStore.setState({ user: { role: 'super_admin' } as never })
+  vi.mocked(useMe).mockReturnValue(meAnswered(platformMe({}, { role: 'super_admin' })))
 })
 
 /** Everything the form needs apart from the place, so only the place rule is left under test. */

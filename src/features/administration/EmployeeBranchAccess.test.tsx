@@ -20,10 +20,16 @@ vi.mock('@/queries/staff', () => ({
   useEmployees: vi.fn(),
 }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
-// The access editor reads the plan's visible permissions off the consultancy's own record.
-vi.mock('@/queries/consultancy', () => ({ useMyConsultancy: vi.fn(() => ({ data: undefined })) }))
+// The access editor reads the plan's visible permissions and features off `GET /me`. Left
+// unanswered here, so the editor falls back to the full list: this file is about branches.
+vi.mock('@/queries/me', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/queries/me')>()),
+  useMe: vi.fn(),
+}))
 
 import { useDisableEmployee, useEmployees, useInviteEmployee, useUpdateEmployee } from '@/queries/staff'
+import { useMe } from '@/queries/me'
+import { meSignedOut } from '@/test/me'
 import { InviteEmployeeModal } from './InviteEmployeeModal'
 import { EmployeeAccessModal } from './EmployeeAccessModal'
 import { primaryBranchError, toggleBranch } from './branchAccess'
@@ -57,6 +63,7 @@ beforeEach(() => {
   vi.mocked(useUpdateEmployee).mockReturnValue(mutation(updateMutate))
   vi.mocked(useDisableEmployee).mockReturnValue(mutation(vi.fn()))
   vi.mocked(useEmployees).mockReturnValue({ data: { items: [] }, isLoading: false, isError: false } as never)
+  vi.mocked(useMe).mockReturnValue(meSignedOut())
 })
 
 function renderInvite() {

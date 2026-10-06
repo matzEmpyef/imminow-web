@@ -15,7 +15,8 @@ import { useProfile, useUpdateProfile } from '@/queries/profile'
 import { useMyConsultancy } from '@/queries/consultancy'
 import { useAccountWords } from '@/lib/accountWords'
 import { useNotificationSettings, useUpdateNotificationSettings } from '@/queries/notifications'
-import { useAuthStore } from '@/stores/authStore'
+import { useMe } from '@/queries/me'
+import { isStaffScope } from '@/lib/me'
 import type { components } from '@/api/schema'
 import { PHONE_ERROR, isValidPhone } from '@/lib/validation'
 import { formatDate, relativeTime } from '@/lib/time'
@@ -94,28 +95,32 @@ function Fact({ label, value, hint }: { label: string; value: string; hint?: str
 export function MyAccountPage() {
   const profile = useProfile()
   const updateProfile = useUpdateProfile()
-  const role = useAuthStore((s) => s.user?.role)
+  // Which shell, and which words, come from `GET /me` (review F-036): the route guard has already
+  // waited for it, so it is in hand on the first render.
+  const me = useMe().data
+  const scope = me?.scope
   // M12 fix (frontend review, 1 Sep 2026): this page always rendered AppShell, so a platform or
   // freelancer account editing their own profile got the consultancy shell around it. Students
   // get the slim AccountShell (N2, second pass) — the consultancy nav bounced them anyway.
   const Shell =
-    role === 'super_admin' || role === 'platform_staff'
+    scope === 'platform'
       ? AdminShell
-      : role === 'freelancer'
+      : scope === 'freelancer'
         ? FreelancerShell
-        : role === 'student'
+        : scope === 'student'
           ? AccountShell
           : AppShell
-  const isConsultancyStaff = role === 'consultancy_admin' || role === 'consultant'
-  const isPlatform = role === 'super_admin' || role === 'platform_staff'
+  const isConsultancyStaff = isStaffScope(scope)
+  const isPlatform = scope === 'platform'
+  const isFreelancer = scope === 'freelancer'
   const consultancy = useMyConsultancy({ enabled: isConsultancyStaff })
   // H2 (2026-09-13): a university's own admin was told they were a "Consultancy Admin". Same
   // query, same gating — the words come from `kind`.
-  const words = useAccountWords({ enabled: isConsultancyStaff })
+  const words = useAccountWords()
   // H14 (2026-09-13): "Set by your consultancy admin" is nonsense read by the admin themselves.
-  // Read off the role, not `usePermissionChecker` — this page also serves students and platform
-  // staff, who have no employee row for the staff queries that checker runs to resolve against.
-  const isAccountAdmin = role === 'consultancy_admin'
+  // The Owner/Admin as the server sees them (`staff.is_admin`), not the role. `staff` is null for
+  // students, freelancers and platform accounts, who also use this page.
+  const isAccountAdmin = me?.staff?.is_admin === true
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -159,10 +164,10 @@ export function MyAccountPage() {
     ? (consultancy.data?.name ?? '')
     : isPlatform
       ? 'immiNow platform team'
-      : role === 'freelancer'
+      : isFreelancer
         ? 'Sentpo freelancer partner'
         : ''
-  const copyKey = isPlatform ? 'platform' : role === 'freelancer' ? 'freelancer' : 'staff'
+  const copyKey = isPlatform ? 'platform' : isFreelancer ? 'freelancer' : 'staff'
   const roleLabel = user.role === 'consultancy_admin' ? words.adminLabel : ROLE_LABEL[user.role]
   // The seeded admin's designation is literally the role ("Institute Admin"), so printing both
   // said the same two words four times on one screen (H2). A designation only earns a line when
@@ -296,7 +301,7 @@ export function MyAccountPage() {
                     exist yet. Nothing enforces 2FA until the new sign-in system lands. */}
                 <p className="text-caption text-text-secondary">
                   {user.two_factor_required
-                    ? role === 'super_admin' || role === 'consultancy_admin'
+                    ? user.role === 'super_admin' || user.role === 'consultancy_admin'
                       ? 'Will be required for your role — arrives with the new sign-in system, nothing to do yet.'
                       : `Will be required for everyone at your ${words.org} — arrives with the new sign-in system, nothing to do yet.`
                     : 'Arrives with the new sign-in system.'}

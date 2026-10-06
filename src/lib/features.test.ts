@@ -4,12 +4,16 @@ import { describe, expect, it, vi } from 'vitest'
 // The registry is hand-mirrored against mock-server/server.js's FEATURE_REGISTRY (there is no
 // shared package). These assertions are the client half of keeping the two honest: a duplicated
 // or mis-tiered key here would silently gate the wrong thing.
-vi.mock('@/queries/consultancy', () => ({ useMyConsultancy: vi.fn() }))
+vi.mock('@/queries/me', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/queries/me')>()),
+  useMe: vi.fn(),
+}))
 
-import { useMyConsultancy } from '@/queries/consultancy'
+import { useMe } from '@/queries/me'
+import { meAnswered, meFailed, meLoading, platformMe, staffMe } from '@/test/me'
 import { BUSINESS_FEATURES, FEATURE_KEYS, FEATURE_REGISTRY, STARTER_FEATURES, ULTIMATE_FEATURES, useFeature, useFeatures } from './features'
 
-const mockedConsultancy = vi.mocked(useMyConsultancy)
+const mockedMe = vi.mocked(useMe)
 
 describe('FEATURE_REGISTRY', () => {
   it('has unique keys, each with a tier, label and description', () => {
@@ -54,30 +58,38 @@ describe('FEATURE_REGISTRY', () => {
 })
 
 describe('useFeatures / useFeature', () => {
-  function consultancyState(overrides: Partial<ReturnType<typeof useMyConsultancy>>) {
-    mockedConsultancy.mockReturnValue({ data: undefined, isLoading: false, isError: false, ...overrides } as ReturnType<typeof useMyConsultancy>)
-  }
+  it('reads the features that are on from /me — never the tier enum', () => {
+    mockedMe.mockReturnValue(meAnswered(staffMe({ tier: 'starter', features: ['phonebook'] })))
+    expect(renderHook(() => useFeature('phonebook')).result.current).toBe(true)
+    expect(renderHook(() => useFeature('audit_log')).result.current).toBe(false)
+    expect(renderHook(() => useFeatures()).result.current.data).toEqual({ phonebook: true })
+  })
 
-  it('reads the resolved features map off the consultancy — never the tier enum', () => {
-    consultancyState({ data: { tier: 'starter', features: { phonebook: true, audit_log: false } } as never })
-    const { result } = renderHook(() => useFeature('phonebook'))
-    expect(result.current).toBe(true)
-    const { result: audit } = renderHook(() => useFeature('audit_log'))
-    expect(audit.current).toBe(false)
+  it('does not infer a feature from the plan: Ultimate with nothing switched on has nothing', () => {
+    mockedMe.mockReturnValue(meAnswered(staffMe({ tier: 'ultimate', features: [] })))
+    expect(renderHook(() => useFeature('multi_branch')).result.current).toBe(false)
   })
 
   it('fails closed while loading and on error — every key reads false', () => {
-    consultancyState({ isLoading: true })
+    mockedMe.mockReturnValue(meLoading())
     expect(renderHook(() => useFeature('phonebook')).result.current).toBe(false)
+    expect(renderHook(() => useFeatures()).result.current.isLoading).toBe(true)
 
-    consultancyState({ isError: true })
+    mockedMe.mockReturnValue(meFailed())
     const { result } = renderHook(() => useFeatures())
     expect(result.current.data).toEqual({})
     expect(result.current.isError).toBe(true)
   })
 
-  it('treats a missing features map as nothing enabled rather than throwing', () => {
-    consultancyState({ data: { tier: 'ultimate' } as never })
-    expect(renderHook(() => useFeature('multi_branch')).result.current).toBe(false)
+  it('keeps answering from the last answer when a background refresh fails', () => {
+    mockedMe.mockReturnValue(meFailed(new TypeError('Failed to fetch'), staffMe({ features: ['phonebook'] })))
+    const { result } = renderHook(() => useFeatures())
+    expect(result.current.isError).toBe(false)
+    expect(result.current.data.phonebook).toBe(true)
+  })
+
+  it('has no features for an account that is not staff', () => {
+    mockedMe.mockReturnValue(meAnswered(platformMe({ finance: true })))
+    expect(renderHook(() => useFeatures()).result.current.data).toEqual({})
   })
 })

@@ -1,7 +1,5 @@
-import { useAuthStore } from '@/stores/authStore'
 import { humaniseCode } from '@/lib/humanise'
-import { useEmployees, useDesignations } from '@/queries/staff'
-import { useMyConsultancy } from '@/queries/consultancy'
+import { useMe } from '@/queries/me'
 
 // The six permission areas and their granular sub-permissions, build reference 1.15. Shared
 // between DesignationsPage (editing a template's baseline) and EmployeesPage (editing an
@@ -173,41 +171,46 @@ export function protectedDesignationReason(name: string): string {
   return `${name} is built in, so it can't be edited or deleted.`
 }
 
-/** The plan's visible permission keys from the consultancy's own record (undefined until loaded). */
+/**
+ * The plan's visible permission keys, from `GET /me` (`staff.available_permissions`: the same
+ * list as `Consultancy.available_permissions`). Undefined until `/me` has answered, and for anyone
+ * who is not consultancy or institute staff.
+ */
 export function useAvailablePermissions(): string[] | undefined {
-  return useMyConsultancy().data?.available_permissions
+  return useMe().data?.staff?.available_permissions
 }
 
-// User-requested (2026-08-15) — the frontend had no way to check "does the logged-in user
-// actually have permission X," so every gated action so far was tier-only (e.g. Transfer
-// Applicant's Ultimate-tier check). Mirrors the mock server's own `effectivePermission()`
-// exactly (admin always-on bypass, then the employee's own override, falling back to their
-// designation's baseline) — there's no dedicated "my permissions" endpoint, so this is computed
-// from the same Manage Access data that edits it.
-// Resolves any number of permission keys from ONE pair of queries. `usePermission` can't be called
-// in a loop (hook rules) and the sidebar needs a different key per link, so the lookup is exposed
-// as a plain function over already-fetched data instead.
+// "May the signed-in person do X" — answered by the server (review F-036, 2026-10-06).
 //
-// `can` FAILS CLOSED — with no resolved employee every key answers false. That's the right
-// default for hiding an action, but it means a false answer has three very different causes, and
-// a caller that renders a *message* has to tell them apart:
+// Until then this hook downloaded the employee list and the designations, found its own row and
+// re-applied the override-then-designation rule. The employee list is paged at 100, oldest first,
+// leavers included, so the newest staff of a consultancy that had ever had more than 100 employees
+// were not in it: every key answered false and they lost every screen. `GET /me` returns the
+// caller's own permission keys, decided by the same code that decides `permission_denied`, so
+// there is nothing left to re-derive: `can(key)` is "is the key in the list".
 //
-//   isLoading  — queries in flight. Nothing is known yet; hold a skeleton.
-//   isError    — the queries FAILED. Nothing is known and nothing will be; this is a network
-//                problem, NOT a permission decision. Rendering "you don't have access" here
-//                states a denial the server never made (frontend audit, 2026-08-25 — the exact
-//                mirror of the flash-of-denial bug `isLoading` was added to prevent).
-//   neither    — queries succeeded and the user genuinely has no employee row / no such
-//                permission. This is the only case where a denial is a true statement.
+// An Owner/Admin holds every key, so the old "admin bypass" is simply the server's answer now.
+// A key that is held but whose plan feature is off is still in `permissions`; an action that
+// needs a plan feature checks `useFeature` as well (show it only when BOTH say yes).
 //
-// Actions that merely hide themselves (`usePermission` at ~13 call sites) can ignore the
-// distinction: failing closed on an unknown is correct for a button. Only gates that render
-// denial copy need `isError`.
+// `can` FAILS CLOSED — with no answer every key is false. That's the right default for hiding an
+// action, but it means a false answer has three very different causes, and a caller that renders
+// a *message* has to tell them apart:
+//
+//   isLoading  — `/me` is in flight. Nothing is known yet; hold a skeleton.
+//   isError    — `/me` FAILED and left nothing to answer from. This is a network problem, NOT a
+//                permission decision. Rendering "you don't have access" here states a denial the
+//                server never made (frontend audit, 2026-08-25).
+//   neither    — the server answered and the caller genuinely lacks the permission (or is not
+//                staff at all). This is the only case where a denial is a true statement.
+//
+// Actions that merely hide themselves (`usePermission`) can ignore the distinction: failing closed
+// on an unknown is correct for a button. Only gates that render denial copy need `isError`.
 export function usePermissionChecker(): {
   can: (key: string) => boolean
   /**
-   * The caller is the consultancy's Owner/Admin (`is_consultancy_admin` on their employee row) —
-   * for the few things no permission key can grant, such as the audit log (review F-021). Fails
+   * The caller is the consultancy's Owner/Admin (`staff.is_admin`) — for the few things no
+   * permission key can grant, such as the audit log (review F-021). Never `user.role`. Fails
    * closed like `can`: false while loading and when the check failed.
    */
   isAdmin: boolean
@@ -215,34 +218,19 @@ export function usePermissionChecker(): {
   isError: boolean
   refetch: () => void
 } {
-  const user = useAuthStore((s) => s.user)
-  const employees = useEmployees()
-  const designations = useDesignations()
-  const employee = employees.data?.items.find((e) => e.user!.id === user?.id)
-  const can = (key: string): boolean => {
-    if (!employee) return false
-    if (employee.is_consultancy_admin) return true
-    const overrides = employee.permission_overrides ?? {}
-    if (key in overrides) return overrides[key]
-    const designation = designations.data?.find((d) => d.id === employee.designation_id)
-    return designation?.permissions?.[key] ?? false
-  }
+  const me = useMe()
+  const staff = me.data?.staff
   return {
-    can,
-    isAdmin: employee?.is_consultancy_admin === true,
-    isLoading: employees.isLoading || designations.isLoading,
-    // Deliberately NOT `employees.isError || designations.isError`. React Query reports isError
-    // for a failed BACKGROUND refetch too, while keeping the previous data — and in that case we
-    // can still answer every key correctly from cache. Surfacing raw isError would blank a
-    // perfectly working page on a transient blip, which is a worse bug than the one this is
-    // fixing. The question that actually matters is "did a failure leave me with nothing to
-    // answer from", so each source is checked for error AND absent data.
-    isError: (employees.isError && !employees.data) || (designations.isError && !designations.data),
-    // Both, unconditionally: either one may be the failed half, and refetching an already-good
-    // query is a cheap no-op against its cache.
+    can: (key: string): boolean => staff?.permissions.includes(key) ?? false,
+    isAdmin: staff?.is_admin === true,
+    isLoading: me.isLoading,
+    // Deliberately NOT bare `me.isError`. React Query reports isError for a failed BACKGROUND
+    // refetch too, while keeping the previous answer — and then every key can still be answered
+    // from it. Blanking a working page on a transient blip is a worse bug than the one this
+    // prevents, so the question is "did a failure leave nothing to answer from".
+    isError: me.isError && !me.data,
     refetch: () => {
-      void employees.refetch()
-      void designations.refetch()
+      void me.refetch()
     },
   }
 }

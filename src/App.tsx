@@ -9,12 +9,12 @@ import { PermissionGate } from '@/features/auth/PermissionGate'
 import { FeatureGate } from '@/features/auth/FeatureGate'
 import { FreelancerRoute } from '@/features/auth/FreelancerRoute'
 import { FEATURE_REGISTRY } from '@/lib/features'
-import { roleHomePath } from '@/lib/roleHome'
+import { scopeHomePath } from '@/lib/roleHome'
+import { SessionGate } from '@/features/auth/SessionGate'
 
 // Lookup so route elements can pass a FeatureDef by key without importing/finding it inline at
 // every call site — see FEATURE_REGISTRY in @/lib/features for the definitions themselves.
 const FEATURE_BY_KEY = Object.fromEntries(FEATURE_REGISTRY.map((f) => [f.key, f]))
-import { useAuthStore } from '@/stores/authStore'
 import { Skeleton } from '@/components/QueryState'
 
 // Every route below `LoginPage` is lazy — one dynamic import per page, so the initial bundle is
@@ -242,10 +242,7 @@ const FreelancerDashboardPage = lazy(() =>
 )
 
 function DefaultRedirect() {
-  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
-  const role = useAuthStore((s) => s.user?.role)
-  if (!isAuthed) return <Navigate to="/login" replace />
-  return <Navigate to={roleHomePath(role)} replace />
+  return <SessionGate>{(me) => <Navigate to={scopeHomePath(me.scope)} replace />}</SessionGate>
 }
 
 // Analytics (Session 38, 2026-08-31) — one central hook rather than instrumenting each of the

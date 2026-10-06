@@ -4,6 +4,10 @@ import type { ReactNode } from 'react'
 
 // The immiNow Users directory no longer lists platform staff (owner, 2026-10-06), so the Platform
 // Team page is where their sign-in history lives, and where their invited / joined dates show.
+vi.mock('@/queries/me', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/queries/me')>()),
+  useMe: vi.fn(),
+}))
 vi.mock('@/features/auth/AdminShell', () => ({
   AdminShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }))
@@ -28,7 +32,8 @@ import {
   useResendPlatformStaffInvite,
   useUpdatePlatformStaffPermissions,
 } from '@/queries/platformTeam'
-import { useAuthStore } from '@/stores/authStore'
+import { useMe } from '@/queries/me'
+import { meAnswered, platformMe } from '@/test/me'
 import { PlatformTeamPage } from './PlatformTeamPage'
 
 const NO_FLAGS = {} as never
@@ -66,10 +71,7 @@ function mutation() {
 }
 
 function signInWith(permissions: Record<string, boolean>) {
-  useAuthStore.setState({
-    accessToken: 'test-token',
-    user: { id: 'user-ananya', platform_permissions: permissions } as never,
-  })
+  vi.mocked(useMe).mockReturnValue(meAnswered(platformMe(permissions, { id: 'user-ananya' })))
 }
 
 beforeEach(() => {

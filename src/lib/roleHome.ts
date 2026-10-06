@@ -19,3 +19,17 @@ export function roleHomePath(role: Role | undefined): string {
   if (role === 'student') return '/account'
   return '/dashboard'
 }
+
+type Scope = components['schemas']['Me']['scope']
+
+/**
+ * The same decision from `GET /me`'s `scope` (review F-036): the server names the part of the
+ * product the caller belongs to, so the guards no longer infer it from the role. An institute is a
+ * college's own account and uses the consultancy shell.
+ */
+export function scopeHomePath(scope: Scope | undefined): string {
+  if (scope === 'platform') return '/admin/dashboard'
+  if (scope === 'freelancer') return '/freelancer/dashboard'
+  if (scope === 'student') return '/account'
+  return '/dashboard'
+}

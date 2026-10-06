@@ -1,4 +1,4 @@
-import { useMyConsultancy } from '@/queries/consultancy'
+import { useMyScope } from '@/lib/me'
 
 /**
  * The words an account calls itself by (console review H2, 2026-09-13).
@@ -12,8 +12,8 @@ import { useMyConsultancy } from '@/queries/consultancy'
  * Deliberately not a translation layer: only the handful of nouns that actually read wrong for a
  * college live here. Proper names (the sidebar's "Consultancy Management") stay as they are.
  *
- * `options.enabled` forwards to `useMyConsultancy` for the one caller (My Account) that serves
- * every role — the route 403s for platform staff and freelancers, who never see these words.
+ * The account type comes from `GET /me` (`scope === 'institute'`, review F-036), which every role
+ * may call, so this is safe on the pages that serve every role (My Account).
  */
 export interface AccountWords {
   isInstitute: boolean
@@ -31,8 +31,8 @@ export interface AccountWords {
   adminLabel: 'Consultancy Admin' | 'Institute Admin'
 }
 
-export function useAccountWords(options: { enabled?: boolean } = {}): AccountWords {
-  const isInstitute = useMyConsultancy(options).data?.kind === 'institute'
+export function useAccountWords(): AccountWords {
+  const isInstitute = useMyScope() === 'institute'
   return {
     isInstitute,
     org: isInstitute ? 'institute' : 'consultancy',

@@ -6,7 +6,6 @@ function signIn() {
   useAuthStore.getState().setSession({
     access_token: 'access-1',
     refresh_token: 'refresh-1',
-    user: { id: 'u1', email: 'x@y.z', first_name: 'A', last_name: 'B', role: 'consultancy_admin' } as never,
   })
 }
 
@@ -51,7 +50,6 @@ describe('requestNewAccessToken', () => {
 
     expect(useAuthStore.getState().accessToken).toBe('access-2')
     expect(useAuthStore.getState().refreshToken).toBe('refresh-2')
-    expect(useAuthStore.getState().user?.id).toBe('u1') // the user is not part of a refresh
   })
 
   it('presents the rotated token, not the spent one, on the next refresh', async () => {

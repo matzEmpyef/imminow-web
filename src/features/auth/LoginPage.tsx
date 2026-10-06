@@ -6,7 +6,8 @@ import { TextField } from '@/components/TextField'
 import { Button } from '@/components/Button'
 import { useLogin } from '@/queries/auth'
 import { useAuthStore } from '@/stores/authStore'
-import { roleHomePath } from '@/lib/roleHome'
+import { roleHomePath, scopeHomePath } from '@/lib/roleHome'
+import { SessionGate } from '@/features/auth/SessionGate'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -72,14 +73,14 @@ export function LoginPage() {
   const navigate = useNavigate()
   const login = useLogin()
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
-  const role = useAuthStore((s) => s.user?.role)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [touched, setTouched] = useState<{ email?: boolean; password?: boolean }>({})
 
   // M14 fix (frontend review, 1 Sep 2026): a session sitting in sessionStorage used to leave the
   // login form showing anyway — bounce straight to that role's own landing page instead.
-  if (isAuthed) return <Navigate to={roleHomePath(role)} replace />
+  // Which landing page is `GET /me`'s answer (review F-036); SessionGate waits for it.
+  if (isAuthed) return <SessionGate>{(me) => <Navigate to={scopeHomePath(me.scope)} replace />}</SessionGate>
 
   const emailError = touched.email && !EMAIL_PATTERN.test(email) ? 'Enter a valid email address.' : undefined
   const passwordError = touched.password && !password ? 'Password is required.' : undefined

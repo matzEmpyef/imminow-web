@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Badge } from '@/components/Badge'
 import { Modal } from '@/components/Modal'
-import { useAuthStore } from '@/stores/authStore'
+import { useIsSuperAdmin } from '@/lib/me'
 import type { UserSearchResult } from '@/queries/supportTools'
 import { ActionCard } from './ActionCard'
 import { ChangeEmailForm } from './ChangeEmailForm'
@@ -28,7 +28,7 @@ export function UserActionsModal({
   onClose: () => void
 }) {
   const [openAction, setOpenAction] = useState<ActionKey | null>(null)
-  const isSuperAdmin = useAuthStore((s) => s.user?.role === 'super_admin')
+  const isSuperAdmin = useIsSuperAdmin()
 
   const consent = result.guardian_consent
   const guardianRelevant = result.role === 'student' && Boolean(consent) && consent!.status !== 'not_required'

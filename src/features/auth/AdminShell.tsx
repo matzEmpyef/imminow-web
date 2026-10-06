@@ -34,7 +34,7 @@ import {
 } from 'lucide-react'
 import { SidebarShell, type SidebarSection, type SidebarSubLink } from '@/components/SidebarShell'
 import { NotificationsDropdown } from '@/components/NotificationsDropdown'
-import { useAuthStore } from '@/stores/authStore'
+import { useIsSuperAdmin, usePlatformPermissions } from '@/lib/me'
 import { useAdminAttention } from '@/queries/adminDashboard'
 import type { PlatformPermissionKey } from '@/features/auth/PlatformRoute'
 
@@ -339,8 +339,9 @@ function linkPaths(link: AdminLink, tabs: AdminTab[]): string[] {
 }
 
 export function AdminShell({ children }: { children: ReactNode }) {
-  const permissions = useAuthStore((s) => s.user?.platform_permissions)
-  const isSuperAdmin = useAuthStore((s) => s.user?.role === 'super_admin')
+  // From `GET /me` (review F-036): current on every visit, not a copy made at sign-in.
+  const permissions = usePlatformPermissions()
+  const isSuperAdmin = useIsSuperAdmin()
   const { pathname } = useLocation()
   // Open items across the viewer's queues — the red counter on the Needs attention link, shown on
   // every console page so work waiting is visible wherever someone is (2026-09-10).

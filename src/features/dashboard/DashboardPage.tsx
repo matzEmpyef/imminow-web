@@ -10,7 +10,7 @@ import { IconBadge } from '@/components/IconBadge'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { DoughnutChart } from '@/components/DoughnutChart'
 import { MonthlyBarChart } from '@/components/MonthlyBarChart'
-import { useAuthStore } from '@/stores/authStore'
+import { useMeUser } from '@/lib/me'
 import { useDashboard } from '@/queries/dashboard'
 import { usePermission } from '@/lib/permissions'
 import { useAccountWords } from '@/lib/accountWords'
@@ -154,7 +154,7 @@ const ENGAGEMENT_BUCKET_LABELS: Record<string, string> = {
 }
 
 export function DashboardPage() {
-  const user = useAuthStore((s) => s.user)
+  const user = useMeUser()
   const [scope, setScope] = useState<Scope>('personal')
   const dashboard = useDashboard(scope)
   const canAllocateFromPool = usePermission('leads.allocate_from_pool')

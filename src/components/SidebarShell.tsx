@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ChevronRight, ChevronsLeft, ChevronsRight, CircleHelp, LogOut, type LucideIcon } from 'lucide-react'
 import { BRAND_LOGO } from '@/lib/brand'
-import { useAuthStore } from '@/stores/authStore'
+import { useMeUser } from '@/lib/me'
 import { useLogout } from '@/lib/useLogout'
 import { Drawer } from './Drawer'
 import { getHelpTopic } from '@/lib/helpContent'
@@ -51,7 +51,7 @@ interface SidebarShellProps {
 // Clients, Administration, ...), then any role-specific header actions.
 export function SidebarShell({ sections, roleBadge, search, headerActions, children }: SidebarShellProps) {
   const location = useLocation()
-  const user = useAuthStore((s) => s.user)
+  const user = useMeUser()
   // Defaults collapsed on narrow viewports (< 1100px) so the 256px rail doesn't eat a squeezed
   // window — this is a desktop console, but a half-screen window shouldn't be unusable. The
   // media-query listener only moves the default as the window crosses the threshold; the user's

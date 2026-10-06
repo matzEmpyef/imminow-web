@@ -1,9 +1,7 @@
 import type { ReactNode } from 'react'
-import { Navigate } from 'react-router-dom'
-import { useAuthStore } from '@/stores/authStore'
+import { SessionGate } from '@/features/auth/SessionGate'
 
+/** Any signed-in account. Waits for `GET /me` like the three scoped guards (see SessionGate). */
 export function ProtectedRoute({ children }: { children: ReactNode }) {
-  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
-  if (!isAuthed) return <Navigate to="/login" replace />
-  return <>{children}</>
+  return <SessionGate>{() => children}</SessionGate>
 }

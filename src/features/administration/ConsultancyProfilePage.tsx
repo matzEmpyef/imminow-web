@@ -3,12 +3,12 @@ import { useSearchParams } from 'react-router-dom'
 import { AppShell } from '@/features/auth/AppShell'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useMyConsultancy } from '@/queries/consultancy'
-import { usePermission } from '@/lib/permissions'
+import { useAccountWords } from '@/lib/accountWords'
+import { usePermission, usePermissionChecker } from '@/lib/permissions'
 import { PartnerCollegesPanel } from './PartnerCollegesPanel'
 import { ProfileTab } from './ConsultancyProfileTab'
 import { SubscriptionTab } from './ConsultancySubscriptionTab'
 import { SecurityTab } from './ConsultancySecurityTab'
-import { useAuthStore } from '@/stores/authStore'
 import { CommissionRatesTab } from './ConsultancyCommissionRatesTab'
 import { AllocationTab } from './ConsultancyAllocationTab'
 import { TagManagementTab } from './ConsultancyTagManagementTab'
@@ -42,10 +42,11 @@ export function ConsultancyProfilePage() {
   )
   // Incoming Transfers is about accepting cases, not settings — its own permission gate.
   const canAcceptTransfers = usePermission('clients.transfer_applicant')
-  const isConsultancyAdmin = useAuthStore((s) => s.user?.role === 'consultancy_admin')
+  // The Owner/Admin, as the server sees them (`staff.is_admin`, review F-036) — not the role.
+  const { isAdmin: isConsultancyAdmin } = usePermissionChecker()
   // H3 (2026-09-13): an institute is paid by its own applicants, so immiNow charges it no
   // per-case commission — there are no platform rates for it to read.
-  const isInstitute = consultancy.data?.kind === 'institute'
+  const { isInstitute } = useAccountWords()
   const visibleTabs = TABS.filter(
     (tab) =>
       (tab !== 'Incoming Transfers' || canAcceptTransfers) &&
@@ -74,7 +75,7 @@ export function ConsultancyProfilePage() {
       <div className="flex flex-col gap-lg">
         {/* The sidebar keeps "Consultancy Management" (a proper name for the area); the page
             itself says what the account actually is (H2, 2026-09-13). */}
-        <h1 className="text-h1 text-text-primary">{consultancy.data.kind === 'institute' ? 'Institute' : 'Consultancy'} Management</h1>
+        <h1 className="text-h1 text-text-primary">{isInstitute ? 'Institute' : 'Consultancy'} Management</h1>
 
         <div className="flex gap-xs overflow-x-auto border-b border-border">
           {visibleTabs.map((tab) => (

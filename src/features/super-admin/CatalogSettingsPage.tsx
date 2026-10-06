@@ -46,7 +46,7 @@ import {
 } from '@/queries/countryContent'
 import { showToast } from '@/lib/toast'
 import { ApiError } from '@/api/errors'
-import { useAuthStore } from '@/stores/authStore'
+import { useIsSuperAdmin, usePlatformPermission } from '@/lib/me'
 import type { components } from '@/api/schema'
 import type { StudyLevel } from '@/lib/studyLevels'
 
@@ -82,7 +82,7 @@ const SCORE_TYPES = [
 export function CatalogSettingsPage() {
   // Changing a rate is Finance's (the server refuses anyone else), so a Settings user without the
   // `finance` permission sees the rates but cannot edit them.
-  const canEditRates = useAuthStore((s) => Boolean(s.user?.platform_permissions?.finance))
+  const canEditRates = usePlatformPermission('finance')
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>('Countries')
 
   return (
@@ -413,11 +413,9 @@ function CountriesTab() {
 // controls in the States modal stay correctly gated even if that route guard is ever loosened to
 // `anyPermission` for read access.
 function useCanManageCatalogSettings() {
-  return useAuthStore(
-    (s) =>
-      s.user?.role === 'super_admin' ||
-      Boolean((s.user?.platform_permissions as Record<string, boolean> | undefined)?.catalog_settings),
-  )
+  const isSuperAdmin = useIsSuperAdmin()
+  const hasGrant = usePlatformPermission('catalog_settings')
+  return isSuperAdmin || hasGrant
 }
 
 /**

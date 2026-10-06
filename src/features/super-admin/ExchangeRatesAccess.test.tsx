@@ -10,6 +10,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // link, who gets edit controls where, and that the >10% confirmation survived the move.
 vi.mock('@/api/client', () => ({ api: { GET: vi.fn(), PUT: vi.fn(), PATCH: vi.fn() } }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
+vi.mock('@/queries/me', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/queries/me')>()),
+  useMe: vi.fn(),
+}))
 vi.mock('@/queries/adminDashboard', () => ({ useAdminAttention: () => ({ data: undefined }) }))
 vi.mock('@/components/NotificationsDropdown', () => ({ NotificationsDropdown: () => null }))
 // The real sidebar is not what is under test, only which links AdminShell hands it.
@@ -39,6 +43,8 @@ vi.mock('@/components/SidebarShell', () => ({
 import { api } from '@/api/client'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { useAuthStore } from '@/stores/authStore'
+import { useMe } from '@/queries/me'
+import { meAnswered, platformMe } from '@/test/me'
 import { CatalogSettingsPage } from './CatalogSettingsPage'
 import { ExchangeRatesPage } from './ExchangeRatesPage'
 
@@ -48,10 +54,8 @@ const mockedPut = vi.mocked(api.PUT)
 type Permissions = Record<string, boolean>
 
 function signInAs(permissions: Permissions) {
-  useAuthStore.setState({
-    accessToken: 'test-token',
-    user: { role: 'platform_staff', platform_permissions: permissions } as never,
-  })
+  useAuthStore.setState({ accessToken: 'test-token' })
+  vi.mocked(useMe).mockReturnValue(meAnswered(platformMe(permissions)))
 }
 
 function renderPage(ui: ReactNode) {

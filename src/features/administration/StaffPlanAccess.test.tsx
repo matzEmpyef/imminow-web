@@ -21,6 +21,10 @@ vi.mock('@/queries/staff', () => ({
 }))
 vi.mock('@/queries/consultancy', () => ({ useMyConsultancy: vi.fn() }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
+vi.mock('@/queries/me', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/queries/me')>()),
+  useMe: vi.fn(),
+}))
 vi.mock('@/features/auth/AppShell', () => ({ AppShell: ({ children }: { children: ReactNode }) => <div>{children}</div> }))
 
 import {
@@ -32,6 +36,8 @@ import {
   useUpdateEmployee,
 } from '@/queries/staff'
 import { useMyConsultancy } from '@/queries/consultancy'
+import { useMe } from '@/queries/me'
+import { meAnswered, staffMe } from '@/test/me'
 import { InviteEmployeeModal } from './InviteEmployeeModal'
 import { DesignationPermissionsModal } from './DesignationPermissionsModal'
 import { EmployeeAccessModal } from './EmployeeAccessModal'
@@ -78,6 +84,8 @@ beforeEach(() => {
   vi.mocked(useMyConsultancy).mockReturnValue({
     data: { kind: 'consultancy', available_permissions: AVAILABLE, limits: { tags: 100, designations: 50, branches: 100 } },
   } as never)
+  // The editors read the plan's visible permissions off `GET /me` (review F-036).
+  vi.mocked(useMe).mockReturnValue(meAnswered(staffMe({ is_admin: true, available_permissions: AVAILABLE })))
 })
 
 function fillInvite(dialog: HTMLElement) {

@@ -9,7 +9,7 @@ import { Table, type TableColumn } from '@/components/Table'
 import { Skeleton } from '@/components/QueryState'
 import { useCourseSuggestions, useSuggestNewCourse } from '@/queries/courseSuggestions'
 import { usePartnerColleges } from '@/queries/partnerColleges'
-import { useMyConsultancy } from '@/queries/consultancy'
+import { useAccountWords } from '@/lib/accountWords'
 import { useCourseLevels } from '@/queries/courseFinder'
 import { formatDate } from '@/lib/time'
 import { formatMoney } from '@/lib/money'
@@ -136,9 +136,8 @@ function SuggestionSummary({ suggestion }: { suggestion: Suggestion }) {
 function SuggestNewCourseModal({ onClose }: { onClose: () => void }) {
   const suggestNew = useSuggestNewCourse()
   const partners = usePartnerColleges()
-  const myConsultancy = useMyConsultancy()
   const activeColleges = (partners.data ?? []).filter((p) => p.active !== false)
-  const isInstitute = myConsultancy.data?.kind === 'institute'
+  const { isInstitute } = useAccountWords()
 
   const [name, setName] = useState('')
   const [collegeId, setCollegeId] = useState('')

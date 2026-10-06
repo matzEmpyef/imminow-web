@@ -28,7 +28,6 @@ function signIn(refreshToken = 'r1') {
   useAuthStore.getState().setSession({
     access_token: 'a1',
     refresh_token: refreshToken,
-    user: { id: 'u1', email: 'x@y.z', first_name: 'A', last_name: 'B', role: 'consultancy_admin' } as never,
   })
 }
 

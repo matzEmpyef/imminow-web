@@ -15,7 +15,7 @@ import {
   useNotifications,
   type NotificationsFilters,
 } from '@/queries/notifications'
-import { useAuthStore } from '@/stores/authStore'
+import { useMyScope } from '@/lib/me'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { timeAgo } from '@/lib/time'
 import { safeDeepLink } from '@/lib/deepLinks'
@@ -40,7 +40,7 @@ export function NotificationsPage() {
   const notifications = useNotifications(filters)
   const markRead = useMarkNotificationRead()
   const markAllRead = useMarkAllNotificationsRead()
-  const role = useAuthStore((s) => s.user?.role)
+  const scope = useMyScope()
 
   function changeReadFilter(next: 'all' | 'unread' | 'read') {
     setReadFilter(next)
@@ -64,11 +64,11 @@ export function NotificationsPage() {
   // consultancy shell (only `super_admin` got AdminShell) and never accounted for Freelancer at
   // all — every platform/freelancer role now gets its own shell here, same as everywhere else.
   const Shell =
-    role === 'super_admin' || role === 'platform_staff'
+    scope === 'platform'
       ? AdminShell
-      : role === 'freelancer'
+      : scope === 'freelancer'
         ? FreelancerShell
-        : role === 'student'
+        : scope === 'student'
           ? AccountShell
           : AppShell
 

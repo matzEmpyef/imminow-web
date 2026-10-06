@@ -16,7 +16,7 @@ import { useListCeiling } from '@/lib/listCeilings'
 import { useCursorPagination } from '@/lib/pagination'
 import { usePermission } from '@/lib/permissions'
 import { useAccountWords } from '@/lib/accountWords'
-import { useAuthStore } from '@/stores/authStore'
+import { useMyUserId } from '@/lib/me'
 import { FilterChip } from '@/components/FilterChip'
 import { Toggle } from '@/components/Toggle'
 import { timeAgo } from '@/lib/time'
@@ -78,7 +78,7 @@ export function ActiveLeadsPage() {
   const words = useAccountWords()
   // H7 (2026-09-13): branch scoping decided what this list showed and said so nowhere. The note
   // is for the viewer it actually narrows — an admin covers every branch, so it would be noise.
-  const userId = useAuthStore((s) => s.user?.id)
+  const userId = useMyUserId()
   const me = employees.data?.items.find((e) => e.user!.id === userId)
   const myBranchNames = me?.is_consultancy_admin
     ? []

@@ -19,7 +19,7 @@ import {
   useResendPlatformStaffInvite,
   useUpdatePlatformStaffPermissions,
 } from '@/queries/platformTeam'
-import { useAuthStore } from '@/stores/authStore'
+import { useMyUserId, usePlatformPermission } from '@/lib/me'
 import type { components } from '@/api/schema'
 import type { PlatformPermissionKey } from '@/features/auth/PlatformRoute'
 import { EMAIL_ERROR, isValidEmail } from '@/lib/validation'
@@ -578,10 +578,10 @@ function StaffDrawerBody({ staff, currentUserId }: { staff: PlatformStaff; curre
 
 export function PlatformTeamPage() {
   const staff = usePlatformStaff()
-  const currentUserId = useAuthStore((s) => s.user?.id)
+  const currentUserId = useMyUserId()
   // Sign-in history is the user directory's (`user_directory`), not Team management's: the server
   // refuses it without that flag, so the control is only offered to someone who holds it.
-  const canSeeHistory = useAuthStore((s) => Boolean(s.user?.platform_permissions?.user_directory))
+  const canSeeHistory = usePlatformPermission('user_directory')
   const [showAdd, setShowAdd] = useState(false)
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')

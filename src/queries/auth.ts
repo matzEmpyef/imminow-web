@@ -1,22 +1,29 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { ApiError } from '@/api/errors'
 import { useAuthStore } from '@/stores/authStore'
+import { primeMe } from './me'
 
 // ApiError moved to api/errors.ts (N1 fix, 2026-09-01 — see its doc comment for why); re-exported
 // here so the many existing `import { ApiError } from '@/queries/auth'` sites keep working.
 export { ApiError }
 
+// Both ways into a session (sign-in, accepting an invite) do the same two things in the same
+// order: ask `GET /me` with the new token and put the answer in the cache, THEN store the tokens.
+// Storing the tokens is what flips every guard to "signed in", so by then the answer the guards
+// read is already there and the first screen is the right one (review F-036).
 export function useLogin() {
   const setSession = useAuthStore((s) => s.setSession)
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (body: { email: string; password: string }) => {
       // `platform` lands on the sign-in event (2026-09-10) — the console is always the web app.
       const { data, error } = await api.POST('/auth/login', { body: { ...body, platform: 'web' } })
       if (error) throw new ApiError('Could not sign in.', error)
+      await primeMe(queryClient, data.access_token)
+      setSession(data)
       return data
     },
-    onSuccess: (data) => setSession(data),
   })
 }
 
@@ -53,6 +60,7 @@ export function useInvite(token: string) {
 
 export function useAcceptInvite(token: string) {
   const setSession = useAuthStore((s) => s.setSession)
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (body: { password: string }) => {
       const { data, error } = await api.POST('/auth/invite/{token}', {
@@ -60,8 +68,9 @@ export function useAcceptInvite(token: string) {
         body,
       })
       if (error) throw new ApiError('Could not accept this invitation.', error)
+      await primeMe(queryClient, data.access_token)
+      setSession(data)
       return data
     },
-    onSuccess: (data) => setSession(data),
   })
 }

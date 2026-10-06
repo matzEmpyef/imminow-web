@@ -2,6 +2,7 @@ import createClient from 'openapi-fetch'
 import type { components, paths } from './schema'
 import { useAuthStore } from '@/stores/authStore'
 import { endSession } from '@/lib/session'
+import { queryClient } from '@/lib/queryClient'
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL
 
@@ -75,6 +76,27 @@ function refreshOnce(): Promise<string | null> {
   return refreshInFlight
 }
 
+// Refusals that mean the console's picture of the caller is out of date (review F-036): a
+// permission was taken away, a plan feature was switched off, or the subscription lapsed since
+// `GET /me` last answered. Asking `/me` again is what makes the buttons and pages on screen match
+// what the server will now allow. The literal key and codes are repeated from `queries/me.ts`
+// rather than imported: that module imports this one.
+const ME_QUERY_KEY = ['me']
+const ME_STALE_REFUSAL_CODES = new Set(['permission_denied', 'feature_locked', 'subscription_lapsed'])
+
+async function refreshMeOnStaleRefusal(response: Response, schemaPath: string) {
+  // `/me` refusing is its own answer (the guards show it); asking again would loop.
+  if (response.status !== 403 || schemaPath === '/me') return
+  try {
+    const body = (await response.clone().json()) as { error?: { code?: string } }
+    if (!ME_STALE_REFUSAL_CODES.has(body.error?.code ?? '')) return
+    // `cancelRefetch: false`: a page whose five lists are all refused asks once, not five times.
+    void queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY }, { cancelRefetch: false })
+  } catch {
+    // Not a JSON error envelope: nothing to learn from it.
+  }
+}
+
 api.use({
   onRequest({ request, id }) {
     const token = useAuthStore.getState().accessToken
@@ -87,7 +109,10 @@ api.use({
     const original = replayable.get(id)
     replayable.delete(id)
 
-    if (response.status !== 401) return response
+    if (response.status !== 401) {
+      await refreshMeOnStaleRefusal(response, schemaPath)
+      return response
+    }
     // A 401 from login means wrong credentials, not an expired session. Returned untouched so the
     // form can show the server's own message.
     if (AUTH_PATHS.has(schemaPath)) return response
@@ -115,6 +140,7 @@ api.use({
     // merely stale. No second attempt — the replay runs through bare `fetch`, so it never
     // re-enters this middleware and cannot loop.
     if (retried.status === 401) endSession()
+    else await refreshMeOnStaleRefusal(retried, schemaPath)
     return retried
   },
 

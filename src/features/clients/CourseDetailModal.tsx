@@ -23,7 +23,7 @@ import { SuggestCorrectionButton } from '@/features/clients/SuggestCorrectionBut
 import { IntakeDeadlineEditor } from '@/features/clients/IntakeDeadlineEditor'
 import { useExams } from '@/queries/catalogSettings'
 import { useCollegeDetail } from '@/queries/adminColleges'
-import { useAuthStore } from '@/stores/authStore'
+import { isStaffScope, useMyScope } from '@/lib/me'
 import { labelFor } from '@/lib/humanise'
 import { scoreSchemeSuffix } from '@/lib/scoreScheme'
 import { formatCourseFee, formatFeeApprox } from '@/lib/money'
@@ -165,8 +165,7 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
   // two roles that route ever admits) rather than trusting "this modal is only mounted in the
   // consultancy area" to stay true forever — ChatPanel and CourseFinderPage both mount this popup
   // today, but neither is what actually enforces who may set a deadline.
-  const role = useAuthStore((s) => s.user?.role)
-  const canSetIntakeDeadlines = role === 'consultancy_admin' || role === 'consultant'
+  const canSetIntakeDeadlines = isStaffScope(useMyScope())
 
   // A 200 response applies straight to the catalogue, but `course` here is a frozen snapshot
   // handed down by the caller (Course Finder's row, a chat's shared-course card) — nothing

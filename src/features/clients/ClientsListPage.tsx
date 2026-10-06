@@ -24,7 +24,7 @@ import { useCountries } from '@/queries/countries'
 import { useBranches, useEmployees } from '@/queries/staff'
 import { usePermissionChecker } from '@/lib/permissions'
 import { useAccountWords } from '@/lib/accountWords'
-import { useAuthStore } from '@/stores/authStore'
+import { useMyUserId } from '@/lib/me'
 import { useCursorPagination } from '@/lib/pagination'
 import { showToast } from '@/lib/toast'
 import { CASE_MOVED_ACTION_REASON, isCaseMoved } from '@/lib/clientStatus'
@@ -173,7 +173,7 @@ export function ClientsListPage() {
   const branches = useBranches()
   // H7 (2026-09-13): the same branch note Active Leads carries — a viewer scoped to specific
   // branches should be told that is what they are looking at. Admins cover every branch.
-  const userId = useAuthStore((s) => s.user?.id)
+  const userId = useMyUserId()
   const me = employees.data?.items.find((e) => e.user!.id === userId)
   const myBranchNames = me?.is_consultancy_admin
     ? []

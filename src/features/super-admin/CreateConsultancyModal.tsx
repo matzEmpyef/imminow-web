@@ -15,7 +15,7 @@ import {
   headOfficeBranchFields,
   type BranchLocationDraft,
 } from '@/features/administration/branchLocation'
-import { useAuthStore } from '@/stores/authStore'
+import { useIsSuperAdmin } from '@/lib/me'
 import { useCreateConsultancy } from '@/queries/adminConsultancies'
 import { collegeWithCoursesSource } from '@/queries/pickerSources'
 import { useUserSearch } from '@/queries/supportTools'
@@ -75,7 +75,7 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
   //
   // The server enforces both (403 and 400). This hides what the caller cannot use, so nobody
   // fills in a form that was going to be refused.
-  const isSuperAdmin = useAuthStore((state) => state.user?.role === 'super_admin')
+  const isSuperAdmin = useIsSuperAdmin()
   const [kind, setKind] = useState<AccountKind>('consultancy')
   const [adminMode, setAdminMode] = useState<AdminMode>('invite')
   const [name, setName] = useState('')

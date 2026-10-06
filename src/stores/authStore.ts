@@ -1,44 +1,49 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { components } from '@/api/schema'
-
-type User = components['schemas']['User']
 
 interface AuthState {
   accessToken: string | null
   refreshToken: string | null
-  user: User | null
-  setSession: (session: { access_token: string; refresh_token: string; user: User }) => void
-  setUser: (user: User) => void
+  /**
+   * Stores the two tokens a sign-in returns. The `user` that comes with them is deliberately NOT
+   * kept (review F-036): who the caller is and what they may do is `GET /me`'s answer, held in
+   * the query cache only (`queries/me.ts`), so a revoked permission or a changed role is never
+   * read from a copy made at sign-in.
+   */
+  setSession: (session: { access_token: string; refresh_token: string }) => void
   /**
    * Stores what `/auth/refresh` returns (`TokenRefresh`): always a new access token, and a new
    * refresh token only when the server rotated it — then the old one is spent and MUST be replaced
    * (openapi.yaml, TokenRefresh.refresh_token). Without one, the refresh token already held stays.
-   * The user is untouched either way. Deliberately separate from `setSession`, which requires all
-   * three and would force the refresh path to re-supply a user it never fetched.
    */
   setAccessToken: (accessToken: string, rotatedRefreshToken?: string) => void
   clear: () => void
 }
 
+type Tokens = Pick<AuthState, 'accessToken' | 'refreshToken'>
+
 // Session persists to sessionStorage only (cleared on tab close) — a pragmatic Phase 2 choice
 // while auth runs against the mock server; Phase 6 swaps this for real Cognito token handling
-// (TRD Section 9), not just a longer-lived storage mechanism.
+// (TRD Section 9), not just a longer-lived storage mechanism. Tokens only: `partialize` and
+// `merge` both name the two fields, so a `user` left in storage by an older build is neither read
+// back nor written again.
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       accessToken: null,
       refreshToken: null,
-      user: null,
-      setSession: ({ access_token, refresh_token, user }) =>
-        set({ accessToken: access_token, refreshToken: refresh_token, user }),
-      setUser: (user) => set({ user }),
+      setSession: ({ access_token, refresh_token }) => set({ accessToken: access_token, refreshToken: refresh_token }),
       setAccessToken: (accessToken, rotatedRefreshToken) =>
         set((state) => ({ accessToken, refreshToken: rotatedRefreshToken || state.refreshToken })),
-      clear: () => set({ accessToken: null, refreshToken: null, user: null }),
+      clear: () => set({ accessToken: null, refreshToken: null }),
     }),
     {
       name: 'imminow-auth',
+      partialize: (state): Tokens => ({ accessToken: state.accessToken, refreshToken: state.refreshToken }),
+      merge: (persisted, current) => {
+        const stored = (persisted ?? {}) as Partial<Tokens>
+        return { ...current, accessToken: stored.accessToken ?? null, refreshToken: stored.refreshToken ?? null }
+      },
       storage: {
         getItem: (name) => {
           const value = sessionStorage.getItem(name)

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { LogOut, UserRound } from 'lucide-react'
 import { BRAND_LOGO } from '@/lib/brand'
-import { useAuthStore } from '@/stores/authStore'
+import { useMeUser } from '@/lib/me'
 import { useLogout } from '@/lib/useLogout'
 import { NotificationsDropdown } from '@/components/NotificationsDropdown'
 
@@ -13,7 +13,7 @@ import { NotificationsDropdown } from '@/components/NotificationsDropdown'
  * there's no sidebar footer left to carry the avatar link on its own.
  */
 function AccountMenu() {
-  const user = useAuthStore((s) => s.user)
+  const user = useMeUser()
   const logout = useLogout()
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)

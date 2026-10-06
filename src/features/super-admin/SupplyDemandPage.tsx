@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { AsOfCaption } from '@/components/AsOfCaption'
 import { AdminShell } from '@/features/auth/AdminShell'
-import { useAuthStore } from '@/stores/authStore'
+import { useIsSuperAdmin, usePlatformPermission } from '@/lib/me'
 import { useUpdatePlatformSettings } from '@/queries/catalogSettings'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
@@ -75,11 +75,9 @@ function sharePct(value: number, total: number) {
 // everyone; editable by Super Admin or `catalog_settings`, the permission the setting's endpoint
 // checks — everyone else sees the number without the Edit link.
 function CapacityAssumption({ casesPerStaff, onSaved }: { casesPerStaff: number; onSaved: () => void }) {
-  const canEdit = useAuthStore(
-    (s) =>
-      s.user?.role === 'super_admin' ||
-      Boolean((s.user?.platform_permissions as Record<string, boolean> | undefined)?.catalog_settings),
-  )
+  const isSuperAdmin = useIsSuperAdmin()
+  const hasGrant = usePlatformPermission('catalog_settings')
+  const canEdit = isSuperAdmin || hasGrant
   const update = useUpdatePlatformSettings()
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState(String(casesPerStaff))
