@@ -1,6 +1,7 @@
 // Split out of QuizAdminPage.tsx (Phase 3 plan, Tier B3, 2026-09-03) — pure movement unless noted.
 // The create/edit form's state moved into useQuizForm.ts; the JSX is unchanged.
-import { type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
+import { ApiError } from '@/api/errors'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { FieldLabel } from '@/components/FieldLabel'
@@ -13,7 +14,20 @@ import { TargetingFilter } from '@/features/super-admin/TargetingFilter'
 import { useCountries } from '@/queries/countries'
 import { type Event } from './quizShared'
 import { PrizeEditor } from './QuizQuestionEditor'
-import { useQuizForm } from './useQuizForm'
+import { SCHEDULE_LOCKED_MESSAGE, useQuizForm } from './useQuizForm'
+
+/** The three locked fields as the form calls them, for "your change to … has been put back". */
+const SCHEDULE_FIELD_WORDS: Record<string, string> = {
+  starts_at: 'the start time',
+  ends_at: 'the end time',
+  time_limit_minutes: 'the time limit',
+}
+
+/** "a", "a and b", "a, b and c". */
+function listInWords(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? ''
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
+}
 
 // User-requested (2026-08-15) — "lets do that in 2 steps.. first create the quiz.. title, start
 // time, end time... Questions per attempt, Time limit... quiz will be inactive till questions
@@ -63,31 +77,48 @@ export function QuizSettingsModal({
   // event itself — same object shape useQuizForm already reads from `editingEvent`, so no change
   // needed there.
   const seed = editingEvent ?? (duplicateFrom ? { ...duplicateFrom, title: `${duplicateFrom.title ?? ''} (copy)` } : undefined)
+  // The quiz has ended (lane v, owner 2026-10-06): its start, end and time limit can no longer be
+  // changed, and the server refuses a save that tries (409 `quiz_schedule_locked`). The server
+  // says so on the event (`schedule_locked`). A quiz can also end WHILE this form is open: the
+  // refusal then locks the three fields here, so the next save carries the other changes only.
+  const [refusedAsLocked, setRefusedAsLocked] = useState<string | null>(null)
+  // Which of the three this form had changed, as the refusal names them (`details.locked_fields`).
+  const [refusedFields, setRefusedFields] = useState<string[]>([])
+  const scheduleLocked = isEditing && (editingEvent?.schedule_locked === true || refusedAsLocked !== null)
   const {
+    toUpdatePayload,
     title, setTitle, description, setDescription, timezone, setTimezone, startsAt, setStartsAt,
     endsAt, setEndsAt, questionsPerAttempt, setQuestionsPerAttempt, timeLimitMinutes, setTimeLimitMinutes,
     participationPoints, setParticipationPoints, prizes, updatePrize, removePrize, addPrize,
     targeting, setTargeting, isValid, nowInZone, started, startError, endError, prizeError, toPayload,
-  } = useQuizForm(seed)
+  } = useQuizForm(seed, scheduleLocked)
   const countries = useCountries()
 
+  const refusedChanges = refusedFields.map((field) => SCHEDULE_FIELD_WORDS[field]).filter(Boolean)
   const mutation = isEditing ? updateEvent : createEvent
+  const scheduleLockRefusal = mutation.error instanceof ApiError && mutation.error.code === 'quiz_schedule_locked'
 
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!isValid) return
-    const body = toPayload()
     if (isEditing) {
-      updateEvent.mutate(body, {
+      updateEvent.mutate(toUpdatePayload(), {
         onSuccess: () => {
           onClose()
           showToast(`${title} updated`)
         },
+        onError: (error) => {
+          if (error instanceof ApiError && error.code === 'quiz_schedule_locked') {
+            setRefusedAsLocked(error.message)
+            const fields = error.details?.locked_fields
+            setRefusedFields(Array.isArray(fields) ? fields.filter((f): f is string => typeof f === 'string') : [])
+          }
+        },
       })
     } else {
       createEvent.mutate(
-        { type: 'quiz', ...body, questions: [] },
+        { type: 'quiz', ...toPayload(), questions: [] },
         { onSuccess: (event) => event?.id && onCreated?.(event.id) },
       )
     }
@@ -106,7 +137,10 @@ export function QuizSettingsModal({
       widthRem={50}
       footer={
         <>
-          {mutation.isError && <p className="mr-auto self-center text-body-sm text-error">{mutation.error.message}</p>}
+          {/* A `quiz_schedule_locked` refusal is shown beside the three fields it is about. */}
+          {mutation.isError && !scheduleLockRefusal && (
+            <p className="mr-auto self-center text-body-sm text-error">{mutation.error.message}</p>
+          )}
           <Button type="submit" form="quiz-settings-form" loading={mutation.isPending} disabled={!isValid}>
             {isEditing ? 'Save Changes' : 'Next: Add Questions'}
           </Button>
@@ -134,6 +168,22 @@ export function QuizSettingsModal({
         {/* Time rules (assumptions audit C16, approved 2026-09-19) — no start in the past, the
             start locked once the quiz is running, the end only ever extendable, and an end
             required whenever a position prize carries points, because that is when it is paid. */}
+        {scheduleLocked && (
+          // The server's own sentence when it refused a save; the same words before one is tried.
+          <p
+            role={refusedAsLocked ? 'alert' : 'note'}
+            className="rounded-md border border-border bg-background px-md py-sm text-body-sm text-text-primary"
+          >
+            {refusedAsLocked ?? SCHEDULE_LOCKED_MESSAGE}
+            {refusedAsLocked && (
+              <span className="mt-xs block text-caption text-text-secondary">
+                Nothing was saved.
+                {refusedChanges.length > 0 && ` Your change to ${listInWords(refusedChanges)} has been put back.`} Your
+                other changes are still here: save again to keep them.
+              </span>
+            )}
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-sm">
           <div className="flex flex-col gap-xs">
             <TextField
@@ -141,12 +191,12 @@ export function QuizSettingsModal({
               type="datetime-local"
               required
               min={isEditing ? undefined : nowInZone}
-              disabled={started}
+              disabled={started || scheduleLocked}
               value={startsAt}
               onChange={(e) => setStartsAt(e.target.value)}
               error={startError}
             />
-            {started && (
+            {started && !scheduleLocked && (
               <p className="pl-lg text-caption text-text-secondary">Started — the start can&apos;t be changed</p>
             )}
           </div>
@@ -156,7 +206,8 @@ export function QuizSettingsModal({
             // Any prize row at all, not only the ones carrying points — the server refuses the
             // save either way (C16 follow-up, 2026-09-19).
             required={prizes.length > 0}
-            min={nowInZone}
+            min={scheduleLocked ? undefined : nowInZone}
+            disabled={scheduleLocked}
             value={endsAt}
             onChange={(e) => setEndsAt(e.target.value)}
             error={endError}
@@ -204,6 +255,7 @@ export function QuizSettingsModal({
             type="number"
             min={1}
             placeholder="No limit"
+            disabled={scheduleLocked}
             value={timeLimitMinutes ?? ''}
             // Optional — blank stays blank (null, "no limit"), the same fix as above.
             onChange={(e) => setTimeLimitMinutes(e.target.value === '' ? null : Number(e.target.value))}

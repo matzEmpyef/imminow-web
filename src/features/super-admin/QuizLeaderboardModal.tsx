@@ -22,6 +22,17 @@ const LEADERBOARD_CSV_COLUMNS: CsvColumn<QuizLeaderboardEntry>[] = [
   { header: 'Submitted', value: (r) => formatDateTime(r.submitted_at) },
 ]
 
+/** What a final position won, as one line: the prize, the bonus points, or both. */
+function prizeText(prize: QuizLeaderboardEntry['prize']): string {
+  if (!prize) return ''
+  const points = prize.points ? `${prize.points.toLocaleString('en-IN')} bonus point${prize.points === 1 ? '' : 's'}` : ''
+  return [prize.prize?.trim(), points].filter(Boolean).join(' + ')
+}
+
+// Added to the export only once the results are final: before that every prize is empty, and a
+// column of blanks beside a rank would read as "nobody won".
+const PRIZE_CSV_COLUMN: CsvColumn<QuizLeaderboardEntry> = { header: 'Prize', value: (r) => prizeText(r.prize) }
+
 const typeBadgeColor: Record<'applicant' | 'aspirant', 'success' | 'info'> = {
   applicant: 'success',
   aspirant: 'info',
@@ -69,6 +80,14 @@ export function QuizLeaderboardModal({ event, onClose }: { event: Event; onClose
     return items
   }, [leaderboard.data, search, sort])
 
+  // PROVISIONAL OR FINAL (owner, 2026-10-06) is the server's word, never the clock's: settlement
+  // runs about a minute after `results_final_at`. Until it says final, the standings are live —
+  // ranks can still move and NOBODY has won, so no prize is shown on any row, not even rank 1.
+  const data = leaderboard.data
+  const isFinal = data?.results_final === true
+  const finalAt = data?.results_final_at ?? event.results_final_at ?? null
+  const lateCount = data?.late_count ?? 0
+
   const pageRows = rows.slice(page * LEADERBOARD_PAGE_SIZE, page * LEADERBOARD_PAGE_SIZE + LEADERBOARD_PAGE_SIZE)
 
   const columns: TableColumn<QuizLeaderboardEntry>[] = [
@@ -106,6 +125,23 @@ export function QuizLeaderboardModal({ event, onClose }: { event: Event; onClose
       align: 'right',
       render: (r) => formatDuration(r.completion_time_ms),
     },
+    ...(isFinal
+      ? [
+          {
+            key: 'prize',
+            header: 'Prize',
+            render: (r: QuizLeaderboardEntry) =>
+              r.prize && prizeText(r.prize) ? (
+                <span className="inline-flex items-center gap-xs font-medium text-text-primary">
+                  <Trophy className="h-4 w-4 shrink-0 text-warning" aria-hidden />
+                  {prizeText(r.prize)}
+                </span>
+              ) : (
+                <span className="text-text-secondary">—</span>
+              ),
+          } satisfies TableColumn<QuizLeaderboardEntry>,
+        ]
+      : []),
   ]
 
   const allEntries = leaderboard.data?.entries ?? []
@@ -124,7 +160,7 @@ export function QuizLeaderboardModal({ event, onClose }: { event: Event; onClose
             onClick={() =>
               downloadCsv(
                 `${event.title.replace(/[^\w\- ]+/g, '')}-leaderboard.csv`,
-                toCsv(allEntries, LEADERBOARD_CSV_COLUMNS),
+                toCsv(allEntries, isFinal ? [...LEADERBOARD_CSV_COLUMNS, PRIZE_CSV_COLUMN] : LEADERBOARD_CSV_COLUMNS),
               )
             }
           >
@@ -138,6 +174,27 @@ export function QuizLeaderboardModal({ event, onClose }: { event: Event; onClose
       widthRem={54}
       dismissible
     >
+      {data && (
+        <div className="mb-md flex flex-col gap-xs rounded-md bg-background px-md py-sm">
+          <div className="flex flex-wrap items-center gap-sm">
+            <Badge color={isFinal ? 'success' : 'info'}>{isFinal ? 'Final results' : 'Live standings'}</Badge>
+            <p role="status" className="text-body-sm text-text-primary">
+              {isFinal
+                ? 'These positions are final. Winners are marked in the Prize column.'
+                : finalAt
+                  ? `More results may still come in. Final results at ${formatDateTime(finalAt)}.`
+                  : event.status === 'voided'
+                    ? 'This quiz was voided, so it has no final results.'
+                    : 'More results may still come in. This quiz has no end time, so its results are never final.'}
+            </p>
+          </div>
+          <p className="text-caption text-text-secondary">
+            {data.participant_count} participated
+            {lateCount > 0 && ` · ${lateCount} arrived late (not ranked)`}
+            {!isFinal && ' · No one has won a prize yet'}
+          </p>
+        </div>
+      )}
       <Table
         bare
         columns={columns}
@@ -187,6 +244,12 @@ export function QuizParticipationCell({ event }: { event: Event }) {
         <Trophy className="h-4 w-4" />
         {event.attendance_count ?? 0} participated
       </button>
+      {/* When the standings stop moving (lane v). From the server, never worked out here. */}
+      {event.results_final ? (
+        <p className="text-caption text-text-secondary">Final results</p>
+      ) : event.results_final_at ? (
+        <p className="text-caption text-text-secondary">Final results at {formatDateTime(event.results_final_at)}</p>
+      ) : null}
       {showLeaderboard && <QuizLeaderboardModal event={event} onClose={() => setShowLeaderboard(false)} />}
     </div>
   )

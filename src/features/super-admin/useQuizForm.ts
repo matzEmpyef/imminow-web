@@ -47,7 +47,15 @@ export interface QuizFormValue {
   endError?: string
   /** Why the prize list cannot be saved (a repeated position, a number out of range), if it cannot. */
   prizeError?: string
+  /**
+   * The quiz has ended (`Event.schedule_locked`, owner 2026-10-06): its start, end and time limit
+   * can no longer be changed. The three fields show the stored values read-only, raise no error,
+   * and are left out of `toUpdatePayload`. Every other field stays editable.
+   */
+  scheduleLocked: boolean
   toPayload: () => QuizPayload
+  /** What an EDIT sends: `toPayload`, without the three schedule fields once they are locked. */
+  toUpdatePayload: () => Partial<QuizPayload>
 }
 
 export interface QuizPayload {
@@ -63,7 +71,14 @@ export interface QuizPayload {
   targeting: Targeting | null
 }
 
-export function useQuizForm(editingEvent?: Event): QuizFormValue {
+/** The three fields `PATCH /events/{id}` refuses to change once a quiz has ended. */
+export const SCHEDULE_FIELDS = ['starts_at', 'ends_at', 'time_limit_minutes'] as const
+
+/** The server's own sentence (409 `quiz_schedule_locked`), for the form to say before a save is tried. */
+export const SCHEDULE_LOCKED_MESSAGE =
+  'This quiz has ended, so its start time, end time and time limit can no longer be changed.'
+
+export function useQuizForm(editingEvent?: Event, scheduleLocked = false): QuizFormValue {
   const [title, setTitle] = useState(editingEvent?.title ?? '')
   const [description, setDescription] = useState(editingEvent?.description ?? '')
   // The zone the admin is TYPING IN (2026-08-23). A quiz has no venue, so unlike a physical
@@ -72,23 +87,31 @@ export function useQuizForm(editingEvent?: Event): QuizFormValue {
   // see which clock they were entering the window in, so an admin abroad opening an India quiz
   // could not check their own work.
   const [timezone, setTimezone] = useState(editingEvent?.timezone ?? browserTimezone())
-  const [startsAt, setStartsAt] = useState(
+  const [typedStartsAt, setStartsAt] = useState(
     editingEvent?.starts_at
       ? utcIsoToWallClock(editingEvent.starts_at, editingEvent.timezone ?? browserTimezone())
       : '',
   )
-  const [endsAt, setEndsAt] = useState(
+  const [typedEndsAt, setEndsAt] = useState(
     editingEvent?.ends_at ? utcIsoToWallClock(editingEvent.ends_at, editingEvent.timezone ?? browserTimezone()) : '',
   )
   const [questionsPerAttempt, setQuestionsPerAttempt] = useState<number | null>(
     editingEvent?.questions_per_attempt ?? 5,
   )
-  const [timeLimitMinutes, setTimeLimitMinutes] = useState<number | null>(editingEvent?.time_limit_minutes ?? 15)
+  const [typedTimeLimit, setTimeLimitMinutes] = useState<number | null>(editingEvent?.time_limit_minutes ?? 15)
   const [participationPoints, setParticipationPoints] = useState(editingEvent?.points_override ?? 10)
   const [prizes, setPrizes] = useState<PositionPrize[]>(editingEvent?.position_prizes ?? [])
   // Quizzes have supported targeting in the data model all along, but the console never exposed
   // it — so every quiz reached every student regardless of what the schema allowed.
   const [targeting, setTargeting] = useState<Targeting>(editingEvent?.targeting ?? {})
+
+  // ONCE THE QUIZ HAS ENDED its start, end and time limit are fixed (`schedule_locked`). What the
+  // form shows for them is then the stored value, whatever was typed before the lock arrived, and
+  // on the clock of whichever zone is chosen: the instants cannot move, only how they are read.
+  const lockedEvent = scheduleLocked ? editingEvent : undefined
+  const startsAt = lockedEvent?.starts_at ? utcIsoToWallClock(lockedEvent.starts_at, timezone) : typedStartsAt
+  const endsAt = lockedEvent ? (lockedEvent.ends_at ? utcIsoToWallClock(lockedEvent.ends_at, timezone) : '') : typedEndsAt
+  const timeLimitMinutes = lockedEvent ? (lockedEvent.time_limit_minutes ?? null) : typedTimeLimit
 
   function updatePrize(i: number, p: PositionPrize) {
     setPrizes((prev) => prev.map((existing, idx) => (idx === i ? p : existing)))
@@ -122,14 +145,18 @@ export function useQuizForm(editingEvent?: Event): QuizFormValue {
   const sentPrizes = cleanPrizes(prizes)
   const endRequired = sentPrizes.length > 0 && endsAt === ''
   const prizeError = prizeListError(prizes)
-  const startError = startInPast ? 'The start cannot be in the past.' : undefined
-  const endError = endRequired
-    ? 'A quiz with position prizes needs an end time — that is when the prizes are paid.'
-    : endBeforeStart
-      ? 'The end must be after the start.'
-      : endInPast
-        ? 'The end cannot be in the past — it can be extended, not brought forward.'
-        : undefined
+  // A locked schedule has nothing left to get wrong: its end IS in the past, and that must not
+  // stop the title, the prizes or anything else on the form from being saved.
+  const startError = scheduleLocked ? undefined : startInPast ? 'The start cannot be in the past.' : undefined
+  const endError = scheduleLocked
+    ? undefined
+    : endRequired
+      ? 'A quiz with position prizes needs an end time — that is when the prizes are paid.'
+      : endBeforeStart
+        ? 'The end must be after the start.'
+        : endInPast
+          ? 'The end cannot be in the past — it can be extended, not brought forward.'
+          : undefined
 
   // Questions per attempt is required, min 1 (server: "whole ≥1"); time limit stays optional —
   // null (blank) or a whole number ≥1, never 0.
@@ -161,7 +188,16 @@ export function useQuizForm(editingEvent?: Event): QuizFormValue {
     }
   }
 
+  function toUpdatePayload(): Partial<QuizPayload> {
+    const payload: Partial<QuizPayload> = toPayload()
+    // Left out, not repeated: a value the form re-derived from a wall clock must never be what
+    // decides whether the server sees "a change" to a field that can no longer change.
+    if (scheduleLocked) for (const field of SCHEDULE_FIELDS) delete payload[field]
+    return payload
+  }
+
   return {
+    scheduleLocked, toUpdatePayload,
     title, setTitle, description, setDescription, timezone, setTimezone, startsAt, setStartsAt,
     endsAt, setEndsAt, questionsPerAttempt, setQuestionsPerAttempt, timeLimitMinutes, setTimeLimitMinutes,
     participationPoints, setParticipationPoints, prizes, updatePrize, removePrize, addPrize,

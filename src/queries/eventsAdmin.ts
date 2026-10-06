@@ -112,6 +112,9 @@ export function useEventAttendance(id: string | undefined) {
 // User-requested (2026-08-17) — "where do I see how many people participated and their details
 // as well as leader board." Lazily fetched only once the participant count is actually clicked,
 // same `enabled` pattern as useEventAttendance above.
+/** How often an open leaderboard is read again while its standings are still provisional. */
+export const LIVE_STANDINGS_POLL_MS = 30_000
+
 export function useQuizLeaderboard(id: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
@@ -122,5 +125,9 @@ export function useQuizLeaderboard(id: string | undefined) {
       return data
     },
     enabled: isAuthed && Boolean(id),
+    // Live standings (owner, 2026-10-06): until the server says the results are final, more
+    // attempts can still come in and ranks can move, so the open popup asks again now and then.
+    // Whether they are final is read from the answer (`results_final`), never from the clock.
+    refetchInterval: (query) => (query.state.data && !query.state.data.results_final ? LIVE_STANDINGS_POLL_MS : false),
   })
 }
