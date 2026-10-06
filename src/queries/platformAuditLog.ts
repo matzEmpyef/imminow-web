@@ -14,7 +14,8 @@ export interface PlatformAuditLogFilters {
   consultancy_id?: string
   entity_id?: string
   actor_id?: string
-  action_type?: 'create' | 'update' | 'delete'
+  /** Any action the log records: the base create/update/delete, or a named one (`rating_excluded`…). */
+  action_type?: components['schemas']['AuditLogEntry']['action_type']
   area?: PlatformAuditLogArea
   from?: string
   to?: string

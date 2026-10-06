@@ -15,7 +15,15 @@ import { useCursorPagination } from '@/lib/pagination'
 import { toCsv, downloadCsv, type CsvColumn } from '@/lib/csv'
 import { formatDateTime, localDateISO } from '@/lib/time'
 
-const ACTION_COLORS = { create: 'success', update: 'info', delete: 'error', view: 'secondary' } as const
+const ACTION_COLORS = {
+  create: 'success',
+  update: 'info',
+  delete: 'error',
+  view: 'secondary',
+  // Ratings (owner decision 16): taking a rating out of a consultancy's score, and putting it back.
+  rating_excluded: 'warning',
+  rating_restored: 'success',
+} as const
 
 // One readable label per wire value, kept in the same order the filter dropdown shows them —
 // covers every value the `area` enum can carry (schema.d.ts), so a newly added area fails to
@@ -219,6 +227,8 @@ export function PlatformAuditLogPage() {
                 <option value="create">Create</option>
                 <option value="update">Update</option>
                 <option value="delete">Delete</option>
+                <option value="rating_excluded">Rating Excluded</option>
+                <option value="rating_restored">Rating Restored</option>
               </CompactSelect>
               <CompactSelect
                 value={area}

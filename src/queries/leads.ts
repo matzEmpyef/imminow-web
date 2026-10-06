@@ -245,10 +245,14 @@ export function useRequestRating() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await api.POST('/leads/{id}/rating-request', { params: { path: { id } } })
-      if (error) throw new ApiError(error.error.message)
+      const { error, response } = await api.POST('/leads/{id}/rating-request', { params: { path: { id } } })
+      // 409 `not_enough_conversation` and 429 carry the sentence to show; it is used as it comes.
+      if (error) throw new ApiError('Could not send the rating request.', error, (response as Response | undefined)?.status)
     },
-    onSuccess: (_data, id) => queryClient.invalidateQueries({ queryKey: ['leads', id] }),
+    // Settled, not only on success: a refusal means the lead's "may I ask" answer on screen was
+    // out of date (someone else asked, or the conversation is not there yet), so it is read again
+    // and the button takes the state the server now gives.
+    onSettled: (_data, _error, id) => queryClient.invalidateQueries({ queryKey: ['leads', id] }),
   })
 }
 

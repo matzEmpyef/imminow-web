@@ -109,6 +109,9 @@ const SuperAdminDashboardPage = lazy(() =>
 const ManageConsultanciesPage = lazy(() =>
   import('@/features/super-admin/ManageConsultanciesPage').then((m) => ({ default: m.ManageConsultanciesPage })),
 )
+const RatingsPage = lazy(() =>
+  import('@/features/super-admin/RatingsPage').then((m) => ({ default: m.RatingsPage })),
+)
 const ReviewsPage = lazy(() => import('@/features/super-admin/ReviewsPage').then((m) => ({ default: m.ReviewsPage })))
 const ConsultancyReviewsPage = lazy(() =>
   import('@/features/administration/ConsultancyReviewsPage').then((m) => ({ default: m.ConsultancyReviewsPage })),
@@ -519,6 +522,7 @@ function App() {
           <Route path="/admin/consultancies" element={<ManageConsultanciesPage />} />
           <Route path="/admin/performance-league" element={<PerformanceLeaguePage />} />
           <Route path="/admin/reviews" element={<ReviewsPage />} />
+          <Route path="/admin/ratings" element={<RatingsPage />} />
         </Route>
         <Route element={<PlatformLayout permission="applicant_allocation" />}>
           <Route path="/admin/applicant-allocation" element={<ApplicantAllocationPage />} />

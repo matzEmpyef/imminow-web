@@ -23,6 +23,7 @@ const ALLOWED_EXACT = [
   '/admin/consultancies',
   '/admin/disputes',
   '/admin/finance-dashboard',
+  '/admin/ratings',
   '/admin/reviews',
   '/administration/commission-details',
   '/administration/consultancy-profile',
@@ -36,6 +37,7 @@ const ALLOWED_EXACT = [
 const ALLOWED_PREFIXES = [
   '/admin/applicants/',
   '/admin/consultancies?',
+  '/admin/ratings?',
   '/administration/consultancy-profile?',
   '/clients/',
   '/staff/conversations/',

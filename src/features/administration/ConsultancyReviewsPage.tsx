@@ -11,9 +11,9 @@ type Review = components['schemas']['Review']
 
 const LIMIT = 20
 
-// Five bars, 5 stars down to 1 — the same shape every "rating breakdown" widget uses. Percentage
-// widths are computed against the published review count, not rating_count (star-only ratings from
-// the cooldown-gated Stage 1 flow have no star bucket here since there's no written review to list).
+// Five bars, 5 stars down to 1 — the same shape every "rating breakdown" widget uses. Since owner
+// decision 16 (review F-012) the buckets are the students' RATINGS, one per student (each rounded
+// to a whole star), so the widths are worked out against `rating_count`, which they sum to.
 function DistributionBars({ distribution, total }: { distribution: Record<string, number>; total: number }) {
   return (
     <div className="flex flex-col gap-xs" style={{ minWidth: '14rem' }}>
@@ -75,7 +75,12 @@ export function ConsultancyReviewsPage() {
         </div>
       ),
     },
-    { key: 'stars', header: 'Rating', render: (r) => <StarRating value={r.stars} /> },
+    {
+      key: 'stars',
+      header: 'Rating',
+      // A review can outlive its rating (the student's account was erased): no stars to show then.
+      render: (r) => (r.stars != null ? <StarRating value={r.stars} /> : <span className="text-text-secondary">—</span>),
+    },
     {
       key: 'text',
       header: 'Review',
@@ -96,31 +101,36 @@ export function ConsultancyReviewsPage() {
         <div>
           <h1 className="text-h1 text-text-primary">Reviews</h1>
           <p className="text-body-sm text-text-secondary">
-            Reviews are written once by students after their plan completes and checked by Sentpo before they
-            appear. Contact support if a review breaks the rules.
+            Students rate you from their chat once you have talked enough, and may write a review when their case
+            ends. Each student counts once. Sentpo checks every written review before it appears. Contact support if
+            a review breaks the rules.
           </p>
         </div>
 
         <div className="flex flex-col gap-lg rounded-lg bg-surface p-lg shadow-card sm:flex-row sm:items-center">
           <div className="flex flex-col items-start gap-xs">
-            <span className="text-display text-text-primary">
-              {summary.rating != null ? summary.rating.toFixed(1) : '—'}
-            </span>
-            {summary.rating != null && <StarRating value={summary.rating} />}
+            {/* The score appears once the server gives one. Until then (no ratings yet, or too few
+                for a score) it says so in words; why, and how many it takes, is never stated. */}
+            {summary.rating != null ? (
+              <>
+                <span className="text-display text-text-primary">{summary.rating.toFixed(1)}</span>
+                <StarRating value={summary.rating} />
+              </>
+            ) : (
+              <span className="text-h2 text-text-primary">Not rated yet</span>
+            )}
             <span className="text-caption text-text-secondary">
-              from {summary.rating_count} {summary.rating_count === 1 ? 'rating' : 'ratings'} · {summary.review_count}{' '}
+              from {summary.rating_count} {summary.rating_count === 1 ? 'student' : 'students'} · {summary.review_count}{' '}
               written {summary.review_count === 1 ? 'review' : 'reviews'}
             </span>
           </div>
-          {/* H11 (2026-09-13): the bars were an unlabelled block beside a number that counts
-              RATINGS, so they read as a breakdown of all 13 when they only ever plotted the 3
-              written reviews. The title says which set they are. */}
+          {/* H11 (2026-09-13): the bars must say which set they plot. They now plot every counted
+              student rating (review F-012), the same set the number beside them is the average of. */}
           <div className="flex flex-col gap-xs">
-            <p className="text-body-sm font-medium text-text-primary">Written reviews</p>
-            <DistributionBars distribution={summary.distribution} total={summary.review_count} />
+            <p className="text-body-sm font-medium text-text-primary">Ratings by star</p>
+            <DistributionBars distribution={summary.distribution} total={summary.rating_count} />
             <p className="text-caption text-text-secondary">
-              Star-only ratings are not shown here — these bars count the {summary.review_count} written{' '}
-              {summary.review_count === 1 ? 'review' : 'reviews'} only.
+              Each student counts once; written reviews show that student&rsquo;s rating.
             </p>
           </div>
         </div>

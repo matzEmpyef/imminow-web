@@ -122,6 +122,9 @@ const SECTIONS: AdminSection[] = [
           // Consultancies permission, so it sits beside the consultancies it moderates rather than
           // getting its own top-level link.
           { label: 'Reviews', path: '/admin/reviews', permission: 'consultancy_approval' },
+          // Every student's rating, with the signals that suggest a manufactured one (owner
+          // decision 16). Beside Reviews: the same people moderate both.
+          { label: 'Ratings', path: '/admin/ratings', permission: 'consultancy_approval' },
         ],
       },
       {

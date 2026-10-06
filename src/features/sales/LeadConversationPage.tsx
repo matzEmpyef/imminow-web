@@ -15,6 +15,7 @@ import { useChatWindowStore } from '@/stores/chatWindowStore'
 import { useViewingThread } from '@/lib/realtime'
 import { SetReminderModal } from './SetReminderModal'
 import { RequestRatingModal } from './RequestRatingModal'
+import { AskForRatingButton } from './AskForRatingButton'
 import { ConvertToClientModal } from './ConvertToClientModal'
 import { ConversionApprovalActions } from './ConversionApprovalActions'
 import { CloseLeadModal } from './CloseLeadModal'
@@ -367,13 +368,7 @@ export function LeadConversationPage() {
                 )}
 
                 {data.origin === 'sentpo' && (
-                  <Button
-                    variant="secondary"
-                    disabled={!data.can_request_rating}
-                    onClick={() => setShowRatingModal(true)}
-                  >
-                    {data.can_request_rating ? 'Request a Rating' : 'Rating requested recently'}
-                  </Button>
+                  <AskForRatingButton lead={data} onAsk={() => setShowRatingModal(true)} />
                 )}
 
                 {(() => {

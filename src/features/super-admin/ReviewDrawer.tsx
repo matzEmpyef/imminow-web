@@ -8,6 +8,8 @@ import { formatDateTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { useModerateReview, type Review } from '@/queries/adminReviews'
 import { HideReviewModal } from './HideReviewModal'
+import { RatingFlagBadges } from './ratingShared'
+import { channelLabel } from './ratingWords'
 
 const STATUS_META: Record<Review['status'], { label: string; color: 'warning' | 'success' | 'secondary' }> = {
   pending: { label: 'Pending', color: 'warning' },
@@ -73,7 +75,44 @@ export function ReviewDrawer({
 
         <div className="flex flex-col gap-xs">
           <p className="text-caption font-medium text-text-secondary">Rating</p>
-          <StarRating value={review.stars} size="md" />
+          {/* The stars are the student's rating of this consultancy when they wrote the review, not
+              a second score. A review can outlive that rating (an erased account): none to show. */}
+          {review.stars != null ? (
+            <StarRating value={review.stars} size="md" />
+          ) : (
+            <span className="text-body-sm text-text-secondary">No rating on file</span>
+          )}
+        </div>
+
+        {/* What suggests a manufactured review (owner decision 16): how the student came to this
+            consultancy, the signals on the rating behind the stars, and how long the case ran. */}
+        <div className="flex flex-col gap-xs">
+          <p className="text-caption font-medium text-text-secondary">Signals</p>
+          {(review.flags?.length ?? 0) > 0 ? (
+            <RatingFlagBadges flags={review.flags} />
+          ) : (
+            <p className="text-body-sm text-text-secondary">None.</p>
+          )}
+          {(channelLabel(review.acquisition_source) || review.case_age_days != null) && (
+            <p className="text-body-sm text-text-primary">
+              {[
+                channelLabel(review.acquisition_source),
+                review.case_age_days != null
+                  ? `case lasted ${review.case_age_days} ${review.case_age_days === 1 ? 'day' : 'days'}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+          )}
+          {review.rating_id && review.student_id && (
+            <Link
+              to={`/admin/ratings?student_id=${encodeURIComponent(review.student_id)}`}
+              className="w-fit text-body-sm text-primary hover:underline"
+            >
+              Open rating
+            </Link>
+          )}
         </div>
 
         <div className="flex flex-col gap-xs">

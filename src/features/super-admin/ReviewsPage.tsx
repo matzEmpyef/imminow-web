@@ -9,6 +9,7 @@ import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
 import { useAdminReviews, type Review } from '@/queries/adminReviews'
 import { ReviewDrawer } from './ReviewDrawer'
+import { RatingFlagBadges } from './ratingShared'
 
 const STATUS_TABS = [
   { key: 'pending', label: 'Pending' },
@@ -56,6 +57,12 @@ export function ReviewsPage() {
           <p className="truncate text-caption text-text-secondary">
             {[r.study_level, r.target_country].filter(Boolean).join(' · ') || '—'}
           </p>
+          {/* The signals on the rating behind this review, so a doubtful one stands out in the queue. */}
+          {(r.flags?.length ?? 0) > 0 && (
+            <div className="mt-0.5">
+              <RatingFlagBadges flags={r.flags} />
+            </div>
+          )}
         </div>
       ),
     },
@@ -80,7 +87,7 @@ export function ReviewsPage() {
     {
       key: 'stars',
       header: 'Rating',
-      render: (r) => <StarRating value={r.stars} />,
+      render: (r) => (r.stars != null ? <StarRating value={r.stars} /> : <span className="text-text-secondary">—</span>),
     },
     {
       key: 'text',

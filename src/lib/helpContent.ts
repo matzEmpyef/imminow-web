@@ -153,6 +153,39 @@ const HELP_TOPICS: HelpTopic[] = [
       'Rejecting requires a reason, which is stored and shown if you revisit the item later.',
     ],
   },
+  {
+    // Owner decision 16 (2026-10-06). What "enough conversation" means is a hidden server setting:
+    // nothing here, or anywhere in the console, states it.
+    matches: (p) => p === '/admin/ratings',
+    title: 'Ratings',
+    body: [
+      'Who rated whom, with the signals that suggest a manufactured rating. Excluding removes it from the public score; the student is not told.',
+      'Each student has one rating per consultancy. When they rate again, the new stars are averaged with what they gave before, and the consultancy’s score is the average of one number per student.',
+      'Open a row to see every submission behind the rating, how often the consultancy asked for it, and how many consultancies the account has rated.',
+    ],
+    sections: [
+      {
+        heading: 'Signals',
+        items: [
+          { term: 'New account', text: 'The account was new when it rated. The signal stays even as the account gets older.' },
+          {
+            term: 'Only this consultancy',
+            text: 'The account has never chatted or had a case with any other consultancy. It clears by itself if the student later talks to another one.',
+          },
+        ],
+      },
+      {
+        heading: 'Actions',
+        items: [
+          {
+            term: 'Exclude from score',
+            text: 'The rating stops counting and the consultancy’s score changes straight away. A reason is required and is kept in the audit log. If the student rates again, it stays excluded.',
+          },
+          { term: 'Restore to score', text: 'The rating counts again. A written review is separate: hide or publish it from Reviews.' },
+        ],
+      },
+    ],
+  },
 ]
 
 export function getHelpTopic(pathname: string): HelpTopic | undefined {
