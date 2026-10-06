@@ -6,6 +6,7 @@ import { Card } from '@/components/Card'
 import { CompactSelect } from '@/components/CompactSelect'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
+import { CopyButton } from '@/components/CopyButton'
 import { TagEditorMenu } from '@/components/TagEditorMenu'
 import { AssignPlanModal } from '@/features/clients/AssignPlanModal'
 import { AssignBranchMenu } from '@/components/AssignBranchMenu'
@@ -158,15 +159,25 @@ export function OverviewTab({
             <Mail className="h-4 w-4 shrink-0 text-primary" aria-hidden />
             <div className="min-w-0">
               <dt className="text-caption text-text-secondary">Email</dt>
-              <dd className="break-words text-text-primary">{data.student.email}</dd>
+              <dd className="flex min-w-0 items-center gap-xs text-text-primary">
+                <span className="min-w-0 break-words">{data.student.email}</span>
+                {data.student.email && <CopyButton value={data.student.email} kind="email" />}
+              </dd>
             </div>
           </div>
           <div className="flex min-w-0 items-center gap-sm">
             <Phone className="h-4 w-4 shrink-0 text-primary" aria-hidden />
             <div className="min-w-0">
               <dt className="text-caption text-text-secondary">Phone</dt>
-              <dd className="text-text-primary">
-                {data.student.phone ?? <span className="text-text-secondary">Not added yet</span>}
+              <dd className="flex min-w-0 items-center gap-xs text-text-primary">
+                {data.student.phone ? (
+                  <>
+                    <span>{data.student.phone}</span>
+                    <CopyButton value={data.student.phone} kind="phone" />
+                  </>
+                ) : (
+                  <span className="text-text-secondary">Not added yet</span>
+                )}
               </dd>
             </div>
           </div>

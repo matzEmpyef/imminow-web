@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams, Link, useLocation } from 'react-router-dom'
 import { Card } from '@/components/Card'
 import { Badge } from '@/components/Badge'
+import { CopyButton } from '@/components/CopyButton'
 import { Button } from '@/components/Button'
 import { CountryLabel } from '@/components/CountryLabel'
 import { AdminShell } from '@/features/auth/AdminShell'
@@ -146,8 +147,14 @@ export function ApplicantCaseViewPage() {
         <div className="grid grid-cols-2 gap-md">
           <Card className="flex flex-col gap-xs">
             <h2 className="text-h3 text-text-primary">Contact</h2>
-            <p className="text-body-sm text-text-secondary">{data.student?.email}</p>
-            <p className="text-body-sm text-text-secondary">{data.student?.phone ?? '—'}</p>
+            <p className="flex min-w-0 items-center gap-xs text-body-sm text-text-secondary">
+              <span className="min-w-0 break-words">{data.student?.email}</span>
+              {data.student?.email && <CopyButton value={data.student.email} kind="email" />}
+            </p>
+            <p className="flex min-w-0 items-center gap-xs text-body-sm text-text-secondary">
+              <span>{data.student?.phone ?? '—'}</span>
+              {data.student?.phone && <CopyButton value={data.student.phone} kind="phone" />}
+            </p>
             <p className="text-caption text-text-secondary">
               Started {formatDate(data.created_at!)} &middot; {data.days_since_started} days ago
               {data.closed_at && <> &middot; closed {formatDate(data.closed_at)}</>}

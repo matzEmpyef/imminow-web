@@ -3,10 +3,11 @@ import { Check, Copy } from 'lucide-react'
 import { showToast } from '@/lib/toast'
 
 // The console's one copy-to-clipboard control for a person's or organisation's email address or
-// phone number shown in a side drawer (owner, 2026-10-06). One click copies the exact value, the
-// icon turns into a tick for two seconds, and a clipboard that is missing or refuses gets the
-// standard error toast instead of a thrown error. Kept to drawers on purpose — tables and pages
-// were not part of the request.
+// phone number shown in a side drawer, a detail window or a profile page (owner, 2026-10-06). One
+// click copies the exact value, the icon turns into a tick for two seconds, and a clipboard that is
+// missing or refuses gets the standard error toast instead of a thrown error. Kept out of table
+// and list rows on purpose — the owner excluded them to avoid clutter. Sized 20px with a 12px icon
+// (trimmed from 24px / 14px, owner follow-up 2026-10-06).
 
 const CONFIRM_MS = 2000
 
@@ -50,11 +51,11 @@ export function CopyButton({ value, kind, className = '' }: { value: string; kin
         onClick={copy}
         aria-label={`Copy ${KIND_LABEL[kind]}`}
         title={copied ? 'Copied' : `Copy ${KIND_LABEL[kind]}`}
-        className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+        className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
           copied ? 'text-success' : 'text-text-secondary hover:text-text-primary'
         } ${className}`}
       >
-        <Icon className="h-3.5 w-3.5" />
+        <Icon className="h-3 w-3" />
       </button>
       <span role="status" className="sr-only">
         {copied ? 'Copied' : ''}

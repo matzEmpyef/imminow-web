@@ -138,3 +138,25 @@ describe('OverviewTab — Transfer disabled when the case has an accepted colleg
     expect(screen.getByRole('button', { name: 'Edit tags for Aiko Tanaka' })).toBeDisabled()
   })
 })
+
+describe('OverviewTab — copy buttons on the contact details', () => {
+  it('puts a copy button beside the email and the phone number', () => {
+    mockedClient.mockReturnValue(
+      query(baseClient({ student: { first_name: 'Aiko', last_name: 'Tanaka', email: 'aiko@example.com', phone: '+91 98765 43210' } })),
+    )
+    renderOverview()
+
+    expect(screen.getByText('aiko@example.com')).toBeInTheDocument()
+    expect(screen.getByText('+91 98765 43210')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy email address' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy phone number' })).toBeInTheDocument()
+  })
+
+  it('has no phone copy button when no phone number is on file', () => {
+    mockedClient.mockReturnValue(query(baseClient()))
+    renderOverview()
+
+    expect(screen.getByRole('button', { name: 'Copy email address' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Copy phone number' })).not.toBeInTheDocument()
+  })
+})
