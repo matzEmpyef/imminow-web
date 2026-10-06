@@ -1,15 +1,15 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ExternalLink, Minus, X } from 'lucide-react'
 import { ChatPanel } from './ChatPanel'
 import { useChatWindowStore } from '@/stores/chatWindowStore'
-import { useLead, useLeadMessages, useMarkLeadRead, useSendLeadMessage } from '@/queries/leads'
-import { useClient, useClientMessages, useMarkClientRead, useSendClientMessage } from '@/queries/clients'
+import { useLead, useLeadMessages, useSendLeadMessage } from '@/queries/leads'
+import { useClient, useClientMessages, useSendClientMessage } from '@/queries/clients'
+import { newestIncomingId, useMarkThreadRead } from '@/lib/useMarkThreadRead'
 import { SuggestCourseInChat, type ChatPerson } from '@/features/clients/SuggestCourseInChat'
 import { duplicateShareMessage } from '@/features/clients/shareGuards'
 import {
   useInternalConversationMessages,
-  useMarkInternalConversationRead,
   useSendInternalMessage,
   useUnsendInternalMessage,
 } from '@/queries/internalMessages'
@@ -49,20 +49,20 @@ export function FloatingChatWindow() {
   const sendClientMessage = useSendClientMessage(clientId ?? '')
   const sendInternalMessage = useSendInternalMessage(internalId)
   const unsendInternalMessage = useUnsendInternalMessage(internalId)
-  const { mutate: markLeadRead } = useMarkLeadRead()
-  const { mutate: markClientRead } = useMarkClientRead()
-  const { mutate: markInternalRead } = useMarkInternalConversationRead()
-  // Scalars, so the effect below keys on the conversation's identity rather than the object —
-  // and the three `mutate`s are stable in React Query v5, so all five are real deps (B5, 2026-09-03).
   const conversationId = conversation?.id
-  const conversationType = conversation?.type
 
-  useEffect(() => {
-    if (!conversationId) return
-    if (conversationType === 'lead') markLeadRead(conversationId)
-    else if (conversationType === 'client') markClientRead(conversationId)
-    else markInternalRead(conversationId)
-  }, [conversationId, conversationType, markLeadRead, markClientRead, markInternalRead])
+  // Read on open, and again for each message that arrives while this window is up and the person
+  // is looking — not while it is minimised (review F-143; the shared hook all four chat screens use).
+  const internalItems = useMemo(
+    () => internalMessages.data?.pages.slice().reverse().flatMap((page) => page.items),
+    [internalMessages.data],
+  )
+  const newestIncoming = isLead
+    ? newestIncomingId(leadMessages.items, (m) => m.sender === 'consultant')
+    : isClient
+      ? newestIncomingId(clientMessages.items, (m) => m.sender === 'consultant')
+      : newestIncomingId(internalItems, (m) => m.from_me)
+  useMarkThreadRead(conversation?.type, conversationId, newestIncoming, !minimized)
 
   // Presence (Wave 3 plan §6.3) — a lead/client thread open in the floating window counts as
   // "viewing" the same as the full conversation page; internal DMs have no RealtimeThreadRef.
@@ -96,11 +96,7 @@ export function FloatingChatWindow() {
           isSessionBreak: m.type === 'session_break',
           isCallInitiated: m.type === 'call_initiated',
         }))
-      : internalMessages.data?.pages
-          .slice()
-          .reverse()
-          .flatMap((page) => page.items)
-          .map((m) => ({
+      : internalItems?.map((m) => ({
             ...m,
             fromMe: m.from_me,
             senderName: conversation.id === 'team' ? m.sender_name : undefined,

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, ChevronUp, PictureInPicture2 } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
@@ -12,6 +12,7 @@ import { AssignBranchMenu } from '@/components/AssignBranchMenu'
 import { RequestedBranchBadge } from '@/components/RequestedBranch'
 import { StudentProfileFields } from '@/components/StudentProfileFields'
 import { useChatWindowStore } from '@/stores/chatWindowStore'
+import { newestIncomingId, useMarkThreadRead } from '@/lib/useMarkThreadRead'
 import { useViewingThread } from '@/lib/realtime'
 import { SetReminderModal } from './SetReminderModal'
 import { RequestRatingModal } from './RequestRatingModal'
@@ -27,7 +28,6 @@ import {
   useLead,
   useLeadMessages,
   useLeadNotes,
-  useMarkLeadRead,
   useRequestShortlist,
   useSendLeadMessage,
   useSetLeadBranch,
@@ -265,7 +265,6 @@ export function LeadConversationPage() {
   const lead = useLead(id)
   const messages = useLeadMessages(id)
   const sendMessage = useSendLeadMessage(id)
-  const { mutate: markRead } = useMarkLeadRead()
   const requestShortlist = useRequestShortlist(id)
   const openFloating = useChatWindowStore((s) => s.open)
   const [draft, setDraft] = useState('')
@@ -293,11 +292,9 @@ export function LeadConversationPage() {
   const canCloseLead = usePermission('clients.close')
   const canReopenLead = useFeature('case_reopening')
 
-  // `mutate` is destructured because it is referentially stable in React Query v5, so it can be
-  // a real dependency: the rule is satisfied and `id` stays the only trigger (B5, 2026-09-03).
-  useEffect(() => {
-    if (id) markRead(id)
-  }, [id, markRead])
+  // Read on open, and again for each message that arrives while the consultant is looking at the
+  // thread (review F-143; the shared hook all four chat screens use).
+  useMarkThreadRead('lead', id || null, newestIncomingId(messages.items, (m) => m.sender === 'consultant'))
 
   // Presence (Wave 3 plan §6.3) — tells the realtime manager this thread is on screen; cleared
   // (viewing: null) on unmount rather than left dangling when the consultant navigates away.

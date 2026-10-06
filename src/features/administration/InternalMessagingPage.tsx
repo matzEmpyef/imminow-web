@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
+import { newestIncomingId, useMarkThreadRead } from '@/lib/useMarkThreadRead'
 import { useNavigate, useParams } from 'react-router-dom'
 import { PictureInPicture2, Search } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
@@ -6,7 +7,6 @@ import { ChatPanel } from '@/components/ChatPanel'
 import {
   useInternalConversationMessages,
   useInternalConversations,
-  useMarkInternalConversationRead,
   useSendInternalMessage,
   useUnsendInternalMessage,
 } from '@/queries/internalMessages'
@@ -35,7 +35,6 @@ export function InternalMessagingPage() {
   const messages = useInternalConversationMessages(id)
   const sendMessage = useSendInternalMessage(id)
   const unsendMessage = useUnsendInternalMessage(id)
-  const { mutate: markRead } = useMarkInternalConversationRead()
   const openFloating = useChatWindowStore((s) => s.open)
 
   const items = conversations.data?.items ?? EMPTY_CONVERSATIONS
@@ -57,11 +56,9 @@ export function InternalMessagingPage() {
     return out
   }, [messages.data])
 
-  // `mutate` is destructured because it is referentially stable in React Query v5, so it can be
-  // a real dependency: the rule is satisfied and `id` stays the only trigger (B5, 2026-09-03).
-  useEffect(() => {
-    if (id) markRead(id)
-  }, [id, markRead])
+  // Read on open, and again for each message that arrives while the thread is being looked at
+  // (review F-143; the shared hook all four chat screens use).
+  useMarkThreadRead('internal', id ?? null, newestIncomingId(flatMessages, (m) => m.from_me))
 
   function handleSend(e: FormEvent) {
     e.preventDefault()

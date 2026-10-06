@@ -15,6 +15,9 @@ vi.mock('@/queries/clients', () => ({
   useMarkClientRead: vi.fn(),
 }))
 vi.mock('@/stores/chatWindowStore', () => ({ useChatWindowStore: vi.fn() }))
+// The read marker is the shared hook's business (review F-143) and has its own test; it reaches
+// for the lead and internal markers too, which this page's mocks do not cover.
+vi.mock('@/lib/useMarkThreadRead', () => ({ useMarkThreadRead: vi.fn(), newestIncomingId: () => null }))
 
 import { useClient, useClientMessages, useMarkClientRead, useSendClientMessage } from '@/queries/clients'
 import { useChatWindowStore } from '@/stores/chatWindowStore'

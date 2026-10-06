@@ -123,8 +123,11 @@ export function useMarkInternalConversationRead() {
             })
       if (error) throw new ApiError('Could not mark this conversation read.', error)
     },
+    // Exact, as the lead and client markers are (review F-029): this now runs for every message
+    // that arrives while the thread is being read (review F-143), and as a prefix it also
+    // refetched every loaded page of every internal thread. Only the list's unread counts change.
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['internal-conversations'] })
+      queryClient.invalidateQueries({ queryKey: ['internal-conversations'], exact: true })
     },
   })
 }
