@@ -4,6 +4,8 @@ import { applyChatMessage } from '@/lib/realtime/queryCache'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 import { useThreadMessages } from './threadMessages'
+import { invalidateApplicantRequests, type ApplicantRequest } from './applicantRequests'
+import { isAlreadyApplied } from '@/lib/useIdempotencyKey'
 import type { components } from '@/api/schema'
 
 type InternalNote = components['schemas']['InternalNote']
@@ -69,13 +71,32 @@ export function useClient(id: string | undefined) {
   })
 }
 
+type Client = components['schemas']['Client']
+
+/**
+ * What Create Applicant did (contract gate 12f), decided by the HTTP status alone: 201 made a new
+ * person's account and case; 202 found that the email or phone belongs to an existing Sentpo
+ * student, made nothing, and asked the student to accept in the app.
+ */
+export type CreateApplicantResult =
+  | { kind: 'created'; client: Client }
+  | { kind: 'requested'; request: ApplicantRequest }
+
 export function useCreateApplicant() {
   const queryClient = useQueryClient()
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['clients'] })
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    invalidateApplicantRequests(queryClient)
+  }
   return useMutation({
     // `date_of_birth` is required (assumptions audit C9, approved 2026-09-19) — this was the one
     // door a student record came through with no date of birth, and an account without one was
     // treated as an adult by every age decision on the platform.
-    mutationFn: async (body: {
+    mutationFn: async ({
+      idempotencyKey,
+      ...body
+    }: {
       first_name: string
       last_name: string
       email: string
@@ -84,18 +105,21 @@ export function useCreateApplicant() {
       address?: string | null
       case_type: 'student' | 'pr'
       assigned_employee_id: string
-    }) => {
-      // Required since contract gate 12f: one key per call until the form keys it by content.
-      const { data, error } = await api.POST('/clients', {
-        params: { header: { 'Idempotency-Key': crypto.randomUUID() } },
+      idempotencyKey: string
+    }): Promise<CreateApplicantResult> => {
+      const { data, error, response } = await api.POST('/clients', {
+        params: { header: { 'Idempotency-Key': idempotencyKey } },
         body,
       })
-      if (error) throw new ApiError('Could not create this applicant.', error)
-      return data
+      if (error) throw new ApiError('Could not create this applicant.', error, response?.status)
+      // The status says which of the two documented bodies this is; the types cannot.
+      if (response.status === 202) return { kind: 'requested', request: data as ApplicantRequest }
+      return { kind: 'created', client: data as Client }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clients'] })
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    onSuccess: refresh,
+    // The write already went through (the first answer was lost): refresh what success refreshes.
+    onError: (err) => {
+      if (isAlreadyApplied(err)) refresh()
     },
   })
 }

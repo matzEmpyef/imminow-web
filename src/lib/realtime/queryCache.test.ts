@@ -246,5 +246,11 @@ describe('realtime query cache patches', () => {
       expect(spy).toHaveBeenCalledWith({ queryKey: ['notifications-unread-count'] })
       expect(spy).toHaveBeenCalledWith({ queryKey: ['notifications'] })
     })
+
+    it('marks the waiting-for-the-student panel stale, since a student answers through a notification', () => {
+      const spy = vi.spyOn(queryClient, 'invalidateQueries')
+      applyNotificationCreated(queryClient)
+      expect(spy).toHaveBeenCalledWith({ queryKey: ['applicant-requests'] })
+    })
   })
 })

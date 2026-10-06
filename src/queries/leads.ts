@@ -4,6 +4,7 @@ import { applyChatMessage } from '@/lib/realtime/queryCache'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 import { useThreadMessages } from './threadMessages'
+import { invalidateApplicantRequests } from './applicantRequests'
 import type { components } from '@/api/schema'
 
 type InternalNote = components['schemas']['InternalNote']
@@ -403,6 +404,32 @@ export function useRespondToConversion(leadId: string) {
       // (2026-08-29).
       queryClient.invalidateQueries({ queryKey: ['activity-feed'] })
     },
+  })
+}
+
+// The sender's side takes back a proposal nobody has answered (contract gate 12f): consultancy
+// staff cancel their own offer on a lead, or a request Create Applicant sent to an existing
+// student. The server answers 404 to anyone it will not let cancel, and 400 once the proposal is
+// no longer pending. The key is minted once per opened confirm by the caller.
+export function useCancelConversionProposal() {
+  const queryClient = useQueryClient()
+  const refresh = () => {
+    invalidateApplicantRequests(queryClient)
+    queryClient.invalidateQueries({ queryKey: ['leads'] })
+    queryClient.invalidateQueries({ queryKey: ['activity-feed'] })
+  }
+  return useMutation({
+    mutationFn: async ({ proposalId, idempotencyKey }: { proposalId: string; idempotencyKey: string }) => {
+      const { data, error, response } = await api.DELETE('/conversion-proposals/{id}', {
+        params: { path: { id: proposalId }, header: { 'Idempotency-Key': idempotencyKey } },
+      })
+      if (error) throw new ApiError('Could not cancel this.', error, response?.status)
+      return data
+    },
+    onSuccess: refresh,
+    // A refusal means the list on screen is out of date (already answered, lapsed, or cancelled by
+    // a colleague), and an "already applied" answer means the cancel landed: refresh either way.
+    onError: refresh,
   })
 }
 

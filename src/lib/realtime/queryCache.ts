@@ -233,6 +233,10 @@ export function applyUnreadChanged(
 export function applyNotificationCreated(queryClient: QueryClient): void {
   queryClient.invalidateQueries({ queryKey: ['notifications-unread-count'] })
   queryClient.invalidateQueries({ queryKey: ['notifications'] })
+  // A student's answer to a Create Applicant request reaches staff as a notification (contract
+  // gate 12f), and the frame does not say what it is about, so the Clients page's waiting panel is
+  // marked stale with the bell. It refetches only while that panel is on screen.
+  queryClient.invalidateQueries({ queryKey: ['applicant-requests'] })
 }
 
 /** `resync` — the resume position is gone; refetch `/conversations` and the open thread over REST

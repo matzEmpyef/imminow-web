@@ -6,6 +6,10 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useEmployees } from '@/queries/staff'
 import { useCreateApplicant } from '@/queries/clients'
+import type { ApplicantRequest } from '@/queries/applicantRequests'
+import { createApplicantErrorMessage, dailyLimitLine } from '@/lib/applicantRequestWords'
+import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
+import { showToast } from '@/lib/toast'
 import {
   EMAIL_ERROR,
   MINIMUM_AGE_ERROR,
@@ -27,6 +31,12 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate()
   const employees = useEmployees()
   const createApplicant = useCreateApplicant()
+  // One key per opened form and content: a retry of the same applicant replays the first answer
+  // instead of creating a second account or sending a second request; edited details are new.
+  const { keyFor, settle } = usePayloadIdempotencyKey()
+  // Set when the server answered 202 (contract gate 12f): the email or phone belongs to an
+  // existing Sentpo student, so nothing was created and there is no client page to open.
+  const [sentRequest, setSentRequest] = useState<ApplicantRequest | null>(null)
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -59,18 +69,47 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
+    const payload = {
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      date_of_birth: dateOfBirth,
+      phone: phone || null,
+      address: address || null,
+      case_type: caseType as 'student' | 'pr',
+      assigned_employee_id: employeeId,
+    }
     createApplicant.mutate(
+      { ...payload, idempotencyKey: keyFor(payload) },
       {
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        date_of_birth: dateOfBirth,
-        phone: phone || null,
-        address: address || null,
-        case_type: caseType as 'student' | 'pr',
-        assigned_employee_id: employeeId,
+        onSuccess: (result) => {
+          if (result.kind === 'created') navigate(`/clients/${result.client.id}`)
+          else setSentRequest(result.request)
+        },
+        onError: (err) => {
+          settle(err)
+          // Already recorded (the first answer was lost): the write is done. Close, say so, never resubmit.
+          if (isAlreadyApplied(err)) {
+            showToast(ALREADY_APPLIED_NOTICE)
+            onClose()
+          }
+        },
       },
-      { onSuccess: (data) => navigate(`/clients/${data?.id}`) },
+    )
+  }
+
+  if (sentRequest) {
+    const limitLine = dailyLimitLine(sentRequest.daily_limit)
+    return (
+      <Modal onClose={onClose} title="Request sent" widthRem={30} footer={<Button onClick={onClose}>Done</Button>} dismissible>
+        <div className="flex flex-col gap-sm" role="status">
+          <p className="text-body text-text-secondary">
+            This person already has a Sentpo account. We've sent them a request to become your applicant. Nothing is
+            shared with you until they accept in the app. You'll see it under Waiting for the student to accept.
+          </p>
+          {limitLine && <p className="text-body-sm text-text-secondary">{limitLine}</p>}
+        </div>
+      </Modal>
     )
   }
 
@@ -81,8 +120,10 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
       widthRem={36}
       footer={
         <>
-          {createApplicant.isError && (
-            <p className="mr-auto self-center text-body-sm text-error">{createApplicant.error.message}</p>
+          {createApplicant.isError && !isAlreadyApplied(createApplicant.error) && (
+            <p className="mr-auto self-center text-body-sm text-error" role="alert">
+              {createApplicantErrorMessage(createApplicant.error)}
+            </p>
           )}
           <Button type="submit" form="create-applicant-form" loading={createApplicant.isPending} disabled={!canSubmit}>
             Create Applicant
