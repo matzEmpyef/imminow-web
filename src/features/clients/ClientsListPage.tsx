@@ -14,6 +14,7 @@ import { Toggle } from '@/components/Toggle'
 import { TagEditorMenu } from '@/components/TagEditorMenu'
 import { StopPropagation } from '@/components/StopPropagation'
 import { CreateApplicantModal } from './CreateApplicantModal'
+import { ApplicantRequestsPanel } from './ApplicantRequestsPanel'
 import { ReopenClientModal } from './ReopenClientModal'
 import { useAssignClient, useClients, useSetClientTags } from '@/queries/clients'
 import { useFeature } from '@/lib/features'
@@ -382,6 +383,8 @@ export function ClientsListPage() {
         )}
 
         {showCreateModal && <CreateApplicantModal onClose={() => setShowCreateModal(false)} />}
+
+        <ApplicantRequestsPanel />
 
         <Table
           columns={columns}
