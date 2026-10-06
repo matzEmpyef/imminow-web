@@ -12,8 +12,8 @@ export function usePlanTemplates() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['plan-templates'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/plan-templates')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/plan-templates', { signal })
       if (error) throw new ApiError('Could not load plan templates.', error)
       return data
     },
@@ -32,8 +32,9 @@ export function usePlans(clientId: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['clients', clientId, 'plans'],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/clients/{id}/plans', {
+        signal,
         params: { path: { id: clientId! } },
       })
       if (error) throw new ApiError('Could not load this case\u2019s plans.', error)

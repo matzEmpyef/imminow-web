@@ -30,8 +30,8 @@ export function useAdminRatings(filters: AdminRatingsFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['admin-ratings', filters],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/admin/ratings', { params: { query: filters } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/admin/ratings', { signal, params: { query: filters } })
       if (error) throw new ApiError('Could not load ratings.', error)
       return data
     },

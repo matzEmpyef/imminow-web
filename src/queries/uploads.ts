@@ -17,8 +17,9 @@ export function useUploads(journeyId: string | undefined, filters: UploadsFilter
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['uploads', journeyId, filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/uploads', {
+        signal,
         params: { query: { journey_id: journeyId!, limit: filters.limit ?? 20, cursor: filters.cursor } },
       })
       if (error) throw new ApiError('Could not load documents.', error)

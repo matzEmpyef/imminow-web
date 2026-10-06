@@ -25,7 +25,10 @@ function setup() {
 
 beforeEach(() => {
   mockedGet.mockReset()
-  mockedGet.mockResolvedValue({ data: { dues: [], payment_history: [], running_total: 0, currency: 'INR' }, error: undefined } as never)
+  mockedGet.mockResolvedValue({
+    data: { dues: [], payment_history: [], running_total: 0, currency: 'INR' },
+    error: undefined,
+  } as never)
   useAuthStore.setState({ accessToken: 'test-token' })
 })
 
@@ -34,18 +37,24 @@ describe('useCommission', () => {
     const { wrapper } = setup()
     const { result } = renderHook(() => useCommission(), { wrapper })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    expect(mockedGet).toHaveBeenCalledWith('/commission', {
-      params: { query: { cursor: undefined, history_cursor: undefined } },
-    })
+    expect(mockedGet).toHaveBeenCalledWith(
+      '/commission',
+      expect.objectContaining({
+        params: { query: { cursor: undefined, history_cursor: undefined } },
+      }),
+    )
   })
 
   it('sends the dues cursor and the history cursor independently', async () => {
     const { wrapper } = setup()
     const { result } = renderHook(() => useCommission({ cursor: 'dues-2', historyCursor: 'hist-3' }), { wrapper })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    expect(mockedGet).toHaveBeenCalledWith('/commission', {
-      params: { query: { cursor: 'dues-2', history_cursor: 'hist-3' } },
-    })
+    expect(mockedGet).toHaveBeenCalledWith(
+      '/commission',
+      expect.objectContaining({
+        params: { query: { cursor: 'dues-2', history_cursor: 'hist-3' } },
+      }),
+    )
   })
 
   it('keeps each cursor combination under the invalidated [commission] prefix', async () => {

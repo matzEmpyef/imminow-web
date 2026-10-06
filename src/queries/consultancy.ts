@@ -12,8 +12,8 @@ export function useMyConsultancy(options: { enabled?: boolean } = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['consultancy', 'me'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/consultancies/me')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/consultancies/me', { signal })
       if (error) throw new ApiError('Could not load consultancy details.', error)
       return data
     },
@@ -53,8 +53,9 @@ export function useTransferCodes(enabled: boolean, filters: { cursor?: string; l
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['transfer-codes', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/transfer-codes', {
+        signal,
         params: { query: { limit: filters.limit ?? 20, cursor: filters.cursor } },
       })
       if (error) throw new ApiError('Could not load transfer codes.', error)

@@ -7,8 +7,8 @@ export function useEarnRules() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['earn-rules'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/points/earn-rules')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/points/earn-rules', { signal })
       if (error) throw new ApiError('Could not load earn rules.', error)
       return data
     },
@@ -32,8 +32,8 @@ export function useProfileMilestones() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['points-balance', 'profile-milestones'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/points/balance')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/points/balance', { signal })
       if (error) throw new ApiError('Could not load the profile milestones.', error)
       return data.profile_milestones ?? []
     },

@@ -20,11 +20,11 @@ export function useAdminCoupons() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['admin-coupons'],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const all: Coupon[] = []
       let cursor: string | undefined
       do {
-        const { data, error } = await api.GET('/coupons', { params: { query: { limit: 100, cursor } } })
+        const { data, error } = await api.GET('/coupons', { signal, params: { query: { limit: 100, cursor } } })
         if (error) throw new ApiError('Could not load coupons.', error)
         all.push(...data.items)
         cursor = data.meta.next_cursor ?? undefined
@@ -66,8 +66,8 @@ export function useCouponRedemptions(id: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['coupon-redemptions', id],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/coupons/{id}/redemptions', { params: { path: { id: id! } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/coupons/{id}/redemptions', { signal, params: { path: { id: id! } } })
       if (error) throw new ApiError('Could not load redemptions.', error)
       return data
     },
@@ -82,8 +82,8 @@ export function useCouponLimits() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['coupon-limits'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/coupons/limits')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/coupons/limits', { signal })
       if (error) throw new ApiError('Could not load coupon limits.', error)
       return data
     },
@@ -109,8 +109,8 @@ export function useVoucherCodes(id: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['coupon-codes', id],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/coupons/{id}/codes', { params: { path: { id: id! } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/coupons/{id}/codes', { signal, params: { path: { id: id! } } })
       if (error) throw new ApiError('Could not load codes.', error)
       return data
     },

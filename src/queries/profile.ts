@@ -14,8 +14,8 @@ export function useProfile() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['profile'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/profile')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/profile', { signal })
       if (error) throw new ApiError('Could not load your profile.', error)
       return data
     },

@@ -17,8 +17,8 @@ export function useMyExports() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: MY_EXPORTS_KEY,
-    queryFn: async () => {
-      const { data, error } = await api.GET('/me/exports')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/me/exports', { signal })
       if (error) throw new ApiError('Could not load your copies.', error)
       return data
     },

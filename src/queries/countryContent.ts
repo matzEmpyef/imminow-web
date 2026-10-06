@@ -13,8 +13,8 @@ export function useCountryContent() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: KEY,
-    queryFn: async () => {
-      const { data, error } = await api.GET('/country-content', {})
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/country-content', { signal })
       if (error) throw new ApiError('Could not load the country write-ups.', error)
       return data
     },

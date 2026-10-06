@@ -23,8 +23,9 @@ export function useCommission(paging: { cursor?: string; historyCursor?: string 
     // Keep the previous page on screen while the next one loads, so flipping one table's page
     // doesn't blank the whole screen (the totals and the other table come back in the same read).
     placeholderData: keepPreviousData,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/commission', {
+        signal,
         params: { query: { cursor, history_cursor: historyCursor } },
       })
       if (error) throw new ApiError('Could not load commission details.', error)

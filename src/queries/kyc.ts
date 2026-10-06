@@ -8,8 +8,8 @@ export function useMyKyc() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['kyc-me'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/consultancies/me/kyc')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/consultancies/me/kyc', { signal })
       if (error) throw new ApiError('Could not load your KYC status.', error)
       return data
     },
@@ -34,8 +34,9 @@ export function useSubmitKyc() {
 export function useConsultancyKyc(consultancyId: string | null) {
   return useQuery({
     queryKey: ['kyc', consultancyId],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/consultancies/{id}/kyc', {
+        signal,
         params: { path: { id: consultancyId! } },
       })
       if (error) throw new ApiError('Could not load the KYC record.', error)

@@ -30,7 +30,7 @@ export function useClients(filters: ClientListFilters = {}, options: { enabled?:
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['clients', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const filter: Record<string, string> = {}
       if (filters.assignedToMe !== undefined) filter.assigned_to_me = String(filters.assignedToMe)
       if (filters.unattended !== undefined) filter.unattended = String(filters.unattended)
@@ -41,6 +41,7 @@ export function useClients(filters: ClientListFilters = {}, options: { enabled?:
       if (filters.destination?.length) filter.destination = filters.destination.join(',')
 
       const { data, error } = await api.GET('/clients', {
+        signal,
         params: {
           query: {
             filter: Object.keys(filter).length > 0 ? filter : undefined,
@@ -62,8 +63,8 @@ export function useClient(id: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['clients', id],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/clients/{id}', { params: { path: { id: id! } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/clients/{id}', { signal, params: { path: { id: id! } } })
       if (error) throw new ApiError('Could not load this client.', error)
       return data
     },
@@ -216,8 +217,9 @@ export function useApplications(clientId: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['clients', clientId, 'applications'],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/clients/{id}/applications', {
+        signal,
         params: { path: { id: clientId! } },
       })
       if (error) throw new ApiError('Could not load selected colleges.', error)
@@ -357,8 +359,9 @@ export function useInternalNotes(clientId: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useInfiniteQuery({
     queryKey: ['clients', clientId, 'notes'],
-    queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
+    queryFn: async ({ pageParam, signal }: { pageParam: string | undefined; signal: AbortSignal }) => {
       const { data, error } = await api.GET('/clients/{id}/notes', {
+        signal,
         params: { path: { id: clientId! }, query: { limit: 20, cursor: pageParam } },
       })
       if (error) throw new ApiError('Could not load internal notes.', error)
@@ -403,8 +406,9 @@ export function useClientActivity(clientId: string | undefined, filters: CursorP
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['clients', clientId, 'activity', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/clients/{id}/activity', {
+        signal,
         params: { path: { id: clientId! }, query: { limit: filters.limit ?? 20, cursor: filters.cursor } },
       })
       if (error) throw new ApiError('Could not load activity.', error)
@@ -418,8 +422,9 @@ export function useCommissions(clientId: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['clients', clientId, 'commissions'],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/clients/{id}/commissions', {
+        signal,
         params: { path: { id: clientId! } },
       })
       if (error) throw new ApiError('Could not load commission details.', error)

@@ -10,8 +10,8 @@ export function useBlogCategoryMappings() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['blog-category-mappings'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/blog/category-mappings')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/blog/category-mappings', { signal })
       if (error) throw new ApiError('Could not load category mappings.', error)
       return data
     },

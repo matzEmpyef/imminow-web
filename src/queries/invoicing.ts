@@ -17,8 +17,9 @@ export function useInvoices(filters: InvoiceListFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['invoices', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/invoices', {
+        signal,
         params: {
           query: {
             journey_id: filters.journeyId,
@@ -102,8 +103,9 @@ export function useReceipts(filters: ReceiptListFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['receipts', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/receipts', {
+        signal,
         params: {
           query: {
             journey_id: filters.journeyId,

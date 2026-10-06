@@ -13,12 +13,12 @@ export function useEmployees() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['employees'],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       // T2 (third-pass review): every consumer treats this as the COMPLETE roster (Lead Pool
       // allocate menu, seat counts) — the contract default of 20 silently truncated it at the
       // 21st employee. The mock returns everything regardless, which is why this never showed
       // in QA; the contract caps at 100 (seat ceilings top out at 50, so 100 covers every tier).
-      const { data, error } = await api.GET('/staff/employees', { params: { query: { limit: 100 } } })
+      const { data, error } = await api.GET('/staff/employees', { signal, params: { query: { limit: 100 } } })
       if (error) throw new ApiError('Could not load employees.', error)
       return data
     },
@@ -77,8 +77,8 @@ export function useDesignations() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['designations'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/staff/designations')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/staff/designations', { signal })
       if (error) throw new ApiError('Could not load designations.', error)
       return data
     },
@@ -114,8 +114,8 @@ export function useBranches() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['branches'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/staff/branches')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/staff/branches', { signal })
       if (error) throw new ApiError('Could not load branches.', error)
       return data
     },

@@ -15,8 +15,8 @@ export function useUserSearch(q: string, cursor?: string, limit?: number) {
   const trimmed = q.trim()
   return useQuery({
     queryKey: ['user-search', trimmed, cursor, limit],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/users/search', { params: { query: { q: trimmed, cursor, limit } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/users/search', { signal, params: { query: { q: trimmed, cursor, limit } } })
       if (error) throw new ApiError('Could not search users.', error)
       return data
     },
@@ -161,8 +161,9 @@ export function useErasures(status: ErasureListStatus, cursor?: string, limit?: 
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['erasures', status, cursor, limit],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/admin/erasures', {
+        signal,
         params: { query: { filter: { status }, cursor, limit } },
       })
       if (error) throw new ApiError('Could not load scheduled erasures.', error)
@@ -209,8 +210,9 @@ export function useSwitchCandidates(journeyId: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['switch-candidates', journeyId],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/journeys/{id}/switch-candidates', {
+        signal,
         params: { path: { id: journeyId! } },
       })
       if (error) throw new ApiError('Could not load consultancies to switch to.', error)

@@ -9,8 +9,8 @@ export function useDashboard(scope: Scope) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['dashboard', scope],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/dashboard', { params: { query: { scope } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/dashboard', { signal, params: { query: { scope } } })
       if (error) throw new ApiError('Could not load the dashboard.', error)
       return data
     },

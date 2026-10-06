@@ -46,7 +46,10 @@ describe('applicant allocation queue', () => {
     respond({ items: [{ id: 'a3' }], meta: { next_cursor: 'c3', total: 41 } })
     const { result } = renderHook(() => useApplicantAllocationQueue('c2'), { wrapper })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    expect(mockedGet).toHaveBeenCalledWith('/applicant-allocation-queue', { params: { query: { cursor: 'c2' } } })
+    expect(mockedGet).toHaveBeenCalledWith(
+      '/applicant-allocation-queue',
+      expect.objectContaining({ params: { query: { cursor: 'c2' } } }),
+    )
     expect(result.current.data?.meta?.next_cursor).toBe('c3')
   })
 })
@@ -56,9 +59,12 @@ describe('follow-up queues', () => {
     respond({ items: [{ student_id: 's1' }], summary: { total: 120 }, meta: { next_cursor: 'n2' } })
     const { result } = renderHook(() => useServiceFollowups(true, 'c9'), { wrapper })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    expect(mockedGet).toHaveBeenCalledWith('/service-followups', {
-      params: { query: { include_snoozed: true, cursor: 'c9' } },
-    })
+    expect(mockedGet).toHaveBeenCalledWith(
+      '/service-followups',
+      expect.objectContaining({
+        params: { query: { include_snoozed: true, cursor: 'c9' } },
+      }),
+    )
     expect(result.current.data?.meta?.next_cursor).toBe('n2')
     expect(result.current.data?.summary.total).toBe(120)
   })
@@ -67,9 +73,12 @@ describe('follow-up queues', () => {
     respond({ items: [{ journey_id: 'j1' }], summary: { total: 1 } })
     const { result } = renderHook(() => useCaseFollowups(false), { wrapper })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    expect(mockedGet).toHaveBeenCalledWith('/case-followups', {
-      params: { query: { include_snoozed: false, cursor: undefined } },
-    })
+    expect(mockedGet).toHaveBeenCalledWith(
+      '/case-followups',
+      expect.objectContaining({
+        params: { query: { include_snoozed: false, cursor: undefined } },
+      }),
+    )
     expect(result.current.data && 'meta' in result.current.data ? result.current.data.meta : undefined).toBeUndefined()
   })
 })
@@ -79,7 +88,10 @@ describe('freelancers and rates', () => {
     respond({ items: [{ id: 'f1' }], meta: { next_cursor: 'f2' } })
     const { result } = renderHook(() => useFreelancers('f1c'), { wrapper })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    expect(mockedGet).toHaveBeenCalledWith('/freelancers', { params: { query: { cursor: 'f1c' } } })
+    expect(mockedGet).toHaveBeenCalledWith(
+      '/freelancers',
+      expect.objectContaining({ params: { query: { cursor: 'f1c' } } }),
+    )
     expect(result.current.data?.meta?.next_cursor).toBe('f2')
   })
 
@@ -93,7 +105,10 @@ describe('freelancers and rates', () => {
     const { result } = renderHook(() => useAllFreelancers(), { wrapper })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(result.current.data?.map((f) => f.id)).toEqual(['f1', 'f2'])
-    expect(mockedGet).toHaveBeenCalledWith('/freelancers', { params: { query: { cursor: undefined, limit: 100 } } })
+    expect(mockedGet).toHaveBeenCalledWith(
+      '/freelancers',
+      expect.objectContaining({ params: { query: { cursor: undefined, limit: 100 } } }),
+    )
   })
 
   it('finds a rate row on a later page, and stops when meta has no next_cursor', async () => {

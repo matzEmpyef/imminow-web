@@ -15,8 +15,9 @@ export function usePartnerColleges(consultancyId?: string) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['partner-colleges', consultancyId ?? 'me'],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/consultancy-colleges', {
+        signal,
         params: { query: consultancyId ? { consultancy_id: consultancyId } : {} },
       })
       if (error) throw new ApiError('Could not load partner colleges.', error)

@@ -7,8 +7,8 @@ export function useNotificationChannelConfig() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['notification-channel-config'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/notification-channel-config')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/notification-channel-config', { signal })
       if (error) throw new ApiError('Could not load channel configuration.', error)
       return data
     },

@@ -16,8 +16,9 @@ export function useStudentDocuments(clientId: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['clients', clientId, 'student-documents'],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/clients/{id}/student-documents', {
+        signal,
         params: { path: { id: clientId! } },
       })
       if (error) throw new ApiError('Could not load this student’s documents.', error)
@@ -73,8 +74,8 @@ export function useDocumentTypes() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['document-types'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/document-types')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/document-types', { signal })
       if (error) throw new ApiError('Could not load the document catalog.', error)
       return data
     },

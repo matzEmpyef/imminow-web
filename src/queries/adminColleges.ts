@@ -34,13 +34,14 @@ export function useAdminColleges(filters: CollegeListFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['admin-colleges', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const filter: Record<string, string> = {}
       if (filters.country?.length) filter.country = filters.country.join(',')
       if (filters.active !== undefined) filter.active = String(filters.active)
       if (filters.health) filter.health = filters.health
 
       const { data, error } = await api.GET('/colleges', {
+        signal,
         params: {
           query: {
             search: filters.search,
@@ -69,8 +70,8 @@ export function useCollegeDetail(id: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['admin-college', id],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/colleges/{id}', { params: { path: { id: id! } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/colleges/{id}', { signal, params: { path: { id: id! } } })
       if (error) throw new ApiError('Could not load this college.', error)
       return data
     },
@@ -148,11 +149,11 @@ export function useDeactivationImpact(kind: 'college' | 'course', id: string) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['deactivation-impact', kind, id],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } =
         kind === 'college'
-          ? await api.GET('/colleges/{id}/deactivation-impact', { params: { path: { id } } })
-          : await api.GET('/courses/{id}/deactivation-impact', { params: { path: { id } } })
+          ? await api.GET('/colleges/{id}/deactivation-impact', { signal, params: { path: { id } } })
+          : await api.GET('/courses/{id}/deactivation-impact', { signal, params: { path: { id } } })
       if (error) throw new ApiError('Could not check what this affects.', error)
       return data
     },

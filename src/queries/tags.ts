@@ -7,8 +7,8 @@ export function useTags() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['tags'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/tags')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/tags', { signal })
       if (error) throw new ApiError('Could not load tags.', error)
       return data
     },

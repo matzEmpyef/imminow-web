@@ -24,5 +24,13 @@ export const queryClient = new QueryClient({
       // retrying only multiplies load and delays the message the person needs to see.
       retry: (failureCount, error) => failureCount < 2 && isRetryable(error),
     },
+    mutations: {
+      // A save pressed while the browser is offline fails at once, with a message (review F-150).
+      // React Query's default is to hold it and send it when the connection returns — minutes
+      // later, after the dialog was closed and the person had moved on, with nothing said. With
+      // 'always' the request is attempted, and the console's `fetch` refuses it on the spot
+      // (`api/http.ts`). Reads keep the default: they wait and load when the connection is back.
+      networkMode: 'always',
+    },
   },
 })

@@ -32,10 +32,11 @@ export function useAdminBlogArticles(filters: BlogArticleListFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: [...ARTICLES_KEY, 'admin', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const filter: Record<string, string> = {}
       if (filters.tag) filter.tag = filters.tag
       const { data, error } = await api.GET('/blog', {
+        signal,
         params: {
           query: {
             search: filters.search || undefined,
@@ -62,8 +63,9 @@ export function useBlogArticleSearch(search: string) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: [...ARTICLES_KEY, 'search', search],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/blog', {
+        signal,
         params: { query: { search: search || undefined, limit: 20 } },
       })
       if (error) throw new ApiError('Could not search articles.', error)

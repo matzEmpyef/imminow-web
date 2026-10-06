@@ -41,9 +41,10 @@ export function usePlatformAuditLog(filters: PlatformAuditLogFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['platform-audit-log', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const filter = buildFilter(filters)
       const { data, error } = await api.GET('/audit-log/platform', {
+        signal,
         params: {
           query: {
             filter: Object.keys(filter).length > 0 ? filter : undefined,

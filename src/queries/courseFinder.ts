@@ -60,8 +60,8 @@ export function useCourseFields() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['course-fields'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/courses/fields')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/courses/fields', { signal })
       if (error) throw new ApiError('Could not load the fields of study list.', error)
       return data
     },
@@ -79,8 +79,8 @@ export function useCourseLevels() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['course-levels'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/courses/levels')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/courses/levels', { signal })
       if (error) throw new ApiError('Could not load the course levels list.', error)
       return data
     },
@@ -97,8 +97,8 @@ export function useCourseLanguages() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['course-languages'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/courses/languages')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/courses/languages', { signal })
       if (error) throw new ApiError('Could not load the course languages list.', error)
       return data
     },
@@ -114,7 +114,7 @@ export function useCourseFinder(filters: CourseFinderFilters, hasFilters: boolea
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['course-finder', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const filter: Record<string, string> = { visible: 'true' }
       if (filters.countries?.length) filter.country = filters.countries.join(',')
       if (filters.level) filter.level = filters.level
@@ -198,6 +198,7 @@ export function useCourseFinder(filters: CourseFinderFilters, hasFilters: boolea
       })
 
       const { data, error } = await api.GET('/courses', {
+        signal,
         params: {
           query: {
             filter,

@@ -18,8 +18,9 @@ export function useModerationQueue(
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['moderation-course-suggestions', status, filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/moderation/course-suggestions', {
+        signal,
         params: {
           query: {
             filter: { status, ...(filters.kind ? { kind: filters.kind } : {}) },

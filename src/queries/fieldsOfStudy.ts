@@ -11,8 +11,9 @@ export function useFieldsOfStudy(includeInactive = false) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['fields-of-study', { includeInactive }],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/fields-of-study', {
+        signal,
         params: { query: includeInactive ? { include_inactive: true } : {} },
       })
       if (error) throw new ApiError('Could not load the fields of study list.', error)

@@ -22,8 +22,9 @@ function useApplicantCase(journeyId: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['admin', 'applicants', journeyId],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/admin/applicants/{id}', {
+        signal,
         params: { path: { id: journeyId! } },
       })
       if (error) throw new ApiError('Could not load this applicant.', error)

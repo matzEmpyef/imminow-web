@@ -11,8 +11,8 @@ export function useRedemptionPartners() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['redemption-partners'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/redemption-partners')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/redemption-partners', { signal })
       if (error) throw new ApiError('Could not load redemption partners.', error)
       return data
     },

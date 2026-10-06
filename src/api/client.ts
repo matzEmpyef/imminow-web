@@ -4,10 +4,13 @@ import { currentSessionEpoch, useAuthStore } from '@/stores/authStore'
 import { endSession } from '@/lib/session'
 import { queryClient } from '@/lib/queryClient'
 import { withErrorEnvelope } from './errors'
+import { guardedFetch } from './http'
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL
 
-export const api = createClient<paths>({ baseUrl })
+// Every request goes out through `guardedFetch` (review F-150): a time limit, a plain message
+// when there is no connection, and an immediate failure while the browser is offline.
+export const api = createClient<paths>({ baseUrl, fetch: (request) => guardedFetch(request) })
 
 // Refresh-on-401 (added 2026-08-25), mirroring what mobile already does in
 // `auth_provider.dart`'s `_refreshSession`. Before this, `onResponse` cleared the session on any
@@ -68,10 +71,10 @@ async function requestRefresh(): Promise<RefreshResult> {
   if (!refreshToken) return { kind: 'rejected' }
   const epoch = currentSessionEpoch()
   try {
-    // Bare `fetch`, not `api` — the client is mid-flight handling the very 401 that triggered
+    // Not `api` — the client is mid-flight handling the very 401 that triggered
     // this, and routing the refresh back through its own middleware invites recursion. Same
     // reasoning as mobile's bare Dio instance.
-    const response = await fetch(`${baseUrl}/auth/refresh`, {
+    const response = await guardedFetch(`${baseUrl}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: refreshToken }),
@@ -222,7 +225,7 @@ api.use({
     headers.set('Authorization', `Bearer ${accessToken}`)
     let retried: Response
     try {
-      retried = await fetch(new Request(sent.request, { headers }))
+      retried = await guardedFetch(new Request(sent.request, { headers }))
     } catch {
       // The connection dropped on the second attempt. That is not the session ending.
       return sessionCheckUnavailable()

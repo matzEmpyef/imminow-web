@@ -16,8 +16,9 @@ export function useCommissionRates(consultancyId?: string, options?: { enabled?:
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['commission-rates', consultancyId],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/commission-rates', {
+        signal,
         params: { query: consultancyId ? { consultancy_id: consultancyId } : {} },
       })
       if (error) throw new ApiError('Could not load commission rates.', error)
@@ -33,8 +34,8 @@ export function useMyCommissionRates() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['commission-rates', 'me'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/commission-rates/me')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/commission-rates/me', { signal })
       if (error) throw new ApiError('Could not load your commission rates.', error)
       return data
     },
@@ -97,8 +98,8 @@ export function useCommissionDefaults() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['commission-rates', 'defaults'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/commission-rates/defaults')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/commission-rates/defaults', { signal })
       if (error) throw new ApiError('Could not load the default commission rates.', error)
       return data
     },
@@ -144,12 +145,13 @@ export function useCommissionRatesCoverage(filters: CommissionCoverageFilters = 
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['commission-rates', 'coverage', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const filter: Record<string, string> = {}
       if (filters.kind) filter.kind = filters.kind
       if (filters.coverage) filter.coverage = filters.coverage
       if (filters.freelancer !== undefined) filter.freelancer = String(filters.freelancer)
       const { data, error } = await api.GET('/commission-rates/coverage', {
+        signal,
         params: {
           query: {
             filter: Object.keys(filter).length > 0 ? filter : undefined,

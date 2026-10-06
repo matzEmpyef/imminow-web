@@ -14,8 +14,8 @@ export function useActivityFeed(enabled = true) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['activity-feed'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/activity-feed')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/activity-feed', { signal })
       if (error) throw new ApiError('Could not load the activity feed.', error)
       return data
     },

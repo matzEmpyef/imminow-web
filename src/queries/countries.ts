@@ -17,8 +17,9 @@ export function useCountries(options: { includeInactive?: boolean } = {}) {
   const includeInactive = options.includeInactive ?? false
   return useQuery({
     queryKey: ['countries', { includeInactive }],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/countries', {
+        signal,
         params: { query: includeInactive ? { include_inactive: true } : undefined },
       })
       if (error) throw new ApiError('Could not load the countries list.', error)
@@ -37,8 +38,9 @@ export function useCountries(options: { includeInactive?: boolean } = {}) {
 //
 // `fetchStates` is the one request both this hook and `useStatesForCountries` below run under the
 // same key, so the cache entry they share is always filled the same way (Phase 5 cleanup, 2026-09-24).
-async function fetchStates(country: string) {
+async function fetchStates(country: string, signal?: AbortSignal) {
   const { data, error } = await api.GET('/countries/{name}/states', {
+    signal,
     params: { path: { name: country } },
   })
   if (error) throw new ApiError('Could not load the states list.', error)
@@ -49,7 +51,7 @@ export function useStates(country: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['countries', country, 'states'],
-    queryFn: () => fetchStates(country!),
+    queryFn: ({ signal }) => fetchStates(country!, signal),
     enabled: isAuthed && Boolean(country),
     staleTime: 30 * 60 * 1000,
   })
@@ -71,8 +73,9 @@ export function useDistricts(country: string | undefined, state: string | undefi
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['countries', country, 'states', state, 'districts'],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/countries/{name}/states/{state}/districts', {
+        signal,
         params: { path: { name: country!, state: state! } },
       })
       if (error) throw new ApiError('Could not load the districts list.', error)
@@ -93,7 +96,7 @@ export function useStatesForCountries(countries: string[]) {
   const results = useQueries({
     queries: countries.map((country) => ({
       queryKey: ['countries', country, 'states'],
-      queryFn: () => fetchStates(country),
+      queryFn: ({ signal }: { signal: AbortSignal }) => fetchStates(country, signal),
       enabled: isAuthed,
       staleTime: 30 * 60 * 1000,
     })),
@@ -117,8 +120,9 @@ export function useManagedStates(country: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['countries', country, 'states', 'managed'],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/countries/{name}/states', {
+        signal,
         params: { path: { name: country! }, query: { include_inactive: true } },
       })
       if (error) throw new ApiError('Could not load the states list.', error)
@@ -201,8 +205,8 @@ export function useCountrySettings() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['countries', 'settings'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/countries/settings')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/countries/settings', { signal })
       if (error) throw new ApiError('Could not load country settings.', error)
       return data
     },

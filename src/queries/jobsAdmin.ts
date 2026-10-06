@@ -29,7 +29,7 @@ export function useAdminJobs(filters: JobListFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['admin-jobs', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const filter: Record<string, string> = {}
       if (filters.jobType) filter.job_type = filters.jobType
       if (filters.workMode) filter.work_mode = filters.workMode
@@ -40,6 +40,7 @@ export function useAdminJobs(filters: JobListFilters = {}) {
       if (filters.country) filter.country = filters.country
       if (filters.provinceState) filter.province_state = filters.provinceState
       const { data, error } = await api.GET('/jobs', {
+        signal,
         params: {
           query: {
             search: filters.search || undefined,
@@ -105,9 +106,10 @@ export function useJobLocations({ country, scope, status }: JobLocationsQuery = 
   const wantedStatus = scope === 'all' ? status || undefined : undefined
   return useQuery({
     queryKey: ['job-locations', country ?? null, scope ?? null, wantedStatus ?? null],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const query = { country: country || undefined, scope, status: wantedStatus }
       const { data, error } = await api.GET('/jobs/locations', {
+        signal,
         // Every key undefined is the same request the student's console makes — no `scope` at all,
         // which the server reads as `live`.
         params: { query: Object.values(query).some(Boolean) ? query : undefined },

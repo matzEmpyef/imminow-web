@@ -36,7 +36,7 @@ export function useAdminEvents(filters?: EventType | AdminEventsFilters) {
   const normalized: AdminEventsFilters = typeof filters === 'string' ? { type: filters } : (filters ?? {})
   return useQuery({
     queryKey: ['admin-events', normalized],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const query = {
         type: normalized.type,
         when: normalized.when,
@@ -45,7 +45,7 @@ export function useAdminEvents(filters?: EventType | AdminEventsFilters) {
         search: normalized.search,
         sort: normalized.sort,
       }
-      const { data, error } = await api.GET('/events', { params: { query } })
+      const { data, error } = await api.GET('/events', { signal, params: { query } })
       if (error) throw new ApiError('Could not load events.', error)
       return data
     },
@@ -99,8 +99,8 @@ export function useEventAttendance(id: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['event-attendance', id],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/events/{id}/attendance', { params: { path: { id: id! } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/events/{id}/attendance', { signal, params: { path: { id: id! } } })
       if (error) throw new ApiError('Could not load RSVPs/attendance.', error)
       return data
     },
@@ -115,8 +115,8 @@ export function useQuizLeaderboard(id: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['quiz-leaderboard', id],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/events/{id}/leaderboard', { params: { path: { id: id! } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/events/{id}/leaderboard', { signal, params: { path: { id: id! } } })
       if (error) throw new ApiError('Could not load the leaderboard.', error)
       return data
     },

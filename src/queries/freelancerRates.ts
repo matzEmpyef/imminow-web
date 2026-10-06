@@ -17,8 +17,8 @@ export function useFreelancers(cursor?: string) {
   return useQuery({
     queryKey: ['freelancers', 'page', cursor ?? null],
     placeholderData: keepPreviousData,
-    queryFn: async () => {
-      const { data, error } = await api.GET('/freelancers', { params: { query: { cursor } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/freelancers', { signal, params: { query: { cursor } } })
       if (error) throw new ApiError('Could not load freelancers.', error)
       return toPage(data)
     },
@@ -33,9 +33,9 @@ export function useAllFreelancers(options: { enabled?: boolean } = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['freelancers', 'all'],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       return fetchAllPages<Freelancer>(async (cursor) => {
-        const { data, error } = await api.GET('/freelancers', { params: { query: { cursor, limit: 100 } } })
+        const { data, error } = await api.GET('/freelancers', { signal, params: { query: { cursor, limit: 100 } } })
         if (error) throw new ApiError('Could not load freelancers.', error)
         const page = toPage(data)
         return { items: page.items, meta: page.meta ?? {} }
@@ -122,9 +122,9 @@ export function useFreelancerRates() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['freelancer-rates'],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       return fetchAllPages<components['schemas']['FreelancerRate']>(async (cursor) => {
-        const { data, error } = await api.GET('/freelancer-rates', { params: { query: { cursor, limit: 100 } } })
+        const { data, error } = await api.GET('/freelancer-rates', { signal, params: { query: { cursor, limit: 100 } } })
         if (error) throw new ApiError('Could not load freelancer rates.', error)
         const page = toPage(data)
         return { items: page.items, meta: page.meta ?? {} }

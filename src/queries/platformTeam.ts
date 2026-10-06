@@ -13,11 +13,11 @@ export function usePlatformStaff() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['platform-staff'],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const all: PlatformStaff[] = []
       let cursor: string | undefined
       do {
-        const { data, error } = await api.GET('/platform-staff', { params: { query: { limit: 100, cursor } } })
+        const { data, error } = await api.GET('/platform-staff', { signal, params: { query: { limit: 100, cursor } } })
         if (error) throw new ApiError('Could not load platform staff.', error)
         all.push(...data.items)
         cursor = data.meta.next_cursor ?? undefined

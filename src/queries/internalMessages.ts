@@ -20,8 +20,8 @@ export function useInternalConversations() {
   const realtimeOpen = useRealtimeOpen()
   return useQuery({
     queryKey: ['internal-conversations'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/internal-conversations')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/internal-conversations', { signal })
       if (error) throw new ApiError('Could not load conversations.', error)
       return data
     },

@@ -26,7 +26,7 @@ export function useLeads(filters: LeadListFilters = {}, options: { enabled?: boo
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['leads', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const filter: Record<string, string> = {}
       if (filters.unallocated !== undefined) filter.unallocated = String(filters.unallocated)
       if (filters.assignedToMe !== undefined) filter.assigned_to_me = String(filters.assignedToMe)
@@ -34,6 +34,7 @@ export function useLeads(filters: LeadListFilters = {}, options: { enabled?: boo
       if (filters.showClosed !== undefined) filter.show_closed = String(filters.showClosed)
 
       const { data, error } = await api.GET('/leads', {
+        signal,
         params: {
           query: {
             filter: Object.keys(filter).length > 0 ? filter : undefined,
@@ -55,8 +56,8 @@ export function useLead(id: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['leads', id],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/leads/{id}', { params: { path: { id: id! } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/leads/{id}', { signal, params: { path: { id: id! } } })
       if (error) throw new ApiError('Could not load this lead.', error)
       return data
     },
@@ -310,8 +311,9 @@ export function useLeadNotes(id: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useInfiniteQuery({
     queryKey: ['leads', id, 'notes'],
-    queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
+    queryFn: async ({ pageParam, signal }: { pageParam: string | undefined; signal: AbortSignal }) => {
       const { data, error } = await api.GET('/leads/{id}/notes', {
+        signal,
         params: { path: { id: id! }, query: { limit: 20, cursor: pageParam } },
       })
       if (error) throw new ApiError('Could not load internal notes.', error)

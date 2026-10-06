@@ -22,8 +22,9 @@ export function useServiceFollowups(includeSnoozed = false, cursor?: string) {
     // on screen while the next loads.
     queryKey: ['service-followups', 'list', includeSnoozed, cursor ?? null],
     placeholderData: keepPreviousData,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/service-followups', {
+        signal,
         params: { query: { include_snoozed: includeSnoozed, cursor } },
       })
       if (error) throw new ApiError('Could not load the follow-up queue.', error)
@@ -38,8 +39,9 @@ export function useServiceNotes(studentId: string | null) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['service-followups', 'notes', studentId],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/students/{id}/service-notes', {
+        signal,
         params: { path: { id: studentId! } },
       })
       if (error) throw new ApiError('Could not load the call history.', error)

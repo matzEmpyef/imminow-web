@@ -54,8 +54,9 @@ export function useSentpoUserDirectory(filters: SentpoUserDirectoryFilters = {})
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['admin-users-sentpo', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/admin/users/sentpo', {
+        signal,
         params: { query: { ...sentpoDirectoryQuery(filters), cursor: filters.cursor, limit: filters.limit } as never },
       })
       if (error) throw new ApiError('Could not load the Sentpo user directory.', error)
@@ -104,8 +105,9 @@ export function useUserSignIns(userId: string | null) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['admin-user-sign-ins', userId],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/admin/users/{id}/sign-ins', {
+        signal,
         params: { path: { id: userId ?? '' }, query: { limit: SIGN_IN_HISTORY_LIMIT } },
       })
       if (error) throw new ApiError('Could not load sign-in history.', error)
@@ -141,8 +143,9 @@ export function useImminowUserDirectory(filters: ImminowUserDirectoryFilters = {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['admin-users-imminow', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/admin/users/imminow', {
+        signal,
         params: { query: { ...imminowDirectoryQuery(filters), cursor: filters.cursor, limit: filters.limit } },
       })
       if (error) throw new ApiError('Could not load the immiNow user directory.', error)

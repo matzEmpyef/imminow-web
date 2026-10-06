@@ -13,8 +13,9 @@ export function usePerformanceLeague(windowDays: PerformanceLeagueWindow, kind: 
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['admin-performance-league', windowDays, kind],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/admin/performance-league', {
+        signal,
         params: { query: { window_days: windowDays, kind } },
       })
       if (error) throw new ApiError('Could not load the performance league.', error)

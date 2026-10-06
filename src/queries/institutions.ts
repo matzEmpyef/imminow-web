@@ -36,8 +36,9 @@ export function useInstitutions(q?: string) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['institutions', q ?? ''],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/institutions', {
+        signal,
         params: { query: { q: q || undefined, limit: 100 } },
       })
       if (error) throw new ApiError('Could not load institutions.', error)
@@ -64,8 +65,8 @@ export function useAdminInstitutions(filters: InstitutionListFilters) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['institutions', 'admin', filters],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/institutions', { params: { query: filters } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/institutions', { signal, params: { query: filters } })
       if (error) throw new ApiError('Could not load institutions.', error)
       return data
     },
@@ -78,8 +79,8 @@ export function useInstitutionSuggestions() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['institution-suggestions'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/institutions/suggestions')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/institutions/suggestions', { signal })
       if (error) throw new ApiError('Could not load the institution queue.', error)
       return data
     },

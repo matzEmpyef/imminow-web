@@ -33,9 +33,10 @@ export function useComplaints(filters: ComplaintsFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['complaints', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const filter = complaintsFilter(filters)
       const { data, error } = await api.GET('/complaints', {
+        signal,
         params: {
           query: {
             filter: Object.keys(filter).length > 0 ? filter : undefined,
@@ -125,8 +126,8 @@ export function useComplaintNotes(id: string) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['complaint-notes', id],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/complaints/{id}/notes', { params: { path: { id } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/complaints/{id}/notes', { signal, params: { path: { id } } })
       if (error) throw new ApiError('Could not load the notes on this complaint.', error)
       return data
     },

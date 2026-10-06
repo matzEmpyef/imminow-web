@@ -28,8 +28,9 @@ export function useBroadcastHistory(filters: BroadcastHistoryFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['broadcast-history', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/broadcast', {
+        signal,
         params: {
           query: {
             filter: filters.audience ? { audience: filters.audience } : undefined,
@@ -61,8 +62,9 @@ export function useBroadcastAudienceCount(audience: Audience, targeting: Targeti
   const effectiveTargeting = audience === 'segment' ? debouncedTargeting : undefined
   return useQuery({
     queryKey: ['broadcast-audience-count', audience, effectiveTargeting],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.POST('/broadcast/audience-count', {
+        signal,
         body: { audience, targeting: effectiveTargeting },
       })
       if (error) throw new ApiError('Could not compute the matching audience.', error)

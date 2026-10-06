@@ -17,8 +17,9 @@ export function useStudyLevels(includeInactive = false) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['study-levels', { includeInactive }],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/study-levels', {
+        signal,
         params: { query: includeInactive ? { include_inactive: true } : {} },
       })
       if (error) throw new ApiError('Could not load the study levels list.', error)

@@ -1,9 +1,13 @@
 import { api } from '@/api/client'
 import { ApiError } from '@/api/errors'
+import { guardedFetch } from '@/api/http'
 import type { components } from '@/api/schema'
 
 export type FileUploadPurpose = components['schemas']['FileUploadIntentInput']['purpose']
 export type FileUpload = components['schemas']['FileUpload']
+
+/** How long the file itself may take to reach storage before the upload is called off. */
+const UPLOAD_TIMEOUT_MS = 10 * 60_000
 
 export interface PresignedUploadInput {
   file: File
@@ -51,7 +55,10 @@ export async function presignedUpload({
   // Not `api.PUT` — `put_url` is already absolute (points at wherever object storage lives) and
   // the presigned PUT carries no bearer token (BR §3.8): the token in its own query string is the
   // whole authorisation, same as a real S3 presigned URL.
-  const putResponse = await fetch(intent.put_url!, {
+  // Through the console's one `fetch` all the same (review F-150), for its plain "no connection"
+  // message and a time limit: generous, since this is the file itself on someone's office line.
+  const putResponse = await guardedFetch(intent.put_url!, {
+    timeoutMs: UPLOAD_TIMEOUT_MS,
     method: 'PUT',
     headers: intent.put_headers ?? undefined,
     body: file,

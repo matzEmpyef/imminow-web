@@ -19,8 +19,9 @@ export function useMarketingOverview(windowDays: MarketingOverviewWindow = 30) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['marketing-overview', windowDays],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/admin/marketing/overview', {
+        signal,
         params: { query: { window_days: windowDays } } as never,
       })
       if (error) throw new ApiError('Could not load the Marketing overview.', error)

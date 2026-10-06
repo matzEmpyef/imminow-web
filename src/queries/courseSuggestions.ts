@@ -33,7 +33,7 @@ export function useCourses(filters: CourseListFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['courses', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const filter: Record<string, string> = {}
       if (filters.collegeId) filter.college_id = filters.collegeId
       if (filters.country) filter.country = filters.country
@@ -43,6 +43,7 @@ export function useCourses(filters: CourseListFilters = {}) {
       if (filters.health) filter.health = filters.health
 
       const { data, error } = await api.GET('/courses', {
+        signal,
         params: {
           query: {
             search: filters.search,
@@ -66,8 +67,8 @@ export function useCourse(id: string | null) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['course', id],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/courses/{id}', { params: { path: { id: id! } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/courses/{id}', { signal, params: { path: { id: id! } } })
       if (error) throw new ApiError('Could not load that course.', error)
       return data
     },
@@ -155,11 +156,11 @@ export function useCourseSuggestions() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['course-suggestions'],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const all: CourseSuggestion[] = []
       let cursor: string | undefined
       do {
-        const { data, error } = await api.GET('/course-suggestions', { params: { query: { limit: 100, cursor } } })
+        const { data, error } = await api.GET('/course-suggestions', { signal, params: { query: { limit: 100, cursor } } })
         if (error) throw new ApiError('Could not load submission history.', error)
         all.push(...data.items)
         cursor = data.meta.next_cursor ?? undefined

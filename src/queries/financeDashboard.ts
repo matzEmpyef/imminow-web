@@ -20,8 +20,8 @@ export function useFinanceSummary() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: [FINANCE_QUERY_KEY, 'summary'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/commission/finance/summary')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/commission/finance/summary', { signal })
       if (error) throw new ApiError('Could not load the finance summary.', error)
       return data
     },
@@ -42,10 +42,11 @@ export function useFinanceBalances(filters: FinanceBalancesFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: [FINANCE_QUERY_KEY, 'balances', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const filter: Record<string, string> = {}
       if (filters.owing) filter.owing = 'true'
       const { data, error } = await api.GET('/commission/finance/balances', {
+        signal,
         params: {
           query: {
             filter: Object.keys(filter).length > 0 ? filter : undefined,
@@ -97,9 +98,10 @@ export function useFinanceCases(filters: FinanceCasesFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: [FINANCE_QUERY_KEY, 'cases', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const filter = financeCasesFilter(filters)
       const { data, error } = await api.GET('/commission/finance/cases', {
+        signal,
         params: {
           query: {
             filter: Object.keys(filter).length > 0 ? filter : undefined,
@@ -142,9 +144,10 @@ export function useFinancePayments(filters: FinancePaymentsFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: [FINANCE_QUERY_KEY, 'payments', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const filter = financePaymentsFilter(filters)
       const { data, error } = await api.GET('/commission/finance/payments', {
+        signal,
         params: {
           query: {
             filter: Object.keys(filter).length > 0 ? filter : undefined,

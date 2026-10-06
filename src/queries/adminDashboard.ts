@@ -7,8 +7,8 @@ export function useAdminDashboard() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['admin-dashboard'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/admin/dashboard')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/admin/dashboard', { signal })
       if (error) throw new ApiError('Could not load the dashboard.', error)
       return data
     },
@@ -25,8 +25,8 @@ export function useAdminAttention() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['admin-attention'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/admin/attention')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/admin/attention', { signal })
       if (error) throw new ApiError('Could not load what needs attention.', error)
       return data
     },

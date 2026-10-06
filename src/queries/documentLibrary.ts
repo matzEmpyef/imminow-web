@@ -19,7 +19,7 @@ export function useDocumentLibrary(filters: DocumentLibraryFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['document-library', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const filter: Record<string, string> = {}
       if (filters.tag?.length) filter.tag = filters.tag.join(',')
       if (filters.mimeType) filter.mime_type = filters.mimeType
@@ -27,6 +27,7 @@ export function useDocumentLibrary(filters: DocumentLibraryFilters = {}) {
       if (filters.to) filter.to = filters.to
 
       const { data, error } = await api.GET('/document-library', {
+        signal,
         params: {
           query: {
             filter: Object.keys(filter).length > 0 ? filter : undefined,

@@ -25,8 +25,8 @@ export function useConversations(pollWhileOpen = false) {
   const realtimeOpen = useRealtimeOpen()
   return useQuery({
     queryKey: ['conversations'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/conversations')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/conversations', { signal })
       if (error) throw new ApiError('Could not load conversations.', error)
       return data
     },
@@ -44,8 +44,9 @@ export function useConversationsList(search: string, options: { enabled: boolean
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useInfiniteQuery({
     queryKey: ['conversations', 'list', search],
-    queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
+    queryFn: async ({ pageParam, signal }: { pageParam: string | undefined; signal: AbortSignal }) => {
       const { data, error } = await api.GET('/conversations', {
+        signal,
         params: { query: { cursor: pageParam, limit: 20, search: search || undefined } },
       })
       if (error) throw new ApiError('Could not load conversations.', error)

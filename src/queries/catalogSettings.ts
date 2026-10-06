@@ -13,8 +13,8 @@ export function useExams() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['exams'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/exams')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/exams', { signal })
       if (error) throw new ApiError('Could not load the exams catalog.', error)
       return data
     },
@@ -56,8 +56,8 @@ export function useExchangeRates() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['exchange-rates'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/exchange-rates')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/exchange-rates', { signal })
       if (error) throw new ApiError('Could not load exchange rates.', error)
       return data
     },
@@ -71,8 +71,8 @@ export function useMissingExchangeRates() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['exchange-rates', 'missing'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/exchange-rates/missing')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/exchange-rates/missing', { signal })
       if (error) throw new ApiError('Could not load currencies without a rate.', error)
       return data
     },
@@ -104,8 +104,8 @@ export function usePlatformSettings() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['platform-settings'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/platform/settings')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/platform/settings', { signal })
       if (error) throw new ApiError('Could not load platform settings.', error)
       return data
     },

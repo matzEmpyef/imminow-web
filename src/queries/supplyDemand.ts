@@ -9,8 +9,8 @@ export function useSupplyDemand() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['admin-supply-demand'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/admin/supply-demand')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/admin/supply-demand', { signal })
       if (error) throw new ApiError('Could not load supply/demand data.', error)
       return data
     },

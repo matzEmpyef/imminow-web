@@ -7,8 +7,8 @@ export function useAllocationRule() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['lead-allocation-rules'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/lead-allocation-rules')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/lead-allocation-rules', { signal })
       if (error) throw new ApiError('Could not load the allocation rule.', error)
       return data
     },

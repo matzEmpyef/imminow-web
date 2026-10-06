@@ -14,8 +14,8 @@ export function useApplicantAllocationQueue(cursor?: string) {
   return useQuery({
     queryKey: ['applicant-allocation-queue', 'page', cursor ?? null],
     placeholderData: keepPreviousData,
-    queryFn: async () => {
-      const { data, error } = await api.GET('/applicant-allocation-queue', { params: { query: { cursor } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/applicant-allocation-queue', { signal, params: { query: { cursor } } })
       if (error) throw new ApiError('Could not load the allocation queue.', error)
       return toPage(data)
     },
@@ -29,8 +29,8 @@ export function useAllocationCandidates(id: string, enabled: boolean) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['applicant-allocation-queue', 'candidates', id],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/applicant-allocation-queue/{id}/candidates', { params: { path: { id } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/applicant-allocation-queue/{id}/candidates', { signal, params: { path: { id } } })
       if (error) throw new ApiError('Could not load consultancies for this applicant.', error)
       return data.items
     },

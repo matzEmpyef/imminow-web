@@ -29,10 +29,10 @@ export function useAdminConsultancies(filters: ConsultancyFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['admin-consultancies', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       // `status` is typed one value wider than the generated schema's enum (`never_billed`,
       // review M5) — cast rather than wait on a schema regen this session isn't doing.
-      const { data, error } = await api.GET('/consultancies', { params: { query: filters as never } })
+      const { data, error } = await api.GET('/consultancies', { signal, params: { query: filters as never } })
       if (error) throw new ApiError('Could not load consultancies.', error)
       return data
     },
@@ -47,8 +47,8 @@ export function useAdminConsultancy(id: string | null) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['admin-consultancies', 'detail', id],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/consultancies/{id}', { params: { path: { id: id! } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/consultancies/{id}', { signal, params: { path: { id: id! } } })
       if (error) throw new ApiError('Could not load this account.', error)
       return data
     },
@@ -245,8 +245,9 @@ export function useReactivateConsultancy(id: string) {
 export function useTierImpact(id: string, tier: string | undefined, enabled: boolean) {
   return useQuery({
     queryKey: ['tier-impact', id, tier],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/consultancies/{id}/tier-impact', {
+        signal,
         params: { path: { id }, query: { tier: tier as never } },
       })
       if (error) throw new ApiError('Could not check what this tier change would affect.', error)

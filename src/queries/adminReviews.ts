@@ -27,8 +27,8 @@ export function useAdminReviews(filters: AdminReviewsFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['admin-reviews', filters],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/admin/reviews', { params: { query: filters } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/admin/reviews', { signal, params: { query: filters } })
       if (error) throw new ApiError('Could not load reviews.', error)
       return data
     },

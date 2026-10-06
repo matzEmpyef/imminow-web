@@ -12,8 +12,8 @@ export function useTrendingCourses() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: KEY,
-    queryFn: async () => {
-      const { data, error } = await api.GET('/admin/trending-courses')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/admin/trending-courses', { signal })
       if (error) throw new ApiError('Could not load Trending Courses.', error)
       return data
     },

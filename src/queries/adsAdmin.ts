@@ -11,8 +11,8 @@ export function useAdminAds() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['admin-ads'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/ads')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/ads', { signal })
       if (error) throw new ApiError('Could not load ads.', error)
       return data
     },
@@ -28,8 +28,9 @@ export function useAdClicks(adId: string | null, params: { cursor?: string; limi
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['ads', adId, 'clicks', params],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/ads/{id}/clicks', {
+        signal,
         params: { path: { id: adId! }, query: { cursor: params.cursor, limit: params.limit } },
       })
       if (error) throw new ApiError('Could not load ad clicks.', error)
@@ -65,8 +66,9 @@ export function useAdAudienceCount(targeting: AdTargeting) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['ad-audience-count', targeting],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/ads/audience-count', {
+        signal,
         params: {
           query: {
             resident_country: targeting.resident_country?.length ? targeting.resident_country : undefined,

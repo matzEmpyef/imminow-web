@@ -10,8 +10,8 @@ export function useFormTemplates() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['form-templates'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/form-templates')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/form-templates', { signal })
       if (error) throw new ApiError('Could not load form templates.', error)
       return data
     },
@@ -23,8 +23,8 @@ export function useFormTemplate(id: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['form-templates', id],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/form-templates/{id}', { params: { path: { id: id! } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/form-templates/{id}', { signal, params: { path: { id: id! } } })
       if (error) throw new ApiError('Could not load this form template.', error)
       return data
     },

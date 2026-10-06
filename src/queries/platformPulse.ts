@@ -12,8 +12,8 @@ export function usePlatformPulse(windowDays: PlatformPulseWindow) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['admin-platform-pulse', windowDays],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/admin/platform-pulse', { params: { query: { window_days: windowDays } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/admin/platform-pulse', { signal, params: { query: { window_days: windowDays } } })
       if (error) throw new ApiError('Could not load Platform Pulse data.', error)
       return data
     },

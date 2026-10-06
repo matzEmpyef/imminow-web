@@ -70,8 +70,8 @@ export function useResetPassword() {
 export function useInvite(token: string) {
   return useQuery({
     queryKey: ['invite', token],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/auth/invite/{token}', { params: { path: { token } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/auth/invite/{token}', { signal, params: { path: { token } } })
       if (error) throw new ApiError('Could not load this invitation.', error)
       return data
     },

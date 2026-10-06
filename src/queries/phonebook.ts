@@ -20,8 +20,9 @@ export function usePhonebook(filters: PhonebookFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['phonebook', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/phonebook', {
+        signal,
         params: {
           query: {
             search: filters.search,

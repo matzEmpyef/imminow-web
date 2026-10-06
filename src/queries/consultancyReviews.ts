@@ -13,8 +13,9 @@ export function useMyReviews(filters: { limit?: number; offset?: number } = {}) 
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['consultancy-reviews', 'me', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/consultancies/{id}/reviews', {
+        signal,
         params: { path: { id: 'me' }, query: filters },
       })
       if (error) throw new ApiError('Could not load reviews.', error)

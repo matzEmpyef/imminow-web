@@ -18,8 +18,8 @@ export function useGuardianPrompt(token: string) {
     // a "this link is not valid any more" flash while they are still reading the confirmation.
     refetchOnWindowFocus: false,
     retry: false,
-    queryFn: async () => {
-      const { data, error } = await api.GET('/guardian-consent/{token}', { params: { path: { token } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/guardian-consent/{token}', { signal, params: { path: { token } } })
       if (error) throw new ApiError('This link is not valid any more.', error)
       return data
     },

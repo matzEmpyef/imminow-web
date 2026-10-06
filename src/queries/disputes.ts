@@ -46,8 +46,9 @@ export function useDisputes(filters: DisputesFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['disputes', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/disputes', {
+        signal,
         params: {
           query: {
             filter: filters.status ? { status: filters.status } : undefined,
@@ -93,8 +94,8 @@ export function useDisputeNotes(id: string) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['dispute-notes', id],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/disputes/{id}/notes', { params: { path: { id } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/disputes/{id}/notes', { signal, params: { path: { id } } })
       if (error) throw new ApiError('Could not load the notes on this dispute.', error)
       return data
     },

@@ -13,8 +13,8 @@ export function useAppConfig() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['app-config'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/app-config')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/app-config', { signal })
       if (error) throw new ApiError('Could not load the app configuration.', error)
       return data
     },

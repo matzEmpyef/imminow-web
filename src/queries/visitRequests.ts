@@ -27,8 +27,9 @@ export function useVisitRequests(filters: VisitRequestsFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['visit-requests', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/visit-requests', {
+        signal,
         params: {
           query: {
             filter: filters.responded === undefined ? undefined : { responded: filters.responded ? 'true' : 'false' },

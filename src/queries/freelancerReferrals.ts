@@ -39,9 +39,10 @@ export function useFreelancerReferrals(filters: FreelancerOwnReferralsFilters = 
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['freelancer-referrals', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const filter = freelancerOwnReferralsFilter(filters)
       const { data, error } = await api.GET('/freelancer/referrals', {
+        signal,
         params: {
           query: {
             filter: Object.keys(filter).length > 0 ? filter : undefined,
@@ -66,8 +67,8 @@ export function useFreelancerReferral(id: string) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['freelancer-referral', id],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/freelancer/referrals/{id}', { params: { path: { id } } })
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/freelancer/referrals/{id}', { signal, params: { path: { id } } })
       if (error) throw new ApiError('Could not load this referral.', error)
       return data
     },
@@ -110,8 +111,8 @@ export function useFreelancerMe() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['freelancer-me'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/freelancer/me')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/freelancer/me', { signal })
       if (error) throw new ApiError('Could not load your referral link.', error)
       return data
     },
@@ -149,9 +150,10 @@ export function useFreelancerReferralsAdmin(
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['freelancer-referrals-admin', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const filter = freelancerReferralsFilter(filters)
       const { data, error } = await api.GET('/freelancer-referrals', {
+        signal,
         params: {
           query: {
             filter: Object.keys(filter).length > 0 ? filter : undefined,
@@ -242,9 +244,10 @@ export function useFreelancerPayouts(filters: FreelancerPayoutsFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['freelancer-payouts-admin', filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const filter = freelancerPayoutsFilter(filters)
       const { data, error } = await api.GET('/freelancer-payouts', {
+        signal,
         params: {
           query: {
             filter: Object.keys(filter).length > 0 ? filter : undefined,

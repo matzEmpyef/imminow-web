@@ -25,8 +25,9 @@ export function useNotifications(filters: NotificationsFilters = {}, options?: {
   const { read, search, cursor, limit } = filters
   return useQuery({
     queryKey: ['notifications', { read, search, cursor, limit }],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/notifications', {
+        signal,
         params: {
           query: {
             ...(read !== undefined ? { 'filter[read]': read } : {}),
@@ -53,8 +54,8 @@ export function useUnreadCount() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['notifications-unread-count'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/notifications/unread-count')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/notifications/unread-count', { signal })
       if (error) throw new ApiError('Could not load unread count.', error)
       return data.unread_count
     },
@@ -101,8 +102,8 @@ export function useNotificationSettings() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['notification-settings'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/notification-settings')
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/notification-settings', { signal })
       if (error) throw new ApiError('Could not load notification settings.', error)
       return data
     },

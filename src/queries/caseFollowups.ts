@@ -27,8 +27,9 @@ export function useCaseFollowups(includeSnoozed = false, cursor?: string) {
     // on screen while the next loads.
     queryKey: ['case-followups', 'list', includeSnoozed, cursor ?? null],
     placeholderData: keepPreviousData,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/case-followups', {
+        signal,
         params: { query: { include_snoozed: includeSnoozed, cursor } },
       })
       if (error) throw new ApiError('Could not load the follow-up queue.', error)
@@ -43,8 +44,9 @@ export function useCaseNotes(journeyId: string | null) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['case-followups', 'notes', journeyId],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/clients/{id}/followups', {
+        signal,
         params: { path: { id: journeyId! } },
       })
       if (error) throw new ApiError('Could not load the call history.', error)

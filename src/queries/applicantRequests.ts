@@ -35,8 +35,9 @@ export function useApplicantRequests({
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['applicant-requests', status, { cursor: cursor ?? null, limit: limit ?? null }],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/applicant-requests', {
+        signal,
         params: { query: { filter: { status }, cursor, limit } },
       })
       if (error) throw new ApiError('Could not load the requests.', error)
