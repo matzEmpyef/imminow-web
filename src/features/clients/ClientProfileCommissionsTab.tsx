@@ -31,10 +31,33 @@ function ExpectedVsReceived({
   const approx = formatApprox(expected.approx)
   const expectedAmount = expected.amount ?? 0
   const receivedAmount = received?.amount ?? 0
+  // The two figures can be in DIFFERENT currencies (review F-160): when instalments arrived in
+  // mixed currencies and no rate exists for the expected one, the server reports "received" in
+  // rupees. Comparing the bare numbers then is meaningless: ₹60,000 received against CAD 1,000
+  // expected used to read "60,000 / 1,000 CAD · fully paid". Each amount is shown in its own
+  // currency instead, with no percentage, no bar and no "fully paid".
+  const receivedCurrency = received?.currency || expected.currency
+  if (receivedCurrency !== expected.currency) {
+    return (
+      <div className="flex flex-col gap-xs" data-testid="expected-vs-received" data-comparable="false">
+        <div className="flex items-center justify-between gap-md text-body-sm">
+          <span className="font-medium text-text-primary">{label}</span>
+          <span className="text-right text-text-secondary">
+            {formatMoneyAmount({ amount: receivedAmount, currency: receivedCurrency })} received ·{' '}
+            {formatMoneyAmount({ amount: expectedAmount, currency: expected.currency })}
+            {approx ? ` (${approx})` : ''} expected
+          </span>
+        </div>
+        <p className="text-caption text-text-secondary">
+          Received and expected are in different currencies, so no percentage is shown.
+        </p>
+      </div>
+    )
+  }
   const pct = expectedAmount > 0 ? Math.min(100, Math.round((receivedAmount / expectedAmount) * 100)) : 0
   const settled = expectedAmount > 0 && receivedAmount >= expectedAmount
   return (
-    <div className="flex flex-col gap-xs">
+    <div className="flex flex-col gap-xs" data-testid="expected-vs-received" data-comparable="true">
       <div className="flex items-center justify-between text-body-sm">
         <span className="font-medium text-text-primary">{label}</span>
         <span className="text-text-secondary">

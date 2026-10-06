@@ -107,3 +107,44 @@ describe('isBookkeepingChannel', () => {
     expect(isBookkeepingChannel('C', 'C')).toBe(false)
   })
 })
+
+// Review F-160: "received" can come back in rupees against an "expected" in another currency.
+// The tab compared the bare numbers and could show a case as fully paid when it was not.
+describe('CommissionsTab, received and expected in different currencies', () => {
+  it('shows each amount in its own currency, with no percentage and no "fully paid"', () => {
+    setup({
+      entry: {
+        ...baseEntry,
+        expected_from_college: { amount: 1000, currency: 'CAD' },
+        received_from_college: { amount: 60000, currency: 'INR' },
+      },
+    })
+    const line = screen.getAllByTestId('expected-vs-received')[0]
+    expect(line).toHaveAttribute('data-comparable', 'false')
+    expect(line).toHaveTextContent('INR 60,000 received')
+    expect(line).toHaveTextContent('CAD 1,000 expected')
+    expect(line).toHaveTextContent('Received and expected are in different currencies, so no percentage is shown.')
+    expect(line).not.toHaveTextContent('fully paid')
+    expect(line).not.toHaveTextContent('%')
+    // The line that used to be printed: both figures under the expected currency.
+    expect(line).not.toHaveTextContent('60,000 / 1,000 CAD')
+  })
+
+  it('keeps the percentage and the bar when both are in the same currency', () => {
+    setup({ entry: baseEntry })
+    const line = screen.getAllByTestId('expected-vs-received')[0]
+    expect(line).toHaveAttribute('data-comparable', 'true')
+    expect(line).toHaveTextContent('25,000 / 1,00,000 INR · 25%')
+  })
+
+  it('still says "fully paid" when the same-currency amounts match', () => {
+    setup({
+      entry: {
+        ...baseEntry,
+        expected_from_college: { amount: 1000, currency: 'CAD' },
+        received_from_college: { amount: 1000, currency: 'CAD' },
+      },
+    })
+    expect(screen.getAllByTestId('expected-vs-received')[0]).toHaveTextContent('fully paid')
+  })
+})
