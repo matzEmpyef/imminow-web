@@ -9,6 +9,7 @@ import {
   Briefcase,
   Building2,
   CalendarClock,
+  Coins,
   DollarSign,
   Gift,
   GraduationCap,
@@ -230,6 +231,13 @@ const SECTIONS: AdminSection[] = [
         label: 'Commission Rates',
         icon: Percent,
         tabs: [{ label: 'Commission Rates', path: '/admin/commission-rates', permission: 'finance' }],
+      },
+      // The hand-set rates behind every "≈" amount (2026-10-06): moved here from Settings because
+      // only Finance may change one; Settings still shows them, read-only.
+      {
+        label: 'Exchange Rates',
+        icon: Coins,
+        tabs: [{ label: 'Exchange Rates', path: '/admin/finance/exchange-rates', permission: 'finance' }],
       },
       // The payments team's chase list (user, 2026-09-11): cases whose commission has not become
       // due, sorted by money pending. Finance only — Support has its own Student follow-ups.

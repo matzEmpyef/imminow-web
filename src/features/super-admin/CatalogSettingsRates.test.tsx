@@ -13,7 +13,8 @@ vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
 
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
-import { DefaultCurrencyCell, ExchangeRatesTab } from './CatalogSettingsPage'
+import { DefaultCurrencyCell } from './CatalogSettingsPage'
+import { ExchangeRatesTab } from './ExchangeRatesTab'
 
 const mockedGet = vi.mocked(api.GET)
 const mockedPut = vi.mocked(api.PUT)
@@ -136,6 +137,34 @@ describe('exchange rate confirmation (owner decision 11)', () => {
     // The confirmation has gone; the form and what was typed are still there.
     expect(screen.queryByRole('dialog', { name: /Change the CAD rate/ })).not.toBeInTheDocument()
     expect(within(form).getByLabelText(/₹ per unit of this currency/)).toHaveValue(6.2)
+  })
+})
+
+describe('read-only exchange rates (Settings, without the finance permission)', () => {
+  it('lists the rates with no edit controls and says who manages them', async () => {
+    renderWithClient(<ExchangeRatesTab readOnly />)
+    expect(await screen.findByText('CAD')).toBeInTheDocument()
+    expect(screen.getByText('₹62')).toBeInTheDocument()
+    expect(screen.getByText('Exchange rates are managed by the finance team.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit CAD rate' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add Currency' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('shows a rate in use with no rate without the Add rate button', async () => {
+    mockedGet.mockImplementation((async (path: string) => {
+      if (path === '/exchange-rates') return { data: [{ currency: 'INR', inr_per_unit: 1 }], error: undefined }
+      if (path === '/exchange-rates/missing') {
+        return {
+          data: [{ currency: 'JPY', student_count: 2, consultancy_count: 0, countries: ['Japan'] }],
+          error: undefined,
+        }
+      }
+      return { data: [], error: undefined }
+    }) as never)
+    renderWithClient(<ExchangeRatesTab readOnly />)
+    expect(await screen.findByText('1 currency in use with no rate')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add rate' })).not.toBeInTheDocument()
   })
 })
 

@@ -190,6 +190,9 @@ const CommissionRatesPage = lazy(() =>
 const FreelancerPayoutsPage = lazy(() =>
   import('@/features/super-admin/FreelancerPayoutsPage').then((m) => ({ default: m.FreelancerPayoutsPage })),
 )
+const ExchangeRatesPage = lazy(() =>
+  import('@/features/super-admin/ExchangeRatesPage').then((m) => ({ default: m.ExchangeRatesPage })),
+)
 const FinanceDashboardPage = lazy(() =>
   import('@/features/super-admin/FinanceDashboardPage').then((m) => ({ default: m.FinanceDashboardPage })),
 )
@@ -570,6 +573,7 @@ function App() {
         <Route element={<PlatformLayout permission="finance" />}>
           <Route path="/admin/commission-rates" element={<CommissionRatesPage />} />
           <Route path="/admin/finance-dashboard" element={<FinanceDashboardPage />} />
+          <Route path="/admin/finance/exchange-rates" element={<ExchangeRatesPage />} />
         </Route>
         <Route element={<PlatformLayout permission="freelancers" />}>
           <Route path="/admin/freelancer-payouts" element={<FreelancerPayoutsPage />} />
