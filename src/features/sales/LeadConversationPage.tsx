@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, ChevronUp, PictureInPicture2 } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Card } from '@/components/Card'
@@ -13,10 +13,10 @@ import { RequestedBranchBadge } from '@/components/RequestedBranch'
 import { StudentProfileFields } from '@/components/StudentProfileFields'
 import { useChatWindowStore } from '@/stores/chatWindowStore'
 import { useViewingThread } from '@/lib/realtime'
-import { showToast } from '@/lib/toast'
 import { SetReminderModal } from './SetReminderModal'
 import { RequestRatingModal } from './RequestRatingModal'
 import { ConvertToClientModal } from './ConvertToClientModal'
+import { ConversionApprovalActions } from './ConversionApprovalActions'
 import { CloseLeadModal } from './CloseLeadModal'
 import { ReopenLeadModal } from './ReopenLeadModal'
 import { SuggestCourseInChat } from '@/features/clients/SuggestCourseInChat'
@@ -28,7 +28,6 @@ import {
   useLeadNotes,
   useMarkLeadRead,
   useRequestShortlist,
-  useRespondToConversion,
   useSendLeadMessage,
   useSetLeadBranch,
 } from '@/queries/leads'
@@ -42,66 +41,6 @@ import type { components } from '@/api/schema'
 import { LEAD_SOURCE_LABELS } from './leadSources'
 
 type LeadMessage = components['schemas']['LeadMessage']
-type ConversionProposal = components['schemas']['ConversionProposal']
-
-// User-asked (2026-08-19) — "student can also initiate a Convert to client." Whichever side did
-// *not* initiate is the one who approves/declines; consultant-initiated proposals still show
-// the old "awaiting response" pill (there's nothing for the consultant to action until the
-// student responds — and that side genuinely can't happen in this codebase, no student login
-// exists), while a student-initiated one shows real Approve/Decline buttons. Navigates straight
-// to the new Client Profile on approval rather than leaving the consultant on the now-closed
-// lead.
-function ConversionApprovalActions({
-  leadId,
-  leadName,
-  proposal,
-}: {
-  leadId: string
-  leadName: string
-  proposal: ConversionProposal
-}) {
-  const navigate = useNavigate()
-  const respond = useRespondToConversion(leadId)
-
-  if (proposal.initiated_by !== 'student') {
-    return (
-      <div className="rounded-full bg-background px-sm py-1.5 text-caption text-text-secondary">
-        Awaiting {leadName}'s response — expires {formatDate(proposal.expires_at)}
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex items-center gap-sm rounded-md border border-primary bg-primary-subtle px-sm py-1.5">
-      <span className="text-caption font-medium text-primary">{leadName} wants to become a client</span>
-      {respond.isError && <p className="text-caption text-error">{respond.error.message}</p>}
-      <Button
-        loading={respond.isPending && respond.variables?.decision === 'approved'}
-        onClick={() =>
-          respond.mutate(
-            { proposalId: proposal.id, decision: 'approved' },
-            { onSuccess: (data) => data.client_id && navigate(`/clients/${data.client_id}`) },
-          )
-        }
-      >
-        Approve
-      </Button>
-      <Button
-        variant="secondary"
-        loading={respond.isPending && respond.variables?.decision === 'declined'}
-        onClick={() =>
-          respond.mutate(
-            { proposalId: proposal.id, decision: 'declined' },
-            { onSuccess: () => showToast('Conversion declined') },
-          )
-        }
-      >
-        Decline
-      </Button>
-    </div>
-  )
-}
-
 // User-requested (2026-08-19) — "a button in lead's detail page, request for shortlist courses
 // (if not already shared).. when clicking a message is send to lead, lead clicks and the
 // shortlisted courses is shared (in the same place button to view the courses)." State is
