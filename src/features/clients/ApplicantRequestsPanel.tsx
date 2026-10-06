@@ -144,6 +144,13 @@ export function ApplicantRequestsPanel() {
             // The server lets the sender, the chosen consultant and an admin cancel. A row does not
             // say who sent it in a way that can be matched to the viewer, so the button is always
             // offered and a refusal (404) is answered in the confirm.
+            //
+            // Checked again against the merged contract on 2026-10-06 (gate 12f): the row still
+            // carries `created_by_name` only, no sender id. `GET /me` now gives the viewer's own
+            // employee id and whether they are the admin, and the row gives the chosen consultant,
+            // but without the sender's id "may this person cancel" cannot be answered here for
+            // everyone, and hiding the button from a sender would take away something they may do.
+            // It stays as it is until the row carries the sender's id.
             render: (request: ApplicantRequest) => (
               <CancelRequestTrigger request={request} onCancelled={pendingPaging.reset} />
             ),
