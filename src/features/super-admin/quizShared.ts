@@ -18,6 +18,68 @@ export function emptyPrize(position: number): PositionPrize {
   return { position, prize: '', points: undefined }
 }
 
+/** The server's limits on one prize row (review F-018). */
+export const PRIZE_POINTS_MAX = 100_000
+export const PRIZE_TEXT_MAX = 200
+
+/** One prize row as the form holds it: a number field that has been cleared holds text, not a number. */
+export type PrizeDraft = {
+  position: number | string
+  prize?: string | null
+  points?: number | string | null
+}
+
+function isBlank(value: number | string | null | undefined): boolean {
+  return value == null || (typeof value === 'string' && value.trim() === '')
+}
+
+/**
+ * The prize list as it is SENT (review F-018, design 7.3). The form used to post its own state,
+ * so a cleared number field went out as text, an untouched row went out as a prize, and "0 points"
+ * went out as a prize of nothing. The every-minute job that pays prizes could not read such a
+ * list, and one bad quiz stopped prizes and reminders for all of them. So, before anything is sent:
+ *
+ *   - position is a number;
+ *   - points is a number, or null when the field is blank or 0 (never "" and never 0);
+ *   - prize is the trimmed text, or null when there is none;
+ *   - a row with neither a prize nor points is not a prize, and is dropped.
+ */
+export function cleanPrizes(prizes: readonly PrizeDraft[]): PositionPrize[] {
+  return prizes
+    .map((p) => {
+      const prize = typeof p.prize === 'string' ? p.prize.trim() : ''
+      const points = isBlank(p.points) ? null : Number(p.points)
+      return { position: Number(p.position), prize: prize === '' ? null : prize, points: points === 0 ? null : points }
+    })
+    .filter((p) => p.prize != null || p.points != null)
+}
+
+/**
+ * Why this prize list cannot be saved, in words, or undefined when it can. The same rules the
+ * server enforces (400 `validation_failed` naming `position_prizes[i]`), checked first so the
+ * admin is told beside the list instead of after a round trip. Reads the list as it will be sent.
+ */
+export function prizeListError(prizes: readonly PrizeDraft[]): string | undefined {
+  const cleaned = cleanPrizes(prizes)
+  const seen = new Set<number>()
+  for (const p of cleaned) {
+    if (!Number.isInteger(p.position) || p.position < 1) {
+      return 'Each prize needs a position: a whole number, 1 or higher.'
+    }
+    if (seen.has(p.position)) {
+      return `Position ${p.position} has more than one prize. Each position can have only one.`
+    }
+    seen.add(p.position)
+    if (p.points != null && (!Number.isInteger(p.points) || p.points < 1 || p.points > PRIZE_POINTS_MAX)) {
+      return `Bonus points for position ${p.position} must be a whole number from 1 to ${PRIZE_POINTS_MAX.toLocaleString('en-IN')}.`
+    }
+    if (p.prize != null && p.prize.length > PRIZE_TEXT_MAX) {
+      return `The prize for position ${p.position} is too long. Keep it to ${PRIZE_TEXT_MAX} characters.`
+    }
+  }
+  return undefined
+}
+
 // A question can only be saved once it has text and at least MIN_OPTIONS options with real
 // values (user-requested, 2026-08-16 — "to save a new question, there should be atleast value in
 // question field and min 4 options"). Matches openapi.yaml's QuizQuestionInput.options

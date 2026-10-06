@@ -13,6 +13,7 @@ import { QuizSettingsModal } from './QuizSettingsModal'
 import { ManageQuestionsModal } from './ManageQuestionsModal'
 import { QuizParticipationCell } from './QuizLeaderboardModal'
 import { QuizBrandingModal } from './QuizBrandingModal'
+import { Badge } from '@/components/Badge'
 import { EventStatusBadge } from './EventStatusBadge'
 import { EventDetailsModal } from './EventDetailsModal'
 import { EventListingToggle } from './EventListingToggle'
@@ -139,7 +140,23 @@ export function QuizAdminPage() {
         </button>
       ),
     },
-    { key: 'status', header: 'Status', render: (e) => <EventStatusBadge status={e.status} /> },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (e) => (
+        <div className="flex flex-col items-start gap-xs">
+          <EventStatusBadge status={e.status} />
+          {/* The every-minute job could not pay this quiz's prizes (review F-018): the quiz is
+              parked, nothing was paid, and it stays that way until the prize list is saved in a
+              shape the job can read. The job's own error is the tooltip. */}
+          {e.prize_settlement_error && (
+            <Badge color="warning" title={e.prize_settlement_error} className="cursor-help">
+              Prizes not paid — fix the prize list
+            </Badge>
+          )}
+        </div>
+      ),
+    },
     { key: 'starts_at', header: 'Starts', sortable: true, render: (e) => formatEventDateTime(e) },
     {
       key: 'ends_at',

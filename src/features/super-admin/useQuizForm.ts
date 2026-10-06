@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { browserTimezone, nowWallClock, utcIsoToWallClock, wallClockToUtcIso } from '@/lib/eventTimezones'
 import { hasAnyTargeting, type Targeting } from '@/lib/targeting'
-import { emptyPrize, type Event, type PositionPrize } from './quizShared'
+import { cleanPrizes, emptyPrize, prizeListError, type Event, type PositionPrize } from './quizShared'
 
 // Everything QuizSettingsModal's form needs — state, the handlers that mutate it, validity and
 // the request body — as ONE typed object (Phase 3 plan, Tier B3, 2026-09-03). Same treatment
@@ -45,6 +45,8 @@ export interface QuizFormValue {
   started: boolean
   startError?: string
   endError?: string
+  /** Why the prize list cannot be saved (a repeated position, a number out of range), if it cannot. */
+  prizeError?: string
   toPayload: () => QuizPayload
 }
 
@@ -115,9 +117,11 @@ export function useQuizForm(editingEvent?: Event): QuizFormValue {
   const startInPast = !isEditing && Boolean(startsAt) && startsAt < nowInZone
   const endBeforeStart = Boolean(startsAt && endsAt && endsAt <= startsAt)
   const endInPast = Boolean(endsAt) && endsAt < nowInZone
-  // Every row counts, empty ones included: `toPayload` sends `position_prizes` as-is, so an
-  // untouched row is a prize as far as the server is concerned.
-  const endRequired = prizes.length > 0 && endsAt === ''
+  // Counted as SENT (review F-018): `toPayload` drops a row with neither a prize nor points, so
+  // an untouched row is no longer a prize and no longer demands an end time.
+  const sentPrizes = cleanPrizes(prizes)
+  const endRequired = sentPrizes.length > 0 && endsAt === ''
+  const prizeError = prizeListError(prizes)
   const startError = startInPast ? 'The start cannot be in the past.' : undefined
   const endError = endRequired
     ? 'A quiz with position prizes needs an end time — that is when the prizes are paid.'
@@ -136,7 +140,8 @@ export function useQuizForm(editingEvent?: Event): QuizFormValue {
     questionsPerAttempt >= 1 &&
     (timeLimitMinutes == null || timeLimitMinutes >= 1) &&
     !startError &&
-    !endError
+    !endError &&
+    !prizeError
 
   function toPayload(): QuizPayload {
     return {
@@ -150,7 +155,8 @@ export function useQuizForm(editingEvent?: Event): QuizFormValue {
       questions_per_attempt: questionsPerAttempt as number,
       time_limit_minutes: timeLimitMinutes,
       points_override: participationPoints,
-      position_prizes: prizes,
+      // Numbers as numbers, blank points as null, empty rows dropped: see `cleanPrizes`.
+      position_prizes: sentPrizes,
       targeting: hasAnyTargeting(targeting) ? targeting : null,
     }
   }
@@ -159,6 +165,6 @@ export function useQuizForm(editingEvent?: Event): QuizFormValue {
     title, setTitle, description, setDescription, timezone, setTimezone, startsAt, setStartsAt,
     endsAt, setEndsAt, questionsPerAttempt, setQuestionsPerAttempt, timeLimitMinutes, setTimeLimitMinutes,
     participationPoints, setParticipationPoints, prizes, updatePrize, removePrize, addPrize,
-    targeting, setTargeting, isValid, nowInZone, started, startError, endError, toPayload,
+    targeting, setTargeting, isValid, nowInZone, started, startError, endError, prizeError, toPayload,
   }
 }

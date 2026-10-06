@@ -67,7 +67,7 @@ export function QuizSettingsModal({
     title, setTitle, description, setDescription, timezone, setTimezone, startsAt, setStartsAt,
     endsAt, setEndsAt, questionsPerAttempt, setQuestionsPerAttempt, timeLimitMinutes, setTimeLimitMinutes,
     participationPoints, setParticipationPoints, prizes, updatePrize, removePrize, addPrize,
-    targeting, setTargeting, isValid, nowInZone, started, startError, endError, toPayload,
+    targeting, setTargeting, isValid, nowInZone, started, startError, endError, prizeError, toPayload,
   } = useQuizForm(seed)
   const countries = useCountries()
 
@@ -219,14 +219,17 @@ export function QuizSettingsModal({
           Participation points are awarded to everyone who completes the quiz, regardless of leaderboard position.
           Leave time limit blank for no limit.
         </p>
-        {/* Once anyone has taken the quiz, questions/questions-per-attempt lock server-side (409
+        {/* Once anyone has STARTED the quiz (owner decision 13: a student's questions are fixed at
+            their start), questions/questions-per-attempt lock server-side (409
             locked_after_attempts) — this only fires from a genuine attempt to change one of them,
-            since a no-op save is allowed through. */}
-        {isEditing && (editingEvent?.attendance_count ?? 0) > 0 && (
+            since a no-op save is allowed through. Said for every saved quiz: the console is told
+            who finished, not who has started, so it cannot wait for a count before warning. */}
+        {isEditing && (
           <p className="-mt-sm text-caption text-text-secondary">
-            {(editingEvent?.attendance_count ?? 0)} student{(editingEvent?.attendance_count ?? 0) === 1 ? ' has' : 's have'}{' '}
-            already taken this quiz — its questions and questions-per-attempt are locked so every attempt is measured
-            against the same test.
+            Questions and questions per attempt are locked once someone has started the quiz, so every attempt is
+            measured against the same test.
+            {(editingEvent?.attendance_count ?? 0) > 0 &&
+              ` ${editingEvent?.attendance_count} ${editingEvent?.attendance_count === 1 ? 'student has' : 'students have'} completed it so far.`}
           </p>
         )}
 
@@ -235,11 +238,34 @@ export function QuizSettingsModal({
           <p className="text-caption text-text-secondary">
             Add a prize, bonus points, or both for specific leaderboard positions. Leave empty if this quiz is
             participation-points-only. Adding one means the quiz needs an end time — that is when prizes are
-            settled.
+            settled. Students see their questions only when they start; a long window with a short time limit
+            still lets an early finisher tell a late starter what to expect, so keep prize quizzes to a short
+            window.
           </p>
+          {/* The every-minute job could not pay this quiz's prizes (review F-018): say so where
+              the fix is made. Saving the list clears it. */}
+          {editingEvent?.prize_settlement_error && (
+            <div role="status" className="rounded-md border border-warning bg-warning/10 px-md py-sm">
+              <p className="text-body-sm font-medium text-text-primary">Prizes not paid — fix the prize list</p>
+              <p className="mt-0.5 text-caption text-text-secondary">{editingEvent.prize_settlement_error}</p>
+              <p className="mt-0.5 text-caption text-text-secondary">
+                Correct the rows below and save. The prizes are then paid on the next run.
+              </p>
+            </div>
+          )}
           {prizes.map((p, i) => (
             <PrizeEditor key={i} prize={p} onChange={(np) => updatePrize(i, np)} onRemove={() => removePrize(i)} />
           ))}
+          {prizes.length > 0 && (
+            <p className="text-caption text-text-secondary">
+              A row with no prize and no bonus points is not saved.
+            </p>
+          )}
+          {prizeError && (
+            <p role="alert" className="text-body-sm text-error">
+              {prizeError}
+            </p>
+          )}
           <button
             type="button"
             onClick={addPrize}

@@ -4,7 +4,7 @@ import { Trash2, X } from 'lucide-react'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { Modal } from '@/components/Modal'
-import { type QuizQuestionInput, type PositionPrize, MIN_OPTIONS, MAX_OPTIONS } from './quizShared'
+import { PRIZE_POINTS_MAX, PRIZE_TEXT_MAX, type QuizQuestionInput, type PositionPrize, MIN_OPTIONS, MAX_OPTIONS } from './quizShared'
 
 // Reworked (user-requested, 2026-08-16 — "we need more space for questions and options... remove
 // button, make it icon and align it to right and confirm before deleting question. we should be
@@ -168,12 +168,17 @@ export function PrizeEditor({
       <TextField
         label="Position"
         type="number"
-        value={prize.position}
-        onChange={(e) => onChange({ ...prize, position: Number(e.target.value) })}
+        min={1}
+        step={1}
+        // A cleared field shows as empty rather than snapping to 0; the form refuses to save a
+        // prize whose position is not a whole number from 1 (see `prizeListError`).
+        value={prize.position || ''}
+        onChange={(e) => onChange({ ...prize, position: e.target.value === '' ? 0 : Number(e.target.value) })}
         className="max-w-[5rem]"
       />
       <TextField
         label="Prize"
+        maxLength={PRIZE_TEXT_MAX}
         value={prize.prize ?? ''}
         onChange={(e) => onChange({ ...prize, prize: e.target.value })}
         className="flex-1"
@@ -181,6 +186,9 @@ export function PrizeEditor({
       <TextField
         label="Bonus points"
         type="number"
+        min={1}
+        max={PRIZE_POINTS_MAX}
+        step={1}
         value={prize.points ?? ''}
         onChange={(e) => onChange({ ...prize, points: e.target.value ? Number(e.target.value) : undefined })}
         className="max-w-[10rem]"
