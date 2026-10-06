@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AUDIT_SEARCH_HINT, AUDIT_SEARCH_PLACEHOLDER, AuditEntryDetail } from './AuditEntryDetail'
 import { AppShell } from '@/features/auth/AppShell'
 import { Badge } from '@/components/Badge'
 import { Card } from '@/components/Card'
@@ -118,6 +119,7 @@ export function AuditLogPage() {
             Every change to this {words.org}&rsquo;s records — leads, cases, plans, staff, settings, documents,
             phonebook and rating requests. Chat messages and internal notes are not logged.
           </p>
+          <p className="mt-xs text-caption text-text-secondary">{AUDIT_SEARCH_HINT}</p>
         </div>
 
         <Table
@@ -142,7 +144,7 @@ export function AuditLogPage() {
               setSearch(value)
               resetPaging()
             },
-            placeholder: 'Search entity, reason, actor…',
+            placeholder: AUDIT_SEARCH_PLACEHOLDER,
           }}
           filters={
             <>
@@ -221,23 +223,7 @@ export function AuditLogPage() {
           }}
           expandable={{
             isExpanded: (e) => expandedId === e.id,
-            renderExpanded: (e) => (
-              <div className="flex flex-col gap-xs">
-                {e.reason && (
-                  <p className="text-body-sm text-text-primary">
-                    <span className="font-medium">Reason:</span> {e.reason}
-                  </p>
-                )}
-                {e.diff && (
-                  <pre className="overflow-x-auto rounded-md bg-surface p-sm text-caption text-text-secondary">
-                    {JSON.stringify(e.diff, null, 2)}
-                  </pre>
-                )}
-                {!e.reason && !e.diff && (
-                  <p className="text-body-sm text-text-secondary">No further detail recorded.</p>
-                )}
-              </div>
-            ),
+            renderExpanded: (e) => <AuditEntryDetail entry={e} />,
           }}
           onRowClick={(e) => setExpandedId((id) => (id === e.id ? null : e.id))}
         />

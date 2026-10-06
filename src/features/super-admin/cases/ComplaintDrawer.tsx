@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { useIsFetching } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import { ApiError } from '@/api/errors'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Drawer } from '@/components/Drawer'
@@ -48,6 +50,19 @@ export function ComplaintDrawer({
 
   const statusMeta = COMPLAINT_STATUS_META[complaint.status]
   const resolved = complaint.status === 'resolved'
+
+  // 409 `taken_over` (lane w): a colleague picked this complaint up in the last few seconds, so
+  // the owner on screen is not the one the server holds. The refusal names who has it now
+  // (`details.assigned_to_id`). The list is read again (`useUpdateComplaint`) and the page swaps
+  // the fresh row into this drawer; until the row here names that person, the confirm does not
+  // offer to take over "from" the previous owner, who no longer has it.
+  const takenOverById =
+    update.error instanceof ApiError && update.error.code === 'taken_over'
+      ? (update.error.details?.assigned_to_id as string | undefined)
+      : undefined
+  const ownerIsStale = Boolean(takenOverById) && complaint.assigned_to_id !== takenOverById
+  const listRefreshing = useIsFetching({ queryKey: ['complaints'] }) > 0
+  const refreshingOwner = ownerIsStale && listRefreshing
 
   return (
     <Drawer open onClose={onClose} title={complaint.student_name ?? 'Complaint'} dismissible>
@@ -134,7 +149,7 @@ export function ComplaintDrawer({
         <OwnerSection
           assignedToName={complaint.assigned_to_name}
           pickedUpAt={complaint.picked_up_at}
-          pending={update.isPending}
+          pending={update.isPending || refreshingOwner}
           readOnly={resolved}
           // The take-over popup shows its own error; this line is for a failed Pick up.
           error={!confirmingTakeOver && update.isError ? update.error.message : undefined}
@@ -216,8 +231,10 @@ export function ComplaintDrawer({
       )}
       {confirmingTakeOver && (
         <TakeOverConfirmModal
-          ownerName={complaint.assigned_to_name ?? 'them'}
-          loading={update.isPending}
+          // The colleague who has it NOW. If the fresh row has not arrived, nobody is named
+          // rather than the previous owner.
+          ownerName={ownerIsStale ? 'the colleague who has it now' : (complaint.assigned_to_name ?? 'them')}
+          loading={update.isPending || refreshingOwner}
           error={update.isError ? update.error.message : undefined}
           onClose={() => setConfirmingTakeOver(false)}
           onConfirm={() =>

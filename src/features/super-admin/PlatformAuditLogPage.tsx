@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AUDIT_SEARCH_HINT, AUDIT_SEARCH_PLACEHOLDER, AuditEntryDetail } from '@/features/administration/AuditEntryDetail'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
@@ -170,6 +171,7 @@ export function PlatformAuditLogPage() {
             <p className="text-body-sm text-text-secondary">
               Platform-wide — every change across every consultancy. Needs the Audit Log permission.
             </p>
+            <p className="mt-xs text-caption text-text-secondary">{AUDIT_SEARCH_HINT}</p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-xs">
             <Button variant="secondary" size="sm" disabled={exporting} onClick={handleExport}>
@@ -201,7 +203,7 @@ export function PlatformAuditLogPage() {
               setSearch(value)
               resetPaging()
             },
-            placeholder: 'Search entity, reason, actor…',
+            placeholder: AUDIT_SEARCH_PLACEHOLDER,
           }}
           filters={
             <>
@@ -276,23 +278,7 @@ export function PlatformAuditLogPage() {
           }}
           expandable={{
             isExpanded: (e) => expandedId === e.id,
-            renderExpanded: (e) => (
-              <div className="flex flex-col gap-xs">
-                {e.reason && (
-                  <p className="text-body-sm text-text-primary">
-                    <span className="font-medium">Reason:</span> {e.reason}
-                  </p>
-                )}
-                {e.diff && (
-                  <pre className="overflow-x-auto rounded-md bg-surface p-sm text-caption text-text-secondary">
-                    {JSON.stringify(e.diff, null, 2)}
-                  </pre>
-                )}
-                {!e.reason && !e.diff && (
-                  <p className="text-body-sm text-text-secondary">No further detail recorded.</p>
-                )}
-              </div>
-            ),
+            renderExpanded: (e) => <AuditEntryDetail entry={e} />,
           }}
           onRowClick={(e) => setExpandedId((id) => (id === e.id ? null : e.id))}
         />

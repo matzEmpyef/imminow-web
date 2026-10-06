@@ -73,7 +73,12 @@ export interface UpdateComplaintInput {
   assign_to_me?: boolean
 }
 
-/** Picking up, taking over, or resolving one complaint. 409 already_resolved / dispute_open. */
+/**
+ * Picking up, taking over, or resolving one complaint. 409 already_resolved / dispute_open, and
+ * 409 `taken_over` when a colleague took it in the last few seconds (`details.assigned_to_id` is
+ * who has it now): the list is read again so the drawer shows the real owner, and the user may
+ * take over from them.
+ */
 export function useUpdateComplaint(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
