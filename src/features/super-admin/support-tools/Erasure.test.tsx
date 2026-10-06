@@ -215,6 +215,52 @@ describe('the erase form', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
+  it('says under the reason, always, that it is kept for good and what not to put in it', () => {
+    renderForm()
+    const note =
+      'This reason is kept permanently, also after the account is erased. Do not include the person’s name, contact details or anything they told you — a reference is enough (court order number, ticket number).'
+    expect(screen.getByText(note)).toBeInTheDocument()
+    expect(screen.queryByText(/State the legal basis\./)).not.toBeInTheDocument()
+    expect(screen.queryByText('Kept in the audit log.')).not.toBeInTheDocument()
+    // Immediate adds the legal basis.
+    fireEvent.click(screen.getByLabelText('Erase immediately (legal request)'))
+    expect(screen.getByText(`${note} State the legal basis.`)).toBeInTheDocument()
+    // A message about the reason does not push the note away.
+    fireEvent.change(screen.getByLabelText(/^Reason/), { target: { value: 'Court order.' } })
+    expect(screen.getByText('A legal request needs a reason of at least 20 characters.')).toBeInTheDocument()
+    expect(screen.getByText(`${note} State the legal basis.`)).toBeInTheDocument()
+  })
+
+  it('on 429 shows the server’s message with the wait, and the form stays filled in', async () => {
+    mockedPost.mockResolvedValueOnce(
+      refused(429, 'rate_limited', 'You have scheduled 10 erasures in 24 hours. Another Super Admin can continue.', { retry_after_seconds: 7200 }),
+    )
+    renderForm()
+    fill({ reason: 'Ticket 4411' })
+    fireEvent.click(continueButton())
+    fireEvent.click(screen.getByRole('button', { name: 'Schedule erasure' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('You have scheduled 10 erasures in 24 hours. Another Super Admin can continue.')
+    expect(screen.getByText('You can try again in about 2 hours.')).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Reason/)).toHaveValue('Ticket 4411')
+    expect(screen.getByLabelText(/to confirm/)).toHaveValue('meera@example.test')
+    expect(screen.getByLabelText(/^Your password/)).toHaveValue('pw-1')
+    expect(continueButton()).toBeEnabled()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('on 503 says to try again, and the form stays filled in', async () => {
+    mockedPost.mockResolvedValueOnce(refused(503, 'service_unavailable', 'Service unavailable.'))
+    renderForm()
+    fill({ reason: 'Ticket 4411' })
+    fireEvent.click(continueButton())
+    fireEvent.click(screen.getByRole('button', { name: 'Schedule erasure' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Support Tools could not check your daily allowance just now, so nothing was done. Try again in a moment.',
+    )
+    expect(screen.getByLabelText(/^Reason/)).toHaveValue('Ticket 4411')
+  })
+
   it('refreshes the list and the search after a refusal too, since the screen was out of date', async () => {
     mockedPost.mockResolvedValueOnce(refused(409, 'conflict', 'An erasure is already scheduled for this account.'))
     const { client } = renderForm()
@@ -348,6 +394,21 @@ describe('the Pending erasures list', () => {
       expect(dialog).toHaveTextContent(/The erasure scheduled for .*2026 is cancelled\. Nothing is erased, Meera Pillai can sign in again, and their email is told\./)
       expect(dialog).toHaveTextContent('Their closed cases and chats stay closed.')
       expect(mockedDelete).not.toHaveBeenCalled()
+    })
+
+    it('says under the reason that it is kept for good, and to say how the person was verified', async () => {
+      const { dialog } = await openDialog()
+      expect(
+        within(dialog).getByText(
+          'This reason is kept permanently. Do not include the person’s name, contact details or anything they told you — say how they were verified.',
+        ),
+      ).toBeInTheDocument()
+      // Not the old line, which promised only the audit log.
+      expect(within(dialog).queryByText('Kept in the audit log.')).not.toBeInTheDocument()
+      // Shown with an error too.
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Keep account' }))
+      expect(within(dialog).getByText('Add a reason.')).toBeInTheDocument()
+      expect(within(dialog).getByText(/^This reason is kept permanently\./)).toBeInTheDocument()
     })
 
     it('needs a reason', async () => {

@@ -4,7 +4,9 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { TextField } from '@/components/TextField'
 import { ApiError } from '@/api/errors'
 import { humaniseCode } from '@/lib/humanise'
+import { aboutHowLong, retryAfterSeconds } from '@/lib/retryAfter'
 import { formatDate } from '@/lib/time'
+import { ERASE_REASON_NOTE, IMMEDIATE_LEGAL_BASIS_NOTE } from './erasureReasonNotes'
 import { useEraseUserData, type ErasureQueued, type UserSearchResult } from '@/queries/supportTools'
 
 /** A legal request must say what it is: the server refuses a shorter reason. */
@@ -50,6 +52,12 @@ export function EraseForm({ result, onCancel }: { result: UserSearchResult; onCa
   const estimatedDate = formatDate(new Date(Date.now() + WINDOW_DAYS * 24 * 60 * 60 * 1000))
   const error = eraseData.error
   const passwordRefused = error instanceof ApiError && error.code === 'invalid_current_password'
+  // 429: the operator's daily allowance, or too many wrong passwords. The server's sentence says
+  // which and what to do; the wait comes with it. The form stays as it was filled in.
+  const rateLimited = error instanceof ApiError && error.code === 'rate_limited'
+  const waitSeconds = rateLimited ? retryAfterSeconds(error) : null
+  // 503: the allowance could not be read, so nothing was done. Asking again can work.
+  const unavailable = error instanceof ApiError && (error.status === 503 || error.code === 'service_unavailable')
 
   function submit() {
     eraseData.mutate(
@@ -158,13 +166,17 @@ export function EraseForm({ result, onCancel }: { result: UserSearchResult; onCa
         rows={2}
         value={reason}
         onChange={(e) => setReason(e.target.value)}
-        hint={immediate ? `At least ${IMMEDIATE_REASON_MIN} characters for a legal request.` : 'Kept in the audit log.'}
         error={
           immediate && reason.trim() && reasonTooShort
             ? `A legal request needs a reason of at least ${IMMEDIATE_REASON_MIN} characters.`
             : undefined
         }
       />
+      {/* Always visible, not a hint: a hint gives way to an error message, and this must not. */}
+      <p className="-mt-xs text-caption text-text-secondary">
+        {ERASE_REASON_NOTE}
+        {immediate && ` ${IMMEDIATE_LEGAL_BASIS_NOTE}`}
+      </p>
       <TextField
         label={`Type the account’s ${identifierKind} to confirm`}
         required
@@ -201,9 +213,16 @@ export function EraseForm({ result, onCancel }: { result: UserSearchResult; onCa
       {/* The server's own sentence: an active role (lockout_guard), an erasure already pending
           (conflict, with its date), a missing step-up. A wrong password is shown on its field. */}
       {eraseData.isError && !passwordRefused && (
-        <p role="alert" className="text-body-sm text-error">
-          {eraseData.error.message}
-        </p>
+        <div className="flex flex-col gap-xs">
+          <p role="alert" className="text-body-sm text-error">
+            {unavailable
+              ? 'Support Tools could not check your daily allowance just now, so nothing was done. Try again in a moment.'
+              : eraseData.error.message}
+          </p>
+          {waitSeconds && (
+            <p className="text-caption text-text-secondary">You can try again in {aboutHowLong(waitSeconds)}.</p>
+          )}
+        </div>
       )}
 
       <div className="flex items-center justify-end gap-sm">

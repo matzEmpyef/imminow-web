@@ -5,6 +5,7 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { useCancelErasure } from '@/queries/supportTools'
+import { KEEP_REASON_NOTE } from './erasureReasonNotes'
 
 /**
  * "Keep this account": cancels a scheduled erasure (gate 12f; Super Admin, with a reason). Used
@@ -80,9 +81,9 @@ export function CancelErasureModal({
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="Who asked, and how you checked it was them"
-          hint="Kept in the audit log."
           error={attempted && !reason.trim() ? 'Add a reason.' : undefined}
         />
+        <p className="-mt-xs text-caption text-text-secondary">{KEEP_REASON_NOTE}</p>
       </div>
     </Modal>
   )
