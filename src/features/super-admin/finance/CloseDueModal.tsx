@@ -5,7 +5,7 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { money } from './money'
 import { useWaiveCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { showToast } from '@/lib/toast'
-import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
+import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 const MIN_REASON_LENGTH = 3
 
@@ -31,7 +31,7 @@ export function CloseDueModal({
 }) {
   const waiveDue = useWaiveCommissionDue()
   const [reason, setReason] = useState('')
-  const { key: idempotencyKey, settle } = useIdempotencyKey()
+  const { keyFor, settle } = usePayloadIdempotencyKey()
   const trimmedReason = reason.trim()
   const invalid = trimmedReason.length < MIN_REASON_LENGTH || !part.key
   const outstanding = money({ amount: part.outstanding ?? part.amount ?? 0, currency: part.currency ?? 'INR' })
@@ -51,19 +51,27 @@ export function CloseDueModal({
             variant="destructive"
             loading={waiveDue.isPending}
             disabled={invalid}
-            onClick={() =>
-              part.key &&
+            onClick={() => {
+              if (!part.key) return
+              const payload = { entryId: caseRow.id, part_key: part.key, reason: trimmedReason }
               waiveDue.mutate(
-                { entryId: caseRow.id, part_key: part.key, reason: trimmedReason, idempotencyKey },
+                { ...payload, idempotencyKey: keyFor(payload) },
                 {
-                  onError: settle,
+                  onError: (err) => {
+                    settle(err)
+                    // Already recorded (the first answer was lost): the write is done. Close, say so, never resubmit.
+                    if (isAlreadyApplied(err)) {
+                      showToast(ALREADY_APPLIED_NOTICE)
+                      onClose()
+                    }
+                  },
                   onSuccess: (row) => {
                     showToast(`Due closed for ${caseRow.applicant_name}`)
                     onClosed(row)
                   },
                 },
               )
-            }
+            }}
           >
             Close
           </Button>

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
+import { isAlreadyApplied } from '@/lib/useIdempotencyKey'
 import { ApiError } from './auth'
 
 interface InvoiceListFilters {
@@ -65,6 +66,10 @@ export function useCreateInvoice() {
       return data
     },
     onSuccess: (data) => invalidateInvoicing(queryClient, data?.journey_id),
+    // The write already went through (the first answer was lost): refresh what success refreshes.
+    onError: (err, variables) => {
+      if (isAlreadyApplied(err)) invalidateInvoicing(queryClient, variables.journey_id)
+    },
   })
 }
 
@@ -138,6 +143,9 @@ export function useCreateReceipt() {
       return data
     },
     onSuccess: () => invalidateInvoicing(queryClient),
+    onError: (err) => {
+      if (isAlreadyApplied(err)) invalidateInvoicing(queryClient)
+    },
   })
 }
 

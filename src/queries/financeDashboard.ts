@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { isAlreadyApplied } from '@/lib/useIdempotencyKey'
 import type { components } from '@/api/schema'
 
 // Shared key prefix (2026-09-11) — every finance mutation (confirm, reject) invalidates this whole
@@ -230,6 +231,10 @@ export function useAddCommissionDue() {
       return data
     },
     onSuccess: () => invalidateFinanceCaseViews(queryClient),
+    // The write already went through (the first answer was lost): refresh what success refreshes.
+    onError: (err) => {
+      if (isAlreadyApplied(err)) invalidateFinanceCaseViews(queryClient)
+    },
   })
 }
 
@@ -323,6 +328,10 @@ export function useReceiveCommissionDue() {
       return data
     },
     onSuccess: () => invalidateFinanceCaseViews(queryClient),
+    // The write already went through (the first answer was lost): refresh what success refreshes.
+    onError: (err) => {
+      if (isAlreadyApplied(err)) invalidateFinanceCaseViews(queryClient)
+    },
   })
 }
 
@@ -352,5 +361,9 @@ export function useWaiveCommissionDue() {
       return data
     },
     onSuccess: () => invalidateFinanceCaseViews(queryClient),
+    // The write already went through (the first answer was lost): refresh what success refreshes.
+    onError: (err) => {
+      if (isAlreadyApplied(err)) invalidateFinanceCaseViews(queryClient)
+    },
   })
 }

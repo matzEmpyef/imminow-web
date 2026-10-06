@@ -7,7 +7,7 @@ import { formatDate } from '@/lib/time'
 import { formatMoneyAmount } from '@/lib/money'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
-import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
+import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 const MIN_REASON_LENGTH = 3
 
@@ -30,15 +30,23 @@ export function VoidInstallmentModal({
 }) {
   const voidInstallment = useVoidInstallment(clientId)
   const [reason, setReason] = useState('')
-  const { key: idempotencyKey, settle } = useIdempotencyKey()
+  const { keyFor, settle } = usePayloadIdempotencyKey()
   const trimmed = reason.trim()
 
   function submit() {
     if (trimmed.length < MIN_REASON_LENGTH || voidInstallment.isPending) return
+    const payload = { entryId, installmentId: installment.id, reason: trimmed }
     voidInstallment.mutate(
-      { entryId, installmentId: installment.id, reason: trimmed, idempotencyKey },
+      { ...payload, idempotencyKey: keyFor(payload) },
       {
-        onError: settle,
+        onError: (err) => {
+          settle(err)
+          // Already recorded (the first answer was lost): the write is done. Close, say so, never resubmit.
+          if (isAlreadyApplied(err)) {
+            showToast(ALREADY_APPLIED_NOTICE)
+            onClose()
+          }
+        },
         onSuccess: () => {
           showToast('Installment voided')
           onClose()

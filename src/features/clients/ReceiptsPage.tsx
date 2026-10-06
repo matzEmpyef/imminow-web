@@ -14,18 +14,18 @@ import { usePermission } from '@/lib/permissions'
 import { formatDate } from '@/lib/time'
 import { formatMoneyAmount } from '@/lib/money'
 import { showToast } from '@/lib/toast'
-import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
+import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 type Receipt = NonNullable<ReturnType<typeof useReceipts>['data']>['items'][number]
 
 // User-requested (2026-08-15) — "wherever there is add button, use popup, instead of inline
 // form." Was an inline Card that expanded below the page header; now a Modal, same fields.
-function RecordReceiptForm({ onClose }: { onClose: () => void }) {
+export function RecordReceiptForm({ onClose }: { onClose: () => void }) {
   // T2: the dropdown is every open invoice, not page one — default limit 20 hid invoice 21.
   const invoices = useInvoices({ limit: 100 })
   const createReceipt = useCreateReceipt()
-  // T1: one key per modal open.
-  const { key: idempotencyKey, settle } = useIdempotencyKey()
+  // One key per modal open and content (T1): a retry of the same receipt replays, an edited one is new.
+  const { keyFor, settle } = usePayloadIdempotencyKey()
   const [invoiceId, setInvoiceId] = useState('')
   const [amount, setAmount] = useState('')
 
@@ -36,10 +36,18 @@ function RecordReceiptForm({ onClose }: { onClose: () => void }) {
     if (createReceipt.isPending) return
     if (!invoiceId || !amount) return
     const invoice = invoices.data?.items.find((i) => i.id === invoiceId)
+    const payload = { invoice_id: invoiceId, amount: Number(amount) }
     createReceipt.mutate(
-      { invoice_id: invoiceId, amount: Number(amount), idempotencyKey },
+      { ...payload, idempotencyKey: keyFor(payload) },
       {
-        onError: settle,
+        onError: (err) => {
+          settle(err)
+          // Already recorded (the first answer was lost): the write is done. Close, say so, never resubmit.
+          if (isAlreadyApplied(err)) {
+            showToast(ALREADY_APPLIED_NOTICE)
+            onClose()
+          }
+        },
         onSuccess: () => {
           showToast(invoice ? `Payment recorded for ${invoice.applicant_name}` : 'Payment recorded')
           onClose()

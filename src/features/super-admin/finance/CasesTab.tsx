@@ -328,7 +328,13 @@ export function CasesTab() {
         }}
       />
 
-      <FinanceCaseDrawer caseRow={viewingRow} onClose={() => setViewingRow(null)} />
+      {/* The open case follows the refreshed list, so a write that turned out to be recorded already
+          (no row comes back to set) still shows the figures as they now stand. The snapshot is the
+          fallback when the case has paged or filtered out of the list. */}
+      <FinanceCaseDrawer
+        caseRow={viewingRow ? (cases.data?.items.find((r) => r.id === viewingRow.id) ?? viewingRow) : null}
+        onClose={() => setViewingRow(null)}
+      />
     </div>
   )
 }

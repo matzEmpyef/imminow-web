@@ -20,7 +20,7 @@ import { usePermission } from '@/lib/permissions'
 import { formatDate } from '@/lib/time'
 import { formatMoneyAmount } from '@/lib/money'
 import { showToast } from '@/lib/toast'
-import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
+import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 // C4 (2026-09-13): `part_paid` is derived by the server from the receipts recorded against the
 // invoice, so the list now has a fourth thing to say between "sent" and "paid" — warning, because
@@ -214,13 +214,13 @@ interface LineItem {
 
 // User-requested (2026-08-15) — "wherever there is add button, use popup, instead of inline
 // form." Was an inline Card that expanded below the page header; now a Modal, same fields.
-function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
+export function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
   // F-038: searched on the server, so every applicant is billable from this modal — one page of
   // the roster filtered in the browser stopped at applicant 100.
   const [applicant, setApplicant] = useState<Client>()
   const createInvoice = useCreateInvoice()
-  // T1: one key per modal open.
-  const { key: idempotencyKey, settle } = useIdempotencyKey()
+  // One key per modal open and content (T1): a retry of the same invoice replays, an edited one is new.
+  const { keyFor, settle } = usePayloadIdempotencyKey()
   // Display only — the server derives the real currency from consultancy.country. Shown so the
   // consultant knows what they are billing in before they submit.
   const consultancy = useMyConsultancy()
@@ -242,10 +242,18 @@ function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
       .filter((li) => li.description && li.amount)
       .map((li) => ({ description: li.description, amount: Number(li.amount) }))
     if (!journeyId || items.length === 0) return
+    const payload = { journey_id: journeyId, line_items: items }
     createInvoice.mutate(
-      { journey_id: journeyId, line_items: items, idempotencyKey },
+      { ...payload, idempotencyKey: keyFor(payload) },
       {
-        onError: settle,
+        onError: (err) => {
+          settle(err)
+          // Already recorded (the first answer was lost): the write is done. Close, say so, never resubmit.
+          if (isAlreadyApplied(err)) {
+            showToast(ALREADY_APPLIED_NOTICE)
+            onClose()
+          }
+        },
         onSuccess: () => {
           showToast(applicant ? `Invoice created for ${applicant.student.first_name} ${applicant.student.last_name}` : 'Invoice created')
           onClose()

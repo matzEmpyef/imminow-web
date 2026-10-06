@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { isAlreadyApplied } from '@/lib/useIdempotencyKey'
 import type { components } from '@/api/schema'
 
 export type FreelancerReferral = components['schemas']['FreelancerReferral']
@@ -199,8 +200,15 @@ export function useRecordFreelancerPayout() {
       queryClient.invalidateQueries({ queryKey: ['freelancers'] })
     },
     // 409 more_than_owed: what is owed moved since the list loaded (another payout, a correction).
-    // Refetch so the next attempt is checked against the real figure.
+    // Refetch so the next attempt is checked against the real figure. An already-applied answer
+    // means the payout is recorded: refresh everything the success path does.
     onError: (err) => {
+      if (isAlreadyApplied(err)) {
+        queryClient.invalidateQueries({ queryKey: ['freelancer-referrals-admin'] })
+        queryClient.invalidateQueries({ queryKey: ['freelancer-payouts-admin'] })
+        queryClient.invalidateQueries({ queryKey: ['freelancers'] })
+        return
+      }
       if (err instanceof ApiError && err.code === 'more_than_owed') {
         queryClient.invalidateQueries({ queryKey: ['freelancer-referrals-admin'] })
         queryClient.invalidateQueries({ queryKey: ['freelancers'] })

@@ -8,7 +8,7 @@ import { currencyOptions, money } from './money'
 import { useReceiveCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { localDateISO } from '@/lib/time'
 import { showToast } from '@/lib/toast'
-import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
+import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 /**
  * Finance records that money has actually arrived (2026-09-11) — a confirmed payment with no
@@ -39,7 +39,7 @@ export function ReceiveDueModal({
   const [receivedOn, setReceivedOn] = useState(localDateISO())
   const [reference, setReference] = useState('')
   const [note, setNote] = useState('')
-  const { key: idempotencyKey, settle } = useIdempotencyKey()
+  const { keyFor, settle } = usePayloadIdempotencyKey()
   // Overpayment guard (review C5, 2026-09-12) — the modal already knows what's outstanding for
   // this part/case+currency, so it warns before the round trip rather than waiting on the
   // server's 409. Only ticking the checkbox sends allow_overpayment: true.
@@ -70,28 +70,35 @@ export function ReceiveDueModal({
           <Button
             loading={receiveDue.isPending}
             disabled={invalid}
-            onClick={() =>
+            onClick={() => {
+              const payload = {
+                entryId: caseRow.id,
+                amount: parsed,
+                currency: part ? (part.currency ?? undefined) : currency,
+                part_key: part?.key,
+                received_on: receivedOn,
+                reference: reference.trim() || undefined,
+                note: note.trim() || undefined,
+                allow_overpayment: isOverpayment ? allowOverpayment : undefined,
+              }
               receiveDue.mutate(
+                { ...payload, idempotencyKey: keyFor(payload) },
                 {
-                  entryId: caseRow.id,
-                  idempotencyKey,
-                  amount: parsed,
-                  currency: part ? (part.currency ?? undefined) : currency,
-                  part_key: part?.key,
-                  received_on: receivedOn,
-                  reference: reference.trim() || undefined,
-                  note: note.trim() || undefined,
-                  allow_overpayment: isOverpayment ? allowOverpayment : undefined,
-                },
-                {
-                  onError: settle,
+                  onError: (err) => {
+                    settle(err)
+                    // Already recorded (the first answer was lost): the write is done. Close, say so, never resubmit.
+                    if (isAlreadyApplied(err)) {
+                      showToast(ALREADY_APPLIED_NOTICE)
+                      onClose()
+                    }
+                  },
                   onSuccess: (row) => {
                     showToast(`Payment recorded for ${caseRow.applicant_name}`)
                     onReceived(row)
                   },
                 },
               )
-            }
+            }}
           >
             {part ? 'Mark as received' : 'Record payment'}
           </Button>

@@ -7,7 +7,7 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { currencyOptions } from './money'
 import { useAddCommissionDue, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { showToast } from '@/lib/toast'
-import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
+import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 const MIN_REASON_LENGTH = 3
 
@@ -34,7 +34,7 @@ export function AddDueModal({
   const [dueOn, setDueOn] = useState('')
   const [reason, setReason] = useState('')
   const [attempted, setAttempted] = useState(false)
-  const { key: idempotencyKey, settle } = useIdempotencyKey()
+  const { keyFor, settle } = usePayloadIdempotencyKey()
 
   const parsed = Number(amount)
   const isValidAmount = amount.trim() !== '' && Number.isFinite(parsed) && parsed > 0
@@ -68,10 +68,24 @@ export function AddDueModal({
                 setAttempted(true)
                 return
               }
+              const payload = {
+                entryId: caseRow.id,
+                amount: parsed,
+                currency,
+                due_on: dueOn || null,
+                reason: trimmedReason,
+              }
               addDue.mutate(
-                { entryId: caseRow.id, amount: parsed, currency, due_on: dueOn || null, reason: trimmedReason, idempotencyKey },
+                { ...payload, idempotencyKey: keyFor(payload) },
                 {
-                  onError: settle,
+                  onError: (err) => {
+                    settle(err)
+                    // Already recorded (the first answer was lost): the write is done. Close, say so, never resubmit.
+                    if (isAlreadyApplied(err)) {
+                      showToast(ALREADY_APPLIED_NOTICE)
+                      onClose()
+                    }
+                  },
                   onSuccess: (row) => {
                     showToast(`Due added for ${caseRow.applicant_name}`)
                     onAdded(row)

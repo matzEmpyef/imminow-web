@@ -9,7 +9,7 @@ import { formatMoneyAmount } from '@/lib/money'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 import { localDateISO } from '@/lib/time'
-import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
+import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 type Receipt = components['schemas']['Receipt']
 type Entry = components['schemas']['CommissionEntryDetail']
@@ -46,7 +46,7 @@ export function RecordInstallmentModal({
   const currencyCodes = useCurrencyCodes(currency)
   const [receivedOn, setReceivedOn] = useState(localDateISO())
   const [note, setNote] = useState('')
-  const { key: idempotencyKey, settle } = useIdempotencyKey()
+  const { keyFor, settle } = usePayloadIdempotencyKey()
   const [receiptId, setReceiptId] = useState('')
 
   function pickSource(next: 'college' | 'student') {
@@ -60,18 +60,25 @@ export function RecordInstallmentModal({
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
+    const payload = {
+      entryId: entry.id,
+      source,
+      amount: { amount: Number(amount), currency },
+      received_on: receivedOn,
+      ...(note.trim() ? { note: note.trim() } : {}),
+      ...(receiptId ? { receipt_id: receiptId } : {}),
+    }
     record.mutate(
+      { ...payload, idempotencyKey: keyFor(payload) },
       {
-        entryId: entry.id,
-        idempotencyKey,
-        source,
-        amount: { amount: Number(amount), currency },
-        received_on: receivedOn,
-        ...(note.trim() ? { note: note.trim() } : {}),
-        ...(receiptId ? { receipt_id: receiptId } : {}),
-      },
-      {
-        onError: settle,
+        onError: (err) => {
+          settle(err)
+          // Already recorded (the first answer was lost): the write is done. Close, say so, never resubmit.
+          if (isAlreadyApplied(err)) {
+            showToast(ALREADY_APPLIED_NOTICE)
+            onClose()
+          }
+        },
         onSuccess: () => {
           showToast(`Installment recorded for ${entry.college_name ?? entry.course_name ?? 'this case'}`)
           onClose()

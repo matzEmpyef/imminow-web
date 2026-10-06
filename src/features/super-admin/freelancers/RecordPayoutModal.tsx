@@ -7,7 +7,7 @@ import type { FreelancerReferral } from '@/queries/freelancerReferrals'
 import { localDateISO } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { inr } from '@/lib/money'
-import { useIdempotencyKey } from '@/lib/useIdempotencyKey'
+import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 /** Records one payout against one referral — money moves outside the platform; this just records that it happened. */
 export function RecordPayoutModal({ referral, onClose }: { referral: FreelancerReferral; onClose: () => void }) {
@@ -17,8 +17,8 @@ export function RecordPayoutModal({ referral, onClose }: { referral: FreelancerR
   const [paidOn, setPaidOn] = useState(localDateISO())
   const [reference, setReference] = useState('')
   const [attempted, setAttempted] = useState(false)
-  // One key per open modal; a refused attempt gets a fresh one (see useIdempotencyKey).
-  const { key: idempotencyKey, settle } = useIdempotencyKey()
+  // One key per open modal and content; a refused attempt gets a fresh one (see useIdempotencyKey).
+  const { keyFor, settle } = usePayloadIdempotencyKey()
 
   const amountValue = Number(amount)
   const valid = amountValue >= 1 && amountValue <= owed && Boolean(paidOn)
@@ -36,14 +36,27 @@ export function RecordPayoutModal({ referral, onClose }: { referral: FreelancerR
       setAttempted(true)
       return
     }
+    const payload = {
+      referralId: referral.id,
+      amount_inr: amountValue,
+      paid_on: paidOn,
+      reference: reference || undefined,
+    }
     recordPayout.mutate(
-      { referralId: referral.id, amount_inr: amountValue, paid_on: paidOn, reference: reference || undefined, idempotencyKey },
+      { ...payload, idempotencyKey: keyFor(payload) },
       {
         onSuccess: () => {
           showToast(`Payout recorded for ${referral.applicant_name}`)
           onClose()
         },
-        onError: settle,
+        onError: (err) => {
+          settle(err)
+          // Already recorded (the first answer was lost): the write is done. Close, say so, never resubmit.
+          if (isAlreadyApplied(err)) {
+            showToast(ALREADY_APPLIED_NOTICE)
+            onClose()
+          }
+        },
       },
     )
   }

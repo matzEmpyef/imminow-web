@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { isAlreadyApplied } from '@/lib/useIdempotencyKey'
 import { FINANCE_QUERY_KEY } from './financeDashboard'
 import type { components } from '@/api/schema'
 
@@ -57,6 +58,10 @@ export function useRecordCommissionPayment() {
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['commission'] }),
+    // The write already went through (the first answer was lost): refresh what success refreshes.
+    onError: (err) => {
+      if (isAlreadyApplied(err)) queryClient.invalidateQueries({ queryKey: ['commission'] })
+    },
   })
 }
 

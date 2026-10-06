@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { ApiError } from './auth'
+import { isAlreadyApplied } from '@/lib/useIdempotencyKey'
 
 /**
  * Installments — money actually received against a commission entry (2026-08-28).
@@ -41,6 +42,10 @@ export function useRecordInstallment(clientId: string) {
       return data
     },
     onSuccess: () => invalidateCommissionViews(queryClient, clientId),
+    // The write already went through (the first answer was lost): refresh what success refreshes.
+    onError: (err) => {
+      if (isAlreadyApplied(err)) invalidateCommissionViews(queryClient, clientId)
+    },
   })
 }
 
@@ -75,5 +80,8 @@ export function useVoidInstallment(clientId: string) {
       return data
     },
     onSuccess: () => invalidateCommissionViews(queryClient, clientId),
+    onError: (err) => {
+      if (isAlreadyApplied(err)) invalidateCommissionViews(queryClient, clientId)
+    },
   })
 }
