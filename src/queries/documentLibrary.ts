@@ -87,7 +87,7 @@ export function useShareLibraryDocument() {
       // Surfaces the server's own message (e.g. "already shared") rather than a generic one —
       // the frontend picker already disables proactively, so this mainly covers the race
       // between two open tabs (user-requested duplicate-share guard, 2026-08-19).
-      if (error) throw new ApiError(error.error.message)
+      if (error) throw new ApiError('Could not share this document.', error)
       return data
     },
     // Wasn't invalidated before (Document Library page never needed it since it doesn't show the

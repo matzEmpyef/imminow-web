@@ -83,7 +83,7 @@ export function useCreateCollege() {
   return useMutation({
     mutationFn: async (body: CollegeInput) => {
       const { data, error } = await api.POST('/colleges', { body })
-      if (error) throw new ApiError(error.error?.message ?? 'Could not create this college.')
+      if (error) throw new ApiError('Could not create this college.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-colleges'] }),
@@ -95,7 +95,7 @@ export function useUpdateCollege(id: string) {
   return useMutation({
     mutationFn: async (body: Partial<CollegeInput>) => {
       const { data, error } = await api.PATCH('/colleges/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError(error.error?.message ?? 'Could not update this college.')
+      if (error) throw new ApiError('Could not update this college.', error)
       return data
     },
     // Also invalidates `courses` (2026-08-18) — a course's `visible` is computed from its own

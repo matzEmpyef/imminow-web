@@ -21,7 +21,7 @@ export function useCreateTag() {
   return useMutation({
     mutationFn: async (name: string) => {
       const { data, error } = await api.POST('/tags', { body: { name } })
-      if (error) throw new ApiError(error.error.message)
+      if (error) throw new ApiError('Could not create this tag.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tags'] }),

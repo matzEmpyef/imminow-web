@@ -1,5 +1,5 @@
 import { QueryClient } from '@tanstack/react-query'
-import { ApiError } from '@/api/errors'
+import { isRetryable } from '@/api/errors'
 
 // Defaults set 2026-08-25. This was a bare `new QueryClient()`, inheriting React Query's own
 // defaults — which optimise for always-fresh data at any cost in traffic, a poor fit for a console
@@ -16,11 +16,13 @@ export const queryClient = new QueryClient({
       // costs a request only when the data really is old.
       staleTime: 30_000,
       gcTime: 5 * 60_000,
-      // The default retries three times with backoff. An ApiError means the server gave a
-      // definitive answer — a 403 or a 404 returns the same thing however many times it is asked,
-      // so retrying only multiplies load and delays the message the user needs to see. Network
-      // failures, which arrive as something other than ApiError, are still worth one more try.
-      retry: (failureCount, error) => !(error instanceof ApiError) && failureCount < 2,
+      // A read is asked again, at most twice and with React Query's own growing delay (1s, 2s),
+      // only when asking again could help (review F-149): there was no answer at all, the server
+      // said "too many requests", or it failed on its side — the 502/503 of a deploy, which used
+      // to be shown as final while a dropped connection was retried. A considered answer (a 403,
+      // a 404, a 422) is shown at once: it says the same thing however often it is asked, and
+      // retrying only multiplies load and delays the message the person needs to see.
+      retry: (failureCount, error) => failureCount < 2 && isRetryable(error),
     },
   },
 })

@@ -60,7 +60,7 @@ export function useApproveCourseSuggestion() {
         params: { path: { id } },
         body: courseId ? { course_id: courseId } : mode ? { mode, value } : undefined,
       })
-      if (error) throw new ApiError(error.error?.message ?? 'Could not approve this suggestion.')
+      if (error) throw new ApiError('Could not approve this suggestion.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['moderation-course-suggestions'] }),
@@ -75,7 +75,7 @@ export function useRejectCourseSuggestion() {
         params: { path: { id } },
         body: { reason },
       })
-      if (error) throw new ApiError(error.error?.message ?? 'Could not reject this suggestion.')
+      if (error) throw new ApiError('Could not reject this suggestion.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['moderation-course-suggestions'] }),

@@ -43,7 +43,7 @@ export function useUpdateEmployee(id: string) {
   return useMutation({
     mutationFn: async (body: EmployeePatchInput) => {
       const { data, error } = await api.PATCH('/staff/employees/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError(error.error.message)
+      if (error) throw new ApiError('Could not update this employee.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['employees'] }),
@@ -61,7 +61,7 @@ export function useDisableEmployee() {
         params: { path: { id } },
         body: reassign_to_employee_id ? { reassign_to_employee_id } : {},
       })
-      if (error) throw new ApiError(error.error.message)
+      if (error) throw new ApiError('Could not disable this employee.', error)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] })
@@ -103,7 +103,7 @@ export function useUpdateDesignation(id: string) {
   return useMutation({
     mutationFn: async (body: DesignationInput) => {
       const { data, error } = await api.PATCH('/staff/designations/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError(error.error.message)
+      if (error) throw new ApiError('Could not update this designation.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['designations'] }),

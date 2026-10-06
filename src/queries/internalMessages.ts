@@ -101,7 +101,7 @@ export function useUnsendInternalMessage(idOrTeam: string | undefined) {
           : await api.DELETE('/internal-conversations/with/{employeeId}/messages/{messageId}', {
               params: { path: { employeeId: idOrTeam!, messageId } },
             })
-      if (error) throw new ApiError(error.error?.message ?? 'Could not unsend this message.')
+      if (error) throw new ApiError('Could not unsend this message.', error)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['internal-conversations', idOrTeam, 'messages'] })

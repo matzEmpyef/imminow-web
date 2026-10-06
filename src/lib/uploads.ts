@@ -57,7 +57,7 @@ export async function presignedUpload({
     body: file,
   })
   if (!putResponse.ok) {
-    throw new ApiError('Could not upload the file. Check your connection and try again.')
+    throw new ApiError('Could not upload the file. Check your connection and try again.', undefined, putResponse.status)
   }
 
   const { data: completed, error: completeError } = await api.POST('/file-uploads/{id}/complete', {

@@ -107,7 +107,7 @@ export function useAddArticle() {
       // The server rejects a URL that is already in the app with a 409 naming the existing
       // article (2026-08-22). Its message is the only thing that distinguishes that from a real
       // failure, so it is surfaced verbatim rather than flattened into the generic sentence.
-      if (error) throw new ApiError(error.error?.message ?? 'Could not add this article.')
+      if (error) throw new ApiError('Could not add this article.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ARTICLES_KEY }),

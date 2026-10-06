@@ -97,7 +97,7 @@ export function useCreateInstitution() {
   return useMutation({
     mutationFn: async (body: components['schemas']['InstitutionInput']) => {
       const { data, error } = await api.POST('/institutions', { body })
-      if (error) throw new ApiError(error.error?.message ?? 'Could not create this institution.')
+      if (error) throw new ApiError('Could not create this institution.', error)
       return data
     },
     onSuccess: () => invalidateInstitutions(queryClient),
@@ -119,7 +119,7 @@ export function useUpdateInstitution() {
       active?: boolean
     }) => {
       const { data, error } = await api.PATCH('/institutions/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError(error.error?.message ?? 'Could not update this institution.')
+      if (error) throw new ApiError('Could not update this institution.', error)
       return data
     },
     onSuccess: () => invalidateInstitutions(queryClient),
@@ -134,7 +134,7 @@ export function useMergeInstitution() {
         params: { path: { id } },
         body: { into_id: intoId },
       })
-      if (error) throw new ApiError(error.error?.message ?? 'Could not merge these institutions.')
+      if (error) throw new ApiError('Could not merge these institutions.', error)
       return data
     },
     onSuccess: () => invalidateInstitutions(queryClient),
@@ -209,7 +209,7 @@ export function useBulkDismissInstitutionSuggestions() {
       const { data, error } = await api.POST('/institutions/suggestions/bulk-dismiss', {
         body: { user_ids: userIds, ...(note ? { note } : {}) },
       })
-      if (error) throw new ApiError(error.error?.message ?? 'Could not clear these entries.')
+      if (error) throw new ApiError('Could not clear these entries.', error)
       return data
     },
     onSuccess: () => invalidateInstitutions(queryClient),

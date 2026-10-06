@@ -44,7 +44,7 @@ export function useSaveCountryContent() {
       })
       // The server rejects a country outside the shared Countries list with a 422 naming the
       // problem — surfaced verbatim, since "could not save" would hide the one thing that fixes it.
-      if (error) throw new ApiError(error.error?.message ?? 'Could not save this write-up.')
+      if (error) throw new ApiError('Could not save this write-up.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: KEY }),

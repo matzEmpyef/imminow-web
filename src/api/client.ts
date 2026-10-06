@@ -3,6 +3,7 @@ import type { components, paths } from './schema'
 import { currentSessionEpoch, useAuthStore } from '@/stores/authStore'
 import { endSession } from '@/lib/session'
 import { queryClient } from '@/lib/queryClient'
+import { withErrorEnvelope } from './errors'
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL
 
@@ -157,6 +158,13 @@ async function refreshMeOnStaleRefusal(response: Response, schemaPath: string) {
     // Not a JSON error envelope: nothing to learn from it.
   }
 }
+
+// Registered first, so it handles each answer LAST (answers pass through the middleware in
+// reverse order): whatever is finally handed to the caller, a failure always carries the error
+// envelope and its status. See `withErrorEnvelope`.
+api.use({
+  onResponse: ({ response }) => withErrorEnvelope(response),
+})
 
 api.use({
   onRequest({ request, id }) {

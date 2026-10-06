@@ -74,7 +74,7 @@ export function useDeleteStudyLevel() {
   return useMutation({
     mutationFn: async (code: string) => {
       const { error } = await api.DELETE('/study-levels/{code}', { params: { path: { code } } })
-      if (error) throw new ApiError(error.error?.message ?? 'Could not delete this study level.')
+      if (error) throw new ApiError('Could not delete this study level.', error)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['study-levels'] }),
   })

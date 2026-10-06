@@ -37,7 +37,7 @@ export function useCreateFieldOfStudy() {
   return useMutation({
     mutationFn: async (body: { name: string; aliases: string[] }) => {
       const { data, error } = await api.POST('/fields-of-study', { body })
-      if (error) throw new ApiError(error.error?.message ?? 'Could not add this field.')
+      if (error) throw new ApiError('Could not add this field.', error)
       return data
     },
     onSuccess: () => invalidateFieldViews(queryClient),
@@ -49,7 +49,7 @@ export function useUpdateFieldOfStudy() {
   return useMutation({
     mutationFn: async ({ id, ...body }: { id: string; name?: string; aliases?: string[]; active?: boolean }) => {
       const { data, error } = await api.PATCH('/fields-of-study/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError(error.error?.message ?? 'Could not update this field.')
+      if (error) throw new ApiError('Could not update this field.', error)
       return data
     },
     onSuccess: () => invalidateFieldViews(queryClient),
@@ -64,7 +64,7 @@ export function useMergeFieldOfStudy() {
         params: { path: { id } },
         body: { into_id: intoId },
       })
-      if (error) throw new ApiError(error.error?.message ?? 'Could not merge these fields.')
+      if (error) throw new ApiError('Could not merge these fields.', error)
       return data
     },
     onSuccess: () => invalidateFieldViews(queryClient),
