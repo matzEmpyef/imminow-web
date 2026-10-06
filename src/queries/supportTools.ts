@@ -24,12 +24,20 @@ export function useUserSearch(q: string, cursor?: string, limit?: number) {
   })
 }
 
-/** Reason is required since 2026-09-11 and kept on the audit record. */
+/**
+ * Support asks for a copy of a user's data on their behalf. Reason is required since 2026-09-11
+ * and kept on the audit record. The copy is for the USER: their verified email is told when it is
+ * ready and they download it from inside the product within 7 days. Support never receives it.
+ *
+ * Refused 409 (gate 12f) with the server's own sentence: `email_unverified` (no verified address
+ * to tell), `export_on_hold` (Support changed the sign-in email under 48 hours ago;
+ * `details.available_at` says when it opens), `conflict` (an erasure is pending).
+ */
 export function useExportUserData() {
   return useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const { data, error } = await api.POST('/users/{id}/export', { params: { path: { id } }, body: { reason } })
-      if (error) throw new ApiError('Could not generate a data export.', error)
+      const { data, error, response } = await api.POST('/users/{id}/export', { params: { path: { id } }, body: { reason } })
+      if (error) throw new ApiError('Could not generate a data export.', error, (response as Response | undefined)?.status)
       return data
     },
   })
@@ -98,16 +106,93 @@ export function useUpdateUserEmail() {
   })
 }
 
-/** Super-admin only on the server — the console hides the action entirely for anyone else. */
+export type ErasureRequest = components['schemas']['ErasureRequest']
+export type ErasureQueued = components['schemas']['ErasureQueuedOut']
+
+/**
+ * Erase a user's data (gate 12f, owner decision 20). Super Admin only on the server — the console
+ * hides the action for anyone else — and it needs the operator's own password as well as a reason.
+ *
+ * The account is locked at once and its open cases and chats close; the personal data is erased 30
+ * days later (`due_at`) and can be kept until then. `immediate: true` skips the window (a legal
+ * request): nothing can be cancelled. Answers `erasure_pending` or `erasure_queued`.
+ *
+ * Refusals carry the server's own sentence: 400 `step_up_required`, `invalid_current_password`,
+ * `validation_failed`; 409 `lockout_guard` (the person still holds an active role), `conflict`
+ * (an erasure is already pending; `details.due_at`).
+ */
 export function useEraseUserData() {
+  const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, reason, password, immediate }: { id: string; reason: string; password: string; immediate?: boolean }) => {
-      const { data, error } = await api.POST('/users/{id}/erase', {
+    mutationFn: async ({
+      id,
+      reason,
+      password,
+      immediate,
+    }: {
+      id: string
+      reason: string
+      password: string
+      immediate?: boolean
+    }) => {
+      const { data, error, response } = await api.POST('/users/{id}/erase', {
         params: { path: { id } },
         body: { reason, password, ...(immediate ? { immediate: true } : {}) },
       })
-      if (error) throw new ApiError(error.error.message)
+      if (error) throw new ApiError('Could not erase this user.', error, (response as Response | undefined)?.status)
       return data
+    },
+    // Settled, not only on success: a `conflict` means an erasure was already pending, which the
+    // search row and the Pending erasures list on screen did not know yet.
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['erasures'] })
+      queryClient.invalidateQueries({ queryKey: ['user-search'] })
+    },
+  })
+}
+
+export type ErasureListStatus = 'pending' | 'ended'
+
+/**
+ * Support Tools' Pending erasures list (gate 12f; `support_tools`). `pending`: every erasure not
+ * yet finished or cancelled, soonest first. `ended`: completed or cancelled in the last 90 days.
+ */
+export function useErasures(status: ErasureListStatus, cursor?: string, limit?: number) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['erasures', status, cursor, limit],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/admin/erasures', {
+        params: { query: { filter: { status }, cursor, limit } },
+      })
+      if (error) throw new ApiError('Could not load scheduled erasures.', error)
+      return data
+    },
+    enabled: isAuthed,
+  })
+}
+
+/**
+ * Keep the account: cancels a pending erasure (Super Admin, with a reason). The person can sign in
+ * again and their verified email is told. Cases and chats that closed when the erasure was
+ * requested stay closed. 404 when nothing is pending; 409 `conflict` once the erasing has started.
+ */
+export function useCancelErasure() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ userId, reason }: { userId: string; reason: string }) => {
+      const { data, error, response } = await api.DELETE('/users/{id}/erasure', {
+        params: { path: { id: userId } },
+        body: { reason },
+      })
+      if (error) throw new ApiError('Could not cancel this erasure.', error, (response as Response | undefined)?.status)
+      return data
+    },
+    // Settled: a 404 or a 409 means the list on screen was out of date (already cancelled, or the
+    // erasing has started), so it is read again either way.
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['erasures'] })
+      queryClient.invalidateQueries({ queryKey: ['user-search'] })
     },
   })
 }

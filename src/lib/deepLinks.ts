@@ -40,6 +40,9 @@ const ALLOWED_PREFIXES = [
   '/admin/ratings?',
   '/administration/consultancy-profile?',
   '/clients/',
+  // Lead notices carry `/leads/{lead_id}` (e.g. `client_account_deleted` for a chat that closed
+  // when its student deleted their account); App.tsx sends it on to the lead's conversation.
+  '/leads/',
   '/staff/conversations/',
 ]
 

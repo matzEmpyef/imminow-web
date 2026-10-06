@@ -14,6 +14,8 @@ export function ActionCard({
   danger = false,
   expanded,
   onStart,
+  startLabel = 'Start',
+  unavailableReason,
   children,
 }: {
   title: string
@@ -21,6 +23,10 @@ export function ActionCard({
   danger?: boolean
   expanded: boolean
   onStart: () => void
+  /** The button's word, when "Start" would mislead (keeping an account is not starting anything). */
+  startLabel?: string
+  /** Set when the action cannot be used right now: the button is disabled and this says why. */
+  unavailableReason?: string
   children?: ReactNode
 }) {
   return (
@@ -31,15 +37,17 @@ export function ActionCard({
         <div>
           <p className={`text-body-sm font-semibold ${danger ? 'text-error' : 'text-text-primary'}`}>{title}</p>
           <p className="mt-0.5 text-caption text-text-secondary">{description}</p>
+          {unavailableReason && <p className="mt-0.5 text-caption font-medium text-warning">{unavailableReason}</p>}
         </div>
         {!expanded && (
           <Button
             size="sm"
             variant={danger ? 'destructive' : 'secondary'}
             onClick={onStart}
+            disabled={Boolean(unavailableReason)}
             className="shrink-0 whitespace-nowrap"
           >
-            Start
+            {startLabel}
           </Button>
         )}
       </div>

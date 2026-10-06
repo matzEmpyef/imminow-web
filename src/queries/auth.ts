@@ -18,8 +18,10 @@ export function useLogin() {
   return useMutation({
     mutationFn: async (body: { email: string; password: string }) => {
       // `platform` lands on the sign-in event (2026-09-10) — the console is always the web app.
-      const { data, error } = await api.POST('/auth/login', { body: { ...body, platform: 'web' } })
-      if (error) throw new ApiError('Could not sign in.', error)
+      const { data, error, response } = await api.POST('/auth/login', { body: { ...body, platform: 'web' } })
+      // The refusal's own sentence is shown as it comes: a wrong password, a disabled account, or
+      // 403 `account_locked_for_erasure` (the account is scheduled for deletion; `details.due_at`).
+      if (error) throw new ApiError('Could not sign in.', error, (response as Response | undefined)?.status)
       await primeMe(queryClient, data.access_token)
       setSession(data)
       return data

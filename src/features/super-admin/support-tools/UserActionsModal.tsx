@@ -3,7 +3,9 @@ import { Badge } from '@/components/Badge'
 import { Modal } from '@/components/Modal'
 import { useIsSuperAdmin } from '@/lib/me'
 import type { UserSearchResult } from '@/queries/supportTools'
+import { formatDate } from '@/lib/time'
 import { ActionCard } from './ActionCard'
+import { CancelErasureModal } from './CancelErasureModal'
 import { ChangeEmailForm } from './ChangeEmailForm'
 import { EraseForm } from './EraseForm'
 import { ExportForm } from './ExportForm'
@@ -28,6 +30,10 @@ export function UserActionsModal({
   onClose: () => void
 }) {
   const [openAction, setOpenAction] = useState<ActionKey | null>(null)
+  const [cancellingErasure, setCancellingErasure] = useState(false)
+  // Set while an erasure is pending (gate 12f): the account is locked and waiting out its 30
+  // days. An export is refused then, and erasing again makes no sense; keeping the account does.
+  const erasureDueAt = result.erasure_due_at ?? null
   const isSuperAdmin = useIsSuperAdmin()
 
   const consent = result.guardian_consent
@@ -58,6 +64,7 @@ export function UserActionsModal({
                 Guardian {consent!.status.replace(/_/g, ' ')}
               </Badge>
             )}
+            {erasureDueAt && <Badge color="error">Deletion scheduled {formatDate(erasureDueAt)}</Badge>}
           </div>
           <p className="text-body-sm text-text-secondary">
             {result.email}
@@ -103,19 +110,37 @@ export function UserActionsModal({
           <ActionCard
             title="Data export"
             description="Generates a full copy of everything Sentpo holds on this user, for a data-access request."
-            expanded={openAction === 'export'}
+            expanded={openAction === 'export' && !erasureDueAt}
             onStart={() => setOpenAction('export')}
+            unavailableReason={erasureDueAt ? 'Not available while an erasure is pending.' : undefined}
           >
             <ExportForm result={result} onCancel={() => close('export')} />
           </ActionCard>
         </div>
 
         <div className="border-t border-border pt-md">
-          {isSuperAdmin ? (
+          {erasureDueAt ? (
+            // An erasure is already pending: there is nothing to erase again, only an account to
+            // keep. Super Admin only, as on the Pending erasures list.
+            isSuperAdmin ? (
+              <ActionCard
+                title="Cancel scheduled erasure"
+                description={`This account is locked and its personal data will be erased on ${formatDate(erasureDueAt)}. Cancelling keeps the account; cases and chats that already closed stay closed.`}
+                expanded={false}
+                startLabel="Keep account"
+                onStart={() => setCancellingErasure(true)}
+              />
+            ) : (
+              <p className="text-caption text-text-secondary">
+                This account is scheduled for deletion on {formatDate(erasureDueAt)}. Only a Super Admin can cancel
+                that.
+              </p>
+            )
+          ) : isSuperAdmin ? (
             <ActionCard
               danger
               title="Erase user data"
-              description="Queues permanent deletion of this user's personal data. Irreversible after a 30-day window."
+              description="Locks the account now and permanently erases this user's personal data after 30 days. It can be cancelled until then."
               expanded={openAction === 'erase'}
               onStart={() => setOpenAction('erase')}
             >
@@ -126,6 +151,18 @@ export function UserActionsModal({
           )}
         </div>
       </div>
+
+      {cancellingErasure && erasureDueAt && (
+        <CancelErasureModal
+          userId={result.id}
+          name={result.name}
+          dueAt={erasureDueAt}
+          onClose={() => setCancellingErasure(false)}
+          // The row this popup was opened from still says "scheduled"; close it so the next look
+          // is at the refreshed search.
+          onCancelled={onClose}
+        />
+      )}
     </Modal>
   )
 }

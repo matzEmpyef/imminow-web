@@ -572,8 +572,8 @@ export function useReopenClientCase() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data, error } = await api.POST('/clients/{id}/reopen-case', { params: { path: { id } } })
-      if (error) throw new ApiError('Could not reopen this client.', error)
+      const { data, error, response } = await api.POST('/clients/{id}/reopen-case', { params: { path: { id } } })
+      if (error) throw new ApiError('Could not reopen this client.', error, (response as Response | undefined)?.status)
       return data
     },
     onSuccess: (_data, id) => {

@@ -10,6 +10,7 @@ import { TextField } from '@/components/TextField'
 import { Button } from '@/components/Button'
 import { Toggle } from '@/components/Toggle'
 import { ChangePasswordModal } from './ChangePasswordModal'
+import { YourDataCard } from './YourDataCard'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useProfile, useUpdateProfile } from '@/queries/profile'
 import { useMyConsultancy } from '@/queries/consultancy'
@@ -320,6 +321,8 @@ export function MyAccountPage() {
             </div>
           </div>
         </Card>
+
+        <YourDataCard />
 
         <Card>
           <div className="flex flex-wrap items-baseline justify-between gap-sm">

@@ -1,4 +1,5 @@
 import { formatDate } from '@/lib/time'
+import { humaniseCode } from '@/lib/humanise'
 
 /**
  * One label per case status, for everywhere the console prints one (2026-09-14). Until now four
@@ -66,6 +67,40 @@ export function caseMovedBannerMessage(client: MovedCaseFields): string | null {
   if (!isCaseMoved(client.status)) return null
   const date = client.closed_at ? formatDate(client.closed_at) : null
   return `This case moved to another consultancy${date ? ` on ${date}` : ''} — you can read its history, but it's read-only now.`
+}
+
+/** The neutral fact a case closed on (`Journey.close_sub_reason`), in words. */
+const CLOSE_SUB_REASON_LABELS: Record<string, string> = {
+  rejected_by_colleges: 'Rejected by the colleges',
+  visa_refused: 'Visa refused',
+  student_withdrew: 'Student withdrew',
+  lost_contact: 'Lost contact with the student',
+  other: 'Something else',
+  // Never chosen by a consultancy (gate 12f): the case closed, at once, when its student asked
+  // for their Sentpo account to be deleted.
+  account_deleted: 'Account deleted',
+}
+
+/** `close_sub_reason` as a label; a reason this build has never heard of reads as itself, tidied. */
+export function closeSubReasonLabel(reason: string | null | undefined): string | null {
+  if (!reason) return null
+  return CLOSE_SUB_REASON_LABELS[reason] ?? humaniseCode(reason)
+}
+
+/**
+ * The case closed because its student asked for their Sentpo account to be deleted (gate 12f,
+ * owner decision 4). It is read-only from that moment and is not reopened, even if the student
+ * later keeps the account: the server answers a reopen 409 `closed_by_platform`.
+ */
+export function isClosedByAccountDeletion(client: { close_sub_reason?: string | null }): boolean {
+  return client.close_sub_reason === 'account_deleted'
+}
+
+/** The banner on such a case: what happened, and what that means for the consultancy. */
+export function accountDeletedBannerMessage(client: { close_sub_reason?: string | null; closed_at?: string | null }): string | null {
+  if (!isClosedByAccountDeletion(client)) return null
+  const date = client.closed_at ? formatDate(client.closed_at) : null
+  return `This case closed${date ? ` on ${date}` : ''} because the student deleted their Sentpo account. You can read its history, but it is read-only now. Payments and invoices already recorded stand.`
 }
 
 /** Tooltip/helper text for a disabled action on a moved case — the server's own wording, generic name. */

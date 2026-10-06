@@ -4,7 +4,7 @@ import { BRAND_LOGO } from '@/lib/brand'
 import loginBg from '@/assets/brand/login-bg.png'
 import { TextField } from '@/components/TextField'
 import { Button } from '@/components/Button'
-import { useLogin } from '@/queries/auth'
+import { ApiError, useLogin } from '@/queries/auth'
 import { useAuthStore } from '@/stores/authStore'
 import { roleHomePath, scopeHomePath } from '@/lib/roleHome'
 import { SessionGate } from '@/features/auth/SessionGate'
@@ -119,11 +119,19 @@ export function LoginPage() {
               onBlur={() => setTouched((t) => ({ ...t, password: true }))}
               error={passwordError}
             />
-            {login.isError && (
-              <p role="alert" className="text-body-sm text-error">
-                {login.error.message}
-              </p>
-            )}
+            {login.isError &&
+              (login.error instanceof ApiError && login.error.code === 'account_locked_for_erasure' ? (
+                // Not a wrong password: the account is locked while it waits to be erased (gate
+                // 12f). A console account has no way to keep itself, so the notice says who can.
+                <div role="alert" className="rounded-md border border-warning bg-warning/10 px-md py-sm">
+                  <p className="text-body-sm font-medium text-text-primary">This account is scheduled for deletion</p>
+                  <p className="mt-0.5 text-body-sm text-text-secondary">{login.error.message}</p>
+                </div>
+              ) : (
+                <p role="alert" className="text-body-sm text-error">
+                  {login.error.message}
+                </p>
+              ))}
             <Button type="submit" loading={login.isPending}>
               Log in
             </Button>

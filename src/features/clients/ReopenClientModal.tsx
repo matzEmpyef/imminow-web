@@ -2,10 +2,16 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { useReopenClientCase } from '@/queries/clients'
 import { showToast } from '@/lib/toast'
+import { ApiError } from '@/api/errors'
 
 // Mirrors ReopenLeadModal.tsx exactly — no reason field, reopening is reversible and low-stakes,
 // a confirm just prevents an accidental click on the icon. Named "Reopen Case" throughout the UI
 // to stay distinct from the existing "Reopen Plan" action (different meaning, different button).
+//
+// Some closed cases are not the consultancy's to reopen: one a dispute ended, and (gate 12f) one
+// that closed because its student deleted their Sentpo account. The server answers those 409
+// `closed_by_platform` with a sentence saying so. That sentence is shown, and Reopen is switched
+// off, since pressing it again can only get the same answer.
 export function ReopenClientModal({
   clientId,
   clientName,
@@ -16,6 +22,7 @@ export function ReopenClientModal({
   onClose: () => void
 }) {
   const reopenClient = useReopenClientCase()
+  const refusedForGood = reopenClient.error instanceof ApiError && reopenClient.error.code === 'closed_by_platform'
 
   return (
     <Modal
@@ -25,11 +32,14 @@ export function ReopenClientModal({
       footer={
         <>
           {reopenClient.isError && (
-            <p className="mr-auto self-center text-body-sm text-error">{reopenClient.error.message}</p>
+            <p role="alert" className="mr-auto self-center text-body-sm text-error">
+              {reopenClient.error.message}
+            </p>
           )}
           <div className="flex gap-sm">
             <Button
               loading={reopenClient.isPending}
+              disabled={refusedForGood}
               onClick={() =>
                 reopenClient.mutate(clientId, {
                   onSuccess: () => {

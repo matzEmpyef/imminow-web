@@ -22,7 +22,7 @@ import { DocumentsTab } from './ClientProfileDocumentsTab'
 import { InternalNotesTab } from './ClientProfileInternalNotesTab'
 import { ActivityTab } from './ClientProfileActivityTab'
 import { FormsTab } from './ClientProfileFormsTab'
-import { caseMovedBannerMessage, clientStatusLabel, isCaseMoved } from '@/lib/clientStatus'
+import { caseMovedBannerMessage, clientStatusLabel, isCaseMoved, accountDeletedBannerMessage, closeSubReasonLabel } from '@/lib/clientStatus'
 
 const TABS = [
   'Overview',
@@ -110,6 +110,10 @@ export function ClientProfilePage() {
   // — there is no "wait it out", so the tabs stay gated for good rather than until a mediator acts.
   const caseMoved = isCaseMoved(data.status)
   const movedBanner = caseMovedBannerMessage(data)
+  // The case closed because its student deleted their Sentpo account (gate 12f): said once, in
+  // the same place and shape as the moved-case banner.
+  const accountDeletedBanner = accountDeletedBannerMessage(data)
+  const closeReason = closeSubReasonLabel(data.close_sub_reason)
   // Was a raw role === 'consultancy_admin' check — swapped to the permission key so an employee
   // whose designation grants clients.view_commissions actually gets the tab (admins still pass
   // via the is_consultancy_admin bypass inside the checker).
@@ -156,6 +160,8 @@ export function ClientProfilePage() {
                     whether a college was accepted and whether the student actually went, so it
                     is a fact about the case rather than a label someone chose. */}
                 {data.outcome && <span className="ml-xs">&middot; {data.outcome}</span>}
+                {/* And WHY it closed: the neutral fact recorded at close, e.g. "Account deleted". */}
+                {closeReason && <span className="ml-xs">&middot; {closeReason}</span>}
                 {/* The consultant who worked their last case has no other way to know this is the
                     same student coming back — the file number is new and nothing else says so. */}
                 {data.is_returning && data.previous_journey_id && (
@@ -273,6 +279,15 @@ export function ClientProfilePage() {
           >
             <Lock className="mt-0.5 h-4 w-4 shrink-0 text-text-secondary" aria-hidden />
             <p>{movedBanner}</p>
+          </div>
+        )}
+        {accountDeletedBanner && (
+          <div
+            role="status"
+            className="flex items-start gap-sm rounded-md border border-border bg-surface-muted px-md py-sm text-body-sm text-text-primary"
+          >
+            <Lock className="mt-0.5 h-4 w-4 shrink-0 text-text-secondary" aria-hidden />
+            <p>{accountDeletedBanner}</p>
           </div>
         )}
 

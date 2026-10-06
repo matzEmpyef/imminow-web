@@ -6,7 +6,9 @@ import { StopPropagation } from '@/components/StopPropagation'
 import { Table, type TableColumn } from '@/components/Table'
 import { useCursorPagination } from '@/lib/pagination'
 import { useUserSearch, type UserSearchResult } from '@/queries/supportTools'
+import { formatDate } from '@/lib/time'
 import { UserActionsModal } from './support-tools/UserActionsModal'
+import { PendingErasuresPanel } from './support-tools/PendingErasuresPanel'
 
 // What the search box matches, in words — shared by the intro, the placeholder-adjacent empty states.
 const SEARCH_RULE = 'an exact email or phone number, the first 3 or more letters of a name, or the start of a file number'
@@ -52,6 +54,11 @@ export function SupportToolsPage() {
               <Badge color={consent!.status === 'approved' ? 'success' : 'warning'} className="capitalize">
                 Guardian {consent!.status.replace(/_/g, ' ')}
               </Badge>
+            )}
+            {/* Locked and waiting out its 30 days (gate 12f): said on the row, before anyone
+                opens Actions on an account that can no longer sign in. */}
+            {result.erasure_due_at && (
+              <Badge color="error">Deletion scheduled {formatDate(result.erasure_due_at)}</Badge>
             )}
           </div>
         )
@@ -134,6 +141,8 @@ export function SupportToolsPage() {
             total: results.data?.meta.total,
           }}
         />
+
+        <PendingErasuresPanel />
       </div>
 
       {actionsFor && <UserActionsModal result={actionsFor} onClose={() => setActionsFor(null)} />}

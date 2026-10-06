@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, type ComponentProps } from 'react'
-import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { track } from '@/lib/analytics'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
@@ -244,6 +244,11 @@ const FreelancerDashboardPage = lazy(() =>
   import('@/features/freelancer/FreelancerDashboardPage').then((m) => ({ default: m.FreelancerDashboardPage })),
 )
 
+function LeadNoticeRedirect() {
+  const { id } = useParams()
+  return <Navigate to={`/sales/leads/${id}`} replace />
+}
+
 function DefaultRedirect() {
   return <SessionGate>{(me) => <Navigate to={scopeHomePath(me.scope)} replace />}</SessionGate>
 }
@@ -345,6 +350,9 @@ function App() {
           />
           <Route path="/sales/active-leads" element={<ActiveLeadsPage />} />
           <Route path="/sales/leads/:id" element={<LeadConversationPage />} />
+          {/* The address lead notifications carry (`/leads/{lead_id}`): the same page, at the
+              console's own address for it. */}
+          <Route path="/leads/:id" element={<LeadNoticeRedirect />} />
           <Route path="/clients" element={<ClientsListPage />} />
           <Route path="/clients/course-finder" element={<CourseFinderPage />} />
           {/* C3 (2026-09-13): both lists are money the server now guards with
