@@ -107,6 +107,46 @@ export function useUpdateUserEmail() {
   })
 }
 
+export type DateOfBirthCorrection = components['schemas']['DateOfBirthCorrection']
+
+/**
+ * Support corrects a student's date of birth against a document (owner decision 3, lane x). The
+ * student cannot change a recorded date themselves; this is the one way it changes. Needs a reason
+ * (which document was checked; kept on the audit record) and the operator's own password.
+ *
+ * The answer says what the correction did to the guardian requirement (`guardian_effect`), which
+ * always follows the date. Refusals carry the server's own sentence: 400 `step_up_required`,
+ * `invalid_current_password`, `validation_failed`; 422 `below_minimum_age`; 429 `rate_limited`
+ * (`details.retry_after_seconds`).
+ */
+export function useCorrectDateOfBirth() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      date_of_birth,
+      reason,
+      password,
+    }: {
+      id: string
+      date_of_birth: string
+      reason: string
+      password: string
+    }) => {
+      const { data, error, response } = await api.POST('/users/{id}/date-of-birth', {
+        params: { path: { id } },
+        body: { date_of_birth, reason, password },
+      })
+      if (error) {
+        throw new ApiError('Could not correct the date of birth.', error, (response as Response | undefined)?.status)
+      }
+      return data
+    },
+    // The search row carries the student's guardian state, which the correction may have changed.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user-search'] }),
+  })
+}
+
 export type ErasureRequest = components['schemas']['ErasureRequest']
 export type ErasureQueued = components['schemas']['ErasureQueuedOut']
 

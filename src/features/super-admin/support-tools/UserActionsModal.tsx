@@ -7,12 +7,13 @@ import { formatDate } from '@/lib/time'
 import { ActionCard } from './ActionCard'
 import { CancelErasureModal } from './CancelErasureModal'
 import { ChangeEmailForm } from './ChangeEmailForm'
+import { DateOfBirthForm } from './DateOfBirthForm'
 import { EraseForm } from './EraseForm'
 import { ExportForm } from './ExportForm'
 import { GuardianForm } from './GuardianForm'
 import { SwitchConsultancyForm } from './SwitchConsultancyForm'
 
-type ActionKey = 'switch' | 'email' | 'guardian' | 'export' | 'erase'
+type ActionKey = 'switch' | 'email' | 'guardian' | 'dob' | 'export' | 'erase'
 
 /**
  * Support Tools' per-user action popup (rebuilt 2026-09-12 from a single always-open modal into
@@ -104,6 +105,19 @@ export function UserActionsModal({
               onStart={() => setOpenAction('guardian')}
             >
               <GuardianForm result={result} onCancel={() => close('guardian')} />
+            </ActionCard>
+          )}
+
+          {/* Students only (owner decision 3, lane x): a student cannot change a recorded date of
+              birth themselves, so Support corrects it against a document. */}
+          {result.role === 'student' && (
+            <ActionCard
+              title="Correct date of birth"
+              description="Replaces the date of birth on this student's account, after you have checked it against a document."
+              expanded={openAction === 'dob'}
+              onStart={() => setOpenAction('dob')}
+            >
+              <DateOfBirthForm result={result} onCancel={() => close('dob')} />
             </ActionCard>
           )}
 
