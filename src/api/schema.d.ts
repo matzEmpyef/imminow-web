@@ -660,14 +660,16 @@ export interface paths {
          * Passwordless door, step 1 — send an OTP to an email or phone, OR say this identifier wants a password instead (build reference 1.1, revised 2026-09-02; `staff` mode added 2026-09-15)
          * @description The ONE door Sentpo Mobile shows every visitor — nothing about the screen itself reveals that a staff login exists. `identifier` is an email address or an E.164 phone number; the server detects which and, for an email, also looks up whether it belongs to an EXISTING non-student account. Three outcomes, all via `mode`: `login` (a known student — OTP sent), `signup` (identifier not on file — OTP sent, a signup challenge), `staff` (a consultancy/institute account — NO OTP is sent or challenge opened; the client shows a password field instead, using the same `identifier` against /auth/login). A staff identifier is never told apart from a brand-new one by timing or response shape beyond this one field, and — deliberately — never opens a signup challenge that would 409 at the end (the pre-2026-09-15 behavior, which read as a broken form rather than "use your password"). Platform staff, a super admin, and a freelancer also resolve to `staff` here (they DO have a password) even though Sentpo Mobile's own password login only accepts a consultancy/institute role — that refusal happens at /auth/login, not here.
          *
-         *     SENDING LIMITS (owner ruling 2026-10-06, review F-024). A text is only ever a one-time code. Every text is counted, resends included, against all of these at once: 5 an hour and 10 a day per phone number; 5 an hour per device when `X-Device-Id` is sent; 15 an hour per caller address; and a daily ceiling for the whole platform. The counts are per number, device and address, not per purpose: codes asked for here and through `POST /auth/otp/request` draw on the same allowance, and a successful sign-in does not give any of it back. Emailed codes keep their own limit of 3 an hour per address (cleared by a successful verification). Over any limit the answer is 429 `rate_limited`, identical whether or not the identifier has an account.
+         *     ASKING AGAIN (second sign-in review, 2026-10-07). While a code is live (10 minutes), asking again for the same identifier from the same install (`X-Device-Id`) sends the SAME code again — same code, same tries already used, same expiry; it is not replaced. So "Resend code" never invalidates the message that is already on its way, and either message works. A new code is issued only when there is nothing to send again: no live code, one with under 2 minutes left, or one whose 5 tries are used up. Every send, re-sends included, counts against the sending limits below. Asking again within 30 seconds of the last send is answered 202 with the same body and sends NOTHING (it is no longer a 429): keep the app's own 30-second "Resend" timer, since the server will not say that a resend was too early. The answers of this route and of the verify step are the same whether or not a code is currently waiting for the identifier.
+         *
+         *     SENDING LIMITS (owner ruling 2026-10-06, review F-024). A text is only ever a one-time code. Every text is counted, resends included, against all of these at once: 5 an hour and 10 a day per phone number; 5 an hour per device when `X-Device-Id` is sent; 15 an hour per caller address; and a daily ceiling for the whole platform. The counts are per number, device and address, not per purpose: codes asked for here and through `POST /auth/otp/request` draw on the same allowance, and a successful sign-in does not give any of it back. Emailed codes keep their own limit of 3 an hour per address (cleared by a successful verification) and, since the second sign-in review (2026-10-07), are also counted per caller address (60 an hour by default, whatever inboxes they are for; not cleared by a verification) and against a daily ceiling for the whole platform; `POST /profile/email/change` draws on the same allowance. Over any limit the answer is 429 `rate_limited`, identical whether or not the identifier has an account.
          */
         post: {
             parameters: {
                 query?: never;
                 header?: {
                     /**
-                     * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request`. WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
+                     * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request` — AND (second sign-in review, 2026-10-07) on every request that submits a sign-in code: `POST /auth/passwordless/verify` and the student's `POST /profile/erase`. A sign-in code asked for with this header belongs to that install: it is accepted only from a request carrying the SAME value, so the app must send the header on both steps or its own code is answered as incorrect. (This is what stops a stranger from using up the five tries of someone else's code: without the install's identifier their submissions are never checked against it.) WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
                      *
                      *     WHAT IT DOES: when present, texted codes are also limited per device (5 an hour by default), in addition to the limits per phone number, per caller address and for the platform as a whole, which apply with or without it. A value of any other shape is ignored as if the header were not sent (never a 400). The server stores only a hash of it, for an hour, as a counter key.
                      */
@@ -710,7 +712,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description `rate_limited`. No code was sent. Always carries the `Retry-After` header and `details.retry_after_seconds` (the same number). Three causes, one shape: (1) a resend inside the 30-second cooldown while a code is live, message "Wait Ns before requesting another code."; (2) an email address that has had 3 codes this hour; (3) a texted code over one of the sending limits, message "Too many codes requested. Try again after HH:MM." (the time is India's, with " tomorrow" appended when it is not today), where `details.retry_at` is also present: the same moment as an ISO 8601 UTC timestamp, for a client that shows it in the device's own time zone. Show the message, disable "Send code" until then, and offer the email door: emailed codes are not affected by the text limits. The answer does not say which limit was reached and is the same for a number with an account and one without. */
+                /** @description `rate_limited`. No code was sent. Always carries the `Retry-After` header and `details.retry_after_seconds` (the same number). Two causes, one shape (a resend inside the 30-second cooldown is no longer one: it answers 202 and sends nothing): (1) an emailed code over one of its limits (3 an hour per inbox; per caller address; the platform's daily ceiling), message "Too many codes requested. Try again in N minutes."; (2) a texted code over one of the sending limits, message "Too many codes requested. Try again after HH:MM." (the time is India's, with " tomorrow" appended when it is not today), where `details.retry_at` is also present: the same moment as an ISO 8601 UTC timestamp, for a client that shows it in the device's own time zone. Show the message, disable "Send code" until then, and offer the email door: emailed codes are not affected by the text limits. The answer does not say which limit was reached and is the same for a number with an account and one without. */
                 429: {
                     headers: {
                         [name: string]: unknown;
@@ -738,12 +740,19 @@ export interface paths {
         put?: never;
         /**
          * Passwordless door, step 2 — verify the OTP; logs in, or clears signup to proceed
-         * @description For a `login` challenge, success returns the TokenPair directly (`status: authenticated`). For a `signup` challenge, success returns a short-lived `signup_token` (`status: signup_required`) — proof of a verified identifier that /auth/passwordless/complete-signup consumes; no account exists yet at that point. Wrong code fails `invalid_otp` with attempts_remaining, then `too_many_attempts`. Gate 12f: when the account behind a `login` code is scheduled for deletion the answer is `status: erasure_pending` with `erasure` — NO session is issued. The app shows "This account is scheduled for deletion" with the two dates and two choices: Keep my account (POST /auth/erasure/cancel with `erasure.cancel_token`) or leave it. Signing in is never by itself a cancel. (POST /auth/passwordless/request still answers `login` for such an account and sends the code: the code is how its person proves it is theirs.)
+         * @description For a `login` challenge, success returns the TokenPair directly (`status: authenticated`). For a `signup` challenge, success returns a short-lived `signup_token` (`status: signup_required`) — proof of a verified identifier that /auth/passwordless/complete-signup consumes; no account exists yet at that point. Wrong code fails `invalid_otp` with attempts_remaining, then `too_many_attempts`. When no code is waiting for this caller (none was requested, it was already used or replaced, or it belongs to another install) the answer is 400 `invalid_otp` with the message "That code is incorrect or has expired. Request a new code." and no `details` — it replaces "Request a code first." and is deliberately the same whether or not somebody else has a code waiting for the identifier. WHOSE CODE (second sign-in review, 2026-10-07): send the same `X-Device-Id` the code was requested with. A code requested with the header is checked only for a submission carrying the same value; any other submission (another install, or no header) is answered 400 `invalid_otp` exactly as if no code existed, and uses up none of the code's five tries. A code requested without the header is shared by every caller that sends none. Each install has its own live code for an identifier: asking on a second device does not cancel the first device's code. WRONG-CODE LIMITS: beside the five tries per code, wrong submissions are limited to 10 in 30 minutes per identifier and install (cleared by a correct code), and — only for submissions that are not an install trying its own code — to 10 in 10 minutes per caller address. Over either: 429 `rate_limited` with `Retry-After` and `details.retry_after_seconds`, message "Too many incorrect codes. Try again in N minutes." — show it and keep "Verify" disabled until then; asking for a new code does not lift it. Gate 12f: when the account behind a `login` code is scheduled for deletion the answer is `status: erasure_pending` with `erasure` — NO session is issued. The app shows "This account is scheduled for deletion" with the two dates and two choices: Keep my account (POST /auth/erasure/cancel with `erasure.cancel_token`) or leave it. Signing in is never by itself a cancel. (POST /auth/passwordless/request still answers `login` for such an account and sends the code: the code is how its person proves it is theirs.)
          */
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /**
+                     * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request` — AND (second sign-in review, 2026-10-07) on every request that submits a sign-in code: `POST /auth/passwordless/verify` and the student's `POST /profile/erase`. A sign-in code asked for with this header belongs to that install: it is accepted only from a request carrying the SAME value, so the app must send the header on both steps or its own code is answered as incorrect. (This is what stops a stranger from using up the five tries of someone else's code: without the install's identifier their submissions are never checked against it.) WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
+                     *
+                     *     WHAT IT DOES: when present, texted codes are also limited per device (5 an hour by default), in addition to the limits per phone number, per caller address and for the platform as a whole, which apply with or without it. A value of any other shape is ignored as if the header were not sent (never a 400). The server stores only a hash of it, for an hour, as a counter key.
+                     */
+                    "X-Device-Id"?: components["parameters"]["DeviceId"];
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -802,6 +811,15 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description `too_many_attempts` — this code's five tries are used up: ask for a new code. Or `rate_limited` — too many incorrect codes for this identifier (or from this address): `Retry-After` and `details.retry_after_seconds` say when to try again. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -821,7 +839,7 @@ export interface paths {
         put?: never;
         /**
          * Keep my account — cancel a scheduled deletion and sign in (gate 12f)
-         * @description The student's "Keep my account". Takes the `cancel_token` POST /auth/passwordless/verify returned with `status: erasure_pending` (proof, at most 15 minutes old, of the account's email or phone). The pending erasure is cancelled, the account is unlocked, and the person is signed in: the 200 is a TokenPair, handled exactly like a successful verify. Nothing that closed when deletion was requested — the case, the chats with consultancies — is reopened; the student starts again with a consultancy through the ordinary doors. 409 `conflict` when the account can no longer be kept (its 30 days ended and the deletion has started) or the deletion was already cancelled: show the message. 400 `validation_failed` for a missing, malformed or expired token: send the person back through the sign-in code. Console accounts have no such door; Support cancels for them.
+         * @description The student's "Keep my account". Takes the `cancel_token` POST /auth/passwordless/verify returned with `status: erasure_pending` (proof, at most 15 minutes old, of the account's email or phone). The pending erasure is cancelled, the account is unlocked, and the person is signed in: the 200 is a TokenPair, handled exactly like a successful verify. Nothing that closed when deletion was requested — the case, the chats with consultancies — is reopened; the student starts again with a consultancy through the ordinary doors. 409 `conflict` when the account can no longer be kept (its 30 days ended and the deletion has started) or the deletion was already cancelled: show the message. 400 `validation_failed` for a missing, malformed or expired token, and for a token issued for an EARLIER deletion request than the one now pending (the token cancels the request it was issued for, once, and no later one): send the person back through the sign-in code. Console accounts have no such door; Support cancels for them.
          */
         post: {
             parameters: {
@@ -980,14 +998,14 @@ export interface paths {
         put?: never;
         /**
          * Request phone OTP via MSG91 (FR-002)
-         * @description Opens a verification challenge bound to this phone for this user. Re-requesting replaces any live challenge, so a code sent to an old number stops working immediately. Delivery is still mocked (no SMS provider yet, 2026-08-23) — the binding, expiry, attempt cap and single-use rules are real. The text counts against the same sending limits as the passwordless door's (see `POST /auth/passwordless/request`, SENDING LIMITS): per phone number, per device (`X-Device-Id`), per caller address and platform-wide.
+         * @description Opens a verification challenge bound to this phone for this user. Asking for ANOTHER number replaces the live challenge, so a code sent to an old number stops working immediately; asking again for the SAME number while its code is live (10 minutes) sends the same code again — same code, same tries used, same expiry — unless it has under 2 minutes left or its tries are used up, when a new one is issued (second sign-in review, 2026-10-07). Every send counts against the sending limits. Delivery is still mocked (no SMS provider yet, 2026-08-23) — the binding, expiry, attempt cap and single-use rules are real. The text counts against the same sending limits as the passwordless door's (see `POST /auth/passwordless/request`, SENDING LIMITS): per phone number, per device (`X-Device-Id`), per caller address and platform-wide.
          */
         post: {
             parameters: {
                 query?: never;
                 header?: {
                     /**
-                     * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request`. WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
+                     * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request` — AND (second sign-in review, 2026-10-07) on every request that submits a sign-in code: `POST /auth/passwordless/verify` and the student's `POST /profile/erase`. A sign-in code asked for with this header belongs to that install: it is accepted only from a request carrying the SAME value, so the app must send the header on both steps or its own code is answered as incorrect. (This is what stops a stranger from using up the five tries of someone else's code: without the install's identifier their submissions are never checked against it.) WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
                      *
                      *     WHAT IT DOES: when present, texted codes are also limited per device (5 an hour by default), in addition to the limits per phone number, per caller address and for the platform as a whole, which apply with or without it. A value of any other shape is ignored as if the header were not sent (never a 400). The server stores only a hash of it, for an hour, as a counter key.
                      */
@@ -1046,7 +1064,7 @@ export interface paths {
         put?: never;
         /**
          * Verify phone OTP
-         * @description Fails with `invalid_otp` (wrong code, or no challenge open), `otp_expired`, or `too_many_attempts` after 5 wrong tries. A wrong-code error carries attempts_remaining. A code only ever verifies the number it was sent to, and is consumed on success. Verifying saves the number on the account and sets phone_verified in one step, replacing (and releasing) the number the account held before. For a student this is the only way a phone number is added or changed (owner, 2026-10-06) — PATCH /profile no longer takes a new one — including for a student who signs in with their phone alone.
+         * @description Fails with `invalid_otp` (wrong code, or no challenge open), `otp_expired`, or `too_many_attempts` after 5 wrong tries. A wrong-code error carries attempts_remaining. A code only ever verifies the number it was sent to, and is consumed on success. Verifying saves the number on the account and sets phone_verified in one step, replacing (and releasing) the number the account held before. For every role — students (owner, 2026-10-06) and, since the second sign-in review (2026-10-07), staff, freelancer and platform accounts — this is the only way a phone number is added or changed: PATCH /profile no longer takes a new one. That includes a student who signs in with their phone alone. More than 10 wrong codes in 30 minutes on one account (this route and POST /profile/email/confirm together; cleared by a correct code) answer 429 `rate_limited` with `Retry-After` and `details.retry_after_seconds`.
          */
         post: {
             parameters: {
@@ -1222,7 +1240,7 @@ export interface paths {
                         /**
                          * @description Phone in E.164 (e.g. +919876543210) — the client adds the country code (the app's dial-code chip) before sending. A bare national number (9876543210) is refused 400 `validation_failed` by the real backend; the mock was more lenient.
                          *     **Students (owner, 2026-10-06):** a phone is saved only once its one-time code is entered, so a NEW number here is refused 400 `validation_failed` by the real backend, with a message pointing at verification — send the code with POST /auth/otp/request and save the number with POST /auth/otp/verify instead. `null` or an empty string removes the number, and is accepted only when the account has a verified email to sign in with (400 otherwise). Sending the number already on the account changes nothing and is accepted.
-                         *     Staff and platform accounts: saved as sent; changing it clears `phone_verified`.
+                         *     **Staff, freelancer and platform accounts (second sign-in review, 2026-10-07): the same rule.** A NEW or changed number here is refused 400 `validation_failed` (`details.fields.phone`: "Your new phone number is saved once you enter the code we send to it. Ask for a code to the new number to change it."). The console's profile form must add or change a phone with POST /auth/otp/request {phone} (a code is texted to the new number) and then POST /auth/otp/verify {phone, code}, which saves it with `phone_verified: true`; both routes serve every signed-in role. `null` or an empty string still removes the number here, and sending the number already on the account is accepted and changes nothing. A number typed on such an account before this rule stays on it, shown with `phone_verified: false`, until the account verifies it — or until its real owner proves it (signing up with it, or verifying it on their own account), which removes it from this account.
                          */
                         phone?: string | null;
                         /** @description BCP 47 language tag captured silently from the device, exactly like `timezone` below and PATCHed on the same occasions. Not user-entered. Nothing is translated yet (2026-08-23) — this is captured now so the real backend has a locale to render against rather than having one retrofitted onto accounts that never recorded it. Carries the same system-write exemption as `timezone`: it is not a completion field, so a body containing only this must not run the milestone check. */
@@ -1322,7 +1340,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Sentpo Mobile's Edit Email screen (build reference 2.2) — self-serve, distinct from the support-mediated recovery flow in 1.1 (that one is for a student who has *lost access* to their email entirely; this one is for a student who still has access and wants to change it). Sends a verification code to the new address; the account's actual email is untouched until POST /profile/email/confirm succeeds. */
+        /**
+         * Sentpo Mobile's Edit Email screen (build reference 2.2) — self-serve, distinct from the support-mediated recovery flow in 1.1 (that one is for a student who has *lost access* to their email entirely; this one is for a student who still has access and wants to change it). Sends a verification code to the new address; the account's actual email is untouched until POST /profile/email/confirm succeeds.
+         * @description Asking for another address replaces the pending change (only the newest address can be confirmed). Asking again for the SAME address while its code is live (10 minutes) sends the same code again — same code, same tries used, same expiry — unless it has under 2 minutes left or its tries are used up (second sign-in review, 2026-10-07).
+         */
         post: {
             parameters: {
                 query?: never;
@@ -1347,6 +1368,15 @@ export interface paths {
                     content?: never;
                 };
                 409: components["responses"]["ErrorResponse"];
+                /** @description `rate_limited`, with `Retry-After` and `details.retry_after_seconds`: a resend inside the 30-second cooldown ("Wait Ns before requesting another code."), or the mail is over one of the emailed-code limits of POST /auth/passwordless/request (3 an hour per inbox, per caller address, the platform's daily ceiling; "Too many codes requested. Try again in N minutes."). */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -1395,6 +1425,15 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description `too_many_attempts` (this code's five tries are used up), or `rate_limited`: more than 10 wrong codes in 30 minutes on this account (this route and POST /auth/otp/verify together; cleared by a correct code), with `Retry-After` and `details.retry_after_seconds`. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -1616,7 +1655,10 @@ export interface paths {
          *       (exactly the sign-in call; ask for it on the "Confirm it's you" step). 400
          *       `step_up_required` when either is missing; the door's own 400 `invalid_otp` /
          *       `otp_expired` (429 `too_many_attempts`) for a wrong or stale code, and `invalid_otp`
-         *       when the identifier is not a verified one of the caller's;
+         *       when the identifier is not a verified one of the caller's. Send the same
+         *       `X-Device-Id` the code was requested with: the code is checked exactly as at
+         *       `POST /auth/passwordless/verify` (its WHOSE CODE and WRONG-CODE LIMITS, 429
+         *       `rate_limited` included);
          *     * a console account (platform staff, consultancy staff, freelancer) sends its current
          *       `password`. 400 `step_up_required` without one; 400 `invalid_current_password` for a
          *       wrong one (deliberately not a 401, which a client would read as an ended session);
@@ -1631,7 +1673,14 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /**
+                     * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request` — AND (second sign-in review, 2026-10-07) on every request that submits a sign-in code: `POST /auth/passwordless/verify` and the student's `POST /profile/erase`. A sign-in code asked for with this header belongs to that install: it is accepted only from a request carrying the SAME value, so the app must send the header on both steps or its own code is answered as incorrect. (This is what stops a stranger from using up the five tries of someone else's code: without the install's identifier their submissions are never checked against it.) WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
+                     *
+                     *     WHAT IT DOES: when present, texted codes are also limited per device (5 an hour by default), in addition to the limits per phone number, per caller address and for the platform as a whole, which apply with or without it. A value of any other shape is ignored as if the header were not sent (never a 400). The server stores only a hash of it, for an hour, as a counter key.
+                     */
+                    "X-Device-Id"?: components["parameters"]["DeviceId"];
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -2425,7 +2474,8 @@ export interface paths {
         put?: never;
         /**
          * Erase User Data — Super Admin only, reason and own password; 30-day window (FR-019/020)
-         * @description Gate 12f. Locks the account now, closes the person's open cases and chats with the reason "account deleted" and tells each consultancy, and permanently erases their personal data 30 days later (`due_at`). Until then it can be cancelled from the Pending erasures list (DELETE /users/{id}/erasure) or by the person signing in and tapping Keep my account. `password` is the Super Admin's OWN current password (400 `step_up_required` without it, 400 `invalid_current_password` for a wrong one, 429 `rate_limited` after repeated failures). `immediate: true` skips the window for a legal request or a confirmed takeover — `reason` then needs at least 20 characters (400 `validation_failed`), the answer is `erasure_queued`, the data is erased within minutes and nothing can be cancelled. An immediate request for an account whose erasure is already pending turns that pending erasure into an immediate one. 409 `lockout_guard` when the account holds an active role (the message says what to deactivate first; a Super Admin is never erased); 409 `conflict` when an erasure is already pending for the account (the message and `error.details.due_at` carry the date); 404 for an unknown user. A request for an account already erased answers 202 `erasure_queued` and changes nothing.
+         * @description Gate 12f. Locks the account now, closes the person's open cases and chats with the reason "account deleted" and tells each consultancy, and permanently erases their personal data 30 days later (`due_at`). Until then it can be cancelled from the Pending erasures list (DELETE /users/{id}/erasure) or by the person signing in and tapping Keep my account. `password` is the Super Admin's OWN current password (400 `step_up_required` without it, 400 `invalid_current_password` for a wrong one, 429 `rate_limited` after repeated failures). Each operator has a daily allowance (second review, M-9): 10 accounts scheduled in any 24 hours, of which 3 immediate (server settings). The request after that answers 429 `rate_limited` with a `Retry-After` header and `error.details.retry_after_seconds`; `error.message` says which allowance ran out and what to do (another Super Admin can continue; an immediate one can still be scheduled with the window). Console: show `error.message` as it is, with the wait, and keep the form filled. Only successful requests count. 503 `service_unavailable` if the allowance cannot be read — try again. `immediate: true` skips the window for a legal request or a confirmed takeover — `reason` then needs at least 20 characters (400 `validation_failed`), the answer is `erasure_queued`, the data is erased within minutes and nothing can be cancelled. An immediate request for an account whose erasure is already pending turns that pending erasure into an immediate one. 409 `lockout_guard` when the account holds an active role (the message says what to deactivate first; a Super Admin is never erased); 409 `conflict` when an erasure is already pending for the account (the message and `error.details.due_at` carry the date); 404 for an unknown user. A request for an account already erased answers 202 `erasure_queued` and changes nothing.
+         *     The reason is kept (second review, H-3). Unlike the reason a person types for their own deletion (sealed, and erased with them), the reason given here is stored readable for good — in the audit log and on the request — because it is the platform's own record of why it erased an account, and for `immediate` the legal basis. Console: show under the reason field, always visible, "This reason is kept permanently, also after the account is erased. Do not include the person's name, contact details or anything they told you — a reference is enough (court order number, ticket number)." and for `immediate` add "State the legal basis."
          */
         post: {
             parameters: {
@@ -2439,7 +2489,7 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        /** @description Why (kept sealed on the audit record until the data is erased). */
+                        /** @description Why. KEPT FOR GOOD: the operator's reason is the platform's record of its own decision, so it stays readable on the audit record (`operator_reason`) and on the request after the person's data has been erased — for an immediate erasure it is the legal basis for skipping the 30 days. It must therefore NOT contain the person's personal details beyond what is needed: write "Court order 123/2026, Delhi HC" or "Confirmed takeover, ticket 4411", never their name, contact details or what they said. The console says this beside the field (see the operation's description). */
                         reason: string;
                         /** @description The Super Admin's own current password. */
                         password: string;
@@ -2479,6 +2529,15 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description `rate_limited` — the operator's daily allowance of erasures (or of immediate erasures) is used up, or too many wrong passwords. `Retry-After` and `error.details.retry_after_seconds` carry the wait. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -2499,7 +2558,7 @@ export interface paths {
         post?: never;
         /**
          * Cancel a scheduled erasure and keep the account — Super Admin, with a reason (gate 12f)
-         * @description Support's "keep this account": used for console accounts (which have no door of their own) and for a student who asks Support instead of signing in. The pending erasure is cancelled, the account can sign in again, and the person's verified email is told. Cases and chats that closed when the erasure was requested stay closed. `reason` (3+ characters) says why and how the person was verified; it is kept sealed on the audit record. 404 when no erasure is pending for the account; 409 `conflict` when the window has ended and the deletion has started.
+         * @description Support's "keep this account": used for console accounts (which have no door of their own) and for a student who asks Support instead of signing in. The pending erasure is cancelled, the account can sign in again, and the person's verified email is told. Cases and chats that closed when the erasure was requested stay closed. `reason` (3+ characters) says why and how the person was verified. It is KEPT FOR GOOD, readable, on the audit record (`operator_reason`) and on the request — also if the account is erased later — because it is the platform's record of why it kept an account its person had asked to delete (second review, H-3). Console: show under the reason field "This reason is kept permanently. Do not include the person's name, contact details or anything they told you — say how they were verified (for example: called back on the number on file)." 404 when no erasure is pending for the account; 409 `conflict` when the window has ended and the deletion has started.
          */
         delete: {
             parameters: {
@@ -2513,6 +2572,7 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
+                        /** @description Why the account is kept and how the person was verified. Kept for good and readable; no personal details beyond what is needed. */
                         reason: string;
                     };
                 };
@@ -28237,12 +28297,12 @@ export interface components {
                 flagged: number;
             };
         };
-        /** @description A receiving consultancy's consent-to-accept for one incoming cross-consultancy transfer (build reference 1.18) — issued from Consultancy Profile's Incoming Transfers section, read back to the sending consultancy out-of-band, and consumed by POST /clients/{id}/transfer. Bound to exactly one of the student's email and phone (contract gate 7) — the other is null. */
+        /** @description A receiving consultancy's consent-to-accept for one incoming cross-consultancy transfer (build reference 1.18) — issued from Consultancy Profile's Incoming Transfers section, read back to the sending consultancy out-of-band, and consumed by POST /clients/{id}/transfer. Bound to exactly one of the student's email and phone (contract gate 7) — the other is null. BOTH are null once the contact has been removed from the code - when the student it belonged to is erased (the code then also reads `expired`), and 30 days after the code was used or expired. Show such a row without a contact ("contact removed"), never as an error. */
         TransferCode: {
             code: string;
-            /** @description Lowercased. Null when the code was issued for a phone number. */
+            /** @description Lowercased. Null when the code was issued for a phone number, or once the contact has been removed (see the schema's description). */
             student_email: string | null;
-            /** @description E.164. Null when the code was issued for an email. */
+            /** @description E.164. Null when the code was issued for an email, or once the contact has been removed (see the schema's description). */
             student_phone: string | null;
             /**
              * @description Computed at read time — `used` wins over `expired`.
@@ -30991,7 +31051,7 @@ export interface components {
     };
     parameters: {
         /**
-         * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request`. WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
+         * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request` — AND (second sign-in review, 2026-10-07) on every request that submits a sign-in code: `POST /auth/passwordless/verify` and the student's `POST /profile/erase`. A sign-in code asked for with this header belongs to that install: it is accepted only from a request carrying the SAME value, so the app must send the header on both steps or its own code is answered as incorrect. (This is what stops a stranger from using up the five tries of someone else's code: without the install's identifier their submissions are never checked against it.) WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
          *
          *     WHAT IT DOES: when present, texted codes are also limited per device (5 an hour by default), in addition to the limits per phone number, per caller address and for the platform as a whole, which apply with or without it. A value of any other shape is ignored as if the header were not sent (never a 400). The server stores only a hash of it, for an hour, as a counter key.
          */

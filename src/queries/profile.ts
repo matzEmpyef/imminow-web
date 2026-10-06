@@ -49,3 +49,35 @@ export function useChangePassword() {
     },
   })
 }
+
+/**
+ * A phone number is added or changed by proof (second sign-in review, 2026-10-07): a code is
+ * texted to the new number, and only the right code saves it. `PATCH /profile` no longer takes a
+ * new number (400). Both calls are made with `mutateAsync` by the dialog that holds the code, so
+ * every refusal reaches it: 429 `rate_limited` (the 30-second cooldown, the SMS limits, too many
+ * wrong codes, each with `details.retry_after_seconds`) and 400 `invalid_otp`.
+ */
+export function useRequestPhoneCode() {
+  return useMutation({
+    mutationFn: async (phone: string) => {
+      const { data, error, response } = await api.POST('/auth/otp/request', { body: { phone } })
+      if (error) throw new ApiError('Could not send a code.', error, (response as Response | undefined)?.status)
+      return data
+    },
+  })
+}
+
+export function useVerifyPhoneCode() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ phone, code }: { phone: string; code: string }) => {
+      const { error, response } = await api.POST('/auth/otp/verify', { body: { phone, code } })
+      if (error) throw new ApiError('Could not verify the code.', error, (response as Response | undefined)?.status)
+    },
+    // The number is saved and verified in one step: the profile and `GET /me` both carry it.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY })
+      queryClient.invalidateQueries({ queryKey: ['profile'] })
+    },
+  })
+}

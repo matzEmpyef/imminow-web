@@ -8,6 +8,7 @@ import { Button } from '@/components/Button'
 import { Toggle } from '@/components/Toggle'
 import { ChangePasswordModal } from './ChangePasswordModal'
 import { YourDataCard } from './YourDataCard'
+import { PhoneSection } from './PhoneSection'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useProfile, useUpdateProfile } from '@/queries/profile'
 import { useMyConsultancy } from '@/queries/consultancy'
@@ -16,7 +17,6 @@ import { useNotificationSettings, useUpdateNotificationSettings } from '@/querie
 import { useMe } from '@/queries/me'
 import { isStaffScope } from '@/lib/me'
 import type { components } from '@/api/schema'
-import { PHONE_ERROR, isValidPhone } from '@/lib/validation'
 import { formatDate, relativeTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 
@@ -115,14 +115,12 @@ export function MyAccountPage() {
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
-  const [phone, setPhone] = useState('')
   const [showChangePassword, setShowChangePassword] = useState(false)
 
   useEffect(() => {
     if (!profile.data) return
     setFirstName(profile.data.first_name ?? '')
     setLastName(profile.data.last_name ?? '')
-    setPhone(profile.data.phone ?? '')
   }, [profile.data])
 
   const settings = useNotificationSettings()
@@ -148,9 +146,8 @@ export function MyAccountPage() {
   }
 
   const user = profile.data
-  const phoneError = phone && !isValidPhone(phone) ? PHONE_ERROR : undefined
-  const dirty =
-    firstName !== (user.first_name ?? '') || lastName !== (user.last_name ?? '') || phone !== (user.phone ?? '')
+  // The phone number is not part of this form: a new one is saved by entering a code texted to it.
+  const dirty = firstName !== (user.first_name ?? '') || lastName !== (user.last_name ?? '')
   const organisation = isConsultancyStaff
     ? (consultancy.data?.name ?? '')
     : isPlatform
@@ -207,9 +204,9 @@ export function MyAccountPage() {
               className="mt-md flex flex-col gap-md"
               onSubmit={(e) => {
                 e.preventDefault()
-                if (phoneError || !dirty) return
+                if (!dirty) return
                 updateProfile.mutate(
-                  { first_name: firstName.trim(), last_name: lastName.trim(), phone: phone.trim() },
+                  { first_name: firstName.trim(), last_name: lastName.trim() },
                   { onSuccess: () => showToast('Profile updated') },
                 )
               }}
@@ -218,26 +215,21 @@ export function MyAccountPage() {
                 <TextField label="First name" required value={firstName} onChange={(e) => setFirstName(e.target.value)} />
                 <TextField label="Last name" required value={lastName} onChange={(e) => setLastName(e.target.value)} />
               </div>
-              <div className="flex flex-col gap-xs">
-                <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} error={phoneError} />
-                {!phoneError && (
-                  <p className="text-caption text-text-secondary">
-                    {isConsultancyStaff
-                      ? 'Shown to students you work with, so they can reach you.'
-                      : 'Used by immiNow to reach you. Never shown to students.'}
-                  </p>
-                )}
-              </div>
               {updateProfile.isError && <p className="text-body-sm text-error">{updateProfile.error.message}</p>}
               <div className="flex items-center justify-end gap-sm">
                 {dirty && !updateProfile.isPending && (
                   <p className="text-caption text-text-secondary">Unsaved changes</p>
                 )}
-                <Button type="submit" loading={updateProfile.isPending} disabled={Boolean(phoneError) || !dirty}>
+                <Button type="submit" loading={updateProfile.isPending} disabled={!dirty}>
                   Save changes
                 </Button>
               </div>
             </form>
+            <PhoneSection
+              phone={user.phone ?? null}
+              verified={user.phone_verified === true}
+              shownToStudents={isConsultancyStaff}
+            />
           </Card>
 
           <Card className="md:col-span-2">

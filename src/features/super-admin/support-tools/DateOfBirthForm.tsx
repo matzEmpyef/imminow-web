@@ -3,6 +3,7 @@ import { Button } from '@/components/Button'
 import { TextAreaField } from '@/components/TextAreaField'
 import { TextField } from '@/components/TextField'
 import { ApiError } from '@/api/errors'
+import { aboutHowLong, retryAfterSeconds } from '@/lib/retryAfter'
 import { formatDate, localDateISO } from '@/lib/time'
 import { useCorrectDateOfBirth, type DateOfBirthCorrection, type UserSearchResult } from '@/queries/supportTools'
 
@@ -11,14 +12,6 @@ const GUARDIAN_EFFECT_LINE: Record<DateOfBirthCorrection['guardian_effect'], str
   now_required: "This student is now under 18 and needs a guardian's approval.",
   no_longer_required: "This student no longer needs a guardian's approval.",
   none: null,
-}
-
-/** "about 5 minutes" from the server's `retry_after_seconds`; null when it sent none. */
-function retryIn(error: unknown): string | null {
-  const seconds = error instanceof ApiError ? error.details?.retry_after_seconds : undefined
-  if (typeof seconds !== 'number' || seconds <= 0) return null
-  const minutes = Math.ceil(seconds / 60)
-  return minutes <= 1 ? 'about a minute' : `about ${minutes} minutes`
 }
 
 /**
@@ -49,7 +42,8 @@ export function DateOfBirthForm({ result, onCancel }: { result: UserSearchResult
   const code = error instanceof ApiError ? error.code : undefined
   const passwordRefused = code === 'invalid_current_password' || code === 'step_up_required'
   const dateRefused = code === 'below_minimum_age'
-  const retry = retryIn(error)
+  const waitSeconds = retryAfterSeconds(error)
+  const retry = waitSeconds ? aboutHowLong(waitSeconds) : null
 
   function submit() {
     correct.mutate(
