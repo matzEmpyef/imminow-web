@@ -33,6 +33,7 @@ function request(overrides: Partial<ApplicantRequest> = {}): ApplicantRequest {
     assigned_employee_id: 'e1',
     assigned_employee_name: 'Meera Iyer',
     created_by_name: 'Dev Shah',
+    can_cancel: true,
     sent_at: '2026-10-06T09:00:00Z',
     expires_at: '2026-10-20T09:00:00Z',
     ...overrides,
