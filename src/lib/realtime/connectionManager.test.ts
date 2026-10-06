@@ -245,17 +245,256 @@ describe('RealtimeConnectionManager', () => {
     expect(fetchTicket).toHaveBeenCalledTimes(3)
   })
 
-  it('stops for good on 4401 (session ended) — no reconnect attempt follows', async () => {
-    const manager = makeManager()
-    manager.start()
-    await vi.waitFor(() => expect(sockets).toHaveLength(1))
-    sockets[0].emitMessage(helloFrame())
+  // ---- Review F-142: what the contract requires and the client left out -----------------------
 
-    sockets[0].emitClose(4401)
-    expect(manager.getStatus()).toBe('stopped')
+  describe('a connection that goes silent', () => {
+    it('is closed and redialled after 2.4 heartbeats without a frame', async () => {
+      const manager = makeManager()
+      manager.start()
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      sockets[0].emitMessage(helloFrame()) // heartbeat_s: 25
 
-    await vi.advanceTimersByTimeAsync(120_000)
-    expect(fetchTicket).toHaveBeenCalledTimes(1) // never retried on its own
+      await vi.advanceTimersByTimeAsync(59_000)
+      expect(manager.getStatus()).toBe('open')
+      expect(sockets).toHaveLength(1)
+
+      // 60 seconds of nothing: the socket never closed, it just stopped speaking.
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(sockets[0].closed).toBe(true)
+      expect(manager.getStatus()).not.toBe('open') // polling resumes
+      await vi.waitFor(() => expect(sockets).toHaveLength(2))
+    })
+
+    it('is not mistaken for silence while pings keep arriving', async () => {
+      const manager = makeManager()
+      manager.start()
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      sockets[0].emitMessage(helloFrame())
+
+      for (let i = 0; i < 10; i++) {
+        await vi.advanceTimersByTimeAsync(25_000)
+        sockets[0].emitMessage({ v: 1, type: 'ping', id: null, ts: '2026-09-26T00:00:00Z', data: {} })
+      }
+      expect(manager.getStatus()).toBe('open')
+      expect(sockets).toHaveLength(1)
+    })
+
+    it("follows the server's own heartbeat when hello names a different one", async () => {
+      const manager = makeManager()
+      manager.start()
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      sockets[0].emitMessage({ ...helloFrame(), data: { heartbeat_s: 10, resume_id: null } })
+
+      await vi.advanceTimersByTimeAsync(23_999)
+      expect(sockets).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(1)
+      await vi.waitFor(() => expect(sockets).toHaveLength(2))
+    })
+
+    it('catches a socket that opens and never says hello', async () => {
+      const manager = makeManager()
+      manager.start()
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      await vi.advanceTimersByTimeAsync(60_000)
+      await vi.waitFor(() => expect(sockets).toHaveLength(2))
+    })
+  })
+
+  describe('a close with 4401 (session ended)', () => {
+    async function openThenClose4401(refresh: () => Promise<{ kind: 'ok' | 'rejected' | 'unavailable' }>) {
+      const onSessionEnded = vi.fn()
+      const refreshSession = vi.fn(refresh)
+      const manager = makeManager({ refreshSession, onSessionEnded })
+      manager.start()
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      sockets[0].emitMessage(helloFrame())
+      sockets[0].emitClose(4401)
+      return { manager, refreshSession, onSessionEnded }
+    }
+
+    it('renews the session and reconnects with a new ticket', async () => {
+      const { manager, refreshSession, onSessionEnded } = await openThenClose4401(async () => ({ kind: 'ok' }))
+      await vi.waitFor(() => expect(sockets).toHaveLength(2))
+      expect(refreshSession).toHaveBeenCalledTimes(1)
+      expect(fetchTicket).toHaveBeenCalledTimes(2)
+      sockets[1].emitMessage(helloFrame())
+      expect(manager.getStatus()).toBe('open')
+      expect(onSessionEnded).not.toHaveBeenCalled()
+    })
+
+    it('ends the session only when the server refuses the renewal', async () => {
+      const { manager, onSessionEnded } = await openThenClose4401(async () => ({ kind: 'rejected' }))
+      await vi.waitFor(() => expect(onSessionEnded).toHaveBeenCalledTimes(1))
+      expect(manager.getStatus()).toBe('stopped')
+      await vi.advanceTimersByTimeAsync(120_000)
+      expect(fetchTicket).toHaveBeenCalledTimes(1)
+    })
+
+    it('tries again later, without ending anything, when the renewal could not be asked', async () => {
+      const { manager, onSessionEnded } = await openThenClose4401(async () => ({ kind: 'unavailable' }))
+      await vi.waitFor(() => expect(sockets).toHaveLength(2))
+      expect(onSessionEnded).not.toHaveBeenCalled()
+      expect(manager.getStatus()).not.toBe('stopped')
+    })
+
+    it('is not "open" while it recovers, so polling carries the threads meanwhile', async () => {
+      let answer!: (result: { kind: 'ok' }) => void
+      const { manager } = await openThenClose4401(() => new Promise((resolve) => (answer = resolve)))
+      expect(manager.getStatus()).toBe('reconnecting')
+      answer({ kind: 'ok' })
+      await vi.waitFor(() => expect(sockets).toHaveLength(2))
+    })
+
+    it('still stops when it has no way to renew (no reconnect attempt follows)', async () => {
+      const manager = makeManager()
+      manager.start()
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      sockets[0].emitMessage(helloFrame())
+
+      sockets[0].emitClose(4401)
+      expect(manager.getStatus()).toBe('stopped')
+
+      await vi.advanceTimersByTimeAsync(120_000)
+      expect(fetchTicket).toHaveBeenCalledTimes(1) // never retried on its own
+    })
+  })
+
+  describe('catching up', () => {
+    const stale = (key: readonly unknown[]) => queryClient.getQueryState(key)?.isInvalidated
+    function seedThreads() {
+      for (const key of [
+        ['conversations'],
+        ['leads', 'lead-1', 'messages'],
+        ['clients', 'client-5', 'messages'],
+        ['internal-conversations', 'team', 'messages'],
+      ]) {
+        queryClient.setQueryData(key, { pages: [], pageParams: [] })
+      }
+    }
+    const everyThreadIsStale = () =>
+      [
+        stale(['conversations']),
+        stale(['leads', 'lead-1', 'messages']),
+        stale(['clients', 'client-5', 'messages']),
+        stale(['internal-conversations', 'team', 'messages']),
+      ].every(Boolean)
+
+    it('reads every open thread again on the first connect (nothing to resume from)', async () => {
+      seedThreads()
+      const manager = makeManager()
+      manager.start()
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      expect(everyThreadIsStale()).toBe(false)
+      sockets[0].emitMessage(helloFrame())
+      expect(everyThreadIsStale()).toBe(true)
+    })
+
+    it('does not on a reconnect that resumes: the missed frames are replayed instead', async () => {
+      const manager = makeManager()
+      manager.start()
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      sockets[0].emitMessage(helloFrame())
+      sockets[0].emitMessage({ v: 1, type: 'unread.changed', id: 'f-1', ts: '2026-09-26T00:00:00Z', data: { chat: 1 } })
+      sockets[0].emitClose(1012)
+      await vi.waitFor(() => expect(sockets).toHaveLength(2))
+
+      seedThreads()
+      sockets[1].emitMessage(helloFrame())
+      expect(sockets[1].sent[0]).toMatchObject({ type: 'resume', data: { last_id: 'f-1' } })
+      expect(everyThreadIsStale()).toBe(false)
+    })
+
+    it('reads every open thread again on a resync frame, not only the one being viewed', async () => {
+      const manager = makeManager()
+      manager.start()
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      sockets[0].emitMessage(helloFrame())
+      seedThreads()
+      manager.addViewing({ type: 'lead', id: 'lead-1' })
+
+      sockets[0].emitMessage({ v: 1, type: 'resync', id: null, ts: '2026-09-26T00:00:00Z', data: {} })
+      expect(everyThreadIsStale()).toBe(true)
+    })
+  })
+
+  describe('threads on screen', () => {
+    const viewingFrames = (socket: FakeSocket) =>
+      socket.sent.filter((f) => (f as { type: string }).type === 'viewing').map((f) => (f as { data: unknown }).data)
+
+    it('keeps the page thread as "viewing" when the floating window over it closes', async () => {
+      const manager = makeManager()
+      manager.start()
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      sockets[0].emitMessage(helloFrame())
+      const page = { type: 'client' as const, id: 'client-5' }
+      const floating = { type: 'lead' as const, id: 'lead-1' }
+
+      manager.addViewing(page)
+      manager.addViewing(floating)
+      manager.removeViewing(floating)
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      // It used to be one shared slot: closing the window sent `null` under the open page.
+      expect(viewingFrames(sockets[0]).at(-1)).toEqual({ subject: page })
+      manager.removeViewing(page)
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(viewingFrames(sockets[0]).at(-1)).toEqual({ subject: null })
+    })
+  })
+
+  describe('stop()', () => {
+    it('carries nothing of the session into the next one: no resume position, no viewing, no presence', async () => {
+      const manager = makeManager()
+      manager.start()
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      sockets[0].emitMessage(helloFrame())
+      sockets[0].emitMessage({ v: 1, type: 'unread.changed', id: 'f-9', ts: '2026-09-26T00:00:00Z', data: { chat: 1 } })
+      sockets[0].emitMessage({
+        v: 1,
+        type: 'presence',
+        id: null,
+        ts: '2026-09-26T00:00:00Z',
+        data: { thread: { type: 'lead', id: 'lead-1' }, online: true },
+      })
+      manager.addViewing({ type: 'lead', id: 'lead-1' })
+      expect(useRealtimeStore.getState().presenceByThread).toEqual({ 'lead:lead-1': true })
+
+      manager.stop()
+      expect(useRealtimeStore.getState().presenceByThread).toEqual({})
+
+      manager.start()
+      await vi.waitFor(() => expect(sockets).toHaveLength(2))
+      sockets[1].emitMessage(helloFrame())
+      await vi.advanceTimersByTimeAsync(1_000)
+      const types = sockets[1].sent.map((f) => (f as { type: string }).type)
+      expect(types).not.toContain('resume')
+      expect(sockets[1].sent).toContainEqual(expect.objectContaining({ type: 'viewing', data: { subject: null } }))
+    })
+
+    it('does not send the previous socket\'s unsent frames on the next one', async () => {
+      const manager = makeManager()
+      manager.start()
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      sockets[0].emitMessage(helloFrame())
+      // Three acks queue up (they are paced 110ms apart); the socket drops before they are sent.
+      for (const id of ['m-1', 'm-2', 'm-3']) {
+        sockets[0].emitMessage({
+          v: 1,
+          type: 'chat.message',
+          id,
+          ts: '2026-09-26T00:00:00Z',
+          data: { thread: { type: 'lead', id: 'lead-1' }, message: { id, content: 'hi' } },
+        })
+      }
+      sockets[0].emitClose(1006)
+      await vi.waitFor(() => expect(sockets).toHaveLength(2))
+      sockets[1].emitMessage(helloFrame())
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      // `resume` is first, and no stale ack from the old socket comes before or after it.
+      expect((sockets[1].sent[0] as { type: string }).type).toBe('resume')
+      expect(sockets[1].sent.map((f) => (f as { type: string }).type)).not.toContain('ack')
+    })
   })
 
   it('reconnects on 1012 (server restart/drain)', async () => {
@@ -316,7 +555,9 @@ describe('RealtimeConnectionManager', () => {
     expect(sockets).toHaveLength(1) // no backoff reconnect raced the frame's own timer
     await vi.advanceTimersByTimeAsync(1)
     await vi.waitFor(() => expect(sockets).toHaveLength(2))
-    await vi.advanceTimersByTimeAsync(60_000)
+    sockets[1].emitMessage(helloFrame())
+    // Under the 60 seconds of silence that would be a redial of its own (review F-142).
+    await vi.advanceTimersByTimeAsync(50_000)
     expect(sockets).toHaveLength(2) // exactly one redial
   })
 

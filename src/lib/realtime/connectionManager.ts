@@ -9,6 +9,7 @@ import {
   type RealtimeChatMessageData,
   type RealtimeChatStatusData,
   type RealtimeConversationUpdatedData,
+  type RealtimeHelloData,
   type RealtimeInternalMessageData,
   type RealtimeInternalUnsentData,
   type RealtimePresenceData,
@@ -26,7 +27,7 @@ import {
   applyResync,
   applyUnreadChanged,
 } from './queryCache'
-import { setRealtimeStatus, setThreadPresence } from './store'
+import { clearPresence, setRealtimeStatus, setThreadPresence } from './store'
 
 /** The subset of `WebSocket` the manager touches — real sockets satisfy it as-is; tests supply a
  * fake that does too, without needing jsdom's own (unimplemented) WebSocket. */
@@ -66,7 +67,25 @@ export interface RealtimeConnectionManagerDeps {
   /** Default 300s — how long the manager stays in `disabled` (polling) after the browser refused
    * to even create the socket, before trying again. */
   refusedSocketRetryS?: number
+  /**
+   * Renews the session after the server closed the socket with 4401 `session_ended` (review
+   * F-142; asyncapi.yaml: "refresh the session; reconnect with a new ticket, or sign out if the
+   * refresh fails"). The same three answers as the API client's own refresh. Without it the
+   * manager can only stop, as it used to.
+   */
+  refreshSession?: () => Promise<{ kind: 'ok' | 'rejected' | 'unavailable' }>
+  /** Called when that renewal was refused: the session really is over. */
+  onSessionEnded?: () => void
 }
+
+/** The server pings every `heartbeat_s`; this is assumed until its `hello` says otherwise. */
+const DEFAULT_HEARTBEAT_S = 25
+/**
+ * How many heartbeats of silence mean the connection is dead (asyncapi.yaml: "a client that hears
+ * nothing for 60 seconds reconnects" — 2.4 × the 25-second ping). More than two, so one late or
+ * lost ping is not a reconnect.
+ */
+const SILENCE_HEARTBEATS = 2.4
 
 /**
  * One connection manager for the whole signed-in session (Wave 3 plan §6.6): ticket → connect →
@@ -91,8 +110,15 @@ export class RealtimeConnectionManager {
    * (1012, ~20s later) must not ALSO schedule a reconnect on top of it. */
   private serverReconnectPending = false
   private lastResumeId: string | null = null
-  private viewingSubject: RealtimeThreadRef | null = null
+  /**
+   * Every thread on screen, oldest first (review F-142). The floating chat window and a
+   * conversation page can both be open; they used to share one slot, so closing either cleared
+   * the other's. The `viewing` frame names one thread — the one opened last.
+   */
+  private viewing: RealtimeThreadRef[] = []
   private outQueue: OutgoingFrame[] = []
+  private silenceTimer: ReturnType<typeof setTimeout> | null = null
+  private heartbeatS = DEFAULT_HEARTBEAT_S
   private readonly deps: RealtimeConnectionManagerDeps
 
   constructor(deps: RealtimeConnectionManagerDeps) {
@@ -120,15 +146,40 @@ export class RealtimeConnectionManager {
     this.clearTimers()
     this.serverReconnectPending = false
     this.outQueue = []
+    // Nothing of this session may reach the next one (review F-142): its place in the stream,
+    // what it was looking at, and who it saw online belong to whoever was signed in.
+    this.lastResumeId = null
+    this.viewing = []
+    this.heartbeatS = DEFAULT_HEARTBEAT_S
+    clearPresence()
     this.closeSocketSilently()
     this.setStatus('stopped')
   }
 
-  /** Which thread (if any) is on screen right now — sent as `viewing` immediately if the socket is
-   * open, and repeated on every `hello`/`ping` from then on (asyncapi.yaml). Presence and the
-   * server's push suppression both key off this. */
+  /** The thread the `viewing` frame names: the one opened last of those on screen. */
+  private get viewingSubject(): RealtimeThreadRef | null {
+    return this.viewing.at(-1) ?? null
+  }
+
+  /** A thread came on screen — sent as `viewing` immediately if the socket is open, and repeated
+   * on every `hello`/`ping` from then on (asyncapi.yaml). Presence and the server's push
+   * suppression both key off this. Pair every call with `removeViewing`. */
+  addViewing(subject: RealtimeThreadRef): void {
+    this.viewing.push(subject)
+    this.sendViewingIfOpen()
+  }
+
+  /** A thread left the screen. Any other thread still open becomes the one being viewed. */
+  removeViewing(subject: RealtimeThreadRef): void {
+    const at = this.viewing.findLastIndex((v) => v.type === subject.type && v.id === subject.id)
+    if (at < 0) return
+    this.viewing.splice(at, 1)
+    this.sendViewingIfOpen()
+  }
+
+  /** Replaces everything on screen with one thread, or with none. */
   setViewing(subject: RealtimeThreadRef | null): void {
-    this.viewingSubject = subject
+    this.viewing = subject ? [subject] : []
     this.sendViewingIfOpen()
   }
 
@@ -141,9 +192,32 @@ export class RealtimeConnectionManager {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
     if (this.reconnectFrameTimer) clearTimeout(this.reconnectFrameTimer)
     if (this.flushTimer) clearTimeout(this.flushTimer)
+    if (this.silenceTimer) clearTimeout(this.silenceTimer)
     this.reconnectTimer = null
     this.reconnectFrameTimer = null
     this.flushTimer = null
+    this.silenceTimer = null
+  }
+
+  /**
+   * (Re)starts the wait for the next frame (review F-142). The server pings every `heartbeat_s`,
+   * so a socket that has said nothing for 2.4 of them is not quiet, it is dead: a connection cut
+   * without a close (a sleeping laptop, a changed network, a proxy that dropped it) stays "open"
+   * for ever as far as the browser can tell. Left alone, the status stayed `open`, the fallback
+   * polling stayed off, and chat stopped updating with nothing on screen to say so.
+   */
+  private armSilenceTimer() {
+    if (this.silenceTimer) clearTimeout(this.silenceTimer)
+    const gen = this.generation
+    this.silenceTimer = setTimeout(() => {
+      this.silenceTimer = null
+      if (gen !== this.generation || !this.started) return
+      this.closeSocketSilently()
+      this.serverReconnectPending = false
+      if (this.reconnectFrameTimer) clearTimeout(this.reconnectFrameTimer)
+      this.reconnectFrameTimer = null
+      this.scheduleReconnect()
+    }, this.heartbeatS * SILENCE_HEARTBEATS * 1000)
   }
 
   private closeSocketSilently() {
@@ -221,6 +295,11 @@ export class RealtimeConnectionManager {
       return
     }
     this.socket = socket
+    // Frames queued for the previous socket (an ack for a message it delivered) mean nothing to
+    // this one, and `resume` must be the first thing it is sent.
+    this.outQueue = []
+    // Counts from now, so a socket that opens and never says `hello` is caught too.
+    this.armSilenceTimer()
     const gen = this.generation
     socket.onmessage = (ev) => {
       if (gen === this.generation) this.handleMessage(ev.data)
@@ -236,20 +315,32 @@ export class RealtimeConnectionManager {
   private handleMessage(raw: string) {
     const frame = parseRealtimeFrame(raw)
     if (!frame) return
+    // Any well-formed frame is the server speaking, whether or not this client acts on its type.
+    this.armSilenceTimer()
     if (!isKnownServerFrameType(frame.type)) return // new/unrecognised signal — ignore, per contract
     if (frame.id) this.lastResumeId = frame.id
 
     switch (frame.type) {
       case 'hello': {
-        // RealtimeHelloData carries heartbeat_s and resume_id; neither is read here — the server's
-        // resume_id is the newest position IT holds, but we resume from OUR OWN lastResumeId (the
-        // last frame we actually received), which may be older after a dropped connection.
+        // RealtimeHelloData carries heartbeat_s and resume_id. `heartbeat_s` sets how long a
+        // silence means the connection is dead. `resume_id` is not read — the server's is the
+        // newest position IT holds, but we resume from OUR OWN lastResumeId (the last frame we
+        // actually received), which may be older after a dropped connection.
+        const heartbeat = (frame.data as Partial<RealtimeHelloData>).heartbeat_s
+        if (typeof heartbeat === 'number' && heartbeat > 0) this.heartbeatS = heartbeat
+        this.armSilenceTimer()
         this.attempt = 0
         this.consecutiveForbidden = 0
         this.setStatus('open')
         // "resume … must be the first client frame after hello" — sent before viewing, below.
         if (this.lastResumeId) {
           this.enqueue('resume', { last_id: this.lastResumeId })
+        } else {
+          // Nothing to resume from, so nothing will be replayed (review F-142): whatever happened
+          // between each screen's own first read and this moment was missed. Polling was off or
+          // slow in that gap, and a message that arrived in it would not show until the next
+          // focus. Catch up the same way a `resync` does.
+          applyResync(this.deps.queryClient)
         }
         this.sendViewingIfOpen()
         break
@@ -306,7 +397,7 @@ export class RealtimeConnectionManager {
         applyNotificationCreated(this.deps.queryClient)
         break
       case 'resync':
-        applyResync(this.deps.queryClient, this.viewingSubject)
+        applyResync(this.deps.queryClient)
         break
       case 'reconnect': {
         const data = frame.data as RealtimeReconnectData
@@ -328,15 +419,16 @@ export class RealtimeConnectionManager {
 
   private handleClose(code: number) {
     this.socket = null
+    if (this.silenceTimer) clearTimeout(this.silenceTimer)
+    this.silenceTimer = null
+    // Whatever was waiting to be sent was meant for the socket that just closed.
+    this.outQueue = []
     if (!this.started) {
       this.setStatus('stopped')
       return
     }
     if (code === 4401) {
-      // session_ended — the app's normal auth flow (401 refresh, or endSession's sign-out) takes
-      // it from here; we don't retry on our own account.
-      this.started = false
-      this.setStatus('stopped')
+      void this.recoverFromSessionEnded()
       return
     }
     if (code === 4403) {
@@ -362,6 +454,40 @@ export class RealtimeConnectionManager {
     // 4408 slow_consumer, 4429 rate_limited, 1012 restart, 1000/1001, or anything else — reconnect
     // with backoff and resume from lastResumeId.
     this.scheduleReconnect()
+  }
+
+  /**
+   * 4401 `session_ended` (review F-142). The contract: "refresh the session; reconnect with a new
+   * ticket, or sign out if the refresh fails". This used to stop for good, which left every open
+   * thread polling every five seconds for the rest of the session. Now: renew; on success take a
+   * new ticket at once; when the server refuses the renewal the session is over and the app is
+   * told; when the renewal could not be asked (no connection, a server error) try again later
+   * like any other drop.
+   */
+  private async recoverFromSessionEnded(): Promise<void> {
+    const refresh = this.deps.refreshSession
+    if (!refresh) {
+      this.started = false
+      this.setStatus('stopped')
+      return
+    }
+    this.setStatus('reconnecting')
+    const gen = this.generation
+    let kind: 'ok' | 'rejected' | 'unavailable'
+    try {
+      kind = (await refresh()).kind
+    } catch {
+      kind = 'unavailable'
+    }
+    if (gen !== this.generation || !this.started) return
+    if (kind === 'ok') {
+      void this.connect()
+    } else if (kind === 'rejected') {
+      this.stop()
+      this.deps.onSessionEnded?.()
+    } else {
+      this.scheduleReconnect()
+    }
   }
 
   private sendViewingIfOpen() {

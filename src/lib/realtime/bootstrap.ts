@@ -1,6 +1,7 @@
-import { api } from '@/api/client'
+import { api, refreshSession } from '@/api/client'
 import { ApiError } from '@/api/errors'
 import { queryClient } from '@/lib/queryClient'
+import { endSession } from '@/lib/session'
 import { useAuthStore } from '@/stores/authStore'
 import { RealtimeConnectionManager, type TicketResult } from './connectionManager'
 
@@ -36,6 +37,10 @@ export const realtimeManager = new RealtimeConnectionManager({
   queryClient,
   fetchTicket: fetchRealtimeTicket,
   isSignedIn: () => Boolean(useAuthStore.getState().accessToken),
+  // A 4401 close is the server saying the session needs renewing (review F-142): the same refresh
+  // every request uses, and the same ending (with the reason on the login page) if it is refused.
+  refreshSession: () => refreshSession(),
+  onSessionEnded: () => endSession('expired'),
 })
 
 /**

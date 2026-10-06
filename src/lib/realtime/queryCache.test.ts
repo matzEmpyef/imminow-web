@@ -224,18 +224,82 @@ describe('realtime query cache patches', () => {
   })
 
   describe('applyResync', () => {
-    it('invalidates conversations and the currently-viewed thread', () => {
-      const spy = vi.spyOn(queryClient, 'invalidateQueries')
-      applyResync(queryClient, { type: 'client', id: 'client-5' })
+    // Review F-142: frames were missed, nobody knows how many, so EVERY chat-shaped read the
+    // console holds is asked for again — not the conversation list and one thread, as before.
+    function seedStale(key: readonly unknown[]) {
+      queryClient.setQueryData(key, { pages: [], pageParams: [] })
+      return () => queryClient.getQueryState(key)?.isInvalidated
+    }
 
-      expect(spy).toHaveBeenCalledWith({ queryKey: ['conversations'] })
-      expect(spy).toHaveBeenCalledWith({ queryKey: ['clients', 'client-5', 'messages'] })
+    it('marks every lead, client and internal thread stale, and both conversation lists', () => {
+      const stale = [
+        seedStale(['conversations']),
+        seedStale(['conversations', 'list', '']),
+        seedStale(['conversations', 'list', 'asha']),
+        seedStale(['leads', 'lead-1', 'messages']),
+        seedStale(['leads', 'lead-2', 'messages']),
+        seedStale(['clients', 'client-5', 'messages']),
+        seedStale(['internal-conversations']),
+        seedStale(['internal-conversations', 'team', 'messages']),
+        seedStale(['internal-conversations', 'emp-9', 'messages']),
+      ]
+      applyResync(queryClient)
+      expect(stale.map((isStale) => isStale())).toEqual(stale.map(() => true))
     })
 
-    it('skips the thread invalidation when nothing is being viewed', () => {
+    it('leaves everything that is not chat alone', () => {
+      const untouched = [
+        seedStale(['leads', 'lead-1']),
+        seedStale(['leads', 'lead-1', 'notes']),
+        seedStale(['clients', 'client-5']),
+        seedStale(['clients', 'client-5', 'plans']),
+        seedStale(['employees']),
+      ]
+      applyResync(queryClient)
+      expect(untouched.map((isStale) => isStale())).toEqual(untouched.map(() => false))
+    })
+  })
+
+  describe('a conversation the console has never listed (F-142)', () => {
+    const fresh = { id: 'lead-new', type: 'lead', name: 'New Student', unread: 1 } as never
+
+    it('asks for the conversation lists again instead of dropping the update', () => {
+      queryClient.setQueryData(['conversations'], {
+        items: [{ id: 'lead-1', type: 'lead' }],
+        meta: { total: 1, unread_count: 0 },
+      })
+      queryClient.setQueryData(['conversations', 'list', ''], {
+        pages: [{ items: [{ id: 'lead-1', type: 'lead' }], meta: { total: 1, unread_count: 0 } }],
+        pageParams: [undefined],
+      })
+      applyConversationUpdated(queryClient, fresh)
+      expect(queryClient.getQueryState(['conversations'])?.isInvalidated).toBe(true)
+      expect(queryClient.getQueryState(['conversations', 'list', ''])?.isInvalidated).toBe(true)
+    })
+
+    it('does not refetch for a conversation that is already listed: the row is patched in place', () => {
+      queryClient.setQueryData(['conversations'], {
+        items: [{ id: 'lead-new', type: 'lead', unread: 0 }],
+        meta: { total: 1, unread_count: 0 },
+      })
+      applyConversationUpdated(queryClient, fresh)
+      expect(queryClient.getQueryState(['conversations'])?.isInvalidated).toBe(false)
+      expect(queryClient.getQueryData<{ items: { unread: number }[] }>(['conversations'])?.items[0].unread).toBe(1)
+    })
+
+    it('does not read a searched list as proof the conversation is new', () => {
+      queryClient.setQueryData(['conversations', 'list', 'asha'], {
+        pages: [{ items: [{ id: 'lead-1', type: 'lead' }], meta: { total: 1, unread_count: 0 } }],
+        pageParams: [undefined],
+      })
+      applyConversationUpdated(queryClient, fresh)
+      expect(queryClient.getQueryState(['conversations', 'list', 'asha'])?.isInvalidated).toBe(false)
+    })
+
+    it('does nothing when no conversation list is loaded at all', () => {
       const spy = vi.spyOn(queryClient, 'invalidateQueries')
-      applyResync(queryClient, null)
-      expect(spy).toHaveBeenCalledTimes(1)
+      applyConversationUpdated(queryClient, fresh)
+      expect(spy).not.toHaveBeenCalled()
     })
   })
 

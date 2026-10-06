@@ -36,6 +36,12 @@ export function setRealtimeStatus(status: RealtimeStatus, disabledUntil: number 
   useRealtimeStore.setState({ status, disabledUntil })
 }
 
+/** Forgets who was online: it was seen by the session that has just ended. */
+export function clearPresence() {
+  if (Object.keys(useRealtimeStore.getState().presenceByThread).length === 0) return
+  useRealtimeStore.setState({ presenceByThread: {} })
+}
+
 export function setThreadPresence(key: string, online: boolean) {
   useRealtimeStore.setState((s) => ({ presenceByThread: { ...s.presenceByThread, [key]: online } }))
 }

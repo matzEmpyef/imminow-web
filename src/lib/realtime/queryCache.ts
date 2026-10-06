@@ -179,14 +179,34 @@ function sameConversation(a: Conversation, b: Conversation): boolean {
   return a.id === b.id && a.type === b.type
 }
 
+/** The drawer's list with nothing typed in its search box: every conversation, paged. */
+const UNSEARCHED_LIST_KEY = ['conversations', 'list', '']
+
 /**
  * `conversation.updated` — patches the row in place wherever it's cached: the header badge's
  * unpaged `['conversations']` read, and every page of the drawer's own paged/searched
- * `['conversations', 'list', search]` (queries/conversations.ts). A conversation not currently
- * cached (not yet loaded, or filtered out of the current search) is simply not there to patch —
- * it'll arrive correctly ordered next time that query runs.
+ * `['conversations', 'list', search]` (queries/conversations.ts).
+ *
+ * A conversation the console has never listed cannot be patched: a student's first message opens
+ * a brand-new one. That update used to be dropped, so the badge count rose while the drawer
+ * showed no new row until a reload (review F-142). When the unfiltered lists are loaded and none
+ * of them holds this conversation, the conversation lists are asked for again; the new row then
+ * arrives in its right place. (A list narrowed by a search is not evidence either way: the
+ * conversation may simply not match what was typed.)
  */
 export function applyConversationUpdated(queryClient: QueryClient, conversation: Conversation): void {
+  const listed = (key: readonly unknown[]): boolean | undefined => {
+    const data = queryClient.getQueryData<ConversationsPage | InfiniteData<ConversationsPage>>(key)
+    if (!data) return undefined
+    const pages = 'pages' in data ? data.pages : [data]
+    return pages.some((page) => page.items.some((c) => sameConversation(c, conversation)))
+  }
+  const known = [listed(['conversations']), listed(UNSEARCHED_LIST_KEY)].filter((answer) => answer !== undefined)
+  if (known.length > 0 && !known.includes(true)) {
+    void queryClient.invalidateQueries({ queryKey: ['conversations'] })
+    return
+  }
+
   queryClient.setQueryData<ConversationsPage>(['conversations'], (old) => {
     if (!old) return old
     let changed = false
@@ -239,9 +259,23 @@ export function applyNotificationCreated(queryClient: QueryClient): void {
   queryClient.invalidateQueries({ queryKey: ['applicant-requests'] })
 }
 
-/** `resync` — the resume position is gone; refetch `/conversations` and the open thread over REST
- * (asyncapi.yaml), rather than trying to patch around a gap we can't see. */
-export function applyResync(queryClient: QueryClient, viewingSubject: RealtimeThreadRef | null): void {
-  queryClient.invalidateQueries({ queryKey: ['conversations'] })
-  if (viewingSubject) queryClient.invalidateQueries({ queryKey: threadMessagesKey(viewingSubject) })
+/**
+ * `resync` — the resume position is gone, so an unknown number of frames were missed: read
+ * everything chat-shaped again over REST (asyncapi.yaml), rather than trying to patch around a
+ * gap we can't see. Also run when a connection opens with nothing to resume from.
+ *
+ * Everything means every thread the console holds, not one (review F-142): both conversation
+ * lists (they share the `['conversations']` prefix), every lead and client thread, and the
+ * internal conversations with their threads. It used to refetch the list and the single thread
+ * named by `viewing`; the floating chat window, a second open thread and the whole of internal
+ * messaging were left showing a conversation with a hole in it. A thread nobody has on screen is
+ * only marked stale and is read again when it is next opened.
+ */
+export function applyResync(queryClient: QueryClient): void {
+  void queryClient.invalidateQueries({ queryKey: ['conversations'] })
+  void queryClient.invalidateQueries({ queryKey: ['internal-conversations'] })
+  void queryClient.invalidateQueries({
+    predicate: ({ queryKey }) =>
+      (queryKey[0] === 'leads' || queryKey[0] === 'clients') && queryKey[2] === 'messages' && queryKey.length === 3,
+  })
 }
