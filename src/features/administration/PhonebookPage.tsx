@@ -25,7 +25,8 @@ const REVEAL_ON_ROW =
 function CopyableValue({ value, kind }: { value: string; kind: 'email' | 'phone' }) {
   return (
     <span className="inline-flex items-center gap-xs">
-      {value}
+      {/* A phone number stays on one line: split across three it is hard to read or check. */}
+      <span className={kind === 'phone' ? 'whitespace-nowrap' : undefined}>{value}</span>
       <CopyButton value={value} kind={kind} className={REVEAL_ON_ROW} />
     </span>
   )
