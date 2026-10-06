@@ -11,38 +11,12 @@ import { fetchAllFinancePayments, useFinancePayments } from '@/queries/financeDa
 import type { CommissionPayment } from '@/queries/commission'
 import { ConsultancySearchSelect } from './ConsultancySearchSelect'
 import { CorrectPaymentModal } from './CorrectPaymentModal'
+import { PAYMENT_HISTORY_COLUMNS } from './paymentHistoryCsv'
+import { downloadCsv, toCsv } from '@/lib/csv'
 
 
 type StatusFilter = '' | 'confirmed' | 'rejected'
 
-
-function csvCell(value: string): string {
-  // Quote any field that could otherwise break a column boundary or start a new row.
-  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
-}
-
-function toCsv(rows: CommissionPayment[]): string {
-  const header = ['Date', 'Status', 'Amount INR', 'Consultancy', 'Student', 'Reference', 'Declared', 'Confirmed/Rejected', 'By', 'Reason']
-  const lines = rows.map((p) => {
-    const settledAt = p.status === 'confirmed' ? p.confirmed_at : p.status === 'rejected' ? p.rejected_at : null
-    const by = p.status === 'confirmed' ? p.confirmed_by_name : p.status === 'rejected' ? p.rejected_by_name : null
-    return [
-      settledAt ? formatDate(settledAt) : formatDate(p.recorded_at),
-      p.status,
-      String(p.amount.amount ?? 0),
-      p.consultancy_name ?? 'Unknown',
-      p.applicant_name ?? 'General',
-      p.transaction_id ?? '',
-      formatDate(p.recorded_at),
-      settledAt ? formatDate(settledAt) : '',
-      by ?? '',
-      p.reject_reason ?? '',
-    ]
-      .map((v) => csvCell(String(v)))
-      .join(',')
-  })
-  return [header.join(','), ...lines].join('\n')
-}
 
 function statusFilterValue(status: StatusFilter): string {
   return status === '' ? 'confirmed,rejected' : status
@@ -84,16 +58,8 @@ export function HistoryTab() {
     setExportError(null)
     try {
       const rows = await fetchAllFinancePayments(filters)
-      const csv = toCsv(rows)
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `payment-history-${localDateISO()}.csv`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
+      // The one shared export helper, with this export's columns (review F-158, F-145).
+      downloadCsv(`payment-history-${localDateISO()}.csv`, toCsv(rows, PAYMENT_HISTORY_COLUMNS))
     } catch {
       setExportError('Could not export payment history.')
     } finally {

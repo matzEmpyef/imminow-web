@@ -4,7 +4,7 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { BatchResultList } from '@/components/BatchResultList'
 import { batchSummary, useBatchRun } from '@/lib/useBatchRun'
-import { money, paymentInrNote, paymentMoney } from './money'
+import { paymentInrNote, paymentMoney, paymentsTotalLabel } from './money'
 import { useConfirmCommissionPayment, type CommissionPayment } from '@/queries/commission'
 
 const MIN_REASON_LENGTH = 3
@@ -66,9 +66,6 @@ export function BulkConfirmModal({
   )
 
   const allValid = payments.every(rowValid)
-  const currencies = new Set(payments.map((p) => p.amount.currency ?? 'INR'))
-  const total = payments.reduce((sum, p) => sum + (p.amount.amount ?? 0), 0)
-  const totalInr = payments.reduce((sum, p) => sum + (p.amount.currency === 'INR' || !p.amount.currency ? (p.amount.amount ?? 0) : (p.amount_inr ?? 0)), 0)
 
   async function handleConfirm() {
     await batch.start(payments)
@@ -180,8 +177,8 @@ export function BulkConfirmModal({
               })}
             </div>
             <p className="text-body-sm font-medium text-text-primary">
-              Total declared:{' '}
-              {currencies.size === 1 ? money({ amount: total, currency: [...currencies][0] }) : `≈ ₹${totalInr.toLocaleString('en-IN')} (mixed currencies)`}
+              {/* The same words as the button that opened this dialog (review F-159). */}
+              Total declared: {paymentsTotalLabel(payments)}
             </p>
           </>
         )}

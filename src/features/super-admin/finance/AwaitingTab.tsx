@@ -5,7 +5,7 @@ import { StopPropagation } from '@/components/StopPropagation'
 import { Table, type TableColumn } from '@/components/Table'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate, relativeTime } from '@/lib/time'
-import { paymentInrNote, paymentMoney } from './money'
+import { paymentInrNote, paymentMoney, paymentsTotalLabel } from './money'
 import { useFinancePayments } from '@/queries/financeDashboard'
 import type { CommissionPayment } from '@/queries/commission'
 import { ConfirmPaymentModal } from './ConfirmPaymentModal'
@@ -33,7 +33,10 @@ export function AwaitingTab() {
   const payments = useFinancePayments({ status: 'declared', cursor: paging.cursor, limit: 20 })
   const rows = useMemo(() => payments.data?.items ?? [], [payments.data])
   const selectedRows = rows.filter((r) => selected.has(r.id))
-  const selectedTotal = selectedRows.reduce((sum, p) => sum + (p.amount.amount ?? 0), 0)
+  // In the selection's own currency, or in rupee values when it mixes several: the same words
+  // the dialog it opens shows (review F-159). It used to add different currencies together and
+  // call the result rupees.
+  const selectedTotal = paymentsTotalLabel(selectedRows)
 
   const columns: TableColumn<CommissionPayment>[] = [
     {
@@ -129,7 +132,7 @@ export function AwaitingTab() {
           selected.size > 0 && (
             <div className="flex items-center gap-sm">
               <Button size="sm" onClick={() => setBulkConfirming(true)}>
-                Confirm {selected.size} selected (₹{selectedTotal.toLocaleString('en-IN')})
+                Confirm {selected.size} selected ({selectedTotal})
               </Button>
               <button
                 type="button"

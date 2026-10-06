@@ -34,6 +34,38 @@ export function paymentAmount(p: PaymentMoney | null | undefined): number | unde
   return p.amount?.amount ?? undefined
 }
 
+/**
+ * The payment's value in rupees, as a number: its own amount when it was paid in rupees, the
+ * stored rupee equivalent otherwise. Undefined when a foreign-currency row carries none (a row
+ * written before the equivalent was stored) — never a guess, and never the foreign figure under
+ * a rupee heading, which is what the history export used to print (review F-158).
+ */
+export function paymentInrAmount(p: PaymentMoney | null | undefined): number | undefined {
+  if (!p) return undefined
+  const currency = p.amount?.currency ?? 'INR'
+  if (currency === 'INR') return paymentAmount(p)
+  return p.amount_inr ?? undefined
+}
+
+/**
+ * The total of a set of payments, as words — ONE function for every place that totals a selection
+ * (review F-159). All in one currency: that currency's own total ("₹6,000", "CAD 2,400"). In
+ * several: the sum of their rupee values, marked as such ("≈ ₹88,000 (mixed currencies)").
+ *
+ * The bulk-confirm button used to add the bare numbers of every selected payment together and
+ * print the result in rupees: a CAD 1,000 and an INR 5,000 payment read "₹6,000" on the button
+ * and "≈ ₹88,000 (mixed currencies)" in the dialog it opened. Both now ask here.
+ */
+export function paymentsTotalLabel(payments: readonly PaymentMoney[]): string {
+  const currencies = new Set(payments.map((p) => p.amount?.currency ?? 'INR'))
+  if (currencies.size <= 1) {
+    const total = payments.reduce((sum, p) => sum + (p.amount?.amount ?? 0), 0)
+    return money({ amount: total, currency: [...currencies][0] ?? 'INR' })
+  }
+  const totalInr = payments.reduce((sum, p) => sum + (paymentInrAmount(p) ?? 0), 0)
+  return `≈ ₹${totalInr.toLocaleString('en-IN')} (mixed currencies)`
+}
+
 /** The payment's own amount, formatted — minor units where they exist (M15). */
 export function paymentMoney(p: PaymentMoney | null | undefined): string {
   const amount = paymentAmount(p)
