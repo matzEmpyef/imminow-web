@@ -8528,6 +8528,15 @@ export interface paths {
                         "application/json": components["schemas"]["ConversionProposal"];
                     };
                 };
+                /** @description `consultancy_unavailable` (contract gate 12f) — the consultancy is suspended, so it cannot offer to take on a client. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -8591,7 +8600,9 @@ export interface paths {
         put?: never;
         /**
          * Approve or decline a pending conversion proposal — the step that was completely missing before (user-asked, 2026-08-19 — flagged as a gap earlier the same day, now fixed). Whichever side did *not* initiate is the one expected to call this endpoint, though nothing server-side enforces that today (no auth distinction exists between "the consultant" and "the student" from this same login). On approval, creates the `Client`/`journeys` row (`origin_lead_id` set, consultant/branch carried over from the lead), marks the lead `converted`, and — if the lead has a most-recent `shortlist_share` message — copies every shared course straight into the new client's Selected Colleges (`considering` status) and sets `finalized_country` to the *first* shared course's country. On decline, just marks the proposal — no journey created.
-         * @description **Approving is the same commit as `POST /journeys/commit`** (owner Q2, 2026-09-25; build reference 1.6/3.6): in one transaction the case opens, the lead becomes `converted`, every other active lead of the student closes, every other pending proposal of the student expires, consent event 3 (the PII grant) is recorded, and the proposal becomes `approved`. A student who already has a live case is refused (409 `already_committed`) — acceptance never opens a second case. A consultancy whose subscription has lapsed is refused on approval (409 `consultancy_unavailable`); declining is always allowed.
+         * @description **Approving is the same commit as `POST /journeys/commit`** (owner Q2, 2026-09-25; build reference 1.6/3.6): in one transaction the case opens, the lead becomes `converted`, every other active lead of the student closes, every other pending proposal of the student expires, consent event 3 (the PII grant) is recorded, and the proposal becomes `approved`. A student who already has a live case is refused (409 `already_committed`) — acceptance never opens a second case. A consultancy that is suspended or whose subscription has lapsed is refused on approval (409 `consultancy_unavailable`); declining is always allowed.
+         *
+         *     A student also answers an applicant request here (contract gate 12f — `POST /clients` on their email or phone). Approval is refused with 403 `guardian_consent_required` for a student under 18 whose parent or guardian has not approved, the same check as `POST /journeys/commit`; that also applies when staff approve a student's own request. A student who was waiting for Sentpo to choose their consultancy may accept: the case opens with that consultancy and they leave the waiting list.
          *
          *     `Idempotency-Key` is required (contract gate 7) because approval opens a case: a replay with the same key returns the first response.
          */
@@ -8649,7 +8660,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description `already_committed` — the student already has a live case; `consultancy_unavailable` — the consultancy's subscription has lapsed (approval only). */
+                /** @description `already_committed` — the student already has a live case; `consultancy_unavailable` — the consultancy is suspended or its subscription has lapsed (approval only). */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -8661,6 +8672,71 @@ export interface paths {
             };
         };
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversion-proposals/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Take back a pending conversion proposal (contract gate 12f)
+         * @description The sender takes back a proposal that has not been answered. A student withdraws their own request to become a client (`withdrawn`) — allowed until it is approved. Consultancy staff cancel their own offer or applicant request (`cancelled`): for a request sent through Create Applicant, whoever sent it, the consultant it names, or an admin; for an offer made on a lead, anyone who can see that lead. After cancelling an applicant request the consultancy waits 24 hours before asking the same person again.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header: {
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
+                    "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
+                };
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Taken back. `status` is `withdrawn` or `cancelled`. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ConversionProposal"];
+                    };
+                };
+                /** @description `validation_failed` — the proposal is no longer pending; `proposal_expired` — it lapsed after 14 days. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `not_found` — no such proposal, or the caller is not on the side that sent it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -11323,6 +11399,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/conversion-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The requests from consultancies waiting for my answer (contract gate 12f)
+         * @description Student only. Every open request a consultancy has addressed to the caller, newest first, at most 20: offers made on the caller's chats and applicant requests (a consultancy entered the caller's email or phone in Create Applicant). A request is open while it is pending and inside its 14 days. Each item is one request card; accept or decline it with `POST /conversion-proposals/{id}/respond`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["ConversionRequest"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/journeys/me/explore-again": {
         parameters: {
             query?: never;
@@ -11635,11 +11752,32 @@ export interface paths {
             };
         };
         put?: never;
-        /** Manually create an applicant (Student or PR) — Business/Ultimate. No commission generated (FR-092, FR-099) */
+        /**
+         * Manually create an applicant (Student or PR) — Business/Ultimate. No commission generated (FR-092, FR-099)
+         * @description Contract gate 12f. What happens depends on whose the email or phone is.
+         *
+         *     **Nobody's** — the account and the case are created at once and the person is invited (`201`, a `Client`), as before.
+         *
+         *     **A Sentpo student's, verified on their account** — no case is created and nothing about the account is returned. The student is asked to accept in the app (`202`, an `ApplicantRequest`), and the case opens only if they accept, through the same commit as `POST /journeys/commit`. The request expires after 14 days. Sending the same request again while it is waiting returns the waiting one and sends nothing.
+         *
+         *     **Held by an account in any other way** — `409 identifier_in_use`, with no detail. That covers an account that is not a student's (a consultant, platform staff), a student account that entered the email or phone but never verified it, and an applicant another consultancy created who has not signed in yet. Nothing is sent to any of them.
+         *
+         *     Limits on requests to existing students. Each consultancy has a daily allowance, shared by its staff: 15 for each active member of staff, per calendar day in India. A brand-new applicant does not use it. At the limit the answer is `409 limit_reached`, with the reset time in `details.resets_at`. The same consultancy must wait before asking the same person again: 30 days after they declined (lifted as soon as the student starts a chat with the consultancy or asks it to take them on), 7 days after a request expired unanswered, and 24 hours after the consultancy cancelled its own. Asking sooner is `409 request_cooldown`, with the date in `details.retry_after`.
+         *
+         *     If the student is already chatting with the consultancy, the request is the offer on that chat (`lead_id` set). If an offer made from the lead's page is already waiting there, nothing new is sent to the student; what was typed here is added to that offer and it is returned.
+         *
+         *     Two limits answer `429 rate_limited` with `Retry-After`. One member of staff may call this 30 times a minute. And `409 identifier_in_use` answers are counted per consultancy: after 60 in 24 hours, every call from that consultancy is refused until the oldest of them is a day old. A suspended consultancy is refused (`409 consultancy_unavailable`) before the email or phone is looked at.
+         */
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     */
+                    "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -11652,7 +11790,7 @@ export interface paths {
                         email: string;
                         /**
                          * Format: date
-                         * @description Required (2026-09-19, assumptions audit C9): this was the one way a student account came into being without a date of birth, and an account without one was treated as an adult by every age rule. Same 16+ floor as signup (422 `below_minimum_age`).
+                         * @description Required (2026-09-19, assumptions audit C9): this was the one way a student account came into being without a date of birth, and an account without one was treated as an adult by every age rule. Same 16+ floor as signup (422 `below_minimum_age`) when a new account is created. For an existing student it is only kept with the request: the account's own date of birth stands.
                          */
                         date_of_birth: string;
                         phone?: string | null;
@@ -11674,8 +11812,113 @@ export interface paths {
                         "application/json": components["schemas"]["Client"];
                     };
                 };
+                /** @description The email or phone is verified on a Sentpo student account. No case was created and nothing about the account is returned; the student has been asked to accept in the app. Expires in 14 days. */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApplicantRequest"];
+                    };
+                };
+                /** @description `validation_failed` — a required field is missing or not valid. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `identifier_in_use` — the email or phone is held by an account that cannot be asked (see above). `limit_reached` — the consultancy has used today's allowance of requests to existing students (`details.resets_at`). `request_cooldown` — this consultancy asked this person recently (`details.retry_after`). `conflict` — this person has already asked to become the consultancy's client; answer their request on the chat. `consultancy_unavailable` — the consultancy is suspended. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `below_minimum_age` — a new applicant must be 16 or older. `validation_failed` — the email is not a valid address. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `rate_limited` — more than 30 calls a minute by one member of staff, or the consultancy has had 60 `identifier_in_use` answers in the last 24 hours. */
+                429: {
+                    headers: {
+                        /** @description Seconds until the caller may retry. */
+                        "Retry-After"?: number;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applicant-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The consultancy's requests to existing students sent through Create Applicant (contract gate 12f)
+         * @description The requests `POST /clients` answered with `202`: what the consultancy's own staff typed and how each request stands. Nothing from a student's account is in it. An admin or a holder of `clients.view_all` sees every request of the consultancy; anyone else sees the ones they sent or are the chosen consultant of. `filter[status]=pending` (the default) lists the requests still waiting; `filter[status]=ended` lists the accepted, declined, expired and cancelled ones. Always newest first; there is no sort and no search.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
+                    filter?: components["parameters"]["FilterParam"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["ApplicantRequest"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
+                    };
+                };
+                /** @description `validation_failed` — `filter[status]` is not `pending` or `ended`. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -24942,12 +25185,88 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
+        /** @description Contract gate 12f. The consultancy's view of a request it sent through Create Applicant (`POST /clients`) to someone who already has a Sentpo student account. It carries only what the consultancy's own staff typed and chose, and how the request stands. Nothing from the student's account is ever in it, whatever the status: the account's details appear only on the `Client` once the student has accepted. */
+        ApplicantRequest: {
+            /** @description The id of the underlying `ConversionProposal` (the one `DELETE /conversion-proposals/{id}` cancels). */
+            id: components["schemas"]["UUID"];
+            /**
+             * @description `pending` — waiting for the student to accept. `expired` — 14 days passed with no answer, or the request can no longer be accepted.
+             * @enum {string}
+             */
+            status: "pending" | "approved" | "declined" | "expired" | "cancelled";
+            /** @description Exactly what the staff member typed into Create Applicant — never the account's own details. Null only once the person's account has been erased (the typed details are removed with it); the row then reads `expired`. */
+            requested: {
+                first_name: string;
+                last_name: string;
+                email: string;
+                phone?: string | null;
+                /** Format: date */
+                date_of_birth?: string | null;
+                address?: string | null;
+            } | null;
+            /** @enum {string} */
+            case_type: "student" | "pr";
+            assigned_employee_id?: components["schemas"]["UUID"] | null;
+            readonly assigned_employee_name?: string | null;
+            /** @description The member of staff who sent the request. */
+            readonly created_by_name?: string | null;
+            /** @description Set when the student was already chatting with the consultancy — the request is then the offer on that lead. Null otherwise. */
+            lead_id?: components["schemas"]["UUID"] | null;
+            /** Format: date-time */
+            sent_at: string;
+            /**
+             * Format: date-time
+             * @description sent_at + 14 days.
+             */
+            expires_at: string;
+            /** Format: date-time */
+            responded_at?: string | null;
+            /** @description The case that opened when the student accepted (`status = approved`). Null otherwise. */
+            client_id?: components["schemas"]["UUID"] | null;
+            /** @description Present only on the `202` answer of `POST /clients`, and only when the consultancy has few requests to existing students left today (5 or fewer by default). Absent otherwise, on list reads, and when the daily limit is switched off. The console shows "N requests to existing students left today. The limit resets tomorrow." */
+            daily_limit?: {
+                /** @description Requests to existing students the consultancy can still send today, after this one. */
+                remaining: number;
+                /**
+                 * Format: date-time
+                 * @description When the allowance resets — the start of the next day in India.
+                 */
+                resets_at: string;
+            };
+        };
+        /** @description Contract gate 12f. The student's view of one open request from a consultancy — the request card. It is either the consultancy's offer on a chat the student has with it (`lead_id` set) or an applicant request (`lead_id` null — the consultancy entered the student's email or phone in Create Applicant). Both are accepted or declined with `POST /conversion-proposals/{id}/respond`, using `proposal.id`. Nothing the consultancy typed about the student is in it. */
+        ConversionRequest: {
+            proposal: components["schemas"]["ConversionProposal"];
+            /** @description Who is asking. */
+            consultancy: {
+                id: components["schemas"]["UUID"];
+                name: string;
+                /** @enum {string} */
+                kind: "consultancy" | "institute";
+                logo_url?: string | null;
+                /** @description An institute's own college. Accepting an institute removes Dream Courses at other colleges, as committing to it does. */
+                college_id?: components["schemas"]["UUID"] | null;
+            };
+            /** @description The chat the offer was made on. Null for an applicant request. */
+            lead_id?: components["schemas"]["UUID"] | null;
+            /** @description Whether the student can accept right now. Worked out on every read, so a card unblocks itself when the reason goes away. Declining is always allowed. The server refuses an acceptance that is not allowed whatever this said. */
+            acceptable: boolean;
+            /**
+             * @description Why `acceptable` is false. `live_case` — the student already has a consultancy; their current case has to end first. `guardian_consent` — a parent or guardian has not approved the account yet. `consultancy_unavailable` — the consultancy is not taking on new clients. Null when `acceptable` is true.
+             * @enum {string|null}
+             */
+            blocked_reason?: "live_case" | "guardian_consent" | "consultancy_unavailable" | null;
+        };
+        /** @description A proposal that a lead becomes a client, waiting for the other side's answer. A proposal with no lead is an applicant request (contract gate 12f): `POST /clients` on the email or phone of an existing student account. It is answered, reminded and expired exactly as an offer on a lead is. */
         ConversionProposal: {
             id: components["schemas"]["UUID"];
-            /** @enum {string} */
-            status: "pending" | "approved" | "declined" | "expired";
             /**
-             * @description User-asked (2026-08-19) — "student can also initiate a Convert to client." `consultant` is `POST /leads/{id}/convert` ("Propose Conversion" — unchanged). `student` is the new, symmetric `POST /leads/{id}/request-conversion`. Whoever did *not* initiate is the one who responds via `POST /conversion-proposals/{id}/respond`; the Lead Conversation UI labels the pending-proposal banner differently based on this field ("Awaiting [name]'s response" vs "[name] wants to become a client — Approve / Decline"). Real gap, honestly flagged — nothing in this codebase can actually trigger the `student` path today (no student login exists in immiNow, and Sentpo Mobile isn't built) — one demo proposal is seeded with this set so the consultant-facing approve/decline UI is still verifiable live, same pattern already used for the Shortlist-share card.
+             * @description `withdrawn` and `cancelled` (contract gate 12f) — the sender took a pending proposal back with `DELETE /conversion-proposals/{id}`: a student their own request (`withdrawn`), the consultancy its own offer or applicant request (`cancelled`).
+             * @enum {string}
+             */
+            status: "pending" | "approved" | "declined" | "expired" | "withdrawn" | "cancelled";
+            /**
+             * @description User-asked (2026-08-19) — "student can also initiate a Convert to client." `consultant` is `POST /leads/{id}/convert` ("Propose Conversion" — unchanged). `student` is the new, symmetric `POST /leads/{id}/request-conversion`. Whoever did *not* initiate is the one who responds via `POST /conversion-proposals/{id}/respond`; the Lead Conversation UI labels the pending-proposal banner differently based on this field ("Awaiting [name]'s response" vs "[name] wants to become a client — Approve / Decline").
              * @enum {string}
              */
             initiated_by: "consultant" | "student";
@@ -25007,6 +25326,8 @@ export interface components {
             upcoming_events: components["schemas"]["Event"][];
             /** @description Live listings, newest first — NO featured lift (owner, 2026-09-20 — featured jobs are for the Jobs tab, not Home, same as `GET /jobs` without `featured_first`). */
             top_jobs: components["schemas"]["JobListing"][];
+            /** @description Contract gate 12f. The student's open requests from consultancies, newest first — `GET /me/conversion-requests`'s own items, capped at 5. Shown on every stage (a student who already has a consultancy can still decline one). Empty for a non-student. This section is never named in `sections_failed`: if it cannot be read the list is empty, so app builds from before gate 12f are not handed a section name they do not know. The Chats tab and the notification still lead to the request. */
+            conversion_requests: components["schemas"]["ConversionRequest"][];
             /** @description Null for a non-student, for Channel C while `awaiting_match`, and for any caller not on `current_stage: 1` — the Stage 1 discovery rails. Present otherwise. */
             stage1?: {
                 /** @description Home's Top Consultancies rail (plan §4.14 "preferred/featured consultancies") — `PlatformSettings.featured_consultancies` (hand-picked, stored order) when the platform has made picks, otherwise `GET /consultancies?filter[preferred]=true`'s ranking (the caller's own `target_country` ranked first, never narrowed), capped at 10 either way. The two paths `GET /consultancies` itself exposes separately (`filter[featured]`, `filter[preferred]`) collapse to this one rail here because Home shows only one Top Consultancies card. */

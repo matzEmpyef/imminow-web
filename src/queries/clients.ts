@@ -85,7 +85,11 @@ export function useCreateApplicant() {
       case_type: 'student' | 'pr'
       assigned_employee_id: string
     }) => {
-      const { data, error } = await api.POST('/clients', { body })
+      // Required since contract gate 12f: one key per call until the form keys it by content.
+      const { data, error } = await api.POST('/clients', {
+        params: { header: { 'Idempotency-Key': crypto.randomUUID() } },
+        body,
+      })
       if (error) throw new ApiError('Could not create this applicant.', error)
       return data
     },
