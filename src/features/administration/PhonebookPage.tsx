@@ -6,12 +6,30 @@ import { Badge } from '@/components/Badge'
 import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
+import { CopyButton } from '@/components/CopyButton'
 import { useDeletePhonebookContact, usePhonebook } from '@/queries/phonebook'
 import { AddPhonebookContactModal } from './AddPhonebookContactModal'
 import { useAccountWords } from '@/lib/accountWords'
 import { useCursorPagination } from '@/lib/pagination'
 
 type Contact = NonNullable<ReturnType<typeof usePhonebook>['data']>['items'][number]
+
+// The one table in the console that carries copy buttons (owner, 2026-10-06), and only while the
+// row is hovered or holds keyboard focus so the table stays clean. The space is always reserved
+// (opacity, not display) so the text never jumps. `group-hover` only fires on devices that can
+// hover, so touch screens get the always-visible `hover: none` rule instead — otherwise the
+// button would be unreachable there. The row gets its `group` class through Table's rowClassName.
+const REVEAL_ON_ROW =
+  'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100'
+
+function CopyableValue({ value, kind }: { value: string; kind: 'email' | 'phone' }) {
+  return (
+    <span className="inline-flex items-center gap-xs">
+      {value}
+      <CopyButton value={value} kind={kind} className={REVEAL_ON_ROW} />
+    </span>
+  )
+}
 
 export function PhonebookPage() {
   // H2 (2026-09-13) — an institute is not a consultancy; the nouns follow `kind`.
@@ -68,8 +86,17 @@ export function PhonebookPage() {
       sortable: true,
       render: (c) => <Badge color="secondary">{c.category}</Badge>,
     },
-    { key: 'phone', header: 'Phone', render: (c) => c.phone },
-    { key: 'email', header: 'Email', render: (c) => c.email || <span className="text-text-secondary">—</span> },
+    {
+      key: 'phone',
+      header: 'Phone',
+      render: (c) => (c.phone ? <CopyableValue value={c.phone} kind="phone" /> : c.phone),
+    },
+    {
+      key: 'email',
+      header: 'Email',
+      render: (c) =>
+        c.email ? <CopyableValue value={c.email} kind="email" /> : <span className="text-text-secondary">—</span>,
+    },
     {
       key: 'actions',
       header: '',
@@ -138,6 +165,7 @@ export function PhonebookPage() {
           columns={columns}
           rows={rows}
           rowKey={(c) => c.id}
+          rowClassName={() => 'group'}
           loading={contacts.isLoading}
           error={contacts.isError ? 'Could not load contacts.' : undefined}
           emptyMessage={
