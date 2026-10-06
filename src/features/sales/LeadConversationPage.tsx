@@ -42,24 +42,18 @@ import { formatMoney } from '@/lib/money'
 import type { components } from '@/api/schema'
 import { LEAD_SOURCE_LABELS } from './leadSources'
 
-type LeadMessage = components['schemas']['LeadMessage']
+type Course = components['schemas']['Course']
+type Lead = components['schemas']['Lead']
+
 // User-requested (2026-08-19) — "a button in lead's detail page, request for shortlist courses
 // (if not already shared).. when clicking a message is send to lead, lead clicks and the
-// shortlisted courses is shared (in the same place button to view the courses)." State is
-// derived from whichever of shortlist_request/shortlist_share appears most recently in the
-// thread — no separate stored flag, so it can never drift out of sync with the actual messages.
-function shortlistState(messages: LeadMessage[] | undefined): 'none' | 'requested' | 'shared' {
-  if (!messages) return 'none'
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].type === 'shortlist_share') return 'shared'
-    if (messages[i].type === 'shortlist_request') return 'requested'
-  }
-  return 'none'
-}
-
-function ShortlistViewModal({ messages, onClose }: { messages: LeadMessage[] | undefined; onClose: () => void }) {
-  const lastShare = [...(messages ?? [])].reverse().find((m) => m.type === 'shortlist_share')
-  const courses = lastShare?.shared_courses ?? []
+// shortlisted courses is shared (in the same place button to view the courses)."
+//
+// Where the exchange stands is the server's answer on the lead itself (`lead.shortlist`, review
+// F-029, lane x), worked out from the WHOLE thread. It used to be read off the messages this page
+// happened to have loaded; a long chat pages, so once the request had scrolled out of the loaded
+// page the header offered "Request Shortlist" again.
+function ShortlistViewModal({ courses, onClose }: { courses: Course[]; onClose: () => void }) {
   return (
     <Modal onClose={onClose} title="Shortlisted Courses" widthRem={28} dismissible>
       <div className="flex flex-col gap-xs">
@@ -76,6 +70,40 @@ function ShortlistViewModal({ messages, onClose }: { messages: LeadMessage[] | u
         ))}
       </div>
     </Modal>
+  )
+}
+
+/**
+ * The chat header's shortlist button, from `lead.shortlist.status` alone: `shared` opens the
+ * courses the student last shared, `requested` waits (disabled), `none` asks. A lead read before
+ * the field existed has none, which reads as `none`. Exported so it can be pinned without mounting
+ * the whole conversation page.
+ */
+export function ShortlistAction({ lead }: { lead: Lead }) {
+  const requestShortlist = useRequestShortlist(lead.id)
+  const [viewing, setViewing] = useState(false)
+  const status = lead.shortlist?.status ?? 'none'
+
+  if (status === 'shared') {
+    return (
+      <>
+        <Button variant="secondary" onClick={() => setViewing(true)}>
+          View Shortlist
+        </Button>
+        {viewing && <ShortlistViewModal courses={lead.shortlist?.courses ?? []} onClose={() => setViewing(false)} />}
+      </>
+    )
+  }
+  return (
+    <Button
+      variant="secondary"
+      disabled={status === 'requested' || !lead.assigned_employee_id}
+      title={lead.assigned_employee_id ? undefined : 'Allocate this lead first'}
+      loading={requestShortlist.isPending}
+      onClick={() => requestShortlist.mutate()}
+    >
+      {status === 'requested' ? 'Shortlist Requested' : 'Request Shortlist'}
+    </Button>
   )
 }
 
@@ -266,7 +294,6 @@ export function LeadConversationPage() {
   const lead = useLead(id)
   const messages = useLeadMessages(id)
   const sendMessage = useSendLeadMessage(id)
-  const requestShortlist = useRequestShortlist(id)
   const openFloating = useChatWindowStore((s) => s.open)
   const [draft, setDraft] = useState('')
   // One line above the composer for anything that failed to send (chat UX, product owner
@@ -278,7 +305,6 @@ export function LeadConversationPage() {
   const [showConvertModal, setShowConvertModal] = useState(false)
   const [showCloseModal, setShowCloseModal] = useState(false)
   const [showReopenModal, setShowReopenModal] = useState(false)
-  const [showShortlistView, setShowShortlistView] = useState(false)
 
   // Set Reminder is the `activity_queue` entitlement (Ultimate by default) — reminders feed the
   // Activity work-queue, so without that page there's nowhere for one to surface.
@@ -369,24 +395,7 @@ export function LeadConversationPage() {
                   <AskForRatingButton lead={data} onAsk={() => setShowRatingModal(true)} />
                 )}
 
-                {(() => {
-                  const state = shortlistState(messages.items)
-                  return state === 'shared' ? (
-                    <Button variant="secondary" onClick={() => setShowShortlistView(true)}>
-                      View Shortlist
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="secondary"
-                      disabled={state === 'requested' || !data.assigned_employee_id}
-                      title={data.assigned_employee_id ? undefined : 'Allocate this lead first'}
-                      loading={requestShortlist.isPending}
-                      onClick={() => requestShortlist.mutate()}
-                    >
-                      {state === 'requested' ? 'Shortlist Requested' : 'Request Shortlist'}
-                    </Button>
-                  )
-                })()}
+                <ShortlistAction lead={data} />
 
                 {data.active_proposal ? (
                   <ConversionApprovalActions leadId={id} leadName={data.name} proposal={data.active_proposal} />
@@ -414,9 +423,6 @@ export function LeadConversationPage() {
         {showCloseModal && <CloseLeadModal leadId={id} leadName={data.name} onClose={() => setShowCloseModal(false)} />}
         {showReopenModal && (
           <ReopenLeadModal leadId={id} leadName={data.name} onClose={() => setShowReopenModal(false)} />
-        )}
-        {showShortlistView && (
-          <ShortlistViewModal messages={messages.items} onClose={() => setShowShortlistView(false)} />
         )}
 
         <div className="grid min-h-0 flex-1 grid-cols-3 gap-lg">

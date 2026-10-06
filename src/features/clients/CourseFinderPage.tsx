@@ -144,11 +144,12 @@ export function CourseFinderPage() {
     hasFilters,
   )
 
-  // Client-side "already suggested" tracking, one mechanism per audience since they are backed
-  // by different things: a client's suggestions are `selected_colleges` rows; a lead's are
-  // `course_share` messages in their own thread (there is no journey for a lead to attach a row
-  // to — see `POST /leads/{id}/suggest-course`'s doc comment). Each hook is a no-op unless that
-  // kind of person is actually selected.
+  // "Already suggested", one source per audience since they are backed by different things: a
+  // client's suggestions are `selected_colleges` rows; a lead's are the server's own list on the
+  // lead (`suggested_course_ids`, worked out from the whole thread: review F-029, lane x). It
+  // used to be a scan of the lead's loaded messages, which missed a suggestion that had scrolled
+  // out of the loaded page. `selectedLead` is the lead read by id (`GET /leads/{id}`), which is
+  // where the field is served. Each hook is a no-op unless that kind of person is selected.
   const applications = useApplications(selectedClient?.id)
   const addSelected = useAddApplication(selectedClient?.id ?? '')
   const leadMessages = useLeadMessages(selectedLead?.id)
@@ -156,9 +157,7 @@ export function CourseFinderPage() {
   const suggestedCourseIds = new Set(
     (selectedClient
       ? (applications.data ?? []).map((sc) => sc.course?.id)
-      : (leadMessages.items ?? [])
-          .filter((m) => m.type === 'course_share' && m.sender === 'consultant')
-          .map((m) => m.shared_course?.id)
+      : (selectedLead?.suggested_course_ids ?? [])
     ).filter((id): id is string => Boolean(id)),
   )
   function suggestCourse(courseId: string) {
@@ -174,7 +173,7 @@ export function CourseFinderPage() {
   // (chat UX, product owner 2026-09-19). Checked here so "Send this search" is simply not
   // offered while the last message in the thread already IS this search from this consultancy —
   // the refusal becomes something only a race can produce. A client's thread needs its own fetch;
-  // a lead's is already loaded above for the "already suggested" check.
+  // a lead's is loaded above.
   const clientMessages = useClientMessages(selectedClient?.id)
   const threadMessages = selectedClient ? clientMessages.items : leadMessages.items
   const outgoingShare = sharedSearchFiltersFrom(state, state.feeCurrency || feeCurrency)

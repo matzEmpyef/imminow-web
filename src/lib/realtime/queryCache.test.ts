@@ -49,6 +49,51 @@ describe('realtime query cache patches', () => {
     queryClient = new QueryClient()
   })
 
+  // Lane x (review F-029): the chat header's shortlist button and the "Suggested" marks are read
+  // from the lead, so a message that moves either makes the console read that ONE lead again.
+  describe('a shortlist or course card reads the lead again', () => {
+    const leadRead = { queryKey: ['leads', 'lead-1'], exact: true }
+
+    it.each(['shortlist_request', 'shortlist_share', 'course_share'] as const)('a live %s does', (type) => {
+      const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+      applyChatMessage(queryClient, { type: 'lead', id: 'lead-1' }, message({ id: 'm1', type }))
+      expect(invalidate).toHaveBeenCalledWith(leadRead)
+    })
+
+    it('an ordinary message does not', () => {
+      const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+      applyChatMessage(queryClient, { type: 'lead', id: 'lead-1' }, message({ id: 'm1', type: 'text' }))
+      applyChatMessage(queryClient, { type: 'lead', id: 'lead-1' }, message({ id: 'm2' }))
+      expect(invalidate).not.toHaveBeenCalled()
+    })
+
+    it("a card on a client's thread does not: a case has no shortlist button", () => {
+      const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+      applyChatMessage(queryClient, { type: 'client', id: 'client-1' }, message({ id: 'm1', type: 'course_share' }))
+      expect(invalidate).not.toHaveBeenCalled()
+    })
+
+    it('the fallback poll does, for a card it had not seen', () => {
+      queryClient.setQueryData(['leads', 'lead-1', 'messages'], thread([message({ id: 'm0' })]))
+      const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+      mergeNewestMessages(queryClient, { type: 'lead', id: 'lead-1' }, [
+        message({ id: 'm0' }),
+        message({ id: 'm1', type: 'shortlist_share' }),
+      ])
+      expect(invalidate).toHaveBeenCalledWith(leadRead)
+    })
+
+    it('the fallback poll does not for a card already loaded', () => {
+      queryClient.setQueryData(
+        ['leads', 'lead-1', 'messages'],
+        thread([message({ id: 'm0', type: 'shortlist_share' })]),
+      )
+      const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+      mergeNewestMessages(queryClient, { type: 'lead', id: 'lead-1' }, [message({ id: 'm0', type: 'shortlist_share' })])
+      expect(invalidate).not.toHaveBeenCalled()
+    })
+  })
+
   describe('applyChatMessage', () => {
     it('appends the new message to a cached thread', () => {
       queryClient.setQueryData(['leads', 'lead-1', 'messages'], thread([message({ id: 'm0' })]))

@@ -6,7 +6,7 @@ import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { useCourseFinder } from '@/queries/courseFinder'
-import { useLeadMessages, useSuggestCourseToLead } from '@/queries/leads'
+import { useLead, useLeadMessages, useSuggestCourseToLead } from '@/queries/leads'
 import { useAddApplication, useApplications } from '@/queries/clients'
 import { formatCourseFee } from '@/lib/money'
 import { showToast } from '@/lib/toast'
@@ -83,15 +83,14 @@ function SuggestCourseModal({
   const queryClient = useQueryClient()
   const pending = isLead ? suggestToLead.isPending : addApplication.isPending
 
-  // Same "already suggested" rule as Course Finder: a lead's suggestions are course cards in their
-  // thread, a client's are rows on their Applications tab.
+  // Same "already suggested" rule as Course Finder. A lead's suggestions are the server's own list
+  // on the lead (`suggested_course_ids`, from the whole thread: review F-029, lane x), not a scan
+  // of the messages loaded here; a client's are rows on their Applications tab.
+  const lead = useLead(isLead ? person.id : undefined)
   const suggestedIds = new Set(
-    (isLead
-      ? (leadMessages.items ?? [])
-          .filter((m) => m.type === 'course_share' && m.sender === 'consultant')
-          .map((m) => m.shared_course?.id)
-      : (applications.data ?? []).map((a) => a.course?.id)
-    ).filter((id): id is string => Boolean(id)),
+    (isLead ? (lead.data?.suggested_course_ids ?? []) : (applications.data ?? []).map((a) => a.course?.id)).filter(
+      (id): id is string => Boolean(id),
+    ),
   )
   // Belt as well as braces (chat UX, product owner 2026-09-19): `suggestedIds` above is the
   // "already suggested, ever" rule, which for a CLIENT is read from Applications and can lag the

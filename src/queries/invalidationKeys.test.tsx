@@ -31,7 +31,16 @@ import { useVoidInstallment } from './commissionEntries'
 import { useConversations } from './conversations'
 import { useDashboard } from './dashboard'
 import { useFinanceSummary } from './financeDashboard'
-import { useAllocateLead, useCloseLead, useLeads, useReopenLead, useSendLeadMessage } from './leads'
+import {
+  useAllocateLead,
+  useCloseLead,
+  useLead,
+  useLeads,
+  useReopenLead,
+  useRequestShortlist,
+  useSendLeadMessage,
+  useSuggestCourseToLead,
+} from './leads'
 import { useEmployee, useUpdateBranch } from './staff'
 import { useDeleteTag } from './tags'
 
@@ -178,6 +187,15 @@ describe('other saves that left a screen stale', () => {
     ['the employee records', '/staff/employees/{id}', () => useEmployee('e1')],
   ] as const)('renaming a branch refreshes %s, which named the branch', async (_name, path, read) => {
     await expectRefetch(path, read, () => useUpdateBranch('b1'), (w) => w.mutateAsync({ name: 'Kochi Central' } as never))
+  })
+
+  // Lane x (review F-029): the header's shortlist button and the "Suggested" marks are on the lead.
+  it('asking for the shortlist reads the lead again', async () => {
+    await expectRefetch('/leads/{id}', () => useLead('l1'), () => useRequestShortlist('l1'), (w) => w.mutateAsync())
+  })
+
+  it('suggesting a course to a lead reads the lead again', async () => {
+    await expectRefetch('/leads/{id}', () => useLead('l1'), () => useSuggestCourseToLead('l1'), (w) => w.mutateAsync('c1'))
   })
 
   it('recording a commission payment refreshes the finance dashboard', async () => {

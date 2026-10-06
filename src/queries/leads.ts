@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMutation } from '@/lib/useSave'
 import { api } from '@/api/client'
-import { applyChatMessage } from '@/lib/realtime/queryCache'
+import { applyChatMessage, refreshLeadShareState } from '@/lib/realtime/queryCache'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 import { refreshStanding } from './standing'
@@ -450,6 +450,7 @@ export function useCancelConversionProposal() {
 }
 
 // "A button in lead's detail page, request for shortlist courses" (user-requested, 2026-08-19).
+// The header's button follows `lead.shortlist`, so the lead is read again after the request.
 export function useRequestShortlist(leadId: string) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -460,7 +461,10 @@ export function useRequestShortlist(leadId: string) {
       if (error) throw new ApiError('Could not send the shortlist request.', error)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['leads', leadId, 'messages'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads', leadId, 'messages'] })
+      refreshLeadShareState(queryClient, leadId)
+    },
   })
 }
 
@@ -478,6 +482,9 @@ export function useSuggestCourseToLead(leadId: string) {
       if (error) throw new ApiError('Could not suggest this course.', error)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['leads', leadId, 'messages'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads', leadId, 'messages'] })
+      refreshLeadShareState(queryClient, leadId)
+    },
   })
 }

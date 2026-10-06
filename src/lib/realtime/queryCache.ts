@@ -28,6 +28,26 @@ export function threadMessagesKey(thread: RealtimeThreadRef): [string, string, s
   return [thread.type === 'lead' ? 'leads' : 'clients', thread.id, 'messages']
 }
 
+/** The message types that move `lead.shortlist` or `lead.suggested_course_ids` (review F-029). */
+const LEAD_SHARE_STATE_TYPES: readonly string[] = ['shortlist_request', 'shortlist_share', 'course_share']
+
+/**
+ * Reads ONE lead again (`['leads', id]`, exactly: not its messages, not the lists). The chat
+ * header's shortlist button and the "Already suggested" marks come from the lead itself
+ * (`lead.shortlist`, `lead.suggested_course_ids`), which the server works out from the whole
+ * thread; the console no longer derives them from the messages it has loaded. Called after a
+ * message that moves either arrives, and after the console's own request-shortlist or
+ * suggest-course call.
+ */
+export function refreshLeadShareState(queryClient: QueryClient, leadId: string): void {
+  void queryClient.invalidateQueries({ queryKey: ['leads', leadId], exact: true })
+}
+
+function refreshLeadShareStateFor(queryClient: QueryClient, thread: RealtimeThreadRef, messages: LeadMessage[]): void {
+  if (thread.type !== 'lead') return
+  if (messages.some((m) => LEAD_SHARE_STATE_TYPES.includes(m.type ?? ''))) refreshLeadShareState(queryClient, thread.id)
+}
+
 /**
  * `chat.message` — append the new message to the NEWEST loaded page of the open thread
  * (`pages[0]`: `fetchNextPage` only ever adds OLDER pages after it), if the thread is cached at
@@ -46,6 +66,8 @@ export function applyChatMessage(queryClient: QueryClient, thread: RealtimeThrea
     pages[0] = { ...pages[0], items: [...pages[0].items, message] }
     return { ...old, pages }
   })
+  // Whether or not the thread itself is cached: Course Finder holds the lead without its chat.
+  refreshLeadShareStateFor(queryClient, thread, [message])
 }
 
 /**
@@ -57,6 +79,9 @@ export function applyChatMessage(queryClient: QueryClient, thread: RealtimeThrea
  */
 export function mergeNewestMessages(queryClient: QueryClient, thread: RealtimeThreadRef, newest: LeadMessage[]): void {
   const key = threadMessagesKey(thread)
+  // What the poll found that no loaded page had: the socket is down, so this is where a shortlist
+  // or course card that arrived in the meantime is first seen.
+  let arrived: LeadMessage[] = []
   queryClient.setQueryData<InfiniteData<MessagesPage>>(key, (old) => {
     if (!old || old.pages.length === 0) return old
     const fresh = new Map(newest.map((m) => [m.id, m]))
@@ -79,10 +104,12 @@ export function mergeNewestMessages(queryClient: QueryClient, thread: RealtimeTh
     const added = newest.filter((m) => fresh.has(m.id))
     if (added.length > 0) {
       changed = true
+      arrived = added
       pages[0] = { ...pages[0], items: [...pages[0].items, ...added] }
     }
     return changed ? { ...old, pages } : old
   })
+  refreshLeadShareStateFor(queryClient, thread, arrived)
 }
 
 /** `['internal-conversations', idOrTeam, 'messages']` — the `useInfiniteQuery` key
