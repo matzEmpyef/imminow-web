@@ -10,8 +10,31 @@ import {
 import { SHOWS_OWN_ERROR } from '@/lib/saveErrors'
 
 /**
+ * What a submit carries, as text, so two submits can be compared. Files count by name, size and
+ * date (two different attachments are two different saves). `null` means "cannot tell", and a
+ * submit that cannot be compared is never treated as a duplicate.
+ */
+export function fingerprint(variables: unknown): string | null {
+  try {
+    return JSON.stringify(variables === undefined ? null : variables, (_key, value: unknown) => {
+      if (typeof File !== 'undefined' && value instanceof File) {
+        return `file:${value.name}:${value.size}:${value.lastModified}`
+      }
+      if (typeof Blob !== 'undefined' && value instanceof Blob) return `blob:${value.size}:${value.type}`
+      if (typeof FormData !== 'undefined' && value instanceof FormData) return [...value.entries()]
+      if (value instanceof Map) return ['map', ...value.entries()]
+      if (value instanceof Set) return ['set', ...value.values()]
+      if (typeof value === 'function' || typeof value === 'symbol') throw new Error('not comparable')
+      return value
+    })
+  } catch {
+    return null
+  }
+}
+
+/**
  * The console's `useMutation`: React Query's own, with the same arguments and the same result,
- * plus the one thing every save in the console should have and used to get only where someone
+ * plus the two things every save in the console should have and used to get only where someone
  * remembered. Every query module imports `useMutation` from here (a test fails on an import of
  * the bare one).
  *
@@ -29,6 +52,15 @@ import { SHOWS_OWN_ERROR } from '@/lib/saveErrors'
  * failed can no longer show anything, so the global message appears. A screen that does none of
  * these (the inline Void confirm, Allocate, Reopen plan, Suspend — the cases the review found)
  * gets the global message with no change to the screen.
+ *
+ * A SECOND IDENTICAL SUBMIT IS IGNORED WHILE THE FIRST IS IN FLIGHT (review F-152). Pressing Enter
+ * twice before the button repaints as disabled used to send the save twice: two applicants, two
+ * leads, two coupons, two events. Nine forms had a hand-written check; every save has this one.
+ * The check is a plain ref read in the same tick as the click (React state is too late: it is
+ * the repaint that is slow). "Identical" means the same content (`fingerprint`), so a different
+ * save from the same screen — the next row of a batch, a second file — is never held back, and
+ * the same content can be sent again as soon as the first attempt has finished, whatever its
+ * result. A duplicate `mutateAsync` is handed the promise already in flight.
  */
 export function useMutation<TData = unknown, TError = DefaultError, TVariables = void, TContext = unknown>(
   options: UseMutationOptions<TData, TError, TVariables, TContext>,
@@ -59,26 +91,50 @@ export function useMutation<TData = unknown, TError = DefaultError, TVariables =
     queryClient,
   )
 
-  const { mutate: baseMutate, mutateAsync: baseMutateAsync } = base
+  const { mutateAsync: baseMutateAsync } = base
+
+  /** The submit on its way to the server, if any: what it carries and the promise for its result. */
+  const inFlight = useRef<{ key: string; promise: Promise<TData> } | null>(null)
+
+  const submit = useCallback(
+    (
+      variables: TVariables,
+      callOptions: MutateOptions<TData, TError, TVariables, TContext> | undefined,
+      isAsync: boolean,
+    ): Promise<TData> | null => {
+      const key = fingerprint(variables)
+      if (key !== null && inFlight.current?.key === key) return isAsync ? inFlight.current.promise : null
+      callIsAsync.current = isAsync
+      callHasOnError.current = Boolean(callOptions?.onError)
+      const promise = baseMutateAsync(variables, callOptions)
+      if (key !== null) {
+        const mine = { key, promise }
+        inFlight.current = mine
+        const done = () => {
+          if (inFlight.current === mine) inFlight.current = null
+        }
+        promise.then(done, done)
+      }
+      return promise
+    },
+    [baseMutateAsync],
+  )
 
   // Same identity across renders, as React Query's own `mutate` has (effects list it as a
-  // dependency; `queries/mutateStability.test.tsx` pins that).
+  // dependency; `queries/mutateStability.test.tsx` pins that). And, like React Query's own, it
+  // is `mutateAsync` with the rejection swallowed: the failure is reported through the callbacks
+  // and the result, never as an unhandled promise.
   const mutate = useCallback(
     (variables: TVariables, callOptions?: MutateOptions<TData, TError, TVariables, TContext>) => {
-      callIsAsync.current = false
-      callHasOnError.current = Boolean(callOptions?.onError)
-      baseMutate(variables, callOptions)
+      submit(variables, callOptions, false)?.catch(() => {})
     },
-    [baseMutate],
+    [submit],
   )
 
   const mutateAsync = useCallback(
-    (variables: TVariables, callOptions?: MutateOptions<TData, TError, TVariables, TContext>) => {
-      callIsAsync.current = true
-      callHasOnError.current = Boolean(callOptions?.onError)
-      return baseMutateAsync(variables, callOptions)
-    },
-    [baseMutateAsync],
+    (variables: TVariables, callOptions?: MutateOptions<TData, TError, TVariables, TContext>) =>
+      submit(variables, callOptions, true) as Promise<TData>,
+    [submit],
   )
 
   const result = { ...base, mutate, mutateAsync } as UseMutationResult<TData, TError, TVariables, TContext>

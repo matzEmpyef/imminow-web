@@ -11,7 +11,7 @@ import { queryClient as appQueryClient } from '@/lib/queryClient'
 import { SAVE_FAILED_FALLBACK, reportFailedSave } from '@/lib/saveErrors'
 import { useToastStore } from '@/lib/toast'
 import { useVoidInvoice } from '@/queries/invoicing'
-import { useMutation } from './useSave'
+import { fingerprint, useMutation } from './useSave'
 
 // Review F-151: one global handler shows any failed save as a message, unless the screen shows
 // its own. Which screens show their own is noticed by the shared `useMutation`, not declared.
@@ -194,5 +194,109 @@ describe('in the console as wired', () => {
       .filter(([, text]) => /import \{[^}]*\buseMutation\b[^}]*\} from '@tanstack\/react-query'/.test(text))
       .map(([path]) => path)
     expect(offenders).toEqual([])
+  })
+})
+
+// Review F-152: one guard on every save. A second identical submit while the first is in flight
+// is ignored; anything different, or anything later, goes through.
+describe('a second submit while the first is in flight', () => {
+  function setup() {
+    const pending: { resolve: (value: string) => void; reject: (error: Error) => void }[] = []
+    const mutationFn = vi.fn(
+      (_body: { name: string }) => new Promise<string>((resolve, reject) => pending.push({ resolve, reject })),
+    )
+    const hook = renderHook(() => useMutation({ mutationFn }), { wrapper: wrapperFor(makeClient()) })
+    return { mutationFn, pending, hook }
+  }
+
+  it('is ignored when it carries the same content (Enter pressed twice)', async () => {
+    const { mutationFn, pending, hook } = setup()
+    act(() => {
+      hook.result.current.mutate({ name: 'Asha Nair' })
+      hook.result.current.mutate({ name: 'Asha Nair' })
+      hook.result.current.mutate({ name: 'Asha Nair' })
+    })
+    await waitFor(() => expect(mutationFn).toHaveBeenCalledTimes(1))
+    await act(async () => pending[0].resolve('created'))
+    await waitFor(() => expect(hook.result.current.data).toBe('created'))
+    expect(mutationFn).toHaveBeenCalledTimes(1)
+  })
+
+  it('still fires the callbacks of the submit that went through', async () => {
+    const { pending, hook } = setup()
+    const onSuccess = vi.fn()
+    act(() => {
+      hook.result.current.mutate({ name: 'Asha' }, { onSuccess })
+      hook.result.current.mutate({ name: 'Asha' }, { onSuccess })
+    })
+    await waitFor(() => expect(pending).toHaveLength(1))
+    await act(async () => pending[0].resolve('created'))
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1))
+  })
+
+  it('goes through when the content differs (the next row of a batch)', async () => {
+    const { mutationFn, hook } = setup()
+    act(() => {
+      hook.result.current.mutate({ name: 'Asha' })
+      hook.result.current.mutate({ name: 'Ravi' })
+    })
+    await waitFor(() => expect(mutationFn).toHaveBeenCalledTimes(2))
+  })
+
+  it('goes through once the first has finished, whether it worked or failed', async () => {
+    const { mutationFn, pending, hook } = setup()
+    act(() => hook.result.current.mutate({ name: 'Asha' }))
+    await waitFor(() => expect(pending).toHaveLength(1))
+    await act(async () => pending[0].reject(new Error('The server refused.')))
+    await waitFor(() => expect(hook.result.current.isError).toBe(true))
+
+    act(() => hook.result.current.mutate({ name: 'Asha' }))
+    await waitFor(() => expect(mutationFn).toHaveBeenCalledTimes(2))
+    await act(async () => pending[1].resolve('created'))
+
+    act(() => hook.result.current.mutate({ name: 'Asha' }))
+    await waitFor(() => expect(mutationFn).toHaveBeenCalledTimes(3))
+  })
+
+  it('hands a duplicate mutateAsync the promise already in flight', async () => {
+    const { mutationFn, pending, hook } = setup()
+    let first!: Promise<string>
+    let second!: Promise<string>
+    act(() => {
+      first = hook.result.current.mutateAsync({ name: 'Asha' })
+      second = hook.result.current.mutateAsync({ name: 'Asha' })
+    })
+    expect(second).toBe(first)
+    await waitFor(() => expect(pending).toHaveLength(1))
+    await act(async () => pending[0].resolve('created'))
+    await expect(second).resolves.toBe('created')
+    expect(mutationFn).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('fingerprint', () => {
+  it('is the same for the same content', () => {
+    expect(fingerprint({ name: 'A', n: 1 })).toBe(fingerprint({ name: 'A', n: 1 }))
+    expect(fingerprint(undefined)).toBe(fingerprint(undefined))
+    expect(fingerprint('lead-1')).toBe(fingerprint('lead-1'))
+  })
+
+  it('tells different content apart', () => {
+    expect(fingerprint({ name: 'A' })).not.toBe(fingerprint({ name: 'B' }))
+    expect(fingerprint({ idempotencyKey: 'k1', amount: 5 })).not.toBe(fingerprint({ idempotencyKey: 'k2', amount: 5 }))
+  })
+
+  it('tells two different files apart, and knows the same file', () => {
+    const a = new File(['aaaa'], 'passport.pdf', { lastModified: 1 })
+    const b = new File(['bb'], 'marksheet.pdf', { lastModified: 1 })
+    expect(fingerprint({ file: a })).not.toBe(fingerprint({ file: b }))
+    expect(fingerprint({ file: a })).toBe(fingerprint({ file: a }))
+  })
+
+  it('declines to compare what cannot be compared, so such a submit is never dropped', () => {
+    const loop: Record<string, unknown> = {}
+    loop.self = loop
+    expect(fingerprint(loop)).toBeNull()
+    expect(fingerprint({ onDone: () => {} })).toBeNull()
   })
 })
