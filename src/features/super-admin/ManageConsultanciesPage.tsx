@@ -13,16 +13,13 @@ import { Toggle } from '@/components/Toggle'
 import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
-import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { PartnerCollegesPanel } from '@/features/administration/PartnerCollegesPanel'
-import { useCollegeDetail } from '@/queries/adminColleges'
-import { collegeWithCoursesSource } from '@/queries/pickerSources'
+import { InstituteCollegeSection } from './InstituteCollegeSection'
 import {
   type ConsultancyFilters,
   useAdminConsultancies,
   useAdminConsultancy,
   useChangeTier,
-  useLinkCollege,
   useReactivateConsultancy,
   useRenewSubscription,
   useSetConsultancyRating,
@@ -511,66 +508,6 @@ function KycSection({ consultancyId, kycVerified }: { consultancyId: string; kyc
         <Button variant="secondary" loading={verify.isPending} onClick={() => verify.mutate(consultancyId)}>
           Verify
         </Button>
-      )}
-    </div>
-  )
-}
-
-/**
- * The institute's college, and the second half of D8's linking when it has none yet.
- *
- * Both directions are surfaced here because both really happen: an account created with its
- * college shows it as settled fact, and one created without shows the picker that attaches it.
- * The attach is WRITE-ONCE — the server refuses a second attempt 409 `college_already_linked`,
- * because moving an account between colleges would silently reassign every case, application and
- * commission entry on it — so once linked there is no control at all rather than one that fails.
- */
-function InstituteCollegeSection({ consultancy }: { consultancy: Consultancy }) {
-  const linkCollege = useLinkCollege(consultancy.id!)
-  const linkedCollege = useCollegeDetail(consultancy.college_id ?? undefined)
-  const [collegeId, setCollegeId] = useState('')
-
-  return (
-    <div className="flex flex-col gap-sm p-md">
-      <p className="text-body-sm font-medium text-text-primary">College</p>
-      {consultancy.college_id ? (
-        <>
-          <p className="text-body-sm text-text-primary">{linkedCollege.data?.name ?? 'Loading…'}</p>
-          <p className="text-caption text-text-secondary">
-            This account&rsquo;s course catalogue is fixed to this college, and its partner colleges are itself. The
-            link is set once and cannot be moved — reassigning an institute to another college would carry every case
-            on it across.
-          </p>
-        </>
-      ) : (
-        <>
-          <p className="text-caption text-text-secondary">
-            Not linked yet. Until a college is attached this account sees <strong>no</strong> catalogue at all — the
-            fail-closed reading of &ldquo;not linked&rdquo;. Attaching is permanent.
-          </p>
-          <div className="flex flex-wrap items-end gap-sm">
-            <div className="min-w-[16rem] flex-1">
-              {/* F-038: searched on the server — the attach is permanent, and the right college
-                  was not reachable past the first 100. */}
-              <ServerSearchSelect
-                id="institute-link-college"
-                label="College"
-                source={collegeWithCoursesSource}
-                value={collegeId}
-                onChange={setCollegeId}
-                placeholder="Search the catalogue…"
-              />
-            </div>
-            <Button
-              disabled={!collegeId}
-              loading={linkCollege.isPending}
-              onClick={() => linkCollege.mutate(collegeId, { onSuccess: () => setCollegeId('') })}
-            >
-              Link college
-            </Button>
-          </div>
-          {linkCollege.isError && <p className="text-caption text-error">{linkCollege.error.message}</p>}
-        </>
       )}
     </div>
   )
