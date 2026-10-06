@@ -1,19 +1,39 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { ApiError } from '@/api/errors'
 import { useAuthStore } from '@/stores/authStore'
 import { primeMe } from './me'
+import { noteSessionBegan } from '@/lib/sessionNotice'
 
 // ApiError moved to api/errors.ts (N1 fix, 2026-09-01 — see its doc comment for why); re-exported
 // here so the many existing `import { ApiError } from '@/queries/auth'` sites keep working.
 export { ApiError }
 
-// Both ways into a session (sign-in, accepting an invite) do the same two things in the same
-// order: ask `GET /me` with the new token and put the answer in the cache, THEN store the tokens.
+// Both ways into a session (sign-in, accepting an invite) do the same things in the same order:
+// ask `GET /me` with the new token and put the answer in the cache, THEN store the tokens.
 // Storing the tokens is what flips every guard to "signed in", so by then the answer the guards
 // read is already there and the first screen is the right one (review F-036).
+//
+// A new session also starts from an empty cache (review F-165). An invitation can be accepted in
+// a tab where another account is still signed in; that account's session is closed first (which
+// stops its live connection and idle clock) and everything it had loaded is dropped, so the new
+// person is never shown the previous person's lists. The invitation itself is kept: the page
+// that is accepting it is still reading it.
+const KEPT_ACROSS_SESSIONS = 'invite'
+
+async function beginSession(
+  queryClient: QueryClient,
+  tokens: { access_token: string; refresh_token: string; user?: { id?: string } },
+) {
+  const { accessToken, clear, setSession } = useAuthStore.getState()
+  if (accessToken) clear()
+  queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== KEPT_ACROSS_SESSIONS })
+  await primeMe(queryClient, tokens.access_token)
+  noteSessionBegan(tokens.user?.id)
+  setSession(tokens)
+}
+
 export function useLogin() {
-  const setSession = useAuthStore((s) => s.setSession)
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (body: { email: string; password: string }) => {
@@ -22,8 +42,7 @@ export function useLogin() {
       // The refusal's own sentence is shown as it comes: a wrong password, a disabled account, or
       // 403 `account_locked_for_erasure` (the account is scheduled for deletion; `details.due_at`).
       if (error) throw new ApiError('Could not sign in.', error, (response as Response | undefined)?.status)
-      await primeMe(queryClient, data.access_token)
-      setSession(data)
+      await beginSession(queryClient, data)
       return data
     },
   })
@@ -61,7 +80,6 @@ export function useInvite(token: string) {
 }
 
 export function useAcceptInvite(token: string) {
-  const setSession = useAuthStore((s) => s.setSession)
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (body: { password: string }) => {
@@ -70,8 +88,7 @@ export function useAcceptInvite(token: string) {
         body,
       })
       if (error) throw new ApiError('Could not accept this invitation.', error)
-      await primeMe(queryClient, data.access_token)
-      setSession(data)
+      await beginSession(queryClient, data)
       return data
     },
   })

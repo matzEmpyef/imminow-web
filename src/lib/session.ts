@@ -1,5 +1,6 @@
 import { useAuthStore } from '@/stores/authStore'
 import { queryClient } from '@/lib/queryClient'
+import { noteSessionEnded, type SessionEndReason } from '@/lib/sessionNotice'
 
 /**
  * The ONE way a session ends (N1, second-pass review, 1 Sep 2026). There are two paths out of an
@@ -11,8 +12,15 @@ import { queryClient } from '@/lib/queryClient'
  * Deliberately does NOT navigate: the interceptor has no router, and emptying the auth store
  * already flips `ProtectedRoute`/`ConsultancyRoute` into their /login redirect on the next render.
  * Callers that want an immediate redirect (the button) navigate themselves.
+ *
+ * `reason` is given when the person did not choose to leave (review F-165): the login page then
+ * says why, and the same person signing in again is taken back to the page they were on. Log out
+ * passes none, which also forgets any earlier reason.
  */
-export function endSession() {
+export function endSession(reason?: SessionEndReason) {
+  // Read before the cache is emptied: `GET /me`'s answer is the only place the user id lives.
+  const me = queryClient.getQueryData<{ user?: { id?: string } }>(['me'])
+  noteSessionEnded(reason, me?.user?.id ?? null)
   useAuthStore.getState().clear()
   queryClient.clear()
 }

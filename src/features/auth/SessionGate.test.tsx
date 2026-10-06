@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Review F-036. Every signed-in route waits for `GET /me` and decides from it. Pinned here:
@@ -25,11 +25,21 @@ import { ProtectedRoute } from './ProtectedRoute'
 
 const mockedMe = vi.mocked(useMe)
 
+function LoginStub() {
+  const from = (useLocation().state as { from?: string } | null)?.from
+  return (
+    <>
+      <p>Login page</p>
+      <p data-testid="from">{from ?? ''}</p>
+    </>
+  )
+}
+
 function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="/login" element={<p>Login page</p>} />
+        <Route path="/login" element={<LoginStub />} />
         <Route path="/account" element={<ProtectedRoute><p>My account</p></ProtectedRoute>} />
         <Route path="/dashboard" element={<ConsultancyRoute><p>Consultancy dashboard</p></ConsultancyRoute>} />
         <Route path="/admin/dashboard" element={<PlatformRoute><p>Console dashboard</p></PlatformRoute>} />
@@ -55,6 +65,13 @@ describe('before /me has answered', () => {
     mockedMe.mockReturnValue(meLoading())
     renderAt('/dashboard')
     expect(screen.getByText('Login page')).toBeInTheDocument()
+  })
+
+  it('tells the login page which address was asked for, so a sign-in can come back to it (F-165)', () => {
+    useAuthStore.setState({ accessToken: null, refreshToken: null })
+    mockedMe.mockReturnValue(meLoading())
+    renderAt('/admin/ratings?status=flagged#top')
+    expect(screen.getByTestId('from')).toHaveTextContent('/admin/ratings?status=flagged#top')
   })
 
   it.each(['/account', '/dashboard', '/admin/dashboard', '/admin/ratings', '/freelancer/dashboard'])(

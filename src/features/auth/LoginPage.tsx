@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { BRAND_LOGO } from '@/lib/brand'
 import loginBg from '@/assets/brand/login-bg.png'
 import { TextField } from '@/components/TextField'
@@ -8,6 +8,12 @@ import { ApiError, useLogin } from '@/queries/auth'
 import { useAuthStore } from '@/stores/authStore'
 import { roleHomePath, scopeHomePath } from '@/lib/roleHome'
 import { SessionGate } from '@/features/auth/SessionGate'
+import {
+  SESSION_END_MESSAGES,
+  returnPathAfterSignIn,
+  useSessionNoticeStore,
+  type LoginLocationState,
+} from '@/lib/sessionNotice'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -71,6 +77,9 @@ function LoginHeroPanel() {
 
 export function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  // Why the last session here ended, when the person did not end it (review F-165).
+  const notice = useSessionNoticeStore((s) => s.notice)
   const login = useLogin()
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   const [email, setEmail] = useState('')
@@ -80,7 +89,14 @@ export function LoginPage() {
   // M14 fix (frontend review, 1 Sep 2026): a session sitting in sessionStorage used to leave the
   // login form showing anyway — bounce straight to that role's own landing page instead.
   // Which landing page is `GET /me`'s answer (review F-036); SessionGate waits for it.
-  if (isAuthed) return <SessionGate>{(me) => <Navigate to={scopeHomePath(me.scope)} replace />}</SessionGate>
+  //
+  // Someone sent here by a guard (their session ended, or they opened an address while signed
+  // out) goes back to that page once signed in, when that is safe (review F-165); everyone else
+  // gets their own home page.
+  const returnPath = () => returnPathAfterSignIn((location.state as LoginLocationState | null)?.from)
+  if (isAuthed) {
+    return <SessionGate>{(me) => <Navigate to={returnPath() ?? scopeHomePath(me.scope)} replace />}</SessionGate>
+  }
 
   const emailError = touched.email && !EMAIL_PATTERN.test(email) ? 'Enter a valid email address.' : undefined
   const passwordError = touched.password && !password ? 'Password is required.' : undefined
@@ -89,7 +105,12 @@ export function LoginPage() {
     e.preventDefault()
     setTouched({ email: true, password: true })
     if (!EMAIL_PATTERN.test(email) || !password) return
-    login.mutate({ email, password }, { onSuccess: (data) => navigate(roleHomePath(data.user.role)) })
+    login.mutate(
+      { email, password },
+      {
+        onSuccess: (data) => navigate(returnPath() ?? roleHomePath(data.user.role), { replace: true }),
+      },
+    )
   }
 
   return (
@@ -99,6 +120,11 @@ export function LoginPage() {
         <div className="mx-auto flex w-full max-w-[24rem] flex-col">
           <img src={BRAND_LOGO} alt="immiNow" className="mx-auto h-12 w-fit" />
           <h1 className="mt-xl text-h1 text-text-primary">Log in</h1>
+          {notice && (
+            <div role="status" className="mt-md rounded-md border border-info bg-info/10 px-md py-sm">
+              <p className="text-body-sm text-text-primary">{SESSION_END_MESSAGES[notice.reason]}</p>
+            </div>
+          )}
 
           <form className="mt-lg flex flex-col gap-md" onSubmit={handleSubmit} noValidate>
             <TextField

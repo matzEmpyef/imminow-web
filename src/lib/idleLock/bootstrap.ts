@@ -1,14 +1,8 @@
 import { requestNewAccessToken } from '@/api/client'
 import { endSession } from '@/lib/session'
-import { showToast } from '@/lib/toast'
 import { useAuthStore } from '@/stores/authStore'
 import { sessionKeyFromRefreshToken } from './activityChannel'
 import { IdleLockManager, type IdleLockReason } from './idleLockManager'
-
-const LOCK_MESSAGES: Record<IdleLockReason, string> = {
-  idle: 'You were signed out after 30 minutes without activity.',
-  absolute: 'You were signed out after 12 hours for security. Please sign in again.',
-}
 
 /**
  * Ends the session the same way Log out and the 401 interceptor do (`lib/session.ts`'s
@@ -16,12 +10,15 @@ const LOCK_MESSAGES: Record<IdleLockReason, string> = {
  * Deliberately does not navigate or stop the realtime socket directly — `endSession()` clearing
  * the access token is exactly the edge `ProtectedRoute`/`ConsultancyRoute` bounce to `/login` on
  * and `lib/realtime/bootstrap.ts`'s own `authStore` subscription stops `realtimeManager` on, so
- * both already happen as a consequence, the same way they do for the Log out button. The toast is
- * mounted outside `<Routes>` (`ToastViewport` in `main.tsx`), so it survives that redirect.
+ * both already happen as a consequence, the same way they do for the Log out button.
+ *
+ * The reason goes with it (review F-165): the login page says why the session ended and keeps
+ * saying it until the person signs in (it used to be a toast, gone after five seconds, which
+ * someone coming back from lunch never saw), and the same person is taken back to the page they
+ * were on. The wording is `SESSION_END_MESSAGES` in `lib/sessionNotice.ts`.
  */
 function lockSession(reason: IdleLockReason): void {
-  endSession()
-  showToast(LOCK_MESSAGES[reason], 'info')
+  endSession(reason)
 }
 
 /**

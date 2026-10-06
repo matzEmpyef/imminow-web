@@ -18,7 +18,7 @@ import { queryClient as appQueryClient } from '@/lib/queryClient'
 import { useAuthStore } from '@/stores/authStore'
 import { staffMe } from '@/test/me'
 import { ME_QUERY_KEY, fetchMe, meBlockedError, primeMe, useMe } from './me'
-import { useLogin } from './auth'
+import { useAcceptInvite, useLogin } from './auth'
 
 // The one identity read (review F-036), end to end through the real API client: what it asks,
 // where the answer is kept (the query cache, never storage), how a sign-in seeds it, and that a
@@ -150,6 +150,33 @@ describe('signing in', () => {
     await result.current.mutateAsync({ email: 'asha@example.test', password: 'pw' })
     expect(useAuthStore.getState().accessToken).toBe('access-1')
     expect(client.getQueryData(ME_QUERY_KEY)).toBeUndefined()
+  })
+
+  // Review F-165: an invitation accepted in a tab where another account is signed in.
+  it('starts a new session from an empty cache, as the new person, when another account was signed in', async () => {
+    useAuthStore.getState().setSession({ access_token: 'access-old', refresh_token: 'refresh-old' })
+    client.setQueryData(ME_QUERY_KEY, staffMe({ consultancy_name: 'Old Consultancy' }))
+    client.setQueryData(['clients', {}], { items: [{ id: 'someone-elses-client' }] })
+    client.setQueryData(['invite', 'tok'], { first_name: 'Ravi' })
+    fetchMock.mockResolvedValueOnce(
+      json(200, { access_token: 'access-new', refresh_token: 'refresh-new', user: { id: 'u2', role: 'consultant' } }),
+    )
+    fetchMock.mockImplementationOnce(async () => {
+      // The previous account is already signed out and its lists are gone before the new one starts.
+      expect(useAuthStore.getState().accessToken).toBeNull()
+      expect(client.getQueryData(['clients', {}])).toBeUndefined()
+      return json(200, staffMe({ consultancy_name: 'New Consultancy' }))
+    })
+    const { result } = renderHook(() => useAcceptInvite('tok'), { wrapper })
+    await result.current.mutateAsync({ password: 'a-new-password' })
+
+    // `/me` was asked as the NEW person, not with the token the tab still held.
+    expect(requests().at(-1)).toEqual({ path: expect.stringMatching(/\/me$/), auth: 'Bearer access-new' })
+    expect(useAuthStore.getState().accessToken).toBe('access-new')
+    expect(client.getQueryData(ME_QUERY_KEY)).toMatchObject({ staff: { consultancy_name: 'New Consultancy' } })
+    expect(client.getQueryData(['clients', {}])).toBeUndefined()
+    // The invitation the page is showing is not thrown away under it.
+    expect(client.getQueryData(['invite', 'tok'])).toEqual({ first_name: 'Ravi' })
   })
 
   it('primeMe leaves nothing behind when /me refuses', async () => {

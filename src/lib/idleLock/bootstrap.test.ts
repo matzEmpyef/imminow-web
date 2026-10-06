@@ -18,7 +18,7 @@ vi.mock('@/api/client', () => ({
 import { requestNewAccessToken } from '@/api/client'
 import { queryClient } from '@/lib/queryClient'
 import { realtimeManager, startRealtime } from '@/lib/realtime'
-import { useToastStore } from '@/lib/toast'
+import { SESSION_END_MESSAGES, useSessionNoticeStore } from '@/lib/sessionNotice'
 import { useAuthStore } from '@/stores/authStore'
 import { idleLockManager, startIdleLock } from './bootstrap'
 import { ABSOLUTE_CAP_MS, IDLE_LOCK_MS, IDLE_WARNING_MS } from './idleLockManager'
@@ -46,7 +46,7 @@ describe('idle lock bootstrap', () => {
     localStorage.clear()
     useAuthStore.getState().clear()
     queryClient.clear()
-    useToastStore.setState({ toasts: [] })
+    useSessionNoticeStore.setState({ notice: null, returnBlocked: false })
     useIdleLockStore.setState({ warning: false, secondsRemaining: 0 })
     vi.mocked(requestNewAccessToken).mockClear()
   })
@@ -66,9 +66,10 @@ describe('idle lock bootstrap', () => {
     expect(useAuthStore.getState().refreshToken).toBeNull()
     expect(queryClient.getQueryCache().getAll()).toHaveLength(0)
     expect(realtimeManager.getStatus()).toBe('stopped')
-    const lastToast = useToastStore.getState().toasts.at(-1)
-    expect(lastToast?.tone).toBe('info')
-    expect(lastToast?.message).toBe('You were signed out after 30 minutes without activity.')
+    // The login page says why, and keeps saying it until the person signs in (review F-165).
+    const notice = useSessionNoticeStore.getState().notice
+    expect(notice?.reason).toBe('idle')
+    expect(SESSION_END_MESSAGES.idle).toBe('You were signed out after 30 minutes without activity.')
   })
 
   it('signs out after 12 hours regardless of activity, with its own explanation', () => {
@@ -82,8 +83,8 @@ describe('idle lock bootstrap', () => {
     }
 
     expect(useAuthStore.getState().accessToken).toBeNull()
-    const lastToast = useToastStore.getState().toasts.at(-1)
-    expect(lastToast?.message).toBe('You were signed out after 12 hours for security. Please sign in again.')
+    expect(useSessionNoticeStore.getState().notice?.reason).toBe('absolute')
+    expect(SESSION_END_MESSAGES.absolute).toBe('You were signed out after 12 hours for security. Please sign in again.')
   })
 
   it('"Stay signed in" calls the same refresh the 401 interceptor uses, without locking', () => {
@@ -114,12 +115,12 @@ describe('idle lock bootstrap', () => {
     vi.advanceTimersByTime(5000)
 
     expect(useAuthStore.getState().accessToken).toBe('a1')
-    expect(useToastStore.getState().toasts).toHaveLength(0)
+    expect(useSessionNoticeStore.getState().notice).toBeNull()
   })
 
   it('does not run the idle clock at all while signed out', () => {
     // Never sign in.
     vi.advanceTimersByTime(IDLE_LOCK_MS)
-    expect(useToastStore.getState().toasts).toHaveLength(0)
+    expect(useSessionNoticeStore.getState().notice).toBeNull()
   })
 })

@@ -22,6 +22,17 @@ interface AuthState {
 
 type Tokens = Pick<AuthState, 'accessToken' | 'refreshToken'>
 
+// Counts sessions in this tab: it moves on every sign-in and every sign-out, and stays put when a
+// token is merely renewed. A request remembers the number it was sent under, so an answer that
+// comes back after the session changed (a late refusal from the account that just signed out) can
+// be recognised and left alone (review F-165). In memory only: no request outlives a reload.
+let sessionEpoch = 0
+
+/** Which session of this tab is current. Compare with the value read when a request was sent. */
+export function currentSessionEpoch(): number {
+  return sessionEpoch
+}
+
 // Session persists to sessionStorage only (cleared on tab close) — a pragmatic Phase 2 choice
 // while auth runs against the mock server; Phase 6 swaps this for real Cognito token handling
 // (TRD Section 9), not just a longer-lived storage mechanism. Tokens only: `partialize` and
@@ -32,10 +43,16 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       accessToken: null,
       refreshToken: null,
-      setSession: ({ access_token, refresh_token }) => set({ accessToken: access_token, refreshToken: refresh_token }),
+      setSession: ({ access_token, refresh_token }) => {
+        sessionEpoch += 1
+        set({ accessToken: access_token, refreshToken: refresh_token })
+      },
       setAccessToken: (accessToken, rotatedRefreshToken) =>
         set((state) => ({ accessToken, refreshToken: rotatedRefreshToken || state.refreshToken })),
-      clear: () => set({ accessToken: null, refreshToken: null }),
+      clear: () => {
+        sessionEpoch += 1
+        set({ accessToken: null, refreshToken: null })
+      },
     }),
     {
       name: 'imminow-auth',

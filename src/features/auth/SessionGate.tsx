@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { AuthLayout } from '@/features/auth/AuthLayout'
 import { Button } from '@/components/Button'
 import { useAuthStore } from '@/stores/authStore'
 import { useLogout } from '@/lib/useLogout'
 import { meBlockedError, useMe, type Me } from '@/queries/me'
+import type { LoginLocationState } from '@/lib/sessionNotice'
 
 /**
  * What every signed-in route waits behind (review F-036): the server's answer to "who am I"
@@ -13,7 +14,8 @@ import { meBlockedError, useMe, type Me } from '@/queries/me'
  * (the consultancy menu shown to a platform account, "you don't have access" shown to someone
  * who has it).
  *
- *   not signed in      → the login page
+ *   not signed in      → the login page, which is told the address so a sign-in can come back
+ *                        to it (review F-165)
  *   waiting            → a quiet loading card, no shell, no denial
  *   refused by /me     → the server's own message instead of a shell (a disabled account, or
  *                        staff of a consultancy whose subscription has lapsed), with Log out
@@ -28,8 +30,12 @@ export function SessionGate({ children }: { children: (me: Me) => ReactNode }) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   const me = useMe()
   const logout = useLogout()
+  const location = useLocation()
 
-  if (!isAuthed) return <Navigate to="/login" replace />
+  if (!isAuthed) {
+    const state: LoginLocationState = { from: `${location.pathname}${location.search}${location.hash}` }
+    return <Navigate to="/login" replace state={state} />
+  }
 
   const blocked = meBlockedError(me.error)
   if (blocked) {
