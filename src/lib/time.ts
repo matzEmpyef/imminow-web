@@ -200,12 +200,37 @@ export function formatDayLabel(input: string | Date): string {
  * browser's own clock like every other time in the console. Returns null for a missing or
  * unparseable stamp (the frozen mock sends null: it computes everything live), so the caller shows
  * no caption rather than an invented one.
+ *
+ * The DATE is added whenever the stamp is not from today (review F-161): "as of 14:00 on
+ * 03/10/2026". An hour alone made three-day-old figures, or figures from a refresh that had been
+ * failing since yesterday, read exactly like fresh ones. `dated` asks for the date even today,
+ * for a page whose figures are known to run behind.
  */
-export function formatAsOf(iso: string | null | undefined): string | null {
+export function formatAsOf(
+  iso: string | null | undefined,
+  options: { now?: Date; dated?: boolean } = {},
+): string | null {
   if (!iso) return null
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return null
-  return `as of ${pad(d.getHours())}:00`
+  const hour = `as of ${pad(d.getHours())}:00`
+  const today = isSameDay(d, options.now ?? new Date())
+  return today && !options.dated ? hour : `${hour} on ${formatDate(d)}`
+}
+
+/** The dashboards' figures are refreshed every hour. */
+const ROLLUP_PERIOD_MS = 60 * 60 * 1000
+
+/**
+ * Whether a rollup stamp is older than it should ever be: more than two refresh periods behind
+ * (review F-161). One missed refresh is ordinary lateness; two means the refresh is not running,
+ * and the page should say its figures are old rather than present them as current.
+ */
+export function isAsOfStale(iso: string | null | undefined, now: Date = new Date()): boolean {
+  if (!iso) return false
+  const at = new Date(iso).getTime()
+  if (Number.isNaN(at)) return false
+  return now.getTime() - at > 2 * ROLLUP_PERIOD_MS
 }
 
 /**

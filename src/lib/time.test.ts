@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { daysSince, daysUntil, formatAsOf, formatDate, localDateISO, relativeTime, timeAgo } from './time'
+import { daysSince, daysUntil, formatAsOf, formatDate, isAsOfStale, localDateISO, relativeTime, timeAgo } from './time'
 
 // The bug this helper exists for (2026-09-12): "today" was taken from toISOString(), the UTC
 // date, so in India every date default read as yesterday between midnight and 05:30.
@@ -88,13 +88,51 @@ describe('timeAgo', () => {
 // purpose and a missing stamp — what the frozen mock sends — must yield no caption at all.
 describe('formatAsOf', () => {
   it('names the hour on the local clock and drops the minutes', () => {
-    expect(formatAsOf(new Date(2026, 9, 2, 14, 7).toISOString())).toBe('as of 14:00')
-    expect(formatAsOf(new Date(2026, 9, 2, 9, 59).toISOString())).toBe('as of 09:00')
+    const now = new Date(2026, 9, 2, 14, 30)
+    expect(formatAsOf(new Date(2026, 9, 2, 14, 7).toISOString(), { now })).toBe('as of 14:00')
+    expect(formatAsOf(new Date(2026, 9, 2, 9, 59).toISOString(), { now })).toBe('as of 09:00')
   })
 
   it('gives nothing for a missing or unreadable stamp', () => {
     expect(formatAsOf(null)).toBeNull()
     expect(formatAsOf(undefined)).toBeNull()
     expect(formatAsOf('not a date')).toBeNull()
+  })
+})
+
+// Review F-161: an hour alone made old figures read as fresh.
+describe('formatAsOf — figures that are not from today', () => {
+  const now = new Date(2026, 9, 6, 10, 30)
+
+  it('adds the date when the stamp is from another day', () => {
+    expect(formatAsOf(new Date(2026, 9, 3, 14, 5).toISOString(), { now })).toBe('as of 14:00 on 03/10/2026')
+    expect(formatAsOf(new Date(2026, 9, 5, 23, 0).toISOString(), { now })).toBe('as of 23:00 on 05/10/2026')
+  })
+
+  it('keeps the hour alone for today', () => {
+    expect(formatAsOf(new Date(2026, 9, 6, 9, 0).toISOString(), { now })).toBe('as of 09:00')
+  })
+
+  it('shows the date even today when asked to (a page whose figures run behind)', () => {
+    expect(formatAsOf(new Date(2026, 9, 6, 9, 0).toISOString(), { now, dated: true })).toBe('as of 09:00 on 06/10/2026')
+  })
+})
+
+describe('isAsOfStale', () => {
+  const now = new Date(2026, 9, 6, 16, 0, 1)
+
+  it('is false within two refresh periods: one late refresh is ordinary', () => {
+    expect(isAsOfStale(new Date(2026, 9, 6, 15, 0).toISOString(), now)).toBe(false)
+    expect(isAsOfStale(new Date(2026, 9, 6, 14, 0, 2).toISOString(), now)).toBe(false)
+  })
+
+  it('is true once the figures are more than two refreshes old', () => {
+    expect(isAsOfStale(new Date(2026, 9, 6, 14, 0).toISOString(), now)).toBe(true)
+    expect(isAsOfStale(new Date(2026, 9, 3, 14, 0).toISOString(), now)).toBe(true)
+  })
+
+  it('is false when there is no stamp to judge', () => {
+    expect(isAsOfStale(null, now)).toBe(false)
+    expect(isAsOfStale('not a date', now)).toBe(false)
   })
 })

@@ -268,7 +268,9 @@ export function SupplyDemandPage() {
             Where students want to go vs. where consultancies actually serve — collecting since{' '}
             {formatDate(data.collecting_since)}.
           </p>
-          <AsOfCaption asOf={data.as_of} />
+          {/* Always with its date (review F-161): this page's demand figures run days behind by
+              design, so an hour on its own says too little here. */}
+          <AsOfCaption asOf={data.as_of} dated />
         </div>
 
         {/* Where students want to study (user, 2026-09-02; revised 2026-09-10). Distinct students
