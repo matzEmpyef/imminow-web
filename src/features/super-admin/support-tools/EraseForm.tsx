@@ -12,6 +12,7 @@ export function EraseForm({ result, onCancel }: { result: UserSearchResult; onCa
   const eraseData = useEraseUserData()
   const [reason, setReason] = useState('')
   const [confirmText, setConfirmText] = useState('')
+  const [password, setPassword] = useState('')
   const [succeeded, setSucceeded] = useState(false)
 
   if (succeeded) {
@@ -37,6 +38,14 @@ export function EraseForm({ result, onCancel }: { result: UserSearchResult; onCa
         that window passes.
       </p>
       <TextField label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
+      <TextField
+        label="Your password"
+        type="password"
+        autoComplete="current-password"
+        required
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
       <TextField label={'Type "ERASE" to confirm'} required value={confirmText} onChange={(e) => setConfirmText(e.target.value)} />
       {eraseData.isError && <p className="text-body-sm text-error">{eraseData.error.message}</p>}
       <div className="flex items-center justify-end gap-sm">
@@ -46,10 +55,10 @@ export function EraseForm({ result, onCancel }: { result: UserSearchResult; onCa
         <Button
           size="sm"
           variant="destructive"
-          disabled={!reason.trim() || confirmText !== 'ERASE'}
+          disabled={!reason.trim() || !password || confirmText !== 'ERASE'}
           loading={eraseData.isPending}
           onClick={() =>
-            eraseData.mutate({ id: result.id, reason: reason.trim() }, { onSuccess: () => setSucceeded(true) })
+            eraseData.mutate({ id: result.id, reason: reason.trim(), password }, { onSuccess: () => setSucceeded(true) })
           }
         >
           Erase user data

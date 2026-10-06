@@ -30,7 +30,7 @@ export interface paths {
                         email: string;
                         password?: string | null;
                         google_token?: string | null;
-                        /** @description Optional phone, in E.164 (e.g. +919876543210) — the client adds the country code (the app's dial-code chip) before sending. A bare national number (9876543210) is refused 400 `validation_failed` by the real backend; the mock was more lenient. */
+                        /** @description Optional phone, in E.164 (e.g. +919876543210) — the client adds the country code (the app's dial-code chip) before sending. A bare national number (9876543210) is refused 400 `validation_failed` by the real backend; the mock was more lenient. Checked, never stored (owner, 2026-10-06): a contact is saved on the account only once its one-time code is entered, so the real backend creates the account without it (409 `identifier_in_use` when the number already signs another account in) and the client adds it afterwards, signed in, through POST /auth/otp/request and POST /auth/otp/verify. */
                         phone?: string | null;
                         /** @description Someone ELSE's code, resolved server-side at signup (2026-08-19 — codes were stored as an inert string before; nothing consumed them). Three outcomes by code owner — **student**: the referrer is credited the referral_signup earn rule via the standard crediting path (cap enforced; self-referral impossible since the new account can't own a code yet; real backend credits when the referred account verifies, the mock at creation since its accounts are born verified — documented simplification). **Freelancer**: full Channel C (build reference 1.19) — journey created in Awaiting Match, a freelancer_referrals row (payment_status owed), and an applicant-allocation queue entry. **Consultancy**: Channel B, unchanged/out of scope here. An invalid or mistyped code is IGNORED and signup proceeds — never block acquisition on a bad code. */
                         referral_code?: string | null;
@@ -155,7 +155,7 @@ export interface paths {
                     };
                 };
                 401: components["responses"]["ErrorResponse"];
-                /** @description `account_disabled` or `subscription_lapsed` — the account may not sign in. Phase 6 (Staff 2FA, owner-approved 2026-09-24) adds `mfa_required` for a console user with an authenticator enrolled: the password was right, no tokens are issued yet, and `error.details.mfa_session` (string, short-lived, single use) is sent to POST /auth/mfa/verify with the 6-digit code to finish signing in. An error code rather than a second 200 shape, so the generated TokenPair type stays intact. The mock server never sends `mfa_required`. */
+                /** @description `account_disabled` or `subscription_lapsed` — the account may not sign in. Phase 6 (Staff 2FA, owner-approved 2026-09-24) adds `mfa_required` for a console user with an authenticator enrolled: the password was right, no tokens are issued yet, and `error.details.mfa_session` (string, short-lived, single use) is sent to POST /auth/mfa/verify with the 6-digit code to finish signing in. An error code rather than a second 200 shape, so the generated TokenPair type stays intact. The mock server never sends `mfa_required`. Gate 12f adds `account_locked_for_erasure`: the account is scheduled for deletion (`error.details.due_at`, date-time, says when; the message carries the date). A console account cannot keep itself — it contacts Sentpo support, and a Super Admin cancels with DELETE /users/{id}/erasure. */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -659,11 +659,20 @@ export interface paths {
         /**
          * Passwordless door, step 1 — send an OTP to an email or phone, OR say this identifier wants a password instead (build reference 1.1, revised 2026-09-02; `staff` mode added 2026-09-15)
          * @description The ONE door Sentpo Mobile shows every visitor — nothing about the screen itself reveals that a staff login exists. `identifier` is an email address or an E.164 phone number; the server detects which and, for an email, also looks up whether it belongs to an EXISTING non-student account. Three outcomes, all via `mode`: `login` (a known student — OTP sent), `signup` (identifier not on file — OTP sent, a signup challenge), `staff` (a consultancy/institute account — NO OTP is sent or challenge opened; the client shows a password field instead, using the same `identifier` against /auth/login). A staff identifier is never told apart from a brand-new one by timing or response shape beyond this one field, and — deliberately — never opens a signup challenge that would 409 at the end (the pre-2026-09-15 behavior, which read as a broken form rather than "use your password"). Platform staff, a super admin, and a freelancer also resolve to `staff` here (they DO have a password) even though Sentpo Mobile's own password login only accepts a consultancy/institute role — that refusal happens at /auth/login, not here.
+         *
+         *     SENDING LIMITS (owner ruling 2026-10-06, review F-024). A text is only ever a one-time code. Every text is counted, resends included, against all of these at once: 5 an hour and 10 a day per phone number; 5 an hour per device when `X-Device-Id` is sent; 15 an hour per caller address; and a daily ceiling for the whole platform. The counts are per number, device and address, not per purpose: codes asked for here and through `POST /auth/otp/request` draw on the same allowance, and a successful sign-in does not give any of it back. Emailed codes keep their own limit of 3 an hour per address (cleared by a successful verification). Over any limit the answer is 429 `rate_limited`, identical whether or not the identifier has an account.
          */
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /**
+                     * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request`. WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
+                     *
+                     *     WHAT IT DOES: when present, texted codes are also limited per device (5 an hour by default), in addition to the limits per phone number, per caller address and for the platform as a whole, which apply with or without it. A value of any other shape is ignored as if the header were not sent (never a 400). The server stores only a hash of it, for an hour, as a counter key.
+                     */
+                    "X-Device-Id"?: components["parameters"]["DeviceId"];
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -701,6 +710,15 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description `rate_limited`. No code was sent. Always carries the `Retry-After` header and `details.retry_after_seconds` (the same number). Three causes, one shape: (1) a resend inside the 30-second cooldown while a code is live, message "Wait Ns before requesting another code."; (2) an email address that has had 3 codes this hour; (3) a texted code over one of the sending limits, message "Too many codes requested. Try again after HH:MM." (the time is India's, with " tomorrow" appended when it is not today), where `details.retry_at` is also present: the same moment as an ISO 8601 UTC timestamp, for a client that shows it in the device's own time zone. Show the message, disable "Send code" until then, and offer the email door: emailed codes are not affected by the text limits. The answer does not say which limit was reached and is the same for a number with an account and one without. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -720,7 +738,7 @@ export interface paths {
         put?: never;
         /**
          * Passwordless door, step 2 — verify the OTP; logs in, or clears signup to proceed
-         * @description For a `login` challenge, success returns the TokenPair directly (`status: authenticated`). For a `signup` challenge, success returns a short-lived `signup_token` (`status: signup_required`) — proof of a verified identifier that /auth/passwordless/complete-signup consumes; no account exists yet at that point. Wrong code fails `invalid_otp` with attempts_remaining, then `too_many_attempts`.
+         * @description For a `login` challenge, success returns the TokenPair directly (`status: authenticated`). For a `signup` challenge, success returns a short-lived `signup_token` (`status: signup_required`) — proof of a verified identifier that /auth/passwordless/complete-signup consumes; no account exists yet at that point. Wrong code fails `invalid_otp` with attempts_remaining, then `too_many_attempts`. Gate 12f: when the account behind a `login` code is scheduled for deletion the answer is `status: erasure_pending` with `erasure` — NO session is issued. The app shows "This account is scheduled for deletion" with the two dates and two choices: Keep my account (POST /auth/erasure/cancel with `erasure.cancel_token`) or leave it. Signing in is never by itself a cancel. (POST /auth/passwordless/request still answers `login` for such an account and sends the code: the code is how its person proves it is theirs.)
          */
         post: {
             parameters: {
@@ -754,14 +772,99 @@ export interface paths {
                     content: {
                         "application/json": {
                             /** @enum {string} */
-                            status: "authenticated" | "signup_required";
+                            status: "authenticated" | "signup_required" | "erasure_pending";
                             auth?: components["schemas"]["TokenPair"];
                             signup_token?: string | null;
+                            /** @description Present only with `status: erasure_pending` (gate 12f): the account is scheduled for deletion and no session is issued. */
+                            erasure?: {
+                                /**
+                                 * Format: date-time
+                                 * @description When the deletion was asked for.
+                                 */
+                                requested_at: string;
+                                /**
+                                 * Format: date-time
+                                 * @description When the personal data is erased unless the account is kept.
+                                 */
+                                due_at: string;
+                                /** @description Valid for 15 minutes; POST /auth/erasure/cancel takes it. Not a session token: it opens nothing else. */
+                                cancel_token: string;
+                            };
                         };
                     };
                 };
                 /** @description Code incorrect, expired, or attempts exhausted */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/erasure/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Keep my account — cancel a scheduled deletion and sign in (gate 12f)
+         * @description The student's "Keep my account". Takes the `cancel_token` POST /auth/passwordless/verify returned with `status: erasure_pending` (proof, at most 15 minutes old, of the account's email or phone). The pending erasure is cancelled, the account is unlocked, and the person is signed in: the 200 is a TokenPair, handled exactly like a successful verify. Nothing that closed when deletion was requested — the case, the chats with consultancies — is reopened; the student starts again with a consultancy through the ordinary doors. 409 `conflict` when the account can no longer be kept (its 30 days ended and the deletion has started) or the deletion was already cancelled: show the message. 400 `validation_failed` for a missing, malformed or expired token: send the person back through the sign-in code. Console accounts have no such door; Support cancels for them.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        cancel_token: string;
+                        /**
+                         * @description Which app is signing in, recorded on the sign-in event (as verify).
+                         * @enum {string|null}
+                         */
+                        platform?: "android" | "ios" | "web" | null;
+                        /** @description Version of the app signing in, recorded on the sign-in event. */
+                        app_version?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description The account is kept and the person is signed in */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TokenPair"];
+                    };
+                };
+                /** @description `validation_failed` — the cancel token is missing, malformed or expired */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `conflict` — the deletion has already started, or was already cancelled */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -788,7 +891,9 @@ export interface paths {
         put?: never;
         /**
          * Passwordless door, step 3 (new accounts only) — details screen submit
-         * @description Consumes a `signup_token` and creates the account with the verified identifier it proves. `email`/`phone` here is the OTHER identifier (optional, stored unverified — the §1.1 linking/recovery key). If that second identifier already belongs to another account, NOTHING is created — 409 `identifier_in_use` tells the client to offer "log into that account instead" (the §1.1 dedup interception). `referral_code` behaves exactly as /auth/signup documents. Consent event 1 is NOT part of this call — the client records it via POST /consent/accept immediately after, same as the checkbox flow this replaces.
+         * @description Consumes a `signup_token` and creates the account with the verified identifier it proves. `email`/`phone` here is the OTHER identifier, and it is optional. If it already signs another account in, NOTHING is created — 409 `identifier_in_use` tells the client to offer "log into that account instead" (the §1.1 dedup interception).
+         *     **The second identifier is checked, never stored (owner, 2026-10-06):** an email or phone is saved on a student's account only once its one-time code is entered. The real backend creates the account with the proven identifier alone — the returned `user` does not carry the second one — and the client, now signed in, asks for its code straight away: POST /auth/otp/request + POST /auth/otp/verify for a phone, POST /profile/email/change + POST /profile/email/confirm for an email. The step is skippable ("Skip for now"); skipped or failed means not saved. (The mock still stores it unverified.)
+         *     `referral_code` behaves exactly as /auth/signup documents. Consent event 1 is NOT part of this call — the client records it via POST /consent/accept immediately after, same as the checkbox flow this replaces.
          */
         post: {
             parameters: {
@@ -808,9 +913,12 @@ export interface paths {
                          * @description Required since 2026-09-05. Under 16 is refused with 422 `below_minimum_age`; 16 and 17 create the account in the waiting state described by `GuardianConsent`. Immutable afterwards.
                          */
                         date_of_birth: string;
-                        /** Format: email */
+                        /**
+                         * Format: email
+                         * @description Optional second contact when signing up by phone. Checked, never stored — see the operation's description.
+                         */
                         email?: string | null;
-                        /** @description Optional second contact when signing up by email, in E.164 (e.g. +919876543210) — the client adds the country code (the app's dial-code chip) before sending. A bare national number (9876543210) is refused 400 `validation_failed` by the real backend; the mock was more lenient. */
+                        /** @description Optional second contact when signing up by email, in E.164 (e.g. +919876543210) — the client adds the country code (the app's dial-code chip) before sending. A bare national number (9876543210) is refused 400 `validation_failed` by the real backend; the mock was more lenient. Checked, never stored — see the operation's description. */
                         phone?: string | null;
                         referral_code?: string | null;
                     };
@@ -835,7 +943,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description `identifier_in_use` — the optional second identifier belongs to an existing account. detail carries the masked login identifier of that account. */
+                /** @description `identifier_in_use` — the optional second identifier signs an existing account in (that account verified it, or is waiting to be claimed with it). detail carries the masked login identifier of that account. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -872,12 +980,19 @@ export interface paths {
         put?: never;
         /**
          * Request phone OTP via MSG91 (FR-002)
-         * @description Opens a verification challenge bound to this phone for this user. Re-requesting replaces any live challenge, so a code sent to an old number stops working immediately. Delivery is still mocked (no SMS provider yet, 2026-08-23) — the binding, expiry, attempt cap and single-use rules are real.
+         * @description Opens a verification challenge bound to this phone for this user. Re-requesting replaces any live challenge, so a code sent to an old number stops working immediately. Delivery is still mocked (no SMS provider yet, 2026-08-23) — the binding, expiry, attempt cap and single-use rules are real. The text counts against the same sending limits as the passwordless door's (see `POST /auth/passwordless/request`, SENDING LIMITS): per phone number, per device (`X-Device-Id`), per caller address and platform-wide.
          */
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /**
+                     * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request`. WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
+                     *
+                     *     WHAT IT DOES: when present, texted codes are also limited per device (5 an hour by default), in addition to the limits per phone number, per caller address and for the platform as a whole, which apply with or without it. A value of any other shape is ignored as if the header were not sent (never a 400). The server stores only a hash of it, for an hour, as a counter key.
+                     */
+                    "X-Device-Id"?: components["parameters"]["DeviceId"];
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -903,7 +1018,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description Resend requested inside the cooldown. The error detail carries retry_after_seconds. */
+                /** @description `rate_limited`. Resend requested inside the cooldown, or the text is over one of the sending limits ("Too many codes requested. Try again after HH:MM."; then `details.retry_at` is also present). Same shape as the 429 of `POST /auth/passwordless/request`: `Retry-After` and `details.retry_after_seconds`. */
                 429: {
                     headers: {
                         [name: string]: unknown;
@@ -931,7 +1046,7 @@ export interface paths {
         put?: never;
         /**
          * Verify phone OTP
-         * @description Fails with `invalid_otp` (wrong code, or no challenge open), `otp_expired`, or `too_many_attempts` after 5 wrong tries. A wrong-code error carries attempts_remaining. A code only ever verifies the number it was sent to, and is consumed on success. Verifying sets phone_verified — which is cleared again if the number is later changed.
+         * @description Fails with `invalid_otp` (wrong code, or no challenge open), `otp_expired`, or `too_many_attempts` after 5 wrong tries. A wrong-code error carries attempts_remaining. A code only ever verifies the number it was sent to, and is consumed on success. Verifying saves the number on the account and sets phone_verified in one step, replacing (and releasing) the number the account held before. For a student this is the only way a phone number is added or changed (owner, 2026-10-06) — PATCH /profile no longer takes a new one — including for a student who signs in with their phone alone.
          */
         post: {
             parameters: {
@@ -1104,7 +1219,11 @@ export interface paths {
                     "application/json": {
                         first_name?: string;
                         last_name?: string;
-                        /** @description Phone in E.164 (e.g. +919876543210) — the client adds the country code (the app's dial-code chip) before sending. A bare national number (9876543210) is refused 400 `validation_failed` by the real backend; the mock was more lenient. Changing it clears `phone_verified`. */
+                        /**
+                         * @description Phone in E.164 (e.g. +919876543210) — the client adds the country code (the app's dial-code chip) before sending. A bare national number (9876543210) is refused 400 `validation_failed` by the real backend; the mock was more lenient.
+                         *     **Students (owner, 2026-10-06):** a phone is saved only once its one-time code is entered, so a NEW number here is refused 400 `validation_failed` by the real backend, with a message pointing at verification — send the code with POST /auth/otp/request and save the number with POST /auth/otp/verify instead. `null` or an empty string removes the number, and is accepted only when the account has a verified email to sign in with (400 otherwise). Sending the number already on the account changes nothing and is accepted.
+                         *     Staff and platform accounts: saved as sent; changing it clears `phone_verified`.
+                         */
                         phone?: string | null;
                         /** @description BCP 47 language tag captured silently from the device, exactly like `timezone` below and PATCHed on the same occasions. Not user-entered. Nothing is translated yet (2026-08-23) — this is captured now so the real backend has a locale to render against rather than having one retrofitted onto accounts that never recorded it. Carries the same system-write exemption as `timezone`: it is not a completion field, so a body containing only this must not run the milestone check. */
                         locale?: string | null;
@@ -1131,6 +1250,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["User"];
+                    };
+                };
+                /** @description `validation_failed` — a field is not valid; `details.fields` names it. For a student this includes a new `phone` (it is saved through the phone verification routes, once its code is entered) and removing the phone the account signs in with when it has no verified email. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -1293,6 +1421,16 @@ export interface paths {
          *     data to the device. A second request while one is still queued returns the same export_id
          *     (idempotent within the window). Added 2026-09-04 for the app-store privacy requirements —
          *     Apple 5.1.1 and Google Play's User Data policy expect a self-serve path, not a support ticket.
+         *
+         *     Gate 12f: the email only says the copy is ready — it carries NO link. The archive is
+         *     downloaded from inside the product within 7 days: GET /me/exports lists the caller's
+         *     exports, POST /me/exports/{id}/download returns a five-minute link. Refusals (all 409):
+         *     `email_unverified` — the account has no verified email address (a phone-only student, or
+         *     an address never proven): offer the existing email-change flow (POST
+         *     /profile/email/change with the address on file, then /profile/email/confirm) and ask
+         *     again; `export_on_hold` — Support changed the sign-in email less than 48 hours ago
+         *     (`error.details.available_at`, date-time, says from when; show the message);
+         *     `conflict` — the account is scheduled for deletion.
          */
         post: {
             parameters: {
@@ -1303,7 +1441,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Export job queued; the file is emailed when ready */
+                /** @description Export job queued; an email says when it is ready to download in the product */
                 202: {
                     headers: {
                         [name: string]: unknown;
@@ -1315,10 +1453,131 @@ export interface paths {
                             status: "queued";
                             /**
                              * Format: email
-                             * @description Where the export will be sent, masked for display (e.g. a***l@example.com).
+                             * @description The address that is told when the copy is ready, masked for display (e.g. a***l@example.com).
                              */
                             delivery_email?: string | null;
                         };
+                    };
+                };
+                /** @description `email_unverified`, `export_on_hold` (`details.available_at`) or `conflict` (an erasure is pending) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My data exports, newest first (gate 12f)
+         * @description The signed-in person's own export requests, newest first, at most five (any role). An item with `downloadable: true` gets a Download button (the app's "Your copy is ready" row, available until `ready_until`) that calls POST /me/exports/{id}/download.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The caller's exports */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["ExportRequest"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/exports/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A five-minute download link for one of my finished exports (gate 12f)
+         * @description Mints a link to the caller's own export archive and returns it; open it in the system browser straight away — it works for `expires_in_seconds` (300). Ask again for another. Each call is recorded on the audit log. 404 for an unknown id or anyone else's export; 409 `conflict` while the export is still being built; 410 `gone` once it is past `ready_until` (or it failed): request a new copy.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A short-lived download link */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            url: string;
+                            expires_in_seconds: number;
+                        };
+                    };
+                };
+                /** @description No such export of the caller's */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `conflict` — the export is not ready yet */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `gone` — the export is past its download period */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -1340,13 +1599,34 @@ export interface paths {
         put?: never;
         /**
          * Delete my account — self-serve right to erasure (FR-019/020)
-         * @description The signed-in user's own account deletion. Runs the same erasure as the Super Admin's
-         *     `POST /users/{id}/erase` (hard-delete of profile PII, anonymisation of business records,
-         *     30-day completion window, build reference 1.4) but for the caller, with no reason
-         *     required. Every session for the account is revoked immediately, so the app must treat a
-         *     202 as a completed logout. The FR-020 lockout guard still applies: the sole Consultancy
-         *     Admin or sole active Super Admin gets a 409 and must hand the role over first. Required by
-         *     Apple App Store Review Guideline 5.1.1(v) and Google Play's account-deletion policy.
+         * @description The signed-in user's own account deletion (gate 12f: a 30-day cancellable erasure).
+         *     Locks the account at once and schedules erasure 30 days later (`due_at`); the person can
+         *     keep the account until then by signing in and tapping Keep my account
+         *     (`POST /auth/erasure/cancel`). Nothing is erased before `due_at`, and the email and phone
+         *     stay held, so they cannot be registered again during the window. The student's open case
+         *     and chats with consultancies are closed NOW with the reason "account deleted" and each
+         *     consultancy is told; keeping the account later does not reopen them. Every session ends:
+         *     the app must treat a 202 as a completed logout (clear the remembered account, go to the
+         *     sign-in screen, show "Your account is scheduled for deletion on {due_at}. Sign in before
+         *     then to keep it.").
+         *
+         *     A signed-in session alone is not enough — the body carries fresh proof:
+         *     * a student sends `identifier` (one of the account's VERIFIED email or phone, E.164) and
+         *       the `code` just delivered to it by `POST /auth/passwordless/request {identifier}`
+         *       (exactly the sign-in call; ask for it on the "Confirm it's you" step). 400
+         *       `step_up_required` when either is missing; the door's own 400 `invalid_otp` /
+         *       `otp_expired` (429 `too_many_attempts`) for a wrong or stale code, and `invalid_otp`
+         *       when the identifier is not a verified one of the caller's;
+         *     * a console account (platform staff, consultancy staff, freelancer) sends its current
+         *       `password`. 400 `step_up_required` without one; 400 `invalid_current_password` for a
+         *       wrong one (deliberately not a 401, which a client would read as an ended session);
+         *       429 `rate_limited` after repeated failures.
+         *
+         *     409 `lockout_guard` when the account may not be erased yet: a Super Admin never; platform
+         *     staff, a consultancy employee or a freelancer only once the account has been
+         *     deactivated (a consultancy admin deactivates the member, which hands their open work to
+         *     a colleague first). The message says which. Required by Apple App Store Review Guideline
+         *     5.1.1(v) and Google Play's account-deletion policy.
          */
         post: {
             parameters: {
@@ -1355,28 +1635,40 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
-                        /** @description Optional — why the user is leaving, for the product team; never required. */
+                        /** @description Students — the verified email or phone (E.164) the code was sent to. */
+                        identifier?: string | null;
+                        /** @description Students — the sign-in code just sent to `identifier`. */
+                        code?: string | null;
+                        /** @description Console accounts — the caller's current password. */
+                        password?: string | null;
+                        /** @description Optional — why the user is leaving, for the product team; never required. Kept on the request only (never the audit log) and removed when the data is erased. */
                         reason?: string | null;
                     };
                 };
             };
             responses: {
-                /** @description Erasure job queued — 30-day completion window; all sessions revoked */
+                /** @description Locked now; erased at `due_at` unless kept. All sessions revoked. */
                 202: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {string} */
-                            status: "erasure_queued";
-                        };
+                        "application/json": components["schemas"]["ErasureQueuedOut"];
                     };
                 };
-                /** @description Sole Admin/Super Admin lockout guard triggered (FR-020) */
+                /** @description `step_up_required`, `invalid_otp`, `otp_expired` or `invalid_current_password` */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `lockout_guard` — the account holds an active role and cannot be erased yet */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -1684,6 +1976,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who the caller is and what they may do (the console's one identity read)
+         * @description Review F-036 (2026-10-06). Everything a console needs to decide which shell, which pages and which buttons to show, decided by the server on THIS request from the caller's own records only. It replaces three things the console used to do: (1) downloading `GET /staff/employees` and `GET /staff/designations` to find its own row and re-apply the override-then-designation rule (the employee list is paged at 100, oldest first, leavers included, so the newest staff of a consultancy that has ever had more than 100 employees were not in it and lost every screen); (2) reading `role` and `platform_permissions` from the `user` object stored at sign-in (a snapshot: a revoked permission stayed visible until the next sign-in); (3) reading `features` and `available_permissions` from `GET /consultancies/me` for gating.
+         *
+         *     Any signed-in role may call it. `user` is exactly what `GET /profile` returns (so `user.role`, and for platform accounts `user.platform_permissions`, are current). `staff` is an object for consultancy and institute staff and `null` for everyone else (students, platform staff, Super Admin, freelancers).
+         *
+         *     HOW A CLIENT USES IT. Read it through one query that is never written to storage (fresh for about 60 seconds, refetched on window focus, and refetched whenever any request is refused 403 `permission_denied`, `feature_locked` or `subscription_lapsed`). "May I do X" is `staff.permissions` contains X; "is feature F on" is `staff.features` contains F; "am I the Owner/Admin" is `staff.is_admin`. Do not re-derive any of them from the employee or designation lists. The server still checks every request itself: this answer decides what a screen shows, never what is allowed.
+         *
+         *     REFUSALS. 401 when not signed in. A consultancy employee whose account was disabled gets 403 `account_disabled`, and a non-admin employee of a consultancy whose subscription has lapsed gets 403 `subscription_lapsed`, exactly as on every other route: the console shows that message instead of a shell.
+         *
+         *     It never takes an id and never returns another person's record.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Me"];
+                    };
+                };
+                /** @description Not signed in. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `account_disabled` (the employee was disabled) or `subscription_lapsed` (a non-admin employee of a lapsed consultancy). */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/walkthrough-seen": {
         parameters: {
             query?: never;
@@ -1883,7 +2240,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Generate a data export for a user, Support acting on their behalf (support_tools permission). A reason is required since 2026-09-11 and kept on the audit record. 404 for an unknown user. The archive goes to the USER's own verified email, never the operator (gate 12, F34 — Wave 1's export core, a 7-day link, RT 28); Support triggers it, Support does not receive it. */
+        /** Generate a data export for a user, Support acting on their behalf (support_tools permission). A reason is required since 2026-09-11 and kept on the audit record. 404 for an unknown user. The archive is for the USER, never the operator (gate 12, F34): Support triggers it, Support does not receive it. Gate 12f: the user's verified email is told the copy is ready and they download it from inside the product within 7 days (GET /me/exports); the mail carries no link. Refused 409 `email_unverified` (no verified email on the account), `export_on_hold` (`error.details.available_at` — the sign-in email was changed by Support less than 48 hours ago) or `conflict` (an erasure is pending: disable the Export card with "Not available while an erasure is pending."). */
         post: {
             parameters: {
                 query?: never;
@@ -1912,6 +2269,15 @@ export interface paths {
                             /** @enum {string} */
                             status: "queued";
                         };
+                    };
+                };
+                /** @description `email_unverified`, `export_on_hold` (`details.available_at`) or `conflict` (an erasure is pending) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -1999,7 +2365,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Erase User Data — Super Admin only, mandatory reason, irreversible (FR-019/020) */
+        /**
+         * Erase User Data — Super Admin only, reason and own password; 30-day window (FR-019/020)
+         * @description Gate 12f. Locks the account now, closes the person's open cases and chats with the reason "account deleted" and tells each consultancy, and permanently erases their personal data 30 days later (`due_at`). Until then it can be cancelled from the Pending erasures list (DELETE /users/{id}/erasure) or by the person signing in and tapping Keep my account. `password` is the Super Admin's OWN current password (400 `step_up_required` without it, 400 `invalid_current_password` for a wrong one, 429 `rate_limited` after repeated failures). `immediate: true` skips the window for a legal request or a confirmed takeover — `reason` then needs at least 20 characters (400 `validation_failed`), the answer is `erasure_queued`, the data is erased within minutes and nothing can be cancelled. An immediate request for an account whose erasure is already pending turns that pending erasure into an immediate one. 409 `lockout_guard` when the account holds an active role (the message says what to deactivate first; a Super Admin is never erased); 409 `conflict` when an erasure is already pending for the account (the message and `error.details.due_at` carry the date); 404 for an unknown user. A request for an account already erased answers 202 `erasure_queued` and changes nothing.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -2009,27 +2378,41 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
+                        /** @description Why (kept sealed on the audit record until the data is erased). */
                         reason: string;
+                        /** @description The Super Admin's own current password. */
+                        password: string;
+                        /**
+                         * @description Skip the 30-day window (a legal request). `reason` needs 20+ characters.
+                         * @default false
+                         */
+                        immediate?: boolean;
                     };
                 };
             };
             responses: {
-                /** @description Erasure job queued — 30-day completion window */
+                /** @description Locked now; erased at `due_at` (or within minutes when immediate) */
                 202: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {string} */
-                            status: "erasure_queued";
-                        };
+                        "application/json": components["schemas"]["ErasureQueuedOut"];
                     };
                 };
-                /** @description Sole Admin/Super Admin lockout guard triggered (FR-020) */
+                /** @description `validation_failed`, `step_up_required` or `invalid_current_password` */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `lockout_guard` (an active role) or `conflict` (already pending — the message carries the date) */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -2040,6 +2423,122 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{id}/erasure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Cancel a scheduled erasure and keep the account — Super Admin, with a reason (gate 12f)
+         * @description Support's "keep this account": used for console accounts (which have no door of their own) and for a student who asks Support instead of signing in. The pending erasure is cancelled, the account can sign in again, and the person's verified email is told. Cases and chats that closed when the erasure was requested stay closed. `reason` (3+ characters) says why and how the person was verified; it is kept sealed on the audit record. 404 when no erasure is pending for the account; 409 `conflict` when the window has ended and the deletion has started.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description The erasure, now `cancelled` */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErasureRequest"];
+                    };
+                };
+                400: components["responses"]["ErrorResponse"];
+                /** @description No erasure is pending for this account */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `conflict` — the deletion has already started */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/erasures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Scheduled erasures — pending, or recently ended (support_tools; gate 12f)
+         * @description Support Tools' Pending erasures list. `filter[status]=pending` (the default) returns every erasure not yet finished or cancelled, soonest `due_at` first; `filter[status]=ended` returns those completed or cancelled in the last 90 days, latest first (the "Recently ended" toggle). Any holder of `support_tools` may read it; only a Super Admin can cancel (DELETE /users/{id}/erasure). 400 `validation_failed` for any other filter value.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
+                    filter?: components["parameters"]["FilterParam"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description One page of erasures */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["ErasureRequest"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
+                    };
+                };
+                400: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -7326,11 +7825,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Rate a consultancy (Stage 1 lead relationship, rate-limited once/7 days) — Lead Chat Thread's inline rating prompt (build reference 2.2). `lead_id` identifies which of the caller's own lead relationships with this consultancy is being rated, per erd.md's `ratings` table shape. */
+        /** Rate a consultancy (2026-10-06, owner decision 16). One rating per student per consultancy: a new rating is allowed 14 days after the last and is averaged with it at half weight. Offered only once the conversation between the two is deep enough — judged by the server, never disclosed; see `Lead.rating_eligible` / `Journey.rating_eligible` and call this only while that is true. Student only. From a lead chat send that chat's `lead_id`; from the case chat send none. The stars given with a written review go through POST /clients/{id}/review instead. */
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /** @description Optional here. Client-generated key (1-128 characters); a replay with the same key returns the first answer instead of re-executing. */
+                    "Idempotency-Key"?: string;
+                };
                 path: {
                     id: string;
                 };
@@ -7340,13 +7842,16 @@ export interface paths {
                 content: {
                     "application/json": {
                         stars: number;
-                        /** Format: uuid */
-                        lead_id: string;
+                        /**
+                         * Format: uuid
+                         * @description The caller's lead with this consultancy, when rating from a lead chat; omitted when rating from the case chat. When given it must be the caller's own lead with this consultancy (any status) — else 404.
+                         */
+                        lead_id?: string;
                     };
                 };
             };
             responses: {
-                /** @description Recorded (contract gate 10 — response body now documented). */
+                /** @description Recorded. `current_stars` is the student's rating after averaging. */
                 201: {
                     headers: {
                         [name: string]: unknown;
@@ -7355,7 +7860,16 @@ export interface paths {
                         "application/json": components["schemas"]["Rating"];
                     };
                 };
-                /** @description `not_yet_rateable` — the consultancy has not replied yet (`no_reply_yet`), or the conversation is under three days old (`too_new`; app review H3, 2026-09-13). The two reasons are distinguished only by message text (contract gate 10) — the mock carries no separate machine-readable `reason` field. */
+                /** @description `validation_failed` — `stars` missing or not a whole number from 1 to 5. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `not_yet_rateable` — the two have not talked enough yet. `details.reason` is `not_enough_conversation` (the only value; `no_reply_yet` and `too_new` are gone). Message: "You can rate once you and the consultancy have talked a bit more." */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -7364,7 +7878,16 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description `rate_limited` — once per lead relationship per 7 days (contract gate 10). */
+                /** @description `not_found` — `lead_id` is not the caller's lead, or not with this consultancy; or the caller has no chat and no case with this consultancy (an id never confirms a consultancy exists to a stranger). */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `rate_limited` — within 14 days of the student's last rating of this consultancy (whichever chat or case it came from). `details.can_rate_again_at` (date-time) says when; the message names both dates. */
                 429: {
                     headers: {
                         [name: string]: unknown;
@@ -8310,7 +8833,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Request a rating from the lead's student (cooldown-aware — build reference 1.6/2.2). STAFF ONLY (contract gate 10) — scoped to staff who can see the lead, same as every other lead route; a student caller gets 404, not 403, same convention as the rest of the leads module. Sentpo-sourced leads only; active leads only. */
+        /** Request a rating from the lead's student (cooldown-aware — build reference 1.6/2.2). STAFF ONLY (contract gate 10) — scoped to staff who can see the lead, same as every other lead route; a student caller gets 404, not 403, same convention as the rest of the leads module. Sentpo-sourced leads only; active leads only. A nudge, not a door (2026-10-06): the student gets a notification and a prompt in their chat, and the request is refused until the conversation is deep enough — so asking never shows the stars early. Read `Lead.can_request_rating` / `rating_request_blocked_reason` to disable the button beforehand. */
         post: {
             parameters: {
                 query?: never;
@@ -8347,7 +8870,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description `conflict` — the lead is not active (contract gate 10). */
+                /** @description `conflict` — the lead is not active (contract gate 10). `not_enough_conversation` (2026-10-06) — the conversation is not deep enough yet (a server rule; no count or threshold is ever given). Message, exactly: "Not enough conversation yet to ask for a rating." */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -8356,7 +8879,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description `rating_cooldown_active` — still within the 7-day cooldown (contract gate 10). */
+                /** @description `rating_cooldown_active` — within 7 days of the last request on this lead, or the consultancy has asked this student as often as allowed recently (one message for both). */
                 429: {
                     headers: {
                         [name: string]: unknown;
@@ -14474,7 +14997,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Write the one-time review — exactly once per journey, never edited (build reference 1.3, reworked 2026-09-12: offered, not forced). Lands as `pending`; a platform admin publishes or hides it. 409 if one already exists; 403 until the case has closed — `closed_completed` or `closed`, EITHER outcome (user 2026-09-14; owner Q5 2026-09-25: a finished plan no longer finishes the case, so the review is offered at the close; a case still carrying the legacy `plan_complete` status also qualifies). A case that moved to another consultancy (`closed_switched`) is not reviewed. 400 when the text is under 20 or over 1000 characters. Owning student only. Platform staff are notified (`review_pending`). */
+        /** Write the one-time review — exactly once per journey, never edited (build reference 1.3, reworked 2026-09-12: offered, not forced). Lands as `pending`; a platform admin publishes or hides it. 409 if one already exists; 403 until the case has closed — `closed_completed` or `closed`, EITHER outcome (user 2026-09-14; owner Q5 2026-09-25: a finished plan no longer finishes the case, so the review is offered at the close; a case still carrying the legacy `plan_complete` status also qualifies). A case that moved to another consultancy (`closed_switched`) is not reviewed. 400 when the text is under 20 or over 1000 characters. Owning student only. Platform staff are notified (`review_pending`). A review carries the student's current rating of the consultancy, not stars of its own (2026-10-06): see `stars` below and `Journey.review_offer`. A student under 18 whose guardian has not approved gets 403 `guardian_consent_required` (the star rating in a chat needs no approval; a review is published under the student's name). */
         post: {
             parameters: {
                 query?: never;
@@ -14487,7 +15010,8 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        stars: number;
+                        /** @description Optional. When given, it is a rating submission: averaged with the student's existing rating of this consultancy (or setting it, if they never rated), and refused 429 `rate_limited` inside the 14-day window — send it only while `review_offer.rating_eligible` is true. When omitted, the student must already have rated this consultancy (400 `validation_failed`, "Pick 1 to 5 stars." otherwise). The review's `stars` is the student's current rating after this call, rounded. */
+                        stars?: number;
                         text: string;
                     };
                 };
@@ -14502,7 +15026,7 @@ export interface paths {
                         "application/json": components["schemas"]["Review"];
                     };
                 };
-                /** @description `plan_not_complete` — the mock's code, kept verbatim (contract gate 10): the case hasn't closed yet (neither `closed`/`closed_completed`, nor the legacy `plan_complete`). */
+                /** @description `plan_not_complete` — the mock's code, kept verbatim (contract gate 10): the case hasn't closed yet (neither `closed`/`closed_completed`, nor the legacy `plan_complete`). `guardian_consent_required` — a minor whose guardian has not approved yet. */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -14513,6 +15037,15 @@ export interface paths {
                 };
                 /** @description `already_reviewed` — a review already exists for this journey (contract gate 10). */
                 409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `rate_limited` — `stars` was sent within 14 days of the student's last rating of this consultancy; `details.can_rate_again_at`. Nothing is stored: send the review again without `stars`. */
+                429: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -16576,7 +17109,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Create event (admin) — Webinars/Quiz/Physical Meetings each have their own admin page (build reference 1.13) but share this one endpoint via `type`. Quiz creation is step 1 of 2 (user-requested, 2026-08-15) — `questions` may be omitted or empty here; the quiz saves as inactive (see Event.active) and the pool gets built up afterward via `PATCH /events/{id}`, no longer a hard save-time minimum. */
+        /** Create event (admin) — Webinars/Quiz/Physical Meetings each have their own admin page (build reference 1.13) but share this one endpoint via `type`. Quiz creation is step 1 of 2 (user-requested, 2026-08-15) — `questions` may be omitted or empty here; the quiz saves as inactive (see Event.active) and the pool gets built up afterward via `PATCH /events/{id}`, no longer a hard save-time minimum. `position_prizes` is validated entry by entry (decision 13 — see `PositionPrize`); a bad list is 400 `validation_failed` with a message such as `position_prizes[0].position must be a whole number of at least 1.` */
         post: {
             parameters: {
                 query?: never;
@@ -16642,7 +17175,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Edit event (admin) — all fields optional, unlike POST's EventInput. Step 2 of quiz creation (user-requested, 2026-08-15) — this is how the question pool gets built up after the initial POST, `questions` replace-all on every call, same idiom as StepTemplateInput. No longer rejects a pool smaller than questions_per_attempt; the quiz just stays inactive (Event.active) until the pool catches up. */
+        /** Edit event (admin) — all fields optional, unlike POST's EventInput. Step 2 of quiz creation (user-requested, 2026-08-15) — this is how the question pool gets built up after the initial POST, `questions` replace-all on every call, same idiom as StepTemplateInput. No longer rejects a pool smaller than questions_per_attempt; the quiz just stays inactive (Event.active) until the pool catches up. Since decision 13 (2026-10-06) `questions` and `questions_per_attempt` are frozen once any student has STARTED the quiz (409 `locked_after_attempts` — "Questions are locked once someone has started the quiz. Void it and create a new one to change them."); before that an edit is accepted even when students have already downloaded sealed question packages — those packages are discarded and their apps fetch a new one. `position_prizes` is validated entry by entry (see `PositionPrize`; 400 `validation_failed` naming `position_prizes[i]`), and any PATCH that carries `position_prizes` clears `Event.prize_settlement_error`. */
         patch: {
             parameters: {
                 query?: never;
@@ -16921,7 +17454,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/events/{id}/quiz/start": {
+    "/events/{id}/quiz/package": {
         parameters: {
             query?: never;
             header?: never;
@@ -16930,7 +17463,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Start attempt — startable any time up to ends_at, requires verified phone, one attempt ever (FR-065). User-requested (2026-08-16): the deadline only gates the START call; once an attempt exists, /quiz/submit is never window-gated (see that route's summary). Sentpo Mobile Wave 6a — idempotent per student per quiz: a second call before submitting returns the same already-drawn `attempt_id`/question set rather than starting over, so a lost connection or app restart mid-attempt doesn't reroll the questions. */
+        /** Download this student's quiz questions SEALED (decision 13, 2026-10-06), from `QUIZ_PACKAGE_LEAD_HOURS` (default 24 h) before `starts_at` until the quiz closes (`ends_at`; never, when it has none). Student only, verified phone. Fixes this student's random draw. The key arrives only from `quiz/start`, so nothing in the answer can be read before the student starts. No request body. Starts no clock and awards nothing. Idempotent: a repeat — from this device or another — returns the same bytes and the same `attempt_id`; a question edit before anyone has started replaces the draw, and the next call returns a new `attempt_id`. The app calls it silently when the student opens the event inside the window, and again on the runner's preparing step; it checks the lead window locally first rather than provoking `not_open_yet`. Once the attempt has been started the same bytes are returned whatever the window says; an attempt started WITHOUT a package answers 200 with `package: null` (go straight to `quiz/start`). */
         post: {
             parameters: {
                 query?: never;
@@ -16942,7 +17475,85 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Full randomized question set (options already stripped of correct_option), timer starts client-side */
+                /** @description The sealed package (see `QuizPackage` for how to verify and open it). */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["QuizPackage"];
+                    };
+                };
+                /** @description `not_open_yet` (earlier than `starts_at` minus the lead; `details.opens_at` is the ISO instant downloads open), `not_ready` (no questions yet, or fewer than an attempt draws), or `validation_failed` (this quiz has been voided, or has closed). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `phone_not_verified` (verify your phone before taking a quiz) or `not_eligible` (targeting excludes this student's profile). */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Event not found, unlisted, or not a quiz. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `already_attempted` — this student has already submitted their one attempt. Delete any stored package and show their result (`Event.my_attempt`). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{id}/quiz/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start attempt — startable any time up to ends_at, requires verified phone, one attempt ever (FR-065). User-requested (2026-08-16): the deadline only gates the START call; once an attempt exists, /quiz/submit is never window-gated (see that route's summary). Idempotent per student per quiz, by the server's own state (decision 13, 2026-10-06): the first successful call starts the clock, and every later call — a lost response, an app restart, a second device — returns the same `attempt_id`, `started_at` and `deadline_at`, never a second attempt and never a fresh draw. So a client whose start request failed with an unknown outcome simply sends it again; no clock may run on the device until a response is in hand. Call it from an explicit Start tap, never on screen open. `Idempotency-Key` is IGNORED on this route (the answer carries a key and the server's current time, so a stored copy is never replayed) — do not rely on it. The body is optional: `{attempt_id}` when the device holds a verified package, nothing otherwise. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["QuizStartRequest"];
+                };
+            };
+            responses: {
+                /** @description The attempt, with the server's clock (`started_at` to `deadline_at`, `server_now` as the reference) and either the `key` to the device's package or the randomized question set in clear (never with `correct_option`). */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -16978,7 +17589,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description `already_attempted` — this student already has a completed, submitted attempt for this quiz. */
+                /** @description `already_attempted` — this student already has a completed, submitted attempt for this quiz. Show their result (`Event.my_attempt`), not an error. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -17004,7 +17615,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Submit — atomic: answers + completion time + leaderboard entry + points credit (TRD Section 4). Not window-gated (FR-065, 2026-08-16): if the attempt was started before ends_at, the student may submit it even after ends_at has since passed. */
+        /** Submit — atomic: answers + completion time + leaderboard entry + points credit (TRD Section 4). Not gated by the quiz's window (FR-065, 2026-08-16): if the attempt was started before ends_at, the student may submit it even after ends_at has since passed. But bound to the attempt's own deadline (decision 13, 2026-10-06): a submit received after `QuizStartResponse.deadline_at` plus the server's grace (a few seconds, `QUIZ_SUBMIT_GRACE_SECONDS`, default 10) is recorded as the server's auto-submit — `score` 0, `late` true, completion time equal to the limit, participation points still paid, never a prize, never a change to anyone else's rank. The app therefore submits whatever is answered the moment its countdown reaches zero, with a stable `Idempotency-Key` per attempt, and retries with the same key on an unknown outcome. */
         post: {
             parameters: {
                 query?: never;
@@ -17026,13 +17637,40 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Scored */
+                /** @description Scored (or, when `late`, recorded as 0). */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": components["schemas"]["QuizSubmitResponse"];
+                    };
+                };
+                /** @description `validation_failed` — `attempt_id`/`answers` missing, no started attempt with that `attempt_id` (call `quiz/start` first; a package that was never started cannot be submitted), not a quiz, or the quiz has been voided. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Event not found or unlisted. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `already_attempted` — the attempt was already submitted (for example from another device). Show the result from `Event.my_attempt`. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -23128,6 +23766,105 @@ export interface paths {
         };
         trace?: never;
     };
+    "/admin/ratings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every student rating, for platform staff (2026-10-06, owner decision 16): who rated whom, with the signals that suggest a manufactured rating. Consultancies permission (`consultancy_approval`), as the review queue. Most recently rated first; cursor-paginated. `counts` carries the platform-wide totals whatever the filter. */
+        get: {
+            parameters: {
+                query?: {
+                    consultancy_id?: string;
+                    /** @description Everything this account rated. */
+                    student_id?: string;
+                    /** @description true — only ratings with at least one flag; false — only those with none. */
+                    flagged?: boolean;
+                    /** @description true — only excluded ratings; false — only counted ones. */
+                    excluded?: boolean;
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminRatingPage"];
+                    };
+                };
+                400: components["responses"]["ErrorResponse"];
+                403: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/ratings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Exclude a rating from its consultancy's score, or restore it (2026-10-06). Excluding requires `reason` (400 with details.reason=required otherwise). The consultancy's rating and `rating_count` change at once; the student is not told and keeps seeing their own rating; if they rate again the new rating is averaged in and the row stays excluded until restored. A written review is not touched (hide it with PATCH /admin/reviews/{id}). Re-sending the current state changes nothing. Audited under Consultancies (`rating_excluded` / `rating_restored`) with the reason. Consultancies permission. */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        excluded: boolean;
+                        /** @description Required when `excluded` is true. */
+                        reason?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminRating"];
+                    };
+                };
+                400: components["responses"]["ErrorResponse"];
+                403: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
+            };
+        };
+        trace?: never;
+    };
     "/admin/users/sentpo": {
         parameters: {
             query?: never;
@@ -23982,6 +24719,49 @@ export interface components {
             /** @description Companion to points_awarded, null whenever it is. */
             readonly award_reason?: string | null;
         };
+        /** @description `GET /me` (review F-036): the signed-in caller, as the server sees them on this request. */
+        Me: {
+            user: components["schemas"]["User"];
+            /**
+             * @description Which part of the product the caller belongs to, and so which shell a console opens: `platform` (roles `super_admin` and `platform_staff`; their grants are `user.platform_permissions`, every key true for a Super Admin), `consultancy` (roles `consultancy_admin` and `consultant` at a consultancy), `institute` (the same two roles at a college's own account: `staff.consultancy_kind` is `institute` and `staff.college_id` is the one college they see), `freelancer`, `student`.
+             * @enum {string}
+             */
+            scope: "student" | "platform" | "consultancy" | "institute" | "freelancer";
+            /** @description The caller's own active employee row and what it lets them do. `null` unless `scope` is `consultancy` or `institute`. */
+            staff: components["schemas"]["MeStaff"];
+        };
+        /** @description The caller's single active employee row, with the permissions and plan features the server's own access checks use for this caller. Never another employee's. */
+        MeStaff: {
+            /** @description The caller's `Employee.id` (not their user id). */
+            employee_id: components["schemas"]["UUID"];
+            consultancy_id: components["schemas"]["UUID"];
+            consultancy_name: string;
+            /** @enum {string} */
+            consultancy_kind: "consultancy" | "institute";
+            /** @description The college an institute's staff act for; `null` for a consultancy, and for an institute not linked to its college yet (its staff then see no catalogue rows at all). */
+            college_id: components["schemas"]["UUID"];
+            /**
+             * @description The consultancy's plan. For display; gate on `features`, never on this.
+             * @enum {string}
+             */
+            tier: "starter" | "business" | "ultimate";
+            /** @description The caller is the consultancy's Owner/Admin (`Employee.is_consultancy_admin`). An admin holds every permission, and a few things have no permission key and are admin only (the audit log, editing designations). Use this, not `user.role`. */
+            is_admin: boolean;
+            designation_id: components["schemas"]["UUID"];
+            /** @description The designation's name, for display. */
+            designation_name: string | null;
+            /** @description The branches the caller is attached to, in the order the branches were opened. What the caller's own row says; the server narrows lists by branch itself. */
+            branch_ids: components["schemas"]["UUID"][];
+            primary_branch_id: components["schemas"]["UUID"];
+            /** @description The staff permission keys the caller holds right now, in the order of the 27 keys: an admin holds all of them; anyone else holds their designation's ticks with their own overrides on top. This is the set `permission_denied` is decided from. A key that is held but whose every action needs a plan feature that is off appears here and is absent from `available_permissions`: show an action only when its permission is here AND its plan feature is in `features`. */
+            permissions: string[];
+            /** @description The permission keys the consultancy's plan gives any meaning to: the same list as `Consultancy.available_permissions`, here so the access editors need no second read. */
+            available_permissions: string[];
+            /** @description The plan feature keys that are ON for the caller's consultancy (the keys of `Consultancy.features` whose value is true), sorted. This is the set `feature_locked` is decided from. */
+            features: string[];
+            /** @description The consultancy's subscription is past its grace period. Only an admin ever sees `true` (anyone else is refused 403 `subscription_lapsed` before this answer): show the renewal screen, new business is refused until it is renewed. */
+            lapsed: boolean;
+        };
         Employee: {
             id: components["schemas"]["UUID"];
             user: components["schemas"]["User"];
@@ -24500,9 +25280,9 @@ export interface components {
             kind?: "consultancy" | "institute";
             /** @description The college this institute speaks for; null for every `kind: consultancy` account, and also for an institute created before its college was attached (D8's create-the-login-first direction — see `PATCH /consultancies/{id}`). At most ONE institute account per college: a second is refused 409 `college_already_linked`, because two accounts for one college would both appear in discovery as the same institution. Write-once — settable at creation or by a later PATCH while null, never moved afterwards, since moving it would silently reassign every case, application and commission entry on the account. */
             college_id?: components["schemas"]["UUID"];
-            /** @description The rating to DISPLAY. Server-computed as the mean of every submitted star rating (the cooldown-gated Stage 1 `ratings`) and every Verified Review, to one decimal — unless a Super Admin override is set, in which case this is the override. Null means nobody has rated this consultancy and no override exists; render "Not rated yet", never 0. Read `rating_source` to tell the three apart. */
+            /** @description The rating to DISPLAY. Server-computed as the mean of ONE rating per student, to one decimal (a student who rates again is averaged into their own number; a written review carries its student's rating and never adds a second) — unless a Super Admin override is set, in which case this is the override. Null means there is no score to show and no override exists: nobody has rated this consultancy, or fewer than three students have (the score appears with the third; `rating_count` counts them meanwhile). Render "Not rated yet", never 0. Read `rating_source` to tell the three apart. */
             rating?: number | null;
-            /** @description How many submissions the computed rating is based on. Always the REAL count, even when an override is in force, so "4.6" from one student and 4.6 from a thousand are distinguishable. Show it next to the rating. */
+            /** @description Students whose rating counts (one per student, however often they rated; ratings the platform excluded are left out). Always the REAL count, even when an override is in force, so "4.6" from three students and 4.6 from a thousand are distinguishable. Show it next to the rating. */
             rating_count?: number;
             /** @description What the rating would be with no override. Equal to `rating` unless `rating_source` is `override`; kept separate so clearing an override restores the live value rather than a frozen copy of it. */
             rating_computed?: number | null;
@@ -24520,7 +25300,7 @@ export interface components {
             readonly featured?: boolean;
             /** @description No rating yet AND onboarded within the last 90 days (owner, 2026-09-19: "cap new at 90 days"). After that an unrated account reads "No ratings yet", not "New". */
             readonly is_new?: boolean;
-            /** @description Published written reviews (2026-09-12). rating_count also includes star-only ratings. */
+            /** @description Published written reviews (2026-09-12). Not part of `rating_count`: a review's stars are its student's rating, already counted there. */
             readonly review_count?: number;
             /** @description Street address shown on the app's consultancy page (app review H2, 2026-09-13). Editable by the consultancy and the platform team. */
             address?: string | null;
@@ -24844,7 +25624,7 @@ export interface components {
                 failed: number;
                 failure_reasons: {
                     /** @enum {string} */
-                    reason: "rejected_by_colleges" | "visa_refused" | "student_withdrew" | "lost_contact" | "other";
+                    reason: "rejected_by_colleges" | "visa_refused" | "student_withdrew" | "lost_contact" | "other" | "account_deleted";
                     label: string;
                     count: number;
                 }[];
@@ -24929,18 +25709,20 @@ export interface components {
             last_message_preview?: string | null;
             /** @description Server-computed — true when the most recent message is from the student and arrived after the viewer last opened this conversation (POST /leads/{id}/read). Always false once the consultant has replied, since that makes their own message the most recent one. */
             unread?: boolean;
-            /** @description Student view only (GET /leads/mine; app review H3, 2026-09-13): true once the consultancy has replied at least once and the conversation is at least three days old. POST /consultancies/{id}/ratings returns 403 not_yet_rateable otherwise. */
+            /** @description Student view only (GET /leads/mine). True when the conversation between this student and this consultancy is deep enough (a server rule, deliberately not disclosed: the client receives this boolean, never a count or a threshold) and the student is not within 14 days of their last rating of it. Show the stars only while this is true; POST /consultancies/{id}/ratings refuses otherwise (403 `not_yet_rateable`, or 429 `rate_limited` inside the 14 days). The rule is per student and consultancy, not per chat: a new or reopened chat with the same consultancy changes nothing. */
             rating_eligible?: boolean;
             /**
-             * @description Why rating_eligible is false; null when it is true. `cooldown` (contract gate 10, lane R) covers the student's own 7-day cooldown after a rating on this consultancy — the case the gate 9 draft inverted, since `rating_eligible` had no way to go false again once the reply-and-age bar was cleared.
+             * @description Why rating_eligible is false; null when it is true. `not_enough_conversation` — the two have not talked enough yet (show nothing: there is no number to explain). `cooldown` — enough conversation, but the student rated this consultancy within the last 14 days; `my_rating.can_rate_again_at` says when they may again. (Before 2026-10-06 the values were `no_reply_yet`, `too_new`, `cooldown`.)
              * @enum {string|null}
              */
-            rating_eligible_reason?: "no_reply_yet" | "too_new" | "cooldown" | null;
+            rating_eligible_reason?: "not_enough_conversation" | "cooldown" | null;
             /**
-             * @description Student view only (`GET /leads/mine`; contract gate 10, lane R, build reference §2.1). Only set while `rating_eligible` is true: `requested` when staff sent a rating request (`POST /leads/{id}/rating-request`) in the last 7 days; `quiet` when neither side has messaged in 7 days; null otherwise. Sentpo Mobile's Rate prompt reads this to decide whether, and why, to surface the ask.
+             * @description Student view only (`GET /leads/mine`; contract gate 10, lane R, build reference §2.1). Only set while `rating_eligible` is true: `requested` when staff sent a rating request (`POST /leads/{id}/rating-request`) in the last 7 days; `quiet` when neither side has messaged in 7 days; null otherwise. Sentpo Mobile's Rate prompt reads this to decide whether, and why, to surface the ask. A request changes how prominent the stars are, never whether they are shown: the server refuses a request until `rating_eligible` could be true.
              * @enum {string|null}
              */
             rating_prompt?: "requested" | "quiet" | null;
+            /** @description Student view only (GET /leads/mine): the caller's current rating of this consultancy. Left out until they have rated it (and on every staff view — a consultancy is never told who rated it, what, or when). */
+            my_rating?: components["schemas"]["MyRating"];
             /** @description Server-computed — true when the most recent message is from the student and the consultant hasn't replied yet. Unlike `unread`, this doesn't care whether anyone has opened the conversation, only whether anyone has responded. Shown as "Pending Response" on Active Leads (build reference 2.2) — the field name stays `unattended` for continuity with `unattended_cases`/`unattended=true` filtering elsewhere; only the on-screen label changed. */
             unattended: boolean;
             /** @description The student's most recent message on this lead, shown in the Lead Pool table (2026-09-10). Null when the student has sent nothing, and always for imported leads. A shared Dream Courses card with no text reads "Shared their Dream Courses". */
@@ -24953,11 +25735,16 @@ export interface components {
             tags: string[];
             /** @description Sourced from `student_preferences` when origin=sentpo — what the summary card on Lead Conversation shows (build reference 2.2). Always null for origin=imported, which has no student account to hold preferences. `budget` within this is null unless the student set `budget_shared` (server-enforced since 2026-08-24 — it was previously sent unredacted and only hidden client-side, which any network inspector could see past). */
             preferences?: components["schemas"]["StudentPreferences"] | null;
-            /** @description Server-computed — true unless a rating for this lead relationship was requested within the last 7 days (build reference 1.6/2.2), or origin=imported (no student to rate from). Client never computes this itself. */
+            /** @description Staff view. Server-computed — true when staff may send a rating request now (POST /leads/{id}/rating-request) — the lead is a Sentpo lead and active, the conversation is deep enough, and the consultancy has not asked recently. False on a student's view and for origin=imported (no student to rate from). Client never computes this itself; when false, `rating_request_blocked_reason` says which of the two reasons applies. */
             can_request_rating: boolean;
             /**
+             * @description Staff view; why `can_request_rating` is false on an active Sentpo lead, null otherwise. `not_enough_conversation` — disable "Ask for rating" and say exactly "Not enough conversation yet to ask for a rating" (the rule and its numbers are never disclosed; there is no count to show). `asked_recently` — a request went out on this lead in the last 7 days (`rating_cooldown_ends_at` says until when), or the consultancy has asked this student as often as allowed recently (then `rating_cooldown_ends_at` is null). Not-enough is reported first. Nothing here, or anywhere on a staff view, says whether the student has rated.
+             * @enum {string|null}
+             */
+            rating_request_blocked_reason?: "not_enough_conversation" | "asked_recently" | null;
+            /**
              * Format: date-time
-             * @description Informational, for UI messaging only — when can_request_rating is false.
+             * @description Informational, for UI messaging only — when the last request on this lead was under 7 days ago, when the next one may be sent. Null otherwise.
              */
             rating_cooldown_ends_at?: string | null;
             /** @description The most recent conversion_proposals row if its status is still `pending`; null otherwise. Drives whether Lead Conversation shows "Convert to Client" or a pending-proposal state. */
@@ -26089,12 +26876,16 @@ export interface components {
              * @enum {string|null}
              */
             review_status?: "pending" | "published" | "hidden" | null;
-            /** @description Home's one-time review offer (2026-09-12): the student's most recent reviewable journey — the plan finished, or the case closed, EITHER outcome since 2026-09-14 (a failed case is reviewable too; moderation still sits in front of every review) — whether it is the journey this response describes (a Stage 3 completed case) or a failed one that dropped the student back to `exploring`. Null when there is nothing to review. The app shows "Write a review" while `review_status` is null and hides the card for good once a review exists. `outcome` is how the card words it — "is complete" vs "has ended". */
+            /** @description Home's one-time review offer (2026-09-12): the student's most recent reviewable journey — the plan finished, or the case closed, EITHER outcome since 2026-09-14 (a failed case is reviewable too; moderation still sits in front of every review) — whether it is the journey this response describes (a Stage 3 completed case) or a failed one that dropped the student back to `exploring`. Null when there is nothing to review. The app shows "Write a review" while `review_status` is null and hides the card for good once a review exists. `outcome` is how the card words it — "is complete" vs "has ended". `rating` and `rating_eligible` drive the stars on the review form (a review carries the student's rating of the consultancy, not stars of its own). */
             review_offer?: {
                 journey_id: components["schemas"]["UUID"];
                 consultancy_id: components["schemas"]["UUID"];
                 consultancy_name: string;
                 journey_status: string;
+                /** @description The student's current rating of this consultancy — the stars the review will carry. Null when they have never rated it. */
+                rating?: components["schemas"]["MyRating"] | null;
+                /** @description Whether the review form may offer stars: true unless the student rated this consultancy within the last 14 days. True — the stars are interactive (pre-select `rating.last_stars` when there is a rating; the new stars are averaged with it) and are sent as `stars`. False — show `rating` read-only, send no `stars`, and the review takes the student's current rating. No conversation rule applies here: a closed case is the engagement. */
+                rating_eligible: boolean;
                 /**
                  * @description How the case ended. `success` for a completed (Stage 3) case, `failure` for a plain close; null for a plan that finished without the case closing.
                  * @enum {string|null}
@@ -26103,6 +26894,15 @@ export interface components {
                 /** @enum {string|null} */
                 review_status?: "pending" | "published" | "hidden" | null;
             } | null;
+            /** @description A live case (Stage 2) only; left out on Stage 1 and once the case has closed. The student may rate the consultancy from the case chat under the same rule as a lead chat (`Lead.rating_eligible`): the same student-and-consultancy pair, so a chat that became a case carries its conversation and its 14-day window over. Rate with POST /consultancies/{id}/ratings and no `lead_id`. */
+            rating_eligible?: boolean;
+            /**
+             * @description Why `rating_eligible` is false, as on `Lead`; null when it is true. Left out with it.
+             * @enum {string|null}
+             */
+            rating_eligible_reason?: "not_enough_conversation" | "cooldown" | null;
+            /** @description A live case only: the caller's current rating of this consultancy. Left out until they have rated it. */
+            my_rating?: components["schemas"]["MyRating"];
             /** @description e.g. "2/4" — null until a plan is assigned. */
             progress?: string | null;
             /** @description The current in-progress step's title — null until a plan is assigned. */
@@ -26185,7 +26985,7 @@ export interface components {
              * @enum {string|null}
              */
             readonly outcome?: "success" | "failure" | null;
-            /** @description The neutral fact recorded at close. See POST /clients/{id}/close. */
+            /** @description The neutral fact recorded at close. See POST /clients/{id}/close. `account_deleted` (gate 12f) is never chosen by a consultancy: the case closed, at once, when its student asked for their Sentpo account to be deleted. Such a case is read-only and cannot be reopened (409 `closed_by_platform`), whether or not the student later keeps the account. */
             readonly close_sub_reason?: string | null;
             /** Format: date-time */
             readonly closed_at?: string | null;
@@ -26876,15 +27676,52 @@ export interface components {
             /** Format: date-time */
             submitted_at: string;
         };
-        /** @description Contract gate 10 — the 201 body of `POST /consultancies/{id}/ratings`, previously undocumented. The star-only rating behind the Lead Chat Thread's inline prompt (cooldown-gated, no text, any time during Stage 1 chat) — distinct from the written `Review`, which is one-time and post-close. Backs `consultancy_rating_rollups` (`ConsultancyRatings` registry seam); not independently listable — a consultancy's current figure is `Consultancy.rating`/`rating_count`. */
+        /** @description The 201 body of `POST /consultancies/{id}/ratings`: one submission (a tap of the stars) and the student's rating of the consultancy after it. A student holds ONE rating per consultancy; the first submission sets it and each later one (allowed 14 days after the last) is averaged with it at half weight — 3 then 4 is 3.5, then 5 is 4.25. Reshaped 2026-10-06 (was `id, consultancy_id, student_id, lead_id, stars, created_at`). Not listable by a student or a consultancy; a consultancy's figure is `Consultancy.rating`/`rating_count`. */
         Rating: {
+            /** @description The submission's id. */
             id: components["schemas"]["UUID"];
             consultancy_id: components["schemas"]["UUID"];
-            student_id: components["schemas"]["UUID"];
-            lead_id: components["schemas"]["UUID"];
+            /**
+             * Format: uuid
+             * @description The lead chat it was given from; null when given from the case chat.
+             */
+            lead_id?: string | null;
+            /**
+             * Format: uuid
+             * @description The case it was given from (the case chat); null from a lead chat.
+             */
+            journey_id?: string | null;
+            /** @description What was just submitted. */
             stars: number;
+            /** @description The student's rating of this consultancy after averaging, to one decimal. Equals `stars` on a first rating. */
+            current_stars: number;
+            /** @description How many times the student has rated this consultancy, this one included. */
+            submissions: number;
             /** Format: date-time */
-            created_at: string;
+            rated_at: string;
+            /**
+             * Format: date-time
+             * @description 14 days after `rated_at`.
+             */
+            can_rate_again_at: string;
+        };
+        /** @description The caller's own current rating of a consultancy (2026-10-06) — on `Lead.my_rating`, `Journey.my_rating` and `Journey.review_offer.rating`. Shown only to the student who gave it. */
+        MyRating: {
+            /** @description The current (averaged) rating, to one decimal — what counts towards the score. */
+            stars: number;
+            /** @description What the student last tapped ("Rated 4★"). */
+            last_stars: number;
+            submissions: number;
+            /**
+             * Format: date-time
+             * @description The last submission.
+             */
+            rated_at: string;
+            /**
+             * Format: date-time
+             * @description When the student may rate this consultancy again (14 days after `rated_at`); a new rating is averaged with the existing one.
+             */
+            can_rate_again_at: string;
         };
         /** @description Verified review (build reference 1.3, reworked 2026-09-12): one per journey, written once after the plan is complete, never edited. Signed with the student's full name (user decision). `status` is the moderation state — `pending` until a platform admin with the Consultancies permission publishes it (pre-moderation: nothing unread is ever shown), `published` (visible in the app and to the consultancy, counts towards the rating), `hidden` (pulled by the platform with a reason; leaves the rating). Distinct from the star-only `ratings` behind POST /consultancies/{id}/ratings (cooldown-gated, no text, any time during Stage 1 chat). */
         Review: {
@@ -26899,6 +27736,7 @@ export interface components {
             /** @description The journey's study level at the time (masters, bachelors…) — shown under the name. */
             study_level: string | null;
             target_country: string | null;
+            /** @description The student's rating of this consultancy when the review was written (rounded to a whole star). Not a separate score: it never adds to the consultancy's rating. */
             stars: number;
             text: string;
             /** @enum {string} */
@@ -26921,16 +27759,30 @@ export interface components {
             moderated_by_name?: string | null;
             /** @description Platform view only — required when hiding. */
             hidden_reason?: string | null;
+            /**
+             * @description Platform view only (null elsewhere, and for a review with no student left): the channel of the case the review was written on. `B` — the consultancy created the applicant itself.
+             * @enum {string|null}
+             */
+            acquisition_source?: "A" | "B" | "C" | null;
+            /** @description Platform view only (left out elsewhere): the signals on the rating this review's stars are, as on `AdminRating.flags`. Empty when there are none. */
+            flags?: ("account_new" | "single_consultancy")[];
+            /**
+             * Format: uuid
+             * @description Platform view only: the `AdminRating` behind this review's stars (GET /admin/ratings?student_id=…, PATCH /admin/ratings/{id}). Hiding a review does not touch the rating; exclude it there.
+             */
+            rating_id?: string | null;
+            /** @description Platform view only — whole days from the case opening to its close. */
+            case_age_days?: number | null;
         };
         /** @description The numbers behind a consultancy's rating, as shown at the top of its reviews. */
         ReviewSummary: {
             /** @description Same value as Consultancy.rating (override or computed). */
             rating?: number | null;
-            /** @description Star ratings + published reviews — what the average is over. */
+            /** @description Students whose rating counts (one per student) — what the average is over. */
             rating_count: number;
             /** @description Published written reviews only. */
             review_count: number;
-            /** @description Published reviews per star, keys "1" to "5". */
+            /** @description Counted student ratings per star (each student's rating rounded to a whole star), keys "1" to "5". Sums to `rating_count`. */
             distribution: {
                 [key: string]: number;
             };
@@ -26951,6 +27803,84 @@ export interface components {
                 pending?: number;
                 published?: number;
                 hidden?: number;
+            };
+        };
+        /** @description One student's rating of one consultancy, as platform staff see it (2026-10-06; GET /admin/ratings, PATCH /admin/ratings/{id}): the number, its history, the relationship behind it and the signals that suggest a manufactured rating. Never served to a consultancy or a student. The nullable fields are not `required`, though every one is always sent. */
+        AdminRating: {
+            /** @description The rating's id (PATCH /admin/ratings/{id}). */
+            id: components["schemas"]["UUID"];
+            consultancy_id: components["schemas"]["UUID"];
+            consultancy_name: string;
+            /**
+             * Format: uuid
+             * @description Null once the student's account was erased — print "Erased account".
+             */
+            student_id?: string | null;
+            student_name?: string | null;
+            /**
+             * Format: date-time
+             * @description When the rating account was created; null after erasure.
+             */
+            student_account_created_at?: string | null;
+            /** @description The student's current (averaged) rating, to one decimal. */
+            stars: number;
+            last_stars: number;
+            submissions: number;
+            /** Format: date-time */
+            first_rated_at: string;
+            /** Format: date-time */
+            last_rated_at: string;
+            /**
+             * @description `client` when the student has (or had) a case with this consultancy.
+             * @enum {string}
+             */
+            relationship: "chat" | "client";
+            /**
+             * @description The channel of that case (the newest); null for `chat`. `B` — the consultancy created the applicant itself.
+             * @enum {string|null}
+             */
+            acquisition_source?: "A" | "B" | "C" | null;
+            /** @description How many consultancies this account has rated (0 after erasure). */
+            consultancies_rated: number;
+            /** @description How many times this consultancy asked this student for a rating. */
+            asked_count: number;
+            /** @description `account_new` — some submission came from an account under 7 days old at that moment (it stays flagged as the account ages). `single_consultancy` — the account has never had a chat or a case with any other consultancy (clears if it starts one). Empty after erasure. A flag is a signal for a person to judge, never an exclusion. */
+            flags: ("account_new" | "single_consultancy")[];
+            /** @description Taken out of the consultancy's score by platform staff. */
+            excluded: boolean;
+            /** Format: date-time */
+            excluded_at?: string | null;
+            excluded_by_name?: string | null;
+            excluded_reason?: string | null;
+            /** @description The student rated again after the exclusion. The new rating was averaged in and the row stays excluded until it is restored. */
+            rated_again_since_exclusion: boolean;
+            /** @description The last ten submissions, newest first. */
+            submissions_history: {
+                stars: number;
+                /** @description The student's rating once this submission was averaged in. */
+                stars_after: number;
+                /** @enum {string} */
+                via: "chat" | "review";
+                /** Format: date-time */
+                rated_at: string;
+                /** @description The account's age when it rated. */
+                account_age_days?: number | null;
+            }[];
+            /**
+             * Format: uuid
+             * @description The student's written review of this consultancy, if any (GET /admin/reviews).
+             */
+            review_id?: string | null;
+        };
+        /** @description Cursor-paginated, most recently rated first. `counts` covers the whole platform regardless of the page or filter (for the All / Flagged / Excluded chips; All is `included + excluded`). */
+        AdminRatingPage: {
+            items: components["schemas"]["AdminRating"][];
+            meta: components["schemas"]["PaginatedMeta"];
+            counts: {
+                included: number;
+                excluded: number;
+                /** @description Ratings with at least one flag, excluded or not. */
+                flagged: number;
             };
         };
         /** @description A receiving consultancy's consent-to-accept for one incoming cross-consultancy transfer (build reference 1.18) — issued from Consultancy Profile's Incoming Transfers section, read back to the sending consultancy out-of-band, and consumed by POST /clients/{id}/transfer. Bound to exactly one of the student's email and phone (contract gate 7) — the other is null. */
@@ -27196,7 +28126,7 @@ export interface components {
         };
         /**
          * @description One table, type-specific fields nullable per type (erd.md Engagement section) — Webinars, Quiz, and Physical Meetings each get their own admin page (build reference 1.13) but share this one underlying shape.
-         *     Never carries a people list (contract gate 10, K20) — who RSVP'd, who attended, or who attempted a quiz lives behind its own `events`-permission route, never inline here: `GET /events/{id}/attendance` (RSVP list + attendance list, admin) and `GET /events/{id}/leaderboard` (role-projected per `QuizLeaderboardEntry`). Two fields on this object are ROLE-SCOPED the same way — see `QuizQuestion.correct_option` and `venue_code` below — served to `events`-permission callers only, null to everyone else.
+         *     Never carries a people list (contract gate 10, K20) — who RSVP'd, who attended, or who attempted a quiz lives behind its own `events`-permission route, never inline here: `GET /events/{id}/attendance` (RSVP list + attendance list, admin) and `GET /events/{id}/leaderboard` (role-projected per `QuizLeaderboardEntry`). Three fields on this object are ROLE-SCOPED the same way — `questions`, `venue_code` and `prizes_settled_at` below (and `prize_settlement_error`, decision 13) — served to `events`-permission callers only, null to everyone else.
          */
         Event: {
             /**
@@ -27229,6 +28159,8 @@ export interface components {
                 completion_time_ms: number;
                 /** Format: date-time */
                 submitted_at: string;
+                /** @description True when the answers reached the server after the attempt's deadline plus the grace (decision 13, 2026-10-06 — see `POST /events/{id}/quiz/submit`): `score` is then the server's own 0, not what was answered, and `completion_time_ms` is the time limit. Not required; absent means false, so a client built before this field is unaffected. */
+                late?: boolean;
             };
             /** @description Quiz only — admin can void a published quiz, reversing any points already awarded (build reference 1.13). */
             voided: boolean;
@@ -27281,15 +28213,17 @@ export interface components {
             questions_per_attempt: number | null;
             /** @description Quiz only — hard limit, auto-submits at expiry. */
             time_limit_minutes: number | null;
-            /** @description Quiz only. */
+            /** @description Quiz only. **ADMIN ONLY** (decision 13, 2026-10-06): the question pool is served to `events`-permission callers, who need it to edit; **null for every other caller**, including the student who will take the quiz — a student first sees questions when their attempt starts (`POST /events/{id}/quiz/start`), or receives them sealed in advance through `POST /events/{id}/quiz/package`. Required and nullable, so a client never has to tell `null` from absent. `questions_per_attempt`, `time_limit_minutes` and `active` continue to tell a student everything they need before the start. */
             questions: components["schemas"]["QuizQuestion"][] | null;
             /** @description Quiz only (user-requested, 2026-08-15) — optional leaderboard-position prizes, entirely separate from points_override's flat participation points. A quiz can have none, some, or all positions filled in; each entry can carry a prize description, bonus points, or both. */
             position_prizes?: components["schemas"]["PositionPrize"][] | null;
             /**
              * Format: date-time
-             * @description Quiz only (contract gate 10) — when `position_prizes` were paid out: `ends_at` + the time limit + a 5-second settlement allowance (plan §5.1), or, for a quiz with no `ends_at`, the moment of the first submit (prizes can't wait on a close that never comes). Null before settlement and for a quiz with no `position_prizes`. ADMIN ONLY — served to `events`-permission callers; null to a student, who has no use for the internal settlement timestamp and already sees prize outcomes on the leaderboard.
+             * @description Quiz only (contract gate 10) — when `position_prizes` were paid out: `ends_at` + the time limit + a 5-second settlement allowance (plan §5.1), or, for a quiz with no `ends_at`, the moment of the first submit (prizes can't wait on a close that never comes). Null before settlement and for a quiz with no `position_prizes`. ADMIN ONLY — served to `events`-permission callers; null to a student, who has no use for the internal settlement timestamp and already sees prize outcomes on the leaderboard. Since decision 13 the settlement also waits out the submit grace (`QUIZ_SUBMIT_GRACE_SECONDS`) and any attempt still inside its own deadline.
              */
             readonly prizes_settled_at?: string | null;
+            /** @description Quiz only, ADMIN ONLY like `prizes_settled_at` (decision 13) — null for everyone else, and null for an admin unless something is wrong. Set when the every-minute job could not pay this quiz's `position_prizes` (a prize list stored in a shape it cannot read): the quiz is parked — its prizes are NOT paid and `prizes_settled_at` stays null — instead of stopping every other quiz and reminder. The text is the job's own error, at most 500 characters, for display beside a "Prizes not paid — fix the prize list" warning. Cleared by any `PATCH /events/{id}` whose body carries `position_prizes` (re-saving the prize list, changed or not); the next tick then tries the settlement again. Not required. */
+            readonly prize_settlement_error?: string | null;
             /** @description What completing/attending THIS event credits — resolved SERVER-side as points_override ?? the governing earn rule's points_value (quiz_completed / webinar_attended / physical_meeting_attended by type), null when the rule is inactive or missing. Exists so the app can print the number at the decision moment (user, 2026-08-19 — points shown at the place of activity, not in a rules list) without re-implementing the resolution: a client-computed value could disagree with what awardPoints() actually credits. PER-CALLER since 2026-08-19: also null once the caller's own lifetime cap for the governing rule is reached (user — "after 50 do not show participation points. Just stop showing"). Caps are never displayed; an exhausted offer disappears rather than growing fine print. */
             readonly points_on_offer: number | null;
             /**
@@ -27304,12 +28238,13 @@ export interface components {
             /** @description Webinars only, and only for a signed-in caller. Drives the "email me the link" button — see the schema for why the window is resolved server-side. */
             readonly my_link_email?: components["schemas"]["WebinarLinkEmailState"];
         };
+        /** @description One leaderboard-position prize. Validated on write since decision 13 (2026-10-06): `position_prizes` must be an array of objects; positions unique, whole numbers (JSON numbers, never numeric text), at least one of `prize`/`points` on every entry. A list that breaks a rule is refused with 400 `validation_failed` and a message naming the entry, e.g. `position_prizes[1].points must be a whole number between 1 and 100000.` */
         PositionPrize: {
-            /** @description 1 = first place, 2 = second, etc. */
+            /** @description 1 = first place, 2 = second, etc. Each position may appear once. */
             position: number;
-            /** @description Free-text prize description, e.g. "Wireless earbuds". Optional — a position can be points-only. */
+            /** @description Free-text prize description, e.g. "Wireless earbuds". Optional — a position can be points-only. Not empty when present. */
             prize?: string | null;
-            /** @description Bonus Sentpo points for this position, on top of points_override's flat participation credit. Optional — a position can be prize-only. */
+            /** @description Bonus Sentpo points for this position, on top of points_override's flat participation credit. Optional — a position can be prize-only (send null or omit it, never 0 or an empty string). */
             points?: number | null;
         };
         /** @description One row per confirmed attendee (user-requested, 2026-08-15) — Webinar (join-click) or Physical Meeting (venue code entry); Quiz attendance is completion-based and doesn't use this shape. */
@@ -27401,7 +28336,7 @@ export interface components {
             id: components["schemas"]["UUID"];
             text: string;
             options: string[];
-            /** @description Index into `options`. ROLE-SCOPED (contract gate 10, K20) — served only to a caller holding the `events` permission, who needs the answer key back to edit the pool. Every other caller, including the student taking the quiz, receives null: the key is present but empty, never the real index. The quiz runner never needs it from here — it draws its question set from `POST /events/{id}/quiz/start`, whose `QuizAttemptQuestion` shape has no `correct_option` property at all, and scoring happens server-side in `POST /events/{id}/quiz/submit`. The projection is applied server-side, same convention as `QuizLeaderboardEntry`'s role-scoped fields. */
+            /** @description Index into `options`. Served with the pool to `events`-permission callers only (the whole `QuizQuestion` list is admin-only since decision 13). */
             correct_option: number | null;
         };
         QuizQuestionInput: {
@@ -27417,12 +28352,81 @@ export interface components {
             text: string;
             options: string[];
         };
-        /** @description build reference 1.13 — "the full question set downloads completely before the timer starts... both to remove any network-speed advantage." A random subset of size `questions_per_attempt` is drawn from the pool, in randomized order, once per attempt — calling start again before submitting returns the same already-drawn set (idempotent), never a fresh draw, so refreshing mid-attempt can't reroll easier questions. */
+        /**
+         * @description A student's quiz questions, SEALED (decision 13, 2026-10-06) — what `POST /events/{id}/quiz/package` returns. The app stores it on the device ahead of the start; it cannot be read until `POST /events/{id}/quiz/start` releases the key.
+         *     How to open it. `package` is base64 (standard alphabet, padded) of `nonce (12 bytes) || ciphertext || tag (16 bytes)` — AES-256-GCM, with the ASCII bytes of `attempt_id` (the canonical lower-case hyphenated UUID string, exactly as this object carries it) as the associated data. The key is `QuizStartResponse.key`: base64 of 32 bytes. The plaintext is UTF-8 JSON: `{"v": 1, "attempt_id": "<uuid>", "event_id": "<uuid>", "questions": [{"id": "<uuid>", "text": "…", "options": ["…", …]}, …]}` — `questions` is exactly the `QuizAttemptQuestion` list, in this attempt's order, each with its already-shuffled options; there is never a `correct_option`. A client checks `v == 1` and that `attempt_id`/`event_id` match what it asked for.
+         *     Before storing, verify `package_sha256` (lower-case hex SHA-256 of the DECODED bytes) and `package_bytes` (their length); on a mismatch download again. The key is never stored on the device — it is held in memory for the attempt only.
+         */
+        QuizPackage: {
+            /** @description The attempt this package belongs to. Send it as `QuizStartRequest.attempt_id` at Start, and as `QuizSubmitRequest.attempt_id` at Submit. It changes when the admin edits the questions before anyone has started (the old package is then useless — the next call here returns the new one). */
+            attempt_id: components["schemas"]["UUID"];
+            /** @description Which version of the quiz's question pool the draw was made from. For operators and tests; a client never compares versions (it recognises a stale package by `attempt_id`). */
+            pool_version: number;
+            /**
+             * Format: date-time
+             * @description When this student's draw was fixed.
+             */
+            packaged_at: string;
+            /**
+             * Format: date-time
+             * @description The quiz's own start — repeated here so the runner needs no second read.
+             */
+            starts_at: string;
+            /**
+             * Format: date-time
+             * @description The quiz's own end (the last moment a START is accepted), null when it never closes.
+             */
+            ends_at?: string | null;
+            /** @description Not in `required` (same Dart generator rule as `QuizStartResponse`). Null = untimed, which the server still ends 60 minutes after the start. */
+            time_limit_minutes?: number | null;
+            /** @description How many questions the package holds. */
+            question_count: number;
+            /** @description base64 of nonce(12) || AES-256-GCM ciphertext || tag(16); AAD = attempt_id as ASCII. Null only when the attempt was already started without a package (go straight to quiz/start, which then answers with the questions in clear). */
+            package?: string | null;
+            /** @description Lower-case hex SHA-256 of the decoded package bytes. Null exactly when `package` is. */
+            package_sha256?: string | null;
+            /** @description Length of the decoded package in bytes. Null exactly when `package` is. */
+            package_bytes?: number | null;
+            /** @description The quiz's branding, as on `Event.branding` — so the runner can pre-cache artwork from the package alone. */
+            branding?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** @description The optional body of `POST /events/{id}/quiz/start` (decision 13). An app built before sealed packages sends no body at all and keeps working. */
+        QuizStartRequest: {
+            /** @description The `QuizPackage.attempt_id` of the package the device holds and has verified. Omit it (or send no body) when the device holds none. When it matches the server's hold the answer carries `key`; otherwise it carries the questions in clear. */
+            attempt_id?: components["schemas"]["UUID"];
+        };
+        /**
+         * @description The start of the student's one attempt (decision 13, 2026-10-06). The draw — a random subset of size `questions_per_attempt`, in randomized order, each question with its own shuffled options — is fixed when the package is made (`POST /events/{id}/quiz/package`) or, failing that, here; it is never rerolled.
+         *     THE CLOCK IS THE SERVER'S. It starts at `started_at`, which is set by the first successful call and never again, and ends at `deadline_at`. Every later call — a lost response, an app restart, a second device, even a call after the deadline — returns the SAME `attempt_id`, `started_at` and `deadline_at`; that is how a restarted app recovers its clock. `server_now` is the server's clock as this response was written: the app records its own monotonic time at the same instant and from then on computes `remaining = deadline_at − (server_now + time elapsed locally since this response)`. It never uses the device's wall clock on its own, and never counts down from `time_limit_minutes`. When `deadline_at` is already at or before `server_now` the attempt is over: submit what is held at once.
+         *     Exactly one of `key` and `questions` is non-null. `key` when the request named the attempt whose package the device holds (open the package with it — see `QuizPackage`); `questions` in clear otherwise (no `attempt_id` sent, one the server no longer holds because the questions were edited, or an attempt started without a package). A client that sent an `attempt_id` and receives `questions` discards its stored package and runs from the clear list; the `attempt_id` in THIS response is the one to submit with.
+         */
         QuizStartResponse: {
             attempt_id: components["schemas"]["UUID"];
-            /** @description Not in `required` — nullable+required together trips a Dart-dio openapi-generator bug (produces a non-nullable Dart `int` that throws on the legitimate null case, same class of generator/spec mismatch as the enum-defaultValue bug hit in earlier waves). Optional-and-nullable generates the correct `int?`, same shape `branding` below already gets. */
+            /**
+             * Format: date-time
+             * @description The server's clock when the attempt started. Set once; repeated verbatim on every later call.
+             */
+            started_at: string;
+            /**
+             * Format: date-time
+             * @description `started_at` + `time_limit_minutes`, or + 60 minutes for an untimed quiz. Answers must REACH the server by this instant (plus a few seconds of grace) to be scored — see `POST /events/{id}/quiz/submit`.
+             */
+            deadline_at: string;
+            /**
+             * Format: date-time
+             * @description The server's clock at this response — the app's offset reference. Differs on every call.
+             */
+            server_now: string;
+            /** @description Which version of the question pool this attempt's draw came from (for operators and tests). */
+            pool_version: number;
+            /** @description Not in `required` — nullable+required together trips a Dart-dio openapi-generator bug (produces a non-nullable Dart `int` that throws on the legitimate null case, same class of generator/spec mismatch as the enum-defaultValue bug hit in earlier waves). Optional-and-nullable generates the correct `int?`, same shape `branding` below already gets. Informational since decision 13 — the countdown comes from `deadline_at`. */
             time_limit_minutes?: number | null;
-            questions: components["schemas"]["QuizAttemptQuestion"][];
+            /** @description base64 of the 32-byte AES-256-GCM key that opens the device's package. Set when the request's `attempt_id` is this attempt's and it has a package; null otherwise. Keep it in memory only; never store or log it. */
+            key?: string | null;
+            /** @description Null exactly when `key` is set — the device opens its package with the key. Set (in clear, never with `correct_option`) when the device sent no `attempt_id`, sent one the server no longer holds, or the attempt was started without a package. */
+            questions?: components["schemas"]["QuizAttemptQuestion"][] | null;
             branding?: {
                 [key: string]: unknown;
             } | null;
@@ -27438,10 +28442,14 @@ export interface components {
             completion_time_ms?: number;
         };
         QuizSubmitResponse: {
+            /** @description Correct answers out of `questions_per_attempt`. Always 0 when `late`. */
             score: number;
             /** @description This attempt's position on the now-updated leaderboard. */
             rank: number;
+            /** @description The server's own measurement (start to submit, minus a flat network allowance), never above the time limit — and exactly the time limit when `late`. */
             completion_time_ms: number;
+            /** @description True when the answers reached the server after `QuizStartResponse.deadline_at` plus the grace (decision 13): the attempt is recorded as the server's own auto-submit — `score` 0 whatever was sent, last on the leaderboard, never a prize. The participation points are still paid (`points_awarded`). The app says so in the result: "Time was up before your answers reached us, so this attempt counts as 0 / {questions_per_attempt}. You still earned your participation points." */
+            late: boolean;
             questions_per_attempt: number;
             /** @description The event's `points_override` participation credit, if any, plus any `position_prizes` bonus this rank earned — null if the quiz carries no points at all. */
             points_awarded?: number | null;
@@ -28867,12 +29875,12 @@ export interface components {
             /** @description Null for platform-level actions with no single owning consultancy. */
             consultancy_id?: components["schemas"]["UUID"];
             /**
-             * @description The base CRUD/view set, plus named actions the mock writes that are not really a create/update/delete of the row they attach to (gate 2, 2026-09-24, grepped from every `recordAudit` call in the mock): `kyc_verified`, `link_college`, `rating_requested` (freelancer), `renewal_requested`, `upgrade_requested`, `upgrade_request_withdrawn` (consultancy plan), `rating_override_set`/ `rating_override_cleared` (Super Admin on a consultancy's rating), `hide`/`publish` (review moderation), and `country_content.updated` (the one dotted name in the set — left as the mock already writes it rather than renamed to fit the others).
+             * @description The base CRUD/view set, plus named actions the mock writes that are not really a create/update/delete of the row they attach to (gate 2, 2026-09-24, grepped from every `recordAudit` call in the mock): `kyc_verified`, `link_college`, `rating_requested` (freelancer), `renewal_requested`, `upgrade_requested`, `upgrade_request_withdrawn` (consultancy plan), `rating_override_set`/ `rating_override_cleared` (Super Admin on a consultancy's rating), `rating_excluded`/`rating_restored` (2026-10-06: platform staff taking a student's rating out of a consultancy's score, or putting it back; entity_type `rating`), `hide`/`publish` (review moderation), and `country_content.updated` (the one dotted name in the set — left as the mock already writes it rather than renamed to fit the others).
              *
              *     Gate 12c (2026-10-02) adds the named actions Waves 6 and 7 record (plan §4, §5). A plain create/update of a row stays `create`/`update` (an invoice, receipt, installment, dues row, complaint, freelancer rate or app-config edit); a name below is for an act that is more than that. Settlement (area `billing` for the consultancy's writes, `finance` for platform ones): `installment_voided`, `due_added`, `due_overridden` (the original due), `due_waived`, `due_change_voided`, `payment_declared`, `payment_confirmed`, `payment_rejected`, `payment_corrected`, `payment_received` (Finance's receive). Invoicing (`billing`): `invoice_voided`, `receipt_voided`. Moderation: `applicant_allocated`, `applicant_declined`. Support (`support`): `case_switched`, `email_changed`, `data_exported`, `note_added` (case notes, complaint and dispute notes, follow-up notes), `nudge_sent` (student and visit-request nudges), `complaint_assigned`, `complaint_resolved`, `dispute_raised`, `dispute_escalated`, `dispute_picked_up`, `dispute_resolved`. Freelancers: `freelancer_invited`, `freelancer_invite_resent`, `freelancer_rate_set`, `freelancer_payout_recorded`, `freelancer_payout_voided`. Platform: `app_config_changed`, `analytics_archived`, `analytics_restored` (Q8's archive and restore jobs). Also listed because the backend already writes them and the contract never did: `merchant_code_rejected` (a wrong redemption-partner code, K17) and `freelancer_referral_payment_updated` (legacy; F55 retired the field, so no new rows). Every value is a superset addition — none renamed or removed. The mock writes none of the new ones.
              * @enum {string}
              */
-            action_type: "create" | "update" | "delete" | "view" | "kyc_verified" | "link_college" | "rating_requested" | "renewal_requested" | "upgrade_requested" | "upgrade_request_withdrawn" | "rating_override_set" | "rating_override_cleared" | "hide" | "publish" | "country_content.updated" | "installment_voided" | "due_added" | "due_overridden" | "due_waived" | "due_change_voided" | "payment_declared" | "payment_confirmed" | "payment_rejected" | "payment_corrected" | "payment_received" | "invoice_voided" | "receipt_voided" | "applicant_allocated" | "applicant_declined" | "case_switched" | "email_changed" | "data_exported" | "note_added" | "nudge_sent" | "complaint_assigned" | "complaint_resolved" | "dispute_raised" | "dispute_escalated" | "dispute_picked_up" | "dispute_resolved" | "freelancer_invited" | "freelancer_invite_resent" | "freelancer_rate_set" | "freelancer_payout_recorded" | "freelancer_payout_voided" | "app_config_changed" | "analytics_archived" | "analytics_restored" | "merchant_code_rejected" | "freelancer_referral_payment_updated";
+            action_type: "create" | "update" | "delete" | "view" | "kyc_verified" | "link_college" | "rating_requested" | "renewal_requested" | "upgrade_requested" | "upgrade_request_withdrawn" | "rating_override_set" | "rating_override_cleared" | "rating_excluded" | "rating_restored" | "hide" | "publish" | "country_content.updated" | "installment_voided" | "due_added" | "due_overridden" | "due_waived" | "due_change_voided" | "payment_declared" | "payment_confirmed" | "payment_rejected" | "payment_corrected" | "payment_received" | "invoice_voided" | "receipt_voided" | "applicant_allocated" | "applicant_declined" | "case_switched" | "email_changed" | "data_exported" | "note_added" | "nudge_sent" | "complaint_assigned" | "complaint_resolved" | "dispute_raised" | "dispute_escalated" | "dispute_picked_up" | "dispute_resolved" | "freelancer_invited" | "freelancer_invite_resent" | "freelancer_rate_set" | "freelancer_payout_recorded" | "freelancer_payout_voided" | "app_config_changed" | "analytics_archived" | "analytics_restored" | "merchant_code_rejected" | "freelancer_referral_payment_updated";
             /** @description e.g. lead, client, plan, step, employee, designation, branch, tag. */
             entity_type: string;
             /** @description The audited entity's key. A UUID for most entities; some are keyed by something else the mock already writes here — a country by name (`country_content.updated`), a currency code, a coupon/referral code, or the literal `defaults`, `platform_settings`, `app_config` or `trending` for singleton configuration rows (gate 2, 2026-09-24). */
@@ -28914,6 +29922,75 @@ export interface components {
             journey_id: components["schemas"]["UUID"];
             /** @description Staff/freelancer results — their own consultancy, or null for platform staff. */
             consultancy_name: string | null;
+            /**
+             * Format: date-time
+             * @description Set while an erasure is pending for this account (gate 12f): the instant its personal data is erased. Show a "Deletion scheduled {date}" badge; the account is locked, an export is refused (409 `conflict`), and a Super Admin can keep the account with DELETE /users/{id}/erasure. Null (or absent) otherwise.
+             */
+            erasure_due_at?: string | null;
+        };
+        /** @description The answer to an erasure request (gate 12f). `erasure_pending`: the account is locked now and its personal data is erased at `due_at`, 30 days later, unless the erasure is cancelled before then (`cancel_until` is the same instant, named for the client's copy). `erasure_queued`: there is no window — Support asked for an immediate erasure, or the erasure was already under way — and both dates are null. */
+        ErasureQueuedOut: {
+            /** @enum {string} */
+            status: "erasure_pending" | "erasure_queued";
+            /**
+             * Format: date-time
+             * @description When the personal data is erased. Null for `erasure_queued`.
+             */
+            due_at?: string | null;
+            /**
+             * Format: date-time
+             * @description Until when the account can still be kept. The same instant as `due_at`.
+             */
+            cancel_until?: string | null;
+        };
+        /** @description One erasure on Support's list (gate 12f). `name`, `email` and `phone` are the account's own until the data is erased; afterwards `name` reads "Deleted User" (or "Former Employee") and the other two are null. The reason the person or an operator typed is never served. */
+        ErasureRequest: {
+            id: components["schemas"]["UUID"];
+            user_id: components["schemas"]["UUID"];
+            name: string;
+            email?: string | null;
+            phone?: string | null;
+            /** @enum {string} */
+            role: "student" | "consultancy_admin" | "consultant" | "platform_staff" | "freelancer";
+            /** @description A consultancy staff member's employer. Null for everyone else — a student's case closed when the erasure was requested, so no consultancy is shown for them. */
+            consultancy_name?: string | null;
+            /**
+             * @description `pending` — inside the 30-day window: locked, nothing erased yet, can be cancelled. `queued` / `processing` — the window has ended (or the erasure was immediate) and the data is being erased: it can no longer be cancelled. `completed` — erased. `cancelled` — the account was kept.
+             * @enum {string}
+             */
+            status: "pending" | "queued" | "processing" | "completed" | "cancelled";
+            /** @description True when Support skipped the 30-day window (a legal request). */
+            immediate: boolean;
+            /** Format: date-time */
+            requested_at: string;
+            /**
+             * Format: date-time
+             * @description When the data is (or was to be) erased.
+             */
+            due_at: string;
+            /** @enum {string} */
+            requested_by: "self" | "support";
+            /** @description The operator's name when `requested_by` is `support`; null for `self`. */
+            requested_by_name?: string | null;
+            /** Format: date-time */
+            cancelled_at?: string | null;
+            /** Format: date-time */
+            completed_at?: string | null;
+        };
+        /** @description One of the signed-in person's own data exports (gate 12f). The archive is never linked from an email: when `downloadable` is true, POST /me/exports/{id}/download returns a link that works for five minutes. */
+        ExportRequest: {
+            id: components["schemas"]["UUID"];
+            /** @enum {string} */
+            status: "queued" | "processing" | "completed" | "failed";
+            /** Format: date-time */
+            requested_at: string;
+            /**
+             * Format: date-time
+             * @description Until when a completed export can be downloaded (7 days after it was built).
+             */
+            ready_until?: string | null;
+            /** @description True for a completed export whose file is still there and not past `ready_until`. */
+            downloadable: boolean;
         };
         /** @description Super Admin or Platform Staff account (build reference 1.15/1.23). Super Admin has every flag permanently on and unremovable; Platform Staff has individually configurable flags. */
         PlatformStaff: {
@@ -29498,6 +30575,12 @@ export interface components {
         };
     };
     parameters: {
+        /**
+         * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request`. WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
+         *
+         *     WHAT IT DOES: when present, texted codes are also limited per device (5 an hour by default), in addition to the limits per phone number, per caller address and for the platform as a whole, which apply with or without it. A value of any other shape is ignored as if the header were not sent (never a 400). The server stores only a hash of it, for an hour, as a counter key.
+         */
+        DeviceId: string;
         /** @description Any write the app might retry after a lost response (quiz submit, shortlist save, chat message, visit request, review) carries a client-generated key (assumptions audit H21, 2026-09-19). A second request with the same key and caller replays the first response instead of creating a second record. Keys are kept for 24 hours. */
         IdempotencyKey: string;
         /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */

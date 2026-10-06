@@ -101,8 +101,11 @@ export function useUpdateUserEmail() {
 /** Super-admin only on the server — the console hides the action entirely for anyone else. */
 export function useEraseUserData() {
   return useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const { data, error } = await api.POST('/users/{id}/erase', { params: { path: { id } }, body: { reason } })
+    mutationFn: async ({ id, reason, password, immediate }: { id: string; reason: string; password: string; immediate?: boolean }) => {
+      const { data, error } = await api.POST('/users/{id}/erase', {
+        params: { path: { id } },
+        body: { reason, password, ...(immediate ? { immediate: true } : {}) },
+      })
       if (error) throw new ApiError(error.error.message)
       return data
     },
