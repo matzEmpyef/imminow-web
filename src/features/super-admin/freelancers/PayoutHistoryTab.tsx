@@ -10,29 +10,19 @@ import { fetchAllFreelancerPayouts, useFreelancerPayouts, type FreelancerPayout 
 import { FreelancerFilterSelect } from './FreelancerFilterSelect'
 import { VoidPayoutModal } from './VoidPayoutModal'
 import { inr } from '@/lib/money'
+import { downloadCsv, toCsv, type CsvColumn } from '@/lib/csv'
 
-function csvCell(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
-}
-
-function toCsv(rows: FreelancerPayout[]): string {
-  const header = ['Paid on', 'Freelancer', 'Student', 'Amount INR', 'Reference', 'Recorded by', 'Status', 'Void reason']
-  const lines = rows.map((p) =>
-    [
-      formatDate(p.paid_on),
-      p.freelancer_name ?? '',
-      p.applicant_name ?? '',
-      String(p.amount_inr ?? 0),
-      p.reference ?? '',
-      p.recorded_by_name ?? '',
-      p.voided_at ? 'Undone' : 'Paid',
-      p.void_reason ?? '',
-    ]
-      .map((v) => csvCell(String(v)))
-      .join(','),
-  )
-  return [header.join(','), ...lines].join('\n')
-}
+// What the payout export holds. The amount is a number, so a spreadsheet can total the column.
+const PAYOUT_CSV_COLUMNS: CsvColumn<FreelancerPayout>[] = [
+  { header: 'Paid on', value: (p) => formatDate(p.paid_on) },
+  { header: 'Freelancer', value: (p) => p.freelancer_name },
+  { header: 'Student', value: (p) => p.applicant_name },
+  { header: 'Amount INR', value: (p) => p.amount_inr ?? 0 },
+  { header: 'Reference', value: (p) => p.reference },
+  { header: 'Recorded by', value: (p) => p.recorded_by_name },
+  { header: 'Status', value: (p) => (p.voided_at ? 'Undone' : 'Paid') },
+  { header: 'Void reason', value: (p) => p.void_reason },
+]
 
 /**
  * "Paid & history" — every payout ever recorded, server-paged, mirroring finance/HistoryTab.tsx's
@@ -70,16 +60,7 @@ export function PayoutHistoryTab() {
     setExportError(null)
     try {
       const rows = await fetchAllFreelancerPayouts(filters)
-      const csv = toCsv(rows)
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `freelancer-payouts-${localDateISO()}.csv`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
+      downloadCsv(`freelancer-payouts-${localDateISO()}.csv`, toCsv(rows, PAYOUT_CSV_COLUMNS))
     } catch {
       setExportError('Could not export payout history.')
     } finally {

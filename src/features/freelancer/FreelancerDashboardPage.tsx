@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { downloadCsv, toCsv, type CsvColumn } from '@/lib/csv'
 import { Info } from 'lucide-react'
 import { FreelancerShell } from '@/features/auth/FreelancerShell'
 import { Card } from '@/components/Card'
@@ -64,31 +65,21 @@ function daysAgoIsoDate(days: number): string {
   return localDateISO(new Date(Date.now() - days * 24 * 60 * 60 * 1000))
 }
 
-function csvCell(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
-}
-
-function toCsv(rows: FreelancerReferral[]): string {
-  const header = ['Student', 'Referred on', 'Stage', 'College', 'Your share', 'Earned', 'Paid', 'Owed', 'Payout']
-  const lines = rows.map((r) => {
-    const stage = r.stage ?? 'waiting'
-    const payout = r.payout_status ?? 'not_due'
-    return [
-      r.applicant_name,
-      formatDate(r.created_at),
-      STAGE_LABEL[stage],
-      r.commission?.college_name ?? '',
-      !r.commission ? '' : r.commission.rate_missing ? 'Rate not set yet' : formatMoneyAmount(r.commission.your_cut),
-      formatMoney('INR', r.earned_inr ?? 0),
-      formatMoney('INR', r.paid_inr ?? 0),
-      formatMoney('INR', r.owed_inr ?? 0),
-      PAYOUT_LABEL[payout],
-    ]
-      .map((v) => csvCell(String(v)))
-      .join(',')
-  })
-  return [header.join(','), ...lines].join('\n')
-}
+// What a freelancer's own referral export holds: the same words and figures as the table.
+const REFERRAL_CSV_COLUMNS: CsvColumn<FreelancerReferral>[] = [
+  { header: 'Student', value: (r) => r.applicant_name },
+  { header: 'Referred on', value: (r) => formatDate(r.created_at) },
+  { header: 'Stage', value: (r) => STAGE_LABEL[r.stage ?? 'waiting'] },
+  { header: 'College', value: (r) => r.commission?.college_name },
+  {
+    header: 'Your share',
+    value: (r) => (!r.commission ? '' : r.commission.rate_missing ? 'Rate not set yet' : formatMoneyAmount(r.commission.your_cut)),
+  },
+  { header: 'Earned', value: (r) => formatMoney('INR', r.earned_inr ?? 0) },
+  { header: 'Paid', value: (r) => formatMoney('INR', r.paid_inr ?? 0) },
+  { header: 'Owed', value: (r) => formatMoney('INR', r.owed_inr ?? 0) },
+  { header: 'Payout', value: (r) => PAYOUT_LABEL[r.payout_status ?? 'not_due'] },
+]
 
 /**
  * "?" disclosure explaining the payout rule (spec item 2) — a tiny accessible popover rather than
@@ -345,16 +336,7 @@ export function FreelancerDashboardPage() {
     setExportError(null)
     try {
       const all = await fetchAllFreelancerReferrals(baseFilters)
-      const csv = toCsv(all)
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `sentpo-referrals-${localDateISO()}.csv`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
+      downloadCsv(`sentpo-referrals-${localDateISO()}.csv`, toCsv(all, REFERRAL_CSV_COLUMNS))
     } catch {
       setExportError('Could not export your referrals.')
     } finally {
