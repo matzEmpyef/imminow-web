@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Drawer } from '@/components/Drawer'
+import { ContactLink } from '@/components/CopyButton'
 import { formatDate, formatDateTime, relativeTime } from '@/lib/time'
 import { useNudgeVisitRequest, type VisitRequest } from '@/queries/visitRequests'
 import { replyWaitingLabel, visitDateLabel } from './format'
@@ -68,14 +69,10 @@ export function VisitRequestDrawer({
           <p className="text-body-sm text-text-primary">{request.context.name}</p>
           <div className="flex flex-col gap-xs text-body-sm">
             {request.student_email && (
-              <a href={`mailto:${request.student_email}`} className="text-primary hover:underline">
-                {request.student_email}
-              </a>
+              <ContactLink kind="email" value={request.student_email} className="break-all text-primary hover:underline" />
             )}
             {request.student_phone && (
-              <a href={`tel:${request.student_phone}`} className="text-primary hover:underline">
-                {request.student_phone}
-              </a>
+              <ContactLink kind="phone" value={request.student_phone} className="text-primary hover:underline" />
             )}
             {!request.student_email && !request.student_phone && <span className="text-text-secondary">—</span>}
           </div>
@@ -111,17 +108,14 @@ export function VisitRequestDrawer({
               </div>
               <div className="flex flex-col gap-xs">
                 {request.consultancy_contact.email && (
-                  <a
-                    href={`mailto:${request.consultancy_contact.email}`}
-                    className="text-caption text-primary hover:underline"
-                  >
-                    {request.consultancy_contact.email}
-                  </a>
+                  <ContactLink
+                    kind="email"
+                    value={request.consultancy_contact.email}
+                    className="break-all text-caption text-primary hover:underline"
+                  />
                 )}
                 {request.consultancy_contact.phone && (
-                  <a href={`tel:${request.consultancy_contact.phone}`} className="text-caption text-primary hover:underline">
-                    {request.consultancy_contact.phone}
-                  </a>
+                  <ContactLink kind="phone" value={request.consultancy_contact.phone} className="text-caption text-primary hover:underline" />
                 )}
               </div>
             </div>

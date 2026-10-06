@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Drawer } from '@/components/Drawer'
+import { CopyButton } from '@/components/CopyButton'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
@@ -129,7 +130,10 @@ export function FreelancerDrawer({ freelancer, onClose }: { freelancer: Freelanc
             <Badge color={STATUS_BADGE[freelancer.status ?? 'active'].color}>
               {STATUS_BADGE[freelancer.status ?? 'active'].label}
             </Badge>
-            <span className="text-body-sm text-text-secondary">{freelancer.email}</span>
+            <span className="flex min-w-0 items-center gap-xs">
+              <span className="break-all text-body-sm text-text-secondary">{freelancer.email}</span>
+              {freelancer.email && <CopyButton value={freelancer.email} kind="email" />}
+            </span>
           </div>
 
           <div className="grid grid-cols-2 gap-sm text-body-sm">

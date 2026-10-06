@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Drawer } from '@/components/Drawer'
+import { CopyButton } from '@/components/CopyButton'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
@@ -162,7 +163,10 @@ export function PersonSignInDrawer({ person, onClose }: { person: SignInHistoryP
           <div className="flex items-start justify-between gap-md">
             <div className="min-w-0">
               <p className="font-medium text-text-primary">{person.name}</p>
-              <p className="text-caption text-text-secondary">{person.email}</p>
+              <div className="flex items-center gap-xs">
+                <p className="break-all text-caption text-text-secondary">{person.email}</p>
+                {person.email && <CopyButton value={person.email} kind="email" />}
+              </div>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-xs">
               <GoToRecordAction person={person} />

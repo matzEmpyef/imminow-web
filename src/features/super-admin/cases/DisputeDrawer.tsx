@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Drawer } from '@/components/Drawer'
+import { ContactLink } from '@/components/CopyButton'
 import { formatDate } from '@/lib/time'
 import {
   useAddDisputeNote,
@@ -59,14 +60,10 @@ export function DisputeDrawer({
             <p className="text-caption font-medium text-text-secondary">Student</p>
             <p className="text-body-sm text-text-primary">{dispute.student_name}</p>
             {dispute.student_email && (
-              <a href={`mailto:${dispute.student_email}`} className="truncate text-caption text-primary hover:underline">
-                {dispute.student_email}
-              </a>
+              <ContactLink kind="email" value={dispute.student_email} className="truncate text-caption text-primary hover:underline" />
             )}
             {dispute.student_phone && (
-              <a href={`tel:${dispute.student_phone}`} className="text-caption text-primary hover:underline">
-                {dispute.student_phone}
-              </a>
+              <ContactLink kind="phone" value={dispute.student_phone} className="text-caption text-primary hover:underline" />
             )}
           </div>
           <div className="flex flex-col gap-xs rounded-md border border-border p-sm">
@@ -90,17 +87,14 @@ export function DisputeDrawer({
               </Link>
             )}
             {dispute.consultancy_contact?.email && (
-              <a
-                href={`mailto:${dispute.consultancy_contact.email}`}
+              <ContactLink
+                kind="email"
+                value={dispute.consultancy_contact.email}
                 className="truncate text-caption text-primary hover:underline"
-              >
-                {dispute.consultancy_contact.email}
-              </a>
+              />
             )}
             {dispute.consultancy_contact?.phone && (
-              <a href={`tel:${dispute.consultancy_contact.phone}`} className="text-caption text-primary hover:underline">
-                {dispute.consultancy_contact.phone}
-              </a>
+              <ContactLink kind="phone" value={dispute.consultancy_contact.phone} className="text-caption text-primary hover:underline" />
             )}
           </div>
         </div>

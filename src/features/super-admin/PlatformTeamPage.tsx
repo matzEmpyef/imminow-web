@@ -7,6 +7,7 @@ import { Toggle } from '@/components/Toggle'
 import { Table, type TableColumn } from '@/components/Table'
 import { Modal } from '@/components/Modal'
 import { Drawer } from '@/components/Drawer'
+import { CopyButton } from '@/components/CopyButton'
 import { FilterChip } from '@/components/FilterChip'
 import { StopPropagation } from '@/components/StopPropagation'
 import { PersonSignInDrawer, type SignInHistoryPerson } from './PersonSignInDrawer'
@@ -480,7 +481,10 @@ function StaffDrawerBody({ staff, currentUserId }: { staff: PlatformStaff; curre
           {staff.is_super_admin && <Badge color="primary">Super Admin</Badge>}
           <Badge color={STATUS_META[status].color}>{STATUS_META[status].label}</Badge>
         </div>
-        <p className="text-body-sm text-text-secondary">{staff.email}</p>
+        <div className="flex items-center gap-xs">
+          <p className="min-w-0 break-all text-body-sm text-text-secondary">{staff.email}</p>
+          {staff.email && <CopyButton value={staff.email} kind="email" />}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-md rounded-md border border-border p-sm">

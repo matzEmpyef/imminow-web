@@ -118,3 +118,13 @@ describe('PlatformTeamPage sign-in history', () => {
     expect(within(row).getByText(/\/ —$/)).toBeTruthy()
   })
 })
+
+describe('PlatformTeamPage staff drawer', () => {
+  it('offers a copy button beside the staff email', () => {
+    render(<PlatformTeamPage />)
+    fireEvent.click(screen.getByText('Devika Rao').closest('tr')!)
+    const dialog = screen.getByRole('dialog', { name: 'Platform staff' })
+    const email = within(dialog).getByText('devika.platformstaff@example.com')
+    expect(within(email.parentElement!).getByRole('button', { name: 'Copy email address' })).toBeTruthy()
+  })
+})

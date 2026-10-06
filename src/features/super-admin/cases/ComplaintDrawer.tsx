@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Drawer } from '@/components/Drawer'
+import { ContactLink } from '@/components/CopyButton'
 import { formatDate, formatDateTime } from '@/lib/time'
 import {
   useAddComplaintNote,
@@ -67,14 +68,10 @@ export function ComplaintDrawer({
           )}
           <div className="flex flex-col gap-xs text-body-sm">
             {complaint.email && (
-              <a href={`mailto:${complaint.email}`} className="text-primary hover:underline">
-                {complaint.email}
-              </a>
+              <ContactLink kind="email" value={complaint.email} className="break-all text-primary hover:underline" />
             )}
             {complaint.phone && (
-              <a href={`tel:${complaint.phone}`} className="text-primary hover:underline">
-                {complaint.phone}
-              </a>
+              <ContactLink kind="phone" value={complaint.phone} className="text-primary hover:underline" />
             )}
           </div>
         </div>
