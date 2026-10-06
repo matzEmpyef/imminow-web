@@ -1,5 +1,6 @@
-import { QueryClient } from '@tanstack/react-query'
+import { MutationCache, QueryClient } from '@tanstack/react-query'
 import { isRetryable } from '@/api/errors'
+import { reportFailedSave } from '@/lib/saveErrors'
 
 // Defaults set 2026-08-25. This was a bare `new QueryClient()`, inheriting React Query's own
 // defaults — which optimise for always-fresh data at any cost in traffic, a poor fit for a console
@@ -7,6 +8,8 @@ import { isRetryable } from '@/api/errors'
 // clear the cache from outside the React tree — the 401 interceptor in api/client.ts is not a
 // component and could never reach a client that only existed as a main.tsx local.
 export const queryClient = new QueryClient({
+  // Any save that fails is shown as a message unless its screen shows its own (review F-151).
+  mutationCache: new MutationCache({ onError: reportFailedSave }),
   defaultOptions: {
     queries: {
       // The important one. The default is 0, meaning every result is stale the instant it lands, so
