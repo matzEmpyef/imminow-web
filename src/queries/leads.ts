@@ -4,6 +4,7 @@ import { api } from '@/api/client'
 import { applyChatMessage } from '@/lib/realtime/queryCache'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { refreshStanding } from './standing'
 import { useThreadMessages } from './threadMessages'
 import { invalidateApplicantRequests } from './applicantRequests'
 import type { components } from '@/api/schema'
@@ -69,6 +70,12 @@ export function useLead(id: string | undefined) {
 function invalidateLeads(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ['leads'] })
   queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+}
+
+/** For the saves that change who holds a lead or whether it is open: see `refreshStanding`. */
+function invalidateLeadStanding(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ['leads'] })
+  refreshStanding(queryClient)
 }
 
 export function useCreateLead() {
@@ -152,7 +159,7 @@ export function useAllocateLead() {
       if (error) throw new ApiError('Could not allocate this lead.', error)
       return data
     },
-    onSuccess: () => invalidateLeads(queryClient),
+    onSuccess: () => invalidateLeadStanding(queryClient),
   })
 }
 
@@ -182,7 +189,7 @@ export function useSetLeadBranch() {
       if (error) throw new ApiError('Could not update the branch for this lead.', error)
       return data
     },
-    onSuccess: () => invalidateLeads(queryClient),
+    onSuccess: () => invalidateLeadStanding(queryClient),
   })
 }
 
@@ -198,7 +205,7 @@ export function useCloseLead() {
       return data
     },
     onSuccess: (_data, { id }) => {
-      invalidateLeads(queryClient)
+      invalidateLeadStanding(queryClient)
       queryClient.invalidateQueries({ queryKey: ['leads', id] })
     },
   })
@@ -213,7 +220,7 @@ export function useReopenLead() {
       return data
     },
     onSuccess: (_data, id) => {
-      invalidateLeads(queryClient)
+      invalidateLeadStanding(queryClient)
       queryClient.invalidateQueries({ queryKey: ['leads', id] })
     },
   })
@@ -239,7 +246,7 @@ export function useBulkAllocateLeads() {
       if (error) throw new ApiError('Could not allocate the selected leads.', error, (response as Response | undefined)?.status)
       return data
     },
-    onSuccess: () => invalidateLeads(queryClient),
+    onSuccess: () => invalidateLeadStanding(queryClient),
   })
 }
 
@@ -283,6 +290,8 @@ export function useSendLeadMessage(id: string) {
       if (message) applyChatMessage(queryClient, { type: 'lead', id }, message)
       else queryClient.invalidateQueries({ queryKey: ['leads', id, 'messages'] })
       queryClient.invalidateQueries({ queryKey: ['leads', id], exact: true })
+      // The chat drawer's row for this conversation shows its last message (review F-156).
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
     },
   })
 }

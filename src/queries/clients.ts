@@ -4,6 +4,8 @@ import { api } from '@/api/client'
 import { applyChatMessage } from '@/lib/realtime/queryCache'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { FINANCE_QUERY_KEY } from './financeDashboard'
+import { refreshStanding } from './standing'
 import { useThreadMessages } from './threadMessages'
 import { invalidateApplicantRequests, type ApplicantRequest } from './applicantRequests'
 import { isAlreadyApplied } from '@/lib/useIdempotencyKey'
@@ -152,7 +154,10 @@ export function useSetClientBranch() {
       if (error) throw new ApiError('Could not update the branch for this client.', error)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
+      refreshStanding(queryClient)
+    },
   })
 }
 
@@ -195,7 +200,10 @@ export function useTransferApplicant(clientId: string) {
           error,
         )
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
+      refreshStanding(queryClient)
+    },
   })
 }
 
@@ -210,7 +218,10 @@ export function useAssignClient(clientId: string) {
       if (error) throw new ApiError('Could not assign this client.', error)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
+      refreshStanding(queryClient)
+    },
   })
 }
 
@@ -294,7 +305,7 @@ export function useUpdateApplication(clientId: string) {
       // Accepting creates the commission entry, so every money view is downstream of this.
       queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'commissions'] })
       queryClient.invalidateQueries({ queryKey: ['commission'] })
-      queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] })
+      queryClient.invalidateQueries({ queryKey: [FINANCE_QUERY_KEY] })
       // A status move can enter/leave offers_awaiting_decision (2026-08-29).
       queryClient.invalidateQueries({ queryKey: ['activity-feed'] })
     },
@@ -318,7 +329,7 @@ export function useRevertAcceptance(clientId: string) {
       queryClient.invalidateQueries({ queryKey: ['clients', clientId] })
       queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'commissions'] })
       queryClient.invalidateQueries({ queryKey: ['commission'] })
-      queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] })
+      queryClient.invalidateQueries({ queryKey: [FINANCE_QUERY_KEY] })
       // Reverting puts the row back at offer_received (2026-08-29).
       queryClient.invalidateQueries({ queryKey: ['activity-feed'] })
     },
@@ -342,7 +353,7 @@ export function useCreatePrCommissionEntry(clientId: string) {
       queryClient.invalidateQueries({ queryKey: ['clients', clientId] })
       queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'commissions'] })
       queryClient.invalidateQueries({ queryKey: ['commission'] })
-      queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] })
+      queryClient.invalidateQueries({ queryKey: [FINANCE_QUERY_KEY] })
     },
   })
 }
@@ -457,6 +468,9 @@ export function useSendClientMessage(clientId: string) {
     onSuccess: (message) => {
       if (message) applyChatMessage(queryClient, { type: 'client', id: clientId }, message)
       else queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'messages'] })
+      // The chat drawer's row for this conversation shows its last message (review F-156). The
+      // live connection updates it when it is up; without it the preview stayed a message behind.
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
     },
   })
 }
@@ -548,6 +562,7 @@ export function useCloseClient() {
     onSuccess: (_data, { id }) => {
       invalidateClients(queryClient)
       queryClient.invalidateQueries({ queryKey: ['clients', id] })
+      refreshStanding(queryClient)
     },
   })
 }
@@ -570,6 +585,7 @@ export function useRaiseIssue() {
     onSuccess: (_data, { id }) => {
       invalidateClients(queryClient)
       queryClient.invalidateQueries({ queryKey: ['clients', id] })
+      refreshStanding(queryClient)
     },
   })
 }
@@ -585,6 +601,7 @@ export function useReopenClientCase() {
     onSuccess: (_data, id) => {
       invalidateClients(queryClient)
       queryClient.invalidateQueries({ queryKey: ['clients', id] })
+      refreshStanding(queryClient)
     },
   })
 }

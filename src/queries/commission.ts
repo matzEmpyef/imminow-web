@@ -59,10 +59,18 @@ export function useRecordCommissionPayment() {
       if (error) throw new ApiError('Could not record this payment.', error, response?.status)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['commission'] }),
+    // The finance dashboard counts this payment as awaiting confirmation (review F-156): it was
+    // left as it stood. Every other payment write in this file already refreshes it.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commission'] })
+      queryClient.invalidateQueries({ queryKey: [FINANCE_QUERY_KEY] })
+    },
     // The write already went through (the first answer was lost): refresh what success refreshes.
     onError: (err) => {
-      if (isAlreadyApplied(err)) queryClient.invalidateQueries({ queryKey: ['commission'] })
+      if (isAlreadyApplied(err)) {
+        queryClient.invalidateQueries({ queryKey: ['commission'] })
+        queryClient.invalidateQueries({ queryKey: [FINANCE_QUERY_KEY] })
+      }
     },
   })
 }
@@ -96,7 +104,6 @@ export function useConfirmCommissionPayment() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['commission'] })
-      queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] })
       queryClient.invalidateQueries({ queryKey: [FINANCE_QUERY_KEY] })
       queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] })
     },
@@ -121,7 +128,6 @@ export function useCorrectCommissionPayment() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['commission'] })
-      queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] })
       queryClient.invalidateQueries({ queryKey: [FINANCE_QUERY_KEY] })
       queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] })
     },
@@ -145,7 +151,6 @@ export function useRejectCommissionPayment() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['commission'] })
-      queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] })
       queryClient.invalidateQueries({ queryKey: [FINANCE_QUERY_KEY] })
       queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] })
     },

@@ -9,6 +9,11 @@ import type { components } from '@/api/schema'
 // Shared key prefix (2026-09-11) — every finance mutation (confirm, reject) invalidates this whole
 // prefix so the summary tiles, chart, balances, cases and payments tables all pick up the change
 // in one call rather than each mutation having to know every finance query key by hand.
+//
+// Every other module that means "the finance dashboard" imports THIS constant. Nine saves used to
+// invalidate a key named `finance-dashboard`, which no query has had since the dashboard was rebuilt, so
+// accepting a college or recording, correcting or voiding an instalment left the finance figures
+// as they stood (review F-156).
 export const FINANCE_QUERY_KEY = 'finance'
 
 export type FinanceSummary = components['schemas']['FinanceSummary']

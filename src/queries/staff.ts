@@ -144,6 +144,13 @@ export function useUpdateBranch(id: string) {
       if (error) throw new ApiError('Could not update this branch.', error)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['branches'] }),
+    // A renamed branch is named on leads, clients and employees too (review F-156): those lists
+    // kept the old name until they next reloaded on their own.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['branches'] })
+      queryClient.invalidateQueries({ queryKey: ['leads'] })
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
+      queryClient.invalidateQueries({ queryKey: ['employees'] })
+    },
   })
 }

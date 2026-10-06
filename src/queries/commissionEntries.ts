@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useMutation } from '@/lib/useSave'
 import { api } from '@/api/client'
 import { ApiError } from './auth'
+import { FINANCE_QUERY_KEY } from './financeDashboard'
 import { isAlreadyApplied } from '@/lib/useIdempotencyKey'
 
 /**
@@ -15,7 +16,7 @@ import { isAlreadyApplied } from '@/lib/useIdempotencyKey'
 function invalidateCommissionViews(queryClient: ReturnType<typeof useQueryClient>, clientId: string) {
   queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'commissions'] })
   queryClient.invalidateQueries({ queryKey: ['commission'] })
-  queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] })
+  queryClient.invalidateQueries({ queryKey: [FINANCE_QUERY_KEY] })
 }
 
 export function useRecordInstallment(clientId: string) {

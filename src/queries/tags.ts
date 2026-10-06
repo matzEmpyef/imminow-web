@@ -36,6 +36,13 @@ export function useDeleteTag() {
       const { error } = await api.DELETE('/tags/{id}', { params: { path: { id } } })
       if (error) throw new ApiError('Could not delete this tag.', error)
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tags'] }),
+    // A deleted tag also comes off every lead, client and document that carried it (review
+    // F-156): those lists kept showing it until they next reloaded on their own.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tags'] })
+      queryClient.invalidateQueries({ queryKey: ['leads'] })
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
+      queryClient.invalidateQueries({ queryKey: ['document-library'] })
+    },
   })
 }
