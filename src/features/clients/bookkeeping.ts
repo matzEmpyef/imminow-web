@@ -6,7 +6,7 @@
  * keeps today's behaviour.
  */
 export const BOOKKEEPING_CAPTION =
-  'This is your own record for this client — it is not shared with Sentpo, and nothing here is owed to Sentpo.'
+  'This is your own record for this client — it is not shared with immiNow, and nothing here is owed to immiNow.'
 
 export function isBookkeepingChannel(entryChannel?: string | null, clientSource?: string | null): boolean {
   return (entryChannel ?? clientSource) === 'B'

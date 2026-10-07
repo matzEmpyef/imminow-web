@@ -72,11 +72,11 @@ export function RaiseIssueModal({
         {/* Said plainly, because a consultant reaching for this button is usually frustrated and
             needs to know it stops their own work too, not just the student's. */}
         <div className="rounded-md bg-surface-muted px-3 py-sm text-body-sm text-text-secondary">
-          <p className="mb-xs font-medium text-text-primary">While Sentpo reviews this case:</p>
+          <p className="mb-xs font-medium text-text-primary">While immiNow reviews this case:</p>
           <ul className="ml-md list-disc">
             <li>the plan is paused for both of you</li>
             <li>chat with the student stops</li>
-            <li>you can&rsquo;t close the case — Sentpo decides how it ends</li>
+            <li>you can&rsquo;t close the case — immiNow decides how it ends</li>
           </ul>
         </div>
 

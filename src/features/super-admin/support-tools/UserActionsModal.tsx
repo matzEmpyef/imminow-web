@@ -123,7 +123,7 @@ export function UserActionsModal({
 
           <ActionCard
             title="Data export"
-            description="Generates a full copy of everything Sentpo holds on this user, for a data-access request."
+            description="Generates a full copy of everything immiNow holds on this user, for a data-access request."
             expanded={openAction === 'export' && !erasureDueAt}
             onStart={() => setOpenAction('export')}
             unavailableReason={erasureDueAt ? 'Not available while an erasure is pending.' : undefined}

@@ -46,7 +46,7 @@ export function ExportForm({ result, onCancel }: { result: UserSearchResult; onC
   return (
     <div className="flex flex-col gap-sm">
       <p className="text-caption text-text-secondary">
-        Builds a full copy of everything Sentpo holds on this user. Their own verified email is told when it is ready
+        Builds a full copy of everything immiNow holds on this user. Their own verified email is told when it is ready
         and they download it from inside the product within 7 days. You do not receive it. Safe to run — it only reads.
       </p>
       <TextField label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />

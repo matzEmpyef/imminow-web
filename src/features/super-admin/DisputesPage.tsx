@@ -163,7 +163,7 @@ export function DisputesPage() {
         <div>
           <h1 className="text-h1 text-text-primary">Disputes</h1>
           <p className="text-body-sm text-text-secondary">
-            Cases paused while Sentpo decides. The plan and chat are frozen for both sides until you resolve one.
+            Cases paused while immiNow decides. The plan and chat are frozen for both sides until you resolve one.
           </p>
         </div>
 

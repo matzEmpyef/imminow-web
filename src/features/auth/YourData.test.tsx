@@ -74,7 +74,7 @@ describe('Your data on My Account', () => {
     renderWithClient(<YourDataCard />)
     expect(screen.getByRole('heading', { name: 'Your data' })).toBeInTheDocument()
     expect(
-      screen.getByText('Request a copy of everything Sentpo holds about you. We email you when it is ready, and you download it here within 7 days.'),
+      screen.getByText('Request a copy of everything immiNow holds about you. We email you when it is ready, and you download it here within 7 days.'),
     ).toBeInTheDocument()
     expect(await screen.findByText('You have not requested a copy yet.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Request a copy' })).toBeEnabled()

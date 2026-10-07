@@ -195,7 +195,7 @@ export function ClientProfilePage() {
             ) : data.status === 'in_dispute' ? (
               // Under mediation nothing here is the consultancy's to press. Saying so beats
               // greying out buttons with no explanation.
-              <p className="self-center text-body-sm text-text-secondary">Sentpo is reviewing this case.</p>
+              <p className="self-center text-body-sm text-text-secondary">immiNow is reviewing this case.</p>
             ) : (
               <>
                 {/* Two buttons, not one dropdown. An accusation must not sit in the same list as

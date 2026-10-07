@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Gate 12b / owner §15 Q5: a channel-B client's Commissions tab is the consultancy's own
 // bookkeeping record — installments work as usual, no Sentpo share and no declare-payment control,
-// plus a caption saying it is not shared with Sentpo. With the fields absent (the frozen mock) the
+// plus a caption saying it is not shared with immiNow. With the fields absent (the frozen mock) the
 // tab behaves as before.
 vi.mock('@/queries/clients', () => ({ useClient: vi.fn(), useCommissions: vi.fn() }))
 vi.mock('@/lib/permissions', () => ({ usePermission: () => true }))
@@ -69,7 +69,7 @@ describe('CommissionsTab, channel-B bookkeeping record', () => {
     setup({ entry: { ...baseEntry, channel: 'B' }, client: { acquisition_source: 'B' } })
 
     expect(screen.getByText(/your own record for this client/i)).toBeInTheDocument()
-    expect(screen.getByText(/not shared with Sentpo/i)).toBeInTheDocument()
+    expect(screen.getByText(/not shared with immiNow/i)).toBeInTheDocument()
     // No Sentpo share, rate, dues or declare-payment anywhere.
     expect(screen.queryByText(/declare/i)).toBeNull()
     expect(screen.queryByText(/due to sentpo/i)).toBeNull()
@@ -83,17 +83,17 @@ describe('CommissionsTab, channel-B bookkeeping record', () => {
 
   it('shows the caption on an empty tab for a channel-B client with no entry yet', () => {
     setup({ entry: null, client: { acquisition_source: 'B' } })
-    expect(screen.getByText(/not shared with Sentpo/i)).toBeInTheDocument()
+    expect(screen.getByText(/not shared with immiNow/i)).toBeInTheDocument()
   })
 
   it('shows today’s tab, with no caption, when the channel fields are absent or not B', () => {
     const absent = setup({})
-    expect(screen.queryByText(/not shared with Sentpo/i)).toBeNull()
+    expect(screen.queryByText(/not shared with immiNow/i)).toBeNull()
     expect(screen.getByRole('button', { name: 'Record Payment' })).toBeInTheDocument()
     absent.unmount()
 
     setup({ entry: { ...baseEntry, channel: 'A' }, client: { acquisition_source: 'A' } })
-    expect(screen.queryByText(/not shared with Sentpo/i)).toBeNull()
+    expect(screen.queryByText(/not shared with immiNow/i)).toBeNull()
   })
 })
 

@@ -166,7 +166,7 @@ const SECTIONS: GatedSection[] = [
         path: '/administration/commission-details',
         icon: Percent,
         permission: 'billing.view_commission_details',
-        instituteLabel: 'Sentpo’s Share',
+        instituteLabel: 'immiNow’s Share',
       },
       { label: 'Forms', path: '/administration/forms', icon: ClipboardList },
       {

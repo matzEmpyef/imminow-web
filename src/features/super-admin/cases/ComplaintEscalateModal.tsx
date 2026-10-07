@@ -52,7 +52,7 @@ export function ComplaintEscalateModal({
     >
       <div className="flex flex-col gap-md">
         <p className="text-body-sm text-text-primary">
-          The case pauses for both sides while Sentpo decides. The student is told their case is on hold; the
+          The case pauses for both sides while immiNow decides. The student is told their case is on hold; the
           consultancy is told the case is under review — it never sees this complaint.
         </p>
         <TextAreaField

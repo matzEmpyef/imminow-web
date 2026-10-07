@@ -354,9 +354,9 @@ export function CommissionDetailsPage() {
     <AppShell>
       <div className="flex flex-col gap-lg">
         <div>
-          <h1 className="text-h1 text-text-primary">{isInstitute ? 'Sentpo’s Share' : 'Commission Details'}</h1>
+          <h1 className="text-h1 text-text-primary">{isInstitute ? 'immiNow’s Share' : 'Commission Details'}</h1>
           <p className="mt-xs text-h2 text-text-primary">
-            {formatMoney(data.currency, data.running_total)} {isInstitute ? 'owed to Sentpo' : 'running total'}
+            {formatMoney(data.currency, data.running_total)} {isInstitute ? 'owed to immiNow' : 'running total'}
           </p>
           {formatApprox(data.running_total_approx) && (
             <p className="text-body-sm text-text-secondary">{formatApprox(data.running_total_approx)}</p>
@@ -388,7 +388,7 @@ export function CommissionDetailsPage() {
                 One row per accepted case (or PR contribution). Amounts are held in INR, with your own currency
                 beneath where it differs (approximate — rates are set by hand); per-source detail, in the currency
                 each was agreed in, lives on each applicant&rsquo;s Commissions tab. This page is the one place{' '}
-                {isInstitute ? 'Sentpo’s share' : 'the platform’s cut'} is visible.
+                {isInstitute ? 'immiNow’s share' : 'the platform’s cut'} is visible.
                 {canRecordPayment && ' Click a case to record a payment against its due.'}
               </p>
             </div>

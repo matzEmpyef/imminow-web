@@ -30,7 +30,7 @@ function exportState(item: ExportRequest): { label: string; color: 'info' | 'suc
 }
 
 /**
- * "Your data" on My Account (gate 12f): ask for a copy of everything Sentpo holds about you, and
+ * "Your data" on My Account (gate 12f): ask for a copy of everything immiNow holds about you, and
  * download it here once it is ready. The copy never travels by email — the mail only says it is
  * ready — so this list is where it is collected, within 7 days.
  *
@@ -78,7 +78,7 @@ export function YourDataCard() {
         <div className="min-w-0 flex-1">
           <h2 className="text-h3 text-text-primary">Your data</h2>
           <p className="text-caption text-text-secondary">
-            Request a copy of everything Sentpo holds about you. We email you when it is ready, and you download it
+            Request a copy of everything immiNow holds about you. We email you when it is ready, and you download it
             here within 7 days.
           </p>
         </div>
