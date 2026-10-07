@@ -118,7 +118,10 @@ describe('quiz settings once the quiz has ended (schedule_locked)', () => {
     expect(input(/^Time limit/).value).toBe('10')
 
     expect(input(/^Title/)).toBeEnabled()
-    expect(input(/^Questions per attempt/)).toBeEnabled()
+    // Students have completed this quiz, so its question count is fixed too, as is the zone the
+    // locked times are read in.
+    expect(input(/^Questions per attempt/)).toBeDisabled()
+    expect(screen.getByLabelText(/^Time zone/)).toBeDisabled()
     expect(input(/^Participation points/)).toBeEnabled()
     // An end in the past is not an error to fix here: the form can still be saved.
     expect(screen.queryByText(/The end cannot be in the past/)).not.toBeInTheDocument()

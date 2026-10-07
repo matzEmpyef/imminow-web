@@ -213,7 +213,13 @@ export function QuizSettingsModal({
             error={endError}
           />
         </div>
-        <SelectField label="Time zone" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+        {/* The zone decides which instants the two locked times mean, so it locks with them. */}
+        <SelectField
+          label="Time zone"
+          value={timezone}
+          onChange={(e) => setTimezone(e.target.value)}
+          disabled={scheduleLocked}
+        >
           {(EVENT_TIMEZONES as readonly string[]).includes(timezone) ? null : (
             <option value={timezone}>{timezone}</option>
           )}
@@ -249,6 +255,8 @@ export function QuizSettingsModal({
             // Blank means null, not `Number('') = 0` (2026-09-11 fix) — required, so the Save
             // button stays disabled (useQuizForm's isValid) while this is empty.
             onChange={(e) => setQuestionsPerAttempt(e.target.value === '' ? null : Number(e.target.value))}
+            // Someone finished it, so someone started it: the server would refuse a change.
+            disabled={isEditing && (editingEvent?.attendance_count ?? 0) > 0}
           />
           <TextField
             label="Time limit (minutes)"
