@@ -7,7 +7,7 @@ import { ApiError } from './auth'
 
 interface InvoiceListFilters {
   journeyId?: string
-  status?: 'sent' | 'paid' | 'overdue' | 'void'
+  status?: 'sent' | 'part_paid' | 'paid' | 'void'
   search?: string
   sort?: string
   cursor?: string

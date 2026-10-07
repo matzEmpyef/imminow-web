@@ -329,7 +329,9 @@ export function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
 export function InvoicesPage() {
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState<'sent' | 'paid' | 'overdue' | 'void' | ''>('')
+  // The contract's four (gate 11): sent and void are stored, part_paid and paid are derived.
+  // "Overdue" was offered here but is never computed, so it filtered to nothing (F-303).
+  const [status, setStatus] = useState<'sent' | 'part_paid' | 'paid' | 'void' | ''>('')
   const paging = useCursorPagination()
 
   const invoices = useInvoices({
@@ -468,8 +470,8 @@ export function InvoicesPage() {
               >
                 <option value="">Any status</option>
                 <option value="sent">Sent</option>
+                <option value="part_paid">Part-paid</option>
                 <option value="paid">Paid</option>
-                <option value="overdue">Overdue</option>
                 <option value="void">Void</option>
               </CompactSelect>
             }
