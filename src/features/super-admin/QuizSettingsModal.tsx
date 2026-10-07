@@ -92,6 +92,11 @@ export function QuizSettingsModal({
     participationPoints, setParticipationPoints, prizes, updatePrize, removePrize, addPrize,
     targeting, setTargeting, isValid, nowInZone, started, startError, endError, prizeError, toPayload,
   } = useQuizForm(seed, scheduleLocked)
+  // Once the results are final the prizes and participation points have been paid, so the form
+  // shows them and no longer changes them (owner, 2026-10-07). A quiz whose prizes could NOT be
+  // paid stays editable: correcting the list is how it gets paid.
+  const rewardsLocked =
+    isEditing && editingEvent?.results_final === true && !editingEvent?.prize_settlement_error
   const countries = useCountries()
 
   const refusedChanges = refusedFields.map((field) => SCHEDULE_FIELD_WORDS[field]).filter(Boolean)
@@ -271,6 +276,7 @@ export function QuizSettingsModal({
           <TextField
             label="Participation points"
             type="number"
+            disabled={rewardsLocked}
             value={participationPoints}
             onChange={(e) => setParticipationPoints(Number(e.target.value))}
           />
@@ -313,8 +319,19 @@ export function QuizSettingsModal({
               </p>
             </div>
           )}
+          {rewardsLocked && (
+            <p role="note" className="rounded-md border border-border bg-background px-md py-sm text-body-sm text-text-primary">
+              The results are final and the points and prizes have been awarded, so they can no longer be changed.
+            </p>
+          )}
           {prizes.map((p, i) => (
-            <PrizeEditor key={i} prize={p} onChange={(np) => updatePrize(i, np)} onRemove={() => removePrize(i)} />
+            <PrizeEditor
+              key={i}
+              prize={p}
+              onChange={(np) => updatePrize(i, np)}
+              onRemove={() => removePrize(i)}
+              disabled={rewardsLocked}
+            />
           ))}
           {prizes.length > 0 && (
             <p className="text-caption text-text-secondary">
@@ -326,13 +343,15 @@ export function QuizSettingsModal({
               {prizeError}
             </p>
           )}
-          <button
-            type="button"
-            onClick={addPrize}
-            className="w-fit text-caption text-primary hover:underline"
-          >
-            + Add position prize
-          </button>
+          {!rewardsLocked && (
+            <button
+              type="button"
+              onClick={addPrize}
+              className="w-fit text-caption text-primary hover:underline"
+            >
+              + Add position prize
+            </button>
+          )}
         </div>
 
         {!isEditing && (

@@ -128,6 +128,32 @@ describe('quiz settings once the quiz has ended (schedule_locked)', () => {
     expect(screen.getByRole('button', { name: 'Save Changes' })).toBeEnabled()
   })
 
+  it('locks the points and prizes once the results are final, and says why', () => {
+    const paid = quiz({ results_final: true, position_prizes: [{ position: 1, prize: 'Voucher', points: 500 }] })
+    render(<QuizSettingsModal editingEvent={paid} onClose={vi.fn()} />, { wrapper })
+
+    expect(screen.getByText(/the points and prizes have been awarded, so they can no longer be changed/)).toBeVisible()
+    expect(input(/^Participation points/)).toBeDisabled()
+    expect(input(/^Position/)).toBeDisabled()
+    expect(input(/^Prize/)).toBeDisabled()
+    expect(input(/^Bonus points/)).toBeDisabled()
+    expect(screen.queryByRole('button', { name: '+ Add position prize' })).not.toBeInTheDocument()
+    expect(input(/^Title/)).toBeEnabled()
+  })
+
+  it('keeps the prize list editable when the prizes could not be paid', () => {
+    const unpaid = quiz({
+      results_final: true,
+      prize_settlement_error: 'Two prizes share position 1.',
+      position_prizes: [{ position: 1, prize: 'Voucher', points: 500 }],
+    })
+    render(<QuizSettingsModal editingEvent={unpaid} onClose={vi.fn()} />, { wrapper })
+
+    expect(input(/^Prize/)).toBeEnabled()
+    expect(input(/^Participation points/)).toBeEnabled()
+    expect(screen.getByRole('button', { name: '+ Add position prize' })).toBeInTheDocument()
+  })
+
   it('saves the other fields and does not send the three locked ones', async () => {
     const onClose = vi.fn()
     render(<QuizSettingsModal editingEvent={quiz()} onClose={onClose} />, { wrapper })

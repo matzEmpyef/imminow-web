@@ -156,10 +156,13 @@ export function PrizeEditor({
   prize,
   onChange,
   onRemove,
+  disabled = false,
 }: {
   prize: PositionPrize
   onChange: (p: PositionPrize) => void
   onRemove: () => void
+  /** The results are final and the prizes paid: the row is shown, not edited. */
+  disabled?: boolean
 }) {
   const [confirmRemove, setConfirmRemove] = useState(false)
 
@@ -175,6 +178,7 @@ export function PrizeEditor({
         value={prize.position || ''}
         onChange={(e) => onChange({ ...prize, position: e.target.value === '' ? 0 : Number(e.target.value) })}
         className="max-w-[5rem]"
+        disabled={disabled}
       />
       <TextField
         label="Prize"
@@ -182,6 +186,7 @@ export function PrizeEditor({
         value={prize.prize ?? ''}
         onChange={(e) => onChange({ ...prize, prize: e.target.value })}
         className="flex-1"
+        disabled={disabled}
       />
       <TextField
         label="Bonus points"
@@ -192,13 +197,15 @@ export function PrizeEditor({
         value={prize.points ?? ''}
         onChange={(e) => onChange({ ...prize, points: e.target.value ? Number(e.target.value) : undefined })}
         className="max-w-[10rem]"
+        disabled={disabled}
       />
       <button
         type="button"
+        disabled={disabled}
         onClick={() => setConfirmRemove(true)}
         aria-label={`Remove position ${prize.position} prize`}
         title="Remove"
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-error"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-error disabled:invisible"
       >
         <Trash2 className="h-4 w-4" />
       </button>

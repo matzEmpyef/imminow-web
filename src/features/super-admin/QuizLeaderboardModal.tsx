@@ -132,8 +132,8 @@ export function QuizLeaderboardModal({ event, onClose }: { event: Event; onClose
             header: 'Prize',
             render: (r: QuizLeaderboardEntry) =>
               r.prize && prizeText(r.prize) ? (
-                <span className="inline-flex items-center gap-xs font-medium text-text-primary">
-                  <Trophy className="h-4 w-4 shrink-0 text-warning" aria-hidden />
+                <span className="inline-flex min-w-[12rem] items-start gap-xs font-medium text-text-primary">
+                  <Trophy className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
                   {prizeText(r.prize)}
                 </span>
               ) : (
