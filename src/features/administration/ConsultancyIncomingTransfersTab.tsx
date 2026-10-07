@@ -140,6 +140,9 @@ function IssueCodeModal({ onClose }: { onClose: () => void }) {
             />
           )}
           <TextField label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
+          <p className="-mt-sm pl-lg text-caption text-text-secondary">
+            Describe the reason in general terms. Please leave out the student's name and contact details.
+          </p>
           {issueCode.isError && <p className="text-body-sm text-error">{issueCode.error.message}</p>}
         </form>
       )}
