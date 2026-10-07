@@ -1,5 +1,5 @@
 import { Suspense, useEffect, type ComponentProps, type ReactNode } from 'react'
-import { Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router-dom'
+import { Link, Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { track } from '@/lib/analytics'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
@@ -264,6 +264,34 @@ function LeadNoticeRedirect() {
 
 function DefaultRedirect() {
   return <SessionGate>{(me) => <Navigate to={scopeHomePath(me.scope)} replace />}</SessionGate>
+}
+
+// An address no route matches (review F-316). It used to bounce to the home page without a word,
+// so a mistyped or outdated link looked like the console ignoring the click. The bare root still
+// goes straight home; anything else says so and offers the way back. Signed-out visitors are
+// sent to sign in by SessionGate first, as on every other page.
+function NotFound() {
+  const location = useLocation()
+  if (location.pathname === '/') return <DefaultRedirect />
+  return (
+    <SessionGate>
+      {(me) => (
+        <main className="flex min-h-screen flex-col items-center justify-center gap-md bg-background p-lg text-center">
+          <h1 className="text-h2 font-semibold text-text-primary">Page not found</h1>
+          <p className="max-w-md text-body text-text-secondary">
+            There is nothing at this address. It may have been mistyped, or the page may have moved.
+          </p>
+          <Link
+            to={scopeHomePath(me.scope)}
+            replace
+            className="rounded-md bg-primary px-lg py-sm text-body-sm font-medium text-white hover:bg-primary/90"
+          >
+            Go to your home page
+          </Link>
+        </main>
+      )}
+    </SessionGate>
+  )
 }
 
 // Analytics (Session 38, 2026-08-31) — one central hook rather than instrumenting each of the
@@ -672,7 +700,7 @@ function App() {
         <Route element={<FreelancerLayout />}>
           <Route path="/freelancer/dashboard" element={<FreelancerDashboardPage />} />
         </Route>
-        <Route path="*" element={<DefaultRedirect />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
   )
