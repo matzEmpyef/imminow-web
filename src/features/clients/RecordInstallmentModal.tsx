@@ -38,8 +38,10 @@ export function RecordInstallmentModal({
     entry.payer_method === 'college' ? ['college'] : entry.payer_method === 'applicant' ? ['student'] : ['college', 'student']
 
   const [source, setSource] = useState<'college' | 'student'>(sources[0])
+  // No rupee fallback (review F-301): an entry with no expected currency leaves the choice empty
+  // and required, so an instalment is never recorded in a currency nobody picked.
   const defaultCurrency =
-    (sources[0] === 'college' ? entry.expected_from_college?.currency : entry.expected_from_student?.currency) ?? 'INR'
+    (sources[0] === 'college' ? entry.expected_from_college?.currency : entry.expected_from_student?.currency) ?? ''
   const [amount, setAmount] = useState('')
   const [currency, setCurrency] = useState(defaultCurrency)
   // Every currency the rate table holds, not a fixed six (2026-09-10).
@@ -55,7 +57,7 @@ export function RecordInstallmentModal({
     if (expected?.currency) setCurrency(expected.currency)
   }
 
-  const canSubmit = Number(amount) > 0 && !record.isPending
+  const canSubmit = Number(amount) > 0 && currency !== '' && !record.isPending
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -123,7 +125,12 @@ export function RecordInstallmentModal({
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
-          <SelectField label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+          <SelectField label="Currency" required value={currency} onChange={(e) => setCurrency(e.target.value)}>
+            {currency === '' && (
+              <option value="" disabled>
+                Choose a currency
+              </option>
+            )}
             {currencyCodes.map((c) => (
               <option key={c} value={c}>
                 {c}
