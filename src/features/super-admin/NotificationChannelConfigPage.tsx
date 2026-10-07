@@ -93,6 +93,7 @@ const LABELS: Record<string, string> = {
   mfa_policy_changed: 'Two-factor requirement changed for a consultancy',
   institute_course_switched: 'A college switched one of its own courses off or on (catalogue staff)',
   date_of_birth_corrected: 'Date of birth corrected by Support (to the student)',
+  account_set_up_for_you: 'First sign-in to an account a consultancy set up (to the student)',
 }
 
 // Row-level component so useUpdateNotificationChannelConfig() can be called at its own render top
