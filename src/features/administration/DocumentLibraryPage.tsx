@@ -24,15 +24,11 @@ import { formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { FilterMultiSelect } from '@/components/FilterMultiSelect'
 import { useAccountWords } from '@/lib/accountWords'
+import { DOCUMENT_ACCEPT, DOCUMENT_MIME_LABELS } from '@/lib/documentTypes'
 
 type LibraryDocument = NonNullable<ReturnType<typeof useDocumentLibrary>['data']>['items'][number]
 
-const MIME_LABELS: Record<string, string> = {
-  'application/pdf': 'PDF',
-  'image/jpeg': 'JPEG',
-  'image/png': 'PNG',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
-}
+const MIME_LABELS = DOCUMENT_MIME_LABELS
 
 function mimeLabel(mimeType: string | null | undefined) {
   if (!mimeType) return 'File'
@@ -256,6 +252,8 @@ export function DocumentLibraryPage() {
             <span className="sr-only">Upload document</span>
             <input
               type="file"
+              // Only what the server accepts, so a refused type is never uploaded first (F-305).
+              accept={DOCUMENT_ACCEPT}
               className="hidden"
               id="library-doc-upload"
               onChange={(e) => {
@@ -326,9 +324,11 @@ export function DocumentLibraryPage() {
                 label="File type"
               >
                 <option value="">All types</option>
-                <option value="application/pdf">PDF</option>
-                <option value="image/jpeg">JPEG</option>
-                <option value="image/png">PNG</option>
+                {Object.entries(DOCUMENT_MIME_LABELS).map(([type, label]) => (
+                  <option key={type} value={type}>
+                    {label}
+                  </option>
+                ))}
               </CompactSelect>
               <input
                 type="date"

@@ -4,6 +4,7 @@
 // line, the two groups side by side, rows with a file-type icon, clear status badges and a real
 // Download button, and actions that say what they do.
 import { useState, type ReactNode } from 'react'
+import { DOCUMENT_ACCEPT } from '@/lib/documentTypes'
 import { Download, File, FileImage, FileText, FolderOpen, Library, Send, Upload, UserRound } from 'lucide-react'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
@@ -210,6 +211,7 @@ export function DocumentsTab({ clientId, readOnly = false }: { clientId: string;
               <>
                 <input
                   type="file"
+                  accept={DOCUMENT_ACCEPT}
                   className="hidden"
                   id="doc-upload"
                   aria-label="Choose a document to send"
