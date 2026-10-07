@@ -278,7 +278,7 @@ function NotFound() {
       {(me) => (
         <main className="flex min-h-screen flex-col items-center justify-center gap-md bg-background p-lg text-center">
           <h1 className="text-h2 font-semibold text-text-primary">Page not found</h1>
-          <p className="max-w-md text-body text-text-secondary">
+          <p className="max-w-[28rem] text-body text-text-secondary">
             There is nothing at this address. It may have been mistyped, or the page may have moved.
           </p>
           <Link
