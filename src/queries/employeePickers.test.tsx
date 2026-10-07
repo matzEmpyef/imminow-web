@@ -228,7 +228,12 @@ describe('the screens that show the whole roster (lane x)', () => {
   it('Employees asks for leavers too and loads every page, so nobody is cut off at 100', async () => {
     render(<EmployeesPage />, { wrapper })
     expect(await screen.findByText('Staff 150')).toBeInTheDocument()
-    const calls = rosterCalls()
+    // The page also asks once for the seat count (one row, people who work here now) for its
+    // Invite button; the roster itself is every other request.
+    const seatCount = rosterCalls().filter((q) => Number(q.limit) === 1)
+    expect(seatCount).toHaveLength(1)
+    expect(seatCount[0]['filter[active]']).toBe('true')
+    const calls = rosterCalls().filter((q) => Number(q.limit) !== 1)
     expect(calls.every((q) => q['filter[active]'] === 'all')).toBe(true)
     expect(calls.map((q) => q.cursor)).toEqual([undefined, '100'])
 

@@ -5,12 +5,15 @@ import { useMyConsultancy } from '@/queries/consultancy'
 // together). The numbers are the SERVER's — `Consultancy.limits` on the consultancy's own record —
 // so nothing here hard-codes 100 or 50. Partner colleges have no ceiling and are deliberately not a
 // kind here.
-export type CeilingKind = 'tags' | 'designations' | 'branches'
+// Seats are the fourth kind (improvement I-076): the limit is the plan's `seat_limit`, counted
+// against the people who work here now.
+export type CeilingKind = 'tags' | 'designations' | 'branches' | 'seats'
 
 const NOUNS: Record<CeilingKind, { one: string; many: string }> = {
   tags: { one: 'tag', many: 'tags' },
   designations: { one: 'designation', many: 'designations' },
   branches: { one: 'branch', many: 'branches' },
+  seats: { one: 'seat', many: 'seats' },
 }
 
 export interface CeilingState {
@@ -39,5 +42,6 @@ export function ceilingState(kind: CeilingKind, count: number | undefined, limit
 
 export function useListCeiling(kind: CeilingKind, count: number | undefined): CeilingState | null {
   const consultancy = useMyConsultancy()
-  return ceilingState(kind, count, consultancy.data?.limits?.[kind])
+  const limit = kind === 'seats' ? consultancy.data?.seat_limit : consultancy.data?.limits?.[kind]
+  return ceilingState(kind, count, limit)
 }

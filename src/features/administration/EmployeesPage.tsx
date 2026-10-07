@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { AppShell } from '@/features/auth/AppShell'
-import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { Table, type TableColumn } from '@/components/Table'
 import { InviteEmployeeModal } from './InviteEmployeeModal'
@@ -8,7 +7,8 @@ import { EmployeeAccessModal } from './EmployeeAccessModal'
 import { EditEmployeeModal } from './EditEmployeeModal'
 import { useFeature } from '@/lib/features'
 import { useAccountWords } from '@/lib/accountWords'
-import { useAllEmployees, useBranches, useDesignations } from '@/queries/staff'
+import { useActiveEmployeeCount, useAllEmployees, useBranches, useDesignations } from '@/queries/staff'
+import { CeilingCreateButton } from '@/components/CeilingCreateButton'
 import type { components } from '@/api/schema'
 
 type Employee = components['schemas']['Employee']
@@ -25,6 +25,7 @@ export function EmployeesPage() {
   // now hides deactivated staff unless asked, and this is the page where they are re-read. The
   // whole roster is loaded, page after page, so search and sort below cover all of it.
   const employees = useAllEmployees('all')
+  const activeSeats = useActiveEmployeeCount()
   const designations = useDesignations()
   const branches = useBranches()
 
@@ -177,7 +178,11 @@ export function EmployeesPage() {
                 : 'Every employee has identical, full access on this plan.'}
             </p>
           </div>
-          <Button onClick={() => setShowInviteModal(true)}>Invite Employee</Button>
+          {/* The seat count against the plan's limit, and off with the reason at the limit, so the
+              form is not filled in only to be refused (improvement I-076). */}
+          <CeilingCreateButton kind="seats" count={activeSeats.data} onClick={() => setShowInviteModal(true)}>
+            Invite Employee
+          </CeilingCreateButton>
         </div>
 
         {showInviteModal && (
