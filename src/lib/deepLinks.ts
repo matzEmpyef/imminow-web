@@ -57,6 +57,17 @@ function pathOnly(link: string): string {
 }
 
 /**
+ * True when `link` is a path inside this console: it starts with one `/`, so it can never be an
+ * absolute address, a `//host` address or a `javascript:` one. The shape check alone, for a link
+ * the server builds for a console screen (Needs Attention) whose targets are not notification
+ * routes and so are not on the list below (improvement I-077).
+ */
+export function isInAppPath(link: string | null | undefined): link is string {
+  // A backslash is read as a slash by browsers, so `/\host` would be `//host`.
+  return typeof link === 'string' && link.startsWith('/') && !link.startsWith('//') && !link.includes('\\')
+}
+
+/**
  * True when `link` is a console route this build actually serves — the only time it's safe to
  * navigate a notification/broadcast `deep_link` straight off the API. Relative paths only: a
  * value starting with `//` or containing a scheme (`http:`, `javascript:`, …) is rejected before
@@ -64,7 +75,7 @@ function pathOnly(link: string): string {
  * redirect.
  */
 export function isAllowedDeepLink(link: string | null | undefined): link is string {
-  if (!link || !link.startsWith('/') || link.startsWith('//')) return false
+  if (!isInAppPath(link)) return false
   if (ALLOWED_EXACT.includes(link) || ALLOWED_EXACT.includes(pathOnly(link))) return true
   return ALLOWED_PREFIXES.some((prefix) => link.startsWith(prefix) && link.length > prefix.length)
 }

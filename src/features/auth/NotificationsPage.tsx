@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { shellForScope } from '@/features/auth/shellForScope'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -118,12 +119,11 @@ export function NotificationsPage() {
         {notifications.data && notifications.data.items.length > 0 && (
           <div className="flex flex-col gap-sm">
             {notifications.data.items.map((n) => (
-              <Link
+              <NotificationRow
                 key={n.id}
                 // RT 6 / contract gate 9 K8 — only navigate to a route this console serves.
-                to={safeDeepLink(n.deep_link, '#')}
-                onClick={() => !n.read && markRead.mutate(n.id)}
-                className="block"
+                to={safeDeepLink(n.deep_link)}
+                onOpen={() => !n.read && markRead.mutate(n.id)}
               >
                 <Card
                   className={`flex items-start justify-between gap-md transition-colors hover:bg-background ${
@@ -136,7 +136,7 @@ export function NotificationsPage() {
                   </div>
                   <span className="shrink-0 text-caption text-text-secondary">{timeAgo(n.created_at!)}</span>
                 </Card>
-              </Link>
+              </NotificationRow>
             ))}
           </div>
         )}
@@ -153,5 +153,31 @@ export function NotificationsPage() {
         )}
       </div>
     </Shell>
+  )
+}
+
+/** One notification. With somewhere to go it is a link; with nowhere to go it is plain text that
+ * still marks itself read when clicked — it used to be a link to "#", which only jumped the page
+ * to the top (review F-310). */
+function NotificationRow({
+  to,
+  onOpen,
+  children,
+}: {
+  to: string | null
+  onOpen: () => void
+  children: ReactNode
+}) {
+  if (to) {
+    return (
+      <Link to={to} onClick={onOpen} className="block">
+        {children}
+      </Link>
+    )
+  }
+  return (
+    <div role="button" tabIndex={0} onClick={onOpen} onKeyDown={(e) => e.key === 'Enter' && onOpen()} className="block">
+      {children}
+    </div>
   )
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { isInAppPath } from '@/lib/deepLinks'
 import { useNavigate } from 'react-router-dom'
 import { BellOff } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
@@ -185,7 +186,8 @@ export function NeedsAttentionPage() {
               >
                 <button
                   type="button"
-                  onClick={() => navigate(item.link)}
+                  // Only ever a path inside this console, whatever the server sent (I-077).
+                  onClick={() => isInAppPath(item.link) && navigate(item.link)}
                   className="flex w-full flex-col items-start gap-xs text-left hover:opacity-80"
                 >
                   <span className="flex w-full items-start justify-between gap-sm">
