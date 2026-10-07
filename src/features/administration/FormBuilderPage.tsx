@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AppShell } from '@/features/auth/AppShell'
 import { Card } from '@/components/Card'
@@ -120,6 +121,19 @@ export function FormBuilderPage() {
   }
 
   const saving = createForm.isPending || updateForm.isPending
+  // Something to lose (review F-307): a new form once anything is typed or added, a saved one
+  // once it differs from what was loaded. Not while saving, so the save's own way out is free.
+  const dirty = isNew
+    ? name.trim() !== '' || fields.length > 0
+    : hydrated &&
+      existing.data !== undefined &&
+      (name !== existing.data.name || JSON.stringify(fields) !== JSON.stringify(existing.data.fields))
+  const guard = useUnsavedChangesGuard(dirty && !saving, {
+    title: isNew ? 'Discard this form?' : 'Discard your changes?',
+    body: isNew
+      ? 'You have started creating a form. If you leave now, what you have added will be lost.'
+      : 'You have changed this form. If you leave now, those changes will be lost.',
+  })
   const error = createForm.error ?? updateForm.error
   const groups = listGroups(fields)
 
@@ -212,11 +226,12 @@ export function FormBuilderPage() {
           <Button onClick={handleSave} loading={saving} disabled={!name || fields.length === 0}>
             {isNew ? 'Create Form' : 'Save Changes'}
           </Button>
-          <Button variant="secondary" onClick={() => navigate('/administration/forms')}>
+          <Button variant="secondary" onClick={() => guard.requestLeave(() => navigate('/administration/forms'))}>
             Cancel
           </Button>
         </div>
       </div>
+      {guard.dialog}
     </AppShell>
   )
 }
