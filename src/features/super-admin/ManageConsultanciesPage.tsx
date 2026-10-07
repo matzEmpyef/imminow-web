@@ -750,11 +750,11 @@ const DETAIL_TABS: { value: DetailTab; label: string }[] = [
   { value: 'account', label: 'Account' },
   { value: 'plan', label: 'Plan & features' },
 ]
-const FEATURE_GROUPS: { title: string; flags: FeatureDef[] }[] = [
+const FEATURE_GROUPS: { title: string; flags: FeatureDef[]; core?: readonly string[] }[] = [
   // Starter gained its first flag on 2026-09-21 (branches). It is ON for every tier, so it would
   // never have appeared under either heading below — and a flag a Super Admin cannot see is a flag
   // they cannot switch off for the one tenant who needs it off.
-  { title: 'On every plan', flags: STARTER_FEATURES },
+  { title: 'On every plan', flags: STARTER_FEATURES, core: STARTER_CORE_FEATURES },
   { title: 'Business plan features', flags: BUSINESS_FEATURES },
   { title: 'Ultimate plan features', flags: ULTIMATE_FEATURES },
 ]
@@ -1145,6 +1145,25 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
                   <p className="border-b border-border bg-background px-md py-sm text-caption font-medium text-text-secondary">
                     {group.title}
                   </p>
+                  {/* The core of every plan is not a switch, so it used to sit in one caption line
+                      under the grid, where it was easy to miss and "On every plan" looked like
+                      one feature (owner, 2026-10-07). Listed here, read-only, above the switches. */}
+                  {group.core && (
+                    <div className="border-b border-border px-md py-sm">
+                      <p className="text-caption font-medium text-text-secondary">Always included</p>
+                      <ul className="mt-xs flex flex-col gap-xs">
+                        {group.core.map((feature) => (
+                          <li key={feature} className="flex items-start gap-sm text-body-sm text-text-primary">
+                            <span aria-hidden className="mt-[0.45rem] h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
+                            {feature}
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="mt-sm text-caption text-text-secondary">
+                        These come with every plan and cannot be switched off for one account. The switches below can.
+                      </p>
+                    </div>
+                  )}
                   <div className="flex flex-col divide-y divide-border">
                     {group.flags.map((flag) => (
                       <FeatureToggleRow
@@ -1161,9 +1180,6 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
                 </div>
               ))}
             </div>
-            <p className="text-caption text-text-secondary">
-              <span className="font-medium">Included in every plan:</span> {STARTER_CORE_FEATURES.join(' · ')}
-            </p>
             {unknownFeatureKeys.length > 0 && (
               <p className="text-caption text-warning">
                 <span className="font-medium">Also on this account, newer than this console:</span>{' '}
