@@ -83,7 +83,7 @@ export function GlobalSearch() {
       setActiveIndex((i) =>
         e.key === 'ArrowDown' ? (i + 1) % results.length : i <= 0 ? results.length - 1 : i - 1,
       )
-    } else if (e.key === 'Enter') {
+    } else if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
       const target = results[active]
       if (target) {
         e.preventDefault()

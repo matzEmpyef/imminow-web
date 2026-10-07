@@ -146,7 +146,7 @@ export function ServerSearchSelect<T>({
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       setActiveIndex((i) => Math.max(i - 1, 0))
-    } else if (e.key === 'Enter' && open) {
+    } else if (e.key === 'Enter' && open && !e.nativeEvent.isComposing) {
       // Never the form's submit while the list is open: Enter here means "this option".
       e.preventDefault()
       const entry = options[activeIndex]

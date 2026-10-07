@@ -109,7 +109,7 @@ export function Combobox({ label, value, onChange, options, required }: Combobox
           onFocus={handleFocus}
           onBlur={handleBlur}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
               e.preventDefault()
               commitDraft()
             }

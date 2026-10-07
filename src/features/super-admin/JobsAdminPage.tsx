@@ -296,7 +296,7 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
               value={skillDraft}
               onChange={(e) => setSkillDraft(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
                   e.preventDefault()
                   addSkill()
                 }

@@ -44,7 +44,9 @@ export function InternalNotesTab({ clientId }: { clientId: string }) {
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // Not while a word is still being composed (Malayalam, Hindi and other keyboards use Enter
+    // to pick the suggestion): that Enter belongs to the keyboard, not to Send (review F-309).
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault()
       submit()
     }
