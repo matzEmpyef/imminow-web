@@ -94,14 +94,17 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
   const [thumbnailUrl, setThumbnailUrl] = useState(editingCoupon?.thumbnail_url ?? '')
   const [stock, setStock] = useState(editingCoupon?.stock ?? 50)
   const [expiryDate, setExpiryDate] = useState(editingCoupon?.expiry_date ?? '')
-  // BOTH START UNANSWERED (assumptions audit M14, product owner 2026-09-19). Relevance used to
+  // RELEVANCE STARTS UNANSWERED (assumptions audit M14, product owner 2026-09-19). It used to
   // open on District and the per-student limit did not exist at all, so a national offer created
   // without a thought about either reached one district and could be claimed fifty times by one
   // person. The server refuses a create that omits either (400); the form refuses to submit
   // first, so the admin is asked rather than told off.
+  // The per-student limit now opens on 1 (owner, 2026-10-07): the tightest answer, so the
+  // unconsidered case is the safe one, and a store's fixed merchant code cannot be reused by a
+  // student who learnt it on their one visit. The admin raises it for an offer meant to repeat.
   const [relevanceScope, setRelevanceScope] = useState<RelevanceScope | ''>(editingCoupon?.relevance_scope ?? '')
   const [perStudentLimit, setPerStudentLimit] = useState(
-    editingCoupon?.per_student_limit != null ? String(editingCoupon.per_student_limit) : '',
+    editingCoupon?.per_student_limit != null ? String(editingCoupon.per_student_limit) : editingCoupon ? '' : '1',
   )
 
   // Digital vouchers (2026-09-15) — stock comes from the code pool (see the Codes modal) and
@@ -281,9 +284,8 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
           </p>
         )}
         {/* HOW MANY TIMES ONE STUDENT MAY CLAIM IT (assumptions audit M14, product owner
-            2026-09-19). Required on create, with nothing pre-filled — a suggestion is offered as
-            help text below and never as a value, because a number the form typed for the admin is
-            exactly the unconsidered answer this field exists to stop. */}
+            2026-09-19). Required on create. A new coupon opens on 1 (owner, 2026-10-07): the
+            tightest value, so a limit nobody thought about is still a safe one. */}
         <TextField
           label="Claims per student"
           type="number"
@@ -294,8 +296,8 @@ function CouponFormModal({ editingCoupon, onClose }: { editingCoupon?: Coupon; o
           placeholder="How many times one student may claim this"
         />
         <p className="text-caption text-text-secondary">
-          Counted over the coupon&rsquo;s whole life, per student. The platform-wide rule below still applies — whichever
-          is tighter wins. 1 a month is typical.
+          Counted over the coupon&rsquo;s whole life, per student. A new coupon starts at 1; raise it for an offer a
+          student may claim again. The platform-wide rule below still applies — whichever is tighter wins.
         </p>
         {isOnlinePartner && (
           <p className="text-caption text-text-secondary">
