@@ -10,6 +10,7 @@ vi.mock('@/api/client', () => ({ api: { GET: vi.fn(), POST: vi.fn() } }))
 vi.mock('@/assets/brand/login-bg.png', () => ({ default: 'login-bg.png' }))
 
 import { api } from '@/api/client'
+import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage'
 import { SetPasswordPage } from '@/features/auth/SetPasswordPage'
 import { GuardianApprovalPage } from '@/features/guardian/GuardianApprovalPage'
 
@@ -25,7 +26,7 @@ function refused(status: number, code: string, message: string) {
 
 function Address() {
   const location = useLocation()
-  return <p data-testid="address">{location.pathname + location.hash}</p>
+  return <p data-testid="address">{location.pathname + location.search + location.hash}</p>
 }
 
 function renderAt(address: string) {
@@ -37,6 +38,7 @@ function renderAt(address: string) {
         <Routes>
           <Route path="/set-password/:token?" element={<SetPasswordPage />} />
           <Route path="/guardian/:token?" element={<GuardianApprovalPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -91,6 +93,37 @@ describe('Set Your Password', () => {
     renderAt('/set-password')
     expect(screen.getByText('Invite expired')).toBeInTheDocument()
     expect(mockedPost).not.toHaveBeenCalled()
+  })
+})
+
+// Review F-295: the password-reset link carries its token in the fragment too, and the old
+// `?token=` link is still read once and then taken out of the address.
+describe('Reset password', () => {
+  async function resetWith(address: string) {
+    mockedPost.mockResolvedValue(ok(undefined, 204))
+    renderAt(address)
+    expect(screen.getByTestId('address')).toHaveTextContent(/^\/reset-password$/)
+    fireEvent.change(screen.getByLabelText(/^New password/), { target: { value: 'a-long-password' } })
+    fireEvent.change(screen.getByLabelText(/^Confirm password/), { target: { value: 'a-long-password' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
+    await waitFor(() =>
+      expect(mockedPost).toHaveBeenCalledWith('/auth/reset-password', {
+        body: { token: 'rt-1', new_password: 'a-long-password' },
+      }),
+    )
+  }
+
+  it('reads the token from the fragment and cleans the address', async () => {
+    await resetWith('/reset-password#rt-1')
+  })
+
+  it('still opens a link mailed with ?token=, and cleans the address', async () => {
+    await resetWith('/reset-password?token=rt-1')
+  })
+
+  it('says the link is unusable when the address carries no token', () => {
+    renderAt('/reset-password')
+    expect(screen.getByText('Invalid link')).toBeInTheDocument()
   })
 })
 
