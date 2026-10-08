@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
@@ -46,6 +46,7 @@ export function PhonebookPage() {
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
   const [deletingContact, setDeletingContact] = useState<Contact | null>(null)
+  const [editingContact, setEditingContact] = useState<Contact | null>(null)
   const paging = useCursorPagination()
 
   // Search and the category filter are narrowed by the server (contract gate 9, K13).
@@ -103,26 +104,34 @@ export function PhonebookPage() {
       render: (c) =>
         c.email ? <CopyableValue value={c.email} kind="email" /> : <span className="text-text-secondary">—</span>,
     },
-    // The whole column goes for everyone else, rather than leaving an empty one behind.
-    ...(isAdmin
-      ? [
-          {
-            key: 'actions',
-            header: '',
-            render: (c: Contact) => (
-              <div className="flex justify-end">
-                <button
-                  onClick={() => setDeletingContact(c)}
-                  aria-label={`Remove ${c.name}`}
-                  className="flex h-9 w-9 items-center justify-center rounded-md text-error hover:bg-error/10"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            ),
-          },
-        ]
-      : []),
+    // Editing is open to all staff, removing is the admin's alone (owner decision 7).
+    {
+      key: 'actions',
+      header: '',
+      render: (c: Contact) => (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setEditingContact(c)}
+            aria-label={`Edit ${c.name}`}
+            title="Edit"
+            className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setDeletingContact(c)}
+              aria-label={`Remove ${c.name}`}
+              className="flex h-9 w-9 items-center justify-center rounded-md text-error hover:bg-error/10"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      ),
+    },
   ]
 
   return (
@@ -140,6 +149,14 @@ export function PhonebookPage() {
           <AddPhonebookContactModal categories={addModalCategories} onClose={() => setShowAddModal(false)} />
         )}
 
+        {editingContact && (
+          <AddPhonebookContactModal
+            categories={addModalCategories}
+            contact={editingContact}
+            onClose={() => setEditingContact(null)}
+          />
+        )}
+
         {deletingContact && (
           <Modal
             onClose={() => setDeletingContact(null)}
@@ -154,7 +171,13 @@ export function PhonebookPage() {
                   variant="destructive"
                   loading={deleteContact.isPending}
                   onClick={() =>
-                    deleteContact.mutate(deletingContact.id, { onSuccess: () => setDeletingContact(null) })
+                    deleteContact.mutate(deletingContact.id, {
+                      onSuccess: () => {
+                        setDeletingContact(null)
+                        // Removing the only row on a later page would leave that page empty: go back to the first.
+                        if (rows.length <= 1) paging.reset()
+                      },
+                    })
                   }
                 >
                   Delete

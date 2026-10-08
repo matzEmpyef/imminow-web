@@ -55,6 +55,19 @@ export function useCreatePhonebookContact() {
   })
 }
 
+/** Editing is open to all staff (owner decision 7); only deleting is the admin's. */
+export function useUpdatePhonebookContact(id: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { name?: string; category?: string; phone?: string; email?: string }) => {
+      const { data, error } = await api.PATCH('/phonebook/{id}', { params: { path: { id } }, body })
+      if (error) throw new ApiError('Could not save this contact.', error)
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['phonebook'] }),
+  })
+}
+
 export function useDeletePhonebookContact() {
   const queryClient = useQueryClient()
   return useMutation({
