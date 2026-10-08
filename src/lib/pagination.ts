@@ -13,14 +13,12 @@ export function useCursorPagination() {
     setCursor(nextCursor)
   }
 
+  // Both updates are made here, not one inside the other's updater: an updater must be pure, and
+  // React runs it twice in strict mode (review F-318).
   function previous() {
-    setStack((s) => {
-      if (s.length === 0) return s
-      const copy = [...s]
-      const prevCursor = copy.pop()
-      setCursor(prevCursor || undefined)
-      return copy
-    })
+    if (stack.length === 0) return
+    setCursor(stack[stack.length - 1] || undefined)
+    setStack(stack.slice(0, -1))
   }
 
   // Call whenever sort/filter/search changes — those invalidate the cursor chain.
