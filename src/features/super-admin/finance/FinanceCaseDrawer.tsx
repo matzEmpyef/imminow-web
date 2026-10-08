@@ -456,12 +456,11 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
           label={partLabel(decidingVoid.part, row.rate_percent, row.tuition_fee)}
           decision={decidingVoid.decision}
           onClose={() => setDecidingVoid(null)}
-          // The answer comes back as the installment, not the case, and under the "Void requests"
-          // filter the case then leaves the list: the drawer closes rather than keep showing a
-          // request that has been answered. The list behind it is read again.
-          onDecided={() => {
+          // The answer is the refreshed case row: the drawer shows it and stays open, like the other
+          // Finance modals. The list behind it is read again.
+          onDecided={(next) => {
+            setRow(next)
             setDecidingVoid(null)
-            onClose()
           }}
         />
       )}

@@ -32,7 +32,7 @@ export function InstallmentVoidDecisionModal({
   label?: string
   decision: 'approve' | 'decline'
   onClose: () => void
-  onDecided: () => void
+  onDecided: (row: FinanceCaseRow) => void
 }) {
   const decide = useDecideInstallmentVoid()
   const [reason, setReason] = useState('')
@@ -69,13 +69,13 @@ export function InstallmentVoidDecisionModal({
                   reason: approving ? undefined : trimmedReason,
                 },
                 {
-                  onSuccess: () => {
+                  onSuccess: (row) => {
                     showToast(
                       approving
                         ? `Installment voided for ${caseRow.applicant_name}`
                         : `Void declined for ${caseRow.applicant_name}`,
                     )
-                    onDecided()
+                    onDecided(row)
                   },
                 },
               )

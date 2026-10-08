@@ -262,12 +262,36 @@ describe('a void of an installment waiting for Finance', () => {
     })
   })
 
-  it('closes the drawer once the decision is recorded', () => {
-    decideMutate.mockImplementation((_vars, options: { onSuccess: () => void }) => options.onSuccess())
+  it('keeps the drawer open after an approval and shows the returned row, without the voided part', () => {
+    const returned = caseRow({}, { applicant_name: 'Aiko Tanaka (refreshed)', due_schedule: [], outstanding_inr: 0 })
+    decideMutate.mockImplementation((_vars, options: { onSuccess: (row: unknown) => void }) => options.onSuccess(returned))
     const onClose = openDrawer(waiting)
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
     fireEvent.click(within(dialog('Approve the void')).getByRole('button', { name: 'Approve and void' }))
-    expect(onClose).toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'Aiko Tanaka (refreshed)' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Approve the void' })).toBeNull()
+    expect(screen.queryByText('Void requested')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull()
+  })
+
+  it('keeps the drawer open after a decline and shows the part with its request cleared', () => {
+    const returned = caseRow(
+      { source: 'college_instalment', settle_needs: null, instalment_id: 'inst-1' },
+      { applicant_name: 'Aiko Tanaka (refreshed)' },
+    )
+    decideMutate.mockImplementation((_vars, options: { onSuccess: (row: unknown) => void }) => options.onSuccess(returned))
+    const onClose = openDrawer(waiting)
+    fireEvent.click(screen.getByRole('button', { name: 'Decline' }))
+    const modal = within(dialog('Decline the void'))
+    fireEvent.change(modal.getByLabelText(/Reason/), { target: { value: 'The money was received' } })
+    fireEvent.click(modal.getByRole('button', { name: 'Decline' }))
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'Aiko Tanaka (refreshed)' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Decline the void' })).toBeNull()
+    expect(screen.queryByText('Void requested')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Decline' })).toBeNull()
   })
 
   it.each(['conflict', 'already_voided', 'part_settled'])('shows the server’s sentence on 409 %s', (code) => {
