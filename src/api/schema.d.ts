@@ -1730,7 +1730,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Accept a consent event (build reference 1.4). Event `1` (blocking at signup, forced on policy-version change) needs no body — the default when `event` is omitted, matching Sign Up's own call site. Event `2` (Sentpo Mobile Wave 3's Per-Consultancy Consent Sheet — "Share your name and study preferences with [Consultancy Name]?", a one-time per-consultancy check, never re-asked) and event `3` (Commit-to-Consultancy Confirm's full-PII grant) both require `consultancy_id`. */
+        /** Accept a consent event (build reference 1.4). Event `1` (blocking at signup, forced on policy-version change) needs no body — the default when `event` is omitted, matching Sign Up's own call site. Event `2` (Sentpo Mobile Wave 3's Per-Consultancy Consent Sheet — "Share your name and study preferences with [Consultancy Name]?", a one-time per-consultancy check, never re-asked) and event `3` (Commit-to-Consultancy Confirm's full-PII grant) both require `consultancy_id`, are a student's to give (any other account is refused 403 `forbidden`), and are recorded once per consultancy and policy version - a repeat answers the record already held. */
         post: {
             parameters: {
                 query?: never;
@@ -3235,7 +3235,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** My study preferences */
+        /**
+         * My study preferences
+         * @description Students only, like PATCH /preferences and POST /preferences/prompt-seen: any other account (consultancy staff, freelancers, platform staff) is refused 403.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -5020,7 +5023,9 @@ export interface paths {
                     "application/json": {
                         name: string;
                         category: string;
+                        /** @description Digits, spaces, `+`, `(`, `)` and `-` only (no line breaks or tabs). */
                         phone: string;
+                        /** @description Trimmed; an empty value clears it. Otherwise it must look like an email address (`name@domain.tld`), or the request is refused with 400. */
                         email?: string;
                     };
                 };
@@ -5098,7 +5103,9 @@ export interface paths {
                     "application/json": {
                         name?: string;
                         category?: string;
+                        /** @description Digits, spaces, `+`, `(`, `)` and `-` only (no line breaks or tabs). */
                         phone?: string;
+                        /** @description Trimmed; an empty value clears it. Otherwise it must look like an email address (`name@domain.tld`), or the request is refused with 400. */
                         email?: string;
                     };
                 };
@@ -6973,6 +6980,7 @@ export interface paths {
                     "application/json": {
                         /** @description Optimistic lock (F-075, 2026-10-08): the record's `version` as last read. Omitted, last write wins; when the record has changed since, 409 `version_conflict` (with `details.current_version`) and nothing is written — reload and re-apply the edit. */
                         version?: number;
+                        /** @description The `url` POST /media answered for an uploaded image (null clears the logo). An address on any other server is refused with 400 `validation_failed`. */
                         logo_url?: string | null;
                         description?: string;
                         about_us?: string;
@@ -8943,7 +8951,7 @@ export interface paths {
         put?: never;
         /**
          * Membership section's "Upgrade" button (build reference 1.22) — requests an upgrade (persists a request and notifies platform staff in-app), does not check out. Billing itself is deferred.
-         * @description Made real 2026-08-29 — previously a bare 202 with nothing recorded and nobody notified. Requires `settings.edit_profile` (same permission the Consultancy Management route is gated on) and can only be called for the caller's OWN consultancy. `tier` defaults to the next tier above the current one when omitted; the request is rejected (400) if the tier given is not strictly above the current tier. Audited as `upgrade_requested` and notifies platform staff in-app (notification type `upgrade_requested`, deep-linking to Manage Consultancies). Idempotent while a request is already open: a repeat call returns the existing pending request rather than creating a duplicate or re-notifying. The open request is visible on `Consultancy.upgrade_requested_tier`/`upgrade_requested_at` and is closed the moment a Super Admin next changes this consultancy's tier (via `PATCH /consultancies/{id}/tier`), whether or not to the requested tier.
+         * @description Made real 2026-08-29 — previously a bare 202 with nothing recorded and nobody notified. Requires `settings.edit_profile` (same permission the Consultancy Management route is gated on) and can only be called for the caller's OWN consultancy: any other id, known or not, is 404 `not_found` (review F-210, 2026-10-08; it was 403). `tier` defaults to the next tier above the current one when omitted; the request is rejected (400) if the tier given is not strictly above the current tier. Audited as `upgrade_requested` and notifies platform staff in-app (notification type `upgrade_requested`, deep-linking to Manage Consultancies). Idempotent while a request is already open: a repeat call returns the existing pending request rather than creating a duplicate or re-notifying. The open request is visible on `Consultancy.upgrade_requested_tier`/`upgrade_requested_at` and is closed the moment a Super Admin next changes this consultancy's tier (via `PATCH /consultancies/{id}/tier`), whether or not to the requested tier.
          */
         post: {
             parameters: {
@@ -8983,9 +8991,10 @@ export interface paths {
                 };
                 400: components["responses"]["ErrorResponse"];
                 403: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
             };
         };
-        /** Withdraw the open upgrade request (console review H13, 2026-09-13). The console confirms before filing one and offers this to take it back; audited as upgrade_request_withdrawn. 404 when none is open; 403 for another consultancy. Needs settings.edit_profile. */
+        /** Withdraw the open upgrade request (console review H13, 2026-09-13). The console confirms before filing one and offers this to take it back; audited as upgrade_request_withdrawn. 404 when none is open, and for another consultancy's id (review F-210, 2026-10-08; that was 403). 403 without settings.edit_profile. */
         delete: {
             parameters: {
                 query?: never;
@@ -9190,6 +9199,7 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
+                        /** @description The `url` POST /media answered for an uploaded image. An address on any other server is refused with 400 `validation_failed`. */
                         logo_url?: string;
                         description?: string;
                         about_us?: string;
@@ -10170,7 +10180,9 @@ export interface paths {
         put?: never;
         /**
          * CSV bulk import, step 1 — validate → preview (build reference 2.2, same validate/preview/commit pipeline as /colleges/import, TRD Section 6)
-         * @description Synchronous, like the college import (owner Q7, 2026-09-25): at most 1 MB and 2,000 data rows — 400 `validation_failed` above either, before any row is read. Columns are name, phone, email (a header row is recognised and skipped); quoted fields may contain commas. A row needs a name and at least one of phone or email. The batch is held for an hour for the caller who validated it. Needs `leads.import`.
+         * @description Synchronous, like the college import (owner Q7, 2026-09-25): at most 1 MB and 2,000 data rows — 400 `validation_failed` above either, before any row is read. Columns are name, phone, email (a header row is recognised and skipped); quoted fields may contain commas. A row needs a name and at least one of phone or email. The batch is held for an hour for the caller who validated it. Needs `leads.import` and, like the commit, the `own_leads` plan feature (review F-208, 2026-10-08): without it the answer is 403 `feature_locked` and no file is stored.
+         *
+         *     Each row's contacts are checked here, so a problem is seen in the preview and not at conversion (review F-208). A name is at most 200 characters ("Name is at most 200 characters."). An email must be an address ("Email is not a valid address.") and is returned and stored lower-cased. A phone must be 6 to 15 digits once spaces, dashes, dots and brackets are removed ("Phone is not a valid number."); one written with its country code (`+91 …`) must be a real number and is returned and stored in E.164, one written without a country code is kept as its digits. A valid row's `phone` and `email` in the answer are the values that will be stored. A file the CSV reader cannot read (for example a single cell over 131,072 characters) is 400 `validation_failed` ("The file could not be read as CSV. …"). A batch that is not committed is deleted once its hour is over.
          */
         post: {
             parameters: {
@@ -11532,14 +11544,7 @@ export interface paths {
                         "application/json": components["schemas"]["LeadMessage"];
                     };
                 };
-                /** @description Caller is not consultancy staff */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Lead or course not found */
+                /** @description Lead or course not found — also the answer to the lead's own student (review F-211, 2026-10-08; it was 403): a consultancy-side card route does not confirm itself to the other side, as `request-visit` and `call-initiated` answer staff. The same holds for `request-shortlist`. */
                 404: {
                     headers: {
                         [name: string]: unknown;
@@ -13015,7 +13020,9 @@ export interface paths {
          *     It took "first_half"|"second_half" before — calendar halves beginning 1 January and 1 July, so a September start was filtered as though it began on 1 July. Those two values are still accepted and map to the group each half became, because app builds already in students' hands send them. A value that names no month at all matches nothing, rather than widening the search to everything.
          *
          *     filter[level] MATCHES BY RANK, not by string (assumptions audit M23, 2026-09-19) — the value resolves to a rung on `GET /study-levels` — by `code`, by `entry_qualification_code` or by `label`, case-insensitively — and every course at a rung with the SAME `rank` matches. Two rungs may share a rank, which is how a new rung can be added beside an existing one without splitting every search that names its neighbour. A value that resolves to no rung falls back to the old exact-string compare. filter[visible] is "true"/"false", same computed active-AND-parent-college-active meaning as Course.visible — Sentpo Mobile's own search screens always pass filter[visible]=true explicitly (this endpoint doesn't filter out inactive/hidden courses by default, same reasoning as Wave 3's GET /consultancies fix — Colleges & Courses admin needs to see hidden courses too).
-         *     Courses-module filters (COURSES_MODULE_PLAN.md §3.1, 2026-08-21) — filter[country] accepts a comma-separated list (multi-country was single before); filter[fee_max] / filter[fee_min] compare against fee_normalized_inr (INR) and need filter[fee_currency] (400 `validation_failed` without it); the code is read in any letter case, and a limit in a currency the platform has no exchange rate for is REFUSED — 400 `validation_failed`, with `details.field` = "filter[fee_currency]" and `details.currency` — instead of letting every course not priced in that currency through (review F-099, 2026-10-08; give the limit in the currency `GET /courses/fee-range` answered in); filter[study_mode], filter[delivery], filter[language] exact-match; filter[coop], filter[psw], filter[scholarship], filter[app_fee_waived] are "true" flags; filter[open_now]="true" keeps courses with at least one intake whose deadline is today or later (its derived status is open, 2026-09-24); a course with no deadline data at all is kept (no data ≠ closed); filter[duration_max_months] / filter[duration_min_months] numeric (the min counterpart added 2026-08-31, same pairing convention as fee_min/fee_max, to back Sentpo Mobile's and immiNow Course Finder's duration-range filter chips); filter[city] matches linked campuses' city. sort= additionally accepts fee (normalized INR asc), duration (duration_months asc), and intake (earliest upcoming open intake first). Missing data NEVER excludes — a course without fee_normalized_inr passes fee filters, one without duration_months passes duration filters — filters narrow on known facts, they don't punish catalog gaps (plan §0.2).
+         *     Courses-module filters (COURSES_MODULE_PLAN.md §3.1, 2026-08-21) — filter[country] accepts a comma-separated list (multi-country was single before); filter[fee_max] / filter[fee_min] compare against fee_normalized_inr (INR) and need filter[fee_currency] (400 `validation_failed` without it); the code is read in any letter case, and a limit in a currency the platform has no exchange rate for is REFUSED — 400 `validation_failed`, with `details.field` = "filter[fee_currency]" and `details.currency` — instead of letting every course not priced in that currency through (review F-099, 2026-10-08; give the limit in the currency `GET /courses/fee-range` answered in); filter[study_mode], filter[delivery], filter[language] exact-match; filter[coop], filter[psw], filter[scholarship], filter[app_fee_waived] are "true" flags; filter[open_now]="true" keeps courses with at least one intake whose deadline is today or later (its derived status is open, 2026-09-24); a course with no deadline data at all is kept (no data ≠ closed); filter[duration_max_months] / filter[duration_min_months] numeric (the min counterpart added 2026-08-31, same pairing convention as fee_min/fee_max, to back Sentpo Mobile's and immiNow Course Finder's duration-range filter chips); filter[city] matches linked campuses' city.
+         *     A VALUE THE SEARCH CANNOT READ IS REFUSED (review F-260, 2026-10-08), unlike an unknown KEY - 400 validation_failed naming the filter when filter[fee_max], filter[fee_min], filter[duration_max_months] or filter[duration_min_months] is not a number, or when filter[study_mode] / filter[delivery] is not one of the values the Course schema lists. Before, such a value did nothing or quietly kept only the courses with no value, while the client went on showing the filter as applied. A blank numeric bound is no bound. filter[country] and filter[country_not] match a country's name whatever its letter case.
+         *     sort= additionally accepts fee (normalized INR asc), duration (duration_months asc), and intake (earliest upcoming open intake first). Missing data NEVER excludes — a course without fee_normalized_inr passes fee filters, one without duration_months passes duration filters — filters narrow on known facts, they don't punish catalog gaps (plan §0.2).
          *     filter[fee_currency] (2026-08-22) names the currency filter[fee_max] / filter[fee_min] are expressed in, defaulting to INR for older callers. The server converts each course's fee into that currency before comparing, so the app never multiplies by a rate itself — that would be business logic on the client, and would drift the moment a rate changed. It is not a filter in its own right and narrows nothing on its own.
          *     Since 2026-09-10 a course priced in a DIFFERENT currency from the bound is compared with a 5% margin (fee_max widened up, fee_min widened down), because the exchange-rate table is set by hand rather than live; a course priced in the bound's own currency is compared exactly. A course whose fee cannot be converted passes, like any missing data.
          *     filter[country_not] (2026-08-22) is the inverse of filter[country], also comma-separated — it drops courses taught ONLY in the listed countries. It exists so the Sentpo app's Study Abroad tab can exclude the student's own `student_preferences.resident_country` instead of a hardcoded "India" — "abroad" is relative to whoever is looking, and the tab's own copy ("we'll leave out X") was a promise the server never kept until this parameter existed.
@@ -13593,7 +13600,7 @@ export interface paths {
         };
         /**
          * Course Suggestions' submission history (build reference 1.22) — this consultancy's own submissions, both types
-         * @description Paged like every other list since 2026-09-25 (contract gate 4, REVIEW_TRIAGE item 21 / SCALABILITY F1 — it returned a bare array that grows with every suggestion). Default page 20, max 100. Oldest first (created_at, then id) unless sort= says otherwise; sort= accepts created_at, status and type. filter[status]= pending|approved|rejected (comma = any of). Only the caller's own consultancy's rows: anyone who is not active consultancy staff gets an empty page.
+         * @description Paged like every other list since 2026-09-25 (contract gate 4, REVIEW_TRIAGE item 21 / SCALABILITY F1 — it returned a bare array that grows with every suggestion). Default page 20, max 100. Oldest first (created_at, then id) unless sort= says otherwise; sort= accepts created_at, status and type. filter[status]= pending|approved|rejected (comma = any of). Only the caller's own consultancy's rows. Anyone who is not active consultancy staff (a student, platform staff, an institute) is refused with 403 `permission_denied` (review I-037; it used to be an empty page).
          */
         get: {
             parameters: {
@@ -13623,6 +13630,15 @@ export interface paths {
                             items: components["schemas"]["CourseSuggestion"][];
                             meta: components["schemas"]["PaginatedMeta"];
                         };
+                    };
+                };
+                /** @description `permission_denied` — the caller is not consultancy staff (review I-037). */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -14384,7 +14400,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Created — real Sentpo account + invite sent */
+                /** @description Created — real Sentpo account + invite sent. When the creator could not open the case afterwards (they hold only `clients.view_own` and assigned it to a colleague), the answer is a reduced `Client` (review F-220, 2026-10-08): what they typed, the file number, assignee, branch and status, with `preferences`, `study_preferences` and `last_message_at` null and no `case_summary`. */
                 201: {
                     headers: {
                         [name: string]: unknown;
@@ -14953,7 +14969,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description `permission_denied` — the caller lacks `clients.transfer_applicant`. */
+                /** @description `permission_denied` — the caller lacks `clients.transfer_applicant`; or `feature_locked` — the consultancy's plan has no Applicant Transfer (Ultimate), which the receiving side needs too (review F-282, 2026-10-08: an admin on a lower plan could issue codes). `GET /transfer-codes` answers the same two. */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -15705,6 +15721,15 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description `case_in_dispute` — the case is frozen for a dispute and takes no answer until it is resolved (review F-213, 2026-10-08); or `conflict` — the application is not waiting for an answer. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -17508,7 +17533,10 @@ export interface paths {
                         title?: string;
                         /** @description What happens in this step, in the consultant's own words. The one field here editable at ANY status — title and components lock the moment a step starts, because the student may already be working inside it, but rewording what a step MEANS is the opposite of changing the work. */
                         description?: string | null;
-                        /** Format: date-time */
+                        /**
+                         * Format: date-time
+                         * @description Must carry its time zone — `Z` or an offset such as `+05:30` (review F-215, 2026-10-08). A value without one, or a bare date, is 400 `validation_failed`: it used to be stored as a different moment than the one meant.
+                         */
                         expected_end_date?: string | null;
                         components?: components["schemas"]["ComponentInput"][];
                         /** @description User refinement, 2026-08-29: an `active` step now also accepts this PATCH for `expected_end_date` alone (title/components stay locked-only, unchanged) — moving an already-started step's date reaches the applicant, so an optional reason rides along into that notification (`step_due_date_changed`). Ignored for a `locked` step's edit, and ignored unless the date actually changed. */
@@ -17730,6 +17758,15 @@ export interface paths {
                         "application/json": components["schemas"]["Step"];
                     };
                 };
+                /** @description `guardian_consent_required` — a 16- or 17-year-old whose guardian has not approved (review F-213, 2026-10-08): this write passes the guardian gate like every other student-side write. `details.guardian_consent` carries the consent state. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         trace?: never;
@@ -17770,6 +17807,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Step"];
+                    };
+                };
+                /** @description `guardian_consent_required` — a 16- or 17-year-old whose guardian has not approved (review F-213, 2026-10-08): this write passes the guardian gate like every other student-side write. `details.guardian_consent` carries the consent state. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
                 /** @description `not_found` — not the owning student. */
@@ -18188,13 +18234,22 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Submitted */
+                /** @description Submitted. The form must be one the case was given — a step of the case links it (any version of the same form). Any other template, the consultancy's own included, is 404 `not_found` for the student and for staff alike (review F-284, 2026-10-08). */
                 201: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": components["schemas"]["FormResponse"];
+                    };
+                };
+                /** @description `guardian_consent_required` — a 16- or 17-year-old whose guardian has not approved (review F-213, 2026-10-08): this write passes the guardian gate like every other student-side write. `details.guardian_consent` carries the consent state. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -18772,7 +18827,7 @@ export interface paths {
                          * @default true
                          */
                         active?: boolean;
-                        /** @description The screen currently open, in the same form the notification names as its subject: `lead:{leadId}` or `client:{journeyId}` for a lead/case conversation; `internal:{employeeId}` for an Internal Messaging DM or `internal:team` for the Whole Team conversation (contract gate 9, item 10 — the mobile staff shell sends these too, over the socket's `viewing` frame as well as here). Null when in the app but not on a screen any notification is about. */
+                        /** @description The screen currently open, in the same form the notification names as its subject: `lead:{leadId}` or `client:{journeyId}` for a lead/case conversation; `internal:{employeeId}` for an Internal Messaging DM or `internal:team` for the Whole Team conversation (contract gate 9, item 10 — the mobile staff shell sends these too, over the socket's `viewing` frame as well as here). Null when in the app but not on a screen any notification is about. Any other text is refused with 400. */
                         viewing?: string | null;
                     };
                 };
@@ -19073,7 +19128,7 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        /** @description The FCM registration token (Android and, later, iOS through Firebase). Opaque to the server past storage and delivery. */
+                        /** @description The FCM registration token (Android and, later, iOS through Firebase). Opaque to the server past storage and delivery. At most 4096 characters. An account keeps its ten most recently seen tokens. */
                         token: string;
                         /** @enum {string} */
                         platform: "android" | "ios";
@@ -19088,6 +19143,24 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description Error */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Too many registrations in a minute */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -19232,7 +19305,7 @@ export interface paths {
                      * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
                      *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
                      *
-                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
+                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`), `POST /coupons/{id}/redeem` (it spends points; review F-229, 2026-10-08) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
                      *     ANSWERS A KEY CAN PRODUCE on any of them: the first reply again with `Idempotent-Replayed: true`; 409 `request_in_progress`; 409 with `details.idempotency = "already_applied"` (the write landed: re-read, never resubmit); 422 `idempotency_key_reused` (same key, different body). See `components/responses/IdempotencyConflict` and `IdempotencyKeyReused`.
                      */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
@@ -20069,7 +20142,7 @@ export interface paths {
         put?: never;
         /**
          * Email this webinar link to the caller (user, 2026-08-23)
-         * @description For students who would rather watch on a laptop than the phone the app is on. Opens 15 minutes before the start, capped at 2 sends per student per webinar, and COUNTS AS PARTICIPATION — attendance and the webinar_attended points are recorded on the first send. Attendance is shared with the Join route, so whichever happens first takes the points and the other awards nothing; points_awarded is null on every subsequent call.
+         * @description For students who would rather watch on a laptop than the phone the app is on. Opens 15 minutes before the start, capped at 2 sends per student per webinar. It sends the email and nothing else: attendance and the webinar_attended points are recorded by the Join route only, while the webinar is live (review F-243, owner 2026-10-07 — this route used to count as participation). points_awarded and award_reason are always null here.
          */
         post: {
             parameters: {
@@ -20099,7 +20172,7 @@ export interface paths {
                             /** @description The registered address it went to, so the app can name it. */
                             sent_to?: string;
                             sends_remaining?: number;
-                            /** @description Non-null only on the send that first recorded participation. */
+                            /** @description Always null — this route no longer records participation. */
                             points_awarded?: number | null;
                             award_reason?: string | null;
                         };
@@ -21017,7 +21090,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Blog (admin), build reference 1.12/1.23 — maps WordPress categories onto the in-app tags students filter by. The entire admin surface for Blog (no in-app authoring). */
+        /**
+         * Blog (admin), build reference 1.12/1.23 — maps WordPress categories onto the in-app tags students filter by. The entire admin surface for Blog (no in-app authoring).
+         * @description Open to everyone, signed in or not, because the app's topic pickers read it. What comes back depends on the caller (review F-254): a holder of the `blog` permission gets every mapping with its curation state; anyone else gets only the live tags — mappings that are active and have an `app_tag` — each as `id`, `wp_category`, `app_tag`, `label` and `active: true`, with `suggested_app_tag` null and `wp_category_id`, `article_count` and `auto_added` absent.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -21667,6 +21743,8 @@ export interface paths {
                         active_to?: string | null;
                         /** @description Set false to retire the ad. One-directional in the admin UI — the field itself is not otherwise restricted. */
                         active?: boolean;
+                        /** @description Optional optimistic lock (review I-029), as on `PATCH /events/{id}` — the `version` the edit was based on, as last read. Omitted, the edit applies as before (last write wins). Stale — someone saved in between — 409 `version_conflict` and nothing changes; re-read and re-apply. */
+                        version?: number;
                     };
                 };
             };
@@ -21682,6 +21760,15 @@ export interface paths {
                 };
                 /** @description Validation failed (e.g. attempting to change image_url on an ad with impressions_count > 1) */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `version_conflict` — the `version` sent is not the current one (review I-029); `error.details.current_version` carries the current one. */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -22375,18 +22462,22 @@ export interface paths {
         put?: never;
         /**
          * Staff-entered merchant code at partner location — atomic balance check + debit + mark used (TRD Section 4). Build reference 1.8: "at the partner location, staff enter their merchant code directly on the student's screen — that single action atomically deducts points and marks the coupon used. No code is ever revealed to the student ahead of time," which is why Coupon Detail/Use renders a code *entry* field and never displays one. `merchant_code` is matched against the coupon's own partner's locations, honouring that partner's `code_mode` (one shared code across all locations, or an independent code per location) — a code belonging to a different partner is rejected even if it is otherwise valid.
-         * @description Digital vouchers (2026-09-15, `partner_kind = online`) take no merchant code: the student redeems in the app, one unissued code is assigned to them, and the response's `issued_code` carries it. The code is assigned before the points are debited, so points are never taken without a code. Every coupon is subject to the per-student limits in GET /coupons/limits.
+         * @description `Idempotency-Key` is REQUIRED here (review F-229, 2026-10-08): a redemption spends the student's points, and a second redemption is otherwise a legal one, so a double submit without a key spent them twice. Without the header the answer is 400 `validation_failed` naming `Idempotency-Key` and nothing is redeemed; with it, a repeat returns the first answer. Send one key per tap of the Redeem button and reuse it on a retry.
+         *
+         *     Digital vouchers (2026-09-15, `partner_kind = online`) take no merchant code: the student redeems in the app, one unissued code is assigned to them, and the response's `issued_code` carries it. The code is assigned before the points are debited, so points are never taken without a code. Every coupon is subject to the per-student limits in GET /coupons/limits.
          */
         post: {
             parameters: {
                 query?: never;
-                header?: {
+                header: {
                     /**
-                     * @description OPTIONAL, AND HONOURED WHEN SENT. Any write a client might retry after a lost response carries a client-generated key (1-128 characters; assumptions audit H21, 2026-09-19). A second request with the same key, caller, method and path gets the first response back (header `Idempotent-Replayed: true`) instead of running again; keys are kept 24 hours. Without the header the request simply runs.
-                     *     WHICH ROUTES REQUIRE THE KEY AND WHICH ACCEPT IT (settled 2026-10-06; before this the contract marked 18 operations "required" that the server accepted without it). REQUIRED (`IdempotencyKeyHeader`; 400 `validation_failed` naming `Idempotency-Key` without it): the writes that move money, `POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`, and `POST /broadcast`. ACCEPTED, NOT REQUIRED (this parameter): `POST /clients`, `POST /clients/{id}/transfer`, `POST /clients/{id}/plan/assign`, `POST /journeys/commit`, `POST /consultancies`, `POST /consultancies/{id}/ratings`, `POST /leads/import/commit`, `POST /leads/bulk-allocate`, `POST /leads/{id}/convert`, `POST /leads/{id}/request-conversion`, `POST /conversion-proposals/{id}/respond`, `DELETE /conversion-proposals/{id}`, `POST /colleges/import`, `POST /events/{id}/rsvp`, `POST /events/{id}/quiz/submit`, `POST /events/{id}/webinar/email-link`, `POST /events/{id}/webinar/join`, `POST /events/{id}/physical/verify`, `POST /coupons/{id}/redeem`. Clients SHOULD keep sending a key on all of these (a retry of a commit, a transfer or a redemption must not land twice); the server just no longer claims to refuse a request that has none. The header is honoured on every other authenticated POST, PATCH and PUT as well, documented or not.
-                     *     THE ANSWERS A KEY CAN PRODUCE are the shared responses `IdempotencyConflict` (409) and `IdempotencyKeyReused` (422): see those.
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     *
+                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`), `POST /coupons/{id}/redeem` (it spends points; review F-229, 2026-10-08) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
+                     *     ANSWERS A KEY CAN PRODUCE on any of them: the first reply again with `Idempotent-Replayed: true`; 409 `request_in_progress`; 409 with `details.idempotency = "already_applied"` (the write landed: re-read, never resubmit); 422 `idempotency_key_reused` (same key, different body). See `components/responses/IdempotencyConflict` and `IdempotencyKeyReused`.
                      */
-                    "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+                    "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
                 };
                 path: {
                     id: string;
@@ -22700,10 +22791,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Who has claimed this coupon (admin) — same "count was a bare number, no drill-down" gap fix as Quiz's leaderboard/Webinar's RSVP-Attended lists (user-requested, 2026-08-18 — "in Coupons - we need to see how many people claimed it") */
+        /**
+         * Who has claimed this coupon (admin) — same "count was a bare number, no drill-down" gap fix as Quiz's leaderboard/Webinar's RSVP-Attended lists (user-requested, 2026-08-18 — "in Coupons - we need to see how many people claimed it")
+         * @description Paged (review F-255): oldest claim first, `limit` claims a page (default 20, at most 100). `redemption_count` is every claim of the coupon, whatever the page; pass `next_cursor` back as `cursor` for the next page, null on the last one.
+         */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -22720,7 +22819,10 @@ export interface paths {
                     content: {
                         "application/json": {
                             redemptions: components["schemas"]["CouponRedemption"][];
+                            /** @description Every claim of this coupon, not only the ones on this page. */
                             redemption_count: number;
+                            /** @description Pass as `cursor` for the next page; null on the last page. */
+                            next_cursor?: string | null;
                         };
                     };
                 };
@@ -23061,7 +23163,7 @@ export interface paths {
                      * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
                      *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
                      *
-                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
+                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`), `POST /coupons/{id}/redeem` (it spends points; review F-229, 2026-10-08) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
                      *     ANSWERS A KEY CAN PRODUCE on any of them: the first reply again with `Idempotent-Replayed: true`; 409 `request_in_progress`; 409 with `details.idempotency = "already_applied"` (the write landed: re-read, never resubmit); 422 `idempotency_key_reused` (same key, different body). See `components/responses/IdempotencyConflict` and `IdempotencyKeyReused`.
                      */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
@@ -23169,7 +23271,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Correct the amount received on a confirmed payment (finance permission, 2026-09-11). The old figure stays on the payment's corrections with who and why; zero records money that bounced. The consultancy is notified. 409 unless confirmed. */
+        /** Correct the amount received on a confirmed payment (finance permission, 2026-09-11). The old figure stays on the payment's corrections with who and why; zero records money that bounced. The consultancy is notified. 409 unless confirmed. A correction UPWARDS is held to the same ceiling as a confirmation (review F-227, 2026-10-08): if the increase is more than is still unpaid on the case the answer is 409 `more_than_outstanding` with `details.outstanding`, unless `allow_overpayment` is true. A correction downwards is never refused for its size. */
         post: {
             parameters: {
                 query?: never;
@@ -23184,6 +23286,7 @@ export interface paths {
                     "application/json": {
                         amount: number;
                         reason: string;
+                        allow_overpayment?: boolean;
                     };
                 };
             };
@@ -23199,7 +23302,7 @@ export interface paths {
                 };
                 400: components["responses"]["ErrorResponse"];
                 404: components["responses"]["ErrorResponse"];
-                /** @description Not a confirmed payment */
+                /** @description Not a confirmed payment; or `more_than_outstanding` — the increase is more than is still unpaid and `allow_overpayment` was not sent. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -23225,7 +23328,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add an amount a case owes immiNow (finance permission, 2026-09-11) — a second instalment, an agreed extra — with an optional due date and a required reason. Audited; the consultancy is notified. Returns the case row. 409 once the entry is voided or reversed. */
+        /** Add an amount a case owes immiNow (finance permission, 2026-09-11) — a second instalment, an agreed extra — with an optional due date and a required reason. Audited; the consultancy is notified. Returns the case row. 409 once the entry is voided or reversed. A `due_on` more than 3 years from today is 400 `validation_failed` (review F-228, 2026-10-08: a mistyped year made a due that was never overdue). */
         post: {
             parameters: {
                 query?: never;
@@ -23234,7 +23337,7 @@ export interface paths {
                      * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
                      *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
                      *
-                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
+                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`), `POST /coupons/{id}/redeem` (it spends points; review F-229, 2026-10-08) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
                      *     ANSWERS A KEY CAN PRODUCE on any of them: the first reply again with `Idempotent-Replayed: true`; 409 `request_in_progress`; 409 with `details.idempotency = "already_applied"` (the write landed: re-read, never resubmit); 422 `idempotency_key_reused` (same key, different body). See `components/responses/IdempotencyConflict` and `IdempotencyKeyReused`.
                      */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
@@ -23299,7 +23402,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Override immiNow's calculated share on a case (finance permission, 2026-09-11): an amount in a currency, optionally with its own due date; `clear: true` goes back to the calculation. Reason required; audited; the consultancy is notified. 409 when clearing with no override. */
+        /** Override immiNow's calculated share on a case (finance permission, 2026-09-11): an amount in a currency, optionally with its own due date; `clear: true` goes back to the calculation. Reason required; audited; the consultancy is notified. 409 when clearing with no override. A `due_on` more than 3 years from today is 400 `validation_failed` (review F-228). */
         patch: {
             parameters: {
                 query?: never;
@@ -23361,7 +23464,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Finance marks money as received on a case (finance permission, 2026-09-11) — a confirmed payment recorded directly, no declaration needed. With part_key it settles that part first. The consultancy is notified. 409 for a part closed without payment. 409 `already_exists` when the case already has a payment with the same `reference` (letter case ignored) that was not rejected (review I-026) — confirm the consultancy's declaration instead.
+         * Finance marks money as received on a case (finance permission, 2026-09-11) — a confirmed payment recorded directly, no declaration needed. With part_key it settles that part first. The consultancy is notified. 409 for a part closed without payment. A `received_on` after today (India's calendar day) is 400 `validation_failed` (review F-228, 2026-10-08). 409 `already_exists` when the case already has a payment with the same `reference` (letter case ignored) that was not rejected (review I-026) — confirm the consultancy's declaration instead.
          * @description **A payment in another currency than the one owed (F-079, 2026-10-08).** By default the money must be in a currency the case owes (422 `currency_not_owed`; 422 `currency_mismatch` against a part of another currency). With `allow_cross_currency: true` Finance records it as it arrived — `amount` and `currency` are what reached the bank — and it settles the dues of the owed currency: the part's currency with `part_key`, else `owed_currency`, else the one currency the case owes (422 `validation_failed` naming the choices when it owes several; 422 `currency_not_owed` when it owes nothing in `owed_currency`). `rate` is how many units of the owed currency ONE unit of `currency` settles (USD received against CAD dues at 1 USD = 1.40 CAD → `rate: 1.4`; INR received against USD dues at ₹84 to the dollar → `rate: 0.0119047619`); left out, the server uses the day's two exchange rates. The rate is frozen on the payment (`settles_currency`, `settles_rate`) and written on each allocation with the payment's own money it used, so a later correction converts at the same rate. The ceiling is checked in the owed currency (409 `more_than_outstanding` unless `allow_overpayment`); money no due absorbs waits as credit in the currency it arrived in. Finance only — a consultancy's own declaration is never converted.
          */
         post: {
@@ -23372,7 +23475,7 @@ export interface paths {
                      * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
                      *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
                      *
-                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
+                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`), `POST /coupons/{id}/redeem` (it spends points; review F-229, 2026-10-08) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
                      *     ANSWERS A KEY CAN PRODUCE on any of them: the first reply again with `Idempotent-Replayed: true`; 409 `request_in_progress`; 409 with `details.idempotency = "already_applied"` (the write landed: re-read, never resubmit); 422 `idempotency_key_reused` (same key, different body). See `components/responses/IdempotencyConflict` and `IdempotencyKeyReused`.
                      */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
@@ -23454,7 +23557,7 @@ export interface paths {
                      * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
                      *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
                      *
-                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
+                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`), `POST /coupons/{id}/redeem` (it spends points; review F-229, 2026-10-08) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
                      *     ANSWERS A KEY CAN PRODUCE on any of them: the first reply again with `Idempotent-Replayed: true`; 409 `request_in_progress`; 409 with `details.idempotency = "already_applied"` (the write landed: re-read, never resubmit); 422 `idempotency_key_reused` (same key, different body). See `components/responses/IdempotencyConflict` and `IdempotencyKeyReused`.
                      */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
@@ -23512,7 +23615,7 @@ export interface paths {
                      * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
                      *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
                      *
-                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
+                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`), `POST /coupons/{id}/redeem` (it spends points; review F-229, 2026-10-08) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
                      *     ANSWERS A KEY CAN PRODUCE on any of them: the first reply again with `Idempotent-Replayed: true`; 409 `request_in_progress`; 409 with `details.idempotency = "already_applied"` (the write landed: re-read, never resubmit); 422 `idempotency_key_reused` (same key, different body). See `components/responses/IdempotencyConflict` and `IdempotencyKeyReused`.
                      */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
@@ -23629,7 +23732,7 @@ export interface paths {
                      * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
                      *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
                      *
-                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
+                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`), `POST /coupons/{id}/redeem` (it spends points; review F-229, 2026-10-08) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
                      *     ANSWERS A KEY CAN PRODUCE on any of them: the first reply again with `Idempotent-Replayed: true`; 409 `request_in_progress`; 409 with `details.idempotency = "already_applied"` (the write landed: re-read, never resubmit); 422 `idempotency_key_reused` (same key, different body). See `components/responses/IdempotencyConflict` and `IdempotencyKeyReused`.
                      */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
@@ -23684,7 +23787,7 @@ export interface paths {
                      * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
                      *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
                      *
-                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
+                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`), `POST /coupons/{id}/redeem` (it spends points; review F-229, 2026-10-08) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
                      *     ANSWERS A KEY CAN PRODUCE on any of them: the first reply again with `Idempotent-Replayed: true`; 409 `request_in_progress`; 409 with `details.idempotency = "already_applied"` (the write landed: re-read, never resubmit); 422 `idempotency_key_reused` (same key, different body). See `components/responses/IdempotencyConflict` and `IdempotencyKeyReused`.
                      */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
@@ -24900,7 +25003,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Approve the submitted certificate (Super Admin) — sets kyc_records.verified_at/by and flips Consultancy.kyc_verified true. Audit-logged. 400 no_document when nothing has been submitted — a badge can never be granted sight unseen. */
+        /**
+         * Approve the submitted certificate (Super Admin) — sets kyc_records.verified_at/by and flips Consultancy.kyc_verified true. Audit-logged. 400 no_document when nothing has been submitted — a badge can never be granted sight unseen.
+         * @description The body names the certificate the reviewer looked at (review F-207, 2026-10-08): `uploaded_at` exactly as `GET /consultancies/{id}/kyc` returned it. If the consultancy has submitted another certificate since, the answer is 409 `conflict` and nothing is verified — read the review surface again, look at the new certificate, then verify. The consultancy's admins are told when a certificate is verified (in-app `kyc_verified`).
+         */
         post: {
             parameters: {
                 query?: never;
@@ -24910,7 +25016,14 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: date-time */
+                        uploaded_at: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Verified */
                 200: {
@@ -24919,6 +25032,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["KycStatus"];
+                    };
+                };
+                /** @description `no_document` — nothing has been submitted; or `validation_failed` with `details.fields.uploaded_at` — the certificate reviewed was not named. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `conflict` — a newer certificate has been submitted since the one named. Nothing was verified. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -25051,7 +25182,7 @@ export interface paths {
                      * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
                      *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
                      *
-                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
+                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`), `POST /coupons/{id}/redeem` (it spends points; review F-229, 2026-10-08) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
                      *     ANSWERS A KEY CAN PRODUCE on any of them: the first reply again with `Idempotent-Replayed: true`; 409 `request_in_progress`; 409 with `details.idempotency = "already_applied"` (the write landed: re-read, never resubmit); 422 `idempotency_key_reused` (same key, different body). See `components/responses/IdempotencyConflict` and `IdempotencyKeyReused`.
                      */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
@@ -25597,7 +25728,7 @@ export interface paths {
                      * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
                      *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
                      *
-                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
+                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`), `POST /coupons/{id}/redeem` (it spends points; review F-229, 2026-10-08) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
                      *     ANSWERS A KEY CAN PRODUCE on any of them: the first reply again with `Idempotent-Replayed: true`; 409 `request_in_progress`; 409 with `details.idempotency = "already_applied"` (the write landed: re-read, never resubmit); 422 `idempotency_key_reused` (same key, different body). See `components/responses/IdempotencyConflict` and `IdempotencyKeyReused`.
                      */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
@@ -25739,7 +25870,7 @@ export interface paths {
                      * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
                      *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
                      *
-                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
+                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`), `POST /coupons/{id}/redeem` (it spends points; review F-229, 2026-10-08) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
                      *     ANSWERS A KEY CAN PRODUCE on any of them: the first reply again with `Idempotent-Replayed: true`; 409 `request_in_progress`; 409 with `details.idempotency = "already_applied"` (the write landed: re-read, never resubmit); 422 `idempotency_key_reused` (same key, different body). See `components/responses/IdempotencyConflict` and `IdempotencyKeyReused`.
                      */
                     "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
@@ -25785,7 +25916,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Void a receipt (mandatory reason; billing.record_payment — gate 11, F1). 409 `already_voided` on a second void. */
+        /** Void a receipt (mandatory reason; billing.record_payment — gate 11, F1). 409 `already_voided` on a second void. 409 `still_referenced` while a live commission instalment was recorded through this receipt (review F-226, 2026-10-08) — "A commission instalment was recorded through this receipt. Void that instalment first, then void the receipt." — so the instalment never goes on counting money the receipt no longer shows. */
         post: {
             parameters: {
                 query?: never;
@@ -26777,7 +26908,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Super Admin supply/demand market intelligence (docs/PROGRESS.md §4 Step 4). Gated with requirePlatformAccount — any active platform account, not one specific permission flag — because this is a strategic overview akin to the landing Platform Dashboard (/admin/dashboard, which is gated the same way) rather than an operational area matching one of the console permission flags. */
+        /** Super Admin supply/demand market intelligence (docs/PROGRESS.md §4 Step 4). Needs the `consultancy_approval` platform permission (review I-047, owner 2026-10-07), like the Performance League; the Super Admin always passes. Any other platform account gets 403 `permission_denied` — it used to be open to every active platform account. */
         get: {
             parameters: {
                 query?: never;
@@ -26814,7 +26945,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Super Admin platform-wide popularity surface (2026-08-31) — most-viewed sections, courses, colleges, articles, consultancies, and recurring search filter values. Gated with requirePlatformAccount, the same broad "any active platform account" gate as /admin/supply-demand and the landing Platform Dashboard, since this is a strategic overview rather than an operational area matching one of the console permission flags. */
+        /** Super Admin platform-wide popularity surface (2026-08-31) — most-viewed sections, courses, colleges, articles, consultancies, and recurring search filter values. Needs the `consultancy_approval` platform permission (review I-047, owner 2026-10-07), like /admin/supply-demand and the Performance League; the Super Admin always passes. Any other platform account gets 403 `permission_denied` — it used to be open to every active platform account. */
         get: {
             parameters: {
                 query?: {
@@ -28268,7 +28399,7 @@ export interface components {
             /** @description Set only on a consultancy_change row — the complaint that asked for the move. */
             readonly complaint_id?: components["schemas"]["UUID"] | null;
             readonly complaint_category?: string | null;
-            /** @description The grievance itself, surfaced on the queue so the admin decides having read it. */
+            /** @description The grievance itself, surfaced on the queue so the admin decides having read it. Left out for an allocator without the `support` permission (owner's ruling on review F-268, 2026-10-08): the row still carries `complaint_id` and `complaint_category`. */
             readonly complaint_description?: string | null;
             /**
              * @description Where the row came from (2026-09-11): a student who signed up with a freelancer's referral code; a student who asked to change consultancy when raising a complaint; or a dispute Support resolved as "reassign" (a consultancy_change row with `dispute_id` set, which cannot be declined — the move was already decided).
@@ -28339,14 +28470,15 @@ export interface components {
             }[];
             /** @description Pending course suggestions/corrections awaiting review. */
             pending_actions_count: number;
-            revenue_snapshot: components["schemas"]["Money"];
-            /** @description Confirmed platform commission (INR) this calendar month vs last (2026-09-10). */
+            /** @description Confirmed platform commission (INR), all time. Null for a platform account without the `finance` permission (owner's ruling on review F-268, 2026-10-08) — the page stays open to every platform account, the money does not; the console hides the card. */
+            revenue_snapshot: components["schemas"]["Money"] | null;
+            /** @description Confirmed platform commission (INR) this calendar month vs last (2026-09-10). Null for a platform account without the `finance` permission (owner's ruling on review F-268, 2026-10-08) — the page stays open to every platform account, the money does not; the console hides the card. */
             revenue_trend: {
                 this_month: number;
                 last_month: number;
-            };
-            /** @description Platform commission owed and not yet paid (2026-09-10) — the same figure as the Finance dashboard's unfiltered `running_total` (active entries' platform dues net of confirmed payments). */
-            dues_outstanding: components["schemas"]["Money"];
+            } | null;
+            /** @description Platform commission owed and not yet paid (2026-09-10) — the same figure as the Finance dashboard's unfiltered `running_total` (active entries' platform dues net of confirmed payments). Null for a platform account without the `finance` permission (owner's ruling on review F-268, 2026-10-08) — the page stays open to every platform account, the money does not; the console hides the card. */
+            dues_outstanding: components["schemas"]["Money"] | null;
             /** @description Sentpo students by the furthest stage reached (2026-09-10): signed_up, onboarded, aspirant, applicant, enrolled. Each stage contains the ones after it, so counts only narrow; `pct_of_previous` is the share that reached this stage from the one before (null on the first, or when the previous is 0). Consultancy-created people (Channel B) have no Sentpo account and are not in it. */
             journey_funnel: {
                 /** @enum {string} */
@@ -28392,13 +28524,13 @@ export interface components {
                 consultancies: components["schemas"]["OrgApplicantRanking"];
                 institutes: components["schemas"]["OrgApplicantRanking"];
             };
-            /** @description Confirmed platform commission (INR) by the calendar month it was confirmed, fixed trailing 12-month window, split by the kind of organisation it came from (2026-09-10 — was one `amount` series). */
+            /** @description Confirmed platform commission (INR) by the calendar month it was confirmed, fixed trailing 12-month window, split by the kind of organisation it came from (2026-09-10 — was one `amount` series). Null for a platform account without the `finance` permission (owner's ruling on review F-268, 2026-10-08) — the page stays open to every platform account, the money does not; the console hides the card. */
             revenue_over_time: {
                 /** @description YYYY-MM */
                 month: string;
                 consultancy: number;
                 institute: number;
-            }[];
+            }[] | null;
         };
         /**
          * @description A unified read model over both `leads` (Sentpo-sourced) and `imported_leads` (self-sourced) — the API merges the two so Lead Pool/Active Leads/Lead Conversation work against one consistent shape (erd.md Marketplace section). `origin` tells you which table backs a given row; write endpoints resolve `id` against the right one server-side.
@@ -28563,7 +28695,7 @@ export interface components {
                 month: string;
                 count: number;
             }[];
-            /** @description Present when the caller's consultancy has the `multi_branch` flag AND more than one branch; null otherwise. Read the FLAG since 2026-09-21, not the tier — it used to test `tier == ultimate`, so a Starter or Business account with two real branches saw no branch tab once branches moved to Starter (build reference 1.16, user 2026-08-19 for the "only one branch, no tab" half). */
+            /** @description Present when the caller's consultancy has the `multi_branch` flag AND more than one branch, and the page is read at `scope=consultancy` (review F-269, 2026-10-08: it counts every branch's leads, so a viewer below that scope does not get it); null otherwise. Likewise the `unallocated_leads` stat card is served only to a viewer who can allocate from the pool (an admin, or `leads.allocate_from_pool`). Read the FLAG since 2026-09-21, not the tier — it used to test `tier == ultimate`, so a Starter or Business account with two real branches saw no branch tab once branches moved to Starter (build reference 1.16, user 2026-08-19 for the "only one branch, no tab" half). */
             branch_breakdown?: {
                 branch_id: components["schemas"]["UUID"];
                 branch_name: string;
@@ -29337,7 +29469,7 @@ export interface components {
             /** @description Server-materialized INR conversion of `fee` via the platform exchange-rate table, for cross-currency fee filtering/sorting. Display always shows the native fee; this backs `filter[fee_max]` and `sort=fee`. */
             readonly fee_normalized_inr?: number | null;
             /**
-             * @description How many times students have opened this course (2026-08-23). One student re-opening the same course inside 30 minutes counts once, and platform-staff reads never count — an admin reviewing the catalog is not a signal of student interest and would pollute the ranking that same admin uses to decide things.
+             * @description How many times students have opened this course IN THE LAST 24 MONTHS (2026-08-23; the window is the owner's ruling on review F-287, 2026-10-08 — the current month and the 24 before it; the number used to run from the day the course was listed, while the view log behind it was kept 12 months). One student re-opening the same course inside 30 minutes counts once, and platform-staff reads never count — an admin reviewing the catalog is not a signal of student interest and would pollute the ranking that same admin uses to decide things.
              *     **Omitted entirely** — not sent as 0 — when the `show_course_view_counts` platform setting is off and the caller is not platform staff. A zero would be a claim that nobody has looked at this course, which is a different statement from "view counts are not being shown". Views are always COUNTED; the setting governs only who sees them.
              */
             readonly view_count?: number;
@@ -30323,6 +30455,7 @@ export interface components {
         StudentDocument: {
             id: components["schemas"]["UUID"];
             document_type_id: components["schemas"]["UUID"];
+            /** @description The type's name. To a consultancy, a document the student filed under ANOTHER consultancy's own type reads "Document" with a null `document_type_code` (review F-220, 2026-10-08): one consultancy's private type names are never shown to another. The owner always reads the real name. */
             readonly document_type_name?: string | null;
             readonly document_type_code?: string | null;
             /** @enum {string} */
@@ -31162,7 +31295,7 @@ export interface components {
             /** @description 16:9 cover set on immiNow at a fixed size (webinars and in-person meetings; quizzes use their in-quiz branding banner). */
             cover_image_url?: string | null;
             venue_address?: string | null;
-            /** @description Physical Meeting only — omit on create to get a system-generated code. On PATCH, rejected with 400 within 3 hours of starts_at (see Event.venue_code). */
+            /** @description Physical Meeting only — omit on create to get a system-generated code. On PATCH, rejected with 400 within 3 hours of starts_at (see Event.venue_code). At least 6 characters of A-Z, 0-9 and hyphen (case is folded to upper); anything else is refused with 400. */
             venue_code?: string | null;
             meeting_url?: string | null;
             /** @enum {string|null} */
@@ -31357,8 +31490,8 @@ export interface components {
             job_type: "full_time" | "internship" | "part_time";
             description: string;
             apply_url: string;
-            /** @description Periodically health-checked (build reference 1.10) — a listing whose link starts failing is flagged to admin. */
-            readonly apply_url_healthy: boolean;
+            /** @description Periodically health-checked (build reference 1.10) — a listing whose link starts failing is flagged to admin. Sent to holders of the `jobs` permission only; absent for everyone else. */
+            readonly apply_url_healthy?: boolean;
             /** @description Free text as the admin typed it, rendered verbatim. Kept as the display value because it carries formatting and caveats a number cannot. */
             salary_range: string | null;
             /** @description Structured floor of the band, added 2026-08-18 so the Jobs list can offer a real salary filter — salary_range is free text and cannot be compared numerically. Omitted entirely when a listing states no salary; never sent as null. */
@@ -31380,8 +31513,10 @@ export interface components {
             /** Format: date */
             active_to?: string | null;
             active: boolean;
-            readonly total_clicks: number;
-            readonly unique_clicks: number;
+            /** @description Sent to holders of the `jobs` permission only; absent for everyone else. */
+            readonly total_clicks?: number;
+            /** @description Sent to holders of the `jobs` permission only; absent for everyone else. */
+            readonly unique_clicks?: number;
         };
         JobListingInput: {
             title: string;
@@ -31770,6 +31905,8 @@ export interface components {
             readonly clicks_count?: number;
             /** @description ADMIN ONLY (contract gate 10, K25) — a counter, not in the student projection. */
             readonly impressions_count?: number;
+            /** @description ADMIN ONLY (review I-029) — starts at 1 and goes up by one on every edit that changes something. Send it back on `PATCH /ads/{id}` so a stale edit is refused instead of overwriting someone else's save. Not in the student projection. */
+            readonly version?: number;
         };
         AdBannerInput: {
             name?: string | null;
@@ -32257,7 +32394,7 @@ export interface components {
             rejected_at?: string | null;
             /** @description The reviewer's reason, shown to the consultancy; null unless status is rejected. */
             rejected_reason?: string | null;
-            /** @description The latest submitted certificate, as an EXPIRING link from the real backend (contract gate 4): a presigned URL to the private copy, valid for a short time (minutes) and issued afresh on every read — fetch it when it is needed, never store or share it. Null when nothing has been submitted. */
+            /** @description The latest submitted certificate, as an EXPIRING link from the real backend (contract gate 4): a presigned URL to the private copy, valid for a short time (minutes) and issued afresh on every read — fetch it when it is needed, never store or share it. Null when nothing has been submitted. The link answers as a download (`Content-Disposition: attachment`, review I-045), like every other user file: an image still shows inside an `<img>`, a PDF opened from a link is saved, not displayed. */
             document_url?: string | null;
             /** @description What the latest certificate is (review F-066): `application/pdf`, `image/png`, `image/jpeg` or `image/webp`. The console shows an image inline and opens a PDF in a new tab (or an embedded viewer). Null when nothing has been submitted. */
             document_content_type?: string | null;
@@ -33667,7 +33804,7 @@ export interface components {
          * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
          *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
          *
-         *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
+         *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`), `POST /coupons/{id}/redeem` (it spends points; review F-229, 2026-10-08) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
          *     ANSWERS A KEY CAN PRODUCE on any of them: the first reply again with `Idempotent-Replayed: true`; 409 `request_in_progress`; 409 with `details.idempotency = "already_applied"` (the write landed: re-read, never resubmit); 422 `idempotency_key_reused` (same key, different body). See `components/responses/IdempotencyConflict` and `IdempotencyKeyReused`.
          */
         IdempotencyKeyHeader: string;

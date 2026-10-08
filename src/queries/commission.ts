@@ -118,10 +118,21 @@ export function useConfirmCommissionPayment() {
 export function useCorrectCommissionPayment() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ paymentId, amount, reason }: { paymentId: string; amount: number; reason: string }) => {
+    mutationFn: async ({
+      paymentId,
+      amount,
+      reason,
+      allow_overpayment,
+    }: {
+      paymentId: string
+      amount: number
+      reason: string
+      /** Sent only once Finance has confirmed a correction upwards past what is still unpaid (review F-227). */
+      allow_overpayment?: boolean
+    }) => {
       const { data, error } = await api.POST('/commission/payments/{id}/correct', {
         params: { path: { id: paymentId } },
-        body: { amount, reason },
+        body: { amount, reason, allow_overpayment },
       })
       if (error) throw new ApiError('Could not correct this payment.', error)
       return data

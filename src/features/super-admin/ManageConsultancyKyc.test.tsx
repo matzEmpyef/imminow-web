@@ -3,11 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Review I-010: the reviewer can turn a waiting certificate down with a reason. A verified one
 // cannot be rejected (the server answers 409), so Reject is offered for a pending one only.
-vi.mock('@/queries/kyc', () => ({ useConsultancyKyc: vi.fn(), useVerifyKyc: vi.fn(), useRejectKyc: vi.fn() }))
+vi.mock('@/queries/kyc', () => ({
+  useConsultancyKyc: vi.fn(),
+  useVerifyKyc: vi.fn(),
+  useRejectKyc: vi.fn(),
+  KYC_NEWER_CERTIFICATE_NOTICE: 'A newer certificate was submitted. Please review it.',
+}))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
 
 import { ApiError } from '@/api/errors'
-import { useConsultancyKyc, useRejectKyc, useVerifyKyc } from '@/queries/kyc'
+import { KYC_NEWER_CERTIFICATE_NOTICE, useConsultancyKyc, useRejectKyc, useVerifyKyc } from '@/queries/kyc'
 import { KycSection } from './ManageConsultancyKyc'
 
 const reject = vi.fn()
@@ -22,7 +27,12 @@ function show(kyc: Record<string, unknown>) {
   render(<KycSection consultancyId="c1" kycVerified={kyc.status === 'verified'} />)
 }
 
-const pending = { status: 'pending', document_url: 'https://s/c.pdf', document_content_type: 'application/pdf' }
+const pending = {
+  status: 'pending',
+  document_url: 'https://s/c.pdf',
+  document_content_type: 'application/pdf',
+  uploaded_at: '2026-10-08T08:15:00.123456Z',
+}
 
 beforeEach(() => {
   reject.mockReset()
@@ -66,5 +76,37 @@ describe('KYC review — rejecting a certificate', () => {
     show(pending)
     fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
     expect(screen.getByText('This certificate is already verified.')).toBeInTheDocument()
+  })
+})
+
+// Review F-207: Verify names the certificate the reviewer is looking at, by the `uploaded_at` the
+// review row was served. A newer certificate submitted in the meantime is never verified unseen.
+describe('KYC review — verifying a certificate', () => {
+  it('sends the upload time of the certificate on screen, exactly as it was served', () => {
+    show(pending)
+    fireEvent.click(screen.getByRole('button', { name: 'Verify' }))
+    expect(verify.mock.calls[0][0]).toEqual({ consultancyId: 'c1', uploadedAt: '2026-10-08T08:15:00.123456Z' })
+  })
+
+  it('offers no Verify until the upload time of the certificate is known', () => {
+    show({ ...pending, uploaded_at: null })
+    expect(screen.getByRole('button', { name: 'Verify' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Verify' }))
+    expect(verify).not.toHaveBeenCalled()
+  })
+
+  it('asks the reviewer to look at the newer certificate when one was submitted meanwhile', () => {
+    vi.mocked(useVerifyKyc).mockReturnValue(
+      mutation(verify, new ApiError(KYC_NEWER_CERTIFICATE_NOTICE, { error: { code: 'conflict' } }, 409)),
+    )
+    show(pending)
+    expect(screen.getByText('A newer certificate was submitted. Please review it.')).toBeInTheDocument()
+  })
+
+  it('a PDF certificate is a download link that stays in this tab', () => {
+    show(pending)
+    const link = screen.getByRole('link', { name: 'Download certificate (PDF)' })
+    expect(link).toHaveAttribute('href', 'https://s/c.pdf')
+    expect(link).not.toHaveAttribute('target')
   })
 })

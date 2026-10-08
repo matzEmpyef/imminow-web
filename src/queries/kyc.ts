@@ -100,22 +100,48 @@ export function useConsultancyKyc(consultancyId: string | null) {
   })
 }
 
-/** Approve the certificate — flips the kyc_verified badge everywhere, audit-logged server-side. */
+/** What the reviewer reads when the consultancy sent another certificate while this one was open. */
+export const KYC_NEWER_CERTIFICATE_NOTICE = 'A newer certificate was submitted. Please review it.'
+
+/**
+ * Approve the certificate — flips the kyc_verified badge everywhere, audit-logged server-side.
+ *
+ * The request names the certificate the reviewer is looking at, by its `uploaded_at` exactly as
+ * the review row was served it (review F-207). When the consultancy has submitted another one
+ * since, the server answers 409 `conflict` and verifies nothing: the row is read again so the new
+ * certificate is the one on screen, and the reviewer is asked to look at it.
+ */
 export function useVerifyKyc() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (consultancyId: string) => {
-      const { data, error } = await api.POST('/consultancies/{id}/kyc/verify', {
+    mutationFn: async ({ consultancyId, uploadedAt }: { consultancyId: string; uploadedAt: string }) => {
+      const { data, error, response } = await api.POST('/consultancies/{id}/kyc/verify', {
         params: { path: { id: consultancyId } },
+        body: { uploaded_at: uploadedAt },
       })
-      if (error) throw new ApiError('Could not verify — has a certificate been submitted?', error)
+      if (error) {
+        if (error.error?.code === 'conflict') {
+          throw new ApiError(
+            KYC_NEWER_CERTIFICATE_NOTICE,
+            { error: { ...error.error, message: KYC_NEWER_CERTIFICATE_NOTICE } },
+            response?.status,
+          )
+        }
+        throw new ApiError('Could not verify — has a certificate been submitted?', error, response?.status)
+      }
       return data
     },
-    onSuccess: (_data, consultancyId) => {
+    onSuccess: (_data, { consultancyId }) => {
       queryClient.invalidateQueries({ queryKey: ['kyc', consultancyId] })
       queryClient.invalidateQueries({ queryKey: ['admin-consultancies'] })
       // The Needs attention "KYC to verify" count falls by one (review F-314).
       queryClient.invalidateQueries({ queryKey: ['admin-attention'] })
+    },
+    // A newer certificate arrived: show the row as it now stands.
+    onError: (err, { consultancyId }) => {
+      if (err instanceof ApiError && err.code === 'conflict') {
+        queryClient.invalidateQueries({ queryKey: ['kyc', consultancyId] })
+      }
     },
   })
 }

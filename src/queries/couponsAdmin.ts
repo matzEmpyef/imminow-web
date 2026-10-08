@@ -62,13 +62,17 @@ export function useUpdateCoupon(id: string) {
 
 // User-requested (2026-08-18) — "in Coupons - we need to see how many people claimed it." Lazily
 // fetched (only once the count is actually clicked, via `enabled`), same pattern as
-// useEventAttendance/useQuizLeaderboard.
-export function useCouponRedemptions(id: string | undefined) {
+// useEventAttendance/useQuizLeaderboard. Paged since review F-255, the way useAdClicks is: one
+// page of claims per request, oldest first; `redemption_count` stays every claim of the coupon.
+export function useCouponRedemptions(id: string | undefined, params: { cursor?: string; limit?: number } = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
-    queryKey: ['coupon-redemptions', id],
+    queryKey: ['coupon-redemptions', id, params],
     queryFn: async ({ signal }) => {
-      const { data, error } = await api.GET('/coupons/{id}/redemptions', { signal, params: { path: { id: id! } } })
+      const { data, error } = await api.GET('/coupons/{id}/redemptions', {
+        signal,
+        params: { path: { id: id! }, query: { cursor: params.cursor, limit: params.limit } },
+      })
       if (error) throw new ApiError('Could not load redemptions.', error)
       return data
     },

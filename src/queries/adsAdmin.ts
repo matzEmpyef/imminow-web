@@ -3,6 +3,7 @@ import { useMutation } from '@/lib/useSave'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { editError, reloadOnStaleEdit } from '@/lib/staleEdit'
 import type { components } from '@/api/schema'
 
 type AdBannerInput = components['schemas']['AdBannerInput']
@@ -55,15 +56,20 @@ export function useCreateAd() {
 // The expected audience of a draft ad is counted by the shared `useAudienceCount`
 // (`queries/audienceCount.ts`), the same hook broadcasts and events use.
 
-export function useUpdateAd(id: string) {
+// `version` is the ad's version as last read (review I-029): two people editing one ad, or one
+// editing it while another switches it off, no longer overwrite each other. A stale save is
+// refused 409 `version_conflict`, the list is read again and the form keeps what was entered
+// (`lib/staleEdit.ts`).
+export function useUpdateAd(id: string, version?: number) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (body: Partial<AdBannerInput>) => {
-      const { data, error } = await api.PATCH('/ads/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update this ad.', error)
+      const { data, error } = await api.PATCH('/ads/{id}', { params: { path: { id } }, body: { ...body, version } })
+      if (error) throw editError('Could not update this ad.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-ads'] }),
+    onError: (err) => reloadOnStaleEdit(err, () => queryClient.invalidateQueries({ queryKey: ['admin-ads'] })),
   })
 }
 

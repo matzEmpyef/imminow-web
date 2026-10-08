@@ -7,6 +7,7 @@ import { MonthlyBarChart } from '@/components/MonthlyBarChart'
 import { useAdminDashboard } from '@/queries/adminDashboard'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { formatMoney } from '@/lib/money'
+import { usePlatformPermission } from '@/lib/me'
 import { formatDemandAsOf } from '@/lib/time'
 
 // Where each stat card's number is actually managed. Aspirants live in each consultancy's lead
@@ -16,12 +17,14 @@ import { formatDemandAsOf } from '@/lib/time'
 // carries its own date (`demand_as_of`, gate 12d) instead of the page's `as_of`.
 const DEMAND_STAT_CARDS = new Set(['study_abroad_students'])
 
+const SUPPLY_DEMAND_PATH = '/admin/supply-demand'
+
 const STAT_CARD_LINKS: Record<string, string> = {
   total_consultancies: '/admin/consultancies?kind=consultancy',
   total_institutes: '/admin/consultancies?kind=institute',
   total_students: '/admin/users/sentpo',
-  study_abroad_students: '/admin/supply-demand',
-  active_aspirants: '/admin/supply-demand',
+  study_abroad_students: SUPPLY_DEMAND_PATH,
+  active_aspirants: SUPPLY_DEMAND_PATH,
   active_applicants: '/admin/consultancies',
   completed_cases: '/admin/consultancies',
   total_colleges: '/admin/colleges',
@@ -199,6 +202,9 @@ function CaseOutcomesCard({ outcomes }: { outcomes: CaseOutcomes }) {
 export function SuperAdminDashboardPage() {
   const navigate = useNavigate()
   const dashboard = useAdminDashboard()
+  // Supply & Demand opens for holders of `consultancy_approval` only (review I-047), so the two
+  // cards that lead there are plain figures for everyone else.
+  const canOpenSupplyDemand = usePlatformPermission('consultancy_approval')
 
   if (dashboard.isLoading) {
     return (
@@ -223,6 +229,12 @@ export function SuperAdminDashboardPage() {
   // frozen mock and on a backend that predates gate 12d, where the cards render as before.
   const demandAsOf = formatDemandAsOf(dashboard.data.demand_as_of, dashboard.data.as_of)
 
+  // The money is served to holders of the Finance permission only (review F-268): for anyone else
+  // these arrive null and their cards and chart are left out, never drawn as zero.
+  const revenue = dashboard.data.revenue_snapshot
+  const duesOutstanding = dashboard.data.dues_outstanding
+  const revenueOverTime = dashboard.data.revenue_over_time
+
   return (
     <AdminShell>
       <div className="flex flex-col gap-lg">
@@ -239,7 +251,8 @@ export function SuperAdminDashboardPage() {
             // Every card links to the page where its population is managed (user, 2026-09-02:
             // "link all the cards to some page... make sure numbers are correct"). Total
             // Consultancies had been the lone clickable card since 2026-08-19.
-            const to = card.key ? STAT_CARD_LINKS[card.key] : undefined
+            const link = card.key ? STAT_CARD_LINKS[card.key] : undefined
+            const to = link === SUPPLY_DEMAND_PATH && !canOpenSupplyDemand ? undefined : link
             return (
               <Card
                 key={card.key}
@@ -264,37 +277,39 @@ export function SuperAdminDashboardPage() {
           {/* Pending Actions, Pending Allocation and Quick Links were removed from the Overview
               (user, 2026-09-10) — those queues live on Needs attention. Revenue Snapshot, the one
               card left from that row, joins the stat grid rather than sitting alone. */}
-          <Card
-            onClick={() => navigate('/admin/finance-dashboard')}
-            className="cursor-pointer transition-colors hover:bg-background"
-          >
-            <p className="text-caption text-text-secondary">Revenue Snapshot</p>
-            <p className="mt-xs text-h1 text-text-primary">
-              {formatMoney(dashboard.data?.revenue_snapshot?.currency, dashboard.data?.revenue_snapshot?.amount)}
-            </p>
-            {dashboard.data.revenue_trend && (
-              <TrendLine
-                thisMonth={dashboard.data.revenue_trend.this_month}
-                lastMonth={dashboard.data.revenue_trend.last_month}
-                format={(n) => formatMoney('INR', n)}
-              />
-            )}
-            <p className="mt-xs text-caption text-text-secondary">Confirmed platform commission received, all time.</p>
-          </Card>
+          {revenue && (
+            <Card
+              onClick={() => navigate('/admin/finance-dashboard')}
+              className="cursor-pointer transition-colors hover:bg-background"
+            >
+              <p className="text-caption text-text-secondary">Revenue Snapshot</p>
+              <p className="mt-xs text-h1 text-text-primary">{formatMoney(revenue.currency, revenue.amount)}</p>
+              {dashboard.data.revenue_trend && (
+                <TrendLine
+                  thisMonth={dashboard.data.revenue_trend.this_month}
+                  lastMonth={dashboard.data.revenue_trend.last_month}
+                  format={(n) => formatMoney('INR', n)}
+                />
+              )}
+              <p className="mt-xs text-caption text-text-secondary">Confirmed platform commission received, all time.</p>
+            </Card>
+          )}
           {/* Owed, not yet paid (user, 2026-09-10) — the Finance dashboard's "Outstanding to
               immiNow" with no filters, which is where it is chased. */}
-          <Card
-            onClick={() => navigate('/admin/finance-dashboard')}
-            className="cursor-pointer transition-colors hover:bg-background"
-          >
-            <p className="text-caption text-text-secondary">Dues Outstanding</p>
-            <p className="mt-xs text-h1 text-text-primary">
-              {formatMoney(dashboard.data.dues_outstanding?.currency ?? 'INR', dashboard.data.dues_outstanding?.amount ?? 0)}
-            </p>
-            <p className="mt-xs text-caption text-text-secondary">
-              Platform commission owed by consultancies and institutes, not yet paid.
-            </p>
-          </Card>
+          {duesOutstanding && (
+            <Card
+              onClick={() => navigate('/admin/finance-dashboard')}
+              className="cursor-pointer transition-colors hover:bg-background"
+            >
+              <p className="text-caption text-text-secondary">Dues Outstanding</p>
+              <p className="mt-xs text-h1 text-text-primary">
+                {formatMoney(duesOutstanding.currency, duesOutstanding.amount)}
+              </p>
+              <p className="mt-xs text-caption text-text-secondary">
+                Platform commission owed by consultancies and institutes, not yet paid.
+              </p>
+            </Card>
+          )}
         </div>
 
         {/* User-requested (2026-08-18) — "In Dashboard, I don't want Recent Activity... Instead,
@@ -374,20 +389,22 @@ export function SuperAdminDashboardPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-lg md:grid-cols-2">
-          <Card>
-            <h2 className="text-h3 text-text-primary">Confirmed Revenue by Month</h2>
-            <p className="text-caption text-text-secondary">Platform commission confirmed each month (INR), last 12 months.</p>
-            <div className="mt-sm">
-              <MonthlyBarChart
-                data={dashboard.data?.revenue_over_time ?? []}
-                series={[
-                  { key: 'consultancy', label: 'Consultancies', color: 'var(--color-success)' },
-                  { key: 'institute', label: 'Institutes', color: 'var(--color-primary)' },
-                ]}
-              />
-            </div>
-          </Card>
+        <div className={`grid grid-cols-1 gap-lg ${revenueOverTime ? 'md:grid-cols-2' : ''}`}>
+          {revenueOverTime && (
+            <Card>
+              <h2 className="text-h3 text-text-primary">Confirmed Revenue by Month</h2>
+              <p className="text-caption text-text-secondary">Platform commission confirmed each month (INR), last 12 months.</p>
+              <div className="mt-sm">
+                <MonthlyBarChart
+                  data={revenueOverTime}
+                  series={[
+                    { key: 'consultancy', label: 'Consultancies', color: 'var(--color-success)' },
+                    { key: 'institute', label: 'Institutes', color: 'var(--color-primary)' },
+                  ]}
+                />
+              </div>
+            </Card>
+          )}
           <Card>
             <h2 className="text-h3 text-text-primary">Completed Cases by Month</h2>
             <p className="text-caption text-text-secondary">Cases closed successfully each month, last 12 months.</p>

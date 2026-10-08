@@ -150,39 +150,55 @@ export function ReceiptsPage() {
       render: (r) =>
         canRecordPayment &&
         r.status !== 'void' && (
-          <div className="flex items-center justify-end gap-xs">
-            {voidingId === r.id ? (
-              <>
-                <input
-                  value={voidReason}
-                  onChange={(e) => setVoidReason(e.target.value)}
-                  placeholder="Reason…"
-                  className="h-8 w-32 rounded-md border border-border bg-surface px-sm text-caption"
-                />
-                <Button
-                  variant="destructive"
-                  disabled={!voidReason}
-                  loading={voidReceipt.isPending}
-                  onClick={() =>
-                    voidReceipt.mutate(
-                      { id: r.id, reason: voidReason },
-                      {
-                        onSuccess: () => {
-                          setVoidingId(null)
-                          setVoidReason('')
+          <div className="flex flex-col items-end gap-xs">
+            <div className="flex items-center justify-end gap-xs">
+              {voidingId === r.id ? (
+                <>
+                  <input
+                    value={voidReason}
+                    onChange={(e) => setVoidReason(e.target.value)}
+                    placeholder="Reason…"
+                    className="h-8 w-32 rounded-md border border-border bg-surface px-sm text-caption"
+                  />
+                  <Button
+                    variant="destructive"
+                    disabled={!voidReason}
+                    loading={voidReceipt.isPending}
+                    onClick={() =>
+                      voidReceipt.mutate(
+                        { id: r.id, reason: voidReason },
+                        {
+                          onSuccess: () => {
+                            setVoidingId(null)
+                            setVoidReason('')
+                          },
                         },
-                      },
-                    )
-                  }
-                  className="h-8 px-3 text-caption"
+                      )
+                    }
+                    className="h-8 px-3 text-caption"
+                  >
+                    Confirm
+                  </Button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    voidReceipt.reset()
+                    setVoidingId(r.id)
+                  }}
+                  className="text-caption text-error hover:underline"
                 >
-                  Confirm
-                </Button>
-              </>
-            ) : (
-              <button type="button" onClick={() => setVoidingId(r.id)} className="text-caption text-error hover:underline">
-                Void
-              </button>
+                  Void
+                </button>
+              )}
+            </div>
+            {/* The server's own sentence for a refused void, e.g. 409 `still_referenced`: a
+                commission instalment was recorded through this receipt (review F-226). */}
+            {voidingId === r.id && voidReceipt.isError && (
+              <p role="alert" className="whitespace-normal text-right text-caption text-error" style={{ maxWidth: '22rem' }}>
+                {voidReceipt.error.message}
+              </p>
             )}
           </div>
         ),

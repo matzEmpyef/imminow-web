@@ -14,9 +14,8 @@ import { useChatWindowStore } from '@/stores/chatWindowStore'
 import { avatarTheme } from '@/lib/avatarTheme'
 import { Skeleton } from '@/components/QueryState'
 import { formatDate } from '@/lib/time'
-import type { components } from '@/api/schema'
+import { threadPagesOldestFirst } from '@/lib/pagination'
 
-type InternalChatMessage = components['schemas']['InternalChatMessage']
 
 const EMPTY_CONVERSATIONS: NonNullable<ReturnType<typeof useInternalConversations>['data']>['items'] = []
 
@@ -48,13 +47,10 @@ export function InternalMessagingPage() {
 
   // Pages come back newest-fetched-first (`pages[0]`), each page itself oldest-to-newest within
   // it (contract gate 9, K12) — flattening in reverse page order lays the whole thread out
-  // oldest-at-top, same read direction the chat UI has always rendered in.
-  const flatMessages = useMemo(() => {
-    if (!messages.data) return undefined
-    const out: InternalChatMessage[] = []
-    for (let p = messages.data.pages.length - 1; p >= 0; p -= 1) out.push(...messages.data.pages[p].items)
-    return out
-  }, [messages.data])
+  // oldest-at-top, same read direction the chat UI has always rendered in. The shared flattener
+  // the lead and client threads use, so a message is shown once whichever way it arrived (review
+  // I-027: the sending device now receives its own message over the live connection too).
+  const flatMessages = useMemo(() => threadPagesOldestFirst(messages.data?.pages), [messages.data])
 
   // Read on open, and again for each message that arrives while the thread is being looked at
   // (review F-143; the shared hook all four chat screens use).

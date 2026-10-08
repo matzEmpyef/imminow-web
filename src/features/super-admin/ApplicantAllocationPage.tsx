@@ -81,6 +81,10 @@ function lookingFor(e: QueueEntry): { countries: string; detail: string } | null
   return { countries, detail }
 }
 
+// The longest note a decline takes (review F-264). The note is filed on the complaint as a
+// 2,000-character support note behind the server's own 29-character lead-in, which leaves 1,971.
+const DECLINE_NOTE_MAX = 1971
+
 // The other half of a consultancy-change request (user, 2026-08-23: "admin can choose to mark it
 // as resolved and do not transfer and remove from transfer list"). Only a student's OWN request can
 // be declined — a dispute reassignment was already decided in Disputes.
@@ -148,6 +152,7 @@ function ResolveAction({ entry }: { entry: QueueEntry }) {
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 rows={3}
+                maxLength={DECLINE_NOTE_MAX}
                 placeholder="Recorded against the complaint for whoever handles it next."
                 className="w-full rounded-md border border-border bg-surface p-sm text-body outline-none focus:border-primary"
               />
@@ -373,6 +378,11 @@ export function ApplicantAllocationPage() {
                   >
                     “{e.complaint_description}”
                   </p>
+                )}
+                {/* The text is left out for staff without the Support permission (review F-268):
+                    the row is still a complaint, so say where its text can be read. */}
+                {e.complaint_id && !e.complaint_description && (
+                  <p className="mt-0.5 text-caption text-text-secondary">Complaint text is visible to Support staff.</p>
                 )}
               </div>
             )}

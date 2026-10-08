@@ -24,6 +24,7 @@ import {
   useVoucherCodes,
 } from '@/queries/couponsAdmin'
 import { useRedemptionPartners } from '@/queries/redemptionPartners'
+import { useCursorPagination } from '@/lib/pagination'
 import { showToast } from '@/lib/toast'
 import { formatDate, formatDateTime } from '@/lib/time'
 import { mediaUrl } from '@/lib/mediaUrl'
@@ -684,6 +685,8 @@ function BranchBreakdown({ breakdown }: { breakdown: NonNullable<Coupon['redempt
   )
 }
 
+const CLAIMS_PAGE_SIZE = 20
+
 // The "N claimed" button and its drill-down (build reference: students DO claim coupons on Sentpo
 // Mobile's Coupons Catalog / redeem flow) — kept as the one place an admin sees who claimed what.
 function CouponClaimsCell({
@@ -697,11 +700,25 @@ function CouponClaimsCell({
   onOpen: () => void
   onClose: () => void
 }) {
-  const redemptions = useCouponRedemptions(isOpen ? coupon.id : undefined)
+  // Paged by the server, 20 claims a page (review F-255), the way the Ads Manager's clicks are.
+  // Opening the list always starts at its first page.
+  const paging = useCursorPagination()
+  const redemptions = useCouponRedemptions(isOpen ? coupon.id : undefined, {
+    cursor: paging.cursor,
+    limit: CLAIMS_PAGE_SIZE,
+  })
+  const nextCursor = redemptions.data?.next_cursor
 
   return (
     <div>
-      <button type="button" onClick={onOpen} className="text-body-sm text-primary hover:underline">
+      <button
+        type="button"
+        onClick={() => {
+          paging.reset()
+          onOpen()
+        }}
+        className="text-body-sm text-primary hover:underline"
+      >
         {coupon.redemption_count ?? 0} claimed
       </button>
 
@@ -724,6 +741,16 @@ function CouponClaimsCell({
             coupon.redemptions_by_location ? <BranchBreakdown breakdown={coupon.redemptions_by_location} /> : undefined
           }
           onClose={onClose}
+          serverPagination={{
+            hasNext: Boolean(nextCursor),
+            hasPrevious: paging.hasPrevious,
+            onNext: () => {
+              if (nextCursor) paging.next(nextCursor)
+            },
+            onPrevious: paging.previous,
+            // Every claim of the coupon, whatever the page: the server's own count.
+            total: redemptions.data?.redemption_count,
+          }}
         />
       )}
     </div>

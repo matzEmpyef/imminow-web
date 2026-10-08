@@ -57,7 +57,7 @@ export function ImportLeadsModal({ onClose }: { onClose: () => void }) {
     <Modal
       onClose={onClose}
       title="Import Leads"
-      widthRem={32}
+      widthRem={40}
       footer={
         validate.data &&
         !commit.isSuccess && (
@@ -122,6 +122,7 @@ export function ImportLeadsModal({ onClose }: { onClose: () => void }) {
                 <tr>
                   <th className="px-sm py-xs text-left">Row</th>
                   <th className="px-sm py-xs text-left">Name</th>
+                  <th className="px-sm py-xs text-left">Phone and email</th>
                   <th className="px-sm py-xs text-left">Status</th>
                 </tr>
               </thead>
@@ -130,8 +131,22 @@ export function ImportLeadsModal({ onClose }: { onClose: () => void }) {
                   <tr key={row.row_number} className="border-t border-border">
                     <td className="px-sm py-xs">{row.row_number}</td>
                     <td className="px-sm py-xs">{row.name ?? '—'}</td>
+                    {/* As the server sends them back (review F-208): for a valid row these are
+                        the values that will be stored, the phone in international form and the
+                        email in lower case. */}
+                    <td className="px-sm py-xs text-text-secondary">
+                      {row.phone || row.email ? (
+                        <span className="flex flex-col">
+                          {row.phone && <span>{row.phone}</span>}
+                          {row.email && <span className="break-all">{row.email}</span>}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    {/* A row that cannot be imported says why, in the server's own words. */}
                     <td className={`px-sm py-xs ${row.valid ? 'text-success' : 'text-error'}`}>
-                      {row.valid ? 'Valid' : row.errors?.join(' ')}
+                      {row.valid ? 'Valid' : row.errors?.length ? row.errors.join(' ') : 'This row cannot be imported.'}
                     </td>
                   </tr>
                 ))}

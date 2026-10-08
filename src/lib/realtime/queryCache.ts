@@ -123,8 +123,10 @@ export function internalMessagesKey(idOrTeam: string): [string, string, string] 
  * `internal.message` (contract gate 9, K11) — append to the NEWEST loaded page (`pages[0]`, since
  * `fetchNextPage` only ever extends the array with OLDER pages, same convention
  * `queries/internalMessages.ts` pages by). Nothing to patch when the thread isn't cached at all,
- * same as `applyChatMessage`. De-duped by id for the same reason: the sender's own connection gets
- * this frame back too, and `useSendInternalMessage`'s own invalidate could race it.
+ * same as `applyChatMessage`. De-duped by id across every loaded page, as `applyChatMessage` is:
+ * the sending device is sent its own message over the socket as well (review I-027), while
+ * `useSendInternalMessage` reads the thread again, so the same message can reach this cache both
+ * ways and in either order — whichever lands second is a no-op.
  */
 export function applyInternalMessage(
   queryClient: QueryClient,
@@ -134,10 +136,9 @@ export function applyInternalMessage(
   const key = internalMessagesKey(internalThreadIdOrTeam(thread))
   queryClient.setQueryData<InfiniteData<InternalMessagesPage>>(key, (old) => {
     if (!old || old.pages.length === 0) return old
-    const newest = old.pages[0]
-    if (newest.items.some((m) => m.id === message.id)) return old
+    if (old.pages.some((page) => page.items.some((m) => m.id === message.id))) return old
     const pages = [...old.pages]
-    pages[0] = { ...newest, items: [...newest.items, message] }
+    pages[0] = { ...pages[0], items: [...pages[0].items, message] }
     return { ...old, pages }
   })
   // No `conversation.updated` equivalent is emitted for internal messaging (asyncapi.yaml) — the

@@ -4,6 +4,7 @@ import {
   applyChatMessage,
   applyChatStatus,
   applyConversationUpdated,
+  applyInternalMessage,
   applyNotificationCreated,
   applyResync,
   applyUnreadChanged,
@@ -132,6 +133,33 @@ describe('realtime query cache patches', () => {
     it('does nothing when the thread is not currently cached (nobody has it open)', () => {
       applyChatMessage(queryClient, { type: 'lead', id: 'lead-9' }, message())
       expect(queryClient.getQueryData(['leads', 'lead-9', 'messages'])).toBeUndefined()
+    })
+  })
+
+  // Review I-027: the sending device is sent its own `internal.message` too, while its own send
+  // reads the thread again, so the same message reaches the cache twice.
+  describe('applyInternalMessage', () => {
+    const key = ['internal-conversations', 'emp-2', 'messages']
+    const internal = (id: string) => ({ id, content: 'hi', from_me: true, sender_name: 'Me', created_at: '2026-10-08T10:00:00Z' })
+    const pages = (...all: ReturnType<typeof internal>[][]) => ({
+      pages: all.map((items) => ({ items, meta: {} })),
+      pageParams: all.map(() => undefined),
+    })
+
+    it('appends a new message to the newest page', () => {
+      queryClient.setQueryData(key, pages([internal('m5')], [internal('m1')]))
+      applyInternalMessage(queryClient, { kind: 'dm', colleague_id: 'emp-2' }, internal('m6'))
+      const data = queryClient.getQueryData(key) as ReturnType<typeof pages>
+      expect(data.pages[0].items.map((m) => m.id)).toEqual(['m5', 'm6'])
+      expect(data.pages[1].items.map((m) => m.id)).toEqual(['m1'])
+    })
+
+    it('drops a message already held on any loaded page, so the sender never sees it twice', () => {
+      const cached = pages([internal('m5')], [internal('m1')])
+      queryClient.setQueryData(key, cached)
+      applyInternalMessage(queryClient, { kind: 'dm', colleague_id: 'emp-2' }, internal('m5'))
+      applyInternalMessage(queryClient, { kind: 'dm', colleague_id: 'emp-2' }, internal('m1'))
+      expect(queryClient.getQueryData(key)).toBe(cached)
     })
   })
 

@@ -94,14 +94,15 @@ const SECTIONS: AdminSection[] = [
       {
         label: 'Dashboard',
         icon: LayoutDashboard,
-        // No permission on any of these (docs/PROGRESS.md §4 Step 4; Platform Pulse 2026-08-31) —
-        // strategic overviews behind the bare requirePlatformAccount gate.
+        // Overview and Needs attention carry no permission: every platform account has them.
+        // Supply & Demand and Platform Pulse need `consultancy_approval` (review I-047, owner
+        // 2026-10-07), like the Performance League; the server answers anyone else 403.
         tabs: [
           { label: 'Overview', path: '/admin/dashboard', icon: LayoutDashboard },
           // Everything waiting on the platform team (2026-09-10) — its link shows a counter.
           { label: 'Needs attention', path: NEEDS_ATTENTION_PATH, icon: BellRing },
-          { label: 'Supply & Demand', path: '/admin/supply-demand', icon: TrendingUp },
-          { label: 'Platform Pulse', path: '/admin/platform-pulse', icon: Activity },
+          { label: 'Supply & Demand', path: '/admin/supply-demand', icon: TrendingUp, permission: 'consultancy_approval' },
+          { label: 'Platform Pulse', path: '/admin/platform-pulse', icon: Activity, permission: 'consultancy_approval' },
         ],
       },
     ],

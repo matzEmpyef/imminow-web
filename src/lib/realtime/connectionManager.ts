@@ -60,10 +60,6 @@ export interface RealtimeConnectionManagerDeps {
   random?: () => number
   /** Defaults to `Date.now`; tests inject a controllable clock. */
   now?: () => number
-  /** Default 60s — how long a repeated 4403 (ticket rejected twice in a row) parks the manager in
-   * `disabled` before trying again, per asyncapi.yaml: "take a new ticket once; poll if it happens
-   * again." */
-  repeatedForbiddenRetryS?: number
   /** Default 300s — how long the manager stays in `disabled` (polling) after the browser refused
    * to even create the socket, before trying again. */
   refusedSocketRetryS?: number
@@ -105,7 +101,6 @@ export class RealtimeConnectionManager {
   private reconnectFrameTimer: ReturnType<typeof setTimeout> | null = null
   private flushTimer: ReturnType<typeof setTimeout> | null = null
   private attempt = 0
-  private consecutiveForbidden = 0
   /** True while a `reconnect` frame's own timer is going to redial us — the close that follows
    * (1012, ~20s later) must not ALSO schedule a reconnect on top of it. */
   private serverReconnectPending = false
@@ -134,7 +129,6 @@ export class RealtimeConnectionManager {
     if (this.started) return
     this.started = true
     this.attempt = 0
-    this.consecutiveForbidden = 0
     void this.connect()
   }
 
@@ -330,7 +324,6 @@ export class RealtimeConnectionManager {
         if (typeof heartbeat === 'number' && heartbeat > 0) this.heartbeatS = heartbeat
         this.armSilenceTimer()
         this.attempt = 0
-        this.consecutiveForbidden = 0
         this.setStatus('open')
         // "resume … must be the first client frame after hello" — sent before viewing, below.
         if (this.lastResumeId) {
@@ -431,18 +424,6 @@ export class RealtimeConnectionManager {
       void this.recoverFromSessionEnded()
       return
     }
-    if (code === 4403) {
-      this.consecutiveForbidden++
-      if (this.consecutiveForbidden >= 2) {
-        // "take a new ticket once; poll if it happens again" (asyncapi.yaml) — two in a row means
-        // something is genuinely wrong; fall back to polling for a while rather than spinning.
-        this.scheduleDisabledRetry(this.deps.repeatedForbiddenRetryS ?? 60)
-        return
-      }
-      void this.connect()
-      return
-    }
-    this.consecutiveForbidden = 0
     if (this.serverReconnectPending) {
       // Already being redialed by the `reconnect` frame's own timer (1012 follows it ~20s later);
       // scheduling a second reconnect here would race it. The socket is gone until that timer
@@ -452,7 +433,9 @@ export class RealtimeConnectionManager {
       return
     }
     // 4408 slow_consumer, 4429 rate_limited, 1012 restart, 1000/1001, or anything else — reconnect
-    // with backoff and resume from lastResumeId.
+    // with backoff and resume from lastResumeId. A refused ticket is one of these (review F-238):
+    // the server turns it away at the handshake, so the socket just fails to open (1006) and the
+    // next attempt takes a fresh ticket. There is no 4403 close to treat differently any more.
     this.scheduleReconnect()
   }
 

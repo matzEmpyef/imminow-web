@@ -74,7 +74,7 @@ const eventTypeLabels: Record<string, string> = {
 function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: () => void }) {
   const isEditing = Boolean(editingAd)
   const createAd = useCreateAd()
-  const updateAd = useUpdateAd(editingAd?.id ?? '')
+  const updateAd = useUpdateAd(editingAd?.id ?? '', editingAd?.version)
   const events = useAdminEvents()
   // Published only — the server refuses an ad for a hidden article, and stops serving one whose
   // article is hidden later (2026-09-15).
@@ -482,7 +482,7 @@ function runsLabel(ad: AdBanner): string {
 // PATCH { active } always supported flipping back, the UI just never offered it. Reversible, so
 // no confirm popup: the server's own `status` badge on the same row shows the result immediately.
 function AdActiveToggle({ ad }: { ad: AdBanner }) {
-  const updateAd = useUpdateAd(ad.id!)
+  const updateAd = useUpdateAd(ad.id!, ad.version)
   const isOn = ad.active !== false
   return (
     <Toggle

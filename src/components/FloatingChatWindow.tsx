@@ -16,6 +16,7 @@ import {
 import { CHAT_TYPE_LABELS } from './chatTypeLabels'
 import { CASE_MOVED_COMPOSER_NOTE, isCaseMoved } from '@/lib/clientStatus'
 import { useViewingThread } from '@/lib/realtime'
+import { threadPagesOldestFirst } from '@/lib/pagination'
 import {
   CASE_CLOSED_CHAT_NOTE,
   CLOSED_CONVERSATION_NOTE,
@@ -68,7 +69,8 @@ export function FloatingChatWindow() {
   // Read on open, and again for each message that arrives while this window is up and the person
   // is looking — not while it is minimised (review F-143; the shared hook all four chat screens use).
   const internalItems = useMemo(
-    () => internalMessages.data?.pages.slice().reverse().flatMap((page) => page.items),
+    // Shown once whichever way a message arrived, as the lead and client threads are (review I-027).
+    () => threadPagesOldestFirst(internalMessages.data?.pages),
     [internalMessages.data],
   )
   const newestIncoming = isLead

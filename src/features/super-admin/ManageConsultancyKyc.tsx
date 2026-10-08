@@ -39,6 +39,7 @@ export function KycSection({ consultancyId, kycVerified }: { consultancyId: stri
   const [reason, setReason] = useState('')
   const status: KycState = kyc.data?.status ?? (kycVerified ? 'verified' : 'not_submitted')
   const badge = KYC_BADGE[status]
+  const uploadedAt = kyc.data?.uploaded_at
 
   function closeReject() {
     setRejecting(false)
@@ -71,7 +72,14 @@ export function KycSection({ consultancyId, kycVerified }: { consultancyId: stri
         </div>
         {!rejecting && (status === 'pending' || status === 'rejected') && (
           <div className="flex shrink-0 gap-sm">
-            <Button variant="secondary" loading={verify.isPending} onClick={() => verify.mutate(consultancyId)}>
+            {/* Verify names the certificate on screen by its upload time (review F-207), so it is
+                offered once that certificate has been served. */}
+            <Button
+              variant="secondary"
+              loading={verify.isPending}
+              disabled={!uploadedAt}
+              onClick={() => uploadedAt && verify.mutate({ consultancyId, uploadedAt })}
+            >
               Verify
             </Button>
             {status === 'pending' && (

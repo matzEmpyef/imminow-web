@@ -124,11 +124,14 @@ describe('the submitted certificate', () => {
     expect(screen.getByRole('img', { name: 'Submitted certificate' })).toHaveAttribute('src', 'https://s/c.png')
   })
 
-  it('links to a PDF, saying it is one', () => {
+  // Review I-045: a PDF is served as a download, so the link says so and opens no new tab.
+  it('offers a PDF as a download, in this tab', () => {
     render(
       <KycDocument kyc={{ document_url: 'https://s/c.pdf', document_content_type: 'application/pdf' }} label="certificate" />,
     )
-    expect(screen.getByRole('link', { name: 'View submitted certificate (PDF)' })).toHaveAttribute('href', 'https://s/c.pdf')
+    const link = screen.getByRole('link', { name: 'Download certificate (PDF)' })
+    expect(link).toHaveAttribute('href', 'https://s/c.pdf')
+    expect(link).not.toHaveAttribute('target')
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
   })
 })

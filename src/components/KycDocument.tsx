@@ -4,7 +4,7 @@ type KycStatus = components['schemas']['KycStatus']
 
 /**
  * The submitted certificate, shown as what it is (review F-066): an image is shown in place (and
- * opens full size in a new tab), a PDF is a link that opens in a new tab. `document_url` is an
+ * opens full size in a new tab), a PDF is a download link (review I-045). `document_url` is an
  * EXPIRING link issued afresh on every read, so it is used as it arrives and never kept.
  *
  * One component for the consultancy's own card and the platform's review row, so both read a new
@@ -35,6 +35,15 @@ export function KycDocument({
       </a>
     )
   }
+  // A PDF is served as a download named `kyc-certificate.pdf` (review I-045), so the link says so
+  // and stays in this tab: a new tab would open empty and close again.
+  if (type === 'application/pdf') {
+    return (
+      <a href={kyc.document_url} className={`w-fit ${size === 'sm' ? 'text-caption' : 'text-body-sm'} text-primary underline`}>
+        Download {label} (PDF)
+      </a>
+    )
+  }
   return (
     <a
       href={kyc.document_url}
@@ -43,7 +52,6 @@ export function KycDocument({
       className={`w-fit ${size === 'sm' ? 'text-caption' : 'text-body-sm'} text-primary underline`}
     >
       View submitted {label}
-      {type === 'application/pdf' ? ' (PDF)' : ''}
     </a>
   )
 }

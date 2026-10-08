@@ -591,16 +591,14 @@ function App() {
             }
           />
         </Route>
-        {/* Dashboard, Supply & Demand and Platform Pulse carry no permission (docs/PROGRESS.md §4
-            Step 4; Platform Pulse 2026-08-31) — the bare requirePlatformAccount gate: strategic
-            overviews, not one of the eight console flags. */}
+        {/* The Dashboard and Needs attention carry no permission — the bare requirePlatformAccount
+            gate. Supply & Demand and Platform Pulse sat here too until review I-047 (owner,
+            2026-10-07): they need `consultancy_approval` now, like the Performance League. */}
         <Route element={<PlatformLayout />}>
           <Route path="/admin/dashboard" element={<SuperAdminDashboardPage />} />
           {/* No flag of its own (2026-09-10) — every platform account has a to-do list; the
               server limits it to the queues the viewer's permissions cover. */}
           <Route path="/admin/needs-attention" element={<NeedsAttentionPage />} />
-          <Route path="/admin/supply-demand" element={<SupplyDemandPage />} />
-          <Route path="/admin/platform-pulse" element={<PlatformPulsePage />} />
         </Route>
         {/* One PlatformLayout per console permission flag — eighteen since the 2026-09-10 split, so
             each area can be handed to one person. The sidebar (AdminShell) groups these pages as
@@ -608,6 +606,8 @@ function App() {
         <Route element={<PlatformLayout permission="consultancy_approval" />}>
           <Route path="/admin/consultancies" element={<ManageConsultanciesPage />} />
           <Route path="/admin/performance-league" element={<PerformanceLeaguePage />} />
+          <Route path="/admin/supply-demand" element={<SupplyDemandPage />} />
+          <Route path="/admin/platform-pulse" element={<PlatformPulsePage />} />
           <Route path="/admin/reviews" element={<ReviewsPage />} />
           <Route path="/admin/ratings" element={<RatingsPage />} />
         </Route>

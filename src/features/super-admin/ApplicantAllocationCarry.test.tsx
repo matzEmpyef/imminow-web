@@ -96,3 +96,43 @@ describe('Applicant Allocation — what moves with the case', () => {
     expect(showToast).toHaveBeenCalledWith('Zoya Khan allocated')
   })
 })
+
+function showQueue(row: Record<string, unknown>) {
+  vi.mocked(useApplicantAllocationQueue).mockReturnValue({ data: { items: [row] }, isLoading: false, isError: false } as never)
+  render(
+    <MemoryRouter>
+      <ApplicantAllocationPage />
+    </MemoryRouter>,
+  )
+}
+
+// Review F-268: the complaint's text is served to holders of the Support permission only. The row
+// still carries the complaint, so it says where the text can be read.
+describe('Applicant Allocation — the complaint behind a change request', () => {
+  const SUPPORT_ONLY = 'Complaint text is visible to Support staff.'
+
+  it('shows the text to someone who is sent it', () => {
+    showQueue({ ...changeRow, complaint_id: 'cmp-1', complaint_description: 'They never call back.' })
+    expect(screen.getByText('“They never call back.”')).toBeInTheDocument()
+    expect(screen.queryByText(SUPPORT_ONLY)).not.toBeInTheDocument()
+  })
+
+  it('says who can read it when the text is left out', () => {
+    showQueue({ ...changeRow, complaint_id: 'cmp-1', complaint_category: 'communication' })
+    expect(screen.getByText(SUPPORT_ONLY)).toBeInTheDocument()
+  })
+
+  it('says nothing about a complaint on a row that has none', () => {
+    showQueue(freelancerRow)
+    expect(screen.queryByText(SUPPORT_ONLY)).not.toBeInTheDocument()
+  })
+})
+
+// Review F-264: the note is filed behind the server's own lead-in, which leaves 1,971 characters.
+describe('Applicant Allocation — declining a change request', () => {
+  it('stops the note at 1,971 characters', () => {
+    showQueue({ ...changeRow, complaint_id: 'cmp-1' })
+    fireEvent.click(screen.getByRole('button', { name: 'Decline the transfer request from Asha Nair' }))
+    expect(screen.getByLabelText(/Why are you declining the transfer/)).toHaveAttribute('maxlength', '1971')
+  })
+})

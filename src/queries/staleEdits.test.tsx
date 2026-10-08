@@ -4,7 +4,7 @@ import { act } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 
-// Review F-075: six saves send back the `version` the record was read at. When someone else saved
+// Review F-075 (and I-029 for an ad): seven saves send back the `version` the record was read at. When someone else saved
 // first the server answers 409 `version_conflict` and writes nothing; the person is told in one
 // sentence and the record is read again, through ONE shared helper (`lib/staleEdit.ts`).
 vi.mock('@/api/client', () => ({ api: { GET: vi.fn(), POST: vi.fn(), PATCH: vi.fn(), DELETE: vi.fn() } }))
@@ -13,6 +13,7 @@ vi.mock('./standing', () => ({ refreshStanding: vi.fn() }))
 import { api } from '@/api/client'
 import { ApiError } from '@/api/errors'
 import { STALE_EDIT_NOTICE, editError, isStaleEdit, reloadOnStaleEdit } from '@/lib/staleEdit'
+import { useUpdateAd } from './adsAdmin'
 import { useAssignClient, useSetClientBranch, useSetFinalizedCountry } from './clients'
 import { useUpdateConsultancyProfile } from './consultancy'
 import { useUpdateCourse } from './courseSuggestions'
@@ -64,7 +65,7 @@ describe('the stale-edit helper', () => {
   })
 })
 
-// The six saves, each at version 7 of its record. Their variables differ, so the table below holds
+// The seven saves, each at version 7 of its record. Their variables differ, so the table below holds
 // them as one loose shape: what the tests need from a save, and nothing about what it is given.
 type Save = () => { mutateAsync: (variables: never) => Promise<unknown>; isError: boolean; error: Error | null }
 const useReassign = () => useAssignClient('c1', 7)
@@ -73,6 +74,7 @@ const useCountry = () => useSetFinalizedCountry()
 const useProfile = () => useUpdateConsultancyProfile(7)
 const useEmployeeSave = () => useUpdateEmployee('e1', 7)
 const useCourseSave = () => useUpdateCourse('course-1', 7)
+const useAdSave = () => useUpdateAd('ad-1', 7)
 
 // Each row: the save, how it is fired, the route, the body it must send, and what it reads again.
 const SAVES = [
@@ -123,6 +125,14 @@ const SAVES = [
     path: '/courses/{id}',
     body: { active: false, version: 7 },
     reloads: ['course', 'course-1'],
+  },
+  {
+    name: 'an ad',
+    hook: useAdSave as Save,
+    variables: { active: false },
+    path: '/ads/{id}',
+    body: { active: false, version: 7 },
+    reloads: ['admin-ads'],
   },
 ] as const
 

@@ -227,22 +227,25 @@ describe('RealtimeConnectionManager', () => {
     expect(fetchTicket).toHaveBeenCalledTimes(2)
   })
 
-  it('takes a new ticket once on 4403, then falls back to disabled polling on a second one in a row', async () => {
-    const manager = makeManager()
+  // Review F-238: a refused ticket is turned away at the handshake, so the socket simply fails to
+  // open. There is no 4403 close any more: every failed connection takes the ordinary path, a
+  // fresh ticket after the backoff, however many times in a row.
+  it('a connection that fails to open reconnects with a fresh ticket after the backoff, every time', async () => {
+    const manager = makeManager({ random: () => 0.99 }) // the longest wait the backoff allows
     manager.start()
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
-    sockets[0].emitMessage(helloFrame())
 
-    sockets[0].emitClose(4403)
-    await vi.waitFor(() => expect(fetchTicket).toHaveBeenCalledTimes(2)) // retried immediately, no backoff wait
-    await vi.waitFor(() => expect(sockets).toHaveLength(2))
-    // No hello this time — the ticket is rejected again right away.
-    sockets[1].emitClose(4403)
-
-    await vi.waitFor(() => expect(manager.getStatus()).toBe('disabled'))
-    expect(fetchTicket).toHaveBeenCalledTimes(2) // no third attempt until the 60s retry fires
-    await vi.advanceTimersByTimeAsync(60_000)
-    expect(fetchTicket).toHaveBeenCalledTimes(3)
+    for (const [n, code] of [1006, 1006, 4403].entries()) {
+      sockets[n].emitClose(code)
+      expect(manager.getStatus()).toBe('reconnecting')
+      // Nothing is asked for until the backoff is over: about 1s, then 2s, then 4s.
+      await vi.advanceTimersByTimeAsync(900)
+      expect(fetchTicket).toHaveBeenCalledTimes(n + 1)
+      await vi.advanceTimersByTimeAsync(4_000)
+      await vi.waitFor(() => expect(sockets).toHaveLength(n + 2))
+      expect(fetchTicket).toHaveBeenCalledTimes(n + 2)
+    }
+    expect(manager.getStatus()).not.toBe('disabled')
   })
 
   // ---- Review F-142: what the contract requires and the client left out -----------------------

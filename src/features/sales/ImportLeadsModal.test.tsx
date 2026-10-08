@@ -13,11 +13,25 @@ vi.mock('@/queries/leads', () => ({
 import { useCommitLeadImport, useValidateLeadImport } from '@/queries/leads'
 import { ImportLeadsModal } from './ImportLeadsModal'
 
-function withValidated(rows: { row_number: number; name?: string; valid: boolean }[]) {
+type PreviewRow = {
+  row_number: number
+  name?: string
+  valid: boolean
+  phone?: string | null
+  email?: string | null
+  errors?: string[]
+}
+
+function withValidated(rows: PreviewRow[]) {
   vi.mocked(useValidateLeadImport).mockReturnValue({
     mutate: vi.fn(),
     isPending: false,
-    data: { batch_id: 'batch-1', valid_count: rows.length, invalid_count: 0, rows },
+    data: {
+      batch_id: 'batch-1',
+      valid_count: rows.filter((r) => r.valid).length,
+      invalid_count: rows.filter((r) => !r.valid).length,
+      rows,
+    },
   } as never)
 }
 
@@ -60,5 +74,48 @@ describe('ImportLeadsModal — skipped rows', () => {
 
     expect(screen.getByText('leads imported into the Lead Pool.', { exact: false })).toBeInTheDocument()
     expect(screen.queryByText(/skipped/)).not.toBeInTheDocument()
+  })
+})
+
+// Review F-208: each row's contacts are checked at the preview. A valid row shows the phone and
+// email as the server will store them; a row that cannot be imported says why in its own words.
+describe('ImportLeadsModal — the preview', () => {
+  function preview(rows: PreviewRow[]) {
+    withValidated(rows)
+    vi.mocked(useCommitLeadImport).mockReturnValue({
+      mutate: vi.fn(),
+      reset: vi.fn(),
+      isPending: false,
+      isSuccess: false,
+      isError: false,
+    } as never)
+    render(<ImportLeadsModal onClose={() => {}} />)
+  }
+
+  it('shows a valid row with the phone and email the server sent back', () => {
+    preview([{ row_number: 1, name: 'Asha Rao', valid: true, phone: '+919876543210', email: 'asha@example.com' }])
+    expect(screen.getByText('+919876543210')).toBeInTheDocument()
+    expect(screen.getByText('asha@example.com')).toBeInTheDocument()
+    expect(screen.getByText('Valid')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Import 1 Leads' })).toBeEnabled()
+  })
+
+  it('shows each refused row with the server’s own reasons', () => {
+    preview([
+      { row_number: 1, name: 'Asha Rao', valid: true, phone: '9876543210', email: null },
+      { row_number: 2, name: 'Vikram Shah', valid: false, phone: '12', email: 'vikram@', errors: ['Phone is not a valid number.', 'Email is not a valid address.'] },
+      { row_number: 3, name: 'N'.repeat(8), valid: false, errors: ['Name is at most 200 characters.'] },
+    ])
+    expect(screen.getByText('1 valid, 2 invalid of 3 rows.')).toBeInTheDocument()
+    expect(screen.getByText('Phone is not a valid number. Email is not a valid address.')).toBeInTheDocument()
+    expect(screen.getByText('Name is at most 200 characters.')).toBeInTheDocument()
+    // A row with no contact to show reads as a dash, not as an empty cell.
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
+  })
+
+  it('still says a row cannot be imported when the server gave no reason', () => {
+    preview([{ row_number: 1, name: 'Asha Rao', valid: false }])
+    expect(screen.getByText('This row cannot be imported.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Import 0 Leads' })).toBeDisabled()
   })
 })

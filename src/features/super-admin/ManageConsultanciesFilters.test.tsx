@@ -100,9 +100,34 @@ describe('verifying a certificate', () => {
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     )
     const { result } = renderHook(() => useVerifyKyc(), { wrapper })
-    await act(() => result.current.mutateAsync('c1'))
+    await act(() => result.current.mutateAsync({ consultancyId: 'c1', uploadedAt: '2026-10-08T08:15:00Z' }))
     const keys = invalidate.mock.calls.map((c) => (c[0] as { queryKey: unknown[] }).queryKey)
     expect(keys).toContainEqual(['admin-attention'])
     expect(keys).toContainEqual(['admin-consultancies'])
+    // Review F-207: the request names the certificate that was reviewed.
+    expect(mockedPost.mock.calls[0][0]).toBe('/consultancies/{id}/kyc/verify')
+    expect((mockedPost.mock.calls[0][1] as { body: unknown }).body).toEqual({ uploaded_at: '2026-10-08T08:15:00Z' })
+  })
+
+  it('on a newer certificate (409 conflict) reads the KYC row again and says to review it', async () => {
+    mockedPost.mockResolvedValue({
+      data: undefined,
+      error: { error: { code: 'conflict', message: 'The consultancy has submitted a newer certificate.' } },
+      response: { status: 409 },
+    } as never)
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    )
+    const { result } = renderHook(() => useVerifyKyc(), { wrapper })
+    const error = await act(() =>
+      result.current
+        .mutateAsync({ consultancyId: 'c1', uploadedAt: '2026-10-08T08:15:00Z' })
+        .catch((e: unknown) => e as Error),
+    )
+    expect((error as Error).message).toBe('A newer certificate was submitted. Please review it.')
+    const keys = invalidate.mock.calls.map((c) => (c[0] as { queryKey: unknown[] }).queryKey)
+    expect(keys).toEqual([['kyc', 'c1']])
   })
 })

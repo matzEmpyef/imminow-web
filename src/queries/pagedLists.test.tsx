@@ -13,6 +13,7 @@ vi.mock('@/api/client', () => ({ api: { GET: vi.fn(), POST: vi.fn(), PATCH: vi.f
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { useApplicantAllocationQueue } from './applicantAllocation'
+import { useCouponRedemptions } from './couponsAdmin'
 import { useServiceFollowups } from './serviceFollowups'
 import { useCaseFollowups } from './caseFollowups'
 import { useAllFreelancers, useFreelancerRates, useFreelancers } from './freelancerRates'
@@ -195,5 +196,26 @@ describe('freelancers and rates', () => {
     const plain = renderHook(() => useFreelancerRates(), { wrapper })
     await waitFor(() => expect(plain.result.current.isSuccess).toBe(true))
     expect(plain.result.current.data).toHaveLength(1)
+  })
+})
+
+// Review F-255: who claimed a coupon is paged by the server. The count is every claim of the
+// coupon, on whichever page.
+describe('coupon claims', () => {
+  it('sends the cursor and page size, and reads the next cursor with the whole count', async () => {
+    respond({ redemptions: [{ student_name: 'Asha' }], redemption_count: 45, next_cursor: 'c3' })
+    const { result } = renderHook(() => useCouponRedemptions('cp1', { cursor: 'c2', limit: 20 }), { wrapper })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(mockedGet).toHaveBeenCalledWith(
+      '/coupons/{id}/redemptions',
+      expect.objectContaining({ params: { path: { id: 'cp1' }, query: { cursor: 'c2', limit: 20 } } }),
+    )
+    expect(result.current.data?.next_cursor).toBe('c3')
+    expect(result.current.data?.redemption_count).toBe(45)
+  })
+
+  it('asks for nothing while no coupon is open', () => {
+    renderHook(() => useCouponRedemptions(undefined, { limit: 20 }), { wrapper })
+    expect(mockedGet).not.toHaveBeenCalled()
   })
 })

@@ -7,9 +7,9 @@ import { formatDateTime } from '@/lib/time'
 import { money, paymentInrNote, paymentMoney, paymentRateToInr } from './money'
 import { useCorrectCommissionPayment, type CommissionPayment } from '@/queries/commission'
 import { showToast } from '@/lib/toast'
+import { ApiError } from '@/api/errors'
 
 const MIN_REASON_LENGTH = 3
-
 
 /**
  * Corrects the amount received on an already-confirmed payment (2026-09-11) — money that bounced,
@@ -43,8 +43,8 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
           : undefined
   const reasonError = attempted && trimmedReason.length < MIN_REASON_LENGTH ? 'Add a reason (at least 3 characters).' : undefined
 
-  // /commission/payments/{id}/correct has no allow_overpayment flag either (see the note in
-  // ConfirmPaymentModal) — informational only, already gated by the required reason above.
+  // An early, informational note worked out from what the list already holds. The decision is the
+  // server's (below): it holds a correction upwards to what is still unpaid on the case.
   // `entry_outstanding_inr` already has the CURRENT confirmed amount subtracted out (this payment
   // is already confirmed), so what matters is only the extra the correction adds on top of that —
   // not the corrected total against outstanding.
@@ -56,6 +56,20 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
       ? deltaInr - payment.entry_outstanding_inr
       : 0
 
+  // The server's refusal of a correction upwards past what is still unpaid (409
+  // `more_than_outstanding`, review F-227): its sentence is shown with the same "record it anyway"
+  // tick the receive dialog offers, and the correction is then sent with `allow_overpayment`.
+  const [allowOverpayment, setAllowOverpayment] = useState(false)
+  const refusal = correct.error instanceof ApiError ? correct.error : null
+  const serverSaysOverpayment = refusal?.code === 'more_than_outstanding'
+
+  // The refusal was about the amount as it was sent: once it changes, neither it nor the tick applies.
+  function clearServerOverpayment() {
+    if (!serverSaysOverpayment) return
+    correct.reset()
+    setAllowOverpayment(false)
+  }
+
   return (
     <Modal
       onClose={onClose}
@@ -63,19 +77,27 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
       widthRem={30}
       footer={
         <>
-          {correct.isError && <p className="mr-auto self-center text-body-sm text-error">{correct.error.message}</p>}
+          {correct.isError && !serverSaysOverpayment && (
+            <p className="mr-auto self-center text-body-sm text-error">{correct.error.message}</p>
+          )}
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
             loading={correct.isPending}
+            disabled={serverSaysOverpayment && !allowOverpayment}
             onClick={() => {
               if (invalid) {
                 setAttempted(true)
                 return
               }
               correct.mutate(
-                { paymentId: payment.id, amount: parsed, reason: trimmedReason },
+                {
+                  paymentId: payment.id,
+                  amount: parsed,
+                  reason: trimmedReason,
+                  allow_overpayment: serverSaysOverpayment ? allowOverpayment : undefined,
+                },
                 {
                   onSuccess: () => {
                     showToast(`Amount corrected for ${payment.consultancy_name ?? 'this payment'}`)
@@ -119,10 +141,27 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
           min={0}
           required
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={(e) => {
+            setAmount(e.target.value)
+            clearServerOverpayment()
+          }}
           error={amountError}
         />
-        {overpaymentInr > 0 && (
+        {serverSaysOverpayment && (
+          <div role="alert" className="flex flex-col gap-sm rounded-md border border-warning bg-warning-subtle p-sm">
+            <p className="text-body-sm text-text-primary">{refusal?.message}</p>
+            <label className="flex items-center gap-sm text-body-sm text-text-primary">
+              <input
+                type="checkbox"
+                checked={allowOverpayment}
+                onChange={(e) => setAllowOverpayment(e.target.checked)}
+                className="h-4 w-4 rounded border-border"
+              />
+              It is an over-payment — record it anyway
+            </label>
+          </div>
+        )}
+        {!serverSaysOverpayment && overpaymentInr > 0 && (
           <p className="text-body-sm text-warning">
             That&rsquo;s {currency === 'INR' ? '' : '~'}
             {money({ amount: overpaymentInr, currency: 'INR' })} more than this case still owes.
