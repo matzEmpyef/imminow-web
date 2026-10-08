@@ -112,6 +112,14 @@ describe('usePayloadIdempotencyKey', () => {
     expect(result.current.keyFor(draft)).not.toBe(first)
   })
 
+  it('renew gives the same content a new key (a write that landed, run again on purpose)', () => {
+    const { result } = renderHook(() => usePayloadIdempotencyKey())
+    const first = result.current.keyFor(draft)
+    expect(result.current.keyFor(draft)).toBe(first)
+    act(() => result.current.renew())
+    expect(result.current.keyFor(draft)).not.toBe(first)
+  })
+
   it('each opened form has its own key', () => {
     const a = renderHook(() => usePayloadIdempotencyKey())
     const b = renderHook(() => usePayloadIdempotencyKey())

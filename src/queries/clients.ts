@@ -183,11 +183,21 @@ export function useSetFinalizedCountry() {
 // closed_switched, so on success the client drops out of the default list.
 export function useTransferApplicant(clientId: string) {
   const queryClient = useQueryClient()
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['clients'] })
+    refreshStanding(queryClient)
+  }
   return useMutation({
-    mutationFn: async (input: { newConsultancyId: string; reason: string; transferCode: string }) => {
-      const { error } = await api.POST('/clients/{id}/transfer', {
-        // Required since contract gate 7 (transfer execution): one key per attempt.
-        params: { path: { id: clientId }, header: { 'Idempotency-Key': crypto.randomUUID() } },
+    mutationFn: async (input: {
+      newConsultancyId: string
+      reason: string
+      transferCode: string
+      idempotencyKey: string
+    }) => {
+      const { error, response } = await api.POST('/clients/{id}/transfer', {
+        // Required since contract gate 7 (transfer execution): one key per opened form and content
+        // (review F-297), so a retry after a lost reply replays the first answer.
+        params: { path: { id: clientId }, header: { 'Idempotency-Key': input.idempotencyKey } },
         body: { new_consultancy_id: input.newConsultancyId, reason: input.reason, transfer_code: input.transferCode },
       })
       // The server's own message is what a consultant needs to read here — e.g. 409
@@ -198,11 +208,13 @@ export function useTransferApplicant(clientId: string) {
         throw new ApiError(
           'Could not transfer this applicant. Check the transfer code — it must be issued by the receiving consultancy for this exact student.',
           error,
+          response?.status,
         )
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clients'] })
-      refreshStanding(queryClient)
+    onSuccess: refresh,
+    // The transfer already went through (the first reply was lost): refresh what success refreshes.
+    onError: (err) => {
+      if (isAlreadyApplied(err)) refresh()
     },
   })
 }

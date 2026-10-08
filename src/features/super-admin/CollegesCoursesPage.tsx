@@ -12,6 +12,8 @@ import { useLevelLadder } from '@/lib/studyLevels'
 import { CollegeFormModal } from './CollegeFormModal'
 import { useCountries } from '@/queries/countries'
 import { useCursorPagination } from '@/lib/pagination'
+import { showToast } from '@/lib/toast'
+import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 import type { components } from '@/api/schema'
 import { FilterMultiSelect } from '@/components/FilterMultiSelect'
 import { CountryLabel } from '@/components/CountryLabel'
@@ -244,6 +246,9 @@ export function CollegesCoursesPage() {
     limit: 20,
   })
   const importColleges = useImportColleges()
+  // One key per file (review F-297): choosing the same file again after a lost reply replays the
+  // first answer instead of importing twice; a clear refusal renews the key.
+  const importKey = usePayloadIdempotencyKey()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [showAddCollege, setShowAddCollege] = useState(false)
@@ -266,7 +271,19 @@ export function CollegesCoursesPage() {
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (file) importColleges.mutate(file)
+    if (file) {
+      importColleges.mutate(
+        { file, idempotencyKey: importKey.keyFor({ name: file.name, size: file.size, modified: file.lastModified }) },
+        {
+          // Run again on purpose later, the same file is a new import, not a replay.
+          onSuccess: () => importKey.renew(),
+          onError: (err) => {
+            importKey.settle(err)
+            if (isAlreadyApplied(err)) showToast(ALREADY_APPLIED_NOTICE)
+          },
+        },
+      )
+    }
     e.target.value = ''
   }
 
@@ -448,7 +465,7 @@ export function CollegesCoursesPage() {
         {importColleges.isSuccess && importColleges.data && (
           <ImportResultPanel result={importColleges.data} onDismiss={() => importColleges.reset()} />
         )}
-        {importColleges.isError && <p className="text-body-sm text-error">{importColleges.error.message}</p>}
+        {importColleges.isError && !isAlreadyApplied(importColleges.error) && <p className="text-body-sm text-error">{importColleges.error.message}</p>}
 
         {showAddCollege && (
           <CollegeFormModal

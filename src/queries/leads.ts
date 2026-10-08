@@ -7,6 +7,7 @@ import { ApiError } from './auth'
 import { refreshStanding } from './standing'
 import { useThreadMessages } from './threadMessages'
 import { invalidateApplicantRequests } from './applicantRequests'
+import { isAlreadyApplied } from '@/lib/useIdempotencyKey'
 import type { components } from '@/api/schema'
 
 type InternalNote = components['schemas']['InternalNote']
@@ -247,6 +248,10 @@ export function useBulkAllocateLeads() {
       return data
     },
     onSuccess: () => invalidateLeadStanding(queryClient),
+    // The allocation already went through (the first reply was lost): refresh what success refreshes.
+    onError: (err) => {
+      if (isAlreadyApplied(err)) invalidateLeadStanding(queryClient)
+    },
   })
 }
 
@@ -402,23 +407,37 @@ export function useProposeConversion() {
 // approval so the caller can route straight to the new Client Profile.
 export function useRespondToConversion(leadId: string) {
   const queryClient = useQueryClient()
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['leads', leadId] })
+    queryClient.invalidateQueries({ queryKey: ['leads'] })
+    queryClient.invalidateQueries({ queryKey: ['clients'] })
+    // Responding resolves the proposal, so it must leave Activity's pending_proposals
+    // (2026-08-29).
+    queryClient.invalidateQueries({ queryKey: ['activity-feed'] })
+  }
   return useMutation({
-    mutationFn: async ({ proposalId, decision }: { proposalId: string; decision: 'approved' | 'declined' }) => {
-      const { data, error } = await api.POST('/conversion-proposals/{id}/respond', {
-        // Required since contract gate 7 (approving opens a case): one key per answer.
-        params: { path: { id: proposalId }, header: { 'Idempotency-Key': crypto.randomUUID() } },
+    // Required since contract gate 7 (approving opens a case). The caller keeps one key per answer
+    // (review F-297): a retry after a lost reply replays the first answer instead of being refused.
+    mutationFn: async ({
+      proposalId,
+      decision,
+      idempotencyKey,
+    }: {
+      proposalId: string
+      decision: 'approved' | 'declined'
+      idempotencyKey: string
+    }) => {
+      const { data, error, response } = await api.POST('/conversion-proposals/{id}/respond', {
+        params: { path: { id: proposalId }, header: { 'Idempotency-Key': idempotencyKey } },
         body: { decision },
       })
-      if (error) throw new ApiError('Could not respond to this proposal.', error)
+      if (error) throw new ApiError('Could not respond to this proposal.', error, response?.status)
       return data
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads', leadId] })
-      queryClient.invalidateQueries({ queryKey: ['leads'] })
-      queryClient.invalidateQueries({ queryKey: ['clients'] })
-      // Responding resolves the proposal, so it must leave Activity's pending_proposals
-      // (2026-08-29).
-      queryClient.invalidateQueries({ queryKey: ['activity-feed'] })
+    onSuccess: refresh,
+    // The answer already went through (the first reply was lost): refresh what success refreshes.
+    onError: (err) => {
+      if (isAlreadyApplied(err)) refresh()
     },
   })
 }

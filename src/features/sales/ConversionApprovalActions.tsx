@@ -5,6 +5,7 @@ import { CancelProposalModal } from './CancelProposalModal'
 import { useRespondToConversion } from '@/queries/leads'
 import { PROPOSAL_ENDED_LABEL } from '@/lib/applicantRequestWords'
 import { showToast } from '@/lib/toast'
+import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 import { formatDate } from '@/lib/time'
 import type { components } from '@/api/schema'
 
@@ -40,6 +41,23 @@ export function ConversionApprovalActions({
 }) {
   const navigate = useNavigate()
   const respond = useRespondToConversion(leadId)
+  // One key per answer, kept while this offer is on screen (review F-297): pressing Approve again
+  // after a lost reply replays the first answer instead of being refused as already done.
+  const { keyFor, settle } = usePayloadIdempotencyKey()
+  // Approve or Decline: sends the key for exactly this answer, and when the server says it was
+  // already recorded, says so (the lists are refreshed by the mutation) rather than showing a failure.
+  function answer(decision: 'approved' | 'declined', onDone: (clientId: string | undefined) => void) {
+    respond.mutate(
+      { proposalId: proposal.id, decision, idempotencyKey: keyFor({ proposalId: proposal.id, decision }) },
+      {
+        onSuccess: (data) => onDone(data.client_id),
+        onError: (err) => {
+          settle(err)
+          if (isAlreadyApplied(err)) showToast(ALREADY_APPLIED_NOTICE)
+        },
+      },
+    )
+  }
   const [confirmCancel, setConfirmCancel] = useState(false)
 
   if (proposal.status !== 'pending') {
@@ -87,27 +105,19 @@ export function ConversionApprovalActions({
   return (
     <div className="flex items-center gap-sm rounded-md border border-primary bg-primary-subtle px-sm py-1.5">
       <span className="text-caption font-medium text-primary">{leadName} wants to become a client</span>
-      {respond.isError && <p className="text-caption text-error">{respond.error.message}</p>}
+      {respond.isError && !isAlreadyApplied(respond.error) && (
+        <p className="text-caption text-error">{respond.error.message}</p>
+      )}
       <Button
         loading={respond.isPending && respond.variables?.decision === 'approved'}
-        onClick={() =>
-          respond.mutate(
-            { proposalId: proposal.id, decision: 'approved' },
-            { onSuccess: (data) => data.client_id && navigate(`/clients/${data.client_id}`) },
-          )
-        }
+        onClick={() => answer('approved', (clientId) => clientId && navigate(`/clients/${clientId}`))}
       >
         Approve
       </Button>
       <Button
         variant="secondary"
         loading={respond.isPending && respond.variables?.decision === 'declined'}
-        onClick={() =>
-          respond.mutate(
-            { proposalId: proposal.id, decision: 'declined' },
-            { onSuccess: () => showToast('Conversion declined') },
-          )
-        }
+        onClick={() => answer('declined', () => showToast('Conversion declined'))}
       >
         Decline
       </Button>

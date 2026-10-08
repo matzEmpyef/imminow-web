@@ -16,6 +16,7 @@ import { formatDate, relativeTime } from '@/lib/time'
 import { LeadDetailModal } from '@/features/clients/LeadDetailModal'
 import { CloseLeadModal } from './CloseLeadModal'
 import { showToast } from '@/lib/toast'
+import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 import { LEAD_SOURCE_LABELS } from './leadSources'
 
 type Lead = NonNullable<ReturnType<typeof useLeads>['data']>['items'][number]
@@ -53,6 +54,9 @@ export function LeadPoolPage() {
   const multiBranch = (branches.data?.length ?? 0) > 1
   const allocate = useAllocateLead()
   const bulkAllocate = useBulkAllocateLeads()
+  // One key per selection and employee (review F-297): confirming the same allocation again after a
+  // lost reply replays the first answer; a different selection is a new allocation.
+  const bulkKey = usePayloadIdempotencyKey()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [showAddLeadModal, setShowAddLeadModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
@@ -80,9 +84,18 @@ export function LeadPoolPage() {
     // confirmation is one allocation, not two.
     if (bulkAllocate.isPending) return
     const count = selected.size
+    const body = { lead_ids: [...selected], employee_id: employeeId }
     bulkAllocate.mutate(
-      { lead_ids: [...selected], employee_id: employeeId, idempotencyKey: crypto.randomUUID() },
+      { ...body, idempotencyKey: bulkKey.keyFor(body) },
       {
+        onError: (err) => {
+          bulkKey.settle(err)
+          // Already allocated (the first reply was lost): the list is refreshed, so say so and clear it.
+          if (isAlreadyApplied(err)) {
+            setSelected(new Set())
+            showToast(ALREADY_APPLIED_NOTICE)
+          }
+        },
         onSuccess: () => {
           setSelected(new Set())
           showToast(
