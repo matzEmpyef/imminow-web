@@ -24838,13 +24838,13 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description The installment after the decision */
+                /** @description The case's refreshed Finance row after the decision (the same row `GET /commission/finance/cases` lists), as Finance's other acts on a case answer. */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["CommissionInstallment"];
+                        "application/json": components["schemas"]["FinanceCaseRow"];
                     };
                 };
                 400: components["responses"]["ErrorResponse"];

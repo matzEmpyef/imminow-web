@@ -458,10 +458,13 @@ export function useSettleCommissionDue() {
 
 // Finance's answer to a consultancy's void of an installment whose share is already due (review
 // F-078). Approving voids the installment as the consultancy asked; declining needs a reason the
-// consultancy is shown and leaves the installment and its share as they are. 409 `conflict` when no
-// void is waiting any more, `already_voided`, or `part_settled` when a payment was applied to the
-// share meanwhile — the case is read again on any of them, since the drawer is showing a request
-// that no longer stands.
+// consultancy is shown and leaves the installment and its share as they are. Answers the whole
+// refreshed FinanceCaseRow (after an approval the voided installment's part is gone from
+// `due_schedule` and the totals are recomputed; after a decline the part stays with its void
+// request cleared), so FinanceCaseDrawer renders it as it is. 409 `conflict` when no void is
+// waiting any more, `already_voided`, or `part_settled` when a payment was applied to the share
+// meanwhile — the case is read again on any of them, since the drawer is showing a request that no
+// longer stands.
 export function useDecideInstallmentVoid() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -475,7 +478,7 @@ export function useDecideInstallmentVoid() {
       installmentId: string
       approve: boolean
       reason?: string
-    }) => {
+    }): Promise<FinanceCaseRow> => {
       const { data, error, response } = await api.POST(
         '/commission-entries/{id}/installments/{installmentId}/void-decision',
         { params: { path: { id: entryId, installmentId } }, body: { approve, reason } },

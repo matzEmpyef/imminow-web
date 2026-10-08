@@ -136,13 +136,18 @@ describe('useSettleCommissionDue', () => {
 
 describe('useDecideInstallmentVoid', () => {
   it('POSTs the decision to the installment’s void-decision route', async () => {
-    mockedPost.mockResolvedValue({ data: { id: 'i1' }, error: undefined } as never)
+    const refreshed = { id: 'e1', due_schedule: [] }
+    mockedPost.mockResolvedValue({ data: refreshed, error: undefined } as never)
     const { wrapper, invalidate } = setup()
     const { result } = renderHook(() => useDecideInstallmentVoid(), { wrapper })
 
+    let answer: unknown
     await act(async () => {
-      await result.current.mutateAsync({ entryId: 'e1', installmentId: 'i1', approve: false, reason: 'Money was received' })
+      answer = await result.current.mutateAsync({ entryId: 'e1', installmentId: 'i1', approve: false, reason: 'Money was received' })
     })
+
+    // The whole refreshed Finance case row comes back, untouched.
+    expect(answer).toBe(refreshed)
 
     expect(mockedPost).toHaveBeenCalledWith('/commission-entries/{id}/installments/{installmentId}/void-decision', {
       params: { path: { id: 'e1', installmentId: 'i1' } },
