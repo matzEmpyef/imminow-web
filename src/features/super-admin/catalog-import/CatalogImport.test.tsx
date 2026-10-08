@@ -11,7 +11,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 //   - the preview: counts, old → new, a clickable course link, the "already imported" notice;
 //   - any error blocks Apply, with the server's sentence and the list to download;
 //   - every near match must be ticked, and the ticks are what Apply sends;
-//   - a refused Apply (409) shows the server's sentence and offers "Upload again";
+//   - a refused Apply (409) shows the server's sentence, and `details.reason` picks the next step:
+//     "Upload again" for stale, "Try again" for another import running, the unticked boxes marked
+//     for warnings not accepted, the sentence alone for the rest;
+//   - the state badge shows the server's `state_label`, and the Undo box the server's `undo_effect`;
+//   - the upload carries one Idempotency-Key per chosen file, and files are saved under the name
+//     in Content-Disposition;
+//   - a bell notification's deep link to an import's page is one the console follows;
 //   - Undo asks first, is followed, and ends on the report of what was left alone and why;
 //   - the pages open only for the `catalog` permission.
 vi.mock('@/api/client', () => ({ api: { GET: vi.fn(), POST: vi.fn() } }))
@@ -39,6 +45,7 @@ import { CollegesCoursesPage } from '../CollegesCoursesPage'
 import { CatalogImportDetailPage } from './CatalogImportDetailPage'
 import { CatalogImportPage } from './CatalogImportPage'
 import { HOW_TO_FILL_STEPS } from './catalogImportWords'
+import { isAllowedDeepLink } from '@/lib/deepLinks'
 
 const mockedGet = vi.mocked(api.GET)
 const mockedPost = vi.mocked(api.POST)
@@ -60,7 +67,8 @@ function anImport(overrides: Partial<CatalogImport> = {}): CatalogImport {
   return {
     id: 'imp-1',
     status: 'ready',
-    message: null,
+    state_label: 'Preview ready',
+    message: 'Preview ready: 2 new and 1 changed. Nothing is saved until you press Apply.',
     file_name: 'autumn-courses.xlsx',
     file_format: 'xlsx',
     csv_sheet: null,
@@ -76,6 +84,7 @@ function anImport(overrides: Partial<CatalogImport> = {}): CatalogImport {
     applied_by: null,
     can_undo: false,
     undo_until: null,
+    undo_effect: null,
     undone_at: null,
     undone_by: null,
     undo_summary: null,
@@ -88,6 +97,8 @@ function anImport(overrides: Partial<CatalogImport> = {}): CatalogImport {
 
 const CHECKING = anImport({
   status: 'checking',
+  state_label: 'Checking',
+  message: 'Checking your file.',
   summary: null,
   can_apply: false,
   apply_blocked_reason: 'not_ready',
@@ -130,7 +141,13 @@ const WARNINGS = [
     column: 'Course name',
     value: 'MSc Data Sciences',
     message: 'Row 3 looks like “MSc Data Science”, which is already in the catalogue.',
-    near_match: { record_type: 'course', record_id: 'course-1', name: 'MSc Data Science' },
+    near_match: {
+      record_type: 'course',
+      record_id: 'course-1',
+      name: 'MSc Data Science',
+      college_id: 'col-1',
+      college_name: 'Maple College',
+    },
   },
   {
     id: 12,
@@ -139,7 +156,13 @@ const WARNINGS = [
     column: 'Campus name',
     value: 'Harbor Campus',
     message: 'Row 2 looks like “Harbour Campus”, which is already in the catalogue.',
-    near_match: { record_type: 'campus', record_id: 'campus-9', name: 'Harbour Campus' },
+    near_match: {
+      record_type: 'campus',
+      record_id: 'campus-9',
+      name: 'Harbour Campus',
+      college_id: 'col-2',
+      college_name: 'Cedar College',
+    },
   },
 ]
 
@@ -299,10 +322,29 @@ describe('getting the spreadsheet', () => {
     const dialog = await screen.findByRole('dialog', { name: 'How to fill it' })
     expect(saveBlob).toHaveBeenCalledWith('catalogue-import-template.xlsx', expect.any(Blob))
     expect(within(dialog).getAllByRole('listitem')).toHaveLength(HOW_TO_FILL_STEPS.length)
-    expect(within(dialog).getByText(/Nothing is saved until you press Apply/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/Type CLEAR to empty a cell/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/Dates are written YYYY-MM-DD/)).toBeInTheDocument()
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Got it' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('saves the template under the name in Content-Disposition', async () => {
+    mockedGet.mockImplementation((async (path: string) =>
+      path === '/catalog-imports/template'
+        ? {
+            data: new Blob(['file']),
+            error: undefined,
+            response: {
+              status: 200,
+              headers: new Headers({ 'Content-Disposition': 'attachment; filename="catalogue-import-template-2026-10-09.xlsx"' }),
+            },
+          }
+        : page([])) as never)
+    renderAt('/admin/colleges/import')
+    fireEvent.click(await screen.findByRole('button', { name: /Download template/ }))
+    await screen.findByRole('dialog', { name: 'How to fill it' })
+    expect(saveBlob).toHaveBeenCalledWith('catalogue-import-template-2026-10-09.xlsx', expect.any(Blob))
   })
 
   it('opens the same guide from its link, without a download', async () => {
@@ -369,6 +411,33 @@ describe('uploading a file', () => {
     expect(gets('/catalog-imports/{id}')).toHaveLength(asked)
   })
 
+  const keyOf = (index: number) =>
+    (posts('/catalog-imports')[index][1] as { params: { header: { 'Idempotency-Key': string } } }).params.header[
+      'Idempotency-Key'
+    ]
+
+  it('sends one Idempotency-Key per chosen file, and the same one when the same file is sent again', async () => {
+    uploadAnswer = refused(503, 'unavailable', 'The server is busy. Try again.')
+    const { container } = renderAt('/admin/colleges/import')
+    await screen.findByRole('heading', { name: 'Import campuses and courses' })
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    const file = new File(['x'], 'autumn-courses.xlsx')
+    fireEvent.change(input, { target: { files: [file] } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Upload and check' }))
+    await screen.findByText('The server is busy. Try again.')
+    fireEvent.click(screen.getByRole('button', { name: 'Upload and check' }))
+    await waitFor(() => expect(posts('/catalog-imports')).toHaveLength(2))
+    expect(keyOf(0)).toMatch(/^[0-9a-f-]{36}$/)
+    expect(keyOf(1)).toBe(keyOf(0))
+
+    // Another file is another upload.
+    fireEvent.change(input, { target: { files: [new File(['yy'], 'spring-courses.xlsx')] } })
+    fireEvent.click(screen.getByRole('button', { name: 'Upload and check' }))
+    await waitFor(() => expect(posts('/catalog-imports')).toHaveLength(3))
+    expect(keyOf(2)).not.toBe(keyOf(0))
+  })
+
   it('asks which sheet a CSV file is, and sends it', async () => {
     const { container } = renderAt('/admin/colleges/import')
     await screen.findByRole('heading', { name: 'Import campuses and courses' })
@@ -420,7 +489,7 @@ describe('uploading a file', () => {
   })
 
   it('shows the server’s sentence for a file that could not be read, with “Upload again”', async () => {
-    states = [ok(anImport({ status: 'failed', summary: null, can_apply: false, message: 'This is not an Excel file we can read. Save it as .xlsx and upload it again.' }))]
+    states = [ok(anImport({ status: 'failed', state_label: 'Could not be read', summary: null, can_apply: false, message: 'This is not an Excel file we can read. Save it as .xlsx and upload it again.' }))]
     renderAt('/admin/colleges/import/imp-1')
     expect(await screen.findByText('This is not an Excel file we can read. Save it as .xlsx and upload it again.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Upload again' })).toHaveAttribute('href', '/admin/colleges/import#upload')
@@ -478,10 +547,18 @@ describe('the preview', () => {
     expect(screen.queryByRole('link', { name: 'javascript:alert(1)' })).not.toBeInTheDocument()
   })
 
+  it('shows the server’s state label in the badge, as it is', async () => {
+    states = [ok(anImport({ state_label: 'Preview ready' }))]
+    renderAt('/admin/colleges/import/imp-1')
+    expect(await screen.findByText('Preview ready')).toBeInTheDocument()
+    expect(screen.getByText('Preview ready: 2 new and 1 changed. Nothing is saved until you press Apply.')).toBeInTheDocument()
+  })
+
   it('says a file was already imported, in the server’s words, with Apply off', async () => {
     states = [
       ok(
         anImport({
+          state_label: 'Already imported',
           can_apply: false,
           apply_blocked_reason: 'already_imported',
           apply_blocked_message: 'Nothing to change.',
@@ -506,6 +583,7 @@ describe('a file with errors', () => {
     states = [
       ok(
         anImport({
+          state_label: 'Needs fixing',
           summary: { ...SUMMARY, errors: 2 },
           can_apply: false,
           apply_blocked_reason: 'errors',
@@ -571,7 +649,7 @@ describe('a file with errors', () => {
 
 describe('near matches', () => {
   beforeEach(() => {
-    states = [ok(anImport({ summary: { ...SUMMARY, warnings: 2 } })), ok(anImport({ status: 'applied', can_apply: false, can_undo: true, message: 'Applied. 2 added, 1 changed.' }))]
+    states = [ok(anImport({ summary: { ...SUMMARY, warnings: 2 } })), ok(anImport({ status: 'applied', state_label: 'Applied', can_apply: false, can_undo: true, message: 'Applied. 2 added, 1 changed.' }))]
     warnings = ok({ items: WARNINGS })
   })
 
@@ -603,6 +681,16 @@ describe('near matches', () => {
     expect(screen.getByRole('button', { name: 'Undo this import' })).toBeInTheDocument()
   })
 
+  it('names the college of each existing record and links its page', async () => {
+    renderAt('/admin/colleges/import/imp-1')
+    await screen.findByLabelText(WARNINGS[0].message)
+    const section = screen.getByRole('region', { name: 'Near matches' })
+    const maple = within(section).getByRole('link', { name: 'Maple College' })
+    expect(maple).toHaveAttribute('href', '/admin/colleges/col-1')
+    expect(maple).toHaveAttribute('target', '_blank')
+    expect(within(section).getByRole('link', { name: 'Cedar College' })).toHaveAttribute('href', '/admin/colleges/col-2')
+  })
+
   it('sends an empty list when the file has none', async () => {
     states = [ok(anImport())]
     renderAt('/admin/colleges/import/imp-1')
@@ -628,8 +716,64 @@ describe('a refused apply', () => {
     expect(await screen.findByRole('heading', { name: 'Upload your file' })).toBeInTheDocument()
   })
 
+  it('offers “Try again”, and no upload, when another import is running, and sends the apply again', async () => {
+    applyAnswer = refused(409, 'conflict', 'Another import is being applied. Wait for it to finish, then try again.', {
+      reason: 'another_import_running',
+    })
+    renderAt('/admin/colleges/import/imp-1')
+    fireEvent.click(await screen.findByRole('button', { name: 'Apply' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Another import is being applied. Wait for it to finish, then try again.')
+    expect(within(alert).queryByRole('link', { name: 'Upload again' })).not.toBeInTheDocument()
+    applyAnswer = ok(anImport({ status: 'applying', can_apply: false, progress: { phase: 'apply', done: 0, total: 3, percent: 0 } }), 202)
+    fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByRole('progressbar', { name: 'Applying the import' })).toBeInTheDocument()
+    expect(posts('/catalog-imports/{id}/apply')).toHaveLength(2)
+  })
+
+  it.each([
+    ['not_ready', 'This import is not ready to apply.'],
+    ['errors', 'The file still has problems. Fix them and upload it again.'],
+    ['nothing_to_change', 'There is nothing to change.'],
+    ['already_imported', 'This file was already imported.'],
+    ['expired', 'This preview has expired.'],
+  ])('shows only the server’s sentence for a %s refusal', async (reason, message) => {
+    applyAnswer = refused(409, 'conflict', message, { reason })
+    renderAt('/admin/colleges/import/imp-1')
+    fireEvent.click(await screen.findByRole('button', { name: 'Apply' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(message)
+    expect(within(alert).queryByRole('link')).not.toBeInTheDocument()
+    expect(within(alert).queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('marks the near matches the server says are not ticked, until they are ticked', async () => {
+    states = [ok(anImport({ summary: { ...SUMMARY, warnings: 2 } }))]
+    warnings = ok({ items: WARNINGS })
+    applyAnswer = refused(409, 'conflict', 'Tick every near match before applying.', {
+      reason: 'warnings_not_accepted',
+      missing_warning_ids: [12],
+    })
+    renderAt('/admin/colleges/import/imp-1')
+    const first = await screen.findByLabelText(WARNINGS[0].message)
+    const second = screen.getByLabelText(WARNINGS[1].message)
+    fireEvent.click(first)
+    fireEvent.click(second)
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Tick every near match before applying.')
+    // Both are ticked on the page, so nothing is marked; untick the one the server named.
+    expect(second).not.toHaveAttribute('aria-invalid')
+    fireEvent.click(second)
+    expect(second).toHaveAttribute('aria-invalid', 'true')
+    expect(first).not.toHaveAttribute('aria-invalid')
+    fireEvent.click(second)
+    expect(second).not.toHaveAttribute('aria-invalid')
+  })
+
   it('shows the server’s sentence when the apply ends stale', async () => {
-    states = [ok(anImport({ status: 'stale', can_apply: false, message: 'Nothing was saved: a record changed after the preview. Upload the file again.' }))]
+    states = [ok(anImport({ status: 'stale', state_label: 'Not applied', can_apply: false, message: 'Nothing was saved: a record changed after the preview. Upload the file again.' }))]
     renderAt('/admin/colleges/import/imp-1')
     expect(await screen.findByText('Nothing was saved: a record changed after the preview. Upload the file again.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Upload again' })).toBeInTheDocument()
@@ -641,15 +785,24 @@ describe('import history and undo', () => {
   const APPLIED = anImport({
     id: 'imp-7',
     status: 'applied',
+    state_label: 'Applied',
+    message: 'Applied: 2 added and 1 changed.',
     can_apply: false,
     applied_at: '2026-10-09T09:30:00Z',
     applied_by: { id: 'op-1', name: 'Ananya Rao' },
     can_undo: true,
     undo_until: '2026-10-16T09:30:00Z',
+    undo_effect: {
+      created: 2,
+      changed: 1,
+      message: 'Undo will remove the 2 records this import added and put back the 1 it changed.',
+    },
   })
   const UNDONE = anImport({
     id: 'imp-7',
     status: 'undone',
+    state_label: 'Undone',
+    message: 'This import was undone.',
     can_apply: false,
     undone_at: '2026-10-09T11:00:00Z',
     undone_by: { id: 'op-1', name: 'Ananya Rao' },
@@ -657,7 +810,7 @@ describe('import history and undo', () => {
   })
 
   it('lists who, when, the file, its counts and its state, with Undo only where the server offers it', async () => {
-    history = [APPLIED, anImport({ id: 'imp-6', file_name: 'intakes.csv', file_format: 'csv', csv_sheet: 'intakes', status: 'undone' })]
+    history = [APPLIED, anImport({ id: 'imp-6', file_name: 'intakes.csv', file_format: 'csv', csv_sheet: 'intakes', status: 'undone', state_label: 'Undone' })]
     renderAt('/admin/colleges/import')
     const row = (await screen.findByText('autumn-courses.xlsx')).closest('tr')!
     expect(within(row).getByText('Ananya Rao')).toBeInTheDocument()
@@ -690,9 +843,12 @@ describe('import history and undo', () => {
     renderAt('/admin/colleges/import')
     fireEvent.click(await screen.findByRole('button', { name: 'Undo autumn-courses.xlsx' }))
 
-    // Nothing is sent until the person confirms.
+    // Nothing is sent until the person confirms, and the box says what the server says.
     const dialog = await screen.findByRole('dialog', { name: 'Undo this import?' })
     expect(mockedPost).not.toHaveBeenCalled()
+    expect(
+      within(dialog).getByText('Undo will remove the 2 records this import added and put back the 1 it changed.'),
+    ).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Undo this import' }))
 
     const bar = await screen.findByRole('progressbar', { name: 'Undoing the import' })
@@ -723,5 +879,15 @@ describe('import history and undo', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Undo this import?' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Undo this import' }))
     expect(await within(dialog).findByText('The 7 days to undo this import have passed.')).toBeInTheDocument()
+  })
+})
+
+describe('the bell notification for an import', () => {
+  it('links to the import’s own page, which the console follows and routes', async () => {
+    // The notice carries /admin/colleges/import/{import_id}.
+    expect(isAllowedDeepLink('/admin/colleges/import/imp-1')).toBe(true)
+    renderAt('/admin/colleges/import/imp-1')
+    expect(await screen.findByRole('heading', { name: 'autumn-courses.xlsx' })).toBeInTheDocument()
+    expect(gets('/catalog-imports/{id}')[0][1]).toMatchObject({ params: { path: { id: 'imp-1' } } })
   })
 })

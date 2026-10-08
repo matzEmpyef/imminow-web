@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMutation } from '@/lib/useSave'
 import { api } from '@/api/client'
 import { ApiError, isRetryable } from '@/api/errors'
+import { isAlreadyApplied } from '@/lib/useIdempotencyKey'
 import { guardedFetch } from '@/api/http'
 import { fileNameFrom, saveBlob } from '@/lib/saveFile'
 import { useAuthStore } from '@/stores/authStore'
@@ -103,16 +104,27 @@ export function useCatalogImport(id: string | undefined) {
 /**
  * Upload a filled-in workbook, or one sheet as CSV (`sheet` says which). Answered 202 with the
  * import in `checking`; nothing is saved to the catalogue. Refusals (no file, the wrong kind of
- * file, a CSV with no sheet, a file over 5 MB) carry the server's own sentence.
+ * file, a CSV with no sheet, a file over 5 MB) carry the server's own sentence. One
+ * `Idempotency-Key` per chosen file, made by the caller, so a retry after a lost reply replays the
+ * first answer instead of uploading twice.
  */
 export function useUploadCatalogImport() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ file, sheet }: { file: File; sheet?: CatalogImportSheet }) => {
+    mutationFn: async ({
+      file,
+      sheet,
+      idempotencyKey,
+    }: {
+      file: File
+      sheet?: CatalogImportSheet
+      idempotencyKey: string
+    }) => {
       const formData = new FormData()
       formData.append('file', file)
       if (sheet) formData.append('sheet', sheet)
       const { data, error, response } = await api.POST('/catalog-imports', {
+        params: { header: { 'Idempotency-Key': idempotencyKey } },
         body: formData as unknown as { file: string },
         bodySerializer: () => formData,
         fetch: fileFetch,
@@ -125,6 +137,10 @@ export function useUploadCatalogImport() {
     onSuccess: (created) => {
       queryClient.setQueryData(importKey(created.id), created)
       void queryClient.invalidateQueries({ queryKey: HISTORY_KEY })
+    },
+    // The upload already went through (the first reply was lost): show it in the history.
+    onError: (err) => {
+      if (isAlreadyApplied(err)) void queryClient.invalidateQueries({ queryKey: HISTORY_KEY })
     },
   })
 }
@@ -203,6 +219,34 @@ export function useCatalogImportUndoReport(
     enabled: isAuthed && enabled,
     placeholderData: (previous) => previous,
   })
+}
+
+/** Why the server refused an Apply with a 409 (`error.details.reason`). */
+export type CatalogImportApplyReason =
+  | 'not_ready'
+  | 'errors'
+  | 'nothing_to_change'
+  | 'already_imported'
+  | 'warnings_not_accepted'
+  | 'stale'
+  | 'another_import_running'
+  | 'expired'
+
+/**
+ * What a refused Apply says beyond its sentence: the `reason` (so the screen can offer the right
+ * next step) and, for `warnings_not_accepted`, the near matches that were not ticked. Null for
+ * anything that is not an Apply 409.
+ */
+export function applyRefusal(
+  error: unknown,
+): { reason: CatalogImportApplyReason | null; missingWarningIds: number[] } | null {
+  if (!(error instanceof ApiError) || error.status !== 409) return null
+  const reason = error.details?.reason
+  const missing = error.details?.missing_warning_ids
+  return {
+    reason: typeof reason === 'string' ? (reason as CatalogImportApplyReason) : null,
+    missingWarningIds: Array.isArray(missing) ? missing.filter((id): id is number => typeof id === 'number') : [],
+  }
 }
 
 /**

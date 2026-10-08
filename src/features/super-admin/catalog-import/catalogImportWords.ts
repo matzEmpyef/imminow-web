@@ -5,7 +5,7 @@ import type {
   CatalogImportUndoOutcome,
 } from '@/queries/catalogImports'
 
-// The console's own short labels for the import's fixed values (a sheet, a row's kind, a state).
+// The console's own short labels for the import's fixed values (a sheet, a row's kind).
 // Every sentence that explains something comes from the server and is shown as it is.
 
 export const IMPORT_HOME = '/admin/colleges/import'
@@ -60,49 +60,51 @@ export const OUTCOME_NOTE: Record<CatalogImportUndoOutcome, string> = {
 
 type BadgeColor = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
 
-/** The state of an import as a badge: the server's `status`, and for a preview why Apply is off. */
-export function importState(item: Pick<CatalogImport, 'status' | 'apply_blocked_reason'>): {
-  label: string
-  color: BadgeColor
-} {
+/**
+ * The colour of an import's state badge. The words come from the server (`state_label`) and are
+ * shown as they are; only the colour is picked here, from the server's `status` and, for a
+ * preview, why Apply is off.
+ */
+export function importStateColor(item: Pick<CatalogImport, 'status' | 'apply_blocked_reason'>): BadgeColor {
   switch (item.status) {
     case 'checking':
-      return { label: 'Checking…', color: 'info' }
-    case 'failed':
-      return { label: 'Could not be read', color: 'error' }
     case 'applying':
-      return { label: 'Applying…', color: 'info' }
-    case 'applied':
-      return { label: 'Applied', color: 'success' }
-    case 'stale':
-      return { label: 'Not applied', color: 'warning' }
     case 'undoing':
-      return { label: 'Undoing…', color: 'info' }
+      return 'info'
+    case 'failed':
+      return 'error'
+    case 'applied':
+      return 'success'
+    case 'stale':
+      return 'warning'
     case 'undone':
-      return { label: 'Undone', color: 'secondary' }
+      return 'secondary'
     case 'ready':
-      if (item.apply_blocked_reason === 'errors') return { label: 'Needs fixing', color: 'warning' }
-      if (item.apply_blocked_reason === 'nothing_to_change' || item.apply_blocked_reason === 'already_imported') {
-        return { label: 'Nothing to change', color: 'secondary' }
+      if (item.apply_blocked_reason === 'errors') return 'warning'
+      if (
+        item.apply_blocked_reason === 'nothing_to_change' ||
+        item.apply_blocked_reason === 'already_imported' ||
+        item.apply_blocked_reason === 'expired'
+      ) {
+        return 'secondary'
       }
-      if (item.apply_blocked_reason === 'expired') return { label: 'Preview ended', color: 'secondary' }
-      return { label: 'Preview ready', color: 'primary' }
+      return 'primary'
   }
 }
 
 /**
  * The steps of "How to fill it", in order. Kept as plain data so the wording can be swapped in
- * one place (for the server's own text, should it supply one later).
+ * one place.
  */
 export const HOW_TO_FILL_STEPS: readonly string[] = [
-  'Colleges must already be in the catalogue. Add any missing college on the Colleges page first.',
-  'Fill the Campuses sheet for each new campus, then the Courses sheet. Use one row per campus or course.',
+  'Colleges must already be in the catalogue. Add any missing college on the Colleges page first, and type its name exactly.',
+  'Fill only the sheets you need: Campuses, Courses, Intakes, Tests. Use one row per campus or course.',
   'A cell with a small arrow is a list. Pick a value from it; don’t type a new one.',
   'Dark blue columns are needed for a new record. The other columns are optional.',
-  'Put each course’s intake months on the Intakes sheet, and its tests (IELTS, PTE and others) on the Tests sheet.',
-  'Leave “Record ID” empty for a new row. Don’t change it on rows you downloaded.',
-  'To change an existing record, fill only the cells that change. An empty cell is left as it is. Type CLEAR to empty a cell.',
-  'Upload the file. You see a preview first. Nothing is saved until you press Apply.',
-  'If anything needs fixing, the whole file waits and every problem is listed with its sheet, row and column. Fix the file and upload it again.',
-  'You can undo an import for 7 days.',
+  'Dates are written YYYY-MM-DD. Money is numbers only, with the currency in its own column.',
+  'For a new row, leave “Record ID” empty. To change existing records, download the current catalogue and edit that file. Don’t change “Record ID”.',
+  'An empty cell is left as it is. Type CLEAR to empty a cell.',
+  'Nothing is ever deleted. Set Active to No to retire a record, or “Remove this intake” to Yes to take a month off.',
+  'Upload the file. You see a preview first. If anything needs fixing, the whole file waits and every problem is listed with its sheet, row and column.',
+  'When there are no problems, press Apply. New courses start as drafts. You can undo an import for 7 days.',
 ]

@@ -1,7 +1,6 @@
 import { useId, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, ArrowRight, Download, Info } from 'lucide-react'
-import { ApiError } from '@/api/errors'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
@@ -12,6 +11,7 @@ import { Table, type TableColumn } from '@/components/Table'
 import { countOf, formatCount } from '@/lib/counts'
 import { cursorPager, useCursorPagination } from '@/lib/pagination'
 import {
+  applyRefusal,
   useApplyCatalogImport,
   useCatalogImportErrors,
   useCatalogImportRows,
@@ -413,15 +413,23 @@ function WarningRow({
   checked,
   onToggle,
   disabled,
+  missing,
 }: {
   warning: CatalogImportWarning
   checked: boolean
   onToggle: () => void
   disabled: boolean
+  /** The server said this one was not ticked: marked until it is. */
+  missing: boolean
 }) {
   const inputId = useId()
+  const { college_id: collegeId, college_name: collegeName } = warning.near_match
   return (
-    <li className="flex items-start gap-sm border-t border-border px-md py-sm first:border-t-0">
+    <li
+      className={`flex items-start gap-sm border-t border-border px-md py-sm first:border-t-0 ${
+        missing ? 'bg-error/10' : ''
+      }`}
+    >
       <input
         id={inputId}
         type="checkbox"
@@ -429,7 +437,8 @@ function WarningRow({
         onChange={onToggle}
         disabled={disabled}
         aria-describedby={`${inputId}-where`}
-        className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+        aria-invalid={missing || undefined}
+        className={`mt-0.5 h-4 w-4 shrink-0 accent-primary ${missing ? 'outline outline-2 outline-error' : ''}`}
       />
       <div className="flex min-w-0 flex-col gap-0.5">
         <label htmlFor={inputId} className="cursor-pointer text-body-sm text-text-primary">
@@ -439,6 +448,24 @@ function WarningRow({
           {SHEET_LABEL[warning.sheet]} · row {formatCount(warning.row_number)}
           {warning.column ? ` · ${warning.column}` : ''}
           {warning.value ? ` · “${warning.value}”` : ''} · already in the catalogue: “{warning.near_match.name}”
+          {collegeName && (
+            <>
+              {' · '}
+              {collegeId ? (
+                // A new tab: the ticks on this page are not saved anywhere.
+                <Link
+                  to={`/admin/colleges/${collegeId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  {collegeName}
+                </Link>
+              ) : (
+                collegeName
+              )}
+            </>
+          )}
         </p>
       </div>
     </li>
@@ -469,8 +496,12 @@ export function ImportApply({ item }: { item: CatalogImport }) {
     })
   }
 
-  // 409: the server started nothing (the preview is out of date, another import is running…).
-  const conflict = apply.isError && apply.error instanceof ApiError && apply.error.status === 409
+  // 409: the server started nothing, and says why in `details.reason`. Its sentence is shown as it
+  // is; the reason only picks the next step. `stale` needs a new upload. `another_import_running`
+  // does not: wait, then try again. `warnings_not_accepted` names the boxes still to tick.
+  const refusal = apply.isError ? applyRefusal(apply.error) : null
+  const missingIds = new Set(refusal?.reason === 'warnings_not_accepted' ? refusal.missingWarningIds : [])
+  const acceptedIds = () => list.map((warning) => warning.id).filter((id) => ticked.has(id))
 
   return (
     <div className="flex flex-col gap-lg">
@@ -496,6 +527,7 @@ export function ImportApply({ item }: { item: CatalogImport }) {
                     checked={ticked.has(warning.id)}
                     onToggle={() => toggle(warning.id)}
                     disabled={apply.isPending}
+                    missing={missingIds.has(warning.id) && !ticked.has(warning.id)}
                   />
                 ))}
               </ul>
@@ -505,7 +537,18 @@ export function ImportApply({ item }: { item: CatalogImport }) {
       )}
 
       {apply.isError && (
-        <ServerNotice tone="error" action={conflict ? <UploadAgainLink /> : undefined}>
+        <ServerNotice
+          tone="error"
+          action={
+            refusal?.reason === 'stale' ? (
+              <UploadAgainLink />
+            ) : refusal?.reason === 'another_import_running' ? (
+              <Button variant="secondary" loading={apply.isPending} onClick={() => apply.mutate(acceptedIds())}>
+                Try again
+              </Button>
+            ) : undefined
+          }
+        >
           {apply.error.message}
         </ServerNotice>
       )}
@@ -531,7 +574,7 @@ export function ImportApply({ item }: { item: CatalogImport }) {
           <Button
             loading={apply.isPending}
             disabled={!item.can_apply || !warningsReady}
-            onClick={() => apply.mutate(list.map((warning) => warning.id).filter((id) => ticked.has(id)))}
+            onClick={() => apply.mutate(acceptedIds())}
           >
             Apply
           </Button>

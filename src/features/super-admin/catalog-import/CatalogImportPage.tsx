@@ -12,7 +12,9 @@ import { StopPropagation } from '@/components/StopPropagation'
 import { Table, type TableColumn } from '@/components/Table'
 import { formatCount } from '@/lib/counts'
 import { cursorPager, useCursorPagination } from '@/lib/pagination'
+import { showToast } from '@/lib/toast'
 import { formatDateTime } from '@/lib/time'
+import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 import { collegeSource } from '@/queries/pickerSources'
 import {
   useCatalogImports,
@@ -23,7 +25,7 @@ import {
 } from '@/queries/catalogImports'
 import { HowToFillModal } from './HowToFillModal'
 import { UndoImportModal } from './UndoImportModal'
-import { SHEETS, SHEET_LABEL, importPath, importState } from './catalogImportWords'
+import { SHEETS, SHEET_LABEL, importPath, importStateColor } from './catalogImportWords'
 
 /** Only what picks the sheet picker: a CSV file holds one sheet, and the server must be told which. */
 function isCsv(file: File): boolean {
@@ -169,9 +171,35 @@ function WorkbookCard({ onTemplateDownloaded, onHowTo }: { onTemplateDownloaded:
 
 function UploadCard({ onUploaded }: { onUploaded: (created: CatalogImport) => void }) {
   const upload = useUploadCatalogImport()
+  // One key per chosen file (as for the college CSV import): pressing the button again after a
+  // lost reply replays the first answer instead of uploading twice; a clear refusal renews it.
+  const idempotency = usePayloadIdempotencyKey()
   const [file, setFile] = useState<File | null>(null)
   const [sheet, setSheet] = useState<CatalogImportSheet | ''>('')
   const csv = file != null && isCsv(file)
+
+  function submit(chosen: File) {
+    const sheetFor = isCsv(chosen) && sheet ? sheet : undefined
+    upload.mutate(
+      {
+        file: chosen,
+        sheet: sheetFor,
+        idempotencyKey: idempotency.keyFor({
+          name: chosen.name,
+          size: chosen.size,
+          modified: chosen.lastModified,
+          sheet: sheetFor ?? null,
+        }),
+      },
+      {
+        onSuccess: onUploaded,
+        onError: (err) => {
+          idempotency.settle(err)
+          if (isAlreadyApplied(err)) showToast(ALREADY_APPLIED_NOTICE)
+        },
+      },
+    )
+  }
 
   function choose(next: File) {
     upload.reset()
@@ -224,7 +252,7 @@ function UploadCard({ onUploaded }: { onUploaded: (created: CatalogImport) => vo
             <Button
               loading={upload.isPending}
               disabled={csv && !sheet}
-              onClick={() => upload.mutate({ file, sheet: csv && sheet ? sheet : undefined }, { onSuccess: onUploaded })}
+              onClick={() => submit(file)}
             >
               Upload and check
             </Button>
@@ -290,10 +318,7 @@ function ImportHistory() {
     {
       key: 'state',
       header: 'State',
-      render: (item) => {
-        const state = importState(item)
-        return <Badge color={state.color}>{state.label}</Badge>
-      },
+      render: (item) => <Badge color={importStateColor(item)}>{item.state_label}</Badge>,
     },
     {
       key: 'actions',

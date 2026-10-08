@@ -4,9 +4,9 @@ import { formatDateTime } from '@/lib/time'
 import { useUndoCatalogImport, type CatalogImport } from '@/queries/catalogImports'
 
 /**
- * The confirm step before an import is undone. It says what an undo does in plain words; whether
- * it may be undone at all is the server's answer (`can_undo` offered the button, and a refusal
- * here shows the server's own sentence).
+ * The confirm step before an import is undone. What an undo does is the server's own sentence
+ * (`undo_effect.message`); whether it may be undone at all is the server's answer (`can_undo`
+ * offered the button, and a refusal here shows the server's own sentence).
  */
 export function UndoImportModal({
   item,
@@ -50,11 +50,7 @@ export function UndoImportModal({
           {item.applied_at ? `, applied on ${formatDateTime(item.applied_at)}` : ''}
           {item.applied_by ? ` by ${item.applied_by.name}` : ''}.
         </p>
-        <ul className="flex list-disc flex-col gap-xs pl-5 text-body-sm text-text-secondary">
-          <li>Campuses and courses it added are removed if nobody has used them yet. The others are switched off.</li>
-          <li>Records it changed go back to their earlier values.</li>
-          <li>Anything edited by hand since the import is left as it is. You get a list of those.</li>
-        </ul>
+        {item.undo_effect && <p className="text-body-sm text-text-secondary">{item.undo_effect.message}</p>}
       </div>
     </Modal>
   )

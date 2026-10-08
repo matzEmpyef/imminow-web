@@ -39,6 +39,8 @@ const ALLOWED_PREFIXES = [
   // `institute_course_switched` (owner decision 18): a college switched one of its own courses
   // off or on; the notice opens that college's page, `/admin/colleges/{college_id}`.
   '/admin/colleges/',
+  // A bulk import's bell notice (applied, undone) carries `/admin/colleges/import/{import_id}`, the
+  // import's own page (`CatalogImportDetailPage`); this same prefix already covers it.
   '/admin/consultancies?',
   '/admin/ratings?',
   '/administration/consultancy-profile?',

@@ -12,7 +12,7 @@ import { isInProgress, useCatalogImport, type CatalogImport } from '@/queries/ca
 import { ImportApply, ImportErrors, ImportRows, ImportSummary, ServerNotice, UploadAgainLink } from './ImportPreview'
 import { UndoImportModal } from './UndoImportModal'
 import { UndoReport } from './UndoReport'
-import { IMPORT_HOME, SHEET_LABEL, importState } from './catalogImportWords'
+import { IMPORT_HOME, SHEET_LABEL, importStateColor } from './catalogImportWords'
 
 const PHASE_LABEL = {
   check: 'Checking your file',
@@ -55,7 +55,7 @@ export function CatalogImportDetailPage() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-sm">
               <h1 className="break-all text-h1 text-text-primary">{item?.file_name ?? 'Import'}</h1>
-              {item && <Badge color={importState(item).color}>{importState(item).label}</Badge>}
+              {item && <Badge color={importStateColor(item)}>{item.state_label}</Badge>}
             </div>
             {item && (
               <p className="text-body-sm text-text-secondary">
@@ -102,8 +102,7 @@ function ImportBody({ item, checkFailed }: { item: CatalogImport; checkFailed: b
   if (item.status === 'failed' || item.status === 'stale') {
     return (
       <ServerNotice tone={item.status === 'failed' ? 'error' : 'warning'} action={<UploadAgainLink primary />}>
-        {item.message ??
-          (item.status === 'failed' ? 'This file could not be read.' : 'This import was not applied. Nothing was saved.')}
+        {item.message}
       </ServerNotice>
     )
   }
@@ -118,7 +117,7 @@ function ImportBody({ item, checkFailed }: { item: CatalogImport; checkFailed: b
     return (
       <>
         <ServerNotice tone="info">
-          {item.message ?? 'This import was undone.'}
+          {item.message}
           {item.undone_at
             ? ` Undone${item.undone_by ? ` by ${item.undone_by.name}` : ''} on ${formatDateTime(item.undone_at)}.`
             : ''}
@@ -146,7 +145,7 @@ function ImportBody({ item, checkFailed }: { item: CatalogImport; checkFailed: b
             ) : undefined
           }
         >
-          {item.message ?? 'This import was applied.'}
+          {item.message}
           {item.applied_at
             ? ` Applied${item.applied_by ? ` by ${item.applied_by.name}` : ''} on ${formatDateTime(item.applied_at)}.`
             : ''}

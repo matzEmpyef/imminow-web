@@ -12909,7 +12909,7 @@ export interface paths {
         };
         /**
          * Download the empty import workbook (XLSX) — `catalog` permission
-         * @description Bulk import of campuses and courses (owner-approved plan, 2026-10-09). The workbook is built at the moment of the call: sheets `Read me`, `Campuses`, `Courses`, `Intakes`, `Tests`, `Lists`. Every dropdown is a data validation that refuses other values, filled from the live reference data (countries, study levels, fields of study, currencies, exams) and the fixed lists. The body is the file itself; `Content-Disposition` carries the file name. The console shows its "How to fill it" popup when this is downloaded.
+         * @description Bulk import of campuses and courses (owner-approved plan, 2026-10-09). The workbook is built at the moment of the call: sheets `Read me`, `Campuses`, `Courses`, `Intakes`, `Tests`, `Lists`. Every dropdown is a data validation that refuses other values, filled from the live reference data (countries, study levels, fields of study, currencies, exams) and the fixed lists. The body is the file itself; `Content-Disposition` carries the file name and is exposed to browsers (`Access-Control-Expose-Headers`), as on the catalogue and error-file downloads. The console shows its "How to fill it" popup when this is downloaded.
          */
         get: {
             parameters: {
@@ -13047,7 +13047,14 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /**
+                     * @description OPTIONAL, AND HONOURED WHEN SENT. Any write a client might retry after a lost response carries a client-generated key (1-128 characters; assumptions audit H21, 2026-09-19). A second request with the same key, caller, method and path gets the first response back (header `Idempotent-Replayed: true`) instead of running again; keys are kept 24 hours. Without the header the request simply runs.
+                     *     WHICH ROUTES REQUIRE THE KEY AND WHICH ACCEPT IT (settled 2026-10-06; before this the contract marked 18 operations "required" that the server accepted without it). REQUIRED (`IdempotencyKeyHeader`; 400 `validation_failed` naming `Idempotency-Key` without it): the writes that move money, `POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/settle`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`, and `POST /broadcast`. ACCEPTED, NOT REQUIRED (this parameter): `POST /clients`, `POST /clients/{id}/transfer`, `POST /clients/{id}/plan/assign`, `POST /journeys/commit`, `POST /consultancies`, `POST /consultancies/{id}/ratings`, `POST /leads/import/commit`, `POST /leads/bulk-allocate`, `POST /leads/{id}/convert`, `POST /leads/{id}/request-conversion`, `POST /conversion-proposals/{id}/respond`, `DELETE /conversion-proposals/{id}`, `POST /colleges/import`, `POST /events/{id}/rsvp`, `POST /events/{id}/quiz/submit`, `POST /events/{id}/webinar/email-link`, `POST /events/{id}/webinar/join`, `POST /events/{id}/physical/verify`, `POST /coupons/{id}/redeem`. Clients SHOULD keep sending a key on all of these (a retry of a commit, a transfer or a redemption must not land twice); the server just no longer claims to refuse a request that has none. The header is honoured on every other authenticated POST, PATCH and PUT as well, documented or not.
+                     *     THE ANSWERS A KEY CAN PRODUCE are the shared responses `IdempotencyConflict` (409) and `IdempotencyKeyReused` (422): see those.
+                     */
+                    "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -13368,7 +13375,7 @@ export interface paths {
          * Apply the previewed import — all or nothing, in the background
          * @description Allowed when `can_apply` is true. Answers 202 with `status: applying`; poll `GET /catalog-imports/{id}` and show `progress.percent`. It ends as `applied` (everything was saved) or `stale` (nothing was saved: a record the import touches was changed after the preview — upload the file again for a new preview). The person who pressed Apply also gets a bell notification at the end. New campuses and courses are created as drafts; changes to live courses take effect at once.
          *
-         *     409 `conflict`, nothing started, with `error.details.reason`: `not_ready` (still checking, failed, already applied or undone), `errors` (the file has errors), `nothing_to_change`, `already_imported`, `warnings_not_accepted` (`details.missing_warning_ids` lists them), `stale` (a touched record changed since the preview), `another_import_running` (one import is applied or undone at a time), `expired` (the preview was purged). `error.message` is the sentence to show.
+         *     409 `conflict`, nothing started, with `error.details.reason`: `not_ready` (still checking, failed, already applied or undone), `errors` (the file has errors), `nothing_to_change`, `already_imported`, `warnings_not_accepted` (`details.missing_warning_ids` lists them), `stale` (a touched record changed since the preview), `another_import_running` (one import is applied or undone at a time: say to wait and try again, never offer "Upload again" for it; `stale` is the one that needs a new upload), `expired` (the preview was purged). `error.message` is the sentence to show.
          */
         post: {
             parameters: {
@@ -30184,7 +30191,9 @@ export interface components {
              * @enum {string}
              */
             status: "checking" | "failed" | "ready" | "applying" | "applied" | "stale" | "undoing" | "undone";
-            /** @description One plain sentence about where this import stands, to show as it is. */
+            /** @description The state in a word or two for the history list, to show as it is: "Checking", "Could not be read", "Needs fixing", "Nothing to change", "Already imported", "Preview ready", "Expired", "Applying", "Applied", "Not applied", "Undoing", "Undone". */
+            state_label: string;
+            /** @description One plain sentence about where this import stands, to show as it is. Always sent (never null) by this backend, for every status. */
             message?: string | null;
             file_name: string;
             /** @enum {string} */
@@ -30244,6 +30253,15 @@ export interface components {
             /** Format: date-time */
             undone_at?: string | null;
             undone_by?: components["schemas"]["CatalogImportPerson"] | null;
+            /** @description What pressing Undo would do, for the confirm box; null when `can_undo` is false. */
+            undo_effect?: {
+                /** @description Records the import added (removed, or switched off if used since). */
+                created: number;
+                /** @description Records the import changed (put back to their earlier values). */
+                changed: number;
+                /** @description The confirm sentence, to show as it is. */
+                message: string;
+            } | null;
             undo_summary?: {
                 /** @description Changed records put back to their earlier values. */
                 restored: number;
@@ -30320,6 +30338,9 @@ export interface components {
                 record_type: "campus" | "course";
                 record_id: components["schemas"]["UUID"];
                 name: string;
+                college_id?: components["schemas"]["UUID"];
+                /** @description The college the existing record belongs to. */
+                college_name?: string;
             };
         };
         CatalogImportUndoRecord: {
