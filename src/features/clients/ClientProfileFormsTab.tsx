@@ -1,5 +1,5 @@
 // Split out of ClientProfilePage.tsx (Phase 3 plan, Tier B1, 2026-09-03) — pure movement, no logic change.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { ErrorState, Skeleton } from '@/components/QueryState'
@@ -8,6 +8,8 @@ import { useFormTemplate } from '@/queries/formTemplates'
 import { useClient } from '@/queries/clients'
 import { formatDateTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
+import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard'
+import { FormTableField } from './FormTableField'
 
 type FormField = NonNullable<ReturnType<typeof useFormTemplate>['data']>['fields'][number]
 type FormAnswers = Record<string, unknown>
@@ -71,17 +73,20 @@ function buildPrefill(fields: FormField[], client: Client | undefined): Record<s
 // FILLABLE (user, 2026-08-20: "if there is a form to fill they can fill and save… Both can see
 // the details and edit") — real inputs per field type, prefilled from the latest saved response
 // (which the applicant may have written from the app), saved back through the same
-// POST /forms/{id}/submit the app uses. Tables stay read-only here — their row editor lives in
-// the app; the saved value still shows.
+// POST /forms/{id}/submit the app uses. A table shows its saved rows and takes new ones here too
+// (2026-10-08): the answer is the list of rows the app writes, each row keyed by column id.
 function FillableField({
   field,
   answers,
   onChange,
   fromProfile,
+  readOnly,
 }: {
   field: FormField
   answers: FormAnswers
   onChange: (fieldId: string, value: unknown) => void
+  // A case that moved to another consultancy: the answers still show, nothing can be changed.
+  readOnly: boolean
   // Field ids currently showing a value taken from the applicant's profile rather than typed or
   // submitted (H9) - the tag disappears the moment the value is edited.
   fromProfile: Set<string>
@@ -100,6 +105,7 @@ function FillableField({
               answers={answers}
               onChange={onChange}
               fromProfile={fromProfile}
+              readOnly={readOnly}
             />
           ))}
         </div>
@@ -219,39 +225,48 @@ function FillableField({
       )
     case 'table':
       return (
-        <div className="flex items-center justify-between border-b border-border pb-xs">
-          <div>
-            {label}
-            {field.table_columns && field.table_columns.length > 0 && (
-              <p className="text-caption text-text-secondary">
-                Columns: {field.table_columns.map((c) => c.label).join(', ')} — rows are filled from the app
-              </p>
-            )}
-          </div>
-          <span className="shrink-0 rounded-full bg-background px-sm py-0.5 text-caption font-medium text-text-secondary">
-            table
-          </span>
-        </div>
+        <FormTableField
+          field={field}
+          value={value}
+          readOnly={readOnly}
+          onChange={(rows) => onChange(field.id, rows)}
+          renderInput={(column, row, onCellChange) => (
+            <FillableField field={column} answers={row} onChange={onCellChange} fromProfile={NO_PREFILL} readOnly={false} />
+          )}
+        />
       )
     default:
       return null
   }
 }
 
+// A table cell is never prefilled from the profile.
+const NO_PREFILL = new Set<string>()
+
 function LinkedFormViewer({
   formId,
   formName,
   clientId,
+  readOnly,
+  onDirtyChange,
 }: {
   formId: string
   formName: string
   clientId: string
+  readOnly: boolean
+  // Tells the tab whether this form holds changes that have not been saved, so the pager and the
+  // ways off the page can ask first.
+  onDirtyChange: (dirty: boolean) => void
 }) {
   const form = useFormTemplate(formId)
   const saved = useLatestFormResponse(formId, clientId)
   const saveForm = useSaveFormResponse(formId, clientId)
   const client = useClient(clientId)
   const [draft, setDraft] = useState<FormAnswers | null>(null)
+  const dirty = draft !== null
+  useEffect(() => {
+    onDirtyChange(dirty)
+  }, [dirty, onDirtyChange])
 
   if (form.isLoading || saved.isLoading) return <Skeleton className="h-24 rounded-lg" />
   if (form.isError || !form.data) {
@@ -276,32 +291,40 @@ function LinkedFormViewer({
       {saved.data?.submitted_at && (
         <p className="text-caption text-text-secondary">Last saved {formatDateTime(saved.data.submitted_at)}</p>
       )}
-      {form.data.fields.map((field) => (
-        <FillableField
-          key={field.id}
-          field={field}
-          answers={answers}
-          fromProfile={fromProfile}
-          onChange={(fieldId, value) => setDraft({ ...answers, [fieldId]: value })}
-        />
-      ))}
-      <div className="flex items-center gap-sm">
-        <Button
-          disabled={draft === null}
-          loading={saveForm.isPending}
-          onClick={() =>
-            saveForm.mutate(answers as Record<string, unknown>, {
-              onSuccess: () => {
-                showToast(`${formName} saved`)
-                setDraft(null)
-              },
-            })
-          }
-        >
-          Save
-        </Button>
-        {saveForm.error && <p className="text-body-sm text-error">{saveForm.error.message}</p>}
-      </div>
+      {/* One switch for every input on the form when the case is read-only. `min-w-0`: a
+          fieldset is otherwise as wide as its widest child, which would let a wide table push
+          the page sideways. */}
+      <fieldset disabled={readOnly} className="flex min-w-0 flex-col gap-sm">
+        {form.data.fields.map((field) => (
+          <FillableField
+            key={field.id}
+            field={field}
+            answers={answers}
+            fromProfile={fromProfile}
+            readOnly={readOnly}
+            onChange={(fieldId, value) => setDraft({ ...answers, [fieldId]: value })}
+          />
+        ))}
+      </fieldset>
+      {!readOnly && (
+        <div className="flex items-center gap-sm">
+          <Button
+            disabled={draft === null}
+            loading={saveForm.isPending}
+            onClick={() =>
+              saveForm.mutate(answers as Record<string, unknown>, {
+                onSuccess: () => {
+                  showToast(`${formName} saved`)
+                  setDraft(null)
+                },
+              })
+            }
+          >
+            Save
+          </Button>
+          {saveForm.error && <p className="text-body-sm text-error">{saveForm.error.message}</p>}
+        </div>
+      )}
     </div>
   )
 }
@@ -311,11 +334,18 @@ function LinkedFormViewer({
 // step, in step order, "one by one" via a pager rather than all stacked at once — same pattern
 // Manage Questions/Course Suggestions detail popups already use elsewhere in this app for
 // paging through a set one at a time.
-export function FormsTab({ clientId }: { clientId: string }) {
+export function FormsTab({ clientId, readOnly = false }: { clientId: string; readOnly?: boolean }) {
   // Every plan on the case, not just one (2026-09-09) — a form linked from the second plan is no
   // less the student's to fill than one linked from the first.
   const plans = usePlans(clientId)
   const [index, setIndex] = useState(0)
+  // Unsaved answers are asked about before they are left behind: by the pager below, a link
+  // elsewhere in the console, the browser's Back, or closing the tab.
+  const [dirty, setDirty] = useState(false)
+  const guard = useUnsavedChangesGuard(dirty, {
+    title: 'Discard your changes?',
+    body: 'You have changed this form. If you leave now, those changes will be lost.',
+  })
   if (plans.isLoading) return <Skeleton className="h-24 rounded-lg" />
   if (!plans.data) return <ErrorState message="Could not load the plans." onRetry={() => plans.refetch()} error={plans.error} />
 
@@ -356,7 +386,7 @@ export function FormsTab({ clientId }: { clientId: string }) {
           <p className="text-caption text-text-secondary">From step: {current.stepTitle}</p>
         </div>
         <div className="flex items-center gap-sm">
-          <Button variant="secondary" disabled={index === 0} onClick={() => setIndex((i) => Math.max(0, i - 1))}>
+          <Button variant="secondary" disabled={index === 0} onClick={() => guard.requestLeave(() => setIndex((i) => Math.max(0, i - 1)))}>
             ← Back
           </Button>
           <span className="text-caption text-text-secondary">
@@ -365,13 +395,22 @@ export function FormsTab({ clientId }: { clientId: string }) {
           <Button
             variant="secondary"
             disabled={index === links.length - 1}
-            onClick={() => setIndex((i) => Math.min(links.length - 1, i + 1))}
+            onClick={() => guard.requestLeave(() => setIndex((i) => Math.min(links.length - 1, i + 1)))}
           >
             Next →
           </Button>
         </div>
       </div>
-      <LinkedFormViewer formId={current.formId} formName={current.formName} clientId={clientId} />
+      {/* Keyed by form: each form starts from its own saved answers, never the last one's edits. */}
+      <LinkedFormViewer
+        key={current.formId}
+        formId={current.formId}
+        formName={current.formName}
+        clientId={clientId}
+        readOnly={readOnly}
+        onDirtyChange={setDirty}
+      />
+      {guard.dialog}
     </Card>
   )
 }

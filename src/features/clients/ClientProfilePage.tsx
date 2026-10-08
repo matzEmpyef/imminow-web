@@ -312,7 +312,7 @@ export function ClientProfilePage() {
             readOnly={caseMoved}
           />
         )}
-        {activeTab === 'Forms' && hasLinkedForms && <FormsTab clientId={id} />}
+        {activeTab === 'Forms' && hasLinkedForms && <FormsTab clientId={id} readOnly={caseMoved} />}
         {activeTab === 'Commissions' && canSeeCommissions && <CommissionsTab clientId={id} />}
         {activeTab === 'Applications' && <ApplicationsTab clientId={id} readOnly={caseMoved} />}
         {activeTab === 'Documents' && <DocumentsTab clientId={id} readOnly={caseMoved} />}
