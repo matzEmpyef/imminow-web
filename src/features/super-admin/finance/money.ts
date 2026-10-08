@@ -116,6 +116,20 @@ export function paymentInrNote(p: PaymentMoney | null | undefined): string | nul
 }
 
 /**
+ * The rupees-per-unit rate a payment was valued at (review F-300): the rate frozen onto the row when
+ * it was declared, not one worked out from two amounts, which goes wrong when the rupee figure is
+ * stale. 1 for a rupee payment. Only a row written before rates were stored falls back to the ratio
+ * of its two amounts, and null when there is not even that.
+ */
+export function paymentRateToInr(p: PaymentMoney | null | undefined): number | null {
+  const currency = p?.amount?.currency
+  if (!p || !currency || currency === 'INR') return 1
+  if (p.rate_used != null && p.rate_used > 0) return p.rate_used
+  const amount = p.amount?.amount
+  return amount && amount > 0 && p.amount_inr != null ? p.amount_inr / amount : null
+}
+
+/**
  * Money on the Finance Dashboard. immiNow's cut is held in rupees and every other figure on these
  * pages reads "₹1,23,456", so INR amounts use the symbol here rather than the platform-wide
  * "INR 1,23,456"; anything in another currency keeps the shared formatting.
