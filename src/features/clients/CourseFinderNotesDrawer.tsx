@@ -13,6 +13,8 @@ interface CourseFinderNotesDrawerProps {
   suggestedCourseIds: Set<string>
   suggestPending: boolean
   suggestingId: string | undefined
+  /** False when the picked case is closed and its chat read-only: nothing more is suggested into it. */
+  canSuggest?: boolean
   onSuggest: (entry: { id: string; name: string }) => void
   onRemove: (courseId: string) => void
 }
@@ -29,6 +31,7 @@ export function CourseFinderNotesDrawer({
   suggestedCourseIds,
   suggestPending,
   suggestingId,
+  canSuggest = true,
   onSuggest,
   onRemove,
 }: CourseFinderNotesDrawerProps) {
@@ -65,7 +68,7 @@ export function CourseFinderNotesDrawer({
               <div className="flex shrink-0 items-center gap-sm">
                 {suggestedCourseIds.has(entry.course_id) ? (
                   <Badge color="secondary">Suggested</Badge>
-                ) : (
+                ) : !canSuggest ? null : (
                   <Button
                     variant="secondary"
                     onClick={() => onSuggest({ id: entry.course_id, name: entry.name })}

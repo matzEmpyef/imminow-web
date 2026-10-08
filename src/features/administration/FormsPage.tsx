@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Copy, Pencil } from 'lucide-react'
+import { Copy, Pencil, RotateCcw } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
+import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
@@ -9,6 +10,8 @@ import { StopPropagation } from '@/components/StopPropagation'
 import { useDuplicateFormTemplate, useFormTemplates } from '@/queries/formTemplates'
 import { usePermissionChecker } from '@/lib/permissions'
 import { showToast } from '@/lib/toast'
+import { EDIT_DEFAULT_CONFIRMED } from '@/lib/defaultForm'
+import { EditDefaultFormDialog, RestoreDefaultFormDialog } from './DefaultFormDialogs'
 import type { components } from '@/api/schema'
 
 type FormTemplate = components['schemas']['FormTemplate']
@@ -18,13 +21,40 @@ type DuplicateFormTemplate = ReturnType<typeof useDuplicateFormTemplate>
 // `render: (row) => ...` runs as a callback, not a component body, so hooks can't go directly
 // inside it (Rules of Hooks). `duplicateForm` is passed down rather than called again here since
 // it's not per-id — one shared mutation instance, `mutate(id)` per row, same as elsewhere.
-function FormRowActions({ form, duplicateForm }: { form: FormTemplate; duplicateForm: DuplicateFormTemplate }) {
+function FormRowActions({
+  form,
+  duplicateForm,
+  onEdit,
+}: {
+  form: FormTemplate
+  duplicateForm: DuplicateFormTemplate
+  onEdit: (form: FormTemplate) => void
+}) {
   const [confirmDuplicate, setConfirmDuplicate] = useState(false)
+  const [confirmRestore, setConfirmRestore] = useState(false)
 
   return (
     <StopPropagation className="flex justify-end gap-xs">
+      {form.is_default && (
+        <button
+          type="button"
+          onClick={() => setConfirmRestore(true)}
+          aria-label={`Restore default ${form.name}`}
+          title="Restore default"
+          className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
+        >
+          <RotateCcw className="h-4 w-4" />
+        </button>
+      )}
+      {/* Still a real link (open in a new tab works); a plain click on the default form asks
+          first. */}
       <Link
         to={`/administration/forms/${form.id}`}
+        onClick={(e) => {
+          if (!form.is_default || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+          e.preventDefault()
+          onEdit(form)
+        }}
         aria-label={`Edit ${form.name}`}
         title="Edit"
         className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
@@ -80,6 +110,9 @@ function FormRowActions({ form, duplicateForm }: { form: FormTemplate; duplicate
           </div>
         </Modal>
       )}
+      {confirmRestore && (
+        <RestoreDefaultFormDialog currentDefaultId={form.id} onClose={() => setConfirmRestore(false)} />
+      )}
     </StopPropagation>
   )
 }
@@ -97,6 +130,17 @@ export function FormsPage() {
   const canManage = can('settings.manage_templates')
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
+  // The default form (owner decisions 30/31) asks before it is edited: a copy is the better way.
+  const [editingDefault, setEditingDefault] = useState<FormTemplate | null>(null)
+  const [confirmRestore, setConfirmRestore] = useState(false)
+  // Every consultancy has one default form. Where none is listed, Restore default is offered for
+  // the page so it can be made again (the server recreates it).
+  const hasNoDefault = forms.data !== undefined && !forms.data.some((f) => f.is_default)
+
+  function openForEdit(form: FormTemplate) {
+    if (form.is_default) setEditingDefault(form)
+    else navigate(`/administration/forms/${form.id}`)
+  }
 
   const rows = useMemo(() => {
     let items = forms.data ?? []
@@ -120,7 +164,12 @@ export function FormsPage() {
       key: 'name',
       header: 'Name',
       sortable: true,
-      render: (form) => <span className="font-medium text-text-primary">{form.name}</span>,
+      render: (form) => (
+        <span className="inline-flex items-center gap-sm">
+          <span className="font-medium text-text-primary">{form.name}</span>
+          {form.is_default && <Badge color="info">Default</Badge>}
+        </span>
+      ),
     },
     { key: 'version', header: 'Version', sortable: true, align: 'right', render: (form) => `v${form.version}` },
     {
@@ -134,7 +183,9 @@ export function FormsPage() {
           {
             key: 'actions',
             header: '',
-            render: (form: FormTemplate) => <FormRowActions form={form} duplicateForm={duplicateForm} />,
+            render: (form: FormTemplate) => (
+              <FormRowActions form={form} duplicateForm={duplicateForm} onEdit={openForEdit} />
+            ),
           },
         ]
       : []),
@@ -146,9 +197,16 @@ export function FormsPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-h1 text-text-primary">Forms</h1>
           {canManage && (
-            <Link to="/administration/forms/new">
-              <Button>Create New</Button>
-            </Link>
+            <div className="flex items-center gap-sm">
+              {hasNoDefault && (
+                <Button variant="secondary" onClick={() => setConfirmRestore(true)}>
+                  Restore default
+                </Button>
+              )}
+              <Link to="/administration/forms/new">
+                <Button>Create New</Button>
+              </Link>
+            </div>
           )}
         </div>
 
@@ -168,8 +226,21 @@ export function FormsPage() {
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search forms…' }}
-          onRowClick={canManage ? (form) => navigate(`/administration/forms/${form.id}`) : undefined}
+          onRowClick={canManage ? openForEdit : undefined}
         />
+
+        {editingDefault && (
+          <EditDefaultFormDialog
+            form={editingDefault}
+            onClose={() => setEditingDefault(null)}
+            onEditAnyway={() =>
+              navigate(`/administration/forms/${editingDefault.id}`, { state: EDIT_DEFAULT_CONFIRMED })
+            }
+          />
+        )}
+        {confirmRestore && (
+          <RestoreDefaultFormDialog currentDefaultId={undefined} onClose={() => setConfirmRestore(false)} />
+        )}
       </div>
     </AppShell>
   )

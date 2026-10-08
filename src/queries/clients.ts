@@ -9,6 +9,7 @@ import { refreshStanding } from './standing'
 import { useThreadMessages } from './threadMessages'
 import { invalidateApplicantRequests, type ApplicantRequest } from './applicantRequests'
 import { isAlreadyApplied } from '@/lib/useIdempotencyKey'
+import { refreshIfThreadClosed } from '@/lib/closedThread'
 import { editError, reloadOnStaleEdit } from '@/lib/staleEdit'
 import type { components } from '@/api/schema'
 
@@ -279,6 +280,7 @@ export function useAddApplication(clientId: string) {
       if (error) throw new ApiError('Could not add this college.', error)
       return data
     },
+    onError: (error) => refreshIfThreadClosed(queryClient, 'client', clientId, error),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'applications'] })
       // A new suggested/considering row can feed Activity's ready_to_apply (2026-08-29).
@@ -508,6 +510,8 @@ export function useSendClientMessage(clientId: string) {
       if (error) throw new ApiError('Could not send this message.', error)
       return data
     },
+    // The case was closed while this screen still showed it open: read it again.
+    onError: (error) => refreshIfThreadClosed(queryClient, 'client', clientId, error),
     // Into the newest page rather than a refetch of every loaded page — see `useSendLeadMessage`.
     onSuccess: (message) => {
       if (message) applyChatMessage(queryClient, { type: 'client', id: clientId }, message)

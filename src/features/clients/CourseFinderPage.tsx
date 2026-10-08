@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ListChecks, Send } from 'lucide-react'
+import { ListChecks, Lock, Send } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
 import { showToast } from '@/lib/toast'
 import { useShareSearch } from '@/queries/searchShare'
 import { DUPLICATE_SHARE_MESSAGE, duplicateShareMessage, isRepeatOfLastShare } from './shareGuards'
+import { CASE_CLOSED_CHAT_NOTE, isCaseChatClosed } from '@/lib/closedThread'
 import { Table } from '@/components/Table'
 import { CountryLabelList } from '@/components/CountryLabel'
 import { CollegeDetailModal } from './CollegeDetailModal'
@@ -192,6 +193,10 @@ export function CourseFinderPage() {
   ) {
     suggestedCourseIds.add(lastThreadMessage.shared_course.id)
   }
+  // A closed case's chat is read-only (owner ruling 2026-10-06), and both things this page sends
+  // to a person land in their chat: "Send this search" and Suggest. They are not offered for a
+  // closed case, and one line says why. (A closed lead is never the selected person: see above.)
+  const personChatClosed = isCaseChatClosed(selectedClient?.status)
   const personFirstName = selectedClient?.student.first_name ?? selectedLead?.name ?? ''
   // Somebody with the Sentpo app — a client, or a lead who came through Sentpo. A lead the
   // consultancy imported has no app for a search card to open in.
@@ -232,6 +237,7 @@ export function CourseFinderPage() {
     suggestedCourseIds,
     suggestPending,
     suggestingId,
+    canSuggest: !personChatClosed,
     onToggleShortlist: toggleShortlist,
     onSuggest: setConfirmSuggest,
     onOpenCourse: setCourseDetail,
@@ -255,7 +261,7 @@ export function CourseFinderPage() {
                 Noted ({shortlist.length})
               </Button>
             )}
-            {selectedPerson && personHasApp && (
+            {selectedPerson && personHasApp && !personChatClosed && (
               <Button
                 variant="secondary"
                 disabled={alreadySentThisSearch}
@@ -287,6 +293,13 @@ export function CourseFinderPage() {
             )}
           </div>
         </div>
+
+        {personChatClosed && (
+          <p className="flex items-center gap-sm rounded-md border border-border bg-background px-md py-sm text-body-sm text-text-secondary">
+            <Lock className="h-4 w-4 shrink-0" aria-hidden />
+            {CASE_CLOSED_CHAT_NOTE}
+          </p>
+        )}
 
         <CourseFinderFilters
           state={state}
@@ -360,6 +373,7 @@ export function CourseFinderPage() {
           suggestedCourseIds={suggestedCourseIds}
           suggestPending={suggestPending}
           suggestingId={suggestingId}
+          canSuggest={!personChatClosed}
           onSuggest={setConfirmSuggest}
           onRemove={(courseId) => setShortlist((list) => list.filter((e) => e.course_id !== courseId))}
         />

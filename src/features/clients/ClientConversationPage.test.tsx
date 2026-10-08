@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,6 +22,7 @@ vi.mock('@/lib/useMarkThreadRead', () => ({ useMarkThreadRead: vi.fn(), newestIn
 import { useClient, useClientMessages, useMarkClientRead, useSendClientMessage } from '@/queries/clients'
 import { useChatWindowStore } from '@/stores/chatWindowStore'
 import { ClientConversationPage } from './ClientConversationPage'
+import { ApiError } from '@/api/errors'
 
 const mockedClient = vi.mocked(useClient)
 const mockedMessages = vi.mocked(useClientMessages)
@@ -33,15 +34,22 @@ function query<T>(data: T, overrides: Record<string, unknown> = {}) {
   return { data, isLoading: false, isError: false, refetch: vi.fn(), ...overrides } as never
 }
 
-function renderConversation() {
-  render(
+function conversation() {
+  return (
     <MemoryRouter initialEntries={['/clients/c1/conversation']}>
       <Routes>
         <Route path="/clients/:id/conversation" element={<ClientConversationPage />} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
   )
 }
+
+function renderConversation() {
+  return render(conversation())
+}
+
+const CASE_CLOSED_NOTE = 'This case is closed, so its chat is read-only.'
+const aiko = (status: string) => query({ student: { first_name: 'Aiko', last_name: 'Tanaka' }, status, case_type: 'student' })
 
 beforeEach(() => {
   mockedMessages.mockReturnValue({
@@ -83,5 +91,50 @@ describe('ClientConversationPage — case moved to another consultancy', () => {
     expect(
       screen.queryByText('This case has moved to another consultancy — you can read the history, but nothing more can be sent.'),
     ).not.toBeInTheDocument()
+  })
+})
+
+// A closed case's chat is read-only on the full page too (owner ruling 2026-10-06, review
+// F-086/F-115): `closed` and `closed_completed` show one line in place of the composer and of
+// Suggest a course. The server's 409 `case_closed` on a send does the same at once, and the
+// composer is back as soon as the case is reopened, with no reload.
+describe('ClientConversationPage — closed case', () => {
+  it.each(['closed', 'closed_completed'])('shows a %s case with one line and nothing to send with', (status) => {
+    mockedClient.mockReturnValue(aiko(status))
+    renderConversation()
+
+    expect(screen.getByText(CASE_CLOSED_NOTE)).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Write a message…')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Send message' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Suggest a course' })).not.toBeInTheDocument()
+  })
+
+  it('leaves a moved case with its own wording', () => {
+    mockedClient.mockReturnValue(aiko('closed_switched'))
+    renderConversation()
+    expect(screen.queryByText(CASE_CLOSED_NOTE)).not.toBeInTheDocument()
+  })
+
+  it('turns read-only on the server’s 409 case_closed, and gets the composer back after Reopen', () => {
+    const send = vi.fn((_content: string, options: { onError: (error: unknown) => void }) =>
+      options.onError(new ApiError('Could not send this message.', { error: { code: 'case_closed', message: CASE_CLOSED_NOTE } }, 409)),
+    )
+    mockedSend.mockReturnValue({ mutate: send, isPending: false } as never)
+    mockedClient.mockReturnValue(aiko('in_plan'))
+    const view = renderConversation()
+
+    fireEvent.change(screen.getByPlaceholderText('Write a message…'), { target: { value: 'Hello' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    expect(screen.getByText(CASE_CLOSED_NOTE)).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Write a message…')).not.toBeInTheDocument()
+
+    // The case is read again (closed), then reopened from its profile: the same mounted page.
+    mockedClient.mockReturnValue(aiko('closed'))
+    view.rerender(conversation())
+    expect(screen.getByText(CASE_CLOSED_NOTE)).toBeInTheDocument()
+    mockedClient.mockReturnValue(aiko('in_plan'))
+    view.rerender(conversation())
+    expect(screen.getByPlaceholderText('Write a message…')).toBeInTheDocument()
+    expect(screen.queryByText(CASE_CLOSED_NOTE)).not.toBeInTheDocument()
   })
 })

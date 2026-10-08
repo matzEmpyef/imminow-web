@@ -11,6 +11,7 @@ import { useChatWindowStore } from '@/stores/chatWindowStore'
 import { useViewingThread } from '@/lib/realtime'
 import { duplicateShareMessage } from './shareGuards'
 import { CASE_MOVED_COMPOSER_NOTE, isCaseMoved } from '@/lib/clientStatus'
+import { CASE_CLOSED_CHAT_NOTE, isCaseChatClosed, useClosedThread } from '@/lib/closedThread'
 
 export function ClientConversationPage() {
   const { id = '' } = useParams()
@@ -23,6 +24,10 @@ export function ClientConversationPage() {
   // 2026-09-19) — an ordinary message, or the server's 409 `duplicate_share` on a course share.
   // Cleared the moment the consultant types again, never by a retry.
   const [composerError, setComposerError] = useState<string | null>(null)
+  // A closed case's chat is read-only (owner ruling 2026-10-06): the composer and Suggest a
+  // course give way to one line. Also entered when the server refuses a write with 409
+  // `case_closed` (the case was closed a moment ago); Reopen Case brings the composer back.
+  const thread = useClosedThread(id || null, isCaseChatClosed(client.data?.status), CASE_CLOSED_CHAT_NOTE)
 
   // Read on open, and again for each message that arrives while the consultant is looking at the
   // thread (review F-143; the shared hook all four chat screens use).
@@ -38,7 +43,9 @@ export function ClientConversationPage() {
     // The draft is cleared on SUCCESS only — a refused send leaves what was typed in place.
     sendMessage.mutate(draft, {
       onSuccess: () => setDraft(''),
-      onError: (error) => setComposerError(duplicateShareMessage(error)),
+      onError: (error) => {
+        if (!thread.noteRefusal(error)) setComposerError(duplicateShareMessage(error))
+      },
     })
   }
 
@@ -110,13 +117,17 @@ export function ClientConversationPage() {
           // Case moved to another consultancy (product owner 2026-09-24) — the server 409s
           // `case_moved` on a send here, same idiom Lead Pool's unallocated-lead lock already
           // uses for `composerLocked`: say why up front rather than let the send fail.
-          composerLocked={isCaseMoved(client.data.status) ? CASE_MOVED_COMPOSER_NOTE : undefined}
+          composerLocked={
+            isCaseMoved(client.data.status) ? CASE_MOVED_COMPOSER_NOTE : thread.closed ? thread.note : undefined
+          }
           composerAction={
             // Courses only mean something on a study case; a PR case has no Applications tab.
             client.data.case_type === 'student' ? (
               <SuggestCourseInChat
                 person={{ id, kind: 'client', firstName: client.data.student.first_name, hasApp: true }}
-                onShareError={setComposerError}
+                onShareError={(message, error) => {
+                  if (!thread.noteRefusal(error)) setComposerError(message)
+                }}
               />
             ) : undefined
           }

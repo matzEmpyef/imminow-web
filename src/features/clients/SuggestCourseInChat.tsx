@@ -26,6 +26,10 @@ export interface ChatPerson {
   hasApp: boolean
 }
 
+// The sentence to show, and the failure it came from: a page tells a "this conversation is
+// closed" refusal apart from the rest and goes read-only on it (`lib/closedThread.ts`).
+type ShareErrorHandler = (message: string, error: unknown) => void
+
 // Suggest, from the chat box (2026-09-14). NOT a second feature: it calls exactly what Course
 // Finder's Suggest calls — POST /leads/{id}/suggest-course for a lead, POST
 // /clients/{id}/applications with message_student for a client — with the same confirmation
@@ -41,7 +45,7 @@ export function SuggestCourseInChat({
    * where the server's new 409 `duplicate_share` lands. A toast was too easy to miss and said
    * nothing about which message it belonged to.
    */
-  onShareError?: (message: string) => void
+  onShareError?: ShareErrorHandler
 }) {
   const [open, setOpen] = useState(false)
   return (
@@ -69,7 +73,7 @@ function SuggestCourseModal({
 }: {
   person: ChatPerson
   onClose: () => void
-  onShareError?: (message: string) => void
+  onShareError?: ShareErrorHandler
 }) {
   const [search, setSearch] = useState('')
   const [picked, setPicked] = useState<Course | null>(null)
@@ -114,7 +118,7 @@ function SuggestCourseModal({
       onError: (error: Error) => {
         const message = duplicateShareMessage(error)
         if (onShareError) {
-          onShareError(message)
+          onShareError(message, error)
           onClose()
         } else {
           showToast(message, 'error')

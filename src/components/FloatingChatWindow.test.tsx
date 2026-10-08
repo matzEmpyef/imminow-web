@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // A closed conversation opens read-only (owner ruling 2026-10-06, review F-086/F-115): the chat
@@ -25,7 +25,9 @@ import {
   useUnsendInternalMessage,
 } from '@/queries/internalMessages'
 import { useChatWindowStore, type ChatWindowConversation } from '@/stores/chatWindowStore'
-import { CLOSED_CONVERSATION_NOTE, FloatingChatWindow } from './FloatingChatWindow'
+import { CLOSED_CONVERSATION_NOTE } from '@/lib/closedThread'
+import { ApiError } from '@/api/errors'
+import { FloatingChatWindow } from './FloatingChatWindow'
 
 const thread = {
   items: [{ id: 'm1', sender: 'student', content: 'Thank you for the help', created_at: '2026-09-01T10:00:00Z' }],
@@ -88,5 +90,34 @@ describe('the floating chat window', () => {
   it('a window opened from a page, which carries no flag, keeps its composer', () => {
     show({ id: 'x1', type: 'client', name: 'Asha Nair' })
     expect(screen.getByRole('textbox')).toBeInTheDocument()
+  })
+
+  // Such a window has no flag to go by, so the lead or case itself is asked, as on the full pages.
+  it.each(['closed', 'closed_completed'])('a window opened from a page on a %s case is read-only', (status) => {
+    vi.mocked(useClient).mockReturnValue({ data: { status, case_type: 'student', student: { first_name: 'Asha' } } } as never)
+    show({ id: 'x1', type: 'client', name: 'Asha Nair' })
+    expect(screen.getByText('This case is closed, so its chat is read-only.')).toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  })
+
+  it('a window opened from a page on a closed lead is read-only', () => {
+    vi.mocked(useLead).mockReturnValue({ data: { status: 'closed', assigned_employee_id: 'e1', origin: 'sentpo' } } as never)
+    show({ id: 'x1', type: 'lead', name: 'Asha Nair' })
+    expect(screen.getByText(CLOSED_CONVERSATION_NOTE)).toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  })
+
+  it('turns read-only when the server refuses a send with 409 case_closed', () => {
+    const sentence = 'This case is closed, so its chat is read-only.'
+    vi.mocked(useSendClientMessage).mockReturnValue({
+      mutate: (_content: string, options: { onError: (error: unknown) => void }) =>
+        options.onError(new ApiError('Could not send this message.', { error: { code: 'case_closed', message: sentence } }, 409)),
+      isPending: false,
+    } as never)
+    show({ id: 'x1', type: 'client', name: 'Asha Nair' })
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Hello' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    expect(screen.getByText(sentence)).toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 })

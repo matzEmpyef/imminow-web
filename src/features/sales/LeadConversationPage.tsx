@@ -36,6 +36,7 @@ import { useBranches } from '@/queries/staff'
 import { chronologicalPages } from '@/lib/pagination'
 import { useFeature } from '@/lib/features'
 import { canOfferLeadReopen } from '@/lib/reopenRules'
+import { CLOSED_CONVERSATION_NOTE, useClosedThread } from '@/lib/closedThread'
 import { useCanConvertLead } from '@/lib/convertRules'
 import { usePermission } from '@/lib/permissions'
 import { formatDate, formatDateTime } from '@/lib/time'
@@ -321,6 +322,10 @@ export function LeadConversationPage() {
   // Convert to Client, and answering a student's own request, need the "convert leads"
   // permission (owner decision 6; review F-055). See `lib/convertRules.ts`.
   const canConvert = useCanConvertLead(lead.data)
+  // A closed lead's conversation is read-only (owner ruling 2026-10-06): no composer, and none of
+  // the header actions that write into it. Also entered when the server refuses a write with 409
+  // `lead_closed` (a colleague closed it a moment ago); Reopen Lead brings the composer back.
+  const thread = useClosedThread(id || null, lead.data?.status === 'closed', CLOSED_CONVERSATION_NOTE)
 
   // Read on open, and again for each message that arrives while the consultant is looking at the
   // thread (review F-143; the shared hook all four chat screens use).
@@ -336,7 +341,9 @@ export function LeadConversationPage() {
     setComposerError(null)
     sendMessage.mutate(draft, {
       onSuccess: () => setDraft(''),
-      onError: (error) => setComposerError(duplicateShareMessage(error)),
+      onError: (error) => {
+        if (!thread.noteRefusal(error)) setComposerError(duplicateShareMessage(error))
+      },
     })
   }
 
@@ -375,7 +382,7 @@ export function LeadConversationPage() {
           </div>
 
           <div className="flex shrink-0 items-center gap-sm">
-            {data.status === 'closed' ? (
+            {thread.closed ? (
               <>
                 <span className="rounded-full bg-background px-sm py-1.5 text-caption font-medium text-text-secondary">
                   Closed
@@ -475,11 +482,17 @@ export function LeadConversationPage() {
                     firstName: data.name,
                     hasApp: data.origin === 'sentpo' && Boolean(data.student_id),
                   }}
-                  onShareError={setComposerError}
+                  onShareError={(message, error) => {
+                    if (!thread.noteRefusal(error)) setComposerError(message)
+                  }}
                 />
               }
               composerLocked={
-                data.assigned_employee_id ? undefined : 'Allocate this lead to a consultant from Lead Pool to reply.'
+                thread.closed
+                  ? thread.note
+                  : data.assigned_employee_id
+                    ? undefined
+                    : 'Allocate this lead to a consultant from Lead Pool to reply.'
               }
               headerActions={
                 <button

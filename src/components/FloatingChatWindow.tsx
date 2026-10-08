@@ -16,9 +16,12 @@ import {
 import { CHAT_TYPE_LABELS } from './chatTypeLabels'
 import { CASE_MOVED_COMPOSER_NOTE, isCaseMoved } from '@/lib/clientStatus'
 import { useViewingThread } from '@/lib/realtime'
-
-/** What stands in place of the composer on a closed conversation. */
-export const CLOSED_CONVERSATION_NOTE = 'This conversation is closed and read-only.'
+import {
+  CASE_CLOSED_CHAT_NOTE,
+  CLOSED_CONVERSATION_NOTE,
+  isCaseChatClosed,
+  useClosedThread,
+} from '@/lib/closedThread'
 
 // Facebook-style floating chat popup — opened from the conversation pages' pop-out buttons and
 // stays available while browsing the rest of the app. One window at a time (see
@@ -53,6 +56,14 @@ export function FloatingChatWindow() {
   const sendInternalMessage = useSendInternalMessage(internalId)
   const unsendInternalMessage = useUnsendInternalMessage(internalId)
   const conversationId = conversation?.id
+  // A window opened from a page carries no `closed` flag, so the lead or case itself is asked
+  // too, as the full conversation pages do; and a 409 `lead_closed` / `case_closed` on a write
+  // from here turns the window read-only at once (`lib/closedThread.ts`).
+  const thread = useClosedThread(
+    conversationId ?? null,
+    isLead ? lead.data?.status === 'closed' : isClient && isCaseChatClosed(client.data?.status),
+    isClient ? CASE_CLOSED_CHAT_NOTE : CLOSED_CONVERSATION_NOTE,
+  )
 
   // Read on open, and again for each message that arrives while this window is up and the person
   // is looking — not while it is minimised (review F-143; the shared hook all four chat screens use).
@@ -137,7 +148,9 @@ export function FloatingChatWindow() {
     setComposerError(null)
     mutation.mutate(draft, {
       onSuccess: () => setDraft(''),
-      onError: (error: Error) => setComposerError(duplicateShareMessage(error)),
+      onError: (error: Error) => {
+        if (!thread.noteRefusal(error)) setComposerError(duplicateShareMessage(error))
+      },
     })
   }
 
@@ -194,13 +207,22 @@ export function FloatingChatWindow() {
               // where the inline page wouldn't either.
               isClient && isCaseMoved(client.data?.status)
               ? CASE_MOVED_COMPOSER_NOTE
-              : undefined
+              : thread.closed
+                ? thread.note
+                : undefined
         }
         sending={sending}
         person={isLead || isClient ? { id: conversation.id, kind: isLead ? 'lead' : 'client' } : undefined}
         composerError={composerError}
         composerAction={
-          chatPerson ? <SuggestCourseInChat person={chatPerson} onShareError={setComposerError} /> : undefined
+          chatPerson ? (
+            <SuggestCourseInChat
+              person={chatPerson}
+              onShareError={(message, error) => {
+                if (!thread.noteRefusal(error)) setComposerError(message)
+              }}
+            />
+          ) : undefined
         }
         onUnsend={isInternal ? (messageId) => unsendInternalMessage.mutateAsync(messageId) : undefined}
         // Every kind of thread pages from the newest end (lead and client since review F-029).

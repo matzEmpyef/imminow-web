@@ -8,6 +8,7 @@ import { refreshStanding } from './standing'
 import { useThreadMessages } from './threadMessages'
 import { invalidateApplicantRequests } from './applicantRequests'
 import { isAlreadyApplied } from '@/lib/useIdempotencyKey'
+import { refreshIfThreadClosed } from '@/lib/closedThread'
 import type { components } from '@/api/schema'
 
 type InternalNote = components['schemas']['InternalNote']
@@ -271,6 +272,8 @@ export function useSendLeadMessage(id: string) {
       if (error) throw new ApiError('Could not send this message.', error)
       return data
     },
+    // The lead was closed while this screen still showed it open: read it again.
+    onError: (error) => refreshIfThreadClosed(queryClient, 'lead', id, error),
     // The answer IS the new message, so it goes straight into the thread's newest page (the
     // realtime frame for it lands in the same function and is de-duplicated there). Invalidating
     // the thread instead would refetch every page the consultant has loaded (review F-029), and
@@ -464,6 +467,7 @@ export function useRequestShortlist(leadId: string) {
       if (error) throw new ApiError('Could not send the shortlist request.', error)
       return data
     },
+    onError: (error) => refreshIfThreadClosed(queryClient, 'lead', leadId, error),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads', leadId, 'messages'] })
       refreshLeadShareState(queryClient, leadId)
@@ -485,6 +489,7 @@ export function useSuggestCourseToLead(leadId: string) {
       if (error) throw new ApiError('Could not suggest this course.', error)
       return data
     },
+    onError: (error) => refreshIfThreadClosed(queryClient, 'lead', leadId, error),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads', leadId, 'messages'] })
       refreshLeadShareState(queryClient, leadId)

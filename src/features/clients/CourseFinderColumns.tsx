@@ -26,6 +26,11 @@ export interface CourseFinderColumnsArgs {
   suggestedCourseIds: Set<string>
   suggestPending: boolean
   suggestingId: string | undefined
+  /**
+   * False when the picked case is closed: Suggest writes into its chat, which is read-only
+   * (`lib/closedThread.ts`). Noting a course down stays, since that is kept on this device.
+   */
+  canSuggest?: boolean
   onToggleShortlist: (course: Course) => void
   onSuggest: (course: { id: string; name: string }) => void
   onOpenCourse: (course: Course) => void
@@ -41,6 +46,7 @@ export function buildCourseFinderColumns({
   suggestedCourseIds,
   suggestPending,
   suggestingId,
+  canSuggest = true,
   onToggleShortlist,
   onSuggest,
   onOpenCourse,
@@ -153,7 +159,7 @@ export function buildCourseFinderColumns({
                 <Check className="h-3 w-3" aria-hidden />
                 Suggested
               </Badge>
-            ) : (
+            ) : !canSuggest ? null : (
               <Button
                 variant="secondary"
                 size="sm"

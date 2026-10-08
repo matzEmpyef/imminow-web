@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useMutation } from '@/lib/useSave'
 import { api } from '@/api/client'
 import { ApiError } from './auth'
+import { refreshIfThreadClosed } from '@/lib/closedThread'
 
 export interface ShareSearchInput {
   // GET /courses `filter[...]` keys, as Course Finder holds them.
@@ -22,6 +23,8 @@ export function useShareSearch(kind: 'lead' | 'client', id: string) {
       if (error) throw new ApiError('Could not send this search.', error)
       return data
     },
+    // The lead or case was closed while this screen still showed it open: read it again.
+    onError: (error) => refreshIfThreadClosed(queryClient, kind, id, error),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: [kind === 'lead' ? 'leads' : 'clients', id, 'messages'] }),
   })

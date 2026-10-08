@@ -24,9 +24,10 @@ vi.mock('@/queries/formTemplates', () => ({
   useFormTemplates: () => ({
     isLoading: false,
     isError: false,
-    data: [{ id: 'f1', name: 'Student intake', version: 3, fields: [{ id: 'a' }, { id: 'b' }] }],
+    data: [{ id: 'f1', name: 'Student intake', version: 3, is_default: false, fields: [{ id: 'a' }, { id: 'b' }] }],
   }),
   useDuplicateFormTemplate: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
+  useRestoreDefaultFormTemplate: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
 }))
 vi.mock('@/queries/tags', () => ({
   useTags: () => ({ isLoading: false, data: [{ id: 't1', name: 'Scholarship' }] }),

@@ -6306,7 +6306,7 @@ export interface paths {
          * Global Chat Drawer (build reference 1.22/2.2), and the inbox behind Sentpo Mobile's staff chat login (2026-09-15) — the conversations going on now (active Leads and live Clients somebody has written in), newest message first; `search` finds anyone. For Ultimate-tier viewers, also unions every active colleague and the consultancy-wide "team" channel (type = internal) — the same rows /internal-conversations returns — into the same list.
          * @description "Has access to" is the same scoping GET /leads and GET /clients already apply, not merely tenant isolation (2026-09-15): a view_own-only viewer sees only leads/clients assigned to them, a view_all viewer sees every one in their own branch(es), and a consultancy admin sees the whole consultancy regardless of branch. A conversation never appears here that the caller could not already find by opening the list it came from. Internal rows are unaffected — they are already per-employee by construction.
          *
-         *     **What is listed (owner ruling 2026-10-06, F-086/F-115).** Only the conversations going on now: ACTIVE leads and LIVE clients (not closed) that have at least one message, each with its last message as `last_message_preview`. The thread itself is loaded when the row is opened (`GET /leads/{id}/messages`, `GET /clients/{id}/messages`). Everyone else is reached on purpose: `search` runs on the server and finds anyone the caller has access to — leads and clients nobody has written to yet, and closed ones; `filter[show_closed]=true` adds the closed conversations to the list. A closed row carries `closed: true` and the client opens it READ-ONLY (the thread, no composer): its thread still reads. The server refuses a send on a closed lead (409 `lead_closed`) and, for the consultancy a case moved away from, on that case (409 `case_moved`). Internal rows (colleagues, Whole Team) are always listed.
+         *     **What is listed (owner ruling 2026-10-06, F-086/F-115).** Only the conversations going on now: ACTIVE leads and LIVE clients (not closed) that have at least one message, each with its last message as `last_message_preview`. The thread itself is loaded when the row is opened (`GET /leads/{id}/messages`, `GET /clients/{id}/messages`). Everyone else is reached on purpose: `search` runs on the server and finds anyone the caller has access to — leads and clients nobody has written to yet, and closed ones; `filter[show_closed]=true` adds the closed conversations to the list. A closed row carries `closed: true` and opens READ-ONLY (the thread, no composer): its thread still reads and can be marked read, and the server refuses every send - 409 `lead_closed` on a closed lead, 409 `case_closed` on a closed or completed client (both sides, owner ruling 2026-10-06), 409 `case_moved` for the consultancy a case moved away from. Internal rows (colleagues, Whole Team) are always listed.
          *
          *     **Always paged, with a server-side search (contract gate 7, owner Q6 2026-09-25).** Pages of `limit` (default 20, max 100) in the drawer's order — the pinned Whole Team row first, then conversations with a message by `last_message_at` newest first, then the rest by name — with `id` as the tie-breaker, walked with the opaque `meta.next_cursor`. `search` matches the conversation's name (case-insensitive substring); `filter[type]=lead|client|internal` (comma = any of) narrows by kind. `meta.total` counts every match across all pages; `meta.unread_count` is the drawer badge and counts the unread conversations of the list as it opens (no search, closed ones not counted), whatever `search`, `filter` or page was asked for.
          *     **No unpaged form.** A request that sends no `limit` gets the default page of 20 and a `next_cursor` like any other — never every row in one response (the pre-gate-7 transition form is retired: at the largest consultancy it was about 58,000 rows). A build that never sends `limit` still gets a valid answer: the 20 most recent conversations.
@@ -17355,7 +17355,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Send a message in this client's conversation. Sentpo Mobile Wave 4 — a student caller may set `step_id` for the Step Detail "Ask a question" action (build reference 1.7); `type` is inferred server-side as `step_question` when present, `text` otherwise. Access restricted to the owning student or any consultant/staff caller (Wave 4), same `studentOwnsJourney` convention as `/leads/{id}/messages`. */
+        /** Send a message in this client's conversation. Sentpo Mobile Wave 4 — a student caller may set `step_id` for the Step Detail "Ask a question" action (build reference 1.7); `type` is inferred server-side as `step_question` when present, `text` otherwise. Access restricted to the owning student or any consultant/staff caller (Wave 4), same `studentOwnsJourney` convention as `/leads/{id}/messages`. READ-ONLY ONCE CLOSED (owner ruling 2026-10-06) - a case whose status is `closed` or `closed_completed` refuses every write into its conversation, from the student and from the consultancy alike, with 409 `case_closed` (student - "This case is closed. Start a new chat with the consultancy if you need them."; staff - "This case is closed, so its chat is read-only."). That covers this route (a step question included), the four `share-*` routes, `request-visit` and `call-initiated`. Reading the thread and `POST /clients/{id}/read` still work, and a reopened case is writable again. Hide the composer and the share/visit/call actions when the client's `status` is `closed` or `closed_completed` (a moved case, `closed_switched`, keeps its own rule - 409 `case_moved` for the consultancy it left). */
         post: {
             parameters: {
                 query?: never;
@@ -17896,6 +17896,47 @@ export interface paths {
             responses: {
                 /** @description Created */
                 201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FormTemplate"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/form-templates/restore-default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore default — put the consultancy's default form back to the approved contents
+         * @description Puts the caller's consultancy's default application form (`FormTemplate.is_default`) back to the platform's approved contents — name and fields. No request body. Open to the same staff who may edit a form.
+         *
+         *     Versions are immutable, so a restore publishes a NEW version in the default form's family (a new `id`, the next `version`, `is_default` true) and returns it; every earlier version keeps its fields, and a response already filled in stays bound to the version it was filled against. When the latest version already equals the approved contents nothing is written and that version is returned as it is. A consultancy that has no default form gets it made afresh (version 1). Always 200.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The default form's latest version, now equal to the approved contents */
+                200: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -30351,6 +30392,8 @@ export interface components {
             plan_template_id?: components["schemas"]["UUID"];
             /** @description Immutable version — FR-098. Also the optimistic lock for `PATCH /form-templates/{id}` (contract gate 7) — send it back as `version`, and an edit based on a version that is no longer the family's latest is refused with 409 `version_conflict`. A name-only edit stays in place and keeps the number. */
             version: number;
+            /** @description True on the consultancy's own copy of the default application form ("Student Application Form" — owner decisions 30/31/59/60), on every version of it; false on every other form, including a duplicate of the default. Every consultancy has exactly one default form, made for it when the consultancy is created. The Forms page uses this to ask before the default is edited ("This is your default form. We suggest making a copy and editing the copy, so you always have the original to go back to." — Make a copy / Edit anyway) and to offer Restore default (`POST /form-templates/restore-default`). Editing it is allowed and keeps it the default. Set by the server only; not accepted on create or edit. */
+            is_default: boolean;
             /** @description Groups every version of "the same form" (erd.md form_templates). A change to fields via PATCH creates a NEW row in this family with the next version and returns it; the previous version keeps its fields forever, which is what form_responses.form_version and plan-step form_links point at. GET /form-templates lists the latest per family. */
             readonly form_family_id?: components["schemas"]["UUID"];
             fields: components["schemas"]["FormField"][];

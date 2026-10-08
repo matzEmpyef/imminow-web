@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { AppShell } from '@/features/auth/AppShell'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
@@ -14,11 +14,14 @@ import { useCreateFormTemplate, useFormTemplate, useUpdateFormTemplate } from '@
 import { isGroup, listGroups, type FormFieldInput } from '@/lib/formFields'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { showToast } from '@/lib/toast'
+import { isEditDefaultConfirmed } from '@/lib/defaultForm'
+import { EditDefaultFormDialog, RestoreDefaultFormDialog } from './DefaultFormDialogs'
 
 export function FormBuilderPage() {
   const { id } = useParams()
   const isNew = !id || id === 'new'
   const navigate = useNavigate()
+  const location = useLocation()
   const existing = useFormTemplate(isNew ? undefined : id)
   const createForm = useCreateFormTemplate()
   const updateForm = useUpdateFormTemplate(id ?? '')
@@ -37,6 +40,10 @@ export function FormBuilderPage() {
   const [showAddGroup, setShowAddGroup] = useState(false)
   const [editingField, setEditingField] = useState<{ field: FormFieldInput; groupId: string | null } | null>(null)
   const [editingGroup, setEditingGroup] = useState<{ id: string; label: string } | null>(null)
+  // The default form asks before its editor opens (owner decisions 30/31), every time. The Forms
+  // list asks the same question itself and says so in the router state, so it is not asked twice.
+  const [defaultConfirmed, setDefaultConfirmed] = useState(() => isEditDefaultConfirmed(location.state))
+  const [confirmRestore, setConfirmRestore] = useState(false)
 
   useEffect(() => {
     if (!existing.data) return
@@ -137,7 +144,9 @@ export function FormBuilderPage() {
   const error = createForm.error ?? updateForm.error
   const groups = listGroups(fields)
 
-  if (!isNew && !hydrated && !existing.isError) {
+  // `existing.data` is also awaited: "Make a copy" and Restore default move this same page on to
+  // another form's id, and until that one loads there is nothing to edit.
+  if (!isNew && (!hydrated || !existing.data) && !existing.isError) {
     return (
       <AppShell>
         <Skeleton className="h-64 rounded-lg" />
@@ -157,10 +166,32 @@ export function FormBuilderPage() {
     )
   }
 
+  const isDefault = !isNew && existing.data?.is_default === true
+
+  if (isDefault && existing.data && !defaultConfirmed) {
+    return (
+      <AppShell>
+        <h1 className="text-h1 text-text-primary">Edit Form</h1>
+        <EditDefaultFormDialog
+          form={existing.data}
+          onClose={() => navigate('/administration/forms')}
+          onEditAnyway={() => setDefaultConfirmed(true)}
+        />
+      </AppShell>
+    )
+  }
+
   return (
     <AppShell>
       <div className="flex flex-col gap-lg">
-        <h1 className="text-h1 text-text-primary">{isNew ? 'New Form' : 'Edit Form'}</h1>
+        <div className="flex items-center justify-between gap-md">
+          <h1 className="text-h1 text-text-primary">{isNew ? 'New Form' : 'Edit Form'}</h1>
+          {isDefault && (
+            <Button variant="secondary" onClick={() => setConfirmRestore(true)}>
+              Restore default
+            </Button>
+          )}
+        </div>
 
         <Card>
           <TextField label="Form name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -231,6 +262,17 @@ export function FormBuilderPage() {
           </Button>
         </div>
       </div>
+      {confirmRestore && (
+        <RestoreDefaultFormDialog
+          currentDefaultId={id}
+          onClose={() => setConfirmRestore(false)}
+          // A restore publishes a new version under a new id: carry on in that one, with its
+          // standard fields in place of whatever was being edited here.
+          onRestored={(form) => {
+            if (form.id !== id) navigate(`/administration/forms/${form.id}`, { replace: true })
+          }}
+        />
+      )}
       {guard.dialog}
     </AppShell>
   )

@@ -82,3 +82,19 @@ export function useDuplicateFormTemplate() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['form-templates'] }),
   })
 }
+
+// Restore default (owner decisions 30/31): puts the consultancy's default form back to the
+// standard application form. No body. The server answers with the default's latest version: a
+// NEW version (new id) when it had to write one, or the same form untouched when it was already
+// standard, so the caller compares ids to say which happened.
+export function useRestoreDefaultFormTemplate() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await api.POST('/form-templates/restore-default')
+      if (error) throw new ApiError('Could not restore the default form.', error)
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['form-templates'] }),
+  })
+}
