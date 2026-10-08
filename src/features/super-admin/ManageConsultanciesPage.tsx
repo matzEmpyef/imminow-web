@@ -912,7 +912,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
             <Badge color="primary" className="capitalize">
               {consultancy.tier}
             </Badge>
-            {!consultancy.kyc_verified && <Badge color="warning">KYC pending</Badge>}
+            {!consultancy.kyc_verified && <Badge color="warning">KYC not verified</Badge>}
             {consultancy.active !== false && SUBSCRIPTION_NEEDS_ATTENTION.includes(subscriptionStatus) && (
               <Badge color={tierBadge.color}>Subscription {tierBadge.label.toLowerCase()}</Badge>
             )}
@@ -1332,7 +1332,7 @@ export function ManageConsultanciesPage() {
   // `?search=<name>` (2026-09-12, product review H7) — Support surfaces (complaint/dispute/visit
   // drawers, the applicant case page) link a consultancy name straight here with a name to search.
   const [search, setSearch] = useState(searchParams.get('search') ?? '')
-  const [tierFilter, setTierFilter] = useState('')
+  const [tierFilter, setTierFilter] = useState(searchParams.get('tier') ?? '')
   const [kindFilter, setKindFilter] = useState(searchParams.get('kind') ?? '')
   // `?status=` (review M5, 2026-09-12) — Needs attention's "Accounts never billed" card links
   // straight here with `?status=never_billed`, the same convention `?kind=`/`?search=` already
@@ -1353,6 +1353,30 @@ export function ManageConsultanciesPage() {
   // silently does nothing reads as "no account matches".
   const canSeePlans = useCanSeeConsultancyPlans()
   const usableSort = sort && (canSeePlans || !CONSULTANCY_PLAN_COLUMNS.includes(sort.field)) ? sort : null
+
+  // The filters live in the page address too (review F-314), so a refresh or a shared link keeps
+  // them. Written with `replace` so the Back button is not filled with one step per keystroke, and
+  // from the previous params so `?manage=` and anything else already there are left alone. The
+  // old `?kyc=pending` link was turned into the Status filter above and is dropped here.
+  useEffect(() => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        for (const [key, value] of [
+          ['search', search],
+          ['kind', kindFilter],
+          ['status', statusFilter],
+          ['tier', tierFilter],
+        ]) {
+          if (value) next.set(key, value)
+          else next.delete(key)
+        }
+        next.delete('kyc')
+        return next.toString() === prev.toString() ? prev : next
+      },
+      { replace: true },
+    )
+  }, [search, kindFilter, statusFilter, tierFilter, setSearchParams])
 
   const consultancies = useAdminConsultancies({
     search: search || undefined,
@@ -1441,7 +1465,7 @@ export function ManageConsultanciesPage() {
       render: (c) => (
         <div className="flex items-center gap-xs">
           <Badge color={c.active ? 'success' : 'secondary'}>{c.active ? 'Active' : 'Suspended'}</Badge>
-          {!c.kyc_verified && <Badge color="warning">KYC pending</Badge>}
+          {!c.kyc_verified && <Badge color="warning">KYC not verified</Badge>}
         </div>
       ),
     },
