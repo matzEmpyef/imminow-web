@@ -375,6 +375,7 @@ export function PlatformPulsePage() {
           <div className="flex gap-xs rounded-full border border-border bg-surface p-xs">
             {WINDOWS.map((w) => (
               <button
+                type="button"
                 key={w}
                 onClick={() => setWindowDays(w)}
                 className={`rounded-full px-md py-xs text-body-sm transition-colors ${

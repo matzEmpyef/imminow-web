@@ -35,6 +35,7 @@ export function NotificationsDropdown() {
   return (
     <div ref={containerRef} className="relative">
       <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
         className="relative flex h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
         aria-label="Notifications"

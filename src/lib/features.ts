@@ -22,8 +22,9 @@ import { useMe } from '@/queries/me'
 // hand-maintained copies did (a dead 5-key ENTITLEMENT_FLAGS list, ManageConsultanciesPage's own
 // 5-key list, and ConsultancyProfilePage's prose TIER_FEATURES).
 //
-// Mirrors `FEATURE_REGISTRY` in mock-server/server.js exactly — there is no shared-package
-// boundary between the mock server and this client, so keep the two lists in sync by hand.
+// Mirrors `FEATURES` in the backend's `app/marketplace/consultancies/features.py` (the source of
+// truth) — there is no shared-package boundary between the backend and this client, so keep the
+// two lists in sync by hand.
 // 'starter' joined the tier union on 2026-09-21, when `multi_branch` moved down to it. A Starter
 // flag is ON for every account by default; it stays a REGISTERED flag rather than joining the
 // unflagged Starter core below so a Super Admin can still switch it off for one tenant.

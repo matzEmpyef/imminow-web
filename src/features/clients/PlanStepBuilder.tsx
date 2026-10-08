@@ -20,7 +20,7 @@ import { useAddStep, useDeleteStep, useReorderSteps, useUpdateStep } from '@/que
 import { useApproveStep, useRejectStep } from '@/queries/steps'
 import { usePermission } from '@/lib/permissions'
 import { FieldLabel } from '@/components/FieldLabel'
-import { AWAITING_REVIEW_WARNING_DAYS, awaitingReviewLabel, daysSince, formatDate, formatDateTime } from '@/lib/time'
+import { AWAITING_REVIEW_WARNING_DAYS, awaitingReviewLabel, daysSince, dateFieldToIso, formatDate, formatDateTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import type { ComponentInput } from '@/lib/planComponents'
 import type { components } from '@/api/schema'
@@ -202,7 +202,8 @@ function EditLiveStepModal({
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!isActive && !title) return
-    const expected_end_date = date ? new Date(date).toISOString() : null
+    // A date left as it was goes back as stored (review F-315): re-deriving it moved it a day.
+    const expected_end_date = dateFieldToIso(step.expected_end_date, date)
     const nextDescription = description.trim() || null
     onSubmit(
       isActive

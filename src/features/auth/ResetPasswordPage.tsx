@@ -1,14 +1,16 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { AuthLayout } from './AuthLayout'
 import { TextField } from '@/components/TextField'
 import { Button } from '@/components/Button'
 import { useResetPassword } from '@/queries/auth'
+import { useLinkToken } from '@/lib/linkToken'
 
 export function ResetPasswordPage() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const token = searchParams.get('token') ?? ''
+  // The reset token is read once from the fragment (or the old `?token=` link) and taken out of
+  // the address, so it reaches no server log or browser history (review F-295).
+  const token = useLinkToken('/reset-password')
   const resetPassword = useResetPassword()
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')

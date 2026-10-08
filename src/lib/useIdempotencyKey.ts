@@ -94,5 +94,11 @@ export function usePayloadIdempotencyKey() {
     },
     [slot],
   )
-  return { keyFor, settle }
+  // For a form that stays open after a write that landed: the next submit is a new write even when
+  // its content is the same (an import run again on purpose), so it must not replay the old answer.
+  const renew = useCallback(() => {
+    slot.key = crypto.randomUUID()
+    slot.payload = null
+  }, [slot])
+  return { keyFor, settle, renew }
 }

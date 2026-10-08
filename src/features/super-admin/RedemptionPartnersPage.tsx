@@ -386,7 +386,7 @@ function PartnerDetailModal({ partner, onClose }: { partner: RedemptionPartner; 
         )}
 
         {!isOnline && (
-          <button onClick={() => setShowAddLocation(true)} className="w-fit text-caption text-primary hover:underline">
+          <button type="button" onClick={() => setShowAddLocation(true)} className="w-fit text-caption text-primary hover:underline">
             + Add location
           </button>
         )}

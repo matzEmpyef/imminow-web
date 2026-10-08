@@ -122,6 +122,7 @@ export function ClientConversationPage() {
           }
           headerActions={
             <button
+              type="button"
               onClick={() =>
                 openFloating({
                   id,

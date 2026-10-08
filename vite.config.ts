@@ -74,6 +74,15 @@ export default defineConfig(({ command, mode }) => {
 
   return {
     plugins: [react(), tailwindcss()],
+    // Every analytics event names the console build that sent it (review F-317). An explicit
+    // VITE_APP_VERSION wins; otherwise the commit Vercel or GitHub Actions is building; otherwise 'dev'.
+    define: {
+      'import.meta.env.VITE_APP_VERSION': JSON.stringify(
+        env.VITE_APP_VERSION ||
+          (process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || '').slice(0, 7) ||
+          'dev',
+      ),
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),

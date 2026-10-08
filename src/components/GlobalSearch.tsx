@@ -148,6 +148,7 @@ export function GlobalSearch() {
             <div className="py-xs" role="listbox" id={listId}>
               {results.map((result, i) => (
                 <button
+                  type="button"
                   key={result.key}
                   id={`${listId}-${i}`}
                   role="option"

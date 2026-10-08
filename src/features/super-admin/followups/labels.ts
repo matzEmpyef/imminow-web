@@ -2,8 +2,8 @@
  * Shared copy for both follow-up queues (2026-09-11): outcome option lists for LogCallModal, the
  * badge label for a saved outcome, and signal labels for the Signal filter.
  *
- * Signal labels are hardcoded here (mirroring CASE_SIGNALS / SERVICE_SIGNALS in mock-server's
- * server.js) rather than read off a loaded row, because `FollowupSummary.by_signal` is computed
+ * Signal labels are hardcoded here (mirroring CASE_SIGNALS / SERVICE_SIGNALS in the backend's
+ * `app/operations/support/signals.py`) rather than read off a loaded row, because `FollowupSummary.by_signal` is computed
  * over EVERY row including snoozed ones the queue currently has hidden — a code that only exists
  * on a snoozed row would have a count but no visible row to read a label off.
  */

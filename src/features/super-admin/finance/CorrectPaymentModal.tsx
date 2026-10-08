@@ -4,7 +4,7 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { TextAreaField } from '@/components/TextAreaField'
 import { formatDateTime } from '@/lib/time'
-import { money, paymentInrNote, paymentMoney } from './money'
+import { money, paymentInrNote, paymentMoney, paymentRateToInr } from './money'
 import { useCorrectCommissionPayment, type CommissionPayment } from '@/queries/commission'
 import { showToast } from '@/lib/toast'
 
@@ -48,8 +48,9 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
   // `entry_outstanding_inr` already has the CURRENT confirmed amount subtracted out (this payment
   // is already confirmed), so what matters is only the extra the correction adds on top of that —
   // not the corrected total against outstanding.
-  const currentRateToInr = currency !== 'INR' && currentAmount > 0 ? (payment.amount_inr ?? 0) / currentAmount : 1
-  const deltaInr = isValidNumber ? (parsed - currentAmount) * currentRateToInr : null
+  // The rate is the payment's own recorded one (review F-300), not worked out from two amounts.
+  const currentRateToInr = paymentRateToInr(payment)
+  const deltaInr = isValidNumber && currentRateToInr != null ? (parsed - currentAmount) * currentRateToInr : null
   const overpaymentInr =
     deltaInr != null && payment.entry_outstanding_inr != null && deltaInr > payment.entry_outstanding_inr
       ? deltaInr - payment.entry_outstanding_inr

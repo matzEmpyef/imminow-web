@@ -117,6 +117,7 @@ export function InternalMessagingPage() {
                   const active = conversation.id === id
                   return (
                     <button
+                      type="button"
                       key={conversation.id}
                       onClick={() => navigate(`/administration/internal-messaging/${conversation.id}`)}
                       className={`flex w-full items-center gap-sm px-md py-sm text-left ${
@@ -203,6 +204,7 @@ export function InternalMessagingPage() {
                 heightClassName="h-full"
                 headerActions={
                   <button
+                    type="button"
                     onClick={() =>
                       openFloating({ id: selected.id, type: 'internal', name: selected.name, badge: selected.badge })
                     }

@@ -94,6 +94,7 @@ export function GlobalChatDrawer() {
   return (
     <>
       <button
+        type="button"
         onClick={() => setOpen(true)}
         aria-label="Chats"
         className="relative flex h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
@@ -147,6 +148,7 @@ export function GlobalChatDrawer() {
             {conversations.map((conversation) => (
               <li key={`${conversation.type}-${conversation.id}`}>
                 <button
+                  type="button"
                   onClick={() => openConversation(conversation)}
                   className="flex w-full items-start gap-sm px-xs py-sm text-left hover:bg-background"
                 >

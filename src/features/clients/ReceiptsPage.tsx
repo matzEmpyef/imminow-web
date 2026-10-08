@@ -180,7 +180,7 @@ export function ReceiptsPage() {
                 </Button>
               </>
             ) : (
-              <button onClick={() => setVoidingId(r.id)} className="text-caption text-error hover:underline">
+              <button type="button" onClick={() => setVoidingId(r.id)} className="text-caption text-error hover:underline">
                 Void
               </button>
             )}

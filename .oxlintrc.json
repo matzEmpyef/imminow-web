@@ -11,6 +11,8 @@
     // src/lib/sanitizeHtml.ts; a new sink has to carry its own disable comment naming the helper
     // that cleaned the value (or why none is needed), so it cannot arrive unnoticed.
     "react/no-danger": "error",
+    // Every button declares its type (review F-311): an untyped one inside a form submits it.
+    "react/button-has-type": "error",
     "no-restricted-properties": [
       "error",
       { "property": "innerHTML", "message": "Raw HTML sink — pass the value through src/lib/sanitizeHtml.ts and say so in a disable comment." },

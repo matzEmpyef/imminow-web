@@ -1,4 +1,4 @@
-import type { HTMLAttributes, KeyboardEvent, MouseEvent } from 'react'
+import type { HTMLAttributes, KeyboardEvent } from 'react'
 
 // ui-ux-design-web.md Section 5: Surface color, radius-lg, shadow-card, 20-24px padding.
 // A Card given onClick becomes keyboard- and screen-reader-accessible automatically (role,
@@ -10,7 +10,8 @@ export function Card({ className, children, onClick, onKeyDown, ...props }: HTML
     onKeyDown?.(e)
     if (isInteractive && (e.key === 'Enter' || e.key === ' ')) {
       e.preventDefault()
-      onClick?.(e as unknown as MouseEvent<HTMLDivElement>)
+      // A real click on the card, so `onClick` receives a mouse event and not a keyboard one (review F-318).
+      e.currentTarget.click()
     }
   }
 

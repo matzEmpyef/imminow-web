@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
+import { MoreRowsNote } from '@/components/MoreRowsNote'
 import { useDocumentLibrary, useShareLibraryDocument } from '@/queries/documentLibrary'
 import { useUploads } from '@/queries/uploads'
 
@@ -83,6 +84,15 @@ export function ShareFromLibraryModal({ clientId, onClose }: { clientId: string;
                 </div>
               )
             })}
+          {!documents.isError && (
+            <MoreRowsNote
+              shown={documents.data?.items.length ?? 0}
+              total={documents.data?.meta?.total}
+              hasMore={Boolean(documents.data?.meta?.next_cursor)}
+              noun="documents"
+              hint="Type in the search box to find the rest."
+            />
+          )}
         </div>
         {share.isError && <p className="text-body-sm text-error">{share.error.message}</p>}
       </div>

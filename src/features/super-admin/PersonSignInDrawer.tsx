@@ -79,7 +79,9 @@ function GoToRecordAction({ person }: { person: SignInHistoryPerson }) {
     try {
       const { data, error: apiError } = await api.GET('/users/search', { params: { query: { q: person.email } } })
       if (apiError) throw new ApiError('Could not look up this student.', apiError)
-      const match = data?.items?.find((u) => u.id === person.id) ?? data?.items?.find((u) => u.journey_id)
+      // Only this person's own row (review F-302). The old fallback opened the first result that had
+      // a case, which could be another student's when this one was missing from the answer.
+      const match = data?.items?.find((u) => u.id === person.id)
       if (match?.journey_id) {
         navigate(`/admin/applicants/${match.journey_id}`)
       } else {

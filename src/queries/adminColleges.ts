@@ -3,6 +3,7 @@ import { useMutation } from '@/lib/useSave'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { isAlreadyApplied } from '@/lib/useIdempotencyKey'
 import type { components } from '@/api/schema'
 
 type CollegeInput = components['schemas']['CollegeInput']
@@ -166,17 +167,23 @@ export function useDeactivationImpact(kind: 'college' | 'course', id: string) {
 export function useImportColleges() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (file: File) => {
+    // One key per file (review F-297), made by the caller: choosing the same file again after a
+    // lost reply replays the first answer instead of importing twice.
+    mutationFn: async ({ file, idempotencyKey }: { file: File; idempotencyKey: string }) => {
       const formData = new FormData()
       formData.append('file', file)
-      const { data, error } = await api.POST('/colleges/import', {
-        params: { header: { 'Idempotency-Key': crypto.randomUUID() } },
+      const { data, error, response } = await api.POST('/colleges/import', {
+        params: { header: { 'Idempotency-Key': idempotencyKey } },
         body: formData as unknown as { file?: string },
         bodySerializer: () => formData,
       })
-      if (error) throw new ApiError('Could not import this file.', error)
+      if (error) throw new ApiError('Could not import this file.', error, response?.status)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-colleges'] }),
+    // The import already went through (the first reply was lost): show the colleges it made.
+    onError: (err) => {
+      if (isAlreadyApplied(err)) queryClient.invalidateQueries({ queryKey: ['admin-colleges'] })
+    },
   })
 }

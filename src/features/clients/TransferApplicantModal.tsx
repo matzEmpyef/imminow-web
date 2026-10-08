@@ -6,6 +6,7 @@ import { useTransferApplicant } from '@/queries/clients'
 import { useMyConsultancy } from '@/queries/consultancy'
 import { consultancySource } from '@/queries/pickerSources'
 import { showToast } from '@/lib/toast'
+import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 // Cross-consultancy Transfer Applicant (restored 2026-08-20 — user: "Transfer Applicant is
 // needed, both to other consultancy and Transfer Consultant also is needed.. Just that Transfer
@@ -29,6 +30,9 @@ export function TransferApplicantModal({
   onTransferred: () => void
 }) {
   const transfer = useTransferApplicant(clientId)
+  // One key per opened form and content (review F-297): a retry after a lost reply replays the
+  // first answer instead of being refused as already done; edited details are a new transfer.
+  const { keyFor, settle } = usePayloadIdempotencyKey()
   const myConsultancy = useMyConsultancy()
   const [newConsultancyId, setNewConsultancyId] = useState('')
   const [reason, setReason] = useState('')
@@ -44,12 +48,21 @@ export function TransferApplicantModal({
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!ready) return
+    const payload = { newConsultancyId, reason: reason.trim(), transferCode: transferCode.trim().toUpperCase() }
     transfer.mutate(
-      { newConsultancyId, reason: reason.trim(), transferCode: transferCode.trim().toUpperCase() },
+      { ...payload, idempotencyKey: keyFor(payload) },
       {
         onSuccess: () => {
           showToast(`${clientName} transferred to another consultancy`)
           onTransferred()
+        },
+        onError: (err) => {
+          settle(err)
+          // Already done (the first reply was lost): the case has moved. Say so and leave, never retry.
+          if (isAlreadyApplied(err)) {
+            showToast(ALREADY_APPLIED_NOTICE)
+            onTransferred()
+          }
         },
       },
     )
@@ -62,7 +75,7 @@ export function TransferApplicantModal({
       widthRem={30}
       footer={
         <>
-          {transfer.isError && <p className="mr-auto self-center text-body-sm text-error">{transfer.error.message}</p>}
+          {transfer.isError && !isAlreadyApplied(transfer.error) && <p className="mr-auto self-center text-body-sm text-error">{transfer.error.message}</p>}
           <div className="flex gap-sm">
             <Button
               type="submit"

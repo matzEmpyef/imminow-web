@@ -483,6 +483,7 @@ export function LeadConversationPage() {
               }
               headerActions={
                 <button
+                  type="button"
                   onClick={() => openFloating({ id, type: 'lead', name: data.name })}
                   aria-label="Open as floating window"
                   title="Open as floating window"

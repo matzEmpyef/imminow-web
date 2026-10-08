@@ -30,10 +30,8 @@ export interface SentpoUserDirectoryFilters {
   limit?: number
 }
 
-// `include_erased` isn't in the generated query type yet (schema.d.ts documents it in prose but
-// the endpoint's `query` block predates the field being typed) — the whole query object is cast
-// `as never` at each call site rather than waiting on a regen this session isn't doing, same
-// situation as adminConsultancies.ts's `status` widening.
+// Typed against the contract's own query block: the casts that once stood at the call sites are gone
+// (review F-319), so a change to the endpoint's parameters fails to compile here.
 function sentpoDirectoryQuery(filters: Omit<SentpoUserDirectoryFilters, 'cursor' | 'limit'>): Record<string, unknown> {
   const filter: Record<string, string> = {}
   if (filters.stage) filter.stage = String(filters.stage)
@@ -58,7 +56,7 @@ export function useSentpoUserDirectory(filters: SentpoUserDirectoryFilters = {})
     queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/admin/users/sentpo', {
         signal,
-        params: { query: { ...sentpoDirectoryQuery(filters), cursor: filters.cursor, limit: filters.limit } as never },
+        params: { query: { ...sentpoDirectoryQuery(filters), cursor: filters.cursor, limit: filters.limit } },
       })
       if (error) throw new ApiError('Could not load the Sentpo user directory.', error)
       return data
@@ -88,7 +86,7 @@ export async function fetchAllSentpoUserDirectory(
   const query = sentpoDirectoryQuery(filters)
   for (;;) {
     const { data, error } = await api.GET('/admin/users/sentpo', {
-      params: { query: { ...query, cursor, limit: 100 } as never },
+      params: { query: { ...query, cursor, limit: 100 } },
     })
     if (error) throw new ApiError('Could not export the Sentpo user directory.', error)
     items.push(...(data?.items ?? []))

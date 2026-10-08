@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { toCsv } from '@/lib/csv'
 import type { CommissionPayment } from '@/queries/commission'
-import { paymentAmount, paymentInrAmount, paymentInrNote, paymentMoney, paymentsTotalLabel } from './money'
+import {
+  paymentAmount,
+  paymentInrAmount,
+  paymentInrNote,
+  paymentMoney,
+  paymentRateToInr,
+  paymentsTotalLabel,
+} from './money'
 import { PAYMENT_HISTORY_COLUMNS } from './paymentHistoryCsv'
 
 // Assumptions audit M15 (product owner, 2026-09-19). Two separate defects, both invisible on
@@ -140,5 +147,27 @@ describe('paymentsTotalLabel', () => {
 
   it('treats a payment with no currency as rupees', () => {
     expect(paymentsTotalLabel([{ amount: { amount: 250 } }])).toBe('₹250')
+  })
+})
+
+// Review F-300: the correction dialog works from the payment's own recorded rate, not from two
+// amounts (which misleads when the rupee figure is stale).
+describe('paymentRateToInr', () => {
+  it('is 1 for a rupee payment', () => {
+    expect(paymentRateToInr({ amount: { amount: 500, currency: 'INR' } })).toBe(1)
+  })
+
+  it('uses the frozen rate even when the rupee figure no longer matches it', () => {
+    expect(
+      paymentRateToInr({ amount: { amount: 100, currency: 'CAD' }, amount_inr: 6000, rate_used: 61.5 }),
+    ).toBe(61.5)
+  })
+
+  it('falls back to the ratio of the amounts only on a row written before rates were stored', () => {
+    expect(paymentRateToInr({ amount: { amount: 100, currency: 'CAD' }, amount_inr: 6100, rate_used: null })).toBe(61)
+  })
+
+  it('is null when there is nothing to work a rate from', () => {
+    expect(paymentRateToInr({ amount: { amount: 0, currency: 'CAD' }, rate_used: null })).toBeNull()
   })
 })

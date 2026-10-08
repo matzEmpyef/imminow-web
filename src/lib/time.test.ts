@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { daysSince, daysUntil, formatAsOf, formatDate, isAsOfStale, localDateISO, relativeTime, timeAgo } from './time'
+import { dateFieldToIso, daysSince, daysUntil, formatAsOf, formatDate, isAsOfStale, localDateISO, relativeTime, timeAgo } from './time'
 
 // The bug this helper exists for (2026-09-12): "today" was taken from toISOString(), the UTC
 // date, so in India every date default read as yesterday between midnight and 05:30.
@@ -134,5 +134,21 @@ describe('isAsOfStale', () => {
   it('is false when there is no stamp to judge', () => {
     expect(isAsOfStale(null, now)).toBe(false)
     expect(isAsOfStale('not a date', now)).toBe(false)
+  })
+})
+
+// Review F-315: saving a step's dialog without touching the date must not move the due date.
+describe('dateFieldToIso', () => {
+  it('sends a date left as it was back exactly as stored, even when it is not midnight UTC', () => {
+    expect(dateFieldToIso('2026-10-10T18:30:00.000Z', '2026-10-10')).toBe('2026-10-10T18:30:00.000Z')
+  })
+
+  it('converts a date the person changed to that day at midnight UTC', () => {
+    expect(dateFieldToIso('2026-10-10T18:30:00.000Z', '2026-10-12')).toBe('2026-10-12T00:00:00.000Z')
+    expect(dateFieldToIso(null, '2026-10-12')).toBe('2026-10-12T00:00:00.000Z')
+  })
+
+  it('sends null for a cleared date', () => {
+    expect(dateFieldToIso('2026-10-10T18:30:00.000Z', '')).toBeNull()
   })
 })

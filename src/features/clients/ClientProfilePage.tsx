@@ -14,6 +14,7 @@ import { showToast } from '@/lib/toast'
 import { CloseClientModal } from './CloseClientModal'
 import { RaiseIssueModal } from './RaiseIssueModal'
 import { CLIENT_TABS, isClientTab, type ClientTab } from '@/lib/clientTabs'
+import { TabBar } from '@/components/TabBar'
 import { canOfferCaseReopen } from '@/lib/reopenRules'
 import { ReopenClientModal } from './ReopenClientModal'
 import { OverviewTab } from './ClientProfileOverviewTab'
@@ -288,19 +289,7 @@ export function ClientProfilePage() {
           </div>
         )}
 
-        <div className="flex gap-xs overflow-x-auto border-b border-border">
-          {visibleTabs.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`shrink-0 border-b-2 px-md py-sm text-body-sm ${
-                activeTab === tab ? 'border-primary font-medium text-primary' : 'border-transparent text-text-secondary'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
+        <TabBar ariaLabel="Client sections" tabs={visibleTabs.map((tab) => ({ key: tab, label: tab }))} active={activeTab} onChange={setActiveTab} />
 
         {activeTab === 'Overview' && (
           <OverviewTab clientId={id} onViewPlan={(planId) => setActiveTab('Plan', planId)} readOnly={caseMoved} />

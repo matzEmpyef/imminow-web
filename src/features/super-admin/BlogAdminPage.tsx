@@ -65,6 +65,7 @@ export function BlogAdminPage() {
         <div className="flex gap-xs overflow-x-auto border-b border-border">
           {TABS.map((tab) => (
             <button
+              type="button"
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`shrink-0 border-b-2 px-md py-sm text-body-sm ${

@@ -1,5 +1,6 @@
 import { Drawer } from '@/components/Drawer'
 import { Badge } from '@/components/Badge'
+import { MoreRowsNote } from '@/components/MoreRowsNote'
 import { formatDate } from '@/lib/time'
 import { money } from './money'
 import { useFinanceCases, useFinancePayments } from '@/queries/financeDashboard'
@@ -46,6 +47,14 @@ export function ConsultancyBalanceDrawer({
                 </p>
               </div>
             ))}
+            <MoreRowsNote
+              shown={cases.data?.items.length ?? 0}
+              total={cases.data?.meta?.total}
+              hasMore={Boolean(cases.data?.meta?.next_cursor)}
+              noun="cases"
+              to="/admin/finance-dashboard?tab=cases"
+              linkLabel="Search all cases in Finance"
+            />
           </div>
         </div>
 
@@ -70,6 +79,14 @@ export function ConsultancyBalanceDrawer({
                 </p>
               </div>
             ))}
+            <MoreRowsNote
+              shown={payments.data?.items.length ?? 0}
+              total={payments.data?.meta?.total}
+              hasMore={Boolean(payments.data?.meta?.next_cursor)}
+              noun="payments"
+              to="/admin/finance-dashboard?tab=history"
+              linkLabel="See all payments in Payment history"
+            />
           </div>
         </div>
       </div>

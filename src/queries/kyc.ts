@@ -114,6 +114,8 @@ export function useVerifyKyc() {
     onSuccess: (_data, consultancyId) => {
       queryClient.invalidateQueries({ queryKey: ['kyc', consultancyId] })
       queryClient.invalidateQueries({ queryKey: ['admin-consultancies'] })
+      // The Needs attention "KYC to verify" count falls by one (review F-314).
+      queryClient.invalidateQueries({ queryKey: ['admin-attention'] })
     },
   })
 }

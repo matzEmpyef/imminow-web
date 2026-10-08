@@ -1,6 +1,7 @@
 import { useSearchParams } from 'react-router-dom'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
+import { TabBar } from '@/components/TabBar'
 import { useFinanceSummary } from '@/queries/financeDashboard'
 import { OverviewTab } from './finance/OverviewTab'
 import { CasesTab } from './finance/CasesTab'
@@ -61,22 +62,19 @@ export function FinanceDashboardPage() {
           </p>
         </div>
 
-        <div className="flex gap-xs overflow-x-auto border-b border-border">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setTab(tab.key)}
-              className={`flex shrink-0 items-center gap-xs border-b-2 px-md py-sm text-body-sm ${
-                activeTab === tab.key ? 'border-primary font-medium text-primary' : 'border-transparent text-text-secondary'
-              }`}
-            >
-              {tab.label}
-              {tab.key === 'awaiting' && (summary.data?.awaiting.count ?? 0) > 0 && (
+        <TabBar
+          ariaLabel="Finance sections"
+          tabs={TABS.map((tab) => ({
+            key: tab.key,
+            label: tab.label,
+            badge:
+              tab.key === 'awaiting' && (summary.data?.awaiting.count ?? 0) > 0 ? (
                 <Badge color="warning">{summary.data?.awaiting.count}</Badge>
-              )}
-            </button>
-          ))}
-        </div>
+              ) : undefined,
+          }))}
+          active={activeTab}
+          onChange={setTab}
+        />
 
         {activeTab === 'overview' && (
           <OverviewTab onGoToAwaiting={() => setTab('awaiting')} onGoToOverdueCases={goToOverdueCases} />

@@ -1009,6 +1009,7 @@ function DeleteCountryTrigger({ country }: { country: string }) {
   return (
     <>
       <button
+        type="button"
         onClick={() => setConfirming(true)}
         className="text-caption text-error hover:underline"
         aria-label={`Remove ${country}`}

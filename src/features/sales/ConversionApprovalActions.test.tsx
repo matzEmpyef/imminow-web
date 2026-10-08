@@ -11,6 +11,7 @@ vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
 
 import { api } from '@/api/client'
 import { showToast } from '@/lib/toast'
+import { ALREADY_APPLIED_NOTICE } from '@/lib/useIdempotencyKey'
 import { ConversionApprovalActions } from './ConversionApprovalActions'
 import { ConvertToClientModal } from './ConvertToClientModal'
 import type { components } from '@/api/schema'
@@ -120,6 +121,44 @@ describe('ConversionApprovalActions — cancelling an offer the consultancy sent
       <ConversionApprovalActions canConvert={false} leadId="l1" leadName="Asha Rao" proposal={proposal()} />,
     )
     expect(screen.getByRole('button', { name: 'Cancel offer' })).toBeInTheDocument()
+  })
+})
+
+// Review F-297: Approve sent a new key on every press, so a retry after a lost reply was refused
+// as "already done" and read as a failure although the first press had worked.
+describe('ConversionApprovalActions - pressing Approve again after a lost reply', () => {
+  it('sends the same key, and an already-applied answer reads as done, not as a failure', async () => {
+    mockedPost
+      .mockResolvedValueOnce({
+        data: undefined,
+        error: { error: { code: 'bad_gateway', message: 'upstream', status: 502 } },
+        response: { status: 502 },
+      } as never)
+      .mockResolvedValueOnce({
+        data: undefined,
+        error: {
+          error: { code: 'conflict', message: 'Already done.', status: 409, details: { idempotency: 'already_applied' } },
+        },
+        response: { status: 409 },
+      } as never)
+    const { invalidate } = renderWithClient(
+      <ConversionApprovalActions canConvert leadId="l1" leadName="Asha Rao" proposal={proposal({ initiated_by: 'student' })} />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    await waitFor(() => expect(mockedPost).toHaveBeenCalledTimes(1))
+    await screen.findByText('upstream')
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith(ALREADY_APPLIED_NOTICE))
+
+    const keyOf = (i: number) =>
+      (mockedPost.mock.calls[i][1] as unknown as { params: { header: Record<string, string> } }).params.header[
+        'Idempotency-Key'
+      ]
+    expect(keyOf(1)).toBe(keyOf(0))
+    expect(screen.queryByText('Already done.')).not.toBeInTheDocument()
+    const keys = invalidate.mock.calls.map((c) => (c[0] as { queryKey: unknown[] }).queryKey)
+    expect(keys).toContainEqual(['clients'])
   })
 })
 

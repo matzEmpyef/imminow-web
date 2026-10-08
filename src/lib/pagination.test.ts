@@ -1,3 +1,4 @@
+import { StrictMode } from 'react'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { chronologicalPages, cursorPager, fetchAllPages, toPage, useCursorPagination } from './pagination'
@@ -148,5 +149,21 @@ describe('cursorPager', () => {
 
     act(() => result.current.pager.onPrevious())
     expect(result.current.paging.cursor).toBeUndefined()
+  })
+})
+
+// Review F-318: a state update used to sit inside another's updater, which React runs twice in
+// strict mode. Two pages back must still be exactly two pages back there.
+describe('useCursorPagination in strict mode', () => {
+  it('previous() steps back one page per press', () => {
+    const { result } = renderHook(() => useCursorPagination(), { wrapper: StrictMode })
+    act(() => result.current.next('c2'))
+    act(() => result.current.next('c3'))
+    act(() => result.current.next('c4'))
+    act(() => result.current.previous())
+    expect(result.current.cursor).toBe('c3')
+    act(() => result.current.previous())
+    expect(result.current.cursor).toBe('c2')
+    expect(result.current.hasPrevious).toBe(true)
   })
 })

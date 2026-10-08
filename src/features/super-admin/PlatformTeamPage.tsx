@@ -19,7 +19,7 @@ import {
   useResendPlatformStaffInvite,
   useUpdatePlatformStaffPermissions,
 } from '@/queries/platformTeam'
-import { useMyUserId, usePlatformPermission } from '@/lib/me'
+import { useIsSuperAdmin, useMyUserId, usePlatformPermission, usePlatformPermissions } from '@/lib/me'
 import type { components } from '@/api/schema'
 import type { PlatformPermissionKey } from '@/features/auth/PlatformRoute'
 import { EMAIL_ERROR, isValidEmail } from '@/lib/validation'
@@ -101,6 +101,22 @@ const PERMISSION_GROUPS: { title: string; flags: { key: PlatformPermissionKey; l
 
 const ALL_FLAGS = PERMISSION_GROUPS.flatMap((g) => g.flags)
 
+// Owner decision 9: staff grant only what they hold, and these two are granted only by a Super
+// Admin (review I-074). The server enforces it; the console does not offer what it would refuse.
+const SUPER_ADMIN_ONLY: PlatformPermissionKey[] = ['team_management', 'support_tools']
+
+/** Why a switch is off-limits to the person editing, or undefined when they may change it. */
+function useLockReason(): (key: PlatformPermissionKey) => string | undefined {
+  const isSuperAdmin = useIsSuperAdmin()
+  const held = usePlatformPermissions()
+  return (key) => {
+    if (isSuperAdmin) return undefined
+    if (SUPER_ADMIN_ONLY.includes(key)) return 'Only a Super Admin can change this.'
+    if (held?.[key] !== true) return 'You don’t hold this permission, so you can’t change it.'
+    return undefined
+  }
+}
+
 const STATUS_META: Record<StaffStatus, { label: string; color: 'success' | 'warning' | 'secondary' }> = {
   invited: { label: 'Invited', color: 'warning' },
   active: { label: 'Active', color: 'success' },
@@ -155,21 +171,26 @@ function PermissionGroups({
   onToggle,
   onToggleGroup,
   disabled,
+  lockReason,
 }: {
   isOn: (key: PlatformPermissionKey) => boolean
   onToggle: (key: PlatformPermissionKey) => void
   onToggleGroup?: (group: (typeof PERMISSION_GROUPS)[number]) => void
   disabled?: boolean
+  /** A switch the person editing may not change, with the reason (see `useLockReason`). */
+  lockReason?: (key: PlatformPermissionKey) => string | undefined
 }) {
   return (
     <div className="flex flex-col gap-lg">
       {PERMISSION_GROUPS.map((group) => {
-        const allOn = group.flags.every((flag) => isOn(flag.key))
+        // "Turn all" acts on the switches this person may change, so it counts only those.
+        const changeable = group.flags.filter((flag) => !lockReason?.(flag.key))
+        const allOn = changeable.every((flag) => isOn(flag.key))
         return (
           <section key={group.title} className="flex flex-col gap-sm">
             <div className="flex items-center justify-between border-b border-border pb-xs">
               <h3 className="text-caption font-medium uppercase tracking-wide text-text-secondary">{group.title}</h3>
-              {onToggleGroup && !disabled && (
+              {onToggleGroup && !disabled && changeable.length > 0 && (
                 <button
                   type="button"
                   onClick={() => onToggleGroup(group)}
@@ -179,15 +200,24 @@ function PermissionGroups({
                 </button>
               )}
             </div>
-            {group.flags.map((flag) => (
-              <div key={flag.key} className="flex items-start justify-between gap-md">
-                <div className="min-w-0">
-                  <p className="text-body-sm text-text-primary">{flag.label}</p>
-                  <p className="text-caption text-text-secondary">{flag.hint}</p>
+            {group.flags.map((flag) => {
+              const locked = lockReason?.(flag.key)
+              return (
+                <div key={flag.key} className="flex items-start justify-between gap-md">
+                  <div className="min-w-0">
+                    <p className="text-body-sm text-text-primary">{flag.label}</p>
+                    <p className="text-caption text-text-secondary">{flag.hint}</p>
+                    {locked && <p className="text-caption text-text-secondary">{locked}</p>}
+                  </div>
+                  <Toggle
+                    checked={isOn(flag.key)}
+                    onChange={() => onToggle(flag.key)}
+                    disabled={disabled || Boolean(locked)}
+                    label={flag.label}
+                  />
                 </div>
-                <Toggle checked={isOn(flag.key)} onChange={() => onToggle(flag.key)} disabled={disabled} label={flag.label} />
-              </div>
-            ))}
+              )
+            })}
           </section>
         )
       })}
@@ -204,6 +234,7 @@ function PermissionGroups({
 // way. `noValidate` on the <form> below stops the browser from ever stepping in on its own.
 function InviteStaffModal({ onClose, onInvited }: { onClose: () => void; onInvited: (email: string) => void }) {
   const createStaff = useCreatePlatformStaff()
+  const lockReason = useLockReason()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [permissions, setPermissions] = useState<Record<string, boolean>>({})
@@ -226,10 +257,11 @@ function InviteStaffModal({ onClose, onInvited }: { onClose: () => void; onInvit
   }
 
   function toggleGroup(group: (typeof PERMISSION_GROUPS)[number]) {
-    const allOn = group.flags.every((f) => permissions[f.key])
+    const changeable = group.flags.filter((f) => !lockReason(f.key))
+    const allOn = changeable.every((f) => permissions[f.key])
     setPermissions((prev) => {
       const next = { ...prev }
-      for (const f of group.flags) next[f.key] = !allOn
+      for (const f of changeable) next[f.key] = !allOn
       return next
     })
   }
@@ -299,6 +331,7 @@ function InviteStaffModal({ onClose, onInvited }: { onClose: () => void; onInvit
             isOn={(key) => Boolean(permissions[key])}
             onToggle={toggle}
             onToggleGroup={toggleGroup}
+            lockReason={lockReason}
           />
         </div>
       </form>
@@ -366,8 +399,9 @@ function ReasonModal({
 // The drawer's permission section: toggles are edited LOCALLY, not saved per click (user-
 // requested) — a footer with a change count and a required reason appears once anything differs
 // from what's saved, and Save sends one PATCH with just the changed keys.
-function PermissionEditor({ staff }: { staff: PlatformStaff }) {
+function PermissionEditor({ staff, isSelf }: { staff: PlatformStaff; isSelf: boolean }) {
   const updatePermissions = useUpdatePlatformStaffPermissions(staff.id!)
+  const lockReason = useLockReason()
   const [edits, setEdits] = useState<Record<string, boolean>>({})
   const [reason, setReason] = useState('')
   const [attempted, setAttempted] = useState(false)
@@ -392,8 +426,9 @@ function PermissionEditor({ staff }: { staff: PlatformStaff }) {
   }
 
   function toggleGroup(group: (typeof PERMISSION_GROUPS)[number]) {
-    const allOn = group.flags.every((f) => isOn(f.key))
-    for (const f of group.flags) setEdit(f.key, !allOn)
+    const changeable = group.flags.filter((f) => !lockReason(f.key))
+    const allOn = changeable.every((f) => isOn(f.key))
+    for (const f of changeable) setEdit(f.key, !allOn)
   }
 
   function handleDiscard() {
@@ -424,7 +459,12 @@ function PermissionEditor({ staff }: { staff: PlatformStaff }) {
         </>
       ) : (
         <>
-          <PermissionGroups isOn={isOn} onToggle={toggle} onToggleGroup={toggleGroup} />
+          {isSelf && (
+            <p className="rounded-md border border-border bg-background p-sm text-body-sm text-text-secondary">
+              This is your own account. You are editing your own permissions, so check each change before you save.
+            </p>
+          )}
+          <PermissionGroups isOn={isOn} onToggle={toggle} onToggleGroup={toggleGroup} lockReason={lockReason} />
           {updatePermissions.isError && <p className="text-body-sm text-error">{updatePermissions.error.message}</p>}
           {dirty && (
             <div className="flex flex-col gap-sm rounded-md border border-border bg-background p-sm">
@@ -502,7 +542,7 @@ function StaffDrawerBody({ staff, currentUserId }: { staff: PlatformStaff; curre
 
       <div className="flex flex-col gap-sm border-t border-border pt-md">
         <h4 className="text-body-sm font-medium text-text-primary">Access</h4>
-        <PermissionEditor staff={staff} />
+        <PermissionEditor staff={staff} isSelf={isSelf} />
       </div>
 
       {staff.is_super_admin && (

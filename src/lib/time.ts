@@ -252,3 +252,18 @@ export function formatDemandAsOf(
   if (Math.abs(reference - demand.getTime()) < MS_PER_DAY) return null
   return `as of ${formatDate(demand)}`
 }
+
+/**
+ * What to send for a date field that shows a stored date-time as a plain date (review F-315).
+ *
+ * The field shows the first ten characters of the stored value and a picked date goes back as that
+ * day at midnight UTC. A stored value that is not exactly midnight UTC would therefore move by the
+ * time-zone gap just by pressing Save, and for a step's due date that reaches the student as a
+ * change nobody made. So a date left as it was sends the stored value back untouched; only a date
+ * the person actually changed is converted.
+ */
+export function dateFieldToIso(stored: string | null | undefined, picked: string): string | null {
+  if (!picked) return null
+  if (stored && stored.slice(0, 10) === picked) return stored
+  return new Date(picked).toISOString()
+}

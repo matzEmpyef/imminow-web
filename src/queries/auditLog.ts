@@ -2,12 +2,42 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import type { components } from '@/api/schema'
+
+/** Every area an entry can carry (the contract's `AuditLogEntry.area`), so the Area filter can reach them all. */
+export type AuditArea = components['schemas']['AuditLogEntry']['area']
+
+// A Record, not an array: when the contract adds an area this stops compiling until it is listed
+// here, instead of the filter silently missing it (review F-304).
+const AUDIT_AREA_SET: Record<AuditArea, true> = {
+  leads: true,
+  clients: true,
+  plans: true,
+  documents: true,
+  settings: true,
+  staff: true,
+  marketing: true,
+  support: true,
+  finance: true,
+  consultancy_management: true,
+  catalog: true,
+  app_config: true,
+  consultancies: true,
+  billing: true,
+  moderation: true,
+  freelancers: true,
+  analytics: true,
+  ads: true,
+  jobs: true,
+  notifications: true,
+}
+export const AUDIT_AREAS = Object.keys(AUDIT_AREA_SET) as AuditArea[]
 
 export interface AuditLogFilters {
   entity_id?: string
   actor_id?: string
   action_type?: 'create' | 'update' | 'delete'
-  area?: 'leads' | 'clients' | 'plans' | 'documents' | 'settings' | 'staff'
+  area?: AuditArea
   from?: string
   to?: string
   search?: string
