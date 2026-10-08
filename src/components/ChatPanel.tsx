@@ -486,6 +486,7 @@ export function ChatPanel({
                   >
                     {m.fromMe && onUnsend && (
                       <button
+                        type="button"
                         onClick={() => {
                           setUnsendError(null)
                           setUnsendTarget(m.id)

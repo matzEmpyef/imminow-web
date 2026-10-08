@@ -57,7 +57,7 @@ describe('a failed save', () => {
       const save = useMutation({ mutationFn: failing })
       return (
         <>
-          <button onClick={() => save.mutate()}>Save</button>
+          <button type="button" onClick={() => save.mutate()}>Save</button>
           {save.isError && <p role="alert">{save.error.message}</p>}
         </>
       )
@@ -93,7 +93,7 @@ describe('a failed save', () => {
       const save = useMutation({ mutationFn: slow })
       return (
         <>
-          <button onClick={() => save.mutate()}>Save</button>
+          <button type="button" onClick={() => save.mutate()}>Save</button>
           {save.isError && <p role="alert">{save.error.message}</p>}
         </>
       )

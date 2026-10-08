@@ -58,7 +58,7 @@ function VoidInvoiceControl({ invoice, onVoided }: { invoice: Invoice; onVoided?
 
   if (!confirming) {
     return (
-      <button onClick={() => setConfirming(true)} className="text-caption text-error hover:underline">
+      <button type="button" onClick={() => setConfirming(true)} className="text-caption text-error hover:underline">
         Void
       </button>
     )

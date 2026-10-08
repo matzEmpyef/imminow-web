@@ -100,6 +100,7 @@ export function SidebarShell({ sections, roleBadge, search, headerActions, child
             className={collapsed ? 'h-7 w-7 justify-self-center' : 'h-8 w-auto justify-self-center'}
           />
           <button
+            type="button"
             onClick={() => setCollapsed((v) => !v)}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             style={collapsed ? { justifySelf: 'end' } : undefined}
@@ -222,6 +223,7 @@ export function SidebarShell({ sections, roleBadge, search, headerActions, child
           <div className="ml-auto flex shrink-0 items-center gap-md">
             {helpTopic && (
               <button
+                type="button"
                 onClick={() => setHelpOpen(true)}
                 aria-label="Help"
                 title="Help"
@@ -235,6 +237,7 @@ export function SidebarShell({ sections, roleBadge, search, headerActions, child
                 corner, next to notification") — also fixes a real gap: the footer button
                 disappeared entirely whenever the sidebar was collapsed. */}
             <button
+              type="button"
               onClick={handleLogout}
               aria-label="Log out"
               title="Log out"

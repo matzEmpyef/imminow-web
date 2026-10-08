@@ -2,6 +2,7 @@ import { useState, type ComponentProps } from 'react'
 import { Link } from 'react-router-dom'
 import { AppShell } from '@/features/auth/AppShell'
 import { Card } from '@/components/Card'
+import { TabBar } from '@/components/TabBar'
 import { Badge } from '@/components/Badge'
 import { Table, type TableColumn } from '@/components/Table'
 import { StopPropagation } from '@/components/StopPropagation'
@@ -366,19 +367,7 @@ export function CommissionDetailsPage() {
         {payingDue && <RecordPlatformPaymentModal due={payingDue} onClose={() => setPayingDue(null)} />}
         <DueScheduleDrawer due={viewingSchedule} onClose={() => setViewingSchedule(null)} />
 
-        <div className="flex gap-xs overflow-x-auto border-b border-border">
-          {TABS.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`shrink-0 border-b-2 px-md py-sm text-body-sm ${
-                activeTab === tab ? 'border-primary font-medium text-primary' : 'border-transparent text-text-secondary'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
+        <TabBar ariaLabel="Commission sections" tabs={TABS.map((tab) => ({ key: tab, label: tab }))} active={activeTab} onChange={setActiveTab} />
 
         {activeTab === 'Active Cases' && (
           <Card>

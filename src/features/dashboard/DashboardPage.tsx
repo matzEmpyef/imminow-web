@@ -209,6 +209,7 @@ export function DashboardPage() {
             <div className="flex gap-xs rounded-full border border-border bg-surface p-xs">
               {data.available_scopes.map((s) => (
                 <button
+                  type="button"
                   key={s}
                   onClick={() => setScope(s)}
                   className={`rounded-full px-md py-xs text-body-sm transition-colors ${

@@ -146,6 +146,7 @@ export function FloatingChatWindow() {
   if (minimized) {
     return (
       <button
+        type="button"
         onClick={toggleMinimize}
         style={{ maxWidth: '18rem', right: rightOffset }}
         className="fixed bottom-lg z-50 flex w-72 items-center justify-between rounded-lg border border-border bg-surface px-md py-sm shadow-card hover:bg-background"
@@ -213,6 +214,7 @@ export function FloatingChatWindow() {
         headerActions={
           <>
             <button
+              type="button"
               onClick={openFullConversation}
               aria-label="Open full conversation"
               title="Open full conversation"
@@ -221,6 +223,7 @@ export function FloatingChatWindow() {
               <ExternalLink className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={toggleMinimize}
               aria-label="Minimize"
               title="Minimize"
@@ -229,6 +232,7 @@ export function FloatingChatWindow() {
               <Minus className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={close}
               aria-label="Close"
               title="Close"

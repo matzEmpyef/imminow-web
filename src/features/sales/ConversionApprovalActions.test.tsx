@@ -152,7 +152,7 @@ describe('ConversionApprovalActions - pressing Approve again after a lost reply'
     await waitFor(() => expect(showToast).toHaveBeenCalledWith(ALREADY_APPLIED_NOTICE))
 
     const keyOf = (i: number) =>
-      (mockedPost.mock.calls[i]?.[1] as unknown as { params: { header: Record<string, string> } }).params.header[
+      (mockedPost.mock.calls[i][1] as unknown as { params: { header: Record<string, string> } }).params.header[
         'Idempotency-Key'
       ]
     expect(keyOf(1)).toBe(keyOf(0))

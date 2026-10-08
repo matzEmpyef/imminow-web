@@ -1,5 +1,6 @@
 import { useSearchParams } from 'react-router-dom'
 import { AdminShell } from '@/features/auth/AdminShell'
+import { TabBar } from '@/components/TabBar'
 import { ReferralsTab } from './freelancers/ReferralsTab'
 import { PayoutHistoryTab } from './freelancers/PayoutHistoryTab'
 
@@ -44,19 +45,7 @@ export function FreelancerPayoutsPage() {
           </p>
         </div>
 
-        <div className="flex gap-xs overflow-x-auto border-b border-border">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setTab(tab.key)}
-              className={`shrink-0 border-b-2 px-md py-sm text-body-sm ${
-                activeTab === tab.key ? 'border-primary font-medium text-primary' : 'border-transparent text-text-secondary'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <TabBar ariaLabel="Freelancer payout sections" tabs={TABS} active={activeTab} onChange={setTab} />
 
         {activeTab === 'owed' && <ReferralsTab payoutStatus="owed" />}
         {activeTab === 'not_due' && <ReferralsTab payoutStatus="not_due" />}
