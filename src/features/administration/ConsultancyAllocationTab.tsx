@@ -1,7 +1,7 @@
 // Split out of ConsultancyProfilePage.tsx (Phase 3 plan, Tier B2, 2026-09-03).
 // Reworked 2026-09-10 (user: "in allocation rule, explain what it is and where it is applicable
 // (make sure it is applicable)"). The rule now actually runs — the server assigns a new Sentpo lead
-// by it the moment the student starts a chat (autoAllocationTarget in mock-server/server.js) — and
+// by it the moment the student starts a chat (`auto_target` in the backend's `app/marketplace/leads/allocation.py`) — and
 // this tab says in plain words what it does, what it applies to, and what it does not.
 import { useEffect, useState } from 'react'
 import { ArrowRight, Hand, Shuffle } from 'lucide-react'
