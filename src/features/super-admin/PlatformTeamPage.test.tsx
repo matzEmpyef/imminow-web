@@ -130,3 +130,42 @@ describe('PlatformTeamPage staff drawer', () => {
     expect(within(email.parentElement!).getByRole('button', { name: 'Copy email address' })).toBeTruthy()
   })
 })
+
+// Review I-074 (owner decision 9): staff grant only what they hold, and team management and
+// support tools are granted only by a Super Admin. The drawer does not offer what would be refused.
+describe('PlatformTeamPage permission switches', () => {
+  function openDevika() {
+    render(<PlatformTeamPage />)
+    fireEvent.click(screen.getByText('Devika Rao').closest('tr')!)
+    return screen.getByRole('dialog', { name: 'Platform staff' })
+  }
+
+  it('switches off the permissions the editor does not hold, and the two Super-Admin-only ones', () => {
+    signInWith({ team_management: true, blog: true })
+    const dialog = openDevika()
+    expect(within(dialog).getByRole('switch', { name: 'Blog' })).toBeEnabled()
+    expect(within(dialog).getByRole('switch', { name: 'Finance' })).toBeDisabled()
+    // Held, but still Super Admin only.
+    expect(within(dialog).getByRole('switch', { name: 'Team management' })).toBeDisabled()
+    expect(within(dialog).getByRole('switch', { name: 'Support tools' })).toBeDisabled()
+    expect(within(dialog).getAllByText('Only a Super Admin can change this.')).toHaveLength(2)
+  })
+
+  it('leaves every switch to a Super Admin', () => {
+    vi.mocked(useMe).mockReturnValue(meAnswered(platformMe({}, { id: 'user-ananya', role: 'super_admin' })))
+    const dialog = openDevika()
+    expect(within(dialog).getByRole('switch', { name: 'Finance' })).toBeEnabled()
+    expect(within(dialog).getByRole('switch', { name: 'Team management' })).toBeEnabled()
+  })
+
+  it('warns when the person is editing their own account', () => {
+    vi.mocked(useMe).mockReturnValue(meAnswered(platformMe({ team_management: true, blog: true }, { id: 'user-devika' })))
+    const dialog = openDevika()
+    expect(within(dialog).getByText(/You are editing your own permissions/)).toBeTruthy()
+  })
+
+  it('does not warn on someone else', () => {
+    const dialog = openDevika()
+    expect(within(dialog).queryByText(/You are editing your own permissions/)).toBeNull()
+  })
+})
