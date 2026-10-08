@@ -59,6 +59,17 @@ describe('the request reference', () => {
     expect(alert).toHaveTextContent('The server failed.')
     expect(alert).toHaveTextContent('Reference: req-7f3a')
   })
+
+  it('copies with one click, wherever it is shown', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    render(<ErrorState message="Could not load clients." error={withReference} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Copy reference' }))
+    })
+    expect(writeText).toHaveBeenCalledWith('req-7f3a')
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })
+  })
 })
 
 describe('a page file that is missing after a deploy', () => {

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AUDIT_SEARCH_HINT, AUDIT_SEARCH_PLACEHOLDER, AuditEntryDetail } from '@/features/administration/AuditEntryDetail'
+import { AuditDateRange, AuditWindowNote } from '@/features/administration/AuditDateRange'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
@@ -172,6 +173,7 @@ export function PlatformAuditLogPage() {
               Platform-wide — every change across every consultancy. Needs the Audit Log permission.
             </p>
             <p className="mt-xs text-caption text-text-secondary">{AUDIT_SEARCH_HINT}</p>
+            <AuditWindowNote from={from} />
           </div>
           <div className="flex shrink-0 flex-col items-end gap-xs">
             <Button variant="secondary" size="sm" disabled={exporting} onClick={handleExport}>
@@ -190,7 +192,7 @@ export function PlatformAuditLogPage() {
           emptyMessage={
             search || consultancyId || actionType || area || from || to
               ? 'No matching audit entries.'
-              : 'No activity recorded yet. Platform-wide creates, updates and deletes land here as they happen.'
+              : 'No activity in the last 30 days. Platform-wide creates, updates and deletes land here as they happen.'
           }
           sort={sort}
           onSortChange={(field, direction) => {
@@ -247,25 +249,17 @@ export function PlatformAuditLogPage() {
                   </option>
                 ))}
               </CompactSelect>
-              <input
-                type="date"
-                value={from}
-                onChange={(e) => {
-                  setFrom(e.target.value)
+              <AuditDateRange
+                from={from}
+                to={to}
+                onFromChange={(value) => {
+                  setFrom(value)
                   resetPaging()
                 }}
-                aria-label="From"
-                className="h-10 rounded-md border border-border bg-background px-3 text-body-sm"
-              />
-              <input
-                type="date"
-                value={to}
-                onChange={(e) => {
-                  setTo(e.target.value)
+                onToChange={(value) => {
+                  setTo(value)
                   resetPaging()
                 }}
-                aria-label="To"
-                className="h-10 rounded-md border border-border bg-background px-3 text-body-sm"
               />
             </>
           }
@@ -274,7 +268,7 @@ export function PlatformAuditLogPage() {
             hasPrevious: paging.hasPrevious,
             onNext: () => entries.data?.meta.next_cursor && paging.next(entries.data.meta.next_cursor),
             onPrevious: paging.previous,
-            total: entries.data?.meta.total,
+            // No total: the audit log is never counted (`meta.total` is always null, review F-114).
           }}
           expandable={{
             isExpanded: (e) => expandedId === e.id,

@@ -206,58 +206,41 @@ function sameConversation(a: Conversation, b: Conversation): boolean {
   return a.id === b.id && a.type === b.type
 }
 
-/** The drawer's list with nothing typed in its search box: every conversation, paged. */
-const UNSEARCHED_LIST_KEY = ['conversations', 'list', '']
-
 /**
- * `conversation.updated` — patches the row in place wherever it's cached: the header badge's
- * unpaged `['conversations']` read, and every page of the drawer's own paged/searched
- * `['conversations', 'list', search]` (queries/conversations.ts).
+ * `conversation.updated` — the drawer's rows (`['conversations', 'list', search, showClosed]`,
+ * queries/conversations.ts). The header badge is not touched here: it holds a count, which
+ * `unread.changed` replaces.
  *
- * A conversation the console has never listed cannot be patched: a student's first message opens
- * a brand-new one. That update used to be dropped, so the badge count rose while the drawer
- * showed no new row until a reload (review F-142). When the unfiltered lists are loaded and none
- * of them holds this conversation, the conversation lists are asked for again; the new row then
- * arrives in its right place. (A list narrowed by a search is not evidence either way: the
- * conversation may simply not match what was typed.)
+ * A conversation that is on a loaded page is patched in place, on every list that holds it.
+ *
+ * One that is on no loaded page cannot be patched. It is either brand new (a student's first
+ * message), or it sits further down than the drawer has scrolled; either way its new message
+ * puts it at the top, where it has to appear (review F-142, F-086). So every list with nothing
+ * typed in its search box that does not hold it is asked for again: the row then arrives in its
+ * right place, once, from the server, rather than being inserted here and met again on a later
+ * page. Two kinds of list are left alone: one narrowed by a search (the conversation may simply
+ * not match what was typed), and a closed conversation on a list that is not showing closed ones.
  */
 export function applyConversationUpdated(queryClient: QueryClient, conversation: Conversation): void {
-  const listed = (key: readonly unknown[]): boolean | undefined => {
-    const data = queryClient.getQueryData<ConversationsPage | InfiniteData<ConversationsPage>>(key)
-    if (!data) return undefined
-    const pages = 'pages' in data ? data.pages : [data]
-    return pages.some((page) => page.items.some((c) => sameConversation(c, conversation)))
-  }
-  const known = [listed(['conversations']), listed(UNSEARCHED_LIST_KEY)].filter((answer) => answer !== undefined)
-  if (known.length > 0 && !known.includes(true)) {
-    void queryClient.invalidateQueries({ queryKey: ['conversations'] })
-    return
-  }
-
-  queryClient.setQueryData<ConversationsPage>(['conversations'], (old) => {
-    if (!old) return old
-    let changed = false
-    const items = old.items.map((c) => {
-      if (!sameConversation(c, conversation)) return c
-      changed = true
-      return { ...c, ...conversation }
+  const lists = queryClient.getQueriesData<InfiniteData<ConversationsPage>>({ queryKey: ['conversations', 'list'] })
+  for (const [key, data] of lists) {
+    if (!data) continue
+    const [, , search, showClosed] = key
+    const holdsIt = data.pages.some((page) => page.items.some((c) => sameConversation(c, conversation)))
+    if (!holdsIt) {
+      const couldListIt = search === '' && (showClosed === true || conversation.closed !== true)
+      if (couldListIt) void queryClient.invalidateQueries({ queryKey: key, exact: true })
+      continue
+    }
+    queryClient.setQueryData<InfiniteData<ConversationsPage>>(key, {
+      ...data,
+      pages: data.pages.map((page) =>
+        page.items.some((c) => sameConversation(c, conversation))
+          ? { ...page, items: page.items.map((c) => (sameConversation(c, conversation) ? { ...c, ...conversation } : c)) }
+          : page,
+      ),
     })
-    return changed ? { ...old, items } : old
-  })
-
-  queryClient.setQueriesData<InfiniteData<ConversationsPage>>({ queryKey: ['conversations', 'list'] }, (old) => {
-    if (!old) return old
-    let changed = false
-    const pages = old.pages.map((page) => {
-      const items = page.items.map((c) => {
-        if (!sameConversation(c, conversation)) return c
-        changed = true
-        return { ...c, ...conversation }
-      })
-      return changed ? { ...page, items } : page
-    })
-    return changed ? { ...old, pages } : old
-  })
+  }
 }
 
 /** `unread.changed` — whole-value replacement of the badge counts (never additive: "replace, do

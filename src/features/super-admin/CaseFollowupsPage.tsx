@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Badge } from '@/components/Badge'
@@ -16,6 +16,8 @@ import { SignalBadges } from './followups/SignalBadges'
 import { FollowupHistoryDrawer } from './followups/FollowupHistoryDrawer'
 import { LogCallModal, type LogCallInput } from './followups/LogCallModal'
 import { CASE_OUTCOME_OPTIONS, CASE_SIGNAL_LABELS, OUTCOME_LABELS } from './followups/labels'
+import { signalOptions, useFollowupFilters } from './followups/useFollowupFilters'
+import { ConsultancySearchSelect } from './finance/ConsultancySearchSelect'
 
 /**
  * Finance's chase list — "Payment follow-ups" (2026-09-11, replacing the earlier one-queue
@@ -29,53 +31,17 @@ import { CASE_OUTCOME_OPTIONS, CASE_SIGNAL_LABELS, OUTCOME_LABELS } from './foll
  * auto-close would move money on a case nobody looked at. Working this queue is a phone call.
  */
 export function CaseFollowupsPage() {
-  const [includeSnoozed, setIncludeSnoozed] = useState(false)
   const paging = useCursorPagination()
-  const queue = useCaseFollowups(includeSnoozed, paging.cursor)
-  const [search, setSearch] = useState('')
-  const [signalFilter, setSignalFilter] = useState('')
-  const [consultancyFilter, setConsultancyFilter] = useState('')
-  const [notCalledOnly, setNotCalledOnly] = useState(false)
-  const [dueOnly, setDueOnly] = useState(false)
+  // Search and filters go to the server, which applies them over the whole queue and counts the
+  // summary tiles over the same rows (review F-154). They used to narrow only the page on screen.
+  const { filters, set: setFilter, narrowed } = useFollowupFilters(paging)
+  const queue = useCaseFollowups(filters, paging.cursor)
   const [viewing, setViewing] = useState<CaseFollowupRow | null>(null)
   const [logging, setLogging] = useState<CaseFollowupRow | null>(null)
 
-  const items = useMemo(() => queue.data?.items ?? [], [queue.data])
   const summary = queue.data?.summary
   // No `meta` = the frozen mock / an unpaged server: every row is here already, no pager.
   const pager = cursorPager(paging, queue.data?.meta)
-  const paged = pager.hasNext || pager.hasPrevious
-
-  // Built from the loaded rows rather than a server facet — the API has no facets endpoint for
-  // this queue, and the visible page of rows is small enough that this is cheap.
-  const consultancyOptions = useMemo(() => {
-    const names = new Set<string>()
-    for (const row of items) if (row.consultancy_name) names.add(row.consultancy_name)
-    return [...names].sort((a, b) => a.localeCompare(b))
-  }, [items])
-
-  const signalOptions = useMemo(
-    () =>
-      Object.entries(summary?.by_signal ?? {})
-        .filter(([, count]) => count > 0)
-        .map(([code, count]) => ({ code, count, label: CASE_SIGNAL_LABELS[code] ?? code })),
-    [summary],
-  )
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return items.filter((row) => {
-      if (q) {
-        const hay = `${row.student_name ?? ''} ${row.consultancy_name ?? ''}`.toLowerCase()
-        if (!hay.includes(q)) return false
-      }
-      if (signalFilter && !row.signals?.some((s) => s.code === signalFilter)) return false
-      if (consultancyFilter && row.consultancy_name !== consultancyFilter) return false
-      if (notCalledOnly && (row.followup_count ?? 0) > 0) return false
-      if (dueOnly && !row.due_for_call) return false
-      return true
-    })
-  }, [items, search, signalFilter, consultancyFilter, notCalledOnly, dueOnly])
 
   const notes = useCaseNotes(viewing?.journey_id ?? null)
   const record = useRecordFollowup()
@@ -194,57 +160,66 @@ export function CaseFollowupsPage() {
           loading={queue.isLoading}
           totalLabel="Cases"
           showPendingInr
-          notCalledActive={notCalledOnly}
-          onToggleNotCalled={() => setNotCalledOnly((v) => !v)}
-          dueActive={dueOnly}
-          onToggleDue={() => setDueOnly((v) => !v)}
+          notCalledActive={Boolean(filters.notCalled)}
+          onToggleNotCalled={() => setFilter({ notCalled: !filters.notCalled })}
+          dueActive={Boolean(filters.dueForCall)}
+          onToggleDue={() => setFilter({ dueForCall: !filters.dueForCall })}
         />
 
         <Table
           columns={columns}
-          rows={filtered}
+          rows={queue.data?.items ?? []}
           rowKey={(row) => row.journey_id ?? row.student_id ?? row.student_name ?? ''}
           loading={queue.isLoading}
           error={queue.isError ? 'Could not load the follow-up queue.' : undefined} errorSource={queue.error}
-          emptyMessage="Nothing needs chasing right now."
+          emptyMessage={narrowed ? 'No cases match these filters.' : 'Nothing needs chasing right now.'}
           onRowClick={(row) => setViewing(row)}
-          search={{ value: search, onChange: setSearch, placeholder: paged ? 'Search this page…' : 'Search student or consultancy…' }}
+          search={{
+            value: filters.search ?? '',
+            onChange: (value) => setFilter({ search: value }),
+            placeholder: 'Search student or consultancy…',
+          }}
           pagination={pager}
           filters={
             <>
-              <CompactSelect value={signalFilter} onChange={(e) => setSignalFilter(e.target.value)} label="Signal">
-                <option value="">Any signal</option>
-                {signalOptions.map((o) => (
-                  <option key={o.code} value={o.code}>
-                    {o.label} ({o.count})
-                  </option>
-                ))}
-              </CompactSelect>
               <CompactSelect
-                value={consultancyFilter}
-                onChange={(e) => setConsultancyFilter(e.target.value)}
-                label="Consultancy"
+                value={filters.signal ?? ''}
+                onChange={(e) => setFilter({ signal: e.target.value })}
+                label="Signal"
               >
-                <option value="">Any consultancy</option>
-                {consultancyOptions.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
+                <option value="">Any signal</option>
+                {signalOptions(CASE_SIGNAL_LABELS, summary, filters.signal).map((o) => (
+                  <option key={o.code} value={o.code}>
+                    {o.label}
                   </option>
                 ))}
               </CompactSelect>
+              {/* Any consultancy, found on the server: the list used to offer only the names on
+                  the page being shown. */}
+              <div className="w-56">
+                <ConsultancySearchSelect
+                  value={filters.consultancyId ?? ''}
+                  onChange={(id) => setFilter({ consultancyId: id })}
+                />
+              </div>
             </>
           }
           quickFilters={
             <>
-              <FilterChip label="Not called yet" active={notCalledOnly} onChange={setNotCalledOnly} />
-              <FilterChip label="Due for a call" active={dueOnly} onChange={setDueOnly} />
+              <FilterChip
+                label="Not called yet"
+                active={Boolean(filters.notCalled)}
+                onChange={(v) => setFilter({ notCalled: v })}
+              />
+              <FilterChip
+                label="Due for a call"
+                active={Boolean(filters.dueForCall)}
+                onChange={(v) => setFilter({ dueForCall: v })}
+              />
               <FilterChip
                 label="Show snoozed"
-                active={includeSnoozed}
-                onChange={(v) => {
-                  setIncludeSnoozed(v)
-                  paging.reset()
-                }}
+                active={Boolean(filters.includeSnoozed)}
+                onChange={(v) => setFilter({ includeSnoozed: v })}
               />
             </>
           }

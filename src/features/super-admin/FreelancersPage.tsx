@@ -5,9 +5,10 @@ import { Button } from '@/components/Button'
 import { CompactSelect } from '@/components/CompactSelect'
 import { Card } from '@/components/Card'
 import { Table, type TableColumn } from '@/components/Table'
+import { Skeleton } from '@/components/QueryState'
 import { formatDate } from '@/lib/time'
 import { cursorPager, useCursorPagination } from '@/lib/pagination'
-import { useAllFreelancers, useFreelancers, type Freelancer } from '@/queries/freelancerRates'
+import { useAllFreelancers, useFreelancers, type Freelancer, type FreelancerStatus } from '@/queries/freelancerRates'
 import { InviteFreelancerModal } from './freelancers/InviteFreelancerModal'
 import { FreelancerDrawer } from './freelancers/FreelancerDrawer'
 import { showToast } from '@/lib/toast'
@@ -19,7 +20,9 @@ const STATUS_BADGE = {
   deactivated: { color: 'secondary', label: 'Deactivated' },
 } as const
 
-function SummaryTiles({ freelancers }: { freelancers: Freelancer[] }) {
+function SummaryTiles({ freelancers }: { freelancers: Freelancer[] | undefined }) {
+  // Still walking the roster: no numbers yet, rather than a page's worth passed off as the total.
+  if (!freelancers) return <Skeleton className="h-24 rounded-lg" />
   const activeCount = freelancers.filter((f) => f.status === 'active' || (f.status == null && f.active !== false)).length
   const invitedCount = freelancers.filter((f) => f.status === 'invited').length
   // Overpaid freelancers (negative `owed`, gate 12) are not netted off what others are owed.
@@ -50,8 +53,8 @@ function SummaryTiles({ freelancers }: { freelancers: Freelancer[] }) {
 
 /**
  * Freelancers, rebuilt 2026-09-11 on the richer /freelancers contract (typed referral codes,
- * status, and per-freelancer earned/paid/owed totals). The roster is small enough per the
- * contract note that search and status filtering stay client-side, same as before the rebuild —
+ * status, and per-freelancer earned/paid/owed totals). Search and the status filter are the
+ * server's, over every account (review F-154) —
  * everything account-specific (share editing, changing the code, resend, activation, the
  * freelancer's own referrals) moved into {@link FreelancerDrawer} so the row stays scannable.
  *
@@ -60,38 +63,27 @@ function SummaryTiles({ freelancers }: { freelancers: Freelancer[] }) {
  */
 export function FreelancersPage() {
   const paging = useCursorPagination()
-  const freelancers = useFreelancers(paging.cursor)
-  const pager = cursorPager(paging, freelancers.data?.meta)
-  const paged = pager.hasNext || pager.hasPrevious
-  // The tiles' totals and the drawer's lookup need the whole roster, not one page of it: walk the
-  // rest only once the first page says there is more (an unpaged answer already is everything).
-  const everyone = useAllFreelancers({ enabled: paged })
-  const roster = useMemo(
-    () => (paged ? (everyone.data ?? freelancers.data?.items ?? []) : (freelancers.data?.items ?? [])),
-    [paged, everyone.data, freelancers.data],
-  )
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState<'' | 'invited' | 'active' | 'deactivated'>('')
+  const [status, setStatus] = useState<'' | FreelancerStatus>('')
+  // Search and the status filter go to the server, which applies them over every account (review
+  // F-154); they used to narrow only the page on screen.
+  const freelancers = useFreelancers({ search: search.trim() || undefined, status: status || undefined }, paging.cursor)
+  const pager = cursorPager(paging, freelancers.data?.meta)
+  const rows = freelancers.data?.items ?? []
+  // The tiles' totals are the whole roster's, whatever the list below is narrowed to, and the
+  // drawer's lookup needs it too: every page walked, apart from the list's own page.
+  const everyone = useAllFreelancers()
   const [viewingId, setViewingId] = useState<string | null>(null)
   const [inviting, setInviting] = useState(false)
 
-  const rows = useMemo(() => {
-    const items = freelancers.data?.items ?? []
-    const q = search.trim().toLowerCase()
-    return items.filter((f) => {
-      if (status && f.status !== status) return false
-      if (!q) return true
-      return (
-        f.name?.toLowerCase().includes(q) ||
-        f.email?.toLowerCase().includes(q) ||
-        f.referral_code?.toLowerCase().includes(q)
-      )
-    })
-  }, [freelancers.data, search, status])
-
   const viewingFreelancer = useMemo(
-    () => (viewingId ? roster.find((f) => f.id === viewingId) ?? null : null),
-    [viewingId, roster],
+    () =>
+      viewingId
+        ? ((everyone.data ?? []).find((f) => f.id === viewingId) ??
+          (freelancers.data?.items ?? []).find((f) => f.id === viewingId) ??
+          null)
+        : null,
+    [viewingId, everyone.data, freelancers.data],
   )
 
   const columns: TableColumn<Freelancer>[] = [
@@ -190,7 +182,8 @@ export function FreelancersPage() {
           </div>
         </div>
 
-        <SummaryTiles freelancers={roster} />
+        {/* Without the whole roster there are no totals to show; the list below still works. */}
+        {!everyone.isError && <SummaryTiles freelancers={everyone.data} />}
 
         <Table
           columns={columns}
@@ -198,14 +191,25 @@ export function FreelancersPage() {
           rowKey={(f) => f.id}
           loading={freelancers.isLoading}
           error={freelancers.isError ? 'Could not load freelancers.' : undefined} errorSource={freelancers.error}
-          emptyMessage="No freelancer accounts yet."
+          emptyMessage={search || status ? 'No freelancers match these filters.' : 'No freelancer accounts yet.'}
           onRowClick={(f) => setViewingId(f.id)}
-          search={{ value: search, onChange: setSearch, placeholder: paged ? 'Search this page…' : 'Search name, email or code…' }}
+          search={{
+            value: search,
+            onChange: (value) => {
+              if (value === search) return
+              setSearch(value)
+              paging.reset()
+            },
+            placeholder: 'Search name, email or code…',
+          }}
           pagination={pager}
           filters={
             <CompactSelect
               value={status}
-              onChange={(e) => setStatus(e.target.value as '' | 'invited' | 'active' | 'deactivated')}
+              onChange={(e) => {
+                setStatus(e.target.value as '' | FreelancerStatus)
+                paging.reset()
+              }}
               label="Status"
             >
               <option value="">All statuses</option>

@@ -7,6 +7,12 @@ export interface ChatWindowConversation {
   // Optional role/kind pill text (e.g. "Admin", "Team") — carried through from whichever list
   // the window was opened from so the floating header matches without re-deriving it.
   badge?: string | null
+  /**
+   * An ended conversation — a closed lead or a closed client (`Conversation.closed`, review
+   * F-086/F-115). The window shows its thread without a composer. Only ever true for a row the
+   * chat drawer found by a search or with "Show closed"; internal rows always say false.
+   */
+  closed?: boolean
 }
 
 interface ChatWindowState {

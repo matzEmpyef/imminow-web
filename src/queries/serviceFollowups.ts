@@ -4,6 +4,7 @@ import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 import type { components } from '@/api/schema'
+import { followupFilterParam, type FollowupQueueFilters } from './caseFollowups'
 
 export type ServiceFollowupRow = components['schemas']['ServiceFollowupRow']
 
@@ -15,18 +16,25 @@ export type ServiceFollowupOutcome = 'helped' | 'no_answer' | 'not_interested' |
  * consultancy yet, no reply from one, no plan, or a stalled application. Per STUDENT rather than
  * per case, since several signals fire before any case exists at all.
  */
-export function useServiceFollowups(includeSnoozed = false, cursor?: string) {
+export function useServiceFollowups(filters: FollowupQueueFilters = {}, cursor?: string) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     // Cursor-paged (contract gate 12; the frozen mock ignores `cursor` and returns every row with
-    // no `meta`). `summary` is the whole queue's, so it rides every page; keep the previous page
-    // on screen while the next loads.
-    queryKey: ['service-followups', 'list', includeSnoozed, cursor ?? null],
+    // no `meta`). Search and filters are the server's (review F-154) and `summary` is counted over
+    // the rows they keep; it rides every page. Keep the previous page on screen while the next loads.
+    queryKey: ['service-followups', 'list', filters, cursor ?? null],
     placeholderData: keepPreviousData,
     queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/service-followups', {
         signal,
-        params: { query: { include_snoozed: includeSnoozed, cursor } },
+        params: {
+          query: {
+            include_snoozed: filters.includeSnoozed ?? false,
+            cursor,
+            search: filters.search?.trim() || undefined,
+            filter: followupFilterParam(filters),
+          },
+        },
       })
       if (error) throw new ApiError('Could not load the follow-up queue.', error)
       return data

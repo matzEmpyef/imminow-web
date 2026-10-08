@@ -17,6 +17,9 @@ import { CHAT_TYPE_LABELS } from './chatTypeLabels'
 import { CASE_MOVED_COMPOSER_NOTE, isCaseMoved } from '@/lib/clientStatus'
 import { useViewingThread } from '@/lib/realtime'
 
+/** What stands in place of the composer on a closed conversation. */
+export const CLOSED_CONVERSATION_NOTE = 'This conversation is closed and read-only.'
+
 // Facebook-style floating chat popup — opened from the conversation pages' pop-out buttons and
 // stays available while browsing the rest of the app. One window at a time (see
 // chatWindowStore.ts). Lives at the AppShell root so it floats over whatever page is showing;
@@ -179,7 +182,11 @@ export function FloatingChatWindow() {
         }}
         onSend={handleSend}
         composerLocked={
-          isLead && lead.data && !lead.data.assigned_employee_id
+          // A closed conversation is read-only (owner ruling 2026-10-06): the server refuses a
+          // message to it, so the thread is shown with this line where the composer would be.
+          conversation.closed === true
+            ? CLOSED_CONVERSATION_NOTE
+            : isLead && lead.data && !lead.data.assigned_employee_id
             ? 'Allocate this lead to a consultant from Lead Pool to reply.'
             : // Case moved to another consultancy (product owner 2026-09-24) — mirrors the full
               // Client Conversation page's own composerLocked so the floating window can't send

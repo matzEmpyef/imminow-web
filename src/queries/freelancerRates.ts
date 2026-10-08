@@ -10,16 +10,34 @@ type FreelancerRateInput = components['schemas']['FreelancerRateInput']
 
 export type Freelancer = components['schemas']['Freelancer']
 
+export type FreelancerStatus = NonNullable<Freelancer['status']>
+
+export interface FreelancerListFilters {
+  /** Matches the name, the email or the referral code. */
+  search?: string
+  status?: FreelancerStatus
+}
+
 // One page of the roster (`GET /freelancers` is cursor-paged, `{ items, meta }` since contract gate
 // 12b; no `next_cursor` means one complete page, so no pager shows).
-// Search and the status filter stay client-side over the page in view.
-export function useFreelancers(cursor?: string) {
+// Search and the status filter are the server's, over every account (review F-154): `meta.total`
+// counts the accounts they keep.
+export function useFreelancers(filters: FreelancerListFilters = {}, cursor?: string) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
-    queryKey: ['freelancers', 'page', cursor ?? null],
+    queryKey: ['freelancers', 'page', filters, cursor ?? null],
     placeholderData: keepPreviousData,
     queryFn: async ({ signal }) => {
-      const { data, error } = await api.GET('/freelancers', { signal, params: { query: { cursor } } })
+      const { data, error } = await api.GET('/freelancers', {
+        signal,
+        params: {
+          query: {
+            cursor,
+            search: filters.search?.trim() || undefined,
+            filter: filters.status ? { status: filters.status } : undefined,
+          },
+        },
+      })
       if (error) throw new ApiError('Could not load freelancers.', error)
       return toPage(data)
     },

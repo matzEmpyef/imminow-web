@@ -38,6 +38,7 @@ function conversation(overrides: Partial<Conversation> = {}): Conversation {
     last_message_at: '2026-09-26T09:00:00Z',
     last_message_preview: 'old preview',
     unread: false,
+    closed: false,
     ...overrides,
   }
 }
@@ -210,25 +211,8 @@ describe('realtime query cache patches', () => {
   })
 
   describe('applyConversationUpdated', () => {
-    it('patches the matching row in the unpaged badge query', () => {
-      queryClient.setQueryData(['conversations'], {
-        items: [conversation({ id: 'c1', type: 'lead' }), conversation({ id: 'c2', type: 'lead' })],
-        meta: { total: 2, unread_count: 1 },
-      })
-
-      applyConversationUpdated(
-        queryClient,
-        conversation({ id: 'c1', type: 'lead', last_message_preview: 'new message', unread: true }),
-      )
-
-      const data = queryClient.getQueryData(['conversations']) as { items: Conversation[] }
-      expect(data.items[0].last_message_preview).toBe('new message')
-      expect(data.items[0].unread).toBe(true)
-      expect(data.items[1].last_message_preview).toBe('old preview') // untouched
-    })
-
     it('patches every page of the paged/searched drawer list', () => {
-      queryClient.setQueryData(['conversations', 'list', ''], {
+      queryClient.setQueryData(['conversations', 'list', '', false], {
         pages: [
           { items: [conversation({ id: 'c1', type: 'lead' })], meta: { total: 1, unread_count: 1 } },
           { items: [conversation({ id: 'c2', type: 'client' })], meta: { total: 1, unread_count: 1 } },
@@ -238,11 +222,45 @@ describe('realtime query cache patches', () => {
 
       applyConversationUpdated(queryClient, conversation({ id: 'c2', type: 'client', unread: false }))
 
-      const data = queryClient.getQueryData(['conversations', 'list', '']) as {
+      const data = queryClient.getQueryData(['conversations', 'list', '', false]) as {
         pages: { items: Conversation[] }[]
       }
       expect(data.pages[1].items[0].unread).toBe(false)
       expect(data.pages[0].items[0].unread).toBe(false) // c1 was already false — untouched, not flipped
+    })
+
+    it('patches the row on every list that holds it, a searched one included, and adds no row', () => {
+      const keys = [
+        ['conversations', 'list', '', false],
+        ['conversations', 'list', '', true],
+        ['conversations', 'list', 'pri', false],
+      ]
+      for (const key of keys) {
+        queryClient.setQueryData(key, {
+          pages: [{ items: [conversation({ id: 'c1' }), conversation({ id: 'c2' })], meta: { total: 2, unread_count: 0 } }],
+          pageParams: [undefined],
+        })
+      }
+
+      applyConversationUpdated(queryClient, conversation({ id: 'c1', last_message_preview: 'new message', unread: true }))
+
+      for (const key of keys) {
+        const data = queryClient.getQueryData(key) as { pages: { items: Conversation[] }[] }
+        expect(data.pages[0].items.map((c) => c.id)).toEqual(['c1', 'c2'])
+        expect(data.pages[0].items[0].last_message_preview).toBe('new message')
+        expect(data.pages[0].items[1].last_message_preview).toBe('old preview') // untouched
+        expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false)
+      }
+    })
+
+    it('leaves the header badge alone: it holds a count, which unread.changed replaces', () => {
+      const badge = { items: [conversation({ id: 'c9' })], meta: { total: 40, unread_count: 3 } }
+      queryClient.setQueryData(['conversations'], badge)
+
+      applyConversationUpdated(queryClient, conversation({ id: 'c1', unread: true }))
+
+      expect(queryClient.getQueryData(['conversations'])).toBe(badge)
+      expect(queryClient.getQueryState(['conversations'])?.isInvalidated).toBe(false)
     })
   })
 
@@ -279,8 +297,8 @@ describe('realtime query cache patches', () => {
     it('marks every lead, client and internal thread stale, and both conversation lists', () => {
       const stale = [
         seedStale(['conversations']),
-        seedStale(['conversations', 'list', '']),
-        seedStale(['conversations', 'list', 'asha']),
+        seedStale(['conversations', 'list', '', false]),
+        seedStale(['conversations', 'list', 'asha', true]),
         seedStale(['leads', 'lead-1', 'messages']),
         seedStale(['leads', 'lead-2', 'messages']),
         seedStale(['clients', 'client-5', 'messages']),
@@ -305,40 +323,44 @@ describe('realtime query cache patches', () => {
     })
   })
 
-  describe('a conversation the console has never listed (F-142)', () => {
-    const fresh = { id: 'lead-new', type: 'lead', name: 'New Student', unread: 1 } as never
+  // A conversation on no loaded page: brand new (F-142), or further down than the drawer has
+  // scrolled (the list is paged, F-086). Its new message puts it at the top, so the list is read
+  // again and the row arrives once, from the server.
+  describe('a conversation that is on no loaded page', () => {
+    const fresh = conversation({ id: 'lead-new', name: 'New Student', unread: true })
+    const loaded = (...ids: string[]) => ({
+      pages: [{ items: ids.map((id) => conversation({ id })), meta: { total: ids.length, unread_count: 0 } }],
+      pageParams: [undefined],
+    })
 
-    it('asks for the conversation lists again instead of dropping the update', () => {
-      queryClient.setQueryData(['conversations'], {
-        items: [{ id: 'lead-1', type: 'lead' }],
-        meta: { total: 1, unread_count: 0 },
-      })
-      queryClient.setQueryData(['conversations', 'list', ''], {
-        pages: [{ items: [{ id: 'lead-1', type: 'lead' }], meta: { total: 1, unread_count: 0 } }],
-        pageParams: [undefined],
-      })
+    it('asks for the open list again instead of dropping the update, and inserts no row itself', () => {
+      queryClient.setQueryData(['conversations', 'list', '', false], loaded('lead-1'))
       applyConversationUpdated(queryClient, fresh)
-      expect(queryClient.getQueryState(['conversations'])?.isInvalidated).toBe(true)
-      expect(queryClient.getQueryState(['conversations', 'list', ''])?.isInvalidated).toBe(true)
+      expect(queryClient.getQueryState(['conversations', 'list', '', false])?.isInvalidated).toBe(true)
+      const data = queryClient.getQueryData(['conversations', 'list', '', false]) as { pages: { items: Conversation[] }[] }
+      expect(data.pages[0].items.map((c) => c.id)).toEqual(['lead-1'])
     })
 
     it('does not refetch for a conversation that is already listed: the row is patched in place', () => {
-      queryClient.setQueryData(['conversations'], {
-        items: [{ id: 'lead-new', type: 'lead', unread: 0 }],
-        meta: { total: 1, unread_count: 0 },
-      })
+      queryClient.setQueryData(['conversations', 'list', '', false], loaded('lead-new'))
       applyConversationUpdated(queryClient, fresh)
-      expect(queryClient.getQueryState(['conversations'])?.isInvalidated).toBe(false)
-      expect(queryClient.getQueryData<{ items: { unread: number }[] }>(['conversations'])?.items[0].unread).toBe(1)
+      expect(queryClient.getQueryState(['conversations', 'list', '', false])?.isInvalidated).toBe(false)
+      const data = queryClient.getQueryData(['conversations', 'list', '', false]) as { pages: { items: Conversation[] }[] }
+      expect(data.pages[0].items[0].unread).toBe(true)
     })
 
     it('does not read a searched list as proof the conversation is new', () => {
-      queryClient.setQueryData(['conversations', 'list', 'asha'], {
-        pages: [{ items: [{ id: 'lead-1', type: 'lead' }], meta: { total: 1, unread_count: 0 } }],
-        pageParams: [undefined],
-      })
+      queryClient.setQueryData(['conversations', 'list', 'asha', false], loaded('lead-1'))
       applyConversationUpdated(queryClient, fresh)
-      expect(queryClient.getQueryState(['conversations', 'list', 'asha'])?.isInvalidated).toBe(false)
+      expect(queryClient.getQueryState(['conversations', 'list', 'asha', false])?.isInvalidated).toBe(false)
+    })
+
+    it('a closed conversation refreshes only a list that is showing closed ones', () => {
+      queryClient.setQueryData(['conversations', 'list', '', false], loaded('lead-1'))
+      queryClient.setQueryData(['conversations', 'list', '', true], loaded('lead-1'))
+      applyConversationUpdated(queryClient, conversation({ id: 'lead-old', closed: true }))
+      expect(queryClient.getQueryState(['conversations', 'list', '', false])?.isInvalidated).toBe(false)
+      expect(queryClient.getQueryState(['conversations', 'list', '', true])?.isInvalidated).toBe(true)
     })
 
     it('does nothing when no conversation list is loaded at all', () => {

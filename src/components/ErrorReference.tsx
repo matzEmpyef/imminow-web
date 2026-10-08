@@ -1,4 +1,5 @@
 import { requestReference } from '@/api/errors'
+import { CopyButton } from './CopyButton'
 
 /**
  * The request reference of a failed request, when it has one (review F-162): the one thing
@@ -16,8 +17,12 @@ export function ErrorReference({ error, className = '' }: { error: unknown; clas
 
 export function ReferenceLine({ reference, className = '' }: { reference: string; className?: string }) {
   return (
-    <span className={`block text-caption text-text-secondary ${className}`}>
-      Reference: <span className="select-all font-mono">{reference}</span>
+    <span className={`flex items-center gap-xs text-caption text-text-secondary ${className}`}>
+      <span className="min-w-0 break-all">
+        Reference: <span className="select-all font-mono">{reference}</span>
+      </span>
+      {/* One click copies it for a message to support; the text can still be selected by hand. */}
+      <CopyButton value={reference} kind="reference" />
     </span>
   )
 }

@@ -44,7 +44,7 @@ describe('applicant allocation queue', () => {
 
   it('reads the cursor envelope and sends the cursor it is given', async () => {
     respond({ items: [{ id: 'a3' }], meta: { next_cursor: 'c3', total: 41 } })
-    const { result } = renderHook(() => useApplicantAllocationQueue('c2'), { wrapper })
+    const { result } = renderHook(() => useApplicantAllocationQueue({}, 'c2'), { wrapper })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(mockedGet).toHaveBeenCalledWith(
       '/applicant-allocation-queue',
@@ -52,12 +52,28 @@ describe('applicant allocation queue', () => {
     )
     expect(result.current.data?.meta?.next_cursor).toBe('c3')
   })
+
+  // Review F-154: the server searches, filters and sorts the whole queue.
+  it('sends the search, the source filter and the sort to the server', async () => {
+    respond({ items: [], meta: { total: 0 } })
+    const { result } = renderHook(
+      () => useApplicantAllocationQueue({ search: ' asha ', source: 'complaint', sort: '-applicant_name' }),
+      { wrapper },
+    )
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(mockedGet).toHaveBeenCalledWith(
+      '/applicant-allocation-queue',
+      expect.objectContaining({
+        params: { query: { cursor: undefined, search: 'asha', sort: '-applicant_name', filter: { source: 'complaint' } } },
+      }),
+    )
+  })
 })
 
 describe('follow-up queues', () => {
   it('sends the cursor with the snoozed flag for the service queue and keeps the summary', async () => {
     respond({ items: [{ student_id: 's1' }], summary: { total: 120 }, meta: { next_cursor: 'n2' } })
-    const { result } = renderHook(() => useServiceFollowups(true, 'c9'), { wrapper })
+    const { result } = renderHook(() => useServiceFollowups({ includeSnoozed: true }, 'c9'), { wrapper })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(mockedGet).toHaveBeenCalledWith(
       '/service-followups',
@@ -71,7 +87,7 @@ describe('follow-up queues', () => {
 
   it('treats a response with no meta (frozen mock) as unpaged for the case queue', async () => {
     respond({ items: [{ journey_id: 'j1' }], summary: { total: 1 } })
-    const { result } = renderHook(() => useCaseFollowups(false), { wrapper })
+    const { result } = renderHook(() => useCaseFollowups(), { wrapper })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(mockedGet).toHaveBeenCalledWith(
       '/case-followups',
@@ -81,18 +97,71 @@ describe('follow-up queues', () => {
     )
     expect(result.current.data && 'meta' in result.current.data ? result.current.data.meta : undefined).toBeUndefined()
   })
+
+  // Review F-154: search and filters are the server's, over the whole queue.
+  it('sends the case queue its search and every filter', async () => {
+    respond({ items: [], summary: { total: 0 } })
+    const { result } = renderHook(
+      () =>
+        useCaseFollowups({
+          search: ' bright ',
+          signal: 'payment_overdue',
+          consultancyId: 'c-1',
+          notCalled: true,
+          dueForCall: true,
+        }),
+      { wrapper },
+    )
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(mockedGet).toHaveBeenCalledWith(
+      '/case-followups',
+      expect.objectContaining({
+        params: {
+          query: {
+            include_snoozed: false,
+            cursor: undefined,
+            search: 'bright',
+            filter: { signal: 'payment_overdue', consultancy_id: 'c-1', not_called: 'true', due_for_call: 'true' },
+          },
+        },
+      }),
+    )
+  })
+
+  it('sends the service queue its search and filters, and no filter at all when none is set', async () => {
+    respond({ items: [], summary: { total: 0 } })
+    const narrowed = renderHook(() => useServiceFollowups({ search: 'asha@', signal: 'lead_no_reply' }), { wrapper })
+    await waitFor(() => expect(narrowed.result.current.isSuccess).toBe(true))
+    expect(mockedGet).toHaveBeenCalledWith(
+      '/service-followups',
+      expect.objectContaining({
+        params: { query: { include_snoozed: false, cursor: undefined, search: 'asha@', filter: { signal: 'lead_no_reply' } } },
+      }),
+    )
+  })
 })
 
 describe('freelancers and rates', () => {
   it('pages the roster by cursor', async () => {
     respond({ items: [{ id: 'f1' }], meta: { next_cursor: 'f2' } })
-    const { result } = renderHook(() => useFreelancers('f1c'), { wrapper })
+    const { result } = renderHook(() => useFreelancers({}, 'f1c'), { wrapper })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(mockedGet).toHaveBeenCalledWith(
       '/freelancers',
       expect.objectContaining({ params: { query: { cursor: 'f1c' } } }),
     )
     expect(result.current.data?.meta?.next_cursor).toBe('f2')
+  })
+
+  // Review F-154: search and the status filter are the server's, over every account.
+  it('sends the roster its search and status filter', async () => {
+    respond({ items: [], meta: { total: 0 } })
+    const { result } = renderHook(() => useFreelancers({ search: 'REF', status: 'invited' }), { wrapper })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(mockedGet).toHaveBeenCalledWith(
+      '/freelancers',
+      expect.objectContaining({ params: { query: { cursor: undefined, search: 'REF', filter: { status: 'invited' } } } }),
+    )
   })
 
   it('walks every roster page for the picker, 100 rows a request', async () => {

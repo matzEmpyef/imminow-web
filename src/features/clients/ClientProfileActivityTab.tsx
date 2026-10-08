@@ -4,6 +4,7 @@
 // Paged since contract gate 7 (Wave 3 plan §7 item 3) — the local "Show older" (25 at a time, over
 // a fully-loaded list) is now the console's own Previous/Next paging against the server, newest
 // first per the contract, same as it read before.
+import { useState } from 'react'
 import { Card } from '@/components/Card'
 import { CursorPager } from '@/components/CursorPager'
 import { ErrorState, Skeleton } from '@/components/QueryState'
@@ -24,6 +25,11 @@ function dayLabel(iso: string): string {
 export function ActivityTab({ clientId }: { clientId: string }) {
   const paging = useCursorPagination()
   const activity = useClientActivity(clientId, { cursor: paging.cursor, limit: 20 })
+  // The count comes with the first page only: a page reached with a cursor carries `total: null`
+  // (review F-135), so the first page's figure is kept while the person pages on.
+  const [total, setTotal] = useState<number | null>(null)
+  const pageTotal = activity.data?.meta.total
+  if (pageTotal != null && pageTotal !== total) setTotal(pageTotal)
 
   if (activity.isLoading) return <Skeleton className="h-24 rounded-lg" />
   if (activity.isError || !activity.data)
@@ -52,9 +58,11 @@ export function ActivityTab({ clientId }: { clientId: string }) {
     <Card className="flex flex-col gap-md">
       <div className="flex items-baseline justify-between gap-md">
         <h2 className="text-h3 text-text-primary">Activity</h2>
-        <span className="text-body-sm tabular-nums text-text-secondary">
-          {activity.data.meta.total} {activity.data.meta.total === 1 ? 'event' : 'events'}
-        </span>
+        {total != null && (
+          <span className="text-body-sm tabular-nums text-text-secondary">
+            {total} {total === 1 ? 'event' : 'events'}
+          </span>
+        )}
       </div>
 
       <div className="flex flex-col gap-md">

@@ -64,7 +64,7 @@ beforeEach(() => {
   entries = [entry()]
   mockedGet.mockImplementation((async (path: string) => {
     if (path === '/audit-log' || path === '/audit-log/platform') {
-      return { data: { items: entries, meta: { next_cursor: null, total: entries.length } }, error: undefined, response: { status: 200 } }
+      return { data: { items: entries, meta: { next_cursor: null, total: null } }, error: undefined, response: { status: 200 } }
     }
     if (path === '/staff/employees') {
       return {
@@ -196,6 +196,25 @@ describe.each([
     await screen.findByText('Asha Nair')
     fireEvent.change(screen.getByPlaceholderText('Search name, record or actor…'), { target: { value: 'Ravi' } })
     await waitFor(() => expect(auditCalls(path).at(-1)?.search).toBe('Ravi'))
+  })
+
+  // Review F-114: the log is never counted (`meta.total` is null) and reads the last 30 days
+  // unless a From date says otherwise.
+  it('shows no count of entries, and says it is showing the last 30 days', async () => {
+    renderPage(page())
+    await screen.findByText('Asha Nair')
+    expect(screen.getByText(/Showing the last 30 days\./)).toBeInTheDocument()
+    expect(screen.queryByText(/\d+ (results?|entries)/i)).not.toBeInTheDocument()
+    expect(auditCalls(path).at(-1)?.filter).toBeUndefined()
+  })
+
+  it('sends the chosen dates as filter[from] and filter[to], and drops the 30-day note', async () => {
+    renderPage(page())
+    await screen.findByText('Asha Nair')
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-07-01' } })
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-07-31' } })
+    await waitFor(() => expect(auditCalls(path).at(-1)?.filter).toEqual({ from: '2026-07-01', to: '2026-07-31' }))
+    expect(screen.queryByText(/Showing the last 30 days\./)).not.toBeInTheDocument()
   })
 })
 

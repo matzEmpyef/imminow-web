@@ -6214,7 +6214,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Audit Log (consultancy-scoped) — every change to this consultancy's own data (build reference 1.24, 2.2). Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, area, action_type, actor_name. filter[x]= accepts entity_id, actor_id, action_type (any AuditLogEntry.action_type value — the base create/update/delete/view plus the named actions listed there), area (any AuditLogEntry.area value), from=<date> (created_at >=), to=<date> (created_at <=). search matches entity_label, reason, and actor_name — a reason only where it is stored readable (see AuditLogEntry.reason), so what somebody typed about a person is not searchable by its words — find that entry by the person's name, the actor, the area or the dates.
+         * Audit Log (consultancy-scoped) — every change to this consultancy's own data (build reference 1.24, 2.2). Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, area, action_type, actor_name. filter[x]= accepts entity_id, actor_id, action_type (any AuditLogEntry.action_type value — the base create/update/delete/view plus the named actions listed there), area (any AuditLogEntry.area value), from=<date> (created_at >=), to=<date> (created_at <=). search matches entity_label, reason, and actor_name — a reason only where it is stored readable (see AuditLogEntry.reason), so what somebody typed about a person is not searchable by its words — find that entry by the person's name, the actor, the area or the dates. BOUNDED (review F-114, 2026-10-06) — without filter[from] the page covers the LAST 30 DAYS only (plain page, search and every sort alike); send filter[from] (and filter[to]) to read further back. The one exception is filter[entity_id], which returns that record's whole history. `meta.total` is always null on this list (an exact count read the whole log on every page) — page with `meta.next_cursor`.
          * @description OWNER/ADMIN ONLY (review F-021, 2026-10-06). The consultancy's own audit log is read by its Owner/Admin and by nobody else: no permission key and no designation opens it. Every other member of staff gets 403 `permission_denied` ("This area is for the consultancy's admin."), and a consultancy whose plan lacks the `audit_log` feature gets 403 `feature_locked`. The console shows the Audit Log link only when `GET /me` says `staff.is_admin` is true.
          */
         get: {
@@ -6303,11 +6303,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Global Chat Drawer (build reference 1.22/2.2), and the inbox behind Sentpo Mobile's staff chat login (2026-09-15) — every Lead and Client the viewer has access to, messaged-first-by-recency then unmessaged alphabetically. For Ultimate-tier viewers, also unions every active colleague and the consultancy-wide "team" channel (type = internal) — the same rows /internal-conversations returns — into the same list.
+         * Global Chat Drawer (build reference 1.22/2.2), and the inbox behind Sentpo Mobile's staff chat login (2026-09-15) — the conversations going on now (active Leads and live Clients somebody has written in), newest message first; `search` finds anyone. For Ultimate-tier viewers, also unions every active colleague and the consultancy-wide "team" channel (type = internal) — the same rows /internal-conversations returns — into the same list.
          * @description "Has access to" is the same scoping GET /leads and GET /clients already apply, not merely tenant isolation (2026-09-15): a view_own-only viewer sees only leads/clients assigned to them, a view_all viewer sees every one in their own branch(es), and a consultancy admin sees the whole consultancy regardless of branch. A conversation never appears here that the caller could not already find by opening the list it came from. Internal rows are unaffected — they are already per-employee by construction.
          *
-         *     **Paged, with a server-side search (contract gate 7, owner Q6 2026-09-25).** Pages of `limit` (default 20, max 100) in the drawer's order — the pinned Whole Team row first, then conversations with a message by `last_message_at` newest first, then the rest by name — with `id` as the tie-breaker, walked with the opaque `meta.next_cursor`. `search` matches the conversation's name (case-insensitive substring); `filter[type]=lead|client|internal` (comma = any of) narrows by kind. `meta.total` counts every match across all pages; `meta.unread_count` is the drawer badge and counts every unread conversation the caller can see, whatever `search`, `filter` or page was asked for.
-         *     **Transition:** a request that sends neither `limit` nor `cursor` gets every matching row in one response with `next_cursor` null — the pre-gate-7 behaviour, kept for the builds already installed. Clients send `limit`; the unpaged form is retired once both clients do.
+         *     **What is listed (owner ruling 2026-10-06, F-086/F-115).** Only the conversations going on now: ACTIVE leads and LIVE clients (not closed) that have at least one message, each with its last message as `last_message_preview`. The thread itself is loaded when the row is opened (`GET /leads/{id}/messages`, `GET /clients/{id}/messages`). Everyone else is reached on purpose: `search` runs on the server and finds anyone the caller has access to — leads and clients nobody has written to yet, and closed ones; `filter[show_closed]=true` adds the closed conversations to the list. A closed row carries `closed: true` and the client opens it READ-ONLY (the thread, no composer): its thread still reads. The server refuses a send on a closed lead (409 `lead_closed`) and, for the consultancy a case moved away from, on that case (409 `case_moved`). Internal rows (colleagues, Whole Team) are always listed.
+         *
+         *     **Always paged, with a server-side search (contract gate 7, owner Q6 2026-09-25).** Pages of `limit` (default 20, max 100) in the drawer's order — the pinned Whole Team row first, then conversations with a message by `last_message_at` newest first, then the rest by name — with `id` as the tie-breaker, walked with the opaque `meta.next_cursor`. `search` matches the conversation's name (case-insensitive substring); `filter[type]=lead|client|internal` (comma = any of) narrows by kind. `meta.total` counts every match across all pages; `meta.unread_count` is the drawer badge and counts the unread conversations of the list as it opens (no search, closed ones not counted), whatever `search`, `filter` or page was asked for.
+         *     **No unpaged form.** A request that sends no `limit` gets the default page of 20 and a `next_cursor` like any other — never every row in one response (the pre-gate-7 transition form is retired: at the largest consultancy it was about 58,000 rows). A build that never sends `limit` still gets a valid answer: the 20 most recent conversations.
          */
         get: {
             parameters: {
@@ -6320,6 +6322,8 @@ export interface paths {
                     search?: components["parameters"]["SearchParam"];
                     /** @description lead, client or internal — comma-separated for any of them. */
                     "filter[type]"?: string;
+                    /** @description true: closed conversations are listed too (each row says `closed: true` and opens read-only). A `search` looks through them whatever this says. */
+                    "filter[show_closed]"?: boolean;
                 };
                 header?: never;
                 path?: never;
@@ -6336,11 +6340,11 @@ export interface paths {
                         "application/json": {
                             items: components["schemas"]["Conversation"][];
                             meta: {
-                                /** @description Pass as `cursor` for the next page; null on the last page (and always null on the unpaged transition form). */
+                                /** @description Pass as `cursor` for the next page; null on the last page. */
                                 next_cursor?: string | null;
                                 /** @description Every conversation matching `search`/`filter`, across all pages. */
                                 total: number;
-                                /** @description Count of conversations where unread is true — drives the Global Chat Drawer's header badge. Counts everything the caller can see, regardless of `search`, `filter` and paging. */
+                                /** @description Count of conversations where unread is true — drives the Global Chat Drawer's header badge. Counts the list as it opens (active leads, live clients, colleagues), regardless of `search`, `filter` and paging; a closed conversation is not counted. */
                                 unread_count: number;
                             };
                         };
@@ -12973,7 +12977,7 @@ export interface paths {
          *     It took "first_half"|"second_half" before — calendar halves beginning 1 January and 1 July, so a September start was filtered as though it began on 1 July. Those two values are still accepted and map to the group each half became, because app builds already in students' hands send them. A value that names no month at all matches nothing, rather than widening the search to everything.
          *
          *     filter[level] MATCHES BY RANK, not by string (assumptions audit M23, 2026-09-19) — the value resolves to a rung on `GET /study-levels` — by `code`, by `entry_qualification_code` or by `label`, case-insensitively — and every course at a rung with the SAME `rank` matches. Two rungs may share a rank, which is how a new rung can be added beside an existing one without splitting every search that names its neighbour. A value that resolves to no rung falls back to the old exact-string compare. filter[visible] is "true"/"false", same computed active-AND-parent-college-active meaning as Course.visible — Sentpo Mobile's own search screens always pass filter[visible]=true explicitly (this endpoint doesn't filter out inactive/hidden courses by default, same reasoning as Wave 3's GET /consultancies fix — Colleges & Courses admin needs to see hidden courses too).
-         *     Courses-module filters (COURSES_MODULE_PLAN.md §3.1, 2026-08-21) — filter[country] accepts a comma-separated list (multi-country was single before); filter[fee_max] / filter[fee_min] compare against fee_normalized_inr (INR); filter[study_mode], filter[delivery], filter[language] exact-match; filter[coop], filter[psw], filter[scholarship], filter[app_fee_waived] are "true" flags; filter[open_now]="true" keeps courses with at least one intake whose deadline is today or later (its derived status is open, 2026-09-24); a course with no deadline data at all is kept (no data ≠ closed); filter[duration_max_months] / filter[duration_min_months] numeric (the min counterpart added 2026-08-31, same pairing convention as fee_min/fee_max, to back Sentpo Mobile's and immiNow Course Finder's duration-range filter chips); filter[city] matches linked campuses' city. sort= additionally accepts fee (normalized INR asc), duration (duration_months asc), and intake (earliest upcoming open intake first). Missing data NEVER excludes — a course without fee_normalized_inr passes fee filters, one without duration_months passes duration filters — filters narrow on known facts, they don't punish catalog gaps (plan §0.2).
+         *     Courses-module filters (COURSES_MODULE_PLAN.md §3.1, 2026-08-21) — filter[country] accepts a comma-separated list (multi-country was single before); filter[fee_max] / filter[fee_min] compare against fee_normalized_inr (INR) and need filter[fee_currency] (400 `validation_failed` without it); the code is read in any letter case, and a limit in a currency the platform has no exchange rate for is REFUSED — 400 `validation_failed`, with `details.field` = "filter[fee_currency]" and `details.currency` — instead of letting every course not priced in that currency through (review F-099, 2026-10-08; give the limit in the currency `GET /courses/fee-range` answered in); filter[study_mode], filter[delivery], filter[language] exact-match; filter[coop], filter[psw], filter[scholarship], filter[app_fee_waived] are "true" flags; filter[open_now]="true" keeps courses with at least one intake whose deadline is today or later (its derived status is open, 2026-09-24); a course with no deadline data at all is kept (no data ≠ closed); filter[duration_max_months] / filter[duration_min_months] numeric (the min counterpart added 2026-08-31, same pairing convention as fee_min/fee_max, to back Sentpo Mobile's and immiNow Course Finder's duration-range filter chips); filter[city] matches linked campuses' city. sort= additionally accepts fee (normalized INR asc), duration (duration_months asc), and intake (earliest upcoming open intake first). Missing data NEVER excludes — a course without fee_normalized_inr passes fee filters, one without duration_months passes duration filters — filters narrow on known facts, they don't punish catalog gaps (plan §0.2).
          *     filter[fee_currency] (2026-08-22) names the currency filter[fee_max] / filter[fee_min] are expressed in, defaulting to INR for older callers. The server converts each course's fee into that currency before comparing, so the app never multiplies by a rate itself — that would be business logic on the client, and would drift the moment a rate changed. It is not a filter in its own right and narrows nothing on its own.
          *     Since 2026-09-10 a course priced in a DIFFERENT currency from the bound is compared with a 5% margin (fee_max widened up, fee_min widened down), because the exchange-rate table is set by hand rather than live; a course priced in the bound's own currency is compared exactly. A course whose fee cannot be converted passes, like any missing data.
          *     filter[country_not] (2026-08-22) is the inverse of filter[country], also comma-separated — it drops courses taught ONLY in the listed countries. It exists so the Sentpo app's Study Abroad tab can exclude the student's own `student_preferences.resident_country` instead of a hardcoded "India" — "abroad" is relative to whoever is looking, and the tab's own copy ("we'll leave out X") was a promise the server never kept until this parameter existed.
@@ -13363,6 +13367,7 @@ export interface paths {
          * @description The range the Sentpo app's fee slider spans, expressed in the caller's `display_currency` (Phase D, 2026-08-22).
          *     It replaces a hardcoded fifty-lakh-rupee ceiling in the app, which is a meaningful number to an Indian student and gibberish to a German one — and which the client cannot convert itself without doing currency arithmetic. Derived from the CATALOG (the most expensive visible course) rather than a constant, so the track always spans real courses and the priciest one is always reachable rather than sitting past the end of the slider.
          *     `max_amount` is rounded UP to `step` so the top of the track reads as a round number. Falls back to INR for a caller with no display currency. Staff may call it; they simply get the INR view.
+         *     A CALLER WHOSE CURRENCY HAS NO EXCHANGE RATE IS ANSWERED IN RUPEES, AND `currency` SAYS SO (review F-099, 2026-10-08). The rupee figure used to be returned under the caller's own currency code — a slider running to several million "AED". The client must label the slider with the `currency` of THIS answer (not with the student's display currency) and send that same code back as `filter[fee_currency]` on `GET /courses`.
          *     `step` IS 1% OF THE MAXIMUM, rounded to a readable number — 1, 2 or 5 times a power of ten (assumptions audit M26, product owner 2026-09-19). It was three fixed thresholds, which gave an IDR slider tens of thousands of ticks a thumb cannot land on and, on a catalogue with nothing priced, a 1,000 step over a 1,000 ceiling — a slider whose only position excluded everything. 1% is roughly 100 ticks whatever the currency.
          */
         get: {
@@ -13611,7 +13616,7 @@ export interface paths {
          *
          *     THE LIMITS ON A DIRECT CHANGE (owner decision 17 / review F-020, 2026-10-06), which replace the looser rule described above where they differ. APPLIED DIRECTLY (200, `applied: true`) only when ALL of these hold: the caller's consultancy is linked to the course's college (it is one of its partner colleges); `application_deadline` is a date from yesterday to two years ahead; the consultancy has not already changed a deadline of this course today (one direct change per course per consultancy per UTC day, every intake month of the course counting); and no person changed this deadline in the last 15 days. A direct change is audited with the date before and after and the platform's catalogue staff are notified (`course_deadline_changed`).
          *
-         *     REFUSED 400 `validation_failed`, whoever sends it and nothing queued: `month` missing or not an intake month the course lists is 400 ('month must be an intake month, e.g. "September".') or 404 when the course has no such intake; `application_deadline` that is not a date or null ("application_deadline must be a date, YYYY-MM-DD, or null for rolling admission."); a date outside yesterday..two years ahead ("application_deadline must be between <first> and <last>. If the college really gave another date, use Suggest a correction.").
+         *     REFUSED 400 `validation_failed`, whoever sends it and nothing queued: `month` missing or not an intake month the course lists is 400 ('month must be an intake month, e.g. "September".') or 404 when the course does not list that month in `intakes` (since 2026-10-08, review F-097: a month the course lists but nobody has dated yet is no longer a 404 — its first date goes to review like any unconfirmed date, 202, and the deadline is created when the review applies it); `application_deadline` that is not a date or null ("application_deadline must be a date, YYYY-MM-DD, or null for rolling admission."); a date outside yesterday..two years ahead ("application_deadline must be between <first> and <last>. If the college really gave another date, use Suggest a correction.").
          *
          *     BECOMES A CORRECTION FOR REVIEW instead (202, `applied: false`, a pending `CourseSuggestion`): the consultancy is not linked to the college; the request removes the date (null); the consultancy already made its one change to this course today; a person set this deadline in the last 15 days; or no person has ever set it (a seeded or imported date). The result says which.
          */
@@ -16071,7 +16076,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Cases the payments team should chase (2026-09-09), sorted by what is most likely to be stuck rather than by date — a case with money on it and no movement outranks a merely old one. Read-only and side-effect free: working the queue is a phone call, not a button. Finance permission only since 2026-09-11 (the service signals moved to GET /service-followups); the case notes and GET /admin/applicants/{id} stay open to finance or support. Cursor-paged (gate 12) — dormant against the frozen mock, which still returns every row unpaged (`meta` omitted there); the web Case Follow-ups page picks this up separately (†). */
+        /**
+         * Cases the payments team should chase (2026-09-09), sorted by what is most likely to be stuck rather than by date — a case with money on it and no movement outranks a merely old one. Read-only and side-effect free: working the queue is a phone call, not a button. Finance permission only since 2026-09-11 (the service signals moved to GET /service-followups); the case notes and GET /admin/applicants/{id} stay open to finance or support. Cursor-paged (gate 12) — dormant against the frozen mock, which still returns every row unpaged (`meta` omitted there); the web Case Follow-ups page picks this up separately (†).
+         * @description SEARCH AND FILTERS ARE APPLIED BY THE SERVER, OVER THE WHOLE QUEUE (review F-154, 2026-10-08). The console used to filter the twenty rows on screen while `summary` counted every row. `search` matches the student's name or the consultancy's name (any case, substring, at most 100 characters). `filter[signal]` is one signal code of this queue; `filter[consultancy_id]` a consultancy's id; `filter[not_called]=true` keeps the rows nobody has called yet; `filter[due_for_call]=true` the rows whose call-back date has arrived. They combine with AND. `summary` IS COUNTED OVER EXACTLY THE ROWS THE SEARCH AND FILTERS KEEP (snoozed ones included, as it always was), so every chip agrees with the list under it; with none given it is the whole queue's, as before. An unknown `filter[...]` key, or a value a filter does not take, is 400 `validation_failed`.
+         */
         get: {
             parameters: {
                 query?: {
@@ -16081,6 +16089,10 @@ export interface paths {
                     cursor?: components["parameters"]["CursorParam"];
                     /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
                     limit?: components["parameters"]["LimitParam"];
+                    /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
+                    search?: components["parameters"]["SearchParam"];
+                    /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
+                    filter?: components["parameters"]["FilterParam"];
                 };
                 header?: never;
                 path?: never;
@@ -16100,6 +16112,15 @@ export interface paths {
                             meta?: components["schemas"]["PaginatedMeta"];
                             summary?: components["schemas"]["FollowupSummary"];
                         };
+                    };
+                };
+                /** @description An unknown `filter[...]` key, or a value the filter does not take (`validation_failed`, naming it). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -16192,7 +16213,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Students Support should reach out to (2026-09-11), most urgent signal first. Support permission. Rows whose last call set a future call-back date are hidden unless include_snoozed. Cursor-paged (gate 12) — dormant against the frozen mock, which still returns every row unpaged (`meta` omitted there); the web Service Follow-ups page picks this up separately (†). */
+        /**
+         * Students Support should reach out to (2026-09-11), most urgent signal first. Support permission. Rows whose last call set a future call-back date are hidden unless include_snoozed. Cursor-paged (gate 12) — dormant against the frozen mock, which still returns every row unpaged (`meta` omitted there); the web Service Follow-ups page picks this up separately (†).
+         * @description SEARCH AND FILTERS ARE APPLIED BY THE SERVER, OVER THE WHOLE QUEUE (review F-154, 2026-10-08). `search` matches the student's name or email, or the name of the consultancy the row shows (their live case's, else their active lead's) — any case, substring, at most 100 characters. `filter[signal]` is one signal code of this queue; `filter[not_called]=true` keeps the rows nobody has called yet; `filter[due_for_call]=true` the rows whose call-back date has arrived. They combine with AND. `summary` is counted over exactly the rows the search and filters keep, so every chip agrees with the list under it; with none given it is the whole queue's. An unknown `filter[...]` key, or a value a filter does not take, is 400 `validation_failed`.
+         */
         get: {
             parameters: {
                 query?: {
@@ -16201,6 +16225,10 @@ export interface paths {
                     cursor?: components["parameters"]["CursorParam"];
                     /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
                     limit?: components["parameters"]["LimitParam"];
+                    /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
+                    search?: components["parameters"]["SearchParam"];
+                    /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
+                    filter?: components["parameters"]["FilterParam"];
                 };
                 header?: never;
                 path?: never;
@@ -16220,6 +16248,15 @@ export interface paths {
                             meta?: components["schemas"]["PaginatedMeta"];
                             summary: components["schemas"]["FollowupSummary"];
                         };
+                    };
+                };
+                /** @description An unknown `filter[...]` key, or a value the filter does not take (`validation_failed`, naming it). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
                 /** @description Missing the support permission */
@@ -17126,7 +17163,7 @@ export interface paths {
         };
         /**
          * Activity tab — read-only history (build reference 2.2)
-         * @description Consultancy staff who can see the case. Paged (contract gate 7): `{items, meta}`, newest first (`created_at`, then `id`), pages of `limit` (default 20, max 100) walked with `meta.next_cursor`; `meta.total` counts every entry. **Transition:** a request with neither `limit` nor `cursor` gets the pre-gate-7 bare array of every entry (mock only, for builds already installed); clients send `limit`.
+         * @description Consultancy staff who can see the case. Paged (contract gate 7): `{items, meta}`, newest first (`created_at`, then `id`), pages of `limit` (default 20, max 100) walked with `meta.next_cursor`; `meta.total` counts every entry and is sent on the FIRST page only (review F-135, 2026-10-06) - it is null on every page reached with a `cursor`, so keep the first page's figure. **Transition:** a request with neither `limit` nor `cursor` gets the pre-gate-7 bare array of every entry (mock only, for builds already installed); clients send `limit`.
          */
         get: {
             parameters: {
@@ -17765,7 +17802,10 @@ export interface paths {
             };
         };
         put?: never;
-        /** Create form template. plan_template_id deliberately dropped as an input (user-requested) — see FormTemplate.plan_template_id's own description for why. */
+        /**
+         * Create form template. plan_template_id deliberately dropped as an input (user-requested) — see FormTemplate.plan_template_id's own description for why.
+         * @description Needs the `settings.manage_templates` staff permission since 2026-10-08 (review F-146 / F-055), as do editing and duplicating a form; without it 403 `forbidden`. Any employee could rewrite the form every applicant fills before, and the console only hid the page. Reading (the list, one template) stays open to every employee of the consultancy.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -17836,7 +17876,7 @@ export interface paths {
         head?: never;
         /**
          * Edit — creates a new immutable version; in-progress responses stay bound to their original version (FR-098)
-         * @description A change to `fields` creates a new immutable version (new id, version + 1, same form_family_id) and returns it; the previous version keeps its fields, so existing form_responses and plan-step form_links stay renderable. A name-only edit updates the row in place (2026-09-03).
+         * @description A change to `fields` creates a new immutable version (new id, version + 1, same form_family_id) and returns it; the previous version keeps its fields, so existing form_responses and plan-step form_links stay renderable. A name-only edit updates the row in place (2026-09-03). Needs the `settings.manage_templates` staff permission since 2026-10-08 (review F-146 / F-055); without it 403 `forbidden`.
          */
         patch: {
             parameters: {
@@ -17889,7 +17929,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Duplicate — Forms page's "Duplicate builds variants" (build reference 2.2) */
+        /**
+         * Duplicate — Forms page's "Duplicate builds variants" (build reference 2.2)
+         * @description Needs the `settings.manage_templates` staff permission since 2026-10-08 (review F-146 / F-055); without it 403 `forbidden`.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -23890,7 +23933,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List freelancer accounts (admin) — build reference 1.19. Cursor-paged (gate 12, 12b) — `{items, meta}` like every other paged list; the mock serves the same envelope (gate 12b, additive). */
+        /**
+         * List freelancer accounts (admin) — build reference 1.19. Cursor-paged (gate 12, 12b) — `{items, meta}` like every other paged list; the mock serves the same envelope (gate 12b, additive).
+         * @description SEARCH AND THE STATUS FILTER ARE APPLIED BY THE SERVER, OVER EVERY ACCOUNT (review F-154, 2026-10-08): `search` matches the freelancer's name, email or referral code (any case, substring); `filter[status]` is `invited`, `active` or `deactivated` (the status the row shows; several may be given, comma-separated). `meta.total` is the number of accounts the search and filter keep. An unknown `filter[...]` key or status is 400 `validation_failed`.
+         */
         get: {
             parameters: {
                 query?: {
@@ -23898,6 +23944,10 @@ export interface paths {
                     cursor?: components["parameters"]["CursorParam"];
                     /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
                     limit?: components["parameters"]["LimitParam"];
+                    /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
+                    search?: components["parameters"]["SearchParam"];
+                    /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
+                    filter?: components["parameters"]["FilterParam"];
                 };
                 header?: never;
                 path?: never;
@@ -23915,6 +23965,15 @@ export interface paths {
                             items: components["schemas"]["Freelancer"][];
                             meta: components["schemas"]["PaginatedMeta"];
                         };
+                    };
+                };
+                /** @description An unknown `filter[...]` key, or a value the filter does not take (`validation_failed`, naming it). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -25439,7 +25498,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Platform-wide — same filters plus consultancy (gated to Platform Staff Administration, build reference 1.23/1.24). Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, area, action_type, actor_name. filter[x]= accepts consultancy_id, entity_id, actor_id, action_type (any AuditLogEntry.action_type value — the base create/update/delete/view plus the named actions listed there), area (any AuditLogEntry.area value), from=<date> (created_at >=), to=<date> (created_at <=). search matches entity_label, reason, and actor_name — a reason only where it is stored readable (see AuditLogEntry.reason), so what somebody typed about a person is not searchable by its words — find that entry by the person's name, the actor, the area or the dates. */
+        /** Platform-wide — same filters plus consultancy (gated to Platform Staff Administration, build reference 1.23/1.24). Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, area, action_type, actor_name. filter[x]= accepts consultancy_id, entity_id, actor_id, action_type (any AuditLogEntry.action_type value — the base create/update/delete/view plus the named actions listed there), area (any AuditLogEntry.area value), from=<date> (created_at >=), to=<date> (created_at <=). search matches entity_label, reason, and actor_name — a reason only where it is stored readable (see AuditLogEntry.reason), so what somebody typed about a person is not searchable by its words — find that entry by the person's name, the actor, the area or the dates. BOUNDED (review F-114, 2026-10-06) — without filter[from] the page covers the LAST 30 DAYS only (plain page, search and every sort alike); send filter[from] (and filter[to]) to read further back. The one exception is filter[entity_id], which returns that record's whole history. `meta.total` is always null on this list (an exact count read the whole log on every page) — page with `meta.next_cursor`. */
         get: {
             parameters: {
                 query?: {
@@ -25653,6 +25712,7 @@ export interface paths {
         /**
          * The allocation queue — freelancer-sourced applicants awaiting a consultancy, plus students who asked to change theirs (build reference 1.19, 1.23)
          * @description Oldest first. Rows come from three places (`source`): freelancer referral sign-ups, consultancy-change requests raised with a complaint, and disputes resolved as "reassign". Cursor-paged (gate 12, 12b) — `{items, meta}` like every other paged list; the mock serves the same envelope (gate 12b, additive).
+         *     SEARCH, FILTER AND SORT ARE APPLIED BY THE SERVER, OVER THE WHOLE QUEUE (review F-154, 2026-10-08): `search` matches the applicant's name (any case, substring); `filter[source]` is `freelancer_signup`, `complaint` or `dispute`; `sort` is `created_at` (the default, oldest first), `source` or `applicant_name`, each with a `-` prefix for descending (an unknown sort falls back to the default). `meta.total` is the number of rows the search and filter keep, so a count shown beside the list agrees with it. An unknown `filter[...]` key or source is 400 `validation_failed`.
          */
         get: {
             parameters: {
@@ -25661,6 +25721,12 @@ export interface paths {
                     cursor?: components["parameters"]["CursorParam"];
                     /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
                     limit?: components["parameters"]["LimitParam"];
+                    /** @description Sort field. Prefix with - for descending, e.g. sort=-created_at (TRD Section 7). */
+                    sort?: components["parameters"]["SortParam"];
+                    /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
+                    search?: components["parameters"]["SearchParam"];
+                    /** @description filter[field]=value convention (TRD Section 7). Documented per-endpoint below for the fields that endpoint supports filtering by. */
+                    filter?: components["parameters"]["FilterParam"];
                 };
                 header?: never;
                 path?: never;
@@ -25678,6 +25744,15 @@ export interface paths {
                             items: components["schemas"]["ApplicantAllocationEntry"][];
                             meta: components["schemas"]["PaginatedMeta"];
                         };
+                    };
+                };
+                /** @description An unknown `filter[...]` key, or a value the filter does not take (`validation_failed`, naming it). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -26152,7 +26227,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Sentpo user directory (docs/PROGRESS.md §4 Step 3) — one row per student, never blended with the immiNow console directory (see /admin/users/imminow). Gated to user_directory (platform_staff_administration before the 2026-09-10 split). Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, last_active_at, name, profile_completion_percent (gate 12c: the mock has always sorted on it and the row's own description says "sort on it"; last_login_at removed 2026-09-10). filter[x]= accepts profile=under_50|50_to_99|complete (gate 12c, likewise already served), stage=1|2, dormant_days=<integer> (last_active_at older than N days, or never active), from=<date>/to=<date> over created_at (signed-up range), and onboarding=never_logged_in|stuck|onboarded|pending platform=android|ios|web|unknown (2026-09-03, the app the student last opened), and (2026-09-02; `pending` = the two not-onboarded states together, which is what the Platform Dashboard's Stuck at Onboarding card links to). search matches name and email. */
+        /** Sentpo user directory (docs/PROGRESS.md §4 Step 3) — one row per student, never blended with the immiNow console directory (see /admin/users/imminow). Gated to user_directory (platform_staff_administration before the 2026-09-10 split). Default sort created_at desc, id always appended as the deterministic secondary key (TRD Section 7). sort= accepts created_at, last_active_at, name, profile_completion_percent (gate 12c: the mock has always sorted on it and the row's own description says "sort on it"; last_login_at removed 2026-09-10). filter[x]= accepts profile=under_50|50_to_99|complete (gate 12c, likewise already served), stage=1|2, dormant_days=<integer> (last_active_at older than N days, or never active), from=<date>/to=<date> over created_at (signed-up range), and onboarding=never_logged_in|stuck|onboarded|pending platform=android|ios|web|unknown (2026-09-03, the app the student last opened), and (2026-09-02; `pending` = the two not-onboarded states together, which is what the Platform Dashboard's Stuck at Onboarding card links to). search (review F-116, 2026-10-06) is one or the other, never both - text containing an at sign matches the BEGINNING of the email address ("asha@", "asha@gmail"), any other text matches any part of the name. Case-insensitive; a student with no last name is found by their first name. */
         get: {
             parameters: {
                 query?: {
@@ -27305,6 +27380,11 @@ export interface components {
             }[];
             /** @description 2026-08-29 addition — tasks the caller assigned to someone ELSE (`assigned_by === caller && assigned_to !== caller`), so an assigner can track their status without opening each one ("Tasks I've assigned" — the one array in this feed not scoped to the caller's own assigned work). */
             delegated_tasks: components["schemas"]["ActivityTask"][];
+            /**
+             * @description Review finding F-112 (2026-10-06) — the feed is bounded. Every array carries at most 200 rows, in its own order; `tasks` and `delegated_tasks` hold the open tasks and the ones completed in the last 30 days (older ones are on the paged `GET /activity-tasks`). `truncated` is true when at least one array was cut, so the page can say "showing the first 200". `needs_action_today_count` is never cut - it counts everything, listed or not.
+             * @default false
+             */
+            truncated: boolean;
             /** @description User-requested (2026-08-19) — folded in from the now-retired standalone Step Approvals page ("instead of separate page show it activities"). Approve/Send Back no longer happen here — a row links to `/clients/{journey_id}?tab=Plan&step={step_id}`, landing on the Plan tab with that step pre-selected, where the actions now live. */
             pending_step_approvals: {
                 step_id: components["schemas"]["UUID"];
@@ -27344,7 +27424,7 @@ export interface components {
             }[];
             tasks: components["schemas"]["ActivityTask"][];
         };
-        /** @description One entry in the Global Chat Drawer (build reference 1.22/2.2) — every Lead and Client the viewer has access to, tagged by which one it is, not only ones with an existing message (`last_message_at`/`last_message_preview` are null until the first message is sent). For Ultimate-tier viewers, also unions every active colleague (type = `internal`) plus the consultancy-wide "Whole Team" row, same rows /internal-conversations returns. */
+        /** @description One entry in the Global Chat Drawer (build reference 1.22/2.2) — a Lead or Client the viewer has access to, tagged by which one it is. The list itself holds only conversations with a message; a row found by `search` may have none yet (`last_message_at`/`last_message_preview` are null until the first message is sent). For Ultimate-tier viewers, also unions every active colleague (type = `internal`) plus the consultancy-wide "Whole Team" row, same rows /internal-conversations returns. */
         Conversation: {
             /** @description A UUID for `lead`/`client`/internal-DM rows (the lead, journey, or colleague's employee id); the literal string "team" for the Whole Team channel row. */
             id: string;
@@ -27362,6 +27442,11 @@ export interface components {
             last_message_preview?: string | null;
             /** @description Same computation as Lead.unread/Client.unread. */
             unread: boolean;
+            /**
+             * @description True for an ended conversation — a closed lead or a closed client (owner ruling 2026-10-06, F-086/F-115). Such a row appears only in a `search` or with `filter[show_closed]=true`; the client opens it read-only (no composer). Always false on internal rows.
+             * @default false
+             */
+            closed: boolean;
         };
         /** @description The answer to `POST /realtime/tickets` (contract gate 8). */
         RealtimeTicket: {
@@ -29054,7 +29139,7 @@ export interface components {
             /** @description Send `false` to confirm a rolled (estimated) deadline as it stands, which takes it out of "Rolled deadlines to confirm". A changed date clears it on its own. */
             rolled?: boolean;
         };
-        /** @description Structured entry requirements (COURSES_MODULE_PLAN.md §1.2). EVERY field nullable — absent means "no requirement", never "unknown to us"; the eligibility engine (workstream C) evaluates only rules that exist on the course AND have matching student data, so incomplete data on either side can never fail anyone. The free-text `eligibility` column remains the human-readable note beside this block. Exam references use the admin-managed exams catalog (`GET /exams`), which is what lets one schema serve both Study Abroad (IELTS ≥ 6.5) and Study in India (JEE percentile ≥ 92). */
+        /** @description Structured entry requirements (COURSES_MODULE_PLAN.md §1.2). EVERY field nullable — absent means "no requirement", never "unknown to us"; the eligibility engine (workstream C) evaluates only rules that exist on the course AND have matching student data, so incomplete data on either side can never fail anyone. The free-text `eligibility` column remains the human-readable note beside this block. Exam references use the admin-managed exams catalog (`GET /exams`), which is what lets one schema serve both Study Abroad (IELTS ≥ 6.5) and Study in India (JEE percentile ≥ 92). Since 2026-10-08 (review F-098) a course write whose `english` or `aptitude` entry names an `exam_id` that is not on that list is refused with 422 `validation_failed` (the engine used to skip such an entry silently, and the course looked as if it asked for nothing); an exam the course already named is still accepted, so re-saving an unchanged course never fails. */
         CourseRequirements: {
             academic?: {
                 /**
@@ -29116,13 +29201,15 @@ export interface components {
             fee?: components["schemas"]["Money"] | null;
             benefits?: string;
             eligibility?: string;
+            /** @description The months the course starts in, as full English month names. Since 2026-10-08 (review F-098) the server stores them spelt one way ("september" is saved as "September"), drops a repeat, and REFUSES anything that is not a month with 422 `validation_failed` naming the entry ("Sept", "Fall 2027"): the intake filter, the eligibility note and the deadline rows compare against these exact names. */
             intakes?: string[];
             credentials?: string;
             /**
              * Format: uri
-             * @description Optional link to the course on the college's own site (2026-09-04). The app shows it as "Visit course page" and opens it in the phone's default browser.
+             * @description Optional link to the course on the college's own site (2026-09-04). The app shows it as "Visit course page" and opens it in the phone's default browser. Since 2026-10-08 (review F-098) it must be a full `http://` or `https://` address: anything else (`javascript:`, `intent:`, `tel:`, a bare "example.com") is refused with 400 `validation_failed`. Stored trimmed; an empty string or null clears it.
              */
             course_url?: string | null;
+            /** @description Language of teaching. Stored trimmed and single-spaced; a value typed all in one letter case is given capitals ("english" and "ENGLISH " are saved as "English"), so the languages filter lists each language once (review F-098, 2026-10-08). */
             language?: string;
             campus_ids?: components["schemas"]["UUID"][];
             /**
@@ -29136,6 +29223,7 @@ export interface components {
             application_fee_waived?: boolean;
             scholarship_available?: boolean;
             scholarship_note?: string | null;
+            /** @description One entry per intake month that has (or loses) a deadline. Since 2026-10-08 (review F-097) `intakes` is the one list of which months a course has, and a deadline exists only for a month on it: a body that sends BOTH and gives a deadline for a month `intakes` leaves out is refused with 422 `validation_failed` naming the month (a listed month with no entry here is fine: nobody has dated it yet). Sent WITHOUT `intakes`, the list follows the deadlines: a month given its first deadline is added to `intakes`, a month whose entry is left out is removed from it. `intakes` sent without this key removes the deadline of any month taken off the list. */
             intake_deadlines?: components["schemas"]["IntakeDeadlineInput"][];
             /** @description The course length as a NUMBER, with `duration_unit` beside it (assumptions audit M24, 2026-09-19). Stored as months whichever unit is sent. */
             duration_months?: number | null;

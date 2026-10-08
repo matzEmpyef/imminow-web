@@ -5,18 +5,39 @@ import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 import { toPage } from '@/lib/pagination'
 
+export interface AllocationQueueFilters {
+  /** Matches the applicant's name. */
+  search?: string
+  source?: 'freelancer_signup' | 'complaint' | 'dispute'
+  /** `created_at` (the default, oldest first), `source` or `applicant_name`; `-` in front for descending. */
+  sort?: string
+}
+
 /**
  * The allocation queue, oldest first. Cursor-paged — `{ items, meta }` like every other cursor
  * list (contract gate 12b); no `next_cursor` means one complete page, so no pager. The key keeps
  * `['applicant-allocation-queue']` as its prefix, which allocate / resolve / dispute-resolve invalidate.
+ *
+ * Search, the source filter and the sort are the server's, over the whole queue (review F-154):
+ * `meta.total` counts the rows they keep, so the count, the list and the paging agree.
  */
-export function useApplicantAllocationQueue(cursor?: string) {
+export function useApplicantAllocationQueue(filters: AllocationQueueFilters = {}, cursor?: string) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
-    queryKey: ['applicant-allocation-queue', 'page', cursor ?? null],
+    queryKey: ['applicant-allocation-queue', 'page', filters, cursor ?? null],
     placeholderData: keepPreviousData,
     queryFn: async ({ signal }) => {
-      const { data, error } = await api.GET('/applicant-allocation-queue', { signal, params: { query: { cursor } } })
+      const { data, error } = await api.GET('/applicant-allocation-queue', {
+        signal,
+        params: {
+          query: {
+            cursor,
+            search: filters.search?.trim() || undefined,
+            sort: filters.sort,
+            filter: filters.source ? { source: filters.source } : undefined,
+          },
+        },
+      })
       if (error) throw new ApiError('Could not load the allocation queue.', error)
       return toPage(data)
     },

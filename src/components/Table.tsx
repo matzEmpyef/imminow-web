@@ -65,7 +65,8 @@ interface TableProps<T> {
   emptyMessage?: ReactNode
   sort?: TableSort | null
   onSortChange?: (field: string, direction: 'asc' | 'desc') => void
-  search?: { value: string; onChange: (debounced: string) => void; placeholder?: string }
+  /** `hint`: one short line under the box saying what the search matches, where that is not obvious. */
+  search?: { value: string; onChange: (debounced: string) => void; placeholder?: string; hint?: string }
   filters?: ReactNode
   /** Second filter row, right-aligned: the yes/no quick filters (FilterChips). */
   quickFilters?: ReactNode
@@ -148,7 +149,7 @@ export function Table<T>({
         <div className="flex flex-col gap-sm border-b border-border p-md">
           {(search || filters) && (
         <div className="flex flex-wrap items-center gap-sm">
-          <div className="flex min-w-0 flex-1 items-center">
+          <div className="flex min-w-0 flex-1 flex-col justify-center gap-xs">
             {search && (
               <input
                 value={searchDraft}
@@ -158,6 +159,7 @@ export function Table<T>({
                 className="h-10 w-full rounded-full border border-border bg-background px-md text-body-sm text-text-primary outline-none focus:border-2 focus:border-primary"
               />
             )}
+            {search?.hint && <p className="px-md text-caption text-text-secondary">{search.hint}</p>}
           </div>
           {filters && <div className="flex flex-wrap items-center gap-sm">{filters}</div>}
         </div>

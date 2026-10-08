@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AUDIT_SEARCH_HINT, AUDIT_SEARCH_PLACEHOLDER, AuditEntryDetail } from './AuditEntryDetail'
+import { AuditDateRange, AuditWindowNote } from './AuditDateRange'
 import { AppShell } from '@/features/auth/AppShell'
 import { Badge } from '@/components/Badge'
 import { Card } from '@/components/Card'
@@ -120,6 +121,7 @@ export function AuditLogPage() {
             phonebook and rating requests. Chat messages and internal notes are not logged.
           </p>
           <p className="mt-xs text-caption text-text-secondary">{AUDIT_SEARCH_HINT}</p>
+          <AuditWindowNote from={from} />
         </div>
 
         <Table
@@ -131,7 +133,7 @@ export function AuditLogPage() {
           emptyMessage={
             search || actorId || actionType || area || from || to
               ? 'No matching audit entries.'
-              : 'No activity recorded yet. Every create, update and delete by your team lands here as it happens.'
+              : 'No activity in the last 30 days. Every create, update and delete by your team lands here as it happens.'
           }
           sort={sort}
           onSortChange={(field, direction) => {
@@ -192,25 +194,17 @@ export function AuditLogPage() {
                   </option>
                 ))}
               </CompactSelect>
-              <input
-                type="date"
-                value={from}
-                onChange={(e) => {
-                  setFrom(e.target.value)
+              <AuditDateRange
+                from={from}
+                to={to}
+                onFromChange={(value) => {
+                  setFrom(value)
                   resetPaging()
                 }}
-                aria-label="From"
-                className="h-10 rounded-md border border-border bg-background px-3 text-body-sm"
-              />
-              <input
-                type="date"
-                value={to}
-                onChange={(e) => {
-                  setTo(e.target.value)
+                onToChange={(value) => {
+                  setTo(value)
                   resetPaging()
                 }}
-                aria-label="To"
-                className="h-10 rounded-md border border-border bg-background px-3 text-body-sm"
               />
             </>
           }
@@ -219,7 +213,7 @@ export function AuditLogPage() {
             hasPrevious: paging.hasPrevious,
             onNext: () => entries.data?.meta.next_cursor && paging.next(entries.data.meta.next_cursor),
             onPrevious: paging.previous,
-            total: entries.data?.meta.total,
+            // No total: the audit log is never counted (`meta.total` is always null, review F-114).
           }}
           expandable={{
             isExpanded: (e) => expandedId === e.id,

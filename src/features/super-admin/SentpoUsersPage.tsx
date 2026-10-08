@@ -315,6 +315,9 @@ export function SentpoUsersPage() {
               resetPaging()
             },
             placeholder: 'Search by name or email…',
+            // What the server matches (review F-116): text with an @ is the START of the email
+            // address, anything else is the name.
+            hint: 'Type a name, or the start of an email address.',
           }}
           quickFilters={
             <FilterChip

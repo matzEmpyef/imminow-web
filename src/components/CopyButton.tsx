@@ -11,11 +11,13 @@ import { showToast } from '@/lib/toast'
 
 const CONFIRM_MS = 2000
 
-type CopyKind = 'email' | 'phone'
+// `reference` is the request reference under an error message (review F-162, `ErrorReference`).
+type CopyKind = 'email' | 'phone' | 'reference'
 
 const KIND_LABEL: Record<CopyKind, string> = {
   email: 'email address',
   phone: 'phone number',
+  reference: 'reference',
 }
 
 export function CopyButton({ value, kind, className = '' }: { value: string; kind: CopyKind; className?: string }) {
@@ -68,7 +70,15 @@ export function CopyButton({ value, kind, className = '' }: { value: string; kin
  * A mailto:/tel: link with the copy control beside it — the placement every drawer shares.
  * `className` styles the link text only, so each drawer keeps its own size and truncation.
  */
-export function ContactLink({ kind, value, className = '' }: { kind: CopyKind; value: string; className?: string }) {
+export function ContactLink({
+  kind,
+  value,
+  className = '',
+}: {
+  kind: 'email' | 'phone'
+  value: string
+  className?: string
+}) {
   return (
     <span className="flex min-w-0 items-center gap-xs">
       <a href={`${kind === 'email' ? 'mailto' : 'tel'}:${value}`} className={`min-w-0 ${className}`}>

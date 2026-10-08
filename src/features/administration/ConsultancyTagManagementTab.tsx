@@ -7,6 +7,7 @@ import { TextField } from '@/components/TextField'
 import { Modal } from '@/components/Modal'
 import { CeilingCreateButton } from '@/components/CeilingCreateButton'
 import { useCreateTag, useDeleteTag, useTags } from '@/queries/tags'
+import { usePermissionChecker } from '@/lib/permissions'
 import { showToast } from '@/lib/toast'
 
 // User-requested (2026-08-15) — "wherever there is delete, confirm popup is needed." Was a bare
@@ -102,6 +103,9 @@ function AddTagModal({ onClose }: { onClose: () => void }) {
 export function TagManagementTab() {
   const tags = useTags()
   const [adding, setAdding] = useState(false)
+  // Deleting a tag takes it off the pick list for the whole consultancy, so the server lets the
+  // consultancy's admin alone do it (review F-055); adding one stays open to all staff.
+  const { isAdmin } = usePermissionChecker()
 
   return (
     <>
@@ -128,10 +132,12 @@ export function TagManagementTab() {
           {tags.data?.map((tag) => (
             <span
               key={tag.id}
-              className="inline-flex items-center gap-xs rounded-full border border-border bg-background py-0.5 pl-sm pr-0.5 text-body-sm text-text-primary"
+              className={`inline-flex items-center gap-xs rounded-full border border-border bg-background py-0.5 pl-sm text-body-sm text-text-primary ${
+                isAdmin ? 'pr-0.5' : 'pr-sm'
+              }`}
             >
               {tag.name}
-              <DeleteTagTrigger tagId={tag.id} tagName={tag.name} />
+              {isAdmin && <DeleteTagTrigger tagId={tag.id} tagName={tag.name} />}
             </span>
           ))}
         </div>

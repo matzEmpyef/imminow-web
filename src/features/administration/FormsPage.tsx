@@ -7,6 +7,7 @@ import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
 import { StopPropagation } from '@/components/StopPropagation'
 import { useDuplicateFormTemplate, useFormTemplates } from '@/queries/formTemplates'
+import { usePermissionChecker } from '@/lib/permissions'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
@@ -89,6 +90,11 @@ export function FormsPage() {
   const navigate = useNavigate()
   const forms = useFormTemplates()
   const duplicateForm = useDuplicateFormTemplate()
+  // Reading the list is open to every employee. Creating, editing and duplicating a form need
+  // `settings.manage_templates` on the server (review F-146 / F-055), so those controls are shown
+  // only to someone who holds it.
+  const { can } = usePermissionChecker()
+  const canManage = can('settings.manage_templates')
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
 
@@ -123,11 +129,15 @@ export function FormsPage() {
       align: 'right',
       render: (form) => form.fields.length,
     },
-    {
-      key: 'actions',
-      header: '',
-      render: (form) => <FormRowActions form={form} duplicateForm={duplicateForm} />,
-    },
+    ...(canManage
+      ? [
+          {
+            key: 'actions',
+            header: '',
+            render: (form: FormTemplate) => <FormRowActions form={form} duplicateForm={duplicateForm} />,
+          },
+        ]
+      : []),
   ]
 
   return (
@@ -135,9 +145,11 @@ export function FormsPage() {
       <div className="flex flex-col gap-lg">
         <div className="flex items-center justify-between">
           <h1 className="text-h1 text-text-primary">Forms</h1>
-          <Link to="/administration/forms/new">
-            <Button>Create New</Button>
-          </Link>
+          {canManage && (
+            <Link to="/administration/forms/new">
+              <Button>Create New</Button>
+            </Link>
+          )}
         </div>
 
         <Table
@@ -149,12 +161,14 @@ export function FormsPage() {
           emptyMessage={
             search
               ? 'No forms match your search.'
-              : 'No form templates yet. Create one and attach it to a plan step for clients to fill in.'
+              : canManage
+                ? 'No form templates yet. Create one and attach it to a plan step for clients to fill in.'
+                : 'No form templates yet.'
           }
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search forms…' }}
-          onRowClick={(form) => navigate(`/administration/forms/${form.id}`)}
+          onRowClick={canManage ? (form) => navigate(`/administration/forms/${form.id}`) : undefined}
         />
       </div>
     </AppShell>

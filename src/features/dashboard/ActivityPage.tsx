@@ -23,10 +23,30 @@ import type { components } from '@/api/schema'
 
 type ActivityTask = components['schemas']['ActivityTask']
 
+// The feed is bounded (review F-112): each of its lists carries at most this many rows, and
+// `truncated` says at least one was cut. The contract names the number; it is not sent per list,
+// so a list holding exactly this many while `truncated` is true is taken to be a cut one.
+const FEED_LIST_CAP = 200
+
+function FirstRowsNote() {
+  return <p className="mt-sm text-caption text-text-secondary">Showing the first 200. Finish some to see more.</p>
+}
+
 // The shared shell every "Needs your action" section uses — title, a count badge, a list of
 // rows. Only ever rendered when `count > 0` (the caller decides that), so there is no empty
 // state to handle in here.
-function ActionSection({ title, count, children }: { title: string; count: number; children: ReactNode }) {
+function ActionSection({
+  title,
+  count,
+  cut = false,
+  children,
+}: {
+  title: string
+  count: number
+  /** The server cut this list at its cap: say so under it. */
+  cut?: boolean
+  children: ReactNode
+}) {
   return (
     <Card>
       <div className="flex items-center justify-between">
@@ -34,6 +54,7 @@ function ActionSection({ title, count, children }: { title: string; count: numbe
         <Badge color="primary">{count}</Badge>
       </div>
       <div className="mt-sm flex flex-col gap-xs">{children}</div>
+      {cut && <FirstRowsNote />}
     </Card>
   )
 }
@@ -74,6 +95,7 @@ export function ActivityPage() {
 
   const data = feed.data
   const today = localDateISO()
+  const cut = (list: unknown[]) => data.truncated === true && list.length >= FEED_LIST_CAP
 
   // "My tasks due/overdue" — open, due today or earlier (same window needs_action_today_count
   // itself counts server-side). Future open tasks show instead under Coming Up.
@@ -181,7 +203,7 @@ export function ActivityPage() {
         {hasAnyAction && (
           <div className="grid grid-cols-1 gap-lg md:grid-cols-2">
             {data.pending_step_approvals.length > 0 && (
-              <ActionSection title="Steps to review" count={data.pending_step_approvals.length}>
+              <ActionSection title="Steps to review" count={data.pending_step_approvals.length} cut={cut(data.pending_step_approvals)}>
                 {data.pending_step_approvals.map((item) => (
                   <ActionRow key={item.step_id} to={clientTabPath(item.journey_id, 'Plan', { step: item.step_id })}>
                     <div>
@@ -207,7 +229,7 @@ export function ActivityPage() {
             )}
 
             {data.unread_chats.length > 0 && (
-              <ActionSection title="Unread chats" count={data.unread_chats.length}>
+              <ActionSection title="Unread chats" count={data.unread_chats.length} cut={cut(data.unread_chats)}>
                 {data.unread_chats.map((item) => (
                   <ActionRow
                     key={item.id}
@@ -221,7 +243,7 @@ export function ActivityPage() {
             )}
 
             {data.overdue_steps.length > 0 && (
-              <ActionSection title="Overdue steps" count={data.overdue_steps.length}>
+              <ActionSection title="Overdue steps" count={data.overdue_steps.length} cut={cut(data.overdue_steps)}>
                 {data.overdue_steps.map((item) => (
                   <ActionRow key={item.step_id} to={clientTabPath(item.journey_id, 'Plan', { step: item.step_id })}>
                     <p className="text-body-sm text-text-primary">
@@ -234,7 +256,7 @@ export function ActivityPage() {
             )}
 
             {data.offers_awaiting_decision.length > 0 && (
-              <ActionSection title="Offers awaiting decision" count={data.offers_awaiting_decision.length}>
+              <ActionSection title="Offers awaiting decision" count={data.offers_awaiting_decision.length} cut={cut(data.offers_awaiting_decision)}>
                 {data.offers_awaiting_decision.map((item) => (
                   <ActionRow key={item.journey_id + item.since} to={clientTabPath(item.journey_id, 'Applications')}>
                     <p className="text-body-sm text-text-primary">
@@ -248,7 +270,7 @@ export function ActivityPage() {
             )}
 
             {data.ready_to_apply.length > 0 && (
-              <ActionSection title="Ready to apply" count={data.ready_to_apply.length}>
+              <ActionSection title="Ready to apply" count={data.ready_to_apply.length} cut={cut(data.ready_to_apply)}>
                 {data.ready_to_apply.map((item) => (
                   <ActionRow key={item.journey_id + item.since} to={clientTabPath(item.journey_id, 'Applications')}>
                     <p className="text-body-sm text-text-primary">
@@ -262,7 +284,7 @@ export function ActivityPage() {
             )}
 
             {data.pending_proposals.length > 0 && (
-              <ActionSection title="Conversion proposals" count={data.pending_proposals.length}>
+              <ActionSection title="Conversion proposals" count={data.pending_proposals.length} cut={cut(data.pending_proposals)}>
                 {data.pending_proposals.map((item) => {
                   const days = daysUntil(item.expires_at)
                   return (
@@ -278,7 +300,7 @@ export function ActivityPage() {
             )}
 
             {data.pending_plan_assignment.length > 0 && (
-              <ActionSection title="Pending plan assignment" count={data.pending_plan_assignment.length}>
+              <ActionSection title="Pending plan assignment" count={data.pending_plan_assignment.length} cut={cut(data.pending_plan_assignment)}>
                 {data.pending_plan_assignment.map((item) => (
                   <ActionRow key={item.journey_id} to={`/clients/${item.journey_id}`}>
                     <p className="text-body-sm text-text-primary">{item.client_name}</p>
@@ -289,7 +311,7 @@ export function ActivityPage() {
             )}
 
             {data.plan_complete_cases.length > 0 && (
-              <ActionSection title="Plan complete" count={data.plan_complete_cases.length}>
+              <ActionSection title="Plan complete" count={data.plan_complete_cases.length} cut={cut(data.plan_complete_cases)}>
                 {data.plan_complete_cases.map((item) => (
                   <ActionRow key={item.journey_id} to={`/clients/${item.journey_id}`}>
                     <p className="text-body-sm text-text-primary">{item.client_name}</p>
@@ -300,7 +322,7 @@ export function ActivityPage() {
             )}
 
             {myTasksDue.length > 0 && (
-              <ActionSection title="My tasks" count={myTasksDue.length}>
+              <ActionSection title="My tasks" count={myTasksDue.length} cut={cut(data.tasks)}>
                 {/* N6 (second-pass review): a failed complete used to vanish silently, and one
                     shared isPending put every row's button into "Please wait…" for any click —
                     `variables` scopes the spinner to the row actually in flight. */}
@@ -356,6 +378,9 @@ export function ActivityPage() {
               </div>
             ))}
           </div>
+          {(cut(data.tasks) || cut(data.upcoming_due_dates) || cut(data.application_deadlines) || cut(data.pending_proposals)) && (
+            <FirstRowsNote />
+          )}
         </Card>
 
         {data.delegated_tasks.length > 0 && (
@@ -403,6 +428,7 @@ export function ActivityPage() {
                 </div>
               ))}
             </div>
+            {cut(data.delegated_tasks) && <FirstRowsNote />}
           </Card>
         )}
       </div>

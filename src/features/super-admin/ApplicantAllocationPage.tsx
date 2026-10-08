@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { UserPlus, ShieldCheck } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Button } from '@/components/Button'
@@ -283,34 +283,22 @@ function AllocateAction({ entry }: { entry: QueueEntry }) {
 
 export function ApplicantAllocationPage() {
   const paging = useCursorPagination()
-  const queue = useApplicantAllocationQueue(paging.cursor)
-  // No `meta` = the frozen mock / an unpaged server: the whole queue is here, no pager.
-  const pager = cursorPager(paging, queue.data?.meta)
-  const paged = pager.hasNext || pager.hasPrevious
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
   const [sourceFilter, setSourceFilter] = useState<'' | Source>('')
-
-  // The server sends oldest first; a column sort replaces that.
-  const rows = useMemo(() => {
-    let items = queue.data?.items ?? []
-    if (sourceFilter) items = items.filter((e) => e.source === sourceFilter)
-    if (search) {
-      const q = search.toLowerCase()
-      items = items.filter((e) => e.applicant_name?.toLowerCase().includes(q))
-    }
-    if (sort) {
-      const dir = sort.direction === 'desc' ? -1 : 1
-      const key = (e: QueueEntry) =>
-        sort.field === 'created_at'
-          ? (e.created_at ?? '')
-          : sort.field === 'source'
-            ? (e.source ?? '')
-            : (e.applicant_name ?? '').toLowerCase()
-      items = [...items].sort((a, b) => (key(a) < key(b) ? -dir : key(a) > key(b) ? dir : 0))
-    }
-    return items
-  }, [queue.data, search, sort, sourceFilter])
+  // Search, the Reason filter and the column sort go to the server, which applies them over the
+  // whole queue (review F-154); they used to rearrange only the page on screen. With no sort
+  // chosen the server's own order stands: oldest first.
+  const queue = useApplicantAllocationQueue(
+    {
+      search: search.trim() || undefined,
+      source: sourceFilter || undefined,
+      sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
+    },
+    paging.cursor,
+  )
+  // No `meta` = the frozen mock / an unpaged server: the whole queue is here, no pager.
+  const pager = cursorPager(paging, queue.data?.meta)
 
   const columns: TableColumn<QueueEntry>[] = [
     {
@@ -437,19 +425,33 @@ export function ApplicantAllocationPage() {
 
         <Table
           columns={columns}
-          rows={rows}
+          rows={queue.data?.items ?? []}
           rowKey={(e) => e.id!}
           loading={queue.isLoading}
           error={queue.isError ? 'Could not load the allocation queue.' : undefined} errorSource={queue.error}
           emptyMessage={search || sourceFilter ? 'No applicants match these filters.' : 'Nothing awaiting allocation.'}
           sort={sort}
-          onSortChange={(field, direction) => setSort({ field, direction })}
-          search={{ value: search, onChange: setSearch, placeholder: paged ? 'Search this page…' : 'Search applicant…' }}
+          onSortChange={(field, direction) => {
+            setSort({ field, direction })
+            paging.reset()
+          }}
+          search={{
+            value: search,
+            onChange: (value) => {
+              if (value === search) return
+              setSearch(value)
+              paging.reset()
+            },
+            placeholder: 'Search applicant…',
+          }}
           pagination={pager}
           filters={
             <CompactSelect
               value={sourceFilter}
-              onChange={(e) => setSourceFilter(e.target.value as '' | Source)}
+              onChange={(e) => {
+                setSourceFilter(e.target.value as '' | Source)
+                paging.reset()
+              }}
               label="Reason"
             >
               <option value="">Any reason</option>

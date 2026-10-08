@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bell } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
@@ -27,6 +27,7 @@ import { SignalBadges } from './followups/SignalBadges'
 import { FollowupHistoryDrawer } from './followups/FollowupHistoryDrawer'
 import { LogCallModal, type LogCallInput } from './followups/LogCallModal'
 import { OUTCOME_LABELS, SERVICE_OUTCOME_OPTIONS, SERVICE_SIGNAL_LABELS } from './followups/labels'
+import { signalOptions, useFollowupFilters } from './followups/useFollowupFilters'
 
 // THE SERVER WORDS THE INTAKE (assumptions audit M9, product owner 2026-09-19). This page used
 // to render its own "1st half 2026" from `intended_intake` + `intended_year`; those calendar
@@ -179,44 +180,18 @@ function SendNudgeModal({ row, onClose }: { row: ServiceFollowupRow; onClose: ()
  * call; sometimes a nudge back into the app is enough.
  */
 export function ServiceFollowupsPage() {
-  const [includeSnoozed, setIncludeSnoozed] = useState(false)
   const paging = useCursorPagination()
-  const queue = useServiceFollowups(includeSnoozed, paging.cursor)
-  const [search, setSearch] = useState('')
-  const [signalFilter, setSignalFilter] = useState('')
-  const [notCalledOnly, setNotCalledOnly] = useState(false)
-  const [dueOnly, setDueOnly] = useState(false)
+  // Search and filters go to the server, which applies them over the whole queue and counts the
+  // summary tiles over the same rows (review F-154). They used to narrow only the page on screen.
+  const { filters, set: setFilter, narrowed } = useFollowupFilters(paging)
+  const queue = useServiceFollowups(filters, paging.cursor)
   const [viewing, setViewing] = useState<ServiceFollowupRow | null>(null)
   const [logging, setLogging] = useState<ServiceFollowupRow | null>(null)
   const [nudging, setNudging] = useState<ServiceFollowupRow | null>(null)
 
-  const items = useMemo(() => queue.data?.items ?? [], [queue.data])
   const summary = queue.data?.summary
   // No `meta` = the frozen mock / an unpaged server: every row is here already, no pager.
   const pager = cursorPager(paging, queue.data?.meta)
-  const paged = pager.hasNext || pager.hasPrevious
-
-  const signalOptions = useMemo(
-    () =>
-      Object.entries(summary?.by_signal ?? {})
-        .filter(([, count]) => count > 0)
-        .map(([code, count]) => ({ code, count, label: SERVICE_SIGNAL_LABELS[code] ?? code })),
-    [summary],
-  )
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return items.filter((row) => {
-      if (q) {
-        const hay = `${row.student_name} ${row.email ?? ''} ${row.consultancy_name ?? ''}`.toLowerCase()
-        if (!hay.includes(q)) return false
-      }
-      if (signalFilter && !row.signals.some((s) => s.code === signalFilter)) return false
-      if (notCalledOnly && row.followup_count > 0) return false
-      if (dueOnly && !row.due_for_call) return false
-      return true
-    })
-  }, [items, search, signalFilter, notCalledOnly, dueOnly])
 
   const notes = useServiceNotes(viewing?.student_id ?? null)
   const record = useRecordServiceNote()
@@ -334,43 +309,56 @@ export function ServiceFollowupsPage() {
           summary={summary}
           loading={queue.isLoading}
           totalLabel="Students"
-          notCalledActive={notCalledOnly}
-          onToggleNotCalled={() => setNotCalledOnly((v) => !v)}
-          dueActive={dueOnly}
-          onToggleDue={() => setDueOnly((v) => !v)}
+          notCalledActive={Boolean(filters.notCalled)}
+          onToggleNotCalled={() => setFilter({ notCalled: !filters.notCalled })}
+          dueActive={Boolean(filters.dueForCall)}
+          onToggleDue={() => setFilter({ dueForCall: !filters.dueForCall })}
         />
 
         <Table
           columns={columns}
-          rows={filtered}
+          rows={queue.data?.items ?? []}
           rowKey={(row) => row.student_id}
           loading={queue.isLoading}
           error={queue.isError ? 'Could not load the follow-up queue.' : undefined} errorSource={queue.error}
-          emptyMessage="Nothing needs chasing right now."
+          emptyMessage={narrowed ? 'No students match these filters.' : 'Nothing needs chasing right now.'}
           onRowClick={(row) => setViewing(row)}
-          search={{ value: search, onChange: setSearch, placeholder: paged ? 'Search this page…' : 'Search student, email or consultancy…' }}
+          search={{
+            value: filters.search ?? '',
+            onChange: (value) => setFilter({ search: value }),
+            placeholder: 'Search student, email or consultancy…',
+          }}
           pagination={pager}
           filters={
-            <CompactSelect value={signalFilter} onChange={(e) => setSignalFilter(e.target.value)} label="Signal">
+            <CompactSelect
+              value={filters.signal ?? ''}
+              onChange={(e) => setFilter({ signal: e.target.value })}
+              label="Signal"
+            >
               <option value="">Any signal</option>
-              {signalOptions.map((o) => (
+              {signalOptions(SERVICE_SIGNAL_LABELS, summary, filters.signal).map((o) => (
                 <option key={o.code} value={o.code}>
-                  {o.label} ({o.count})
+                  {o.label}
                 </option>
               ))}
             </CompactSelect>
           }
           quickFilters={
             <>
-              <FilterChip label="Not called yet" active={notCalledOnly} onChange={setNotCalledOnly} />
-              <FilterChip label="Due for a call" active={dueOnly} onChange={setDueOnly} />
+              <FilterChip
+                label="Not called yet"
+                active={Boolean(filters.notCalled)}
+                onChange={(v) => setFilter({ notCalled: v })}
+              />
+              <FilterChip
+                label="Due for a call"
+                active={Boolean(filters.dueForCall)}
+                onChange={(v) => setFilter({ dueForCall: v })}
+              />
               <FilterChip
                 label="Show snoozed"
-                active={includeSnoozed}
-                onChange={(v) => {
-                  setIncludeSnoozed(v)
-                  paging.reset()
-                }}
+                active={Boolean(filters.includeSnoozed)}
+                onChange={(v) => setFilter({ includeSnoozed: v })}
               />
             </>
           }
