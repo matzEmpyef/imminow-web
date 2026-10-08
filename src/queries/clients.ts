@@ -11,6 +11,7 @@ import { invalidateApplicantRequests, type ApplicantRequest } from './applicantR
 import { isAlreadyApplied } from '@/lib/useIdempotencyKey'
 import { refreshIfThreadClosed } from '@/lib/closedThread'
 import { editError, reloadOnStaleEdit } from '@/lib/staleEdit'
+import { CLOSE_REASONS, type CloseReason } from '@/lib/clientStatus'
 import type { components } from '@/api/schema'
 
 type InternalNote = components['schemas']['InternalNote']
@@ -575,15 +576,9 @@ function invalidateClients(queryClient: ReturnType<typeof useQueryClient>) {
  * student — "they would not cooperate" is an accusation and belongs in `useRaiseIssue` below,
  * which opens mediation instead of ending someone's case by assertion.
  */
-export const CLOSE_SUB_REASONS = [
-  { value: 'rejected_by_colleges', label: 'Rejected by the colleges' },
-  { value: 'visa_refused', label: 'Visa refused' },
-  { value: 'student_withdrew', label: 'Student withdrew' },
-  { value: 'lost_contact', label: 'Lost contact with the student' },
-  { value: 'other', label: 'Something else' },
-] as const
+export const CLOSE_SUB_REASONS = CLOSE_REASONS
 
-export type CloseSubReason = (typeof CLOSE_SUB_REASONS)[number]['value']
+export type CloseSubReason = CloseReason
 
 export function useCloseClient() {
   const queryClient = useQueryClient()

@@ -134,7 +134,7 @@ function ReuseQuestionsModal({
 // pager button that appends a new empty question and jumps straight to it. Keeps a large pool
 // readable instead of scrolling through every question at once.
 export function ManageQuestionsModal({ event, onClose }: { event: Event; onClose: () => void }) {
-  const updateEvent = useUpdateEvent(event.id!)
+  const updateEvent = useUpdateEvent(event.id!, event.version)
   const [questions, setQuestions] = useState<QuizQuestionInput[]>(
     event.questions && event.questions.length > 0
       ? // Same events-permission scoping as the reuse picker above — correct_option is null only

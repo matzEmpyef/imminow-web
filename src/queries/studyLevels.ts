@@ -69,6 +69,30 @@ export function useUpdateStudyLevel() {
   })
 }
 
+/** What a reorder says when the server refuses it (400): the ladder is no longer the one loaded. */
+export const LADDER_CHANGED_NOTICE = 'The list changed while you were reordering. It has been reloaded.'
+
+// The whole ladder in its new order, in ONE request (2026-10-08): `codes` is every rung's code —
+// retired rungs included — exactly once. It used to be one PATCH per rung moved, and a move that
+// half-landed left two rungs sharing a place. All or nothing on the server: a list that misses a
+// rung, repeats one or names one that is gone changes nothing and answers 400, which means the
+// ladder changed since it was loaded — so it is read again and the person is told.
+export function useReorderStudyLevels() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (codes: string[]) => {
+      const { data, error } = await api.POST('/study-levels/reorder', { body: { codes } })
+      if (error) {
+        const refused = new ApiError('Could not reorder the study levels.', error)
+        if (refused.status !== 400) throw refused
+        throw new ApiError(LADDER_CHANGED_NOTICE, { error: { ...error.error, message: LADDER_CHANGED_NOTICE } }, 400)
+      }
+      return data
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['study-levels'] }),
+  })
+}
+
 // For a rung added by mistake (2026-09-11). The server refuses while any course, student or ad
 // still carries the code, and its message says which — so the error is shown as sent.
 export function useDeleteStudyLevel() {

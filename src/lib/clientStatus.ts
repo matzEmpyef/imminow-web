@@ -69,13 +69,25 @@ export function caseMovedBannerMessage(client: MovedCaseFields): string | null {
   return `This case moved to another consultancy${date ? ` on ${date}` : ''} — you can read its history, but it's read-only now.`
 }
 
+/**
+ * The reasons a consultancy picks from when it closes a case OR a lead (owner decision 69b,
+ * 2026-10-08: a lead closes on the same list as a case), in the order both dialogs offer them.
+ * The ONE place their labels are written: Close Case, Close Lead and every screen that shows a
+ * closed record read from here.
+ */
+export const CLOSE_REASONS = [
+  { value: 'rejected_by_colleges', label: 'Rejected by the colleges' },
+  { value: 'visa_refused', label: 'Visa refused' },
+  { value: 'student_withdrew', label: 'Student withdrew' },
+  { value: 'lost_contact', label: 'Lost contact with the student' },
+  { value: 'other', label: 'Something else' },
+] as const
+
+export type CloseReason = (typeof CLOSE_REASONS)[number]['value']
+
 /** The neutral fact a case closed on (`Journey.close_sub_reason`), in words. */
 const CLOSE_SUB_REASON_LABELS: Record<string, string> = {
-  rejected_by_colleges: 'Rejected by the colleges',
-  visa_refused: 'Visa refused',
-  student_withdrew: 'Student withdrew',
-  lost_contact: 'Lost contact with the student',
-  other: 'Something else',
+  ...Object.fromEntries(CLOSE_REASONS.map((r) => [r.value, r.label])),
   // Never chosen by a consultancy (gate 12f): the case closed, at once, when its student asked
   // for their Sentpo account to be deleted.
   account_deleted: 'Account deleted',

@@ -21,6 +21,7 @@ vi.mock('@/queries/jobsAdmin', () => ({
   useUpdateJob: vi.fn(),
   useJobLocations: vi.fn(),
 }))
+vi.mock('@/queries/jobCategories', () => ({ useJobCategories: vi.fn() }))
 vi.mock('@/queries/countries', () => ({
   useCountries: vi.fn(),
   useStates: vi.fn(),
@@ -28,7 +29,12 @@ vi.mock('@/queries/countries', () => ({
 
 import { useAdminJobs, useCreateJob, useJobLocations, useUpdateJob } from '@/queries/jobsAdmin'
 import { useCountries, useStates } from '@/queries/countries'
-import { JobsAdminPage } from './JobsAdminPage'
+import { useJobCategories } from '@/queries/jobCategories'
+import { ApiError } from '@/api/errors'
+import { JobFormModal, JobsAdminPage } from './JobsAdminPage'
+import type { components } from '@/api/schema'
+
+type JobListing = components['schemas']['JobListing']
 
 const mockedJobs = vi.mocked(useAdminJobs)
 const mockedCreate = vi.mocked(useCreateJob)
@@ -133,6 +139,12 @@ beforeEach(() => {
     if (scope !== 'all') return query(LIVE_COUNTRIES)
     return query(status ? (COUNTRIES_BY_STATUS[status] ?? []) : ALL_COUNTRIES)
   })
+  vi.mocked(useJobCategories).mockReturnValue(
+    query([
+      { id: 'engineering', name: 'Engineering', active: true, job_count: 4 },
+      { id: 'general', name: 'General', active: true, job_count: 9 },
+    ]),
+  )
   mockedCountries.mockReturnValue(query(['Canada', 'India', 'Ireland', 'United Kingdom']))
   mockedStates.mockImplementation((country: string | undefined) =>
     query(country === 'India' ? [{ name: 'Karnataka' }, { name: 'Maharashtra' }] : []),
@@ -316,5 +328,70 @@ describe('a remote listing with no place', () => {
     // The placed listing still shows its derived location, unchanged.
     const placed = screen.getByText('Support Engineer').closest('tr')!
     expect(placed.querySelectorAll('td')[3]).toHaveTextContent('Reykjavík, Iceland')
+  })
+})
+
+// The category is picked from the managed Job Categories list (owner decision 69c, 2026-10-08).
+describe('the job form: the category is picked from the managed list', () => {
+  const JOB = { ...ROWS[0], apply_url: 'https://jobs.example.com/1', category: 'Engineering' } as never as JobListing
+
+  function renderForm(job: JobListing) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <JobFormModal editingJob={job} onClose={() => {}} />
+      </QueryClientProvider>,
+    )
+  }
+
+  function optionLabels(dialog: HTMLElement) {
+    return Array.from(within(dialog).getByLabelText<HTMLSelectElement>('Category').options).map((o) => o.textContent)
+  }
+
+  it('offers the active categories and sends the one picked', () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Add Listing' }))
+    const dialog = screen.getByRole('dialog', { name: 'Add Listing' })
+    expect(vi.mocked(useJobCategories)).toHaveBeenCalledWith()
+    expect(optionLabels(dialog)).toEqual(['Select a category…', 'Engineering', 'General'])
+
+    fillTheRest(dialog)
+    fireEvent.change(within(dialog).getByLabelText(/^Work mode/), { target: { value: 'remote' } })
+    fireEvent.change(within(dialog).getByLabelText('Category'), { target: { value: 'General' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create Listing' }))
+    expect(createMutate.mock.calls[0][0]).toMatchObject({ category: 'General' })
+  })
+
+  it('shows a retired category as selected and marked, and lets the editor keep it', () => {
+    renderForm({ ...JOB, category: 'Hospitality' })
+    const dialog = screen.getByRole('dialog', { name: 'Edit Listing' })
+    expect(within(dialog).getByLabelText<HTMLSelectElement>('Category').value).toBe('Hospitality')
+    expect(optionLabels(dialog)).toEqual(['Select a category…', 'Hospitality (inactive)', 'Engineering', 'General'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    expect(updateMutate.mock.calls[0][0]).toMatchObject({ category: 'Hospitality' })
+  })
+
+  it("puts the server's refusal of the category beside the picker", () => {
+    const sentence = 'category must be one of the active job categories (Settings → Job categories).'
+    mockedUpdate.mockReturnValue({
+      mutate: updateMutate,
+      isPending: false,
+      isError: true,
+      error: new ApiError('Could not update this listing.', {
+        error: { code: 'validation_failed', message: sentence, details: { fields: { category: sentence } }, status: 422 },
+      }),
+    } as never)
+    renderForm(JOB)
+    const dialog = screen.getByRole('dialog', { name: 'Edit Listing' })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    const picker = within(dialog).getByLabelText('Category')
+    expect(picker).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getAllByText(sentence)).toHaveLength(1)
+
+    // Choosing another category clears it.
+    fireEvent.change(picker, { target: { value: 'General' } })
+    expect(picker).toHaveAttribute('aria-invalid', 'false')
   })
 })

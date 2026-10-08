@@ -9,6 +9,7 @@ import { useThreadMessages } from './threadMessages'
 import { invalidateApplicantRequests } from './applicantRequests'
 import { isAlreadyApplied } from '@/lib/useIdempotencyKey'
 import { refreshIfThreadClosed } from '@/lib/closedThread'
+import type { CloseReason } from '@/lib/clientStatus'
 import type { components } from '@/api/schema'
 
 type InternalNote = components['schemas']['InternalNote']
@@ -182,10 +183,12 @@ export function useSetLeadBranch() {
 export function useCloseLead() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+    // `reason` is one of the case-closing reasons (owner decision 69b); `note` is the free text
+    // beside it, which the server requires for `other` (400 `validation_failed` without it).
+    mutationFn: async ({ id, reason, note }: { id: string; reason: CloseReason; note?: string }) => {
       const { data, error } = await api.POST('/leads/{id}/close', {
         params: { path: { id } },
-        body: { reason },
+        body: { reason, ...(note ? { note } : {}) },
       })
       if (error) throw new ApiError('Could not close this lead.', error)
       return data

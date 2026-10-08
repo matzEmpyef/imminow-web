@@ -194,8 +194,13 @@ export function ApplicantCaseViewPage() {
           <h2 className="text-h3 text-text-primary">Plans</h2>
           {data.plans?.map((p) => (
             <div key={p.id} className="flex items-center justify-between">
-              <span className="text-body-sm text-text-primary">
-                {p.scope === 'case' ? 'Case plan' : (p.college_name ?? 'College plan')}
+              {/* The plan's own name leads (on `plans[]` since 2026-10-08), so a case with several
+                  plans shows which is which; what the plan belongs to sits beside it. */}
+              <span className="min-w-0 text-body-sm text-text-primary">
+                {p.name}
+                <span className="ml-xs text-caption text-text-secondary">
+                  {p.scope === 'case' ? 'Case plan' : (p.college_name ?? 'College plan')}
+                </span>
               </span>
               <span className="text-body-sm tabular-nums text-text-secondary">{p.progress}</span>
             </div>

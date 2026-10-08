@@ -19,7 +19,7 @@ export interface ConsultancyFilters {
   // server accepts it (see server.js's status filter), but schema.d.ts's typed enum for this query
   // param hasn't been regenerated to include it — same "server is ahead of the generated type"
   // situation as `no_charge` below, so the union is widened by hand here rather than left off.
-  status?: 'active' | 'suspended' | 'kyc_pending' | 'expiring' | 'grace' | 'lapsed' | 'never_billed'
+  status?: 'active' | 'suspended' | 'kyc_pending' | 'kyc_rejected' | 'expiring' | 'grace' | 'lapsed' | 'never_billed'
   active?: boolean
   sort?: string
   cursor?: string

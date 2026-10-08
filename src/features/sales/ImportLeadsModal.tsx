@@ -6,6 +6,7 @@ import { TextField } from '@/components/TextField'
 import { useCommitLeadImport, useCreateLead, useValidateLeadImport } from '@/queries/leads'
 import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
 import { showToast } from '@/lib/toast'
+import { fieldMessages } from '@/api/errors'
 
 // Contract gate 7, owner Q7 (2026-09-25): duplicates — repeated within the file, or matching an
 // existing active imported lead — are skipped rather than failing the whole import, and listed
@@ -219,18 +220,35 @@ export function AddLeadModal({ onClose }: { onClose: () => void }) {
   const [source, setSource] = useState<Source>('referral')
   const [notes, setNotes] = useState('')
 
-  const phoneError = phone && !isValidPhone(phone) ? PHONE_ERROR : undefined
-  const emailError = email && !isValidEmail(email) ? EMAIL_ERROR : undefined
-  const canSubmit = Boolean(name) && !phoneError && !emailError
+  // The server checks the contact as it checks an import row (review F-208, 2026-10-08) and
+  // names each field it refuses (400, `details.fields`). Its sentence sits beside that field
+  // until the field is changed; `sent` is what the refused request carried.
+  const [sent, setSent] = useState<{ name: string; phone: string; email: string } | null>(null)
+  // What the server stored for the last lead added: the phone comes back in international form
+  // (a number typed without a country code is read in the consultancy's own country).
+  const [stored, setStored] = useState<{ name: string; phone: string } | null>(null)
+  const refused = fieldMessages(createLead.error)
+  const serverError = (field: 'name' | 'phone' | 'email', value: string) =>
+    sent && sent[field] === value ? refused[field] : undefined
+
+  const nameError = serverError('name', name)
+  const phoneError = (phone && !isValidPhone(phone) ? PHONE_ERROR : undefined) ?? serverError('phone', phone)
+  const emailError = (email && !isValidEmail(email) ? EMAIL_ERROR : undefined) ?? serverError('email', email)
+  const shownBesideAField = Boolean(nameError || phoneError || emailError)
+  const canSubmit = Boolean(name) && !phoneError && !emailError && !nameError
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
+    setSent({ name, phone, email })
+    setStored(null)
     createLead.mutate(
       { name, phone: phone || null, email: email || null, source, notes: notes || null },
       {
-        onSuccess: () => {
+        onSuccess: (lead) => {
           showToast('Lead added to the pool')
+          if (lead?.phone) setStored({ name: lead.name ?? name, phone: lead.phone })
+          setSent(null)
           setName('')
           setPhone('')
           setEmail('')
@@ -247,7 +265,7 @@ export function AddLeadModal({ onClose }: { onClose: () => void }) {
       widthRem={26}
       footer={
         <>
-          {createLead.isError && (
+          {createLead.isError && !shownBesideAField && (
             <p className="mr-auto self-center text-body-sm text-error">{createLead.error.message}</p>
           )}
           <Button type="submit" form="add-lead-form" loading={createLead.isPending} disabled={!canSubmit}>
@@ -257,7 +275,12 @@ export function AddLeadModal({ onClose }: { onClose: () => void }) {
       }
     >
       <form id="add-lead-form" className="flex flex-col gap-md" onSubmit={handleSubmit}>
-        <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+        {stored && (
+          <p role="status" className="rounded-md bg-success-subtle px-3 py-sm text-body-sm text-text-primary">
+            {stored.name} added. Phone saved as <span className="font-medium tabular-nums">{stored.phone}</span>.
+          </p>
+        )}
+        <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required error={nameError} />
         <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} error={phoneError} />
         <TextField
           label="Email"

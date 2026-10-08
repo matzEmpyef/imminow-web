@@ -64,6 +64,22 @@ export function requestReference(error: unknown): string | undefined {
 }
 
 /**
+ * The per-field sentences of a refused save: `details.fields` of a `validation_failed` answer,
+ * as `{ field: sentence }`. A form shows each beside its own field. Empty when the error names
+ * no field (the form then shows the error's own message once, as before).
+ */
+export function fieldMessages(error: unknown): Record<string, string> {
+  if (!(error instanceof ApiError)) return {}
+  const fields = error.details?.fields
+  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return {}
+  const out: Record<string, string> = {}
+  for (const [field, message] of Object.entries(fields)) {
+    if (typeof message === 'string' && message.trim()) out[field] = message
+  }
+  return out
+}
+
+/**
  * Whether asking again could give a different answer (review F-149): no status at all (the
  * request never got an answer), too many requests, or a server-side failure such as the 502/503
  * of a deploy. Anything else is the server's considered answer — a 403 or a 404 says the same

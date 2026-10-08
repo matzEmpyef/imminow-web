@@ -3,6 +3,7 @@ import { useMutation } from '@/lib/useSave'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { editError, reloadOnStaleEdit } from '@/lib/staleEdit'
 import type { components } from '@/api/schema'
 
 type EventInput = components['schemas']['EventInput']
@@ -66,21 +67,23 @@ export function useCreateEvent() {
   })
 }
 
-export function useUpdateEvent(id: string) {
+// `version` is the event's version as last read (review I-029; on the contract since 2026-10-08),
+// sent back on every edit exactly as an ad's is: the quiz, webinar and meeting forms, a quiz's
+// questions and branding, and the listed / unlisted switch. When someone else saved the event
+// first the server answers 409 `version_conflict` and writes nothing; the list is read again and
+// the form keeps what was entered, so the next save carries the current version.
+export function useUpdateEvent(id: string, version?: number) {
   const queryClient = useQueryClient()
   return useMutation({
     // `listed` (2026-09-04): false unlists the event for students, true restores it — a PATCH-only
     // field, so it sits beside EventInput rather than inside it.
     mutationFn: async (body: Partial<EventInput> & { listed?: boolean }) => {
-      // Static message, not `error.error.message` — this PATCH's response schema only declares
-      // 200, no error variant, so `error` types as `never` here (same reason every other
-      // mutation hook in this codebase already throws a static string instead of reading a
-      // message off `error`; this one just hadn't been brought in line yet).
-      const { data, error } = await api.PATCH('/events/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update this event.', error)
+      const { data, error } = await api.PATCH('/events/{id}', { params: { path: { id } }, body: { ...body, version } })
+      if (error) throw editError('Could not update this event.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-events'] }),
+    onError: (err) => reloadOnStaleEdit(err, () => queryClient.invalidateQueries({ queryKey: ['admin-events'] })),
   })
 }
 

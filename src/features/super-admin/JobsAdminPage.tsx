@@ -14,6 +14,8 @@ import { CountrySelect } from '@/components/CountrySelect'
 import { StateSelect } from '@/components/StateSelect'
 import { Modal } from '@/components/Modal'
 import { useAdminJobs, useCreateJob, useJobLocations, useUpdateJob } from '@/queries/jobsAdmin'
+import { useJobCategories } from '@/queries/jobCategories'
+import { fieldMessages } from '@/api/errors'
 import { useCursorPagination } from '@/lib/pagination'
 import { daysSince, formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
@@ -72,6 +74,16 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
   const [attempted, setAttempted] = useState(false)
 
   const mutation = isEditing ? updateJob : createJob
+  // The category is picked from the managed list (owner decision 69c, 2026-10-08), never typed.
+  // The picker offers the ACTIVE categories; a listing filed under one that has since been
+  // retired still shows it, marked, so the editor can keep it or move the listing on.
+  const { data: activeCategories } = useJobCategories()
+  const categoryRetired =
+    Boolean(category) && activeCategories !== undefined && !activeCategories.some((c) => c.name === category)
+  // The server's own refusal of the category (422, `details.fields.category`) sits beside the
+  // picker until another one is chosen.
+  const [categoryAtRefusal, setCategoryAtRefusal] = useState<string | null>(null)
+  const categoryError = categoryAtRefusal === category ? fieldMessages(mutation.error).category : undefined
   const applyUrlError = !attempted
     ? undefined
     : !applyUrl.trim()
@@ -115,6 +127,7 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
       setAttempted(true)
       return
     }
+    setCategoryAtRefusal(category)
     const body = {
       title,
       company,
@@ -124,7 +137,8 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
       country: country || null,
       province_state: country ? provinceState || null : null,
       city: city.trim() || null,
-      category,
+      // Nothing picked is sent as no category at all; the server says what it needs if it needs one.
+      category: category || undefined,
       job_type: jobType,
       description,
       apply_url: applyUrl,
@@ -159,7 +173,9 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
       widthRem={34}
       footer={
         <>
-          {mutation.isError && <p className="mr-auto self-center text-body-sm text-error">{mutation.error.message}</p>}
+          {mutation.isError && !categoryError && (
+            <p className="mr-auto self-center text-body-sm text-error">{mutation.error.message}</p>
+          )}
           <Button type="submit" form="job-form" loading={mutation.isPending}>
             {isEditing ? 'Save Changes' : 'Create Listing'}
           </Button>
@@ -182,7 +198,23 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
             onChange={(e) => setCompany(e.target.value)}
             error={companyError}
           />
-          <TextField label="Category" value={category} onChange={(e) => setCategory(e.target.value)} />
+          <SelectField
+            label="Category"
+            id="job-category"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            error={categoryError}
+          >
+            <option value="">Select a category…</option>
+            {categoryRetired && <option value={category}>{category} (inactive)</option>}
+            {(activeCategories ?? []).map((c) => (
+              <option key={c.id} value={c.name}>
+                {c.name}
+              </option>
+            ))}
+            {/* Until the list arrives the listing's own category is the only option known. */}
+            {category && activeCategories === undefined && <option value={category}>{category}</option>}
+          </SelectField>
         </div>
         {/* Employer logo (added 2026-08-18). Sentpo Mobile shows this beside the listing; without
             it every job card falls back to a generated initial, which is what the student sees

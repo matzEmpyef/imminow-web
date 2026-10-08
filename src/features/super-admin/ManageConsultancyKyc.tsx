@@ -6,16 +6,7 @@ import { TextAreaField } from '@/components/TextAreaField'
 import { useConsultancyKyc, useRejectKyc, useVerifyKyc } from '@/queries/kyc'
 import { formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
-import type { components } from '@/api/schema'
-
-type KycState = components['schemas']['KycStatus']['status']
-
-const KYC_BADGE: Record<KycState, { label: string; color: 'success' | 'warning' | 'error' | 'secondary' }> = {
-  verified: { label: 'Verified', color: 'success' },
-  pending: { label: 'Pending', color: 'warning' },
-  rejected: { label: 'Rejected', color: 'error' },
-  not_submitted: { label: 'Not submitted', color: 'secondary' },
-}
+import { KYC_BADGE, type KycState } from './kycBadge'
 
 // The contract's own limit on a rejection reason.
 const REASON_MAX = 500

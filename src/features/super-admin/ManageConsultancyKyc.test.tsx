@@ -55,16 +55,16 @@ describe('KYC review — rejecting a certificate', () => {
     expect(reject.mock.calls[0][0]).toEqual({ consultancyId: 'c1', reason: 'The name does not match.' })
   })
 
-  it('a rejected certificate reads Rejected, with the date and the reason', () => {
+  it('a rejected certificate reads KYC rejected, with the date and the reason', () => {
     show({ ...pending, status: 'rejected', rejected_at: '2026-10-08T09:00:00Z', rejected_reason: 'The name does not match.' })
-    expect(screen.getByText('Rejected')).toBeInTheDocument()
+    expect(screen.getByText('KYC rejected')).toBeInTheDocument()
     expect(screen.getByText('Rejected on 08/10/2026: The name does not match.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument()
   })
 
   it('offers no Reject once the certificate is verified', () => {
     show({ ...pending, status: 'verified' })
-    expect(screen.getByText('Verified')).toBeInTheDocument()
+    expect(screen.getByText('KYC verified')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Verify' })).not.toBeInTheDocument()
   })

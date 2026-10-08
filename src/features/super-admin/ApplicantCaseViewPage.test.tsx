@@ -73,3 +73,26 @@ describe('ApplicantCaseViewPage contact card', () => {
     expect(screen.queryByRole('button', { name: 'Copy phone number' })).toBeNull()
   })
 })
+
+// 2026-10-08: each plan carries its own name, so a case with several plans shows which is which.
+describe('ApplicantCaseViewPage plans', () => {
+  it('shows each plan by its name, beside what it belongs to', async () => {
+    const answer = applicant({})
+    vi.mocked(api.GET).mockResolvedValue({
+      ...answer,
+      data: {
+        ...answer.data,
+        plans: [
+          { id: 'p1', name: 'Canada visa plan', scope: 'case', college_name: null, progress: '2/5' },
+          { id: 'p2', name: 'Admission steps', scope: 'college', college_name: 'Maple College', progress: '0/3' },
+        ],
+      },
+    } as never)
+    renderPage()
+
+    expect(await screen.findByText('Canada visa plan')).toBeInTheDocument()
+    expect(screen.getByText('Case plan')).toBeInTheDocument()
+    expect(screen.getByText('Admission steps')).toBeInTheDocument()
+    expect(screen.getByText('Maple College')).toBeInTheDocument()
+  })
+})

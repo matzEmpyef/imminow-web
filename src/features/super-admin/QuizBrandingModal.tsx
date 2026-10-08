@@ -31,7 +31,7 @@ import { QUIZ_BANNER_ASPECT, QUIZ_CARD_ASPECT, type Event } from './quizShared'
 // The in-quiz banner doubles as the quiz's Happening Now image, which is why a quiz has no
 // separate 16:9 cover field the way a webinar or in-person meeting does.
 export function QuizBrandingModal({ event, onClose }: { event: Event; onClose: () => void }) {
-  const updateEvent = useUpdateEvent(event.id!)
+  const updateEvent = useUpdateEvent(event.id!, event.version)
   const branding = (event.branding ?? {}) as Record<string, unknown>
   const [preloadScreen, setPreloadScreen] = useState(
     typeof branding.preload_screen === 'string' ? branding.preload_screen : '',

@@ -1,13 +1,13 @@
-import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Review F-314: Manage Consultancies keeps its filters in the page address (a refresh or a shared
-// link keeps them), an unverified account is badged by what is true of it ("KYC not verified": the
-// list cannot tell "nothing uploaded" from "awaiting review"), and verifying a certificate refreshes
-// the Needs attention count.
+// link keeps them), an account's KYC is badged by where it stands (`kyc_status` on the row since
+// 2026-10-08: verified, pending review, rejected, or no certificate), and verifying a certificate
+// refreshes the Needs attention count.
 vi.mock('@/api/client', () => ({ api: { GET: vi.fn(), POST: vi.fn(), PATCH: vi.fn() } }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
 vi.mock('@/queries/me', async (importOriginal) => ({
@@ -36,12 +36,12 @@ function Address() {
   return <p data-testid="address">{location.search}</p>
 }
 
-function renderPage(address: string) {
+function renderPage(address: string, row: Record<string, unknown> = {}) {
   useAuthStore.setState({ accessToken: 'test-token' })
   vi.mocked(useMe).mockReturnValue(meAnswered(platformMe({ consultancy_approval: true })))
   mockedGet.mockResolvedValue({
     data: {
-      items: [ROW],
+      items: [{ ...ROW, ...row }],
       meta: { next_cursor: null, total: 1 },
       kind_counts: { consultancy: 1, institute: 0 },
       tier_counts: { starter: 0, business: 1, ultimate: 0 },
@@ -84,10 +84,38 @@ describe('Manage Consultancies filters in the address', () => {
     expect(screen.getByTestId('address')).not.toHaveTextContent('kyc=pending')
   })
 
-  it('badges an unverified account as not verified, not as pending', async () => {
+  it('offers KYC rejected in the Status filter, and asks the server for it', async () => {
     renderPage('/admin/consultancies')
-    expect(await screen.findByText('KYC not verified')).toBeInTheDocument()
-    expect(screen.queryByText('KYC pending')).not.toBeInTheDocument()
+    expect(await screen.findByText('Northwind Education')).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('combobox', { name: 'Status' }), { target: { value: 'kyc_rejected' } })
+    await waitFor(() => expect(screen.getByTestId('address')).toHaveTextContent('status=kyc_rejected'))
+    await waitFor(() =>
+      expect(
+        (mockedGet.mock.calls as unknown[][]).some(
+          ([path, init]) =>
+            path === '/consultancies' &&
+            (init as { params: { query: { status?: string } } }).params.query.status === 'kyc_rejected',
+        ),
+      ).toBe(true),
+    )
+  })
+
+  it.each([
+    ['verified', 'KYC verified'],
+    ['pending', 'KYC pending review'],
+    ['rejected', 'KYC rejected'],
+    ['not_submitted', 'No certificate'],
+  ])('badges a row whose kyc_status is %s as "%s"', async (kycStatus, label) => {
+    renderPage('/admin/consultancies', { kyc_status: kycStatus })
+    const row = (await screen.findByText('Northwind Education')).closest('tr')!
+    expect(within(row).getByText(label)).toBeInTheDocument()
+    expect(screen.queryByText('KYC not verified')).not.toBeInTheDocument()
+  })
+
+  it('shows no KYC badge when the row carries no kyc_status', async () => {
+    renderPage('/admin/consultancies')
+    const row = (await screen.findByText('Northwind Education')).closest('tr')!
+    expect(within(row).queryByText(/KYC|No certificate/)).not.toBeInTheDocument()
   })
 })
 

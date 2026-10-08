@@ -36,6 +36,7 @@ import { formatMoney } from '@/lib/money'
 import { useCurrencyCodes } from '@/lib/currencies'
 import { CONSULTANCY_PLAN_COLUMNS, useCanSeeConsultancyPlans } from '@/lib/me'
 import { KycSection } from './ManageConsultancyKyc'
+import { KYC_BADGE } from './kycBadge'
 import type { components } from '@/api/schema'
 import { BUSINESS_FEATURES, ULTIMATE_FEATURES, STARTER_FEATURES, STARTER_CORE_FEATURES, TIER_ORDER, FEATURE_KEYS, type FeatureDef } from '@/lib/features'
 import { humaniseCode } from '@/lib/humanise'
@@ -902,7 +903,9 @@ export function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consu
             <Badge color="primary" className="capitalize">
               {consultancy.tier}
             </Badge>
-            {!consultancy.kyc_verified && <Badge color="warning">KYC not verified</Badge>}
+            {consultancy.kyc_status && (
+              <Badge color={KYC_BADGE[consultancy.kyc_status].color}>{KYC_BADGE[consultancy.kyc_status].label}</Badge>
+            )}
             {consultancy.active !== false && SUBSCRIPTION_NEEDS_ATTENTION.includes(subscriptionStatus) && (
               <Badge color={tierBadge.color}>Subscription {tierBadge.label.toLowerCase()}</Badge>
             )}
@@ -1460,7 +1463,10 @@ export function ManageConsultanciesPage() {
       render: (c) => (
         <div className="flex items-center gap-xs">
           <Badge color={c.active ? 'success' : 'secondary'}>{c.active ? 'Active' : 'Suspended'}</Badge>
-          {!c.kyc_verified && <Badge color="warning">KYC not verified</Badge>}
+          {/* Where the KYC stands, as the server says it on the row (`kyc_status`, 2026-10-08):
+              before it the list could only say "not verified", which could not tell nothing
+              uploaded from awaiting review from rejected. */}
+          {c.kyc_status && <Badge color={KYC_BADGE[c.kyc_status].color}>{KYC_BADGE[c.kyc_status].label}</Badge>}
         </div>
       ),
     },
@@ -1644,6 +1650,7 @@ export function ManageConsultanciesPage() {
                     <option value="active">Active</option>
                     <option value="suspended">Suspended</option>
                     <option value="kyc_pending">KYC to verify</option>
+                    <option value="kyc_rejected">KYC rejected</option>
                     <option value="expiring">Subscription ending soon</option>
                     <option value="grace">In grace period</option>
                     <option value="lapsed">Subscription lapsed</option>

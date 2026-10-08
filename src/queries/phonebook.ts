@@ -7,6 +7,8 @@ import { ApiError } from './auth'
 export interface PhonebookFilters {
   search?: string
   category?: string
+  /** `name` (the server's default), `category` or `created_at`; `-` in front for descending. */
+  sort?: string
   cursor?: string
 }
 
@@ -14,8 +16,8 @@ export interface PhonebookFilters {
  * Contract gate 9, K13 — `GET /phonebook` is paged (`{items, meta}`) and narrows on the server:
  * `search` matches name, phone and email, `filter[category]` is an exact match. `meta.categories`
  * is every category in use across the caller's whole list (owner Q10), so the picker stays
- * complete on a filtered or paged result. The list has no `sort` param (it comes back by name);
- * `PhonebookPage` orders the page it holds, hence the largest page the contract allows.
+ * complete on a filtered or paged result. The server orders the list too (`sort`, 2026-10-08), so
+ * a column sort covers the whole phonebook and not only the page on screen.
  */
 export function usePhonebook(filters: PhonebookFilters = {}) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
@@ -28,6 +30,7 @@ export function usePhonebook(filters: PhonebookFilters = {}) {
           query: {
             search: filters.search,
             'filter[category]': filters.category,
+            sort: filters.sort,
             cursor: filters.cursor,
             limit: 100,
           },

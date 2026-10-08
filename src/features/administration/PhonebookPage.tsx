@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Pencil, Trash2 } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Button } from '@/components/Button'
@@ -49,10 +49,13 @@ export function PhonebookPage() {
   const [editingContact, setEditingContact] = useState<Contact | null>(null)
   const paging = useCursorPagination()
 
-  // Search and the category filter are narrowed by the server (contract gate 9, K13).
+  // Search and the category filter are narrowed by the server (contract gate 9, K13), and since
+  // 2026-10-08 the server orders the list as well: a column sort is sent as `sort` (`-` in front
+  // for descending) and starts again from the first page, so it orders the whole phonebook.
   const contacts = usePhonebook({
     search: search.trim() || undefined,
     category: categoryFilter || undefined,
+    sort: sort ? `${sort.direction === 'desc' ? '-' : ''}${sort.field}` : undefined,
     cursor: paging.cursor,
   })
 
@@ -66,19 +69,7 @@ export function PhonebookPage() {
   // (no whitelist on POST/PATCH /phonebook), so this needs nothing server-side.
   const addModalCategories = categories.includes('Other') ? categories : [...categories, 'Other']
 
-  // The list has no `sort` param — it arrives by name — so a column sort orders the loaded page.
-  const rows = useMemo(() => {
-    let items = contacts.data?.items ?? []
-    if (sort) {
-      const dir = sort.direction === 'desc' ? -1 : 1
-      items = [...items].sort((a, b) => {
-        const av = (a[sort.field as 'name' | 'category'] ?? '').toLowerCase()
-        const bv = (b[sort.field as 'name' | 'category'] ?? '').toLowerCase()
-        return av < bv ? -1 * dir : av > bv ? 1 * dir : 0
-      })
-    }
-    return items
-  }, [contacts.data, sort])
+  const rows = contacts.data?.items ?? []
 
   const columns: TableColumn<Contact>[] = [
     {
@@ -210,7 +201,10 @@ export function PhonebookPage() {
                 : 'No contacts yet. Add the colleges, agents and other numbers your team calls often.'
           }
           sort={sort}
-          onSortChange={(field, direction) => setSort({ field, direction })}
+          onSortChange={(field, direction) => {
+            setSort({ field, direction })
+            paging.reset()
+          }}
           search={{
             value: search,
             onChange: (value) => {

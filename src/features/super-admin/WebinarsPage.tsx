@@ -65,7 +65,7 @@ function WebinarFormModal({
   const isDuplicating = !isEditing && Boolean(duplicateFrom)
   const source = editingEvent ?? duplicateFrom
   const createEvent = useCreateEvent()
-  const updateEvent = useUpdateEvent(editingEvent?.id ?? '')
+  const updateEvent = useUpdateEvent(editingEvent?.id ?? '', editingEvent?.version)
   const [title, setTitle] = useState(isDuplicating ? `${duplicateFrom?.title ?? ''} (copy)` : (source?.title ?? ''))
   const [description, setDescription] = useState(source?.description ?? '')
   // The zone the admin is TYPING IN, stated rather than assumed (2026-08-23). Physical Meetings

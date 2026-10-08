@@ -69,7 +69,7 @@ export function QuizSettingsModal({
   const isEditing = Boolean(editingEvent)
   const isDuplicating = !isEditing && Boolean(duplicateFrom)
   const createEvent = useCreateEvent()
-  const updateEvent = useUpdateEvent(editingEvent?.id ?? '')
+  const updateEvent = useUpdateEvent(editingEvent?.id ?? '', editingEvent?.version)
   // Form state lives in useQuizForm (Tier B3, 2026-09-03), the treatment CourseFormModal got
   // with useCourseForm: this modal keeps the query hooks and the mutate() call; the hook owns
   // every field, the prize list operations, validity and the payload builder. Duplicating passes

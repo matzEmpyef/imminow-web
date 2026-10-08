@@ -95,3 +95,30 @@ describe('Phonebook deleting', () => {
     expect(mockedDelete).toHaveBeenCalledWith('/phonebook/{id}', { params: { path: { id: 'c1' } } })
   })
 })
+
+// 2026-10-08: the server orders the phonebook (`sort`), so a column sort covers every page.
+describe('Phonebook sorting', () => {
+  const sortsAsked = () =>
+    (mockedGet.mock.calls as unknown[][]).map(
+      ([, init]) => (init as { params: { query: { sort?: string } } }).params.query.sort,
+    )
+
+  it('asks the server for the order instead of reordering the loaded page', async () => {
+    const zed = { ...anand, id: 'c2', name: 'Zed Couriers' }
+    mockedGet.mockResolvedValue(page([zed, anand]))
+    renderPage()
+    expect(await screen.findByText('Anand Travels')).toBeInTheDocument()
+    expect(sortsAsked()).toEqual([undefined])
+
+    fireEvent.click(screen.getByRole('button', { name: /^Name/ }))
+    await waitFor(() => expect(sortsAsked().at(-1)).toBe('name'))
+    fireEvent.click(screen.getByRole('button', { name: /^Name/ }))
+    await waitFor(() => expect(sortsAsked().at(-1)).toBe('-name'))
+    fireEvent.click(screen.getByRole('button', { name: /^Category/ }))
+    await waitFor(() => expect(sortsAsked().at(-1)).toBe('category'))
+
+    // The rows stay in the order the server sent them.
+    const names = screen.getAllByText(/Zed Couriers|Anand Travels/).map((el) => el.textContent)
+    expect(names).toEqual(['Zed Couriers', 'Anand Travels'])
+  })
+})

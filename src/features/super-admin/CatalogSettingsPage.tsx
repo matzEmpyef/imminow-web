@@ -23,9 +23,16 @@ import {
   usePlatformSettings,
   useUpdatePlatformSettings,
 } from '@/queries/catalogSettings'
-import { useCreateStudyLevel, useDeleteStudyLevel, useStudyLevels, useUpdateStudyLevel } from '@/queries/studyLevels'
+import {
+  useCreateStudyLevel,
+  useDeleteStudyLevel,
+  useReorderStudyLevels,
+  useStudyLevels,
+  useUpdateStudyLevel,
+} from '@/queries/studyLevels'
 import { ExchangeRatesTab } from './ExchangeRatesTab'
 import { FieldsOfStudyTab } from './FieldsOfStudyTab'
+import { JobCategoriesTab } from './JobCategoriesTab'
 import { SettingsUsedIn } from './SettingsUsedIn'
 import {
   useCountrySettings,
@@ -60,6 +67,7 @@ const TABS = [
   'Exams',
   'Study Levels',
   'Fields of Study',
+  'Job Categories',
   'Exchange Rates',
   'Score Schemes',
   'Course Popularity',
@@ -116,6 +124,8 @@ export function CatalogSettingsPage() {
           <StudyLevelsTab />
         ) : activeTab === 'Fields of Study' ? (
           <FieldsOfStudyTab />
+        ) : activeTab === 'Job Categories' ? (
+          <JobCategoriesTab />
         ) : activeTab === 'Exchange Rates' ? (
           <ExchangeRatesTab readOnly={!canEditRates} />
         ) : activeTab === 'Score Schemes' ? (
@@ -1509,24 +1519,28 @@ function StudyLevelsTab() {
   )
 }
 
-// Order is a ladder, not an alphabet, so it moves a step at a time rather than being typed:
-// swapping two neighbours' sort_order is the only reorder that cannot produce a gap or a tie.
-function ReorderLevelCell({ level, rows }: { level: StudyLevel; rows: StudyLevel[] }) {
-  const update = useUpdateStudyLevel()
+// Order is a ladder, not an alphabet, so it moves a step at a time rather than being typed.
+// A move sends the WHOLE ladder in its new order as one request (2026-10-08) — every rung's code
+// once, retired rungs included (`rows` is the include-inactive list). It used to be two PATCHes,
+// one per neighbour, and when only one landed two rungs shared a place. If the ladder changed
+// since it was loaded the server refuses the lot; the list is reloaded and a message says so.
+export function ReorderLevelCell({ level, rows }: { level: StudyLevel; rows: StudyLevel[] }) {
+  const update = useReorderStudyLevels()
   const index = rows.findIndex((r) => r.code === level.code)
 
-  function swapWith(other: StudyLevel | undefined) {
-    if (!other) return
-    const mine = level.sort_order ?? 0
-    update.mutate({ code: level.code, sort_order: other.sort_order ?? 0 })
-    update.mutate({ code: other.code, sort_order: mine })
+  function swapWith(otherIndex: number) {
+    if (index < 0 || otherIndex < 0 || otherIndex >= rows.length) return
+    const codes = rows.map((r) => r.code)
+    codes[index] = rows[otherIndex].code
+    codes[otherIndex] = level.code
+    update.mutate(codes)
   }
 
   return (
     <div className="flex items-center gap-xs">
       <button
         type="button"
-        onClick={() => swapWith(rows[index - 1])}
+        onClick={() => swapWith(index - 1)}
         disabled={index <= 0 || update.isPending}
         aria-label={`Move ${level.label} up`}
         title="Move up"
@@ -1536,7 +1550,7 @@ function ReorderLevelCell({ level, rows }: { level: StudyLevel; rows: StudyLevel
       </button>
       <button
         type="button"
-        onClick={() => swapWith(rows[index + 1])}
+        onClick={() => swapWith(index + 1)}
         disabled={index < 0 || index >= rows.length - 1 || update.isPending}
         aria-label={`Move ${level.label} down`}
         title="Move down"

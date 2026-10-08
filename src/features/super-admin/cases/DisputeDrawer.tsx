@@ -13,7 +13,7 @@ import {
   type CaseDispute,
   type DisputeNoteOutcome,
 } from '@/queries/disputes'
-import { CaseConversationExportModal } from '../conversation-export/CaseConversationExportModal'
+import { ConversationExportModal } from '../conversation-export/ConversationExportModal'
 import { AddNoteForm } from './AddNoteForm'
 import { CaseProgressChips } from './CaseProgressChips'
 import { DisputeResolveModal } from './DisputeResolveModal'
@@ -130,8 +130,10 @@ export function DisputeDrawer({
             <p className="text-caption font-medium text-text-secondary">Case</p>
             <div className="flex flex-wrap items-center gap-xs">
               {/* The conversation between this student and this consultancy, as a PDF. Offered on
-                  a resolved dispute too: the record may be asked for afterwards. */}
-              {canExportConversation && dispute.journey_id && (
+                  a resolved dispute too: the record may be asked for afterwards. The export is
+                  asked for by student, and the dispute names them itself (`student_id`,
+                  2026-10-08) — it used to read the whole case just to learn whose it was. */}
+              {canExportConversation && dispute.student_id && (
                 <button type="button" className={LINK_BUTTON} onClick={() => setExportingConversation(true)}>
                   Export conversation
                 </button>
@@ -202,10 +204,9 @@ export function DisputeDrawer({
       {resolving && (
         <DisputeResolveModal dispute={dispute} onClose={() => setResolving(false)} onResolved={onUpdated} />
       )}
-      {exportingConversation && (
-        <CaseConversationExportModal
-          journeyId={dispute.journey_id}
-          studentName={dispute.student_name}
+      {exportingConversation && dispute.student_id && (
+        <ConversationExportModal
+          student={{ id: dispute.student_id, name: dispute.student_name ?? null }}
           consultancyId={dispute.consultancy_id}
           onClose={() => setExportingConversation(false)}
         />

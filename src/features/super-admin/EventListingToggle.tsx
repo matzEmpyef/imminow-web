@@ -16,7 +16,7 @@ type Event = components['schemas']['Event']
 // popup" rule — this is the closest thing to one); restoring is a plain click, since it only
 // puts back what was there.
 export function EventListingToggle({ event }: { event: Event }) {
-  const updateEvent = useUpdateEvent(event.id!)
+  const updateEvent = useUpdateEvent(event.id!, event.version)
   const [confirming, setConfirming] = useState(false)
   const unlisted = event.listed === false
   // 2026-09-11 (Marketing review): unlisting an upcoming webinar/meeting that already has

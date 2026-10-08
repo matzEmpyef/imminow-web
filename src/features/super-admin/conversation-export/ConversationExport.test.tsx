@@ -425,6 +425,7 @@ describe('who is offered the export', () => {
   const DISPUTE = {
     id: 'd1',
     journey_id: 'j1',
+    student_id: 'user-meera',
     consultancy_id: 'c-north',
     consultancy_name: 'Northwind Education',
     student_name: 'Meera Pillai',
@@ -434,13 +435,18 @@ describe('who is offered the export', () => {
     case_progress: null,
   } as unknown as CaseDispute
 
-  it('Dispute drawer: finds the student from the case and starts on the dispute’s consultancy', async () => {
+  it('Dispute drawer: opens for the dispute’s own student, without reading the case, on the dispute’s consultancy', async () => {
     renderIn(<DisputeDrawer dispute={DISPUTE} onClose={() => {}} onUpdated={() => {}} />)
     fireEvent.click(screen.getByRole('button', { name: 'Export conversation' }))
 
     expect(await screen.findByLabelText(/Northwind Education/)).toBeChecked()
-    expect(calls('/admin/applicants/{id}')[0][1]).toMatchObject({ params: { path: { id: 'j1' } } })
+    expect(calls('/admin/applicants/{id}')).toHaveLength(0)
     expect(calls('/users/{id}/conversations')[0][1]).toMatchObject({ params: { path: { id: 'user-meera' } } })
+  })
+
+  it('Dispute drawer: not offered when the dispute names no student', () => {
+    renderIn(<DisputeDrawer dispute={{ ...DISPUTE, student_id: null }} onClose={() => {}} onUpdated={() => {}} />)
+    expect(screen.queryByRole('button', { name: 'Export conversation' })).not.toBeInTheDocument()
   })
 
   it('Dispute drawer: not offered without the permission', () => {
