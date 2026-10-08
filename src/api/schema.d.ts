@@ -12799,6 +12799,9 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
+                        /** @description Optional. See `Campus.name`; null clears it. */
+                        name?: string | null;
+                        city?: string | null;
                         province_state?: string;
                         country?: string;
                         active?: boolean;
@@ -12891,6 +12894,649 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog-imports/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download the empty import workbook (XLSX) — `catalog` permission
+         * @description Bulk import of campuses and courses (owner-approved plan, 2026-10-09). The workbook is built at the moment of the call: sheets `Read me`, `Campuses`, `Courses`, `Intakes`, `Tests`, `Lists`. Every dropdown is a data validation that refuses other values, filled from the live reference data (countries, study levels, fields of study, currencies, exams) and the fixed lists. The body is the file itself; `Content-Disposition` carries the file name. The console shows its "How to fill it" popup when this is downloaded.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The workbook */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog-imports/catalogue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download the current catalogue in the import workbook's shape — `catalog` permission
+         * @description The same workbook as the template, filled in with the campuses, courses, intakes and tests that exist now, each campus and course with its `Record ID`. Edit it and upload it back. `college_id` limits it to one college. A catalogue of more than 20,000 rows in all cannot be uploaded back in one file, so without `college_id` it is refused with 400 `validation_failed` and a message asking to pick a college.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    college_id?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The workbook */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    };
+                };
+                /** @description `validation_failed` — more than 20,000 rows; pick a college. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such college */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog-imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Import history, newest first — `catalog` permission
+         * @description Every upload: who, when, the file name, its counts and its state. `can_undo` and `undo_until` say whether "Undo this import" is offered.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A page of imports */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["CatalogImport"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Upload a filled-in workbook (XLSX) or one sheet as CSV — starts the check
+         * @description `multipart/form-data` with `file`, and for a CSV file `sheet` (which sheet the file is: `campuses`, `courses`, `intakes` or `tests`; a CSV must be saved as "CSV UTF-8"). Up to 5 MB and 20,000 data rows in all. NOTHING IS SAVED TO THE CATALOGUE: the answer is 202 with the import in `status: checking`, and a background job reads and checks the file. Poll `GET /catalog-imports/{id}` (every 2 seconds is fine) until `status` leaves `checking`, showing `progress.percent`. Then `ready` = the preview is there (rows, errors, warnings on their own routes); `failed` = the file could not be read at all (`message` says why and what to do).
+         *
+         *     Refused at once with 400 `validation_failed` (message to show as it is): no file, a file that is neither .xlsx nor .csv, a CSV without `sheet`, or a file over 5 MB. A body far over the limit is 413 `payload_too_large`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "multipart/form-data": {
+                        /** Format: binary */
+                        file: string;
+                        /** @enum {string} */
+                        sheet?: "campuses" | "courses" | "intakes" | "tests";
+                    };
+                };
+            };
+            responses: {
+                /** @description Stored; the check has started */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CatalogImport"];
+                    };
+                };
+                /** @description `validation_failed` — see the description */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog-imports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One import — its state, progress and counts (the route to poll) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The import */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CatalogImport"];
+                    };
+                };
+                /** @description No such import */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog-imports/{id}/rows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The preview, row by row — new, changed (old → new per field) and unchanged
+         * @description The checked rows in file order, one page at a time. `sheet` and `kind` narrow the list (the counts for the tabs are in `CatalogImport.summary`). A changed row lists each field that would change with its old and new value, already worded for display. Empty once the import is `purged`.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    sheet?: "campuses" | "courses" | "intakes" | "tests";
+                    kind?: "new" | "changed" | "unchanged";
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A page of preview rows */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["CatalogImportRow"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
+                    };
+                };
+                /** @description No such import */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog-imports/{id}/errors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every problem found in the file, all at once
+         * @description Any error anywhere blocks the whole import: Apply stays off until a corrected file is uploaded. Each item says the sheet, the row, the column, the value found, what is allowed and, for a near miss, a "did you mean". In file order.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A page of errors */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["CatalogImportError"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
+                    };
+                };
+                /** @description No such import */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog-imports/{id}/errors/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The error list as a CSV file
+         * @description Columns: Sheet, Row, Column, Value found, Problem, Allowed values, Did you mean. UTF-8 with a byte-order mark so a spreadsheet opens it correctly. 404 when the import has no errors or has been purged.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The file */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/csv": string;
+                    };
+                };
+                /** @description No such import, or no error list */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog-imports/{id}/warnings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Near matches the user must tick before applying
+         * @description A new campus or course whose name is close to one that already exists at the same college (but not the same after ignoring case and spacing) is never created silently. Each warning has an `id`; `POST /catalog-imports/{id}/apply` must list every one in `accepted_warning_ids`. All of them, not paged (at most 500 are kept; a file with more is given an error asking to correct the names).
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The warnings */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["CatalogImportWarning"][];
+                        };
+                    };
+                };
+                /** @description No such import */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog-imports/{id}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply the previewed import — all or nothing, in the background
+         * @description Allowed when `can_apply` is true. Answers 202 with `status: applying`; poll `GET /catalog-imports/{id}` and show `progress.percent`. It ends as `applied` (everything was saved) or `stale` (nothing was saved: a record the import touches was changed after the preview — upload the file again for a new preview). The person who pressed Apply also gets a bell notification at the end. New campuses and courses are created as drafts; changes to live courses take effect at once.
+         *
+         *     409 `conflict`, nothing started, with `error.details.reason`: `not_ready` (still checking, failed, already applied or undone), `errors` (the file has errors), `nothing_to_change`, `already_imported`, `warnings_not_accepted` (`details.missing_warning_ids` lists them), `stale` (a touched record changed since the preview), `another_import_running` (one import is applied or undone at a time), `expired` (the preview was purged). `error.message` is the sentence to show.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @description Every `CatalogImportWarning.id` of this import, ticked by the user. */
+                        accepted_warning_ids?: number[];
+                    };
+                };
+            };
+            responses: {
+                /** @description The apply has started */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CatalogImport"];
+                    };
+                };
+                /** @description No such import */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `conflict` — see `error.details.reason` */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog-imports/{id}/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo an applied import (within 7 days) — in the background
+         * @description Allowed when `can_undo` is true (until `undo_until`). Answers 202 with `status: undoing`; poll `GET /catalog-imports/{id}` until `undone`. Records the import created are removed when they are still untouched drafts, otherwise switched off; records it changed go back to their earlier values. A record somebody edited by hand since the import is left alone and listed (`GET /catalog-imports/{id}/undo-report`, counts in `undo_summary`). After an undo the same file can be imported again as a fresh import.
+         *
+         *     409 `conflict` with `error.details.reason`: `not_applied`, `undo_window_passed`, `another_import_running`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The undo has started */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CatalogImport"];
+                    };
+                };
+                /** @description No such import */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `conflict` — see `error.details.reason` */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog-imports/{id}/undo-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What an undo did, record by record
+         * @description One item per campus or course the import had created or changed. `outcome` narrows the list; `left_alone` are the records edited by hand since the import, which the undo did not touch.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    outcome?: "restored" | "removed" | "retired" | "left_alone";
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A page of undo outcomes */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["CatalogImportUndoRecord"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
+                    };
+                };
+                /** @description No such import */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -29496,6 +30142,8 @@ export interface components {
         };
         Campus: {
             id: components["schemas"]["UUID"];
+            /** @description The campus's own name, e.g. "Toronto Downtown" (bulk import plan, 2026-10-09). Null for a campus that was never given one: show its city (or province) instead. Unique within its college, ignoring case and spacing (409 `duplicate_campus`). */
+            name?: string | null;
             /** @description One of GET /countries/{name}/states for this campus's country (2026-09-15); anything else is refused 422. */
             province_state: string;
             city?: string | null;
@@ -29507,11 +30155,183 @@ export interface components {
             readonly course_count?: number;
         };
         CampusInput: {
+            /** @description Optional. See `Campus.name`. */
+            name?: string | null;
             /** @description One of GET /countries/{name}/states for this campus's country (2026-09-15); anything else is refused 422. */
             province_state: string;
             city?: string | null;
             country: string;
             active?: boolean;
+        };
+        CatalogImportPerson: {
+            id: components["schemas"]["UUID"];
+            name: string;
+        };
+        CatalogImportSheetCounts: {
+            /** @enum {string} */
+            sheet: "campuses" | "courses" | "intakes" | "tests";
+            rows: number;
+            new: number;
+            changed: number;
+            unchanged: number;
+            errors: number;
+        };
+        /** @description One upload of the catalogue import workbook, from check to apply to undo (bulk import plan, owner-approved 2026-10-09). The console shows what the server computed and decides nothing itself: `message`, `apply_blocked_message` and `already_imported.message` are sentences to show as they are; `can_apply` and `can_undo` switch the buttons. */
+        CatalogImport: {
+            id: components["schemas"]["UUID"];
+            /**
+             * @description `checking` the file is being read (poll); `failed` it could not be read — upload another; `ready` the preview is there (it may hold errors: see `can_apply`); `applying` (poll); `applied`; `stale` the apply was refused because a touched record changed after the preview, nothing was saved — upload the file again; `undoing` (poll); `undone`.
+             * @enum {string}
+             */
+            status: "checking" | "failed" | "ready" | "applying" | "applied" | "stale" | "undoing" | "undone";
+            /** @description One plain sentence about where this import stands, to show as it is. */
+            message?: string | null;
+            file_name: string;
+            /** @enum {string} */
+            file_format: "xlsx" | "csv";
+            /**
+             * @description For a CSV upload, the sheet it was uploaded as.
+             * @enum {string|null}
+             */
+            csv_sheet?: "campuses" | "courses" | "intakes" | "tests" | null;
+            /** Format: date-time */
+            created_at: string;
+            uploaded_by?: components["schemas"]["CatalogImportPerson"] | null;
+            /** @description While `checking`, `applying` or `undoing`; null otherwise. */
+            progress?: {
+                /** @enum {string} */
+                phase: "check" | "apply" | "undo";
+                done: number;
+                total?: number | null;
+                percent: number;
+            } | null;
+            /** @description The preview's counts; null until the check has finished. */
+            summary?: {
+                rows: number;
+                new: number;
+                changed: number;
+                unchanged: number;
+                errors: number;
+                warnings: number;
+                sheets: components["schemas"]["CatalogImportSheetCounts"][];
+            } | null;
+            can_apply: boolean;
+            /**
+             * @description Why Apply is off; null when `can_apply` is true.
+             * @enum {string|null}
+             */
+            apply_blocked_reason?: "not_ready" | "errors" | "nothing_to_change" | "already_imported" | "stale" | "expired" | null;
+            /** @description The sentence to show beside the disabled Apply button. */
+            apply_blocked_message?: string | null;
+            /** @description Set when this exact file (same bytes) was already imported and not undone: every row reads unchanged and Apply is off. */
+            already_imported?: {
+                import_id: components["schemas"]["UUID"];
+                /** Format: date-time */
+                applied_at: string;
+                applied_by_name?: string | null;
+                /** @description "This file was already imported on <date> by <name>." */
+                message: string;
+            } | null;
+            /** Format: date-time */
+            applied_at?: string | null;
+            applied_by?: components["schemas"]["CatalogImportPerson"] | null;
+            can_undo: boolean;
+            /**
+             * Format: date-time
+             * @description Seven days after `applied_at`.
+             */
+            undo_until?: string | null;
+            /** Format: date-time */
+            undone_at?: string | null;
+            undone_by?: components["schemas"]["CatalogImportPerson"] | null;
+            undo_summary?: {
+                /** @description Changed records put back to their earlier values. */
+                restored: number;
+                /** @description Records the import created that were still untouched drafts. */
+                removed: number;
+                /** @description Records the import created that had been used since; switched off. */
+                retired: number;
+                /** @description Records edited by hand since the import; not touched. */
+                left_alone: number;
+            } | null;
+            /** @description True once the uploaded file and the preview have been removed (seven days after the apply, or after the upload when it was never applied). The history line stays. */
+            purged: boolean;
+            /** Format: date-time */
+            purge_after?: string | null;
+            /** @description Whether `GET /catalog-imports/{id}/errors/download` has a file to give. */
+            has_error_file: boolean;
+        };
+        CatalogImportRow: {
+            /** @enum {string} */
+            sheet: "campuses" | "courses" | "intakes" | "tests";
+            /** @description The row in the sheet as a spreadsheet numbers it (the header is row 1). */
+            row_number: number;
+            /** @enum {string} */
+            kind: "new" | "changed" | "unchanged";
+            /**
+             * @description What the row belongs to (an Intakes or Tests row belongs to its course).
+             * @enum {string}
+             */
+            record_type: "campus" | "course";
+            /** @description The existing campus or course; null for one this import would create. */
+            record_id?: components["schemas"]["UUID"] | null;
+            college_id?: components["schemas"]["UUID"] | null;
+            college_name?: string | null;
+            /** @description The row in a few words, e.g. the course's name and level. */
+            label: string;
+            /** @description For `new`: every filled field (`old` null). For `changed`: only what differs. Empty for `unchanged`. */
+            changes: {
+                /** @description The sheet's column heading. */
+                column: string;
+                old?: string | null;
+                /** @description Null when the field is emptied. */
+                new?: string | null;
+                /** @description True when the values are web addresses to show as clickable links. */
+                link?: boolean;
+            }[];
+        };
+        CatalogImportError: {
+            /**
+             * @description Null for a problem with the file as a whole.
+             * @enum {string|null}
+             */
+            sheet?: "campuses" | "courses" | "intakes" | "tests" | null;
+            row_number?: number | null;
+            column?: string | null;
+            /** @description The value found in the cell. */
+            value?: string | null;
+            /** @description What is wrong and what to do, in plain words. */
+            message: string;
+            /** @description The values the column accepts (the first 50 of a long list). */
+            allowed_values?: string[] | null;
+            allowed_values_total?: number | null;
+            did_you_mean?: string | null;
+        };
+        CatalogImportWarning: {
+            id: number;
+            /** @enum {string} */
+            sheet: "campuses" | "courses" | "intakes" | "tests";
+            row_number: number;
+            column?: string | null;
+            value?: string | null;
+            message: string;
+            near_match: {
+                /** @enum {string} */
+                record_type: "campus" | "course";
+                record_id: components["schemas"]["UUID"];
+                name: string;
+            };
+        };
+        CatalogImportUndoRecord: {
+            /** @enum {string} */
+            record_type: "campus" | "course";
+            /** @description Null when the record was removed. */
+            record_id?: components["schemas"]["UUID"] | null;
+            college_name?: string | null;
+            label: string;
+            /** @enum {string} */
+            outcome: "restored" | "removed" | "retired" | "left_alone";
+            message?: string | null;
         };
         /** @description Admin-managed exams catalog (COURSES_MODULE_PLAN.md §1.3, decided 2026-08-21) — the previously hardcoded exam list becomes data so a platform admin can add a new exam (Duolingo, a state CET) without a developer. Both the student Profile "Add exam" dropdown AND the course requirements form pick from this one list, which is what makes requirements and student scores automatically comparable across Study Abroad and Study in India. */
         Exam: {
@@ -33334,12 +34154,14 @@ export interface components {
             /** @description Null for platform-level actions with no single owning consultancy. */
             consultancy_id?: components["schemas"]["UUID"];
             /**
-             * @description The base CRUD/view set, plus named actions the mock writes that are not really a create/update/delete of the row they attach to (gate 2, 2026-09-24, grepped from every `recordAudit` call in the mock): `kyc_verified`, `link_college`, `rating_requested` (freelancer), `renewal_requested`, `upgrade_requested`, `upgrade_request_withdrawn` (consultancy plan), `rating_override_set`/ `rating_override_cleared` (Super Admin on a consultancy's rating), `rating_excluded`/`rating_restored` (2026-10-06: platform staff taking a student's rating out of a consultancy's score, or putting it back; entity_type `rating`), `hide`/`publish` (review moderation), and `country_content.updated` (the one dotted name in the set — left as the mock already writes it rather than renamed to fit the others).
+             * @description `catalog_imported` / `catalog_import_undone` (2026-10-09): one entry per bulk import applied and per undo (entity_type `catalog_import`); each campus and course it created or changed has its own `create`/`update` entry, as a hand edit writes.
+             *
+             *     The base CRUD/view set, plus named actions the mock writes that are not really a create/update/delete of the row they attach to (gate 2, 2026-09-24, grepped from every `recordAudit` call in the mock): `kyc_verified`, `link_college`, `rating_requested` (freelancer), `renewal_requested`, `upgrade_requested`, `upgrade_request_withdrawn` (consultancy plan), `rating_override_set`/ `rating_override_cleared` (Super Admin on a consultancy's rating), `rating_excluded`/`rating_restored` (2026-10-06: platform staff taking a student's rating out of a consultancy's score, or putting it back; entity_type `rating`), `hide`/`publish` (review moderation), and `country_content.updated` (the one dotted name in the set — left as the mock already writes it rather than renamed to fit the others).
              *
              *     Gate 12c (2026-10-02) adds the named actions Waves 6 and 7 record (plan §4, §5). A plain create/update of a row stays `create`/`update` (an invoice, receipt, installment, dues row, complaint, freelancer rate or app-config edit); a name below is for an act that is more than that. Settlement (area `billing` for the consultancy's writes, `finance` for platform ones): `installment_voided`, `installment_void_requested` (the consultancy asks to void an installment whose share is due), `installment_void_declined` (Finance says no; an approval is `installment_voided` under `finance`), `due_added`, `due_overridden` (the original due), `due_settled` (a small shortfall written off), `due_waived`, `due_change_voided`, `payment_declared`, `payment_confirmed`, `payment_rejected`, `payment_corrected`, `payment_received` (Finance's receive). Invoicing (`billing`): `invoice_voided`, `receipt_voided`. Moderation: `applicant_allocated`, `applicant_declined`. Support (`support`): `case_switched`, `email_changed`, `data_exported`, `note_added` (case notes, complaint and dispute notes, follow-up notes), `nudge_sent` (student and visit-request nudges), `complaint_assigned`, `complaint_resolved`, `dispute_raised`, `dispute_escalated`, `dispute_picked_up`, `dispute_resolved`. Freelancers: `freelancer_invited`, `freelancer_invite_resent`, `freelancer_rate_set`, `freelancer_payout_recorded`, `freelancer_payout_voided`. Platform: `app_config_changed`, `analytics_archived`, `analytics_restored` (Q8's archive and restore jobs). Also listed because the backend already writes them and the contract never did: `merchant_code_rejected` (a wrong redemption-partner code, K17) and `freelancer_referral_payment_updated` (legacy; F55 retired the field, so no new rows). Every value is a superset addition — none renamed or removed. The mock writes none of the new ones.
              * @enum {string}
              */
-            action_type: "create" | "update" | "delete" | "view" | "kyc_verified" | "link_college" | "rating_requested" | "renewal_requested" | "upgrade_requested" | "upgrade_request_withdrawn" | "rating_override_set" | "rating_override_cleared" | "rating_excluded" | "rating_restored" | "hide" | "publish" | "country_content.updated" | "installment_voided" | "installment_void_requested" | "installment_void_declined" | "due_added" | "due_overridden" | "due_waived" | "due_change_voided" | "due_settled" | "payment_declared" | "payment_confirmed" | "payment_rejected" | "payment_corrected" | "payment_received" | "invoice_voided" | "receipt_voided" | "applicant_allocated" | "applicant_declined" | "case_switched" | "email_changed" | "data_exported" | "note_added" | "nudge_sent" | "complaint_assigned" | "complaint_resolved" | "dispute_raised" | "dispute_escalated" | "dispute_picked_up" | "dispute_resolved" | "freelancer_invited" | "freelancer_invite_resent" | "freelancer_rate_set" | "freelancer_payout_recorded" | "freelancer_payout_voided" | "app_config_changed" | "analytics_archived" | "analytics_restored" | "merchant_code_rejected" | "freelancer_referral_payment_updated";
+            action_type: "create" | "update" | "delete" | "view" | "kyc_verified" | "link_college" | "rating_requested" | "renewal_requested" | "upgrade_requested" | "upgrade_request_withdrawn" | "rating_override_set" | "rating_override_cleared" | "rating_excluded" | "rating_restored" | "hide" | "publish" | "country_content.updated" | "installment_voided" | "installment_void_requested" | "installment_void_declined" | "due_added" | "due_overridden" | "due_waived" | "due_change_voided" | "due_settled" | "payment_declared" | "payment_confirmed" | "payment_rejected" | "payment_corrected" | "payment_received" | "invoice_voided" | "receipt_voided" | "applicant_allocated" | "applicant_declined" | "case_switched" | "email_changed" | "data_exported" | "note_added" | "nudge_sent" | "complaint_assigned" | "complaint_resolved" | "dispute_raised" | "dispute_escalated" | "dispute_picked_up" | "dispute_resolved" | "freelancer_invited" | "freelancer_invite_resent" | "freelancer_rate_set" | "freelancer_payout_recorded" | "freelancer_payout_voided" | "app_config_changed" | "analytics_archived" | "analytics_restored" | "merchant_code_rejected" | "freelancer_referral_payment_updated" | "catalog_imported" | "catalog_import_undone";
             /** @description e.g. lead, client, plan, step, employee, designation, branch, tag. */
             entity_type: string;
             /** @description The audited entity's key. A UUID for most entities; some are keyed by something else the mock already writes here — a country by name (`country_content.updated`), a currency code, a coupon/referral code, or the literal `defaults`, `platform_settings`, `app_config` or `trending` for singleton configuration rows (gate 2, 2026-09-24). */
