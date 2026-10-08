@@ -156,6 +156,14 @@ const CollegesCoursesPage = lazyPage(() =>
 const CollegeDetailPage = lazyPage(() =>
   import('@/features/super-admin/CollegeDetailPage').then((m) => ({ default: m.CollegeDetailPage })),
 )
+const CatalogImportPage = lazyPage(() =>
+  import('@/features/super-admin/catalog-import/CatalogImportPage').then((m) => ({ default: m.CatalogImportPage })),
+)
+const CatalogImportDetailPage = lazyPage(() =>
+  import('@/features/super-admin/catalog-import/CatalogImportDetailPage').then((m) => ({
+    default: m.CatalogImportDetailPage,
+  })),
+)
 const InstitutionsPage = lazyPage(() =>
   import('@/features/super-admin/InstitutionsPage').then((m) => ({ default: m.InstitutionsPage })),
 )
@@ -616,6 +624,11 @@ function App() {
         </Route>
         <Route element={<PlatformLayout permission="catalog" />}>
           <Route path="/admin/colleges" element={<CollegesCoursesPage />} />
+          {/* Bulk import of campuses and courses (owner-approved plan, 2026-10-09). Under
+              /admin/colleges so the sidebar keeps Colleges & Courses lit; the fixed word `import`
+              outranks the `:id` route below. */}
+          <Route path="/admin/colleges/import" element={<CatalogImportPage />} />
+          <Route path="/admin/colleges/import/:id" element={<CatalogImportDetailPage />} />
           <Route path="/admin/colleges/:id" element={<CollegeDetailPage />} />
           <Route path="/admin/course-suggestions-review" element={<CourseSuggestionsReviewPage />} />
           <Route path="/admin/institutions" element={<InstitutionsPage />} />

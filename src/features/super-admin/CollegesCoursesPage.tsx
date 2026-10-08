@@ -411,8 +411,13 @@ export function CollegesCoursesPage() {
             <p className="text-body-sm text-text-secondary">Click a college to manage its campuses and courses.</p>
           </div>
           <div className="flex flex-col items-end gap-xs">
-            <div className="flex gap-sm">
+            <div className="flex flex-wrap justify-end gap-sm">
               <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleFileChange} />
+              {/* Colleges come in through the CSV import beside it; their campuses and courses
+                  through this one (bulk import plan, 2026-10-09). */}
+              <Button variant="secondary" onClick={() => navigate('/admin/colleges/import')}>
+                Import campuses and courses
+              </Button>
               <Button variant="secondary" loading={importColleges.isPending} onClick={handleImportClick}>
                 Import CSV
               </Button>
