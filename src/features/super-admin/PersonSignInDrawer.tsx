@@ -12,6 +12,8 @@ import { ApiError } from '@/queries/auth'
 import { formatDate, formatDateTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { SIGN_IN_METHOD_LABELS, SIGN_IN_OUTCOME_LABELS, SIGN_IN_PLATFORM_LABELS } from '@/lib/signIns'
+import { useCanExportConversations } from '@/lib/me'
+import { ConversationExportModal } from './conversation-export/ConversationExportModal'
 
 /**
  * Sign-in history plus two record-management actions (review M9, 2026-09-12).
@@ -153,6 +155,25 @@ function SignOutEverywhereAction({ person }: { person: SignInHistoryPerson }) {
   )
 }
 
+/**
+ * "Export conversation" — a student's whole conversation with one consultancy as a PDF, for a
+ * dispute or complaint. Students only, and only for platform staff holding `support` and Super
+ * Admins: `user_directory`, which opens this drawer, does not give it.
+ */
+function ExportConversationAction({ person }: { person: SignInHistoryPerson }) {
+  const [open, setOpen] = useState(false)
+  const canExport = useCanExportConversations()
+  if (person.kind !== 'student' || !canExport) return null
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className="text-caption font-medium text-primary hover:underline">
+        Export conversation
+      </button>
+      {open && <ConversationExportModal student={{ id: person.id, name: person.name }} onClose={() => setOpen(false)} />}
+    </>
+  )
+}
+
 export function PersonSignInDrawer({ person, onClose }: { person: SignInHistoryPerson | null; onClose: () => void }) {
   const history = useUserSignIns(person?.id ?? null)
 
@@ -171,6 +192,7 @@ export function PersonSignInDrawer({ person, onClose }: { person: SignInHistoryP
             <div className="flex shrink-0 flex-col items-end gap-xs">
               <GoToRecordAction person={person} />
               <SignOutEverywhereAction person={person} />
+              <ExportConversationAction person={person} />
             </div>
           </div>
           {history.isLoading ? (

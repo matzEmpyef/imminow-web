@@ -10,11 +10,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // confirm stops offering to take over from the previous owner, and the user can take over again.
 vi.mock('@/api/client', () => ({ api: { GET: vi.fn(), PATCH: vi.fn(), POST: vi.fn() } }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
+vi.mock('@/queries/me', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/queries/me')>()),
+  useMe: vi.fn(),
+}))
 vi.mock('@/features/auth/AdminShell', () => ({ AdminShell: ({ children }: { children: ReactNode }) => <div>{children}</div> }))
 
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import type { Complaint } from '@/queries/complaints'
+import { useMe } from '@/queries/me'
+import { meAnswered, platformMe } from '@/test/me'
 import { ComplaintsPage } from './ComplaintsPage'
 
 const mockedGet = vi.mocked(api.GET)
@@ -78,6 +84,7 @@ beforeEach(() => {
   mockedGet.mockReset()
   mockedPatch.mockReset()
   useAuthStore.setState({ accessToken: 'test-token' })
+  vi.mocked(useMe).mockReturnValue(meAnswered(platformMe({ support: true })))
   served = complaint()
   releaseList = null
   let held = false

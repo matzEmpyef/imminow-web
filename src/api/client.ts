@@ -142,12 +142,15 @@ function bearerOf(request: Request): string | null {
 }
 
 // Refusals that mean the console's picture of the caller is out of date (review F-036): a
-// permission was taken away, a plan feature was switched off, or the subscription lapsed since
-// `GET /me` last answered. Asking `/me` again is what makes the buttons and pages on screen match
-// what the server will now allow. The literal key and codes are repeated from `queries/me.ts`
-// rather than imported: that module imports this one.
+// permission was taken away, a plan feature was switched off, the subscription lapsed, or the
+// account was switched off since `GET /me` last answered. Asking `/me` again is what makes the
+// buttons and pages on screen match what the server will now allow. `account_disabled` (owner
+// decision 58: every request of a blocked consultancy's staff answers it) is here so the whole
+// console gives way to the server's own sentence at once (`SessionGate`), not only the one list
+// that happened to ask. The literal key and codes are repeated from `queries/me.ts` rather than
+// imported: that module imports this one.
 const ME_QUERY_KEY = ['me']
-const ME_STALE_REFUSAL_CODES = new Set(['permission_denied', 'feature_locked', 'subscription_lapsed'])
+const ME_STALE_REFUSAL_CODES = new Set(['permission_denied', 'feature_locked', 'subscription_lapsed', 'account_disabled'])
 
 async function refreshMeOnStaleRefusal(response: Response, schemaPath: string) {
   // `/me` refusing is its own answer (the guards show it); asking again would loop.

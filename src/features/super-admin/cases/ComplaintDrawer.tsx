@@ -6,6 +6,7 @@ import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Drawer } from '@/components/Drawer'
 import { ContactLink } from '@/components/CopyButton'
+import { useCanExportConversations } from '@/lib/me'
 import { formatDate, formatDateTime } from '@/lib/time'
 import {
   useAddComplaintNote,
@@ -14,6 +15,7 @@ import {
   type Complaint,
   type ComplaintNoteOutcome,
 } from '@/queries/complaints'
+import { ConversationExportModal } from '../conversation-export/ConversationExportModal'
 import { AddNoteForm } from './AddNoteForm'
 import { ComplaintEscalateModal } from './ComplaintEscalateModal'
 import { ComplaintResolveModal } from './ComplaintResolveModal'
@@ -43,6 +45,8 @@ export function ComplaintDrawer({
   const [escalating, setEscalating] = useState(false)
   const [resolving, setResolving] = useState(false)
   const [confirmingTakeOver, setConfirmingTakeOver] = useState(false)
+  const [exportingConversation, setExportingConversation] = useState(false)
+  const canExportConversation = useCanExportConversations()
 
   const update = useUpdateComplaint(complaint.id)
   const notes = useComplaintNotes(complaint.id)
@@ -110,11 +114,20 @@ export function ComplaintDrawer({
             ) : (
               <span className="text-body-sm text-text-primary">— (no consultancy named)</span>
             )}
-            {complaint.journey_id && (
-              <Link to={`/admin/applicants/${complaint.journey_id}`} className={LINK_BUTTON}>
-                Open case
-              </Link>
-            )}
+            <div className="flex flex-wrap items-center gap-xs">
+              {/* The student's conversation with a consultancy, as a PDF: it starts on the one
+                  this complaint names, when they have talked. */}
+              {canExportConversation && (
+                <button type="button" className={LINK_BUTTON} onClick={() => setExportingConversation(true)}>
+                  Export conversation
+                </button>
+              )}
+              {complaint.journey_id && (
+                <Link to={`/admin/applicants/${complaint.journey_id}`} className={LINK_BUTTON}>
+                  Open case
+                </Link>
+              )}
+            </div>
           </div>
           {complaint.consultancy_change_requested && (
             <div className="flex flex-wrap items-center justify-between gap-sm rounded-md bg-warning/10 px-md py-sm text-body-sm text-warning">
@@ -228,6 +241,13 @@ export function ComplaintDrawer({
       )}
       {resolving && (
         <ComplaintResolveModal complaint={complaint} onClose={() => setResolving(false)} onResolved={onUpdated} />
+      )}
+      {exportingConversation && (
+        <ConversationExportModal
+          student={{ id: complaint.user_id, name: complaint.student_name }}
+          consultancyId={complaint.consultancy_id}
+          onClose={() => setExportingConversation(false)}
+        />
       )}
       {confirmingTakeOver && (
         <TakeOverConfirmModal

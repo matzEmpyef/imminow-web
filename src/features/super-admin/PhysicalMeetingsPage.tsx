@@ -264,6 +264,7 @@ function MeetingFormModal({
             onChange={setTargeting}
             countries={countries.data ?? []}
             unknownDataPolicy="includes"
+            surface="events"
           />
         </div>
       </form>

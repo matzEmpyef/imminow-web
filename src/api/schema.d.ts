@@ -13,7 +13,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Student signup (email/password or Google) */
+        /**
+         * Student signup (email/password; local and CI only)
+         * @description RETIRED FOR GOOGLE (2026-10-08, owner decision 48): `google_token` is gone from this body. A Google or Apple sign-in — first time or returning — is POST /auth/federated, which finishes a new account on the door's own details screen (POST /auth/passwordless/complete-signup). What remains here is the password form the qa suite uses; staging and production refuse it (400 `validation_failed`, "Sign up with your email or phone number instead."). No app calls this route.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -29,7 +32,6 @@ export interface paths {
                         /** Format: email */
                         email: string;
                         password?: string | null;
-                        google_token?: string | null;
                         /** @description Optional phone, in E.164 (e.g. +919876543210) — the client adds the country code (the app's dial-code chip) before sending. A bare national number (9876543210) is refused 400 `validation_failed` by the real backend; the mock was more lenient. Checked, never stored (owner, 2026-10-06): a contact is saved on the account only once its one-time code is entered, so the real backend creates the account without it (409 `identifier_in_use` when the number already signs another account in) and the client adds it afterwards, signed in, through POST /auth/otp/request and POST /auth/otp/verify. */
                         phone?: string | null;
                         /** @description Someone ELSE's code, resolved server-side at signup (2026-08-19 — codes were stored as an inert string before; nothing consumed them). Three outcomes by code owner — **student**: the referrer is credited the referral_signup earn rule via the standard crediting path (cap enforced; self-referral impossible since the new account can't own a code yet; real backend credits when the referred account verifies, the mock at creation since its accounts are born verified — documented simplification). **Freelancer**: full Channel C (build reference 1.19) — journey created in Awaiting Match, a freelancer_referrals row (payment_status owed), and an applicant-allocation queue entry. **Consultancy**: Channel B, unchanged/out of scope here. An invalid or mistyped code is IGNORED and signup proceeds — never block acquisition on a bad code. */
@@ -45,7 +47,7 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description `email_taken` — the email already has an account. For a Google sign-up the address is proven by the Google token, so this is an answer after proof. The real backend no longer answers 409 `identifier_in_use` for a typed `phone` (review F-122): it is checked for its form only and never saved here; the person hears that a number is another account's when they enter its code (`POST /auth/otp/verify`, 409). */
+                /** @description `email_taken` — the email already has an account. The real backend no longer answers 409 `identifier_in_use` for a typed `phone` (review F-122): it is checked for its form only and never saved here; the person hears that a number is another account's when they enter its code (`POST /auth/otp/verify`, 409). */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -137,7 +139,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Login — email/password or Google */
+        /**
+         * Login — email/password (console accounts)
+         * @description `google_token` was documented here and never read; it is removed (2026-10-08, owner decision 48). Students sign in at the passwordless door or with POST /auth/federated; console accounts with their password here.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -151,7 +156,6 @@ export interface paths {
                         /** Format: email */
                         email?: string;
                         password?: string | null;
-                        google_token?: string | null;
                         /**
                          * @description Which app is signing in (2026-09-10), recorded on the sign-in event. Optional; when omitted the event falls back to the platform the account last reported.
                          * @enum {string|null}
@@ -966,6 +970,134 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/federated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Continue with Google / Sign in with Apple — signs in, or clears sign-up (students)
+         * @description NEW 2026-10-08 (owner decisions 35, 48). One call for a first-time and a returning person. The app runs the provider's own sign-in and sends what it was given; the server verifies the provider's signed ID token itself and answers EXACTLY like POST /auth/passwordless/verify: `status: authenticated` with `auth`, or `status: signup_required` with a `signup_token` that POST /auth/passwordless/complete-signup accepts unchanged (date of birth, consent, referral code and the guardian rule all stay on that screen; the provider's verified email becomes the account's verified email), or `status: erasure_pending` with `erasure` (then POST /auth/erasure/cancel, as after a code).
+         *     WHAT THE APP SENDS. (1) Before starting the provider's sign-in the app makes a random one-time value (`nonce`, 16 to 255 characters, e.g. 32 random bytes as hex) and uses it for this one attempt only. GOOGLE: pass it as the nonce of the Google ID-token request; the audience (server client id) is the "Web" client id the backend is configured with. APPLE: pass the SHA-256 of it (lowercase hex) to Apple as the request's nonce, and send the raw value here — the usual `sign_in_with_apple` pattern. (2) `id_token` exactly as the provider returned it. (3) Apple only: `authorization_code` from the same sign-in (the server exchanges it for the token it needs to revoke the account at Apple on deletion — send it every time), and `given_name` / `family_name` when Apple supplied them (Apple does so on the first sign-in only). (4) `X-Device-Id`, `platform` and `app_version` as on the passwordless door.
+         *     A TOKEN IS ACCEPTED ONCE and only for 10 minutes after the provider issued it: never retry a failed call with the same token — start the provider's sign-in again with a new `nonce`.
+         *     WHICH ACCOUNT. The provider's permanent account id is looked up first, never the email. Not linked yet, and the provider's VERIFIED email is a student account's verified email: that account is signed in and the provider is added to it (the account gets a notice, "Google was added as a way to sign in"). An account a consultancy created and nobody has signed in to is claimed, as a code claims it. Otherwise `signup_required`. Two accounts are never merged. Apple "Hide my email" gives a private relay address, which matches no existing account: `prefill.private_relay` is then true and THE APP shows, on the details screen, "Already use Sentpo? Sign in with your email or phone first, then add Apple in Profile."
+         *     ANDROID offers Google only; Sign in with Apple is in the iOS app (Phase 14). An account made with Apple is used on Android by adding and verifying a phone or an email in Profile and signing in with that.
+         *     REFUSALS. 400 `invalid_federated_token` — the token was not accepted (not ours, expired, older than 10 minutes, the `nonce` does not match, used before) or the provider is switched off on this environment (message "Signing in with Google isn't available yet. Use your email or phone number instead."): offer the email/phone door. 400 `federated_email_unverified` — the provider does not vouch for the address, or shared none, and no account is linked: offer the email/phone door. 400 `validation_failed` — `provider`, `id_token` or `nonce` missing or malformed. 403 `use_console` — the address is a console (staff) account's: "Use the immiNow console to sign in."; nothing is created. 403 `account_disabled`, and 403 `account_locked_for_erasure` once a deletion has started — as at the door. 429 `rate_limited` — every call is counted per caller address with the door's own counters (60 in 10 minutes), and a refused token counts as a wrong code (10 in 10 minutes per address): `Retry-After` says when. 502 `upstream_unavailable` — the provider's keys could not be fetched: try again in a moment.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request` — AND (second sign-in review, 2026-10-07) on every request that submits a sign-in code: `POST /auth/passwordless/verify` and the student's `POST /profile/erase`. A sign-in code asked for with this header belongs to that install: it is accepted only from a request carrying the SAME value, so the app must send the header on both steps or its own code is answered as incorrect. (This is what stops a stranger from using up the five tries of someone else's code: without the install's identifier their submissions are never checked against it.) WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
+                     *
+                     *     WHAT IT DOES: when present, texted codes are also limited per device (5 an hour by default), in addition to the limits per phone number, per caller address and for the platform as a whole, which apply with or without it. A value of any other shape is ignored as if the header were not sent (never a 400). The server stores only a hash of it, for an hour, as a counter key.
+                     */
+                    "X-Device-Id"?: components["parameters"]["DeviceId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        provider: "google" | "apple";
+                        /** @description The provider's signed ID token, exactly as returned to the app. */
+                        id_token: string;
+                        /** @description The app's raw one-time value for this attempt (16 to 255 characters). The token must carry it — as given for Google, as its SHA-256 hex for Apple. */
+                        nonce: string;
+                        /** @description Apple only — the authorisation code of the same sign-in. */
+                        authorization_code?: string | null;
+                        /** @description Apple only, first sign-in only — the name Apple gave the app. Used to pre-fill the details screen and for nothing else. */
+                        given_name?: string | null;
+                        family_name?: string | null;
+                        /** @enum {string|null} */
+                        platform?: "android" | "ios" | "web" | null;
+                        app_version?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description The token was accepted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            status: "authenticated" | "signup_required" | "erasure_pending";
+                            auth?: components["schemas"]["TokenPair"];
+                            signup_token?: string | null;
+                            /** @description Present only with `status: erasure_pending`: the account is scheduled for deletion and no session is issued (and the provider is not linked). */
+                            erasure?: {
+                                /** Format: date-time */
+                                requested_at: string;
+                                /** Format: date-time */
+                                due_at: string;
+                                /** @description Valid for 15 minutes; POST /auth/erasure/cancel takes it. */
+                                cancel_token: string;
+                            };
+                            /** @description Present only with `status: signup_required`: what the details screen starts from. The person may change the names; the email is fixed (it is what the provider proved and what the account is created with). */
+                            prefill?: {
+                                email: string;
+                                first_name?: string | null;
+                                last_name?: string | null;
+                                /** @description True for an Apple "Hide my email" address: show the "Already use Sentpo?" hint on the details screen. */
+                                private_relay: boolean;
+                            };
+                        };
+                    };
+                };
+                /** @description `invalid_federated_token`, `federated_email_unverified` or `validation_failed` — see the description. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `use_console`, `account_disabled` or `account_locked_for_erasure` — see the description. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `rate_limited` — too many calls, or too many refused tokens, from this address. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `upstream_unavailable` — the provider could not be reached. */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/erasure/cancel": {
         parameters: {
             query?: never;
@@ -977,7 +1109,7 @@ export interface paths {
         put?: never;
         /**
          * Keep my account — cancel a scheduled deletion and sign in (gate 12f)
-         * @description The student's "Keep my account". Takes the `cancel_token` POST /auth/passwordless/verify returned with `status: erasure_pending` (proof, at most 15 minutes old, of the account's email or phone). The pending erasure is cancelled, the account is unlocked, and the person is signed in: the 200 is a TokenPair, handled exactly like a successful verify. Nothing that closed when deletion was requested — the case, the chats with consultancies — is reopened; the student starts again with a consultancy through the ordinary doors. 409 `conflict` when the account can no longer be kept (its 30 days ended and the deletion has started) or the deletion was already cancelled: show the message. 400 `validation_failed` for a missing, malformed or expired token, and for a token issued for an EARLIER deletion request than the one now pending (the token cancels the request it was issued for, once, and no later one): send the person back through the sign-in code. Console accounts have no such door; Support cancels for them.
+         * @description The student's "Keep my account". Takes the `cancel_token` POST /auth/passwordless/verify (or POST /auth/federated) returned with `status: erasure_pending` (proof, at most 15 minutes old, of the account's email or phone). The pending erasure is cancelled, the account is unlocked, and the person is signed in: the 200 is a TokenPair, handled exactly like a successful verify. Nothing that closed when deletion was requested — the case, the chats with consultancies — is reopened; the student starts again with a consultancy through the ordinary doors. 409 `conflict` when the account can no longer be kept (its 30 days ended and the deletion has started) or the deletion was already cancelled: show the message. 400 `validation_failed` for a missing, malformed or expired token, and for a token issued for an EARLIER deletion request than the one now pending (the token cancels the request it was issued for, once, and no later one): send the person back through the sign-in code. Console accounts have no such door; Support cancels for them.
          */
         post: {
             parameters: {
@@ -1875,6 +2007,200 @@ export interface paths {
             };
         };
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profile/sign-in-methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My ways to sign in — email, phone, Google, Apple (students)
+         * @description NEW 2026-10-08 (owner decision 48). Profile → "Ways to sign in". Never carries the provider's own account id. Students only (403 for a console account). ANDROID shows Apple when it is present (it can be removed) and offers no "Add Apple".
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The four methods */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description Always four entries, in this order — email, phone, google, apple. */
+                            methods: {
+                                /** @enum {string} */
+                                method: "email" | "phone" | "google" | "apple";
+                                /** @description Whether the account has it. */
+                                present: boolean;
+                                /** @description Whether it signs the account in: a proven email or phone; a provider is verified whenever it is present. */
+                                verified: boolean;
+                                /**
+                                 * Format: date-time
+                                 * @description When Google or Apple was added. Null for the email and the phone (not recorded) and for a method that is not present.
+                                 */
+                                added_at?: string | null;
+                                /** @description Whether DELETE would be accepted now. Always false for email and phone (they are changed on their own screens). For a provider: it is present AND a verified email or phone would remain (an Apple "Hide my email" relay address does not count when removing Apple). */
+                                removable: boolean;
+                            }[];
+                        };
+                    };
+                };
+                403: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profile/sign-in-methods/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: "google" | "apple";
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Google or Apple as a way to sign in (a fresh provider sign-in)
+         * @description NEW 2026-10-08. The app runs the provider's sign-in again, with a new `nonce`, and sends the result — the same three fields, checked the same way and counted the same way as POST /auth/federated (a token is accepted once; 400 `invalid_federated_token`, 429 `rate_limited`, 502 `upstream_unavailable` as there). The account is told (bell, push and its verified email) and the change is audited. Sending the provider account that is already added answers 200 and changes nothing.
+         *     FRESH PROOF: when the account has a VERIFIED PHONE, this call and the DELETE need the same first code a phone change needs — ask GET /auth/otp/step-up (send `X-Device-Id`); if `required` and not `granted`, run POST /auth/otp/step-up/request and /auth/otp/step-up/verify first. Without it: 400 `step_up_required` (`details.channels` says where the code can go). The grant is used up by one change. The app should check this BEFORE starting the provider's sign-in. An account with no verified phone needs no code here.
+         *     409 `identifier_in_use` — that provider account already signs in to another Sentpo account, or the email it vouches for belongs to another account (sign in to that account instead). 409 `conflict` — another account of the same provider is already added: remove it first.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request` — AND (second sign-in review, 2026-10-07) on every request that submits a sign-in code: `POST /auth/passwordless/verify` and the student's `POST /profile/erase`. A sign-in code asked for with this header belongs to that install: it is accepted only from a request carrying the SAME value, so the app must send the header on both steps or its own code is answered as incorrect. (This is what stops a stranger from using up the five tries of someone else's code: without the install's identifier their submissions are never checked against it.) WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
+                     *
+                     *     WHAT IT DOES: when present, texted codes are also limited per device (5 an hour by default), in addition to the limits per phone number, per caller address and for the platform as a whole, which apply with or without it. A value of any other shape is ignored as if the header were not sent (never a 400). The server stores only a hash of it, for an hour, as a counter key.
+                     */
+                    "X-Device-Id"?: components["parameters"]["DeviceId"];
+                };
+                path: {
+                    provider: "google" | "apple";
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        id_token: string;
+                        nonce: string;
+                        /** @description Apple only. */
+                        authorization_code?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description The four methods, after the change */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description Always four entries, in this order — email, phone, google, apple. */
+                            methods: {
+                                /** @enum {string} */
+                                method: "email" | "phone" | "google" | "apple";
+                                /** @description Whether the account has it. */
+                                present: boolean;
+                                /** @description Whether it signs the account in: a proven email or phone; a provider is verified whenever it is present. */
+                                verified: boolean;
+                                /**
+                                 * Format: date-time
+                                 * @description When Google or Apple was added. Null for the email and the phone (not recorded) and for a method that is not present.
+                                 */
+                                added_at?: string | null;
+                                /** @description Whether DELETE would be accepted now. Always false for email and phone (they are changed on their own screens). For a provider: it is present AND a verified email or phone would remain (an Apple "Hide my email" relay address does not count when removing Apple). */
+                                removable: boolean;
+                            }[];
+                        };
+                    };
+                };
+                400: components["responses"]["ErrorResponse"];
+                403: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
+                429: components["responses"]["ErrorResponse"];
+                502: components["responses"]["ErrorResponse"];
+            };
+        };
+        /**
+         * Remove Google or Apple (only while a verified email or phone remains)
+         * @description NEW 2026-10-08. 409 `last_sign_in_method` unless a VERIFIED email or a VERIFIED phone remains — an account is never left with no way in (show the message: "Add and verify an email address or phone number first…"). 404 when that provider is not one of the account's methods. 400 `step_up_required` as on the POST when the account has a verified phone. Removing Apple also revokes the account at Apple (in the background; it never delays the answer). The account is told and the change is audited.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request` — AND (second sign-in review, 2026-10-07) on every request that submits a sign-in code: `POST /auth/passwordless/verify` and the student's `POST /profile/erase`. A sign-in code asked for with this header belongs to that install: it is accepted only from a request carrying the SAME value, so the app must send the header on both steps or its own code is answered as incorrect. (This is what stops a stranger from using up the five tries of someone else's code: without the install's identifier their submissions are never checked against it.) WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
+                     *
+                     *     WHAT IT DOES: when present, texted codes are also limited per device (5 an hour by default), in addition to the limits per phone number, per caller address and for the platform as a whole, which apply with or without it. A value of any other shape is ignored as if the header were not sent (never a 400). The server stores only a hash of it, for an hour, as a counter key.
+                     */
+                    "X-Device-Id"?: components["parameters"]["DeviceId"];
+                };
+                path: {
+                    provider: "google" | "apple";
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The four methods, after the change */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description Always four entries, in this order — email, phone, google, apple. */
+                            methods: {
+                                /** @enum {string} */
+                                method: "email" | "phone" | "google" | "apple";
+                                /** @description Whether the account has it. */
+                                present: boolean;
+                                /** @description Whether it signs the account in: a proven email or phone; a provider is verified whenever it is present. */
+                                verified: boolean;
+                                /**
+                                 * Format: date-time
+                                 * @description When Google or Apple was added. Null for the email and the phone (not recorded) and for a method that is not present.
+                                 */
+                                added_at?: string | null;
+                                /** @description Whether DELETE would be accepted now. Always false for email and phone (they are changed on their own screens). For a provider: it is present AND a verified email or phone would remain (an Apple "Hide my email" relay address does not count when removing Apple). */
+                                removable: boolean;
+                            }[];
+                        };
+                    };
+                };
+                400: components["responses"]["ErrorResponse"];
+                403: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -3383,7 +3709,267 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/users/{id}/erase": {
+    "/users/{id}/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The consultancies a student has a conversation with (permission support)
+         * @description The picker of the conversation export for disputes (owner ruling, 2026-10-06): every consultancy this student has a lead or case conversation with, the one talked to last first, with how many messages. Platform staff holding `support` (disputes and complaints) and Super Admins. 404 for an unknown user, 409 `conflict` when the account is not a student's.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                /** Format: uuid */
+                                consultancy_id: string;
+                                consultancy_name: string | null;
+                                message_count: number;
+                                /** Format: date-time */
+                                last_message_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+                /** @description `not_found` — no such user */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `conflict` — not a student account */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{id}/conversation-exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A student's conversation exports, newest first (permission support)
+         * @description Owner ruling, 2026-10-08: anyone who has the page has the files on it. Every export made of this student's conversations, whoever asked for it, newest first, with who requested each and when — so a colleague can find and download a transcript someone else asked for. Cursor-paged (`cursor`, `limit`, default 20). 404 for an unknown user, 409 `conflict` when the account is not a student's.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["ConversationExport"][];
+                            meta: components["schemas"]["PaginatedMeta"];
+                        };
+                    };
+                };
+                /** @description `not_found` — no such user */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `conflict` — not a student account */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Export a student's whole conversation with one consultancy as a PDF transcript (permission support)
+         * @description Conversation export for disputes (owner ruling, 2026-10-06). From Sentpo Users → a student's actions, and from the Dispute and Complaint drawers: platform staff holding `support` and Super Admins export the WHOLE conversation between this student and the chosen consultancy (their lead and case threads, oldest first) as a PDF: date and time in India Standard Time (the header says so), sender, text; shared cards are listed by kind (chat messages carry no file attachments). An erased student is named "Deleted User", an erased member of staff "Former Employee", and text an erasure redacted is printed as it is stored.
+         *     `reason` is required (3 to 500 characters) and KEPT: the request is audit-logged with who asked, which student, which consultancy and the reason — never a word of the conversation. Console: say under the field that the reason is kept on the record. Each operator may export 10 conversations an hour; the next answers 429 `rate_limited` with `Retry-After` and a message to show as it is (the Super Admins are alerted).
+         *     The transcript is always prepared in the background: the answer is 202 with `status: queued`. Poll GET /conversation-exports/{id} (every few seconds) until `downloadable` is true, then POST /conversation-exports/{id}/download for a five-minute link. `status: failed` means it could not be prepared (show "It could not be prepared. Ask again."). Any `support` holder may then download it, not only whoever asked (GET /users/{id}/conversation-exports lists a student's). The file can be downloaded for 24 hours, then it is deleted; it is also withdrawn at once if the student's account is erased. 404 `not_found` for an unknown user or when the student has no conversation with that consultancy; 409 `conflict` when the account is not a student's; 400 `validation_failed` for a missing consultancy or reason.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: uuid
+                         * @description One of GET /users/{id}/conversations.
+                         */
+                        consultancy_id: string;
+                        /** @description Why the conversation is needed (a dispute or complaint reference). Kept in the audit log. */
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Queued; poll GET /conversation-exports/{id} */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ConversationExport"];
+                    };
+                };
+                /** @description `validation_failed` — `consultancy_id` or `reason` missing or malformed */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `not_found` — no such user, or no conversation with that consultancy */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `conflict` — not a student account */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `rate_limited` — this hour's allowance of conversation exports is used */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversation-exports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A conversation export's state (permission support)
+         * @description Poll after POST /users/{id}/conversation-exports. `status` goes `queued` → `processing` → `completed`, or `failed` when the transcript could not be prepared (its background job ran out of attempts; set within about ten minutes of that): show "It could not be prepared. Ask again." `downloadable` is true while the file is there and not past `ready_until`. Open to every `support` holder and Super Admin, whoever asked for the export (owner ruling, 2026-10-08). 404 for an unknown id.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ConversationExport"];
+                    };
+                };
+                /** @description `not_found` */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversation-exports/{id}/download": {
         parameters: {
             query?: never;
             header?: never;
@@ -3393,8 +3979,122 @@ export interface paths {
         get?: never;
         put?: never;
         /**
+         * A five-minute link to a finished conversation transcript
+         * @description The same private-download pattern as POST /me/exports/{id}/download: a link minted for the signed-in operator, valid five minutes. Open to every `support` holder and Super Admin, whoever asked for the export (owner ruling, 2026-10-08). Each download is audit-logged under the DOWNLOADER's own name (who, which export, which student and consultancy; never the text) and counted against the downloader's own hourly allowance of conversation exports (shared with asking for one: 10 an hour): past it, 429 `rate_limited` with `Retry-After` — show the message as it is. 409 `conflict` while the transcript is still being prepared, or when it failed; 410 `gone` once its 24 hours have passed or the student's account was erased; 404 for an unknown id.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            url: string;
+                            expires_in_seconds: number;
+                        };
+                    };
+                };
+                /** @description `not_found` */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `conflict` — not ready yet, or it failed */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `gone` — no longer available */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `rate_limited` — the downloader's allowance for this hour is used */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{id}/erase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Before Erase User Data — the open disputes the deletion will close (Super Admin)
+         * @description Owner decision 56 (2026-10-08). What the Erase User Data confirm screen shows before the operator confirms: every dispute open on the account's cases (`open_disputes`: the consultancy and when it was opened) and `open_disputes_notice`, the sentence saying they will be closed automatically by the deletion. Empty list and null notice when no dispute is open (always so for staff accounts). Read-only: nothing is changed, nothing is audited. 404 for an unknown user. The list is read again at confirm: POST closes whatever is open at that moment.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErasurePreview"];
+                    };
+                };
+                /** @description `not_found` — no such user */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
          * Erase User Data — Super Admin only, reason and own password; 30-day window (FR-019/020)
-         * @description Gate 12f. Locks the account now, closes the person's open cases and chats with the reason "account deleted" and tells each consultancy, and permanently erases their personal data 30 days later (`due_at`). A DISPUTE open on the student's case is NOT resolved by this (owner ruling 3, 2026-10-07): the case closes as account-deleted, the dispute stays in the mediation queue to be closed there, and no commission is recognised, reversed or rejected by the close — Finance corrects money. (The student cannot make this request themselves while a dispute is open, nor for 30 days after cancelling one of their own; this route is held to neither.) Until then it can be cancelled from the Pending erasures list (DELETE /users/{id}/erasure) or by the person signing in and tapping Keep my account. `password` is the Super Admin's OWN current password (400 `step_up_required` without it, 400 `invalid_current_password` for a wrong one, 429 `rate_limited` after repeated failures). Each operator has a daily allowance (second review, M-9): 10 accounts scheduled in any 24 hours, of which 3 immediate (server settings). The request after that answers 429 `rate_limited` with a `Retry-After` header and `error.details.retry_after_seconds`; `error.message` says which allowance ran out and what to do (another Super Admin can continue; an immediate one can still be scheduled with the window). Console: show `error.message` as it is, with the wait, and keep the form filled. Only successful requests count. 503 `service_unavailable` if the allowance cannot be read — try again. `immediate: true` skips the window for a legal request or a confirmed takeover — `reason` then needs at least 20 characters (400 `validation_failed`), the answer is `erasure_queued`, the data is erased within minutes and nothing can be cancelled. An immediate request for an account whose erasure is already pending turns that pending erasure into an immediate one. 409 `lockout_guard` when the account holds an active role (the message says what to deactivate first; a Super Admin is never erased); 409 `conflict` when an erasure is already pending for the account (the message and `error.details.due_at` carry the date); 404 for an unknown user. A request for an account already erased answers 202 `erasure_queued` and changes nothing.
+         * @description Gate 12f. Locks the account now, closes the person's open cases and chats with the reason "account deleted" and tells each consultancy, and permanently erases their personal data 30 days later (`due_at`). A DISPUTE open on the student's case is CLOSED by this request, in the same step (owner decision 56, 2026-10-08, replacing the "left open" design of ruling 3): the case closes as account-deleted (a success if a college had accepted, otherwise a failure), each open dispute is resolved as `close` with the note "The account was deleted by Support.", audited, its complaints close with it and the consultancy's admins, the case's consultant and whoever raised it are told. No commission is recognised, reversed or rejected by any of it — Finance corrects money. Nothing is left in the mediation queue, and cancelling the deletion reopens neither the case nor the dispute. Ask GET /users/{id}/erase first and show what it names before the operator confirms. (The student cannot make this request themselves while a dispute is open, nor for 30 days after cancelling one of their own; this route is held to neither.) Until then it can be cancelled from the Pending erasures list (DELETE /users/{id}/erasure) or by the person signing in and tapping Keep my account. `password` is the Super Admin's OWN current password (400 `step_up_required` without it, 400 `invalid_current_password` for a wrong one, 429 `rate_limited` after repeated failures). Each operator has a daily allowance (second review, M-9): 10 accounts scheduled in any 24 hours, of which 3 immediate (server settings). The request after that answers 429 `rate_limited` with a `Retry-After` header and `error.details.retry_after_seconds`; `error.message` says which allowance ran out and what to do (another Super Admin can continue; an immediate one can still be scheduled with the window). Console: show `error.message` as it is, with the wait, and keep the form filled. Only successful requests count. 503 `service_unavailable` if the allowance cannot be read — try again. `immediate: true` skips the window for a legal request or a confirmed takeover — `reason` then needs at least 20 characters (400 `validation_failed`), the answer is `erasure_queued`, the data is erased within minutes and nothing can be cancelled. An immediate request for an account whose erasure is already pending turns that pending erasure into an immediate one. 409 `lockout_guard` when the account holds an active role (the message says what to deactivate first; a Super Admin is never erased); 409 `conflict` when an erasure is already pending for the account (the message and `error.details.due_at` carry the date); 404 for an unknown user. A request for an account already erased answers 202 `erasure_queued` and changes nothing.
          *     The reason is kept (second review, H-3). Unlike the reason a person types for their own deletion (sealed, and erased with them), the reason given here is stored readable for good — in the audit log and on the request — because it is the platform's own record of why it erased an account, and for `immediate` the legal basis. Console: show under the reason field, always visible, "This reason is kept permanently, also after the account is erased. Do not include the person's name, contact details or anything they told you — a reference is enough (court order number, ticket number)." and for `immediate` add "State the legal basis."
          */
         post: {
@@ -8787,7 +9487,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Suspend a consultancy (build reference 1.23) */
+        /**
+         * Suspend a consultancy (build reference 1.23), optionally signing out and blocking all of its staff
+         * @description Suspension takes the consultancy off the student app; its staff keep signing in and see their existing work. Owner decision 58 (2026-10-08): with `block_staff: true` every session of every member of the consultancy's staff also ends at once, and none of them (the Owner/Admin included) can sign in or use a token until the consultancy is reactivated: sign-in and every request answer 403 `account_disabled` with "You can't sign in at the moment. Please contact Sentpo support." and nothing more. The tick is stored (`staff_blocked` on the consultancy), audited, cleared by POST /consultancies/{id}/reactivate, and the Owner/Admin is told by email. A later suspension without the tick never lifts a block already set. The body may be omitted.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -8797,7 +9500,17 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Also sign out and block every member of the consultancy's staff until it is reactivated. Omitted or false: suspension as it always was.
+                         * @default false
+                         */
+                        block_staff?: boolean;
+                    };
+                };
+            };
             responses: {
                 /** @description Updated */
                 200: {
@@ -8806,6 +9519,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Consultancy"];
+                    };
+                };
+                /** @description `validation_failed` — `block_staff` is not a boolean */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -8825,7 +9547,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reactivate a suspended consultancy (build reference 1.23) */
+        /** Reactivate a suspended consultancy (build reference 1.23); clears `staff_blocked`, so its staff can sign in again */
         post: {
             parameters: {
                 query?: never;
@@ -15896,7 +16618,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** End a dispute (2026-09-09). Mediation itself happens off-platform, which is why `resolution_note` is REQUIRED rather than optional: this is the one decision in the system with real legal exposure and everything else about it happened in a phone call. `resume` returns the case to whatever it was doing; `close` ends it as a failure and reverses any commission; `reassign` puts it into the same Applicant Allocation queue a student complaint already feeds, and the case stays frozen until an admin allocates — it must not sit live with a consultancy the platform has decided to move it away from. ACCOUNT DELETED WITH THE DISPUTE OPEN (owner ruling 3, 2026-10-07): when Support erased the student's account, the case is already closed (`closed_by: erasure`) and the dispute was left open for this decision. Only `close` is accepted then — it ends the dispute and changes neither the case nor any commission (Finance corrects money with its own tools); `resume` and `reassign` answer 409 `conflict` with a message saying so. Console: on such a dispute offer only "Close dispute". */
+        /** End a dispute (2026-09-09). Mediation itself happens off-platform, which is why `resolution_note` is REQUIRED rather than optional: this is the one decision in the system with real legal exposure and everything else about it happened in a phone call. `resume` returns the case to whatever it was doing; `close` ends it as a failure and reverses any commission; `reassign` puts it into the same Applicant Allocation queue a student complaint already feeds, and the case stays frozen until an admin allocates — it must not sit live with a consultancy the platform has decided to move it away from. ACCOUNT DELETED (owner decision 56, 2026-10-08): when Support deletes the student's account, POST /users/{id}/erase closes every open dispute on their cases itself, so no such dispute reaches this route: it answers 409 `already_resolved`, and the dispute reads `status: resolved`, `resolution_action: close`, `resolution_note: "The account was deleted by Support."`. The console's earlier narrowing to "Close dispute" is no longer needed. (Kept as a safety net only: a dispute somehow still open on a case the erasure closed accepts `close` alone — `resume` and `reassign` answer 409 `conflict`.) */
         post: {
             parameters: {
                 query?: never;
@@ -18695,6 +19417,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/events/audience-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * About how many students a draft event targeting would reach (admin, `events` permission)
+         * @description Owner decision 20 (2026-10-07): the expected audience of a quiz, a webinar or an in-person meeting while its "who can see" targeting is being edited. Same query parameters and same answer as GET /ads/audience-count (one shared implementation), behind the `events` permission that creates and edits events, and refused (422) with the same words an event's own create answers for the same document. Counted as events are actually shown: a student who left a targeted field blank, or who has no preferences row at all, IS counted (events match leniently; unknown data passes); any targeted document leaves out students under 18 or with no date of birth; an empty document counts every active student. Accounts scheduled for deletion are never counted. Approximate by nature ("about N students"): it is the number at this moment. Debounce the calls.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    state?: string[];
+                    district?: string[];
+                    city?: string[];
+                    institution_id?: string[];
+                    gender?: string;
+                    min_age?: number;
+                    max_age?: number;
+                    study_level?: string[];
+                    target_country?: string[];
+                    /** @description Resolved from `student_preferences.resident_country` by user id, the same source the event list reads. */
+                    resident_country?: string[];
+                    stage?: 1 | 2;
+                    case_type?: "student" | "pr";
+                    /** @description Joined at most this many days ago (`Targeting.joined_within_days`). */
+                    joined_within_days?: number;
+                    /** @description Not active for more than this many days, or never active (`Targeting.dormant_days`). */
+                    dormant_days?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description About how many students the targeting would reach right now (show it as "about N students"). Counted live; never cached. */
+                            count: number;
+                        };
+                    };
+                };
+                /** @description `validation_failed` — the targeting document is refused with the words the item's own create and edit answer (an unknown study level or country, a wrong type) */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/events/my-rsvps": {
         parameters: {
             query?: never;
@@ -20846,7 +21637,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Count of students currently matching a draft targeting condition (admin) — "how many people would this ad reach" (user-requested, 2026-08-18). Queried live as the admin edits Targeting on Add/Edit Ad, against the same fields AdTargeting describes. */
+        /**
+         * About how many students a draft ad targeting would reach (admin, `ads` permission)
+         * @description "How many people would this ad reach" (user-requested, 2026-08-18). Queried live as the admin edits Targeting on Add/Edit Ad. The query parameters are the fields of `Targeting`; one shared implementation answers this route and GET /events/audience-count (owner decision 20, 2026-10-07), each with its own surface's reading of unknown student data. For ads: a student who left a targeted field blank is counted (an ad matches leniently); a student with no preferences row at all is not, exactly as the ad is not served to them. Any targeted document leaves out students under 18. An empty document counts every active student.
+         */
         get: {
             parameters: {
                 query?: {
@@ -20863,6 +21657,10 @@ export interface paths {
                     resident_country?: string[];
                     stage?: 1 | 2;
                     case_type?: "student" | "pr";
+                    /** @description Joined at most this many days ago (`Targeting.joined_within_days`). */
+                    joined_within_days?: number;
+                    /** @description Not active for more than this many days, or never active (`Targeting.dormant_days`). */
+                    dormant_days?: number;
                 };
                 header?: never;
                 path?: never;
@@ -20877,8 +21675,18 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
+                            /** @description About how many students the targeting would reach right now (show it as "about N students"). Counted live; never cached. */
                             count: number;
                         };
+                    };
+                };
+                /** @description `validation_failed` — the targeting document is refused with the words the item's own create and edit answer (an unknown study level or country, a wrong type) */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -26879,6 +27687,8 @@ export interface components {
             /** @description User-requested (2026-08-15) — true once this consultancy has at least one client, at which point `file_number_prefix` can no longer be changed (so a tenant's file numbers never end up split across two different prefixes). Server-computed, not stored. */
             readonly file_number_locked?: boolean;
             active?: boolean;
+            /** @description Owner decision 58 (2026-10-08). True while the consultancy is suspended with "sign out and block all staff" (POST /consultancies/{id}/suspend, `block_staff: true`): nobody on its staff can sign in. False otherwise; reactivation clears it. Sent with the full record only (the platform team and the consultancy's own staff). */
+            readonly staff_blocked?: boolean;
             /** @description User-requested (2026-08-19) — Super-Admin-set, gates two things at once — a Freelancer Commission Table row's `freelancer_sourced_rate` only actually applies when this is true (build reference 1.17), and Applicant Allocation only offers this consultancy as a target for `freelancer_sourced` queue entries when true (build reference 1.19). Has no bearing on the Direct rate or on consultancy-change allocations, which are unaffected either way. */
             freelancer_enabled?: boolean;
             /** @description The RESOLVED feature map (build reference 1.16 made real, 2026-08-29) — tier preset merged with `entitlement_overrides`, one boolean per registry flag: `own_leads`, `create_applicant`, `designations`, `tags`, `allocation_rule`, `phonebook`, `document_library`, `case_reopening`, `audit_log` (Business-tier preset), `activity_queue`, `internal_messaging`, `applicant_transfer` (Ultimate-tier preset), and `multi_branch` (STARTER-tier preset since 2026-09-21 — product owner: "branches are marketplace presence and every account has one anyway; Ultimate gets new features later". It stays a registered flag rather than joining the unflagged core so a Super Admin can still switch branches off for one tenant). Other Starter-core capabilities (Lead Pool, Active Leads, Clients, Partner Colleges, commissions, Invoices, Receipts, Forms, Course Finder, Plan Templates, Course Suggestions, Employees simple mode, Consultancy Management) have no flag — they are always reachable on every tier and never appear here. For `kind: institute` (INSTITUTE_ACCOUNT_PLAN D11, 2026-09-10) exactly ONE flag is forced false regardless of tier or override — `applicant_transfer`, which has nowhere to transfer an applicant to when the tenant is the college itself. This is a FLOOR applied after the override merge, not another override: a Super Admin cannot switch on a feature the account type has no meaning for. Partner Colleges is restricted for an institute just as hard (D13) but deliberately carries NO flag: registering one would make it a valid `entitlement_overrides` key, handing a Super Admin a switch that turns Partner Colleges off for an ORDINARY consultancy — the screen where their commission terms are set. A console rendering that panel read-only reads `kind`; the restriction is enforced by the 403 `not_applicable_for_institute` on `/consultancy-colleges`, which refuses add, edit and remove alike. Every server endpoint gated on one of these flags returns 403 `feature_locked` (naming the plan that includes it) when the caller's consultancy lacks it. Clients MUST gate on this map, never on the raw `tier` enum, since a Super Admin override can grant or withhold an individual flag independent of tier. */
@@ -30368,7 +31178,7 @@ export interface components {
             /** @description Matches if the student's own study_level is any of these. `StudyLevel.code` values from `GET /study-levels`, validated server-side on every targeting write — same source as StudentPreferences.study_level, which is the point. */
             study_level?: string[];
             /**
-             * @description The student's own school or college (see /institutions). The only targeting dimension backed by a real foreign key rather than free text, which makes it the most reliable of the twelve — but a student whose typed-in school is still awaiting staff mapping has `institution_raw` set and no id, and so counts as unknown here like any other blank.
+             * @description The student's own school or college (see /institutions). The only targeting dimension backed by a real foreign key rather than free text, which makes it the most reliable of the twelve — but a student whose typed-in school is still awaiting staff mapping has `institution_raw` set and no id, and so counts as unknown here like any other blank. Every write that stores this document (an ad, an event of any type) and both audience counts refuse a value that is not an id: 422 `validation_failed`, "targeting.institution_id must be an array of ids."
              *     That is correct behaviour, not a bug: you cannot filter on a string nobody has verified. It does mean the staff mapping queue is load-bearing — let it grow and institution filters quietly under-report, with no error anywhere to say so.
              */
             institution_id?: string[];
@@ -31516,6 +32326,52 @@ export interface components {
              */
             pending_phone_until?: string | null;
         };
+        /** @description A conversation transcript exported for a dispute or complaint (owner ruling, 2026-10-06): being prepared, or ready to download. */
+        ConversationExport: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            student_id: string;
+            /** Format: uuid */
+            consultancy_id: string;
+            consultancy_name: string | null;
+            /** @enum {string} */
+            status: "queued" | "processing" | "completed" | "failed";
+            /** Format: date-time */
+            requested_at: string;
+            /**
+             * Format: uuid
+             * @description The operator who asked for it. Any `support` holder may download it.
+             */
+            requested_by_id: string;
+            requested_by_name: string | null;
+            /** @description How many messages the transcript holds; null until it is built. */
+            message_count: number | null;
+            /**
+             * Format: date-time
+             * @description Until when it can be downloaded (24 hours after it was built).
+             */
+            ready_until: string | null;
+            /** @description True for a completed export whose file is still there and not past `ready_until`. */
+            downloadable: boolean;
+        };
+        /** @description `GET /users/{id}/erase` (owner decision 56): what Support's deletion of the account will close, shown before the operator confirms. */
+        ErasurePreview: {
+            /** @description Disputes open on the account's cases, oldest first. Each is closed by the deletion. */
+            open_disputes: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                journey_id: string;
+                /** Format: uuid */
+                consultancy_id: string;
+                consultancy_name: string | null;
+                /** Format: date-time */
+                opened_at: string;
+            }[];
+            /** @description The sentence to show with the list ("This account has an open dispute. Deleting the account closes it automatically, ..."). Null when no dispute is open. */
+            open_disputes_notice: string | null;
+        };
         /** @description The answer to an erasure request (gate 12f). `erasure_pending`: the account is locked now and its personal data is erased at `due_at`, 30 days later, unless the erasure is cancelled before then (`cancel_until` is the same instant, named for the client's copy). `erasure_queued`: there is no window — Support asked for an immediate erasure, or the erasure was already under way — and both dates are null. */
         ErasureQueuedOut: {
             /** @enum {string} */
@@ -31987,12 +32843,15 @@ export interface components {
             /** Format: date-time */
             occurred_at: string;
             /**
-             * @description How the person signed in. `google` joined on 2026-09-25 (contract gate 3) so a Google sign-in (an ID token verified server-side — `google_token` on /auth/login and /auth/signup) is recorded under its own name rather than as a password attempt; the mock has no Google verification and never records one.
+             * @description How the person signed in. `google` and `apple` are a provider sign-in through POST /auth/federated (2026-10-08, owner decision 48): the provider's ID token is verified server-side. The mock verifies neither and never records one.
              * @enum {string}
              */
-            method: "password" | "email_code" | "phone_code" | "google";
-            /** @enum {string} */
-            outcome: "success" | "wrong_password" | "unknown_account" | "wrong_code" | "code_expired" | "too_many_attempts" | "rate_limited" | "account_disabled" | "subscription_lapsed";
+            method: "password" | "email_code" | "phone_code" | "google" | "apple";
+            /**
+             * @description `invalid_token` (2026-10-08): a Google or Apple token that was refused at POST /auth/federated — not ours, expired, too old, or presented a second time. Such an attempt names no account.
+             * @enum {string}
+             */
+            outcome: "success" | "wrong_password" | "unknown_account" | "wrong_code" | "code_expired" | "too_many_attempts" | "rate_limited" | "account_disabled" | "subscription_lapsed" | "invalid_token";
             /** @enum {string|null} */
             platform?: "android" | "ios" | "web" | null;
             app_version?: string | null;
@@ -32007,7 +32866,7 @@ export interface components {
             /** @description Only methods with at least one attempt, in a fixed order. */
             by_method: {
                 /** @enum {string} */
-                method: "password" | "email_code" | "phone_code" | "google";
+                method: "password" | "email_code" | "phone_code" | "google" | "apple";
                 attempts: number;
                 successes: number;
             }[];
@@ -32021,7 +32880,7 @@ export interface components {
             /** @description Failed attempts by reason, most frequent first. */
             failures_by_outcome: {
                 /** @enum {string} */
-                outcome: "wrong_password" | "unknown_account" | "wrong_code" | "code_expired" | "too_many_attempts" | "rate_limited" | "account_disabled" | "subscription_lapsed";
+                outcome: "wrong_password" | "unknown_account" | "wrong_code" | "code_expired" | "too_many_attempts" | "rate_limited" | "account_disabled" | "subscription_lapsed" | "invalid_token";
                 count: number;
             }[];
             /** @description Successful sign-ins by someone who had not used the product for at least `returning_gap_days` days. */

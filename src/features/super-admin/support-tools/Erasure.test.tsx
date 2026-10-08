@@ -26,7 +26,7 @@ import { showToast } from '@/lib/toast'
 import { useMe } from '@/queries/me'
 import { useAuthStore } from '@/stores/authStore'
 import { meAnswered, platformMe } from '@/test/me'
-import type { ErasureRequest, UserSearchResult } from '@/queries/supportTools'
+import type { ErasurePreview, ErasureRequest, UserSearchResult } from '@/queries/supportTools'
 import { EraseForm } from './EraseForm'
 import { ExportForm } from './ExportForm'
 import { PendingErasuresPanel } from './PendingErasuresPanel'
@@ -48,6 +48,7 @@ const STUDENT: UserSearchResult = {
 }
 const PHONE_ONLY: UserSearchResult = { ...STUDENT, id: 'user-arun', name: 'Arun Das', email: null }
 const SCHEDULED: UserSearchResult = { ...STUDENT, erasure_due_at: '2026-11-05T09:00:00Z' }
+const NO_OPEN_DISPUTES: ErasurePreview = { open_disputes: [], open_disputes_notice: null }
 
 function ok<T>(data: T, status = 200) {
   return { data, error: undefined, response: { status } } as never
@@ -72,7 +73,17 @@ beforeEach(() => {
   vi.mocked(showToast).mockClear()
   useAuthStore.setState({ accessToken: 'test-token' })
   signInAs('super_admin')
+  // What the erase form reads when it opens: no dispute is open on the account.
+  mockedGet.mockImplementation((async (path: string) =>
+    path === '/users/{id}/erase' ? ok(NO_OPEN_DISPUTES) : ok({ items: [], meta: { next_cursor: null, total: 0 } })) as never)
 })
+
+/** The confirm button of the second screen, once the open-dispute check has answered. */
+async function confirmButton(name: 'Schedule erasure' | 'Erase now') {
+  const button = screen.getByRole('button', { name })
+  await waitFor(() => expect(button).toBeEnabled())
+  return button
+}
 
 describe('the erase form', () => {
   const onCancel = vi.fn()
@@ -143,6 +154,63 @@ describe('the erase form', () => {
     expect(mockedPost).not.toHaveBeenCalled()
   })
 
+  // Owner decision 56 (2026-10-08): Support's deletion closes every dispute open on the account.
+  describe('open disputes on the account', () => {
+    const NOTICE =
+      'This account has 2 open disputes. Deleting the account closes them automatically, with the reason "the account was deleted by Support", and each consultancy is told. No commission is settled by this.'
+    const TWO_OPEN: ErasurePreview = {
+      open_disputes: [
+        { id: 'd1', journey_id: 'j1', consultancy_id: 'c1', consultancy_name: 'Bright Path', opened_at: '2026-09-20T09:00:00Z' },
+        { id: 'd2', journey_id: 'j2', consultancy_id: 'c2', consultancy_name: 'Northwind Education', opened_at: '2026-10-01T09:00:00Z' },
+      ],
+      open_disputes_notice: NOTICE,
+    }
+
+    it('asks for them when the form opens', async () => {
+      renderForm()
+      await waitFor(() =>
+        expect(mockedGet).toHaveBeenCalledWith('/users/{id}/erase', expect.objectContaining({ params: { path: { id: 'user-meera' } } })),
+      )
+    })
+
+    it('lists each one with the server’s sentence on the second screen, above the confirm button', async () => {
+      mockedGet.mockImplementation((async () => ok(TWO_OPEN)) as never)
+      renderForm()
+      fill()
+      fireEvent.click(continueButton())
+
+      expect(await screen.findByText(NOTICE)).toBeInTheDocument()
+      expect(screen.getByText('Open disputes')).toBeInTheDocument()
+      const rows = screen.getAllByRole('listitem').filter((li) => li.textContent?.includes('opened'))
+      expect(rows.map((li) => li.textContent)).toEqual(['Bright Path · opened 20/09/2026', 'Northwind Education · opened 01/10/2026'])
+      const confirm = await confirmButton('Schedule erasure')
+      expect(rows[1].compareDocumentPosition(confirm) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(mockedPost).not.toHaveBeenCalled()
+    })
+
+    it('says nothing about disputes when none is open', async () => {
+      renderForm()
+      fill()
+      fireEvent.click(continueButton())
+      await confirmButton('Schedule erasure')
+      expect(screen.queryByText(/open dispute/i)).not.toBeInTheDocument()
+    })
+
+    it('holds the confirm button until the check has answered, and offers to ask again when it fails', async () => {
+      mockedGet.mockImplementationOnce((async () => refused(503, 'service_unavailable', 'Try again in a moment.')) as never)
+      renderForm()
+      fill()
+      fireEvent.click(continueButton())
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Try again in a moment.')
+      expect(screen.getByRole('button', { name: 'Schedule erasure' })).toBeDisabled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+      await confirmButton('Schedule erasure')
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+  })
+
   it('schedules the erasure with the reason and password, and reports the date the server gave', async () => {
     mockedPost.mockResolvedValueOnce(
       ok({ status: 'erasure_pending', due_at: '2026-11-05T09:00:00Z', cancel_until: '2026-11-05T09:00:00Z' }, 202),
@@ -150,7 +218,7 @@ describe('the erase form', () => {
     renderForm()
     fill({ reason: '  Asked by email on 6 October.  ' })
     fireEvent.click(continueButton())
-    fireEvent.click(screen.getByRole('button', { name: 'Schedule erasure' }))
+    fireEvent.click(await confirmButton('Schedule erasure'))
 
     await waitFor(() =>
       expect(mockedPost).toHaveBeenCalledWith('/users/{id}/erase', {
@@ -176,7 +244,7 @@ describe('the erase form', () => {
     fireEvent.click(continueButton())
     expect(screen.getByText('Erase Meera Pillai’s data now?')).toBeInTheDocument()
     expect(screen.getByText('Their personal data is erased within minutes. Nothing can be cancelled.')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Erase now' }))
+    fireEvent.click(await confirmButton('Erase now'))
 
     await waitFor(() =>
       expect(mockedPost).toHaveBeenCalledWith('/users/{id}/erase', {
@@ -193,7 +261,7 @@ describe('the erase form', () => {
     renderForm()
     fill()
     fireEvent.click(continueButton())
-    fireEvent.click(screen.getByRole('button', { name: 'Schedule erasure' }))
+    fireEvent.click(await confirmButton('Schedule erasure'))
     expect(await screen.findByText('That is not your current password.')).toBeInTheDocument()
     expect(screen.getByLabelText(/^Your password/)).toHaveAttribute('aria-invalid', 'true')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
@@ -210,7 +278,7 @@ describe('the erase form', () => {
     renderForm()
     fill()
     fireEvent.click(continueButton())
-    fireEvent.click(screen.getByRole('button', { name: 'Schedule erasure' }))
+    fireEvent.click(await confirmButton('Schedule erasure'))
     expect(await screen.findByRole('alert')).toHaveTextContent(message)
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
@@ -238,7 +306,7 @@ describe('the erase form', () => {
     renderForm()
     fill({ reason: 'Ticket 4411' })
     fireEvent.click(continueButton())
-    fireEvent.click(screen.getByRole('button', { name: 'Schedule erasure' }))
+    fireEvent.click(await confirmButton('Schedule erasure'))
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('You have scheduled 10 erasures in 24 hours. Another Super Admin can continue.')
     expect(screen.getByText('You can try again in about 2 hours.')).toBeInTheDocument()
@@ -254,7 +322,7 @@ describe('the erase form', () => {
     renderForm()
     fill({ reason: 'Ticket 4411' })
     fireEvent.click(continueButton())
-    fireEvent.click(screen.getByRole('button', { name: 'Schedule erasure' }))
+    fireEvent.click(await confirmButton('Schedule erasure'))
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Support Tools could not check your daily allowance just now, so nothing was done. Try again in a moment.',
     )
@@ -267,7 +335,7 @@ describe('the erase form', () => {
     const invalidate = vi.spyOn(client, 'invalidateQueries')
     fill()
     fireEvent.click(continueButton())
-    fireEvent.click(screen.getByRole('button', { name: 'Schedule erasure' }))
+    fireEvent.click(await confirmButton('Schedule erasure'))
     await screen.findByRole('alert')
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['erasures'] })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['user-search'] })

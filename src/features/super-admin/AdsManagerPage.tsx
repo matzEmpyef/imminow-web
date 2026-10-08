@@ -17,7 +17,6 @@ import { hasAnyTargeting } from '@/lib/targeting'
 import { useCursorPagination } from '@/lib/pagination'
 import { showToast } from '@/lib/toast'
 import {
-  useAdAudienceCount,
   useAdClicks,
   useAdminAds,
   useCreateAd,
@@ -91,7 +90,6 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
   const [activeTo, setActiveTo] = useState(editingAd?.active_to ?? '')
   const [targeting, setTargeting] = useState<AdTargeting>(editingAd?.targeting ?? {})
   const countries = useCountries()
-  const audienceCount = useAdAudienceCount(targeting)
   // Shares the ['admin-ads'] cache the page already fetched — no extra request, just reads what's
   // already there so the priority warning below has every other ad to compare against.
   const allAds = useAdminAds()
@@ -402,23 +400,14 @@ function AdFormModal({ editingAd, onClose }: { editingAd?: AdBanner; onClose: ()
         )}
 
         {step === 2 && (
-          <div className="flex flex-col gap-sm">
-            <TargetingFilter
-              value={targeting}
-              onChange={setTargeting}
-              countries={countries.data ?? []}
-              unknownDataPolicy="includes"
-            />
-            <p className="text-body-sm text-text-secondary">
-              {audienceCount.isLoading
-                ? 'Checking how many people match…'
-                : audienceCount.data
-                  ? `~${audienceCount.data.count} ${audienceCount.data.count === 1 ? 'person' : 'people'} currently match this targeting.`
-                  : 'Could not check the matching audience.'}
-              {audienceCount.data?.count === 0 &&
-                ' This ad would currently show to nobody — consider widening the targeting.'}
-            </p>
-          </div>
+          // The expected audience is shown by the filter itself, as on every targeting form.
+          <TargetingFilter
+            value={targeting}
+            onChange={setTargeting}
+            countries={countries.data ?? []}
+            unknownDataPolicy="includes"
+            surface="ads"
+          />
         )}
       </form>
     </Modal>

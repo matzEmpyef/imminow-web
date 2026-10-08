@@ -197,6 +197,28 @@ export function useCorrectDateOfBirth() {
 }
 
 export type ErasureRequest = components['schemas']['ErasureRequest']
+export type ErasurePreview = components['schemas']['ErasurePreview']
+
+/**
+ * What Support's deletion of this account will close, read before the operator confirms (owner
+ * decision 56, 2026-10-08): the disputes open on the account's cases, and the sentence saying
+ * they are closed automatically by the deletion. An empty list and no sentence when there is
+ * none. Super Admin only, like the erasure itself.
+ */
+export function useErasurePreview(userId: string) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['erasure-preview', userId],
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/users/{id}/erase', { signal, params: { path: { id: userId } } })
+      if (error) throw new ApiError('Could not check this account for open disputes.', error)
+      return data
+    },
+    enabled: isAuthed && Boolean(userId),
+    // A dispute can be opened or resolved at any moment: every opening of the form asks afresh.
+    staleTime: 0,
+  })
+}
 export type ErasureQueued = components['schemas']['ErasureQueuedOut']
 
 /**

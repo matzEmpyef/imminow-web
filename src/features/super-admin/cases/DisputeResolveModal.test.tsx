@@ -2,9 +2,10 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Owner ruling 3 (2026-10-07): when Support erased a student's account with a dispute open, the
-// case is already closed and the dispute can only be closed. The server refuses `resume` and
-// `reassign` (409 `conflict`); the modal then shows that sentence and offers only "Close dispute".
+// Owner decision 56 (2026-10-08): when Support deletes a student's account with a dispute open,
+// the deletion closes the dispute itself. Nothing is narrowed here any more: the modal offers its
+// three decisions, and a refusal (409 `already_resolved` for a dispute that was closed meanwhile)
+// shows the server's sentence.
 vi.mock('@/api/client', () => ({ api: { GET: vi.fn(), POST: vi.fn() } }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
 
@@ -15,7 +16,6 @@ import { DisputeResolveModal } from './DisputeResolveModal'
 const mockedPost = vi.mocked(api.POST)
 
 const DISPUTE = { id: 'd1', journey_id: 'j1', student_name: 'Meera Pillai', status: 'open' } as unknown as CaseDispute
-const CLOSE_ONLY = 'This student’s account was deleted. The dispute can only be closed.'
 
 function refused(status: number, code: string, message: string) {
   return { data: undefined, error: { error: { code, message, status } }, response: { status } } as never
@@ -52,20 +52,12 @@ describe('resolving a dispute', () => {
     expect(screen.getByRole('button', { name: 'Resolve' })).toBeInTheDocument()
   })
 
-  it('offers only "Close dispute" once the server says the account was deleted, then closes it', async () => {
-    mockedPost.mockResolvedValueOnce(refused(409, 'conflict', CLOSE_ONLY))
+  it('sends the decision and the note, then closes', async () => {
+    mockedPost.mockResolvedValueOnce({ data: { ...DISPUTE, status: 'resolved' }, error: undefined } as never)
     renderModal()
-    decide('Resume the case')
+    decide('Close the case')
     fireEvent.click(screen.getByRole('button', { name: 'Resolve' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(CLOSE_ONLY)
-    expect(screen.queryByText('Resume the case')).not.toBeInTheDocument()
-    expect(screen.queryByText('Move the student')).not.toBeInTheDocument()
-    expect(screen.getByText(/changes neither the case nor any commission/)).toBeInTheDocument()
-    expect(onClose).not.toHaveBeenCalled()
-
-    mockedPost.mockResolvedValueOnce({ data: { ...DISPUTE, status: 'resolved' }, error: undefined } as never)
-    fireEvent.click(screen.getByRole('button', { name: 'Close dispute' }))
     await waitFor(() =>
       expect(mockedPost).toHaveBeenLastCalledWith('/disputes/{id}/resolve', {
         params: { path: { id: 'd1' } },
@@ -73,16 +65,33 @@ describe('resolving a dispute', () => {
       }),
     )
     await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(onResolved).toHaveBeenCalledWith(expect.objectContaining({ status: 'resolved' }))
   })
 
-  it('keeps every decision on offer after any other refusal', async () => {
+  it('shows the server’s sentence when the dispute was already resolved, and narrows nothing', async () => {
     mockedPost.mockResolvedValueOnce(refused(409, 'already_resolved', 'This dispute was already resolved.'))
     renderModal()
     decide('Move the student')
     fireEvent.click(screen.getByRole('button', { name: 'Resolve' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('This dispute was already resolved.')
-    expect(screen.getByText('Resume the case')).toBeInTheDocument()
+    for (const label of ['Resume the case', 'Move the student', 'Close the case']) {
+      expect(screen.getByText(label)).toBeInTheDocument()
+    }
+    expect(screen.getByRole('button', { name: 'Resolve' })).toBeInTheDocument()
+    expect(screen.queryByText('Close dispute')).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('does not narrow to "Close dispute" on a 409 conflict either: the sentence is shown as it is', async () => {
+    mockedPost.mockResolvedValueOnce(refused(409, 'conflict', 'This case cannot be resumed.'))
+    renderModal()
+    decide('Resume the case')
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('This case cannot be resumed.')
+    expect(screen.getByText('Move the student')).toBeInTheDocument()
+    expect(screen.queryByText('Close dispute')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Resolve' })).toBeInTheDocument()
   })
 })

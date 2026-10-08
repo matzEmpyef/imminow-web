@@ -6,7 +6,6 @@ import { ApiError } from './auth'
 import type { components } from '@/api/schema'
 
 type AdBannerInput = components['schemas']['AdBannerInput']
-type AdTargeting = components['schemas']['Targeting']
 
 export function useAdminAds() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
@@ -53,46 +52,8 @@ export function useCreateAd() {
   })
 }
 
-// User-requested (2026-08-18) — "We need to see how many matching that condition are there in
-// the system when we apply this condition." Queried live as the admin edits Targeting on
-// Add/Edit Ad; the object identity of `targeting` changes on every keystroke/chip add, so the
-// query key is derived from its actual values, not the object reference, to avoid refetching
-// more than the fields that actually changed warrant (react-query does this by default via
-// JSON-serializing the key, so passing `targeting` directly here is already correct).
-//
-// 2026-09-11 — GET /ads/audience-count now accepts every field TargetingFilter can set for ads
-// (state/district/city/institution_id/gender/min_age/max_age added); this was only sending 5 of
-// the 12, so the estimate silently ignored whatever the admin narrowed with those fields.
-export function useAdAudienceCount(targeting: AdTargeting) {
-  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
-  return useQuery({
-    queryKey: ['ad-audience-count', targeting],
-    queryFn: async ({ signal }) => {
-      const { data, error } = await api.GET('/ads/audience-count', {
-        signal,
-        params: {
-          query: {
-            resident_country: targeting.resident_country?.length ? targeting.resident_country : undefined,
-            state: targeting.state?.length ? targeting.state : undefined,
-            district: targeting.district?.length ? targeting.district : undefined,
-            city: targeting.city?.length ? targeting.city : undefined,
-            target_country: targeting.target_country?.length ? targeting.target_country : undefined,
-            study_level: targeting.study_level?.length ? targeting.study_level : undefined,
-            institution_id: targeting.institution_id?.length ? targeting.institution_id : undefined,
-            gender: targeting.gender ?? undefined,
-            min_age: targeting.min_age ?? undefined,
-            max_age: targeting.max_age ?? undefined,
-            stage: targeting.stage ?? undefined,
-            case_type: targeting.case_type ?? undefined,
-          },
-        },
-      })
-      if (error) throw new ApiError('Could not compute the matching audience.', error)
-      return data
-    },
-    enabled: isAuthed,
-  })
-}
+// The expected audience of a draft ad is counted by the shared `useAudienceCount`
+// (`queries/audienceCount.ts`), the same hook broadcasts and events use.
 
 export function useUpdateAd(id: string) {
   const queryClient = useQueryClient()

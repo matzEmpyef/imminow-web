@@ -210,3 +210,41 @@ describe('SendBroadcastModal — duplicate protection', () => {
     expect(sentKey(sendCalls()[1])).toBe(sentKey(sendCalls()[0]))
   })
 })
+
+// Owner decision 20 (2026-10-07): the expected audience reads the same on every form.
+describe('SendBroadcastModal — expected audience', () => {
+  function countBodies() {
+    return (mockedPost.mock.calls as unknown[][])
+      .filter((call) => call[0] === '/broadcast/audience-count')
+      .map((call) => (call[1] as { body: unknown }).body)
+  }
+
+  it('shows "about N" for all students and for all staff, each counted without targeting', async () => {
+    renderModal()
+    const dialog = screen.getByRole('dialog', { name: 'Send Broadcast' })
+    expect(await within(dialog).findByText('Reaches about 180,000 students.')).toBeInTheDocument()
+    expect(countBodies()).toEqual([{ audience: 'all_students', targeting: undefined }])
+
+    fireEvent.change(within(dialog).getByLabelText('Audience'), { target: { value: 'all_staff' } })
+    expect(await within(dialog).findByText('Reaches about 180,000 staff.')).toBeInTheDocument()
+    expect(countBodies()[1]).toEqual({ audience: 'all_staff', targeting: undefined })
+  })
+
+  it('a filtered segment is counted once, by the filter and the dialog together', async () => {
+    // The filter's own pickers: countries and study levels are bare arrays.
+    mockedGet.mockImplementation((async (path: string) =>
+      path === '/countries' || path === '/study-levels'
+        ? { data: [], error: undefined }
+        : { data: { items: [], meta: { next_cursor: null, total: 0 } }, error: undefined }) as never)
+    renderModal()
+    const dialog = screen.getByRole('dialog', { name: 'Send Broadcast' })
+    await within(dialog).findByText('Reaches about 180,000 students.')
+    fireEvent.change(within(dialog).getByLabelText('Audience'), { target: { value: 'segment' } })
+
+    expect(await within(dialog).findByText('Reaches about 180,000 students.')).toBeInTheDocument()
+    expect(within(dialog).getAllByText(/Reaches about/)).toHaveLength(1)
+    expect(countBodies().filter((body) => (body as { audience: string }).audience === 'segment')).toEqual([
+      { audience: 'segment', targeting: {} },
+    ])
+  })
+})

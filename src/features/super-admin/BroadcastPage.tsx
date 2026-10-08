@@ -19,7 +19,9 @@ import { SearchSelect } from '@/components/SearchSelect'
 import { BlogArticleSearchSelect } from '@/features/super-admin/blog/BlogArticleSearchSelect'
 import { useAdminEvents } from '@/queries/eventsAdmin'
 import { useCountries } from '@/queries/countries'
-import { useBroadcastAudienceCount, useBroadcastHistory, useSendBroadcast } from '@/queries/broadcast'
+import { useBroadcastHistory, useSendBroadcast } from '@/queries/broadcast'
+import { useAudienceCount } from '@/queries/audienceCount'
+import { AudienceCountNote } from './AudienceCountNote'
 import { ApiError } from '@/api/errors'
 import { isClearRefusal, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 import { useCursorPagination } from '@/lib/pagination'
@@ -159,8 +161,9 @@ export function SendBroadcastModal({ onClose }: { onClose: () => void }) {
   const isSegment = composeAudience === 'segment'
   const hasFilters = hasAnyTargeting(targeting)
 
-  const audienceCount = useBroadcastAudienceCount(composeAudience, isSegment ? targeting : {})
-  const reach = audienceCount.data?.count ?? null
+  // The same shared count the filter below shows (one request: both ask with the same key).
+  const audienceCount = useAudienceCount('broadcast', targeting, composeAudience)
+  const reach = audienceCount.count
   const nobodyMatches = reach === 0
   const audienceNoun = composeAudience === 'all_staff' ? 'staff' : 'students'
 
@@ -342,14 +345,7 @@ export function SendBroadcastModal({ onClose }: { onClose: () => void }) {
           <option value="segment">Filtered segment</option>
           <option value="all_staff">All immiNow staff</option>
         </SelectField>
-        {!isSegment &&
-          (nobodyMatches ? (
-            <p className="text-body-sm text-error">Nobody matches these filters.</p>
-          ) : (
-            <p className="text-body-sm text-text-secondary">
-              {reach == null ? 'Estimating reach…' : `This will reach ~${reach} ${audienceNoun}.`}
-            </p>
-          ))}
+        {!isSegment && <AudienceCountNote audience={audienceCount} noun={audienceNoun} />}
         <SelectField
           label="Opens"
           id="destination"
@@ -397,17 +393,11 @@ export function SendBroadcastModal({ onClose }: { onClose: () => void }) {
               onChange={setTargeting}
               countries={countries.data ?? []}
               unknownDataPolicy="excludes"
+              surface="broadcast"
             />
             {!hasFilters && (
               <p className="text-caption text-warning">
                 No filters set — this would reach every student, the same as &ldquo;All students&rdquo;.
-              </p>
-            )}
-            {nobodyMatches ? (
-              <p className="text-body-sm text-error">Nobody matches these filters.</p>
-            ) : (
-              <p className="text-body-sm text-text-secondary">
-                {reach == null ? 'Estimating reach…' : `This will reach ~${reach} students.`}
               </p>
             )}
           </div>

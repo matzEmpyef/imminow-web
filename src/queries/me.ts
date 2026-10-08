@@ -43,7 +43,12 @@ export const ME_BLOCKED_CODES = ['account_disabled', 'subscription_lapsed'] as c
  * Refusals on ANY request that mean what the console believes about the caller is out of date, so
  * `/me` is asked again (see `api/client.ts`).
  */
-export const ME_STALE_REFUSAL_CODES = ['permission_denied', 'feature_locked', 'subscription_lapsed'] as const
+export const ME_STALE_REFUSAL_CODES = [
+  'permission_denied',
+  'feature_locked',
+  'subscription_lapsed',
+  'account_disabled',
+] as const
 
 /** `token` is for the one call made before the session is stored (sign-in, accepting an invite). */
 export async function fetchMe(token?: string): Promise<Me> {

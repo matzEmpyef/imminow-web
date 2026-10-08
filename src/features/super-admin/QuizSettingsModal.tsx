@@ -241,6 +241,7 @@ export function QuizSettingsModal({
             onChange={setTargeting}
             countries={countries.data ?? []}
             unknownDataPolicy="includes"
+            surface="events"
           />
         </div>
         <p className="mt-xs text-caption text-text-secondary">

@@ -195,7 +195,9 @@ describe('a refusal that means the caller’s access changed', () => {
 
   const isStale = () => appQueryClient.getQueryState(ME_QUERY_KEY)?.isInvalidated === true
 
-  it.each(['permission_denied', 'feature_locked', 'subscription_lapsed'])(
+  // `account_disabled` (owner decision 58): the staff of a consultancy suspended with "block all
+  // staff" get it on every request, so the console asks `/me` and shows its sentence.
+  it.each(['permission_denied', 'feature_locked', 'subscription_lapsed', 'account_disabled'])(
     'marks /me to be asked again when any request answers 403 %s',
     async (code) => {
       fetchMock.mockResolvedValueOnce(refusal(403, code))

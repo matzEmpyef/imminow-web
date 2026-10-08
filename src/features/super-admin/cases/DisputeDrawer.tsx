@@ -4,6 +4,7 @@ import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Drawer } from '@/components/Drawer'
 import { ContactLink } from '@/components/CopyButton'
+import { useCanExportConversations } from '@/lib/me'
 import { formatDate } from '@/lib/time'
 import {
   useAddDisputeNote,
@@ -12,6 +13,7 @@ import {
   type CaseDispute,
   type DisputeNoteOutcome,
 } from '@/queries/disputes'
+import { CaseConversationExportModal } from '../conversation-export/CaseConversationExportModal'
 import { AddNoteForm } from './AddNoteForm'
 import { CaseProgressChips } from './CaseProgressChips'
 import { DisputeResolveModal } from './DisputeResolveModal'
@@ -39,6 +41,8 @@ export function DisputeDrawer({
 }) {
   const [resolving, setResolving] = useState(false)
   const [confirmingTakeOver, setConfirmingTakeOver] = useState(false)
+  const [exportingConversation, setExportingConversation] = useState(false)
+  const canExportConversation = useCanExportConversations()
 
   const pickUp = usePickUpDispute()
   const notes = useDisputeNotes(dispute.id)
@@ -124,11 +128,20 @@ export function DisputeDrawer({
         <div className="flex flex-col gap-sm">
           <div className="flex flex-wrap items-center justify-between gap-sm">
             <p className="text-caption font-medium text-text-secondary">Case</p>
-            {dispute.journey_id && (
-              <Link to={`/admin/applicants/${dispute.journey_id}`} className={LINK_BUTTON}>
-                Open case
-              </Link>
-            )}
+            <div className="flex flex-wrap items-center gap-xs">
+              {/* The conversation between this student and this consultancy, as a PDF. Offered on
+                  a resolved dispute too: the record may be asked for afterwards. */}
+              {canExportConversation && dispute.journey_id && (
+                <button type="button" className={LINK_BUTTON} onClick={() => setExportingConversation(true)}>
+                  Export conversation
+                </button>
+              )}
+              {dispute.journey_id && (
+                <Link to={`/admin/applicants/${dispute.journey_id}`} className={LINK_BUTTON}>
+                  Open case
+                </Link>
+              )}
+            </div>
           </div>
           <CaseProgressChips progress={dispute.case_progress} />
         </div>
@@ -188,6 +201,14 @@ export function DisputeDrawer({
 
       {resolving && (
         <DisputeResolveModal dispute={dispute} onClose={() => setResolving(false)} onResolved={onUpdated} />
+      )}
+      {exportingConversation && (
+        <CaseConversationExportModal
+          journeyId={dispute.journey_id}
+          studentName={dispute.student_name}
+          consultancyId={dispute.consultancy_id}
+          onClose={() => setExportingConversation(false)}
+        />
       )}
       {confirmingTakeOver && (
         <TakeOverConfirmModal

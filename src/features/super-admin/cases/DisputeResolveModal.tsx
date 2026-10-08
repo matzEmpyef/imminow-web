@@ -4,27 +4,14 @@ import { Card } from '@/components/Card'
 import { Modal } from '@/components/Modal'
 import { DISPUTE_ACTIONS, useResolveDispute, type CaseDispute, type DisputeAction } from '@/queries/disputes'
 import { showToast } from '@/lib/toast'
-import { ApiError } from '@/api/errors'
-
-/**
- * The one choice left on a dispute whose student's account was deleted while it was open (owner
- * ruling 3, 2026-10-07). The case is already closed, so closing the dispute ends the dispute and
- * nothing else; Finance corrects any money with its own tools.
- */
-const CLOSE_ONLY_ACTION = {
-  value: 'close',
-  label: 'Close dispute',
-  detail:
-    'The student’s account was deleted, so the case is already closed. This ends the dispute and changes neither the case nor any commission.',
-} as const
 
 /**
  * The decision that ends a dispute (carried over from the pre-rebuild DisputesPage, 2026-09-09).
  *
- * ACCOUNT DELETED WITH THE DISPUTE OPEN: the server accepts only `close` then, and answers
- * `resume` or `reassign` with 409 `conflict` and a sentence saying so. `CaseDispute` does not say
- * which disputes these are, so the modal learns it from that refusal: it shows the server's
- * sentence and from then on offers only "Close dispute".
+ * ACCOUNT DELETED WITH THE DISPUTE OPEN (owner decision 56, 2026-10-08): Support's deletion of
+ * the account closes the dispute itself, so such a dispute arrives here already resolved and this
+ * modal is never opened for it. Should the list on screen be out of date, `/resolve` answers 409
+ * `already_resolved` and the server's sentence is shown, like any other refusal.
  */
 export function DisputeResolveModal({
   dispute,
@@ -39,8 +26,6 @@ export function DisputeResolveModal({
   const [action, setAction] = useState<DisputeAction | ''>('')
   const [note, setNote] = useState('')
   const [attempted, setAttempted] = useState(false)
-  const [closeOnly, setCloseOnly] = useState(false)
-  const choices = closeOnly ? [CLOSE_ONLY_ACTION] : DISPUTE_ACTIONS
   const canSubmit = action !== '' && Boolean(note.trim())
   const actionError = attempted && action === '' ? 'Choose what was decided.' : undefined
   const noteError = attempted && !note.trim() ? 'Required. Explain what was decided, and why.' : undefined
@@ -57,12 +42,6 @@ export function DisputeResolveModal({
           showToast(`Dispute resolved for ${dispute.student_name ?? 'this case'}`)
           if (updated) onResolved(updated)
           onClose()
-        },
-        onError: (error) => {
-          if (action !== 'close' && error instanceof ApiError && error.code === 'conflict') {
-            setCloseOnly(true)
-            setAction('close')
-          }
         },
       },
     )
@@ -84,14 +63,14 @@ export function DisputeResolveModal({
             Cancel
           </Button>
           <Button loading={resolve.isPending} onClick={handleResolve}>
-            {closeOnly ? 'Close dispute' : 'Resolve'}
+            Resolve
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-md">
         <div className="flex flex-col gap-sm">
-          {choices.map((a) => (
+          {DISPUTE_ACTIONS.map((a) => (
             <Card
               key={a.value}
               onClick={() => setAction(a.value)}

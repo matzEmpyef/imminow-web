@@ -187,11 +187,19 @@ export function useUpdateEntitlements(id: string) {
   })
 }
 
+/**
+ * Suspend a consultancy. `blockStaff` (owner decision 58, 2026-10-08) also signs out every member
+ * of its staff and keeps them out until it is reactivated; it is sent only when ticked, so a
+ * plain suspension is the request it always was.
+ */
 export function useSuspendConsultancy(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async () => {
-      const { data, error } = await api.POST('/consultancies/{id}/suspend', { params: { path: { id } } })
+    mutationFn: async ({ blockStaff = false }: { blockStaff?: boolean } = {}) => {
+      const { data, error } = await api.POST('/consultancies/{id}/suspend', {
+        params: { path: { id } },
+        ...(blockStaff ? { body: { block_staff: true } } : {}),
+      })
       if (error) throw new ApiError('Could not suspend this consultancy.', error)
       return data
     },

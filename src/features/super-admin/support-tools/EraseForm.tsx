@@ -7,7 +7,7 @@ import { humaniseCode } from '@/lib/humanise'
 import { aboutHowLong, retryAfterSeconds } from '@/lib/retryAfter'
 import { formatDate } from '@/lib/time'
 import { ERASE_REASON_NOTE, IMMEDIATE_LEGAL_BASIS_NOTE } from './erasureReasonNotes'
-import { useEraseUserData, type ErasureQueued, type UserSearchResult } from '@/queries/supportTools'
+import { useEraseUserData, useErasurePreview, type ErasureQueued, type UserSearchResult } from '@/queries/supportTools'
 
 /** A legal request must say what it is: the server refuses a shorter reason. */
 const IMMEDIATE_REASON_MIN = 20
@@ -32,9 +32,16 @@ function sameIdentifier(typed: string, expected: string): boolean {
  *      typed, so the operator confirms against the person and not against a row they clicked;
  *   2. the operator's own password, checked by the server;
  *   3. a second screen that states exactly what will happen, with the date.
+ *
+ * OPEN DISPUTES (owner decision 56, 2026-10-08): the deletion closes every dispute open on the
+ * account's cases, in the same step. The second screen lists them (consultancy, day opened) with
+ * the server's sentence, above the confirm button, so the operator knows before confirming. If
+ * that list cannot be read, the confirm button waits for it: nothing is closed unseen.
  */
 export function EraseForm({ result, onCancel }: { result: UserSearchResult; onCancel: () => void }) {
   const eraseData = useEraseUserData()
+  const preview = useErasurePreview(result.id)
+  const openDisputes = preview.data?.open_disputes ?? []
   const [reason, setReason] = useState('')
   const [confirmText, setConfirmText] = useState('')
   const [password, setPassword] = useState('')
@@ -139,11 +146,43 @@ export function EraseForm({ result, onCancel }: { result: UserSearchResult; onCa
           )}
           <li>Payments and invoices already recorded stay, with the name removed.</li>
         </ul>
+        {preview.isLoading && <p className="text-caption text-text-secondary">Checking for open disputes…</p>}
+        {preview.isError && (
+          <p role="alert" className="text-body-sm text-error">
+            {preview.error.message}{' '}
+            <button type="button" className="underline" onClick={() => void preview.refetch()}>
+              Retry
+            </button>
+          </p>
+        )}
+        {openDisputes.length > 0 && (
+          <div className="flex flex-col gap-xs rounded-md border border-warning bg-warning/10 p-sm">
+            <p className="text-body-sm font-medium text-text-primary">
+              {openDisputes.length === 1 ? 'Open dispute' : 'Open disputes'}
+            </p>
+            {preview.data?.open_disputes_notice && (
+              <p className="text-body-sm text-text-primary">{preview.data.open_disputes_notice}</p>
+            )}
+            <ul className="flex flex-col gap-0.5 text-body-sm text-text-primary">
+              {openDisputes.map((dispute) => (
+                <li key={dispute.id}>
+                  {dispute.consultancy_name ?? 'A consultancy'} · opened {formatDate(dispute.opened_at)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="flex items-center justify-end gap-sm">
           <Button size="sm" variant="secondary" disabled={eraseData.isPending} onClick={() => setConfirming(false)}>
             Go back
           </Button>
-          <Button size="sm" variant="destructive" loading={eraseData.isPending} onClick={submit}>
+          <Button
+            size="sm"
+            variant="destructive"
+            loading={eraseData.isPending}
+            disabled={!preview.isSuccess}
+            onClick={submit}
+          >
             {immediate ? 'Erase now' : 'Schedule erasure'}
           </Button>
         </div>

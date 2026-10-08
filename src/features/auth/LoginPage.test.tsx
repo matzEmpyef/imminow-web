@@ -108,3 +108,26 @@ describe('the login page after a session ended', () => {
     expect(await screen.findByText('Home dashboard')).toBeInTheDocument()
   })
 })
+
+// Owner decision 58 (2026-10-08): the staff of a consultancy suspended with "sign out and block
+// all staff" are refused at sign-in, 403 `account_disabled`. The page shows the server's sentence
+// as it is, and nobody is signed in.
+describe('signing in to a blocked account', () => {
+  it('shows the server’s sentence exactly as it came', async () => {
+    const sentence = 'You can’t sign in at the moment. Please contact Sentpo support.'
+    renderLogin()
+    mockedPost.mockResolvedValueOnce({
+      data: undefined,
+      error: { error: { code: 'account_disabled', message: sentence, request_id: 'r1' } },
+      response: { status: 403 },
+    } as never)
+    fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: 'asha@example.test' } })
+    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'pw' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Log in' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe(sentence)
+    expect(screen.queryByText('This account is scheduled for deletion')).not.toBeInTheDocument()
+    expect(useAuthStore.getState().accessToken).toBeNull()
+    expect(mockedGet).not.toHaveBeenCalled()
+  })
+})

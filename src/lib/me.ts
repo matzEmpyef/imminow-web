@@ -59,6 +59,17 @@ export function useCanSeeConsultancyPlans(): boolean {
   return permissions?.consultancy_approval === true || permissions?.finance === true
 }
 
+/**
+ * Whether this account may export a student's conversation with a consultancy (owner decision 61,
+ * 2026-10-08): platform staff holding `support` (disputes and complaints), and Super Admins. The
+ * server decides again on every request. Fails closed while loading.
+ */
+export function useCanExportConversations(): boolean {
+  const isSuperAdmin = useIsSuperAdmin()
+  const hasGrant = usePlatformPermission('support')
+  return isSuperAdmin || hasGrant
+}
+
 /** The list columns that are plan data, which are also the sorts only those accounts may use. */
 export const CONSULTANCY_PLAN_COLUMNS: readonly string[] = ['tier', 'subscription', 'seats_used', 'active_applicants']
 

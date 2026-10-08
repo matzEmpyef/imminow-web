@@ -120,6 +120,15 @@ describe('when /me refuses the caller', () => {
     expect(logout).toHaveBeenCalledTimes(1)
   })
 
+  it('shows a blocked consultancy’s staff the server’s sentence exactly as it came (owner decision 58)', () => {
+    const sentence = 'You can’t sign in at the moment. Please contact Sentpo support.'
+    mockedMe.mockReturnValue(meRefused('account_disabled', sentence, staffMe()))
+    renderAt('/dashboard')
+    expect(screen.getByRole('alert').textContent).toBe(sentence)
+    expect(screen.queryByText('Consultancy dashboard')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument()
+  })
+
   it("shows the server's message to staff of a lapsed consultancy", () => {
     mockedMe.mockReturnValue(
       meRefused('subscription_lapsed', 'Your consultancy’s subscription has lapsed. Only admins can sign in.'),

@@ -7,32 +7,13 @@ import { Button } from '@/components/Button'
 import { CountryLabel } from '@/components/CountryLabel'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { ErrorState, Skeleton } from '@/components/QueryState'
-import { useQuery } from '@tanstack/react-query'
-import { api } from '@/api/client'
-import { ApiError } from '@/queries/auth'
-import { useAuthStore } from '@/stores/authStore'
 import { formatDate, relativeTime } from '@/lib/time'
+import { useApplicantCase } from '@/queries/applicantCase'
 import { useCaseNotes, useRecordFollowup, type CaseFollowupOutcome } from '@/queries/caseFollowups'
 import { LogCallModal, type LogCallInput } from './followups/LogCallModal'
 import { CASE_OUTCOME_OPTIONS, OUTCOME_LABELS } from './followups/labels'
 import { showToast } from '@/lib/toast'
 import { clientStatusLabel } from '@/lib/clientStatus'
-
-function useApplicantCase(journeyId: string | undefined) {
-  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
-  return useQuery({
-    queryKey: ['admin', 'applicants', journeyId],
-    queryFn: async ({ signal }) => {
-      const { data, error } = await api.GET('/admin/applicants/{id}', {
-        signal,
-        params: { path: { id: journeyId! } },
-      })
-      if (error) throw new ApiError('Could not load this applicant.', error)
-      return data
-    },
-    enabled: isAuthed && Boolean(journeyId),
-  })
-}
 
 /**
  * Where a given applicant actually is (2026-09-09).

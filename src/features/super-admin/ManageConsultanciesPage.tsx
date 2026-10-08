@@ -383,9 +383,12 @@ function RatingSection({ consultancy }: { consultancy: Consultancy }) {
 }
 
 // User-requested (2026-08-18) — "Suspend in first line (confirm, as user to type delete or
-// something before suspention)". A typed confirmation, not just a click-through confirm popup,
-// since suspending blocks every one of this consultancy's own staff from working until reversed —
+// something before suspention)". A typed confirmation, not just a click-through confirm popup —
 // a heavier bar than the platform's usual single-click "Delete"-style confirm.
+//
+// Owner decision 58 (2026-10-08): suspension takes the consultancy off the student app and its
+// staff keep signing in. The tick, off by default, also signs every one of them out and keeps
+// them out until the consultancy is reactivated.
 function SuspendConfirmModal({
   consultancyName,
   onConfirm,
@@ -393,18 +396,24 @@ function SuspendConfirmModal({
   loading,
 }: {
   consultancyName: string
-  onConfirm: () => void
+  onConfirm: (blockStaff: boolean) => void
   onClose: () => void
   loading: boolean
 }) {
   const [confirmText, setConfirmText] = useState('')
+  const [blockStaff, setBlockStaff] = useState(false)
   return (
     <Modal
       onClose={onClose}
       title="Suspend Consultancy"
       widthRem={26}
       footer={
-        <Button variant="destructive" loading={loading} disabled={confirmText !== 'SUSPEND'} onClick={onConfirm}>
+        <Button
+          variant="destructive"
+          loading={loading}
+          disabled={confirmText !== 'SUSPEND'}
+          onClick={() => onConfirm(blockStaff)}
+        >
           Suspend
         </Button>
       }
@@ -423,6 +432,21 @@ function SuspendConfirmModal({
           onChange={(e) => setConfirmText(e.target.value)}
           placeholder="SUSPEND"
         />
+        <div className="flex flex-col gap-xs">
+          <label className="flex cursor-pointer items-start gap-sm text-body-sm text-text-primary">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4"
+              checked={blockStaff}
+              onChange={(e) => setBlockStaff(e.target.checked)}
+            />
+            <span>Also sign out and block all staff of this consultancy</span>
+          </label>
+          <p className="pl-lg text-caption text-text-secondary">
+            Staff cannot sign in until the consultancy is reactivated. Use this when the consultancy&rsquo;s accounts
+            may be misused.
+          </p>
+        </div>
       </div>
     </Modal>
   )
@@ -433,12 +457,15 @@ function SuspendConfirmModal({
 // click of friction even though it carries none of Suspend's typed-confirmation weight.
 function ReactivateConfirmModal({
   consultancyName,
+  staffBlocked,
   onConfirm,
   onClose,
   loading,
   error,
 }: {
   consultancyName: string
+  /** Its staff were signed out and blocked at suspension; reactivating lets them back in. */
+  staffBlocked: boolean
   onConfirm: () => void
   onClose: () => void
   loading: boolean
@@ -462,8 +489,10 @@ function ReactivateConfirmModal({
       }
     >
       <p className="text-body-sm text-text-secondary">
-        Reactivate <span className="font-medium text-text-primary">{consultancyName}</span>? Every staff member gets
-        access back at once.
+        Reactivate <span className="font-medium text-text-primary">{consultancyName}</span>?{' '}
+        {staffBlocked
+          ? 'It returns to the student app, and its staff, who are blocked now, can sign in again.'
+          : 'Every staff member gets access back at once.'}
       </p>
     </Modal>
   )
@@ -762,7 +791,7 @@ const FEATURE_GROUPS: { title: string; flags: FeatureDef[]; core?: readonly stri
 ]
 const SUBSCRIPTION_NEEDS_ATTENTION = ['expiring', 'grace', 'lapsed']
 
-function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy; onClose: () => void }) {
+export function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy; onClose: () => void }) {
   const changeTier = useChangeTier(consultancy.id!)
   const updateEntitlements = useUpdateEntitlements(consultancy.id!)
   const suspend = useSuspendConsultancy(consultancy.id!)
@@ -909,6 +938,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
             <Badge color={consultancy.active ? 'success' : 'secondary'}>
               {consultancy.active ? 'Active' : 'Suspended'}
             </Badge>
+            {consultancy.staff_blocked && <Badge color="error">Staff blocked</Badge>}
             <Badge color="primary" className="capitalize">
               {consultancy.tier}
             </Badge>
@@ -999,7 +1029,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
             </div>
           </div>
 
-          {/* Set apart from the everyday rows: it stops every staff member working. */}
+          {/* Set apart from the everyday rows: it takes the whole consultancy off the student app. */}
           <div
             className={`flex items-center justify-between gap-md rounded-md border p-md ${
               consultancy.active ? 'border-error/40' : 'border-border'
@@ -1010,9 +1040,13 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
                 {consultancy.active ? 'Suspend account' : 'Account suspended'}
               </p>
               <p className="text-caption text-text-secondary">
+                {/* Owner decision 58: suspended staff still sign in and see their existing work,
+                    unless they were also blocked at suspension. */}
                 {consultancy.active
-                  ? 'Stops every staff member working until it is reactivated. You will be asked to confirm.'
-                  : 'Its staff cannot work until it is reactivated.'}
+                  ? 'Takes it off the student app until it is reactivated. Its staff still sign in and see their existing work, unless you also block them. You will be asked to confirm.'
+                  : consultancy.staff_blocked
+                    ? 'It is off the student app, and its staff cannot sign in until it is reactivated.'
+                    : 'It is off the student app. Its staff still sign in and see their existing work.'}
               </p>
             </div>
             {consultancy.active ? (
@@ -1216,8 +1250,8 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
           consultancyName={consultancy.name ?? ''}
           loading={suspend.isPending}
           onClose={() => setConfirmingSuspend(false)}
-          onConfirm={() =>
-            suspend.mutate(undefined, {
+          onConfirm={(blockStaff) =>
+            suspend.mutate({ blockStaff }, {
               onSuccess: () => {
                 setConfirmingSuspend(false)
                 showToast(`${consultancy.name} suspended`)
@@ -1230,6 +1264,7 @@ function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consultancy;
       {confirmingReactivate && (
         <ReactivateConfirmModal
           consultancyName={consultancy.name ?? ''}
+          staffBlocked={consultancy.staff_blocked === true}
           loading={reactivate.isPending}
           error={reactivate.isError ? reactivate.error.message : undefined}
           onClose={() => setConfirmingReactivate(false)}

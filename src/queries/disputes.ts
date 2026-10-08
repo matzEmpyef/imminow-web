@@ -148,5 +148,13 @@ export function useResolveDispute() {
       queryClient.invalidateQueries({ queryKey: ['applicant-allocation-queue'] })
       queryClient.invalidateQueries({ queryKey: ['admin-attention'] })
     },
+    // 409 already_resolved: a colleague resolved it, or Support's deletion of the account closed
+    // it (owner decision 56). The queue on screen was out of date, so it is read again.
+    onError: (err) => {
+      if (err instanceof ApiError && err.code === 'already_resolved') {
+        queryClient.invalidateQueries({ queryKey: ['disputes'] })
+        queryClient.invalidateQueries({ queryKey: ['admin-attention'] })
+      }
+    },
   })
 }

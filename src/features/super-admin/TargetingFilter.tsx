@@ -10,6 +10,8 @@ import { SelectField } from '@/components/SelectField'
 import { TextField } from '@/components/TextField'
 import { useStudyLevels } from '@/queries/studyLevels'
 import { GENDERS, genderLabel, type Gender } from '@/lib/genders'
+import { useAudienceCount, type AudienceSurface } from '@/queries/audienceCount'
+import { AudienceCountNote } from './AudienceCountNote'
 
 
 interface TargetingFilterProps {
@@ -28,6 +30,11 @@ interface TargetingFilterProps {
    * because the same filter reaches a different audience on an ad than on a broadcast.
    */
   unknownDataPolicy: 'includes' | 'excludes'
+  /**
+   * Which form this is, for the expected audience shown under the fields (owner decision 20,
+   * 2026-10-07): each surface has its own count route, counted by its own rule.
+   */
+  surface: AudienceSurface
 }
 
 /**
@@ -42,7 +49,8 @@ interface TargetingFilterProps {
  *
  * Adding a dimension now means adding it here once, and all three surfaces get it.
  */
-export function TargetingFilter({ value, onChange, countries, unknownDataPolicy, lifecycle = false }: TargetingFilterProps) {
+export function TargetingFilter({ value, onChange, countries, unknownDataPolicy, surface, lifecycle = false }: TargetingFilterProps) {
+  const audience = useAudienceCount(surface, value)
   // Searched on the server (review F-038): the list was the first 100 schools with no query sent,
   // so a school past them could not be targeted. What is typed goes to `q` (name and city
   // together) after the usual pause, and further pages load with the list's cursor.
@@ -261,6 +269,8 @@ export function TargetingFilter({ value, onChange, countries, unknownDataPolicy,
           </SelectField>
         </div>
       )}
+
+      <AudienceCountNote audience={audience} />
     </div>
   )
 }
