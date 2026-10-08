@@ -97,25 +97,9 @@ export function useCreateLead() {
   })
 }
 
-interface ImportValidateRow {
-  row_number: number
-  valid: boolean
-  name?: string
-  phone?: string | null
-  email?: string | null
-  errors?: string[]
-}
-
-interface ImportValidateResult {
-  batch_id: string
-  valid_count: number
-  invalid_count: number
-  rows: ImportValidateRow[]
-}
-
 export function useValidateLeadImport() {
   return useMutation({
-    mutationFn: async (file: File): Promise<ImportValidateResult> => {
+    mutationFn: async (file: File) => {
       const formData = new FormData()
       formData.append('file', file)
       const { data, error } = await api.POST('/leads/import/validate', {
@@ -123,7 +107,7 @@ export function useValidateLeadImport() {
         bodySerializer: () => formData,
       })
       if (error) throw new ApiError('Could not validate the CSV file.', error)
-      return data as unknown as ImportValidateResult
+      return data
     },
   })
 }

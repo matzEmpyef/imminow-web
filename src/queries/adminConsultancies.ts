@@ -31,9 +31,13 @@ export function useAdminConsultancies(filters: ConsultancyFilters = {}) {
   return useQuery({
     queryKey: ['admin-consultancies', filters],
     queryFn: async ({ signal }) => {
-      // `status` is typed one value wider than the generated schema's enum (`never_billed`,
-      // review M5) — cast rather than wait on a schema regen this session isn't doing.
-      const { data, error } = await api.GET('/consultancies', { signal, params: { query: filters as never } })
+      // `status` is typed one value wider than the contract's enum (`never_billed`, review M5; the
+      // contract does not list it yet) — only that field is cast, so any other change to the query
+      // still fails to compile (review F-319).
+      const { data, error } = await api.GET('/consultancies', {
+        signal,
+        params: { query: { ...filters, status: filters.status as never } },
+      })
       if (error) throw new ApiError('Could not load consultancies.', error)
       return data
     },
@@ -249,7 +253,7 @@ export function useTierImpact(id: string, tier: string | undefined, enabled: boo
     queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/consultancies/{id}/tier-impact', {
         signal,
-        params: { path: { id }, query: { tier: tier as never } },
+        params: { path: { id }, query: { tier: tier as 'starter' | 'business' | 'ultimate' } },
       })
       if (error) throw new ApiError('Could not check what this tier change would affect.', error)
       return data
