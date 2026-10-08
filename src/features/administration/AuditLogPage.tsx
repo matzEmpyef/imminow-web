@@ -6,7 +6,7 @@ import { Card } from '@/components/Card'
 import { ApiError } from '@/api/errors'
 import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
-import { useAuditLog, type AuditLogFilters } from '@/queries/auditLog'
+import { AUDIT_AREAS, useAuditLog, type AuditLogFilters } from '@/queries/auditLog'
 import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { anyEmployeeSource } from '@/queries/pickerSources'
 import { useCursorPagination } from '@/lib/pagination'
@@ -183,12 +183,11 @@ export function AuditLogPage() {
                   resetPaging()
                 }}
                 label="Area"
-                className="capitalize"
               >
                 <option value="">Any area</option>
-                {['leads', 'clients', 'plans', 'documents', 'settings', 'staff'].map((a) => (
+                {AUDIT_AREAS.map((a) => (
                   <option key={a} value={a}>
-                    {a}
+                    {labelize(a)}
                   </option>
                 ))}
               </CompactSelect>

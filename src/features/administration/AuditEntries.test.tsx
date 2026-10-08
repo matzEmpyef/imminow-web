@@ -216,3 +216,17 @@ describe('the consultancy audit log, actor filter', () => {
     await waitFor(() => expect(auditCalls('/audit-log').at(-1)?.filter).toMatchObject({ actor_id: 'e2' }))
   })
 })
+
+// Review F-304: the Area filter lists every area the contract names, not six of them.
+describe('the consultancy audit log, area filter', () => {
+  it('offers every area an entry can carry, and filters by one the old list lacked', async () => {
+    renderPage(<AuditLogPage />)
+    await screen.findByText('Asha Nair')
+    const area = screen.getByLabelText('Area')
+    for (const label of ['Billing', 'Freelancers', 'Consultancy Management', 'Notifications']) {
+      expect(within(area).getByRole('option', { name: label })).toBeInTheDocument()
+    }
+    fireEvent.change(area, { target: { value: 'billing' } })
+    await waitFor(() => expect(auditCalls('/audit-log').at(-1)?.filter).toMatchObject({ area: 'billing' }))
+  })
+})
