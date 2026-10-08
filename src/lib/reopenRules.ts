@@ -13,6 +13,10 @@ import { isCaseMoved, isClosedByAccountDeletion } from '@/lib/clientStatus'
  *   - no permission key: reopening a lead or a case needs none beyond the feature (owner Q3,
  *     2026-09-25; the contract's own words on `POST /leads/{id}/reopen`). Reopen PLAN is a
  *     different action and keeps its own `step_review.reopen_plan` permission.
+ *
+ * A LEAD is no longer worked out here at all: the server decides and says so on the lead
+ * (`Lead.can_reopen`, owner ruling "Lead reopen", 2026-10-06). A CASE still is, from its status,
+ * its close reason and the plan.
  */
 export const REOPEN_FEATURE = 'case_reopening'
 
@@ -22,32 +26,26 @@ export function useCanReopen(): boolean {
 }
 
 interface LeadForReopen {
-  status?: string | null
+  can_reopen?: boolean | null
 }
 
 /**
- * True when a closed lead may never be reopened by the consultancy (owner ruling, 2026-10-06): it
- * closed because the student chose another consultancy, or the student closed it themselves. Only
- * the student restarts such a lead, by starting a new chat; the server refuses the reopen.
+ * Reopen is offered on a lead exactly when the server says it may be reopened now. This is the
+ * ONE place the console reads `Lead.can_reopen`.
  *
- * THE CONTRACT DOES NOT SAY WHICH LEADS THESE ARE YET. `Lead` carries `status` and nothing about
- * who closed it or why (no closed-by, no close reason), so the console cannot tell such a lead
- * from one the consultancy closed itself, and this answers false for every lead. Until the server
- * sends that fact, the control is still shown on these leads and pressing it ends in the server's
- * refusal, which the Reopen dialog shows in the server's own words.
+ * The server's answer already covers everything the console used to piece together, and the one
+ * thing it never could: the lead is closed, the plan includes reopening, and the consultancy
+ * closed it itself. A lead that closed because the student chose another consultancy, closed it
+ * themselves or deleted their account can never be reopened by the consultancy (only the student
+ * restarts it, by starting a new chat), and before this field the control was still shown on
+ * those and ended in the server's refusal.
  *
- * This function is the one place to read the field when it exists. Needed on `Lead` (staff view):
- * either a server-decided `can_reopen: boolean`, or `closed_by` (`consultancy` | `student` |
- * `system`) with a `close_reason_code` that names "chose another consultancy".
+ * Fails closed: a lead that does not carry the field is not offered Reopen. Pressing Reopen can
+ * still be refused for a reason of the moment (the student has a live case, or too many open
+ * chats); the Reopen dialog shows that in the server's own words.
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- the lead is what the rule will read
-export function leadClosedOnStudentSide(_lead: LeadForReopen): boolean {
-  return false
-}
-
-/** Reopen is offered on a lead: it is closed, the plan includes reopening, and it is ours to reopen. */
-export function canOfferLeadReopen(lead: LeadForReopen, planIncludesReopening: boolean): boolean {
-  return planIncludesReopening && lead.status === 'closed' && !leadClosedOnStudentSide(lead)
+export function canOfferLeadReopen(lead: LeadForReopen): boolean {
+  return lead.can_reopen === true
 }
 
 interface CaseForReopen {

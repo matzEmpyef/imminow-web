@@ -1,7 +1,6 @@
 // Split out of ConsultancyProfilePage.tsx (Phase 3 plan, Tier B2, 2026-09-03) — pure movement, no logic change.
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Card } from '@/components/Card'
-import { ErrorState, Skeleton } from '@/components/QueryState'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
@@ -13,12 +12,11 @@ import { Modal } from '@/components/Modal'
 import { useAddGalleryImage, useDeleteGalleryImage, useMyConsultancy, useUpdateConsultancyProfile, useUpdateGalleryImage } from '@/queries/consultancy'
 import { mediaUrl } from '@/lib/mediaUrl'
 import { useCountries } from '@/queries/countries'
-import { useMyKyc, useSubmitKyc } from '@/queries/kyc'
-import { useAccountWords } from '@/lib/accountWords'
 import type { components } from '@/api/schema'
 import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
 import { showToast } from '@/lib/toast'
 import { ApiError } from '@/api/errors'
+import { KycCard } from './KycCard'
 import { VisitingHoursEditor } from './VisitingHoursEditor'
 import { visitingHoursStateFrom, visitingScheduleFrom, type VisitingHoursState } from './visitingHoursState'
 
@@ -455,113 +453,5 @@ function AddGalleryImageModal({ onClose }: { onClose: () => void }) {
         {addImage.isError && <p className="text-body-sm text-error">{addImage.error.message}</p>}
       </div>
     </Modal>
-  )
-}
-
-/**
- * KYC certificate card (2026-08-19 — "option for consultancy to upload their certificate").
- * The student app's Verified badge is earned here: upload → Platform Admin reviews in Manage
- * Consultancies → badge flips. Re-uploading a certificate resets verification server-side, so
- * the pending state after a re-submit is honest, not a bug.
- */
-function KycCard() {
-  const kyc = useMyKyc()
-  const submitKyc = useSubmitKyc()
-  const [documentUrl, setDocumentUrl] = useState<string | null>(null)
-  // "KYC" is a consultancy's word (console review M12, 2026-09-13). A university does not do
-  // Know-Your-Customer against itself — it holds an ACCREDITATION, and the thing it is being
-  // asked for has a different name. Same endpoint, same review queue, same Verified badge; only
-  // the wording changes, and only for an institute.
-  const { isInstitute } = useAccountWords()
-
-  // T6 (third-pass review): loading and error used to default to 'not_submitted', showing a
-  // VERIFIED consultancy the "upload your certificate" pitch — and a re-upload from there
-  // genuinely resets verification (see the doc comment above). Neither state may claim a status
-  // nobody has fetched yet.
-  if (kyc.isLoading) {
-    return (
-      <Card>
-        <Skeleton className="h-24 rounded-lg" />
-      </Card>
-    )
-  }
-  if (kyc.isError) {
-    return (
-      <Card>
-        <ErrorState message="Could not load your KYC status." onRetry={() => kyc.refetch()} error={kyc.error} />
-      </Card>
-    )
-  }
-
-  const status = kyc.data?.status ?? 'not_submitted'
-
-  return (
-    <Card>
-      <div className="flex items-center gap-sm">
-        <h2 className="text-h2 text-text-primary">{isInstitute ? 'Verification' : 'KYC Verification'}</h2>
-        <Badge
-          color={status === 'verified' ? 'success' : status === 'pending' ? 'warning' : 'secondary'}
-          className="capitalize"
-        >
-          {status.replace(/_/g, ' ')}
-        </Badge>
-      </div>
-      <p className="mt-xs text-body-sm text-text-secondary">
-        {status === 'verified'
-          ? `Your ${isInstitute ? 'document' : 'certificate'} is verified — students see the Verified badge on your profile.`
-          : status === 'pending'
-            ? `Your ${isInstitute ? 'document' : 'certificate'} is with the Platform Admin for review.`
-            : isInstitute
-              ? 'Send us your accreditation or registration document so students see the Verified badge.'
-              : 'Upload your registration certificate to earn the Verified badge students see.'}
-      </p>
-      <div className="mt-md flex flex-col gap-md">
-        {kyc.data?.document_url && (
-          <a
-            href={kyc.data.document_url}
-            target="_blank"
-            rel="noreferrer"
-            className="w-fit text-body-sm text-primary underline"
-          >
-            {isInstitute ? 'View submitted document' : 'View submitted certificate'}
-          </a>
-        )}
-        <ImageUploadField
-          label={
-            isInstitute
-              ? status === 'not_submitted'
-                ? 'Accreditation document'
-                : 'Replace document'
-              : status === 'not_submitted'
-                ? 'Certificate'
-                : 'Replace certificate'
-          }
-          value={documentUrl ?? ''}
-          onChange={setDocumentUrl}
-          hint={
-            isInstitute
-              ? 'Image of your accreditation or registration document. Re-uploading restarts verification.'
-              : 'Image of your registration/incorporation certificate. Re-uploading restarts verification.'
-          }
-        />
-        {submitKyc.isError && <p className="text-body-sm text-error">{submitKyc.error.message}</p>}
-        <Button
-          className="w-fit"
-          loading={submitKyc.isPending}
-          disabled={!documentUrl}
-          onClick={() =>
-            documentUrl &&
-            submitKyc.mutate(documentUrl, {
-              onSuccess: () => {
-                setDocumentUrl(null)
-                showToast('KYC submitted — pending verification')
-              },
-            })
-          }
-        >
-          {isInstitute ? 'Upload accreditation document' : 'Submit for verification'}
-        </Button>
-      </div>
-    </Card>
   )
 }

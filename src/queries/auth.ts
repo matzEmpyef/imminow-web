@@ -68,14 +68,18 @@ export function useResetPassword() {
   })
 }
 
+// The invite token travels in the request BODY on both calls (review F-123): a URL path is written
+// to the access log of every server on the way, and the token is a working credential for a week.
+// The page reads it from its own address (`useLinkToken`); the `{token}` routes are not called.
 export function useInvite(token: string) {
   return useQuery({
     queryKey: ['invite', token],
     queryFn: async ({ signal }) => {
-      const { data, error } = await api.GET('/auth/invite/{token}', { signal, params: { path: { token } } })
+      const { data, error } = await api.POST('/auth/invite/describe', { signal, body: { token } })
       if (error) throw new ApiError('Could not load this invitation.', error)
       return data
     },
+    enabled: token.length > 0,
     retry: false,
   })
 }
@@ -84,10 +88,7 @@ export function useAcceptInvite(token: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (body: { password: string }) => {
-      const { data, error } = await api.POST('/auth/invite/{token}', {
-        params: { path: { token } },
-        body,
-      })
+      const { data, error } = await api.POST('/auth/invite/accept', { body: { token, ...body } })
       if (error) throw new ApiError('Could not accept this invitation.', error)
       await beginSession(queryClient, data)
       return data

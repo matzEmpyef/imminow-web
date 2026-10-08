@@ -109,8 +109,11 @@ function PermissionsModalBody({ designation, onClose }: { designation: Designati
             <p className="text-caption font-medium text-text-secondary">{group.label}</p>
             <div className="mt-xs flex flex-col gap-xs">
               {group.permissions.map((perm) => (
-                <div key={perm.key} className="flex items-center justify-between">
-                  <span className="text-body-sm text-text-primary">{perm.label}</span>
+                <div key={perm.key} className="flex items-center justify-between gap-md">
+                  <span className="text-body-sm text-text-primary">
+                    {perm.label}
+                    {perm.hint && <span className="block text-caption text-text-secondary">{perm.hint}</span>}
+                  </span>
                   <Toggle
                     checked={Boolean(permissions[perm.key])}
                     onChange={() => toggle(perm.key)}

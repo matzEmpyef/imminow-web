@@ -387,8 +387,10 @@ function App() {
         {/* Public, no account: the page a parent opens from the message Sentpo sent them to
             approve a 16- or 17-year-old's account (2026-09-05). Sits with login and password
             reset because it is the same kind of route — reachable with no session at all. */}
-        <Route path="/guardian/:token" element={<GuardianApprovalPage />} />
-        <Route path="/set-password/:token" element={<SetPasswordPage />} />
+        {/* The token segment is optional on both: new links carry it in the fragment, and the page
+            takes it out of the address once read without being remounted (useLinkToken, F-123). */}
+        <Route path="/guardian/:token?" element={<GuardianApprovalPage />} />
+        <Route path="/set-password/:token?" element={<SetPasswordPage />} />
         <Route element={<ProtectedLayout />}>
           <Route path="/account" element={<MyAccountPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />

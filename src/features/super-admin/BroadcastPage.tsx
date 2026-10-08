@@ -31,6 +31,18 @@ type Audience = NonNullable<components['schemas']['BroadcastInput']['audience']>
 type BroadcastTargeting = components['schemas']['Targeting']
 type Broadcast = NonNullable<ReturnType<typeof useBroadcastHistory>['data']>['items'][number]
 
+/**
+ * The server could not count this hour's sends (its cache was unreachable), so it started nothing
+ * (503 `service_unavailable`, review F-059). Unlike any other 5xx, this one is a definite "not
+ * sent": the sender is told to try again in a moment, on the same screen, instead of being warned
+ * that the broadcast may have gone out. The Idempotency-Key is kept, as for every 5xx.
+ */
+function notStarted(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 503 && err.code === 'service_unavailable'
+}
+
+const NOT_STARTED_MESSAGE = 'Nothing was sent. Please try again in a moment.'
+
 // The lifecycle presets are stored as days; read them back as the words the sender picked.
 function describeDays(days: number): string {
   if (days === 14) return '2 weeks'
@@ -187,7 +199,7 @@ export function SendBroadcastModal({ onClose }: { onClose: () => void }) {
         },
         onError: (err) => {
           idempotency.settle(err)
-          if (!isClearRefusal(err)) {
+          if (!isClearRefusal(err) && !notStarted(err)) {
             setUnclear(true)
             setMayHaveSent(true)
           }
@@ -244,6 +256,11 @@ export function SendBroadcastModal({ onClose }: { onClose: () => void }) {
           <>
             {/* A refusal only — an unclear failure has its own screen, and its raw text
                 ("Failed to fetch") must not reappear here on the next attempt. */}
+            {sendBroadcast.isError && notStarted(sendBroadcast.error) && (
+              <p role="alert" className="mr-auto self-center text-body-sm text-error">
+                {NOT_STARTED_MESSAGE}
+              </p>
+            )}
             {sendBroadcast.isError && isClearRefusal(sendBroadcast.error) && (
               <p className="mr-auto self-center text-body-sm text-error">
                 {sendBroadcast.error.message}

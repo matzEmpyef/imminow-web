@@ -7,7 +7,9 @@ import { Table, type TableColumn } from '@/components/Table'
 import { useCursorPagination } from '@/lib/pagination'
 import { useUserSearch, type UserSearchResult } from '@/queries/supportTools'
 import { formatDate } from '@/lib/time'
+import { ApiError } from '@/api/errors'
 import { UserActionsModal } from './support-tools/UserActionsModal'
+import { PendingContact } from './support-tools/PendingContact'
 import { PendingErasuresPanel } from './support-tools/PendingErasuresPanel'
 
 // What the search box matches, in words — shared by the intro, the placeholder-adjacent empty states.
@@ -69,10 +71,11 @@ export function SupportToolsPage() {
       header: 'Contact',
       hideBelow: 'sm',
       render: (result) => (
-        <span className="text-text-secondary">
+        <div className="text-text-secondary">
           {result.email}
           {result.phone ? ` · ${result.phone}` : ''}
-        </span>
+          <PendingContact user={result} className="mt-0.5" />
+        </div>
       ),
     },
     {
@@ -114,7 +117,16 @@ export function SupportToolsPage() {
           rows={rows}
           rowKey={(result) => result.id}
           loading={results.isLoading}
-          error={results.isError ? 'Could not run this search.' : undefined} errorSource={results.error}
+          // Too many searches this hour, or the count could not be kept (review F-103): the
+          // server's own sentence says which and when, so it is shown as it is.
+          error={
+            results.isError
+              ? results.error instanceof ApiError && (results.error.status === 429 || results.error.status === 503)
+                ? results.error.message
+                : 'Could not run this search.'
+              : undefined
+          }
+          errorSource={results.error}
           emptyMessage={
             search.trim().length < 2
               ? `Search by ${SEARCH_RULE}.`

@@ -10,7 +10,7 @@ import { StopPropagation } from '@/components/StopPropagation'
 import { RequestedBranchBadge, RequestedBranchNote } from '@/components/RequestedBranch'
 import { ReopenLeadModal } from './ReopenLeadModal'
 import { ReopenTrigger } from '@/components/ReopenTrigger'
-import { canOfferLeadReopen, useCanReopen } from '@/lib/reopenRules'
+import { canOfferLeadReopen } from '@/lib/reopenRules'
 import { useBranches } from '@/queries/staff'
 import { useAllocateLead, useLeads, useSetLeadTags } from '@/queries/leads'
 import { useCreateTag, useTags } from '@/queries/tags'
@@ -75,7 +75,6 @@ export function ActiveLeadsPage() {
   // the server checks (review F-147; `lib/reopenRules.ts`). It used to be shown on every closed
   // row on every plan.
   const canReassign = usePermission('leads.reassign')
-  const planIncludesReopening = useCanReopen()
 
   function resetPaging() {
     paging.reset()
@@ -159,7 +158,7 @@ export function ActiveLeadsPage() {
       header: 'Reassign',
       render: (lead) =>
         lead.status === 'closed' ? (
-          canOfferLeadReopen(lead, planIncludesReopening) ? (
+          canOfferLeadReopen(lead) ? (
             <ReopenTrigger
               name={lead.name}
               renderModal={(close) => <ReopenLeadModal leadId={lead.id} leadName={lead.name} onClose={close} />}

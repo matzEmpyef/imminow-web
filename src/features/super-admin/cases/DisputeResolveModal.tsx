@@ -4,8 +4,28 @@ import { Card } from '@/components/Card'
 import { Modal } from '@/components/Modal'
 import { DISPUTE_ACTIONS, useResolveDispute, type CaseDispute, type DisputeAction } from '@/queries/disputes'
 import { showToast } from '@/lib/toast'
+import { ApiError } from '@/api/errors'
 
-/** Carried over unchanged from the pre-rebuild DisputesPage (2026-09-09) — this content was already good. */
+/**
+ * The one choice left on a dispute whose student's account was deleted while it was open (owner
+ * ruling 3, 2026-10-07). The case is already closed, so closing the dispute ends the dispute and
+ * nothing else; Finance corrects any money with its own tools.
+ */
+const CLOSE_ONLY_ACTION = {
+  value: 'close',
+  label: 'Close dispute',
+  detail:
+    'The student’s account was deleted, so the case is already closed. This ends the dispute and changes neither the case nor any commission.',
+} as const
+
+/**
+ * The decision that ends a dispute (carried over from the pre-rebuild DisputesPage, 2026-09-09).
+ *
+ * ACCOUNT DELETED WITH THE DISPUTE OPEN: the server accepts only `close` then, and answers
+ * `resume` or `reassign` with 409 `conflict` and a sentence saying so. `CaseDispute` does not say
+ * which disputes these are, so the modal learns it from that refusal: it shows the server's
+ * sentence and from then on offers only "Close dispute".
+ */
 export function DisputeResolveModal({
   dispute,
   onClose,
@@ -19,6 +39,8 @@ export function DisputeResolveModal({
   const [action, setAction] = useState<DisputeAction | ''>('')
   const [note, setNote] = useState('')
   const [attempted, setAttempted] = useState(false)
+  const [closeOnly, setCloseOnly] = useState(false)
+  const choices = closeOnly ? [CLOSE_ONLY_ACTION] : DISPUTE_ACTIONS
   const canSubmit = action !== '' && Boolean(note.trim())
   const actionError = attempted && action === '' ? 'Choose what was decided.' : undefined
   const noteError = attempted && !note.trim() ? 'Required. Explain what was decided, and why.' : undefined
@@ -36,6 +58,12 @@ export function DisputeResolveModal({
           if (updated) onResolved(updated)
           onClose()
         },
+        onError: (error) => {
+          if (action !== 'close' && error instanceof ApiError && error.code === 'conflict') {
+            setCloseOnly(true)
+            setAction('close')
+          }
+        },
       },
     )
   }
@@ -47,19 +75,23 @@ export function DisputeResolveModal({
       widthRem={32}
       footer={
         <>
-          {resolve.isError && <p className="mr-auto self-center text-body-sm text-error">{resolve.error.message}</p>}
+          {resolve.isError && (
+            <p role="alert" className="mr-auto self-center text-body-sm text-error">
+              {resolve.error.message}
+            </p>
+          )}
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button loading={resolve.isPending} onClick={handleResolve}>
-            Resolve
+            {closeOnly ? 'Close dispute' : 'Resolve'}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-md">
         <div className="flex flex-col gap-sm">
-          {DISPUTE_ACTIONS.map((a) => (
+          {choices.map((a) => (
             <Card
               key={a.value}
               onClick={() => setAction(a.value)}

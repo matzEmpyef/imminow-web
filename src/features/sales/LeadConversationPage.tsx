@@ -35,7 +35,8 @@ import {
 import { useBranches } from '@/queries/staff'
 import { chronologicalPages } from '@/lib/pagination'
 import { useFeature } from '@/lib/features'
-import { canOfferLeadReopen, useCanReopen } from '@/lib/reopenRules'
+import { canOfferLeadReopen } from '@/lib/reopenRules'
+import { useCanConvertLead } from '@/lib/convertRules'
 import { usePermission } from '@/lib/permissions'
 import { formatDate, formatDateTime } from '@/lib/time'
 import { formatMoney } from '@/lib/money'
@@ -314,10 +315,12 @@ export function LeadConversationPage() {
   // button is now gated on the permission the SERVER enforces on POST /leads/{id}/close —
   // `clients.close`, the one key that guards closing a lead and closing a case alike. It used to
   // render for everyone, so a limited consultant clicked it and got a 403 for their trouble.
-  // Reopen follows the one rule every Reopen control shares (`lib/reopenRules.ts`): the
-  // `case_reopening` plan feature, and never a lead that closed on the student's side.
+  // Reopen is the server's own answer on the lead (`Lead.can_reopen`, read in one place:
+  // `lib/reopenRules.ts`).
   const canCloseLead = usePermission('clients.close')
-  const planIncludesReopening = useCanReopen()
+  // Convert to Client, and answering a student's own request, need the "convert leads"
+  // permission (owner decision 6; review F-055). See `lib/convertRules.ts`.
+  const canConvert = useCanConvertLead(lead.data)
 
   // Read on open, and again for each message that arrives while the consultant is looking at the
   // thread (review F-143; the shared hook all four chat screens use).
@@ -377,7 +380,7 @@ export function LeadConversationPage() {
                 <span className="rounded-full bg-background px-sm py-1.5 text-caption font-medium text-text-secondary">
                   Closed
                 </span>
-                {canOfferLeadReopen(data, planIncludesReopening) && (
+                {canOfferLeadReopen(data) && (
                   <Button variant="secondary" onClick={() => setShowReopenModal(true)}>
                     Reopen Lead
                   </Button>
@@ -398,9 +401,14 @@ export function LeadConversationPage() {
                 <ShortlistAction lead={data} />
 
                 {data.active_proposal ? (
-                  <ConversionApprovalActions leadId={id} leadName={data.name} proposal={data.active_proposal} />
+                  <ConversionApprovalActions
+                    leadId={id}
+                    leadName={data.name}
+                    proposal={data.active_proposal}
+                    canConvert={canConvert}
+                  />
                 ) : (
-                  <Button onClick={() => setShowConvertModal(true)}>Convert to Client</Button>
+                  canConvert && <Button onClick={() => setShowConvertModal(true)}>Convert to Client</Button>
                 )}
 
                 {canCloseLead && (

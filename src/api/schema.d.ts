@@ -45,7 +45,24 @@ export interface paths {
                     };
                     content?: never;
                 };
-                409: components["responses"]["ErrorResponse"];
+                /** @description `email_taken` — the email already has an account. For a Google sign-up the address is proven by the Google token, so this is an answer after proof. The real backend no longer answers 409 `identifier_in_use` for a typed `phone` (review F-122): it is checked for its form only and never saved here; the person hears that a number is another account's when they enter its code (`POST /auth/otp/verify`, 409). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description More than 30 sign-ups an hour from this caller address (shared with `POST /auth/passwordless/complete-signup`; review F-122). */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -67,6 +84,7 @@ export interface paths {
          * Record a batch of analytics events
          * @description Batched and fire-and-forget. Clients buffer events and flush periodically rather than posting per interaction, and must never surface a failure here — losing analytics is always preferable to disturbing the person using the app.
          *     Namespaced under `/analytics` because `/events` already belongs to webinars, meet-ups and quizzes.
+         *     WITHOUT AN ACCOUNT (review F-106/F-126, 2026-10-07): a caller that sends no bearer token may send at most 10 batches a minute per network address (it was 120; over it 429 `rate_limited`, which the client ignores as it ignores every failure here). The app should therefore flush pre-sign-in events no more often than every 10 seconds, in one batch. The platform also has a daily budget for such batches and a switch to turn them off; in either case the answer is still 202 and nothing is stored. Rows from callers without an account are deleted 30 days after they arrive. Signed-in callers keep 120 batches a minute.
          *     `product` is set SERVER-side from the caller's role rather than taken from the request: clients can be wrong or lie about which product they are, roles cannot. Unauthenticated calls are accepted so pre-signup activity is not invisible.
          *     Always 202. Rows are not validated individually — a bad row is dropped, not the whole batch.
          *     Limits (gate 12, F63/Q11): up to 100 events per batch, 64 KB request body, 120 batches a minute per device/IP (rate-limited, failing open — never blocks the app over this). Over the batch-size limit: 413. The frozen mock has none of this — it silently truncates a bigger batch to 200 and always answers 202, a known gap this gate documents rather than fixes.
@@ -461,6 +479,119 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/invite/describe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve an invite for the Set Your Password screen — the token in the request body
+         * @description The same answer as `GET /auth/invite/{token}`, with the token in the body (review F-123): a URL path is written to the access log of every server between the browser and the API, and an invite token is a working credential for 7 days. The console's Set Your Password page must read the token from the page address — the fragment (`/set-password#<token>`) when present, else the last path segment (`/set-password/<token>`, the shape of links already mailed) — and call this route and `POST /auth/invite/accept`. It must not call the `{token}` routes any more, and should replace the address with `/set-password` (history.replaceState) once it has read the token. Emailed links switch to the fragment shape when the backend setting `LINK_TOKENS_IN_FRAGMENT` is turned on, after the console change is live.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        token: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            first_name: string;
+                            consultancy_name: string | null;
+                            role?: string | null;
+                        };
+                    };
+                };
+                /** @description Invite expired (7 days), already used, or no longer valid */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/invite/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept an invite and set the first password — the token in the request body
+         * @description The same as `POST /auth/invite/{token}`, with the token in the body (review F-123; see `POST /auth/invite/describe`). Signs straight in.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        token: string;
+                        password: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Account activated, access + refresh tokens issued */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TokenPair"];
+                    };
+                };
+                /** @description Invite expired, already used, or no longer valid */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/invite/{token}": {
         parameters: {
             query?: never;
@@ -468,7 +599,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Resolve an employee invite — name + consultancy for the Set Your Password welcome screen */
+        /**
+         * Resolve an employee invite — name + consultancy for the Set Your Password welcome screen
+         * @deprecated
+         */
         get: {
             parameters: {
                 query?: never;
@@ -507,7 +641,10 @@ export interface paths {
             };
         };
         put?: never;
-        /** Accept an employee invite and set the first password. Logs straight into the dashboard. */
+        /**
+         * Accept an employee invite and set the first password. Logs straight into the dashboard.
+         * @deprecated
+         */
         post: {
             parameters: {
                 query?: never;
@@ -659,6 +796,7 @@ export interface paths {
         /**
          * Passwordless door, step 1 — send an OTP to an email or phone, OR say this identifier wants a password instead (build reference 1.1, revised 2026-09-02; `staff` mode added 2026-09-15)
          * @description The ONE door Sentpo Mobile shows every visitor — nothing about the screen itself reveals that a staff login exists. `identifier` is an email address or an E.164 phone number; the server detects which and, for an email, also looks up whether it belongs to an EXISTING non-student account. Three outcomes, all via `mode`: `login` (a known student — OTP sent), `signup` (identifier not on file — OTP sent, a signup challenge), `staff` (a consultancy/institute account — NO OTP is sent or challenge opened; the client shows a password field instead, using the same `identifier` against /auth/login). A staff identifier is never told apart from a brand-new one by timing or response shape beyond this one field, and — deliberately — never opens a signup challenge that would 409 at the end (the pre-2026-09-15 behavior, which read as a broken form rather than "use your password"). Platform staff, a super admin, and a freelancer also resolve to `staff` here (they DO have a password) even though Sentpo Mobile's own password login only accepts a consultancy/institute role — that refusal happens at /auth/login, not here.
+         *     NO ACCOUNT ANSWER BEFORE THE CODE (review F-122, owner ruling 2026-10-06). The real backend no longer says whether an identifier has an account: `mode` is `login` for a known student AND for an identifier nobody holds — a code is sent either way — and `signup` is never returned (the frozen mock still returns it). Only the person who can read the code learns which, from `POST /auth/passwordless/verify`: `status` `authenticated` (signed in) or `signup_required` (go to the details screen). THE APP must therefore (1) not branch on `mode` except for `staff`, (2) title the code step neutrally ("Enter your code"), not "Log in" / "Create your account", and (3) choose the next screen from verify's `status`, as it already does. `staff` is still answered before any code (the password field swap needs it) and is the one account answer left at this step; it is counted per caller address (20 an hour) and listed for the owner. Every request here, whatever it is answered, is counted per caller address (60 per 10 minutes) before anything is looked up: 429 `rate_limited` with `Retry-After` ("Too many attempts from this network. Please wait a few minutes and try again.").
          *
          *     ASKING AGAIN (second sign-in review, 2026-10-07). While a code is live (10 minutes), asking again for the same identifier from the same install (`X-Device-Id`) sends the SAME code again — same code, same tries already used, same expiry; it is not replaced. So "Resend code" never invalidates the message that is already on its way, and either message works. A new code is issued only when there is nothing to send again: no live code, one with under 2 minutes left, or one whose 5 tries are used up. Every send, re-sends included, counts against the sending limits below. Asking again within 30 seconds of the last send is answered 202 with the same body and sends NOTHING (it is no longer a 429): keep the app's own 30-second "Resend" timer, since the server will not say that a resend was too early. The answers of this route and of the verify step are the same whether or not a code is currently waiting for the identifier.
          *
@@ -910,6 +1048,7 @@ export interface paths {
         /**
          * Passwordless door, step 3 (new accounts only) — details screen submit
          * @description Consumes a `signup_token` and creates the account with the verified identifier it proves. `email`/`phone` here is the OTHER identifier, and it is optional. If it already signs another account in, NOTHING is created — 409 `identifier_in_use` tells the client to offer "log into that account instead" (the §1.1 dedup interception).
+         *     CHANGED (review F-122, owner ruling 2026-10-06): the real backend no longer checks the second identifier against other accounts here — it was typed, not proven, and is never saved by this call, so a taken one is NOT refused: the account is created (201) exactly as for a free one. The "log into that account instead" interception MOVES to where the second contact's code is entered, signed in: `POST /auth/otp/verify` answers 409 `identifier_in_use`, and `POST /profile/email/confirm` answers 409 `email_taken`, each with `details: {field, login_identifier_mask}` — the same details this 409 carried. THE APP shows its existing "That phone/email already has a Sentpo account — log into it instead" sheet on those two answers (offering to sign out and continue at the door with that contact), and no longer expects it from this call for the second identifier. This call still answers 409 `identifier_in_use` when the DOOR identifier itself (the one the signup token proves) became an account meanwhile. Requests are counted per caller address (30 an hour, shared with `POST /auth/signup`): 429 `rate_limited`.
          *     **The second identifier is checked, never stored (owner, 2026-10-06):** an email or phone is saved on a student's account only once its one-time code is entered. The real backend creates the account with the proven identifier alone — the returned `user` does not carry the second one — and the client, now signed in, asks for its code straight away: POST /auth/otp/request + POST /auth/otp/verify for a phone, POST /profile/email/change + POST /profile/email/confirm for an email. The step is skippable ("Skip for now"); skipped or failed means not saved. (The mock still stores it unverified.)
          *     `referral_code` behaves exactly as /auth/signup documents. Consent event 1 is NOT part of this call — the client records it via POST /consent/accept immediately after, same as the checkbox flow this replaces.
          */
@@ -961,7 +1100,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description `identifier_in_use` — the optional second identifier signs an existing account in (that account verified it, or is waiting to be claimed with it). detail carries the masked login identifier of that account. */
+                /** @description `identifier_in_use` — the identifier the signup token proves became an account meanwhile (details carry `field` and `login_identifier_mask`). The real backend no longer answers this for the optional second identifier (review F-122; see the description). The frozen mock still does. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -972,6 +1111,15 @@ export interface paths {
                 };
                 /** @description `below_minimum_age` — the date of birth puts this person under 16, the floor below which Sentpo does not open an account at all (user decision, 2026-09-05). Nothing is created. */
                 422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description More than 30 sign-up completions an hour from this caller address. */
+                429: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -999,6 +1147,7 @@ export interface paths {
         /**
          * Request phone OTP via MSG91 (FR-002)
          * @description Opens a verification challenge bound to this phone for this user. Asking for ANOTHER number replaces the live challenge, so a code sent to an old number stops working immediately; asking again for the SAME number while its code is live (10 minutes) sends the same code again — same code, same tries used, same expiry — unless it has under 2 minutes left or its tries are used up, when a new one is issued (second sign-in review, 2026-10-07). Every send counts against the sending limits. Delivery is still mocked (no SMS provider yet, 2026-08-23) — the binding, expiry, attempt cap and single-use rules are real. The text counts against the same sending limits as the passwordless door's (see `POST /auth/passwordless/request`, SENDING LIMITS): per phone number, per device (`X-Device-Id`), per caller address and platform-wide.
+         *     TWO CODES TO REPLACE A VERIFIED NUMBER (owner ruling 1, 2026-10-07): when the account already has a verified phone and `phone` is a different number, this answers 400 `step_up_required` — and sends nothing — unless the first code was proven a moment ago (`GET /auth/otp/step-up` describes the flow; `error.details.channels` lists `phone` / `email`, where that first code can go). Not needed when the account has no verified phone, when `phone` is the number already on it, or when `phone` is the number Support recorded for the account. Send the `X-Device-Id` the first code was proven with.
          */
         post: {
             parameters: {
@@ -1053,6 +1202,257 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/otp/step-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Changing my phone number — does it take two codes, and where can the first go?
+         * @description PHONE NUMBER CHANGE = TWO CODES (owner ruling 1, 2026-10-07). An account that already has
+         *     a VERIFIED phone (`phone_verified: true`) — a student's or a console account's — may
+         *     replace or remove it only after proving a contact it already holds: a code to the current
+         *     number, or to its verified email when it has one. Then the new number's own code
+         *     (`POST /auth/otp/request` + `/verify`) saves it. An account with no verified phone is
+         *     ADDING: only the new number's code, nothing here.
+         *
+         *     Call this when the person opens "Change phone number", BEFORE asking for anything:
+         *     * `required: false` -> go straight to `POST /auth/otp/request {phone}`.
+         *     * `required: true` -> say so up front: "We'll send a code to your current number
+         *       ({mask}), then one to the new number." `channels` lists where the first code can go,
+         *       masked; when it includes `email`, offer "Send it to my email instead". Then:
+         *         1. `POST /auth/otp/step-up/request {channel}` — the first code is sent;
+         *         2. `POST /auth/otp/step-up/verify {code}` — proven: a grant good for
+         *            `valid_for_seconds` (15 minutes) and for ONE change;
+         *         3. `POST /auth/otp/request {phone: new}`, then `POST /auth/otp/verify {phone, code}`.
+         *       `granted: true` means step 2 is already done on this install and still good — skip to 3.
+         *     * "I can't use my old number" (and no email offered, or neither reachable): open Report a
+         *       problem pre-filled "Change my phone number". Support records the new number
+         *       (`POST /users/{id}/phone`); the person then proves it WITHOUT this step-up — signed in:
+         *       step 3 with exactly that number; signed out: sign in with the new number.
+         *
+         *     Send the same `X-Device-Id` on all of these calls: the first code and its grant belong to
+         *     the install that asked (a grant earned on one install opens nothing on another).
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request` — AND (second sign-in review, 2026-10-07) on every request that submits a sign-in code: `POST /auth/passwordless/verify` and the student's `POST /profile/erase`. A sign-in code asked for with this header belongs to that install: it is accepted only from a request carrying the SAME value, so the app must send the header on both steps or its own code is answered as incorrect. (This is what stops a stranger from using up the five tries of someone else's code: without the install's identifier their submissions are never checked against it.) WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
+                     *
+                     *     WHAT IT DOES: when present, texted codes are also limited per device (5 an hour by default), in addition to the limits per phone number, per caller address and for the platform as a whole, which apply with or without it. A value of any other shape is ignored as if the header were not sent (never a 400). The server stores only a hash of it, for an hour, as a counter key.
+                     */
+                    "X-Device-Id"?: components["parameters"]["DeviceId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Whether the two-code rule applies, and the contacts a first code can go to */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description True when the account holds a verified phone number. */
+                            required: boolean;
+                            /** @description True when a first code was already proven on this install and its grant has neither run out nor been used. */
+                            granted: boolean;
+                            /** @description Empty when `required` is false. The phone first. */
+                            channels: {
+                                /** @enum {string} */
+                                channel: "phone" | "email";
+                                /** @description e.g. "+91 ••••• ••210" or "ak•••@gmail.com". */
+                                destination_mask: string;
+                            }[];
+                            /** @description How long a proven first code allows the change (900). */
+                            valid_for_seconds: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/otp/step-up/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Phone change, code 1 of 2 — send a code to my current number or my verified email
+         * @description See `GET /auth/otp/step-up`. Sends the first code to the account's own verified contact:
+         *     `channel: phone` (default) = the current number, `channel: email` = the verified email.
+         *     Asking again while the code is live sends the SAME code; within 30 seconds: 429
+         *     `rate_limited` ("Wait Ns before requesting another code."). The send counts against the
+         *     ordinary sending limits of that number or inbox, the device and the caller address
+         *     (`POST /auth/passwordless/request`, SENDING LIMITS) and at most 12 first codes are opened
+         *     per account in an hour: 429 `rate_limited` with `Retry-After`.
+         *     400 `validation_failed` when the account has no verified phone (nothing to protect — add
+         *     the number directly) or no verified contact of the `channel` asked for. 502
+         *     `upstream_unavailable` when the code could not be sent.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request` — AND (second sign-in review, 2026-10-07) on every request that submits a sign-in code: `POST /auth/passwordless/verify` and the student's `POST /profile/erase`. A sign-in code asked for with this header belongs to that install: it is accepted only from a request carrying the SAME value, so the app must send the header on both steps or its own code is answered as incorrect. (This is what stops a stranger from using up the five tries of someone else's code: without the install's identifier their submissions are never checked against it.) WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
+                     *
+                     *     WHAT IT DOES: when present, texted codes are also limited per device (5 an hour by default), in addition to the limits per phone number, per caller address and for the platform as a whole, which apply with or without it. A value of any other shape is ignored as if the header were not sent (never a 400). The server stores only a hash of it, for an hour, as a counter key.
+                     */
+                    "X-Device-Id"?: components["parameters"]["DeviceId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Where to send the first code. Default `phone`.
+                         * @enum {string}
+                         */
+                        channel?: "phone" | "email";
+                    };
+                };
+            };
+            responses: {
+                /** @description Code sent */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            channel: "sms" | "email";
+                            destination_mask: string;
+                            expires_in_seconds: number;
+                            resend_after_seconds: number;
+                        };
+                    };
+                };
+                /** @description `validation_failed` — no verified phone to protect, or no such verified contact */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `rate_limited` — the resend wait or a sending limit (`Retry-After`) */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/otp/step-up/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Phone change, code 1 of 2 — prove it; the new number may then be verified once
+         * @description See `GET /auth/otp/step-up`. A correct code grants ONE change (or removal) of the
+         *     account's verified phone within `valid_for_seconds`, from this install. Errors are the
+         *     phone verification's own: 400 `invalid_otp` (wrong code, with
+         *     `details.attempts_remaining`; or "Request a code first."), 400 `otp_expired`, 429
+         *     `too_many_attempts` after 5 wrong tries on one code, and 429 `rate_limited` after more
+         *     than 10 wrong codes in 30 minutes on the account or 30 wrong tries in an hour. Nothing is
+         *     saved and nobody is told: the change itself is what is recorded.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request` — AND (second sign-in review, 2026-10-07) on every request that submits a sign-in code: `POST /auth/passwordless/verify` and the student's `POST /profile/erase`. A sign-in code asked for with this header belongs to that install: it is accepted only from a request carrying the SAME value, so the app must send the header on both steps or its own code is answered as incorrect. (This is what stops a stranger from using up the five tries of someone else's code: without the install's identifier their submissions are never checked against it.) WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
+                     *
+                     *     WHAT IT DOES: when present, texted codes are also limited per device (5 an hour by default), in addition to the limits per phone number, per caller address and for the platform as a whole, which apply with or without it. A value of any other shape is ignored as if the header were not sent (never a 400). The server stores only a hash of it, for an hour, as a counter key.
+                     */
+                    "X-Device-Id"?: components["parameters"]["DeviceId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        code: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Proven — go on to the new number */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            ok: boolean;
+                            valid_for_seconds: number;
+                        };
+                    };
+                };
+                /** @description `invalid_otp`, `otp_expired` or `validation_failed` (no code) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `too_many_attempts` or `rate_limited` */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/otp/verify": {
         parameters: {
             query?: never;
@@ -1065,11 +1465,19 @@ export interface paths {
         /**
          * Verify phone OTP
          * @description Fails with `invalid_otp` (wrong code, or no challenge open), `otp_expired`, or `too_many_attempts` after 5 wrong tries. A wrong-code error carries attempts_remaining. A code only ever verifies the number it was sent to, and is consumed on success. Verifying saves the number on the account and sets phone_verified in one step, replacing (and releasing) the number the account held before. For every role — students (owner, 2026-10-06) and, since the second sign-in review (2026-10-07), staff, freelancer and platform accounts — this is the only way a phone number is added or changed: PATCH /profile no longer takes a new one. That includes a student who signs in with their phone alone. More than 10 wrong codes in 30 minutes on one account (this route and POST /profile/email/confirm together; cleared by a correct code) answer 429 `rate_limited` with `Retry-After` and `details.retry_after_seconds`.
+         *     TWO CODES TO REPLACE A VERIFIED NUMBER (owner ruling 1, 2026-10-07): replacing a verified phone needs the first code proven beforehand (`GET /auth/otp/step-up`). Without it — or when its 15 minutes ran out, or it was already used for one change — this answers 400 `step_up_required` BEFORE the code is looked at (no try is used): message "To change your phone number, first confirm it is you: we'll send a code to your current number or your verified email, then one to the new number.", `error.details.step_up: contact_code`, `error.details.channels`. The app then runs the first code again and re-submits. The grant is used up by the successful change. Send the same `X-Device-Id` throughout.
          */
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /**
+                     * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request` — AND (second sign-in review, 2026-10-07) on every request that submits a sign-in code: `POST /auth/passwordless/verify` and the student's `POST /profile/erase`. A sign-in code asked for with this header belongs to that install: it is accepted only from a request carrying the SAME value, so the app must send the header on both steps or its own code is answered as incorrect. (This is what stops a stranger from using up the five tries of someone else's code: without the install's identifier their submissions are never checked against it.) WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
+                     *
+                     *     WHAT IT DOES: when present, texted codes are also limited per device (5 an hour by default), in addition to the limits per phone number, per caller address and for the platform as a whole, which apply with or without it. A value of any other shape is ignored as if the header were not sent (never a 400). The server stores only a hash of it, for an hour, as a counter key.
+                     */
+                    "X-Device-Id"?: components["parameters"]["DeviceId"];
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -1090,8 +1498,17 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description Code incorrect or expired */
+                /** @description Code incorrect or expired (`invalid_otp`, `otp_expired`); or `step_up_required` — replacing a verified number needs the first code (`GET /auth/otp/step-up`) */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `identifier_in_use` — the code was right, so the caller has proven the number is theirs, and it is already another account's way in. `details.field` is `phone` and `details.login_identifier_mask` is the number, masked (review F-122: this is where the app's "log into that account instead" interception now fires for a second contact given at sign-up). Nothing was changed. */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1228,7 +1645,14 @@ export interface paths {
         patch: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /**
+                     * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request` — AND (second sign-in review, 2026-10-07) on every request that submits a sign-in code: `POST /auth/passwordless/verify` and the student's `POST /profile/erase`. A sign-in code asked for with this header belongs to that install: it is accepted only from a request carrying the SAME value, so the app must send the header on both steps or its own code is answered as incorrect. (This is what stops a stranger from using up the five tries of someone else's code: without the install's identifier their submissions are never checked against it.) WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
+                     *
+                     *     WHAT IT DOES: when present, texted codes are also limited per device (5 an hour by default), in addition to the limits per phone number, per caller address and for the platform as a whole, which apply with or without it. A value of any other shape is ignored as if the header were not sent (never a 400). The server stores only a hash of it, for an hour, as a counter key.
+                     */
+                    "X-Device-Id"?: components["parameters"]["DeviceId"];
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -1240,13 +1664,16 @@ export interface paths {
                         /**
                          * @description Phone in E.164 (e.g. +919876543210) — the client adds the country code (the app's dial-code chip) before sending. A bare national number (9876543210) is refused 400 `validation_failed` by the real backend; the mock was more lenient.
                          *     **Students (owner, 2026-10-06):** a phone is saved only once its one-time code is entered, so a NEW number here is refused 400 `validation_failed` by the real backend, with a message pointing at verification — send the code with POST /auth/otp/request and save the number with POST /auth/otp/verify instead. `null` or an empty string removes the number, and is accepted only when the account has a verified email to sign in with (400 otherwise). Sending the number already on the account changes nothing and is accepted.
-                         *     **Staff, freelancer and platform accounts (second sign-in review, 2026-10-07): the same rule.** A NEW or changed number here is refused 400 `validation_failed` (`details.fields.phone`: "Your new phone number is saved once you enter the code we send to it. Ask for a code to the new number to change it."). The console's profile form must add or change a phone with POST /auth/otp/request {phone} (a code is texted to the new number) and then POST /auth/otp/verify {phone, code}, which saves it with `phone_verified: true`; both routes serve every signed-in role. `null` or an empty string still removes the number here, and sending the number already on the account is accepted and changes nothing. A number typed on such an account before this rule stays on it, shown with `phone_verified: false`, until the account verifies it — or until its real owner proves it (signing up with it, or verifying it on their own account), which removes it from this account.
+                         *     **Staff, freelancer and platform accounts (second sign-in review, 2026-10-07): the same rule.** A NEW or changed number here is refused 400 `validation_failed` (`details.fields.phone`: "Your new phone number is saved once you enter the code we send to it. Ask for a code to the new number to change it."). The console's profile form must add or change a phone with POST /auth/otp/request {phone} (a code is texted to the new number) and then POST /auth/otp/verify {phone, code}, which saves it with `phone_verified: true`; both routes serve every signed-in role. `null` or an empty string still removes the number here, and sending the number already on the account is accepted and changes nothing.
+                         *     **Removing a VERIFIED number (owner ruling 1, 2026-10-07), every role:** `null` / empty for an account whose `phone_verified` is true answers 400 `step_up_required` unless the first code was proven a moment ago on this install (`GET /auth/otp/step-up`, then `/auth/otp/step-up/request` and `/verify`; send the same `X-Device-Id`). The removal uses the grant up. Removing a number that was never verified needs nothing.
+                         *     A number typed on such an account before this rule stays on it, shown with `phone_verified: false`, until the account verifies it — or until its real owner proves it (signing up with it, or verifying it on their own account), which removes it from this account.
                          */
                         phone?: string | null;
                         /** @description BCP 47 language tag captured silently from the device, exactly like `timezone` below and PATCHed on the same occasions. Not user-entered. Nothing is translated yet (2026-08-23) — this is captured now so the real backend has a locale to render against rather than having one retrofitted onto accounts that never recorded it. Carries the same system-write exemption as `timezone`: it is not a completion field, so a body containing only this must not run the milestone check. */
                         locale?: string | null;
                         /**
                          * @description IANA zone captured silently from the device (2026-08-22) — the app PATCHes this after sign-in and whenever it changes. Not user-entered.
+                         *     Only a real IANA zone name is accepted (review F-091): anything else is refused 400 `validation_failed` with `details.fields.timezone`. The app sends the name the platform reports (`Asia/Kolkata`, not `IST` or `+05:30`) and ignores a refusal of this silent write. Null clears it.
                          *     A body containing ONLY this field is a system write, and the server must not run the profile-completion milestone check on it. Nobody is looking at a screen, and the response is discarded — letting it award would consume the once-only milestone and rob the student of the celebration an earlier edit had earned. `timezone` is not a completion field, so skipping the check can never suppress an award this write itself deserved.
                          */
                         timezone?: string | null;
@@ -1343,6 +1770,7 @@ export interface paths {
         /**
          * Sentpo Mobile's Edit Email screen (build reference 2.2) — self-serve, distinct from the support-mediated recovery flow in 1.1 (that one is for a student who has *lost access* to their email entirely; this one is for a student who still has access and wants to change it). Sends a verification code to the new address; the account's actual email is untouched until POST /profile/email/confirm succeeds.
          * @description Asking for another address replaces the pending change (only the newest address can be confirmed). Asking again for the SAME address while its code is live (10 minutes) sends the same code again — same code, same tries used, same expiry — unless it has under 2 minutes left or its tries are used up (second sign-in review, 2026-10-07).
+         *     CHANGED (review F-122, owner ruling 2026-10-06): this call no longer answers 409 `email_taken`. It answers 202 and sends the code whether or not the address already has an account, under the same limits, so it cannot be used to ask who is on Sentpo. The answer comes after the code: `POST /profile/email/confirm` with the right code answers 409 `email_taken` ("An account with this email already exists.") with `details: {field: "email", login_identifier_mask}`. THE APP AND THE CONSOLE move their "this email already has an account" handling from this call to the confirm call; the app offers "log into that account instead" there.
          */
         post: {
             parameters: {
@@ -1425,6 +1853,15 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description `email_taken` (review F-122) — the code was right, so the caller has proven the address is theirs, and it already has an account. `details.field` is `email` and `details.login_identifier_mask` is that address, masked. The app offers "log into that account instead"; nothing was changed. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
                 /** @description `too_many_attempts` (this code's five tries are used up), or `rate_limited`: more than 10 wrong codes in 30 minutes on this account (this route and POST /auth/otp/verify together; cleared by a correct code), with `Retry-After` and `details.retry_after_seconds`. */
                 429: {
@@ -1634,7 +2071,43 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Can I delete my account myself right now? — ask BEFORE showing the delete form
+         * @description Owner rulings 2 and 3 (2026-10-07). The app calls this when the person opens "Delete my
+         *     account". `available: true` -> show the delete form (then `POST /profile/erase`).
+         *     `available: false` -> do NOT show the form; show `message` as it is, with a "Contact
+         *     support" action (Report a problem), and nothing else:
+         *     * `reason: erasure_dispute_open` — a dispute is open on the student's case. `message` is
+         *       "You have an open dispute. To delete your account, please contact Sentpo support and
+         *       we'll help you." `available_at` is null (it ends when the dispute does).
+         *     * `reason: erasure_cooldown` — the person cancelled a deletion request of their own less
+         *       than 30 days ago (server setting `SELF_ERASURE_COOLDOWN_DAYS`). `message` names the day
+         *       it was cancelled and the day they can ask again; `available_at` is that instant, for a
+         *       client that formats the date itself. Support can always delete sooner.
+         *     The same two refusals are what `POST /profile/erase` answers (409, same codes and
+         *     message) if the app posts anyway. Other refusals (`lockout_guard` for an active staff
+         *     role) are not reported here.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Whether self-serve deletion is on offer, and if not why and until when */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErasureAvailabilityOut"];
+                    };
+                };
+            };
+        };
         put?: never;
         /**
          * Delete my account — self-serve right to erasure (FR-019/020)
@@ -1669,6 +2142,15 @@ export interface paths {
          *     deactivated (a consultancy admin deactivates the member, which hands their open work to
          *     a colleague first). The message says which. Required by Apple App Store Review Guideline
          *     5.1.1(v) and Google Play's account-deletion policy.
+         *
+         *     NOT ALWAYS ON OFFER (owner rulings 2 and 3, 2026-10-07) — checked BEFORE the proof, so no
+         *     code is spent; ask `GET /profile/erase` first and show its message instead of the form:
+         *     * 409 `erasure_dispute_open` — a dispute is open on the student's case: "You have an open
+         *       dispute. To delete your account, please contact Sentpo support and we'll help you."
+         *     * 409 `erasure_cooldown` — a self-serve deletion request of this account was cancelled
+         *       less than 30 days ago; `error.message` gives both dates and
+         *       `error.details.available_at` (date-time) when a new request is accepted.
+         *     Support's own erase (`POST /users/{id}/erase`) is held to neither.
          */
         post: {
             parameters: {
@@ -1717,7 +2199,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description `lockout_guard` — the account holds an active role and cannot be erased yet */
+                /** @description `lockout_guard` — the account holds an active role and cannot be erased yet; `erasure_dispute_open` — a dispute is open on the student's case; `erasure_cooldown` — a self-serve request was cancelled lately (`details.available_at`) */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -1747,6 +2229,7 @@ export interface paths {
          * Name a parent or guardian and send them the approval link
          * @description The student's own call, for a 16- or 17-year-old whose account is waiting (2026-09-05). Accepts a guardian's name and exactly one of `email` or `phone`, mints a single-use token, and sends the link on that channel.
          *     Calling it again replaces a pending request, which is how a mistyped address is fixed; after a decline it consumes one of `retries_remaining` and 409s at zero. 403 for anyone whose `guardian_consent.status` is `not_required` or already `approved`.
+         *     Limits (review F-060, F-124). The student's own email or phone is refused 400 `validation_failed` with `details.fields.email` (or `.phone`): "Enter your parent's or guardian's own contact, not yours." A student waits 10 minutes before replacing a request that has not been answered yet and may send at most 3 in 24 hours; one address or number receives at most 3 links in 24 hours from everyone. Each of those answers 429 `rate_limited` with `Retry-After` and `details.retry_after_seconds`: show the message and disable the Send button until then.
          */
         post: {
             parameters: {
@@ -1803,6 +2286,240 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description Asked again within 10 minutes, more than 3 requests in 24 hours, or the contact has already been sent 3 links in 24 hours. `details.retry_after_seconds` says when. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guardian-consent/fresh-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guardian asks for a fresh link to an approval they gave (public, no account)
+         * @description A guardian link stops working 7 days after it was sent, in every status (review F-124). A guardian who approved and later wants to see or withdraw that approval asks for a new one here, giving the token of the link they hold (expired or not). If that token is the latest one for an approval that still stands, a new 7-day link is mailed to the guardian's address on file — never to an address given in the request — and the old token stops working. At most 3 a day per approval.
+         *     The answer is always 202 with the same body, whether or not anything was sent: a probe learns nothing. The guardian page offers "Send me a fresh link" whenever `GET /guardian-consent/{token}` answers 404, and then says "If this link was for an approval you gave, we have emailed you a new one."
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description The token from the link the guardian holds. */
+                        token: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Accepted (says nothing about whether a link was sent) */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            status: "accepted";
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guardian-consent/prompt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * What the guardian's approval page shows — the token in the request body
+         * @description The same answer as `GET /guardian-consent/{token}`, with the token in the body (review F-123): a URL path is written to access logs, and a guardian token decides a minor's consent. The guardian page (web) must read the token from the page address — the fragment (`/guardian#<token>`) when present, else the last path segment (`/guardian/<token>`, links already mailed) — and call `prompt`, `decide`, `withdraw` and `fresh-link` with it in the body. It must not call the `{token}` routes any more, and should replace the address with `/guardian` once it has read the token. Emailed links switch to the fragment shape when `LINK_TOKENS_IN_FRAGMENT` is turned on.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        token: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description The request to approve */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GuardianConsentPrompt"];
+                    };
+                };
+                /** @description Unknown or expired (seven days, in every status). */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guardian-consent/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guardian approves or declines — the token in the request body
+         * @description The same as `POST /guardian-consent/{token}`, with the token in the body (review F-123).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        token: string;
+                        /** @enum {string} */
+                        decision: "approve" | "decline";
+                        guardian_name: string;
+                        confirms_adult_guardian: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Decision recorded */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GuardianConsentPrompt"];
+                    };
+                };
+                /** @description Missing decision, name, or the adult confirmation. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unknown, already answered, or expired. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guardian-consent/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guardian withdraws a previous approval — the token in the request body
+         * @description The same as `POST /guardian-consent/{token}/withdraw`, with the token in the body (review F-123). The student is notified (`guardian_consent_withdrawn`).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        token: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Consent withdrawn */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GuardianConsentPrompt"];
+                    };
+                };
+                /** @description Unknown or expired token, or nothing to withdraw. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -1820,7 +2537,9 @@ export interface paths {
         };
         /**
          * What the guardian's approval page shows (public, no account)
-         * @description Deliberately unauthenticated: a parent has no Sentpo account and must not need one to answer. The token is the only credential, is single-use for the decision, expires after seven days, and is stored hashed. An unknown, spent or expired token returns 404 rather than saying which — a probe learns nothing.
+         * @deprecated
+         * @description Deliberately unauthenticated: a parent has no Sentpo account and must not need one to answer. The token is the only credential, is single-use for the decision, expires after seven days, and is stored hashed. An unknown or expired token returns 404 rather than saying which — a probe learns nothing.
+         *     The seven days apply in every status (review F-124): an approved, declined or withdrawn link also answers 404 once it is seven days old (it used to answer for ever, and a pending one used to answer 200 `expired`). On 404 the page shows "This link is no longer valid" with a "Send me a fresh link" button (`POST /guardian-consent/fresh-link`).
          */
         get: {
             parameters: {
@@ -1925,7 +2644,7 @@ export interface paths {
         put?: never;
         /**
          * Guardian withdraws a previous approval (public, no account)
-         * @description Reached from the same link the guardian used to approve. Withdrawal is a right, not a favour, so it asks nothing beyond possession of that link. The account returns to the same restrictions as before approval and the student is told.
+         * @description Reached from the same link the guardian used to approve. Withdrawal is a right, not a favour, so it asks nothing beyond possession of that link. The account returns to the same restrictions as before approval and the student is told (notification `guardian_consent_withdrawn`, category `account`, bell and push, opening the profile). A link older than seven days answers 404; the guardian asks for a fresh one first (`POST /guardian-consent/fresh-link`).
          */
         post: {
             parameters: {
@@ -2010,6 +2729,15 @@ export interface paths {
                 };
                 /** @description Reason missing, or this user needs no guardian. */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description The guardian's address or number has already been sent 3 links in 24 hours (counted together with the student's own requests). `details.retry_after_seconds` says when. */
+                429: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -2273,6 +3001,15 @@ export interface paths {
                         };
                     };
                 };
+                /** @description `rate_limited` (review F-103) — this operator has reached the hour's limit for this tool (300 an hour per Support Tools account; `Retry-After` says when). The first refusal in an hour alerts the Super Admins (notification `support_tool_burst`). The console shows the message as it is and does not retry by itself. 503 `service_unavailable` when the count cannot be kept. Every search is also recorded in the audit log (area `support`, entity `support_search`): who, when, the kind and length of the term and how many results, never the term itself. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         put?: never;
@@ -2332,6 +3069,15 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description `rate_limited` (review F-103) — this operator has reached the hour's limit for this tool (10 an hour per Support Tools account; `Retry-After` says when). The first refusal in an hour alerts the Super Admins (notification `support_tool_burst`). The console shows the message as it is and does not retry by itself. 503 `service_unavailable` when the count cannot be kept. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -2349,7 +3095,44 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Change a locked-out user's sign-in email (support_tools permission, reworked 2026-09-11). The operator records how they verified it is really the account holder; the address must be valid and unused by any other account (409 email_taken). Both the old and the new address are emailed, and the user is signed out on every device. Audited under support. 403 for a Super Admin target (gate 12, F33 — the production backend refuses outright; platform staff targets also need the caller to be Super Admin). The frozen mock still accepts any target, Super Admins included, a known gap (F33). */
+        /**
+         * Record a new sign-in email for a locked-out user — PENDING until the person proves it (support_tools permission; owner ruling 4, 2026-10-07).
+         * @description Support no longer changes the email itself. This RECORDS `new_email` as the account's
+         *     pending address (`pending_email` / `pending_email_until` on the answer) and changes
+         *     nothing else: the account's current email and phone keep signing the person in, nobody is
+         *     signed out, and the pending address signs nobody in.
+         *
+         *     HOW IT BECOMES THE SIGN-IN EMAIL — the person proves the address with a code sent to it:
+         *     * a student signs in with the new address in the app (`POST /auth/passwordless/request`
+         *       then `/verify` — the ordinary door; step 1 answers `signup` for it, as for any address
+         *       nobody holds, and step 2 answers `authenticated`), or proves it from inside the app
+         *       (`POST /profile/email/change` + `/confirm`);
+         *     * a console account (consultancy staff, freelancer, platform staff) uses Forgot password
+         *       with the new address: the reset link is mailed THERE, and setting a password from it
+         *       confirms the address.
+         *     On proof the address is saved as verified, the old one is removed and told (when the
+         *     account had proven it), every other session ends, and no data export is possible for 48
+         *     hours (`export_on_hold`). Until then nothing happens; the record lapses at
+         *     `pending_email_until` (7 days, server setting `SUPPORT_PENDING_CONTACT_DAYS`) and the
+         *     address is free again. Recording another address replaces the pending one.
+         *
+         *     The operator records how they verified it is really the account holder
+         *     (`verification_method`, `verification_note`) and a `reason`; both are audited under
+         *     support, sealed with the address. Both addresses are mailed now: the old one (only when
+         *     the account had proven it) that a new address is waiting and nothing has changed; the new
+         *     one how to confirm it and by when.
+         *
+         *     Refusals: 400 `validation_failed` (missing fields, an invalid address, the address the
+         *     account already has verified); 403 `super_admin_target` for a Super Admin target, 403
+         *     `permission_denied` when a platform-staff target is changed by anyone but a Super Admin
+         *     (gate 12, F33); 404 for an unknown or erased account; 409 `conflict` when the account is
+         *     scheduled for deletion (cancel the erasure first); 409 `email_taken` when another account
+         *     has the address as its email or as its own pending one.
+         *
+         *     Console: rename the action "Record new email (user must confirm)"; after a 200 show
+         *     "Waiting for {name} to confirm {pending_email} — until {pending_email_until}" on the user
+         *     card, and do not say the email was changed or that the user was signed out.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -2373,7 +3156,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Changed */
+                /** @description Recorded as pending; nothing on the account has changed yet */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -2391,8 +3174,145 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description Email already used by another account (`email_taken`) */
+                /** @description `email_taken` — another account has the address (as its email or pending); `conflict` — the account is scheduled for deletion */
                 409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `rate_limited` (review F-103) — this operator has reached the hour's limit for this tool (10 an hour per Support Tools account; `Retry-After` says when). The first refusal in an hour alerts the Super Admins (notification `support_tool_burst`). The console shows the message as it is and does not retry by itself. 503 `service_unavailable` when the count cannot be kept. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{id}/phone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record a new phone number for a student who cannot use their old one — PENDING until the student proves it (support_tools permission; owner ruling 1, 2026-10-07).
+         * @description The Support path of a phone change ("I can't use my old number" -> Report a problem ->
+         *     Support). It RECORDS `new_phone` as the student's pending number (`pending_phone` /
+         *     `pending_phone_until` on the answer) and changes nothing else: the number on the account
+         *     keeps signing the student in, nobody is signed out, the pending number signs nobody in.
+         *
+         *     It becomes the account's verified phone only when the student proves it with a code sent
+         *     to it — signed out: by signing in with the new number (`POST /auth/passwordless/request`
+         *     + `/verify`; step 1 answers `signup` as for a number nobody holds, step 2
+         *     `authenticated`); signed in: `POST /auth/otp/request {phone}` + `/auth/otp/verify`, with
+         *     no first code (Support has vouched). On proof the old number is replaced, every other
+         *     session ends and the student's verified email is told. The record lapses at
+         *     `pending_phone_until` (7 days, `SUPPORT_PENDING_CONTACT_DAYS`); recording another number
+         *     replaces it.
+         *
+         *     Body: `new_phone` (E.164), `reason` (at least 3 characters; audited under support, sealed
+         *     with the number), and `password` — the operator's OWN current password (400
+         *     `step_up_required` without it, 400 `invalid_current_password` for a wrong one, 429
+         *     `rate_limited` after repeated failures). Each operator may make 20 such records an hour:
+         *     429 `rate_limited` with `Retry-After`; every well-formed attempt counts.
+         *
+         *     The student is told at once on the bell and by push ("A new phone number is waiting to be
+         *     confirmed") and at their verified email, when they have one.
+         *
+         *     Refusals: 400 `validation_failed` (no reason, an invalid number, the number the account
+         *     already has verified, a target that is not a student); 403 `super_admin_target` /
+         *     `permission_denied` (as `POST /users/{id}/email`); 404 unknown or erased account; 409
+         *     `conflict` when the account is scheduled for deletion; 409 `identifier_in_use` when
+         *     another account has proven the number or has it pending.
+         *
+         *     Console: a "Change phone number" action on a student's Support Tools card — fields new
+         *     number (with the dial-code chip), reason, your password; after a 200 show "Waiting for
+         *     {name} to confirm {pending_phone} — until {pending_phone_until}" and tell the operator to
+         *     ask the student to sign in with the new number.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description E.164, e.g. +919876543210. */
+                        new_phone: string;
+                        reason: string;
+                        /** @description The operator's own current password. */
+                        password: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Recorded as pending; nothing on the account has changed yet */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserSearchResult"];
+                    };
+                };
+                /** @description `validation_failed`, `step_up_required` or `invalid_current_password` */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `super_admin_target` or `permission_denied` */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Unknown or erased account */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `identifier_in_use`, or `conflict` (scheduled for deletion) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `rate_limited` — the operator's hourly allowance, or password failures */
+                429: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -2474,7 +3394,7 @@ export interface paths {
         put?: never;
         /**
          * Erase User Data — Super Admin only, reason and own password; 30-day window (FR-019/020)
-         * @description Gate 12f. Locks the account now, closes the person's open cases and chats with the reason "account deleted" and tells each consultancy, and permanently erases their personal data 30 days later (`due_at`). Until then it can be cancelled from the Pending erasures list (DELETE /users/{id}/erasure) or by the person signing in and tapping Keep my account. `password` is the Super Admin's OWN current password (400 `step_up_required` without it, 400 `invalid_current_password` for a wrong one, 429 `rate_limited` after repeated failures). Each operator has a daily allowance (second review, M-9): 10 accounts scheduled in any 24 hours, of which 3 immediate (server settings). The request after that answers 429 `rate_limited` with a `Retry-After` header and `error.details.retry_after_seconds`; `error.message` says which allowance ran out and what to do (another Super Admin can continue; an immediate one can still be scheduled with the window). Console: show `error.message` as it is, with the wait, and keep the form filled. Only successful requests count. 503 `service_unavailable` if the allowance cannot be read — try again. `immediate: true` skips the window for a legal request or a confirmed takeover — `reason` then needs at least 20 characters (400 `validation_failed`), the answer is `erasure_queued`, the data is erased within minutes and nothing can be cancelled. An immediate request for an account whose erasure is already pending turns that pending erasure into an immediate one. 409 `lockout_guard` when the account holds an active role (the message says what to deactivate first; a Super Admin is never erased); 409 `conflict` when an erasure is already pending for the account (the message and `error.details.due_at` carry the date); 404 for an unknown user. A request for an account already erased answers 202 `erasure_queued` and changes nothing.
+         * @description Gate 12f. Locks the account now, closes the person's open cases and chats with the reason "account deleted" and tells each consultancy, and permanently erases their personal data 30 days later (`due_at`). A DISPUTE open on the student's case is NOT resolved by this (owner ruling 3, 2026-10-07): the case closes as account-deleted, the dispute stays in the mediation queue to be closed there, and no commission is recognised, reversed or rejected by the close — Finance corrects money. (The student cannot make this request themselves while a dispute is open, nor for 30 days after cancelling one of their own; this route is held to neither.) Until then it can be cancelled from the Pending erasures list (DELETE /users/{id}/erasure) or by the person signing in and tapping Keep my account. `password` is the Super Admin's OWN current password (400 `step_up_required` without it, 400 `invalid_current_password` for a wrong one, 429 `rate_limited` after repeated failures). Each operator has a daily allowance (second review, M-9): 10 accounts scheduled in any 24 hours, of which 3 immediate (server settings). The request after that answers 429 `rate_limited` with a `Retry-After` header and `error.details.retry_after_seconds`; `error.message` says which allowance ran out and what to do (another Super Admin can continue; an immediate one can still be scheduled with the window). Console: show `error.message` as it is, with the wait, and keep the form filled. Only successful requests count. 503 `service_unavailable` if the allowance cannot be read — try again. `immediate: true` skips the window for a legal request or a confirmed takeover — `reason` then needs at least 20 characters (400 `validation_failed`), the answer is `erasure_queued`, the data is erased within minutes and nothing can be cancelled. An immediate request for an account whose erasure is already pending turns that pending erasure into an immediate one. 409 `lockout_guard` when the account holds an active role (the message says what to deactivate first; a Super Admin is never erased); 409 `conflict` when an erasure is already pending for the account (the message and `error.details.due_at` carry the date); 404 for an unknown user. A request for an account already erased answers 202 `erasure_queued` and changes nothing.
          *     The reason is kept (second review, H-3). Unlike the reason a person types for their own deletion (sealed, and erased with them), the reason given here is stored readable for good — in the audit log and on the request — because it is the platform's own record of why it erased an account, and for `immediate` the legal basis. Console: show under the reason field, always visible, "This reason is kept permanently, also after the account is erased. Do not include the person's name, contact details or anything they told you — a reference is enough (court order number, ticket number)." and for `immediate` add "State the legal basis."
          */
         post: {
@@ -2711,6 +3631,7 @@ export interface paths {
         /**
          * Invite a new employee
          * @description GRANT RULES (owner decision 9 / review F-003, 2026-10-06). The Owner/Admin may do anything. Any other caller holding the staff-management permission is refused 403 `permission_denied` (message naming the permission keys) when the request would give or take away a permission the caller does not hold themselves, whether through `permission_overrides`, through a change of `designation_id`, or through what a designation carries ("You can only give or take away permissions you hold yourself. You do not hold: ..."). They may not change their own permissions, designation or branches ("You cannot change your own permissions. Ask the Owner/Admin."), nor the Owner/Admin's record ("Only the Owner/Admin can change the Owner/Admin's record."), nor edit the designation they are on. On a plan without `designations`, where every invitee gets Full access, a caller who holds less than Full access cannot invite at all. Disabling: only the Owner/Admin disables someone who holds Staff Administration, and nobody disables a colleague who holds a permission they do not; handing the work over needs the reassign permissions. Nothing is changed by a refused request. The console reads what the caller holds from `GET /me` (`staff.permissions`) and offers only those switches.
+         *     AN INVITE RESERVES NOTHING (review F-061, owner ruling 2026-10-06). No account exists until the invitee accepts: the typed email and phone are kept on the invite, and the returned `Employee.user` shows them (with `last_login_at` null) so the roster reads as before. The invite is refused 409 `email_taken` ("That email is already on your team or has an invite waiting.") only for the caller's own consultancy's duplicate. Whether the address has an account anywhere else, or an invite from another consultancy, is never said: the answer is 201 either way and the mail goes out. Several consultancies may hold an invite for one address; the first one accepted wins, and every other link then answers 410 `invite_expired` exactly as an expired link does (so does a link to an address that is already someone's account). The console must not add its own "this person is already on immiNow" wording anywhere. A phone typed here is not checked against other accounts either; if another account holds it when the invite is accepted, the new account simply starts without a phone.
          */
         post: {
             parameters: {
@@ -2906,7 +3827,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update the rule */
+        /**
+         * Update the rule
+         * @description OWNER/ADMIN ONLY (review F-055, 2026-10-07): any other member of staff gets 403 `permission_denied` ("This area is for the consultancy's admin."), so the console shows the rule read-only to everyone but the consultancy admin (`StaffMe.is_consultancy_admin`). A deactivated employee in `participating_employee_ids` is refused with 422 `validation_failed` ("A deactivated employee cannot take part in automatic allocation. Remove them and save again.").
+         */
         patch: {
             parameters: {
                 query?: never;
@@ -3020,7 +3944,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete a tag */
+        /**
+         * Delete a tag
+         * @description OWNER/ADMIN ONLY (review F-055, 2026-10-07): retiring a tag takes it off the pick list for the whole consultancy, so any other member of staff gets 403 `permission_denied` ("This area is for the consultancy's admin."). Creating a tag (`POST /tags`) stays open to all staff. The console shows the delete control to the consultancy admin only.
+         */
         delete: {
             parameters: {
                 query?: never;
@@ -3391,7 +4318,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove a phonebook contact */
+        /**
+         * Remove a phonebook contact
+         * @description OWNER/ADMIN ONLY (owner decision 7; review F-146, 2026-10-07): viewing, adding and editing stay shared by all staff, deleting is the consultancy admin's — anyone else gets 403 `permission_denied` ("This area is for the consultancy's admin."). There is no bulk export route on the server; a console-side export must be offered to the admin only.
+         */
         delete: {
             parameters: {
                 query?: never;
@@ -4242,8 +5172,26 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description `limit_reached` (review F-105, owner ruling 2026-10-06) — the student already has 5 complaints that are not resolved yet (open or in review). Show the message ("You already have 5 open complaints. We will get back to you on those first...") and send them to their list; do not offer a retry. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
                 /** @description `consultancy_id` does not match one of the student's own cases, or is required (several cases, none chosen) and missing. */
                 422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `rate_limited` (review F-105) — more than 5 complaints in an hour or 20 in 24 hours from this student. `Retry-After` and `details.retry_after_seconds` say when the next one is accepted. */
+                429: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -4317,10 +5265,20 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The calling student's own complaints with status — so "we've received it" is checkable later, newest first. */
+        /**
+         * The calling student's own complaints with status — so "we've received it" is checkable later, newest first.
+         * @description Paged (review F-105): 20 a page by default (`limit` up to 100), newest first; `meta.next_cursor` is null on the last page. The app's list must load further pages as the student scrolls (it used to receive every complaint in one answer).
+         */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
+                    cursor?: components["parameters"]["CursorParam"];
+                    /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
+                    limit?: components["parameters"]["LimitParam"];
+                    /** @description Accepted and ignored (the list is the student's own and short). */
+                    search?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4335,6 +5293,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             items: components["schemas"]["Complaint"][];
+                            meta: components["schemas"]["PaginatedMeta"];
                         };
                     };
                 };
@@ -7339,7 +8298,10 @@ export interface paths {
                     sort?: components["parameters"]["SortParam"];
                     /** @description Match against name — and, for the platform team, city and country (Manage Consultancies, 2026-09-11). */
                     search?: string;
-                    /** @description Narrows to one plan — the platform team only (Manage Consultancies). The plan is not public (product owner, 2026-09-25), so anyone else's `tier=` is ignored, as is their `sort=tier`, rather than letting a student read it back one query at a time. */
+                    /**
+                     * @description Narrows to one plan — the platform team only (Manage Consultancies). The plan is not public (product owner, 2026-09-25), so anyone else's `tier=` is ignored, as is their `sort=tier`, rather than letting a student read it back one query at a time.
+                     *     WHO "THE PLATFORM TEAM" IS HERE (review F-129/F-130, 2026-10-07): the Super Admin and platform staff holding `consultancy_approval` or `finance`. Only they receive the commercial fields of a `Consultancy` (tier, limits, seat_limit, subscription_status, subscription dates and amounts, billing cycle, overrides, seats_used, active_applicants) and `tier_counts`, on this list and on `GET /consultancies/{id}`; every other platform account (Blog only, say) receives the public row. Only they may use `tier=`, `status=` and the sorts `tier`, `seat_limit`, `subscription`, `seats_used`, `active_applicants`. For anyone else (students, consultancy staff, other platform accounts) those filters are ignored and those sorts fall back to `name` in the direction asked for, so neither the order nor `meta.next_cursor` can carry a seat limit or a renewal date. The console must hide the plan columns, filters and sorts for a platform account without either permission (`GET /me`'s `platform_permissions`).
+                     */
                     tier?: "starter" | "business" | "ultimate";
                     /** @description Narrows to one kind of account (INSTITUTE_ACCOUNT_PLAN D10, 2026-09-10). Institutes are already rows in this list under D6, so discovery needs a tag and a filter rather than a new screen. Discovery's institute "view all" is this plus the endpoint's own default `sort=name` ascending — alphabetical, deliberately NOT `-rating` or `match`, because D15 removes the ranking problem by not ranking institutes against consultancies at all. */
                     kind?: "consultancy" | "institute";
@@ -8254,7 +9216,15 @@ export interface paths {
                         "application/json": components["schemas"]["Lead"];
                     };
                 };
-                409: components["responses"]["ErrorResponse"];
+                /** @description `lead_limit_reached` — the student already has 15 active chats. `already_committed` (review F-064, 2026-10-07) — the student has a live case, so they cannot start a chat with any consultancy; the message names theirs and is shown as it is: "You're already working with {consultancy name}. Contact Sentpo support if you'd like to change." Search and discovery are NOT hidden for such a student (owner ruling): the app keeps the consultancy list and detail pages, and shows this message when Start Chat is tapped (it may also show it in place of the button, from `GET /journeys/me`). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
                 /** @description `preferred_branch_id` does not name a branch of this consultancy that is currently active (2026-09-21) — `validation_failed`, in plain language. Another consultancy's branch id is refused by this same test and the message says no more than that, so it never confirms whose branch it is. */
                 422: {
                     headers: {
@@ -8496,6 +9466,8 @@ export interface paths {
         /**
          * CSV bulk import, step 2 — commit a previously validated batch
          * @description Creates one unallocated imported lead per valid row, skipping duplicates (owner Q7, 2026-09-25; build reference 3.10): a row whose email or phone repeats an earlier row of the same file, or matches an active imported lead the consultancy already holds. Every skipped row is listed with the reason, so nothing disappears silently. Needs `leads.import`, the `own_leads` feature and an active subscription. 400 `invalid_batch` for an unknown, expired or already committed batch.
+         *
+         *     A SUSPENDED consultancy takes on nothing new (review F-062, 2026-10-07): this route, `POST /leads`, `POST /leads/{id}/reopen` and `POST /leads/{id}/convert` answer 409 `consultancy_unavailable` ("Your consultancy cannot take on new clients right now. Contact Sentpo support."), as Create Applicant and every way of opening a case already do. The console shows the message as it is.
          */
         post: {
             parameters: {
@@ -8675,7 +9647,14 @@ export interface paths {
             };
         };
         put?: never;
-        /** Send a message in this lead's conversation */
+        /**
+         * Send a message in this lead's conversation
+         * @description WHEN THE CONVERSATION IS READ-ONLY (owner decision 8; review F-082, 2026-10-07). This applies to BOTH sides and to every write on a lead's thread — this route, the four `share-*` routes, `request-shortlist`, `suggest-course`, `request-visit` and `call-initiated`. Reading the thread and `POST /leads/{id}/read` stay open.
+         *
+         *     `Lead.status = closed` — whoever closed it (the consultancy, the student committing to another consultancy, an account deletion): 409 `lead_closed` ("This conversation is closed, so no new messages can be sent."). Both clients hide the composer and every send / share / card control on a closed lead and show the thread read-only; if a send is refused anyway, show the message as it is.
+         *
+         *     `Lead.status = converted` — the conversation goes on under the case and follows the case's own write rules: 409 `case_in_dispute` for both sides while the case is frozen in a dispute, 409 `case_moved` for the consultancy the student has left (its message names the new consultancy); otherwise the write is accepted. Clients that still post to a converted lead's thread must handle those two codes exactly as on `POST /clients/{id}/messages`.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -8942,6 +9921,8 @@ export interface paths {
         /**
          * Reopen a closed lead — user-requested. Any consultancy staff member whose consultancy has the `case_reopening` feature (Business and up — 403 `feature_locked` otherwise); no permission key beyond that (owner Q3, 2026-09-25).
          * @description Refused with 409 `conflict` when the lead is not closed (a converted lead became a case and never reopens), when the student already has another active lead with this consultancy, or while the student has a live case — Stage 2 is one consultancy at a time (build reference 1.2); with 409 `lead_limit_reached` when reopening would take the student past the 15-active-lead cap.
+         *
+         *     WHO CLOSED IT DECIDES (owner ruling "Lead reopen", 2026-10-06). Only a lead the consultancy closed itself reopens. The others are refused with 409 `conflict` and a message to show as it is: closed because the student committed elsewhere — "This student chose another consultancy, so this conversation cannot be reopened. Only the student can restart it, by starting a new chat with you."; closed by the student — "The student closed this conversation, so it cannot be reopened. Only the student can restart it, by starting a new chat with you."; closed by the student's account deletion — "This conversation was closed because the student deleted their Sentpo account. It cannot be reopened." `Lead.can_reopen` says in advance whether the control should be shown. A lead the caller cannot see answers 404 (review F-055).
          */
         post: {
             parameters: {
@@ -8980,7 +9961,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Bulk-allocate selected Lead Pool rows to one employee (build reference 2.2) */
+        /**
+         * Bulk-allocate selected Lead Pool rows to one employee (build reference 2.2)
+         * @description At most 500 distinct `lead_ids` per call (review F-209, 2026-10-07): more is refused 400 `validation_failed` ("At most 500 leads can be allocated at once."), so the console sends larger selections in batches of 500. `updated_count` counts only the leads that moved: an unknown id, a lead the caller cannot see (review F-055), a closed or converted lead, and an already-assigned lead for a caller without `leads.reassign` are skipped silently. `POST /leads/{id}/allocate` on a closed or converted lead answers 409 `conflict` ("Only an active lead can be allocated. This one is closed."), and `POST /leads/{id}/convert` / `request-conversion` on one answer 409 `conflict` ("This lead is closed, so it cannot become a client. Reopen it first." / "This lead has already become a client."): both clients hide Convert, Request and Reassign on a lead that is not `active`.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -9223,7 +10207,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Propose conversion to client — closes all other lead chats on acceptance (FR-032). Sets `ConversionProposal.initiated_by = consultant`. */
+        /**
+         * Propose conversion to client — closes all other lead chats on acceptance (FR-032). Sets `ConversionProposal.initiated_by = consultant`.
+         * @description WHO MAY SEND IT (owner decision 6; review F-055, 2026-10-07). The caller must be able to SEE the lead (the same rule as `GET /leads/{id}`: a consultant limited to their own leads gets 404 for a colleague's) AND hold the staff permission `leads.convert` — otherwise 403 `permission_denied` ("You do not have permission to convert leads into clients."). For a lead the consultancy added itself (`origin = imported`) approval creates an account and a case, which is Create Applicant by another door: the caller also needs `clients.create_applicant` (403 `permission_denied`: "Converting a lead you added yourself creates an applicant, which needs the Create Applicant permission.") and the plan feature `create_applicant` (403 `feature_locked`). The console hides "Convert to Client" unless `StaffMe.permissions` has `leads.convert` (and, for an imported lead, `clients.create_applicant`).
+         *
+         *     The same sight-of-the-lead rule now applies to every other write on one lead — `allocate`, `tags`, `branch`, `close`, `reopen`, the internal notes and attaching an activity task: a lead the caller cannot see answers 404, and `bulk-allocate` skips it uncounted.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -9329,6 +10318,8 @@ export interface paths {
          *     A student also answers an applicant request here (contract gate 12f — `POST /clients` on their email or phone). Approval is refused with 403 `guardian_consent_required` for a student under 18 whose parent or guardian has not approved, the same check as `POST /journeys/commit`; that also applies when staff approve a student's own request. A student who was waiting for Sentpo to choose their consultancy may accept: the case opens with that consultancy and they leave the waiting list.
          *
          *     `Idempotency-Key` is required (contract gate 7) because approval opens a case: a replay with the same key returns the first response.
+         *
+         *     STAFF ANSWERING (owner decision 6; review F-055, 2026-10-07). Staff answer a student's own request (and their own offer on a lead they added themselves) under the same two conditions as `POST /leads/{id}/convert`: sight of the lead — otherwise 404, as if the proposal did not exist — and the `leads.convert` permission — otherwise 403 `permission_denied`, for `approved` and `declined` alike; an imported lead also needs `clients.create_applicant` and the `create_applicant` plan feature. The console hides Approve / Decline without `leads.convert`.
          */
         post: {
             parameters: {
@@ -11281,7 +12272,7 @@ export interface paths {
                     /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
                     search?: components["parameters"]["SearchParam"];
                     include_eligibility?: boolean;
-                    /** @description Consultancy Course Finder (COURSES_MODULE_PLAN.md §4.1, workstream D) — a client (journey) id, OR (2026-08-23) a lead id. Consultancy staff only; the client or lead must belong to the caller's consultancy. Populates Course.fit on each row evaluated against THAT person's profile instead of the caller's own — the same read model include_eligibility gives students, and equally NEVER a filter — ineligible courses keep their rank. An imported lead has no linked student account and therefore no profile — `fit` is simply omitted on every row, the same as if this param had been left off, rather than an error. 403 for non-staff callers, 404 for an unknown client. */
+                    /** @description Consultancy Course Finder (COURSES_MODULE_PLAN.md §4.1, workstream D) — a client (journey) id, OR (2026-08-23) a lead id. Consultancy staff only; the client or lead must belong to the caller's consultancy. Populates Course.fit on each row evaluated against THAT person's profile instead of the caller's own — the same read model include_eligibility gives students, and equally NEVER a filter — ineligible courses keep their rank. An imported lead has no linked student account and therefore no profile — `fit` is simply omitted on every row, the same as if this param had been left off, rather than an error. 403 for non-staff callers, 404 for an unknown client. ALSO 404 (owner decision 2; review F-054, 2026-10-07) for a case that has ended (`closed`, `closed_completed`, `closed_switched`), a case the caller cannot work on, and a lead that is `closed` or `converted` (use the client id once a lead has become a case): fit is worked out from the student's profile as it is today, which a consultancy no longer follows after the lead or case has ended. */
                     eligibility_for?: string;
                 };
                 header?: never;
@@ -11309,6 +12300,15 @@ export interface paths {
                                 points_on_offer: number;
                             } | null;
                         };
+                    };
+                };
+                /** @description `rate_limited` — NOT a limit on how often anyone searches (owner ruling 2026-10-06 on review F-128: students search freely). It only means this account already has 2 searches running at this moment and this would be a third. `Retry-After: 1` and `details.retry_after_seconds: 1`. CLIENTS (app and console) must (1) cancel a search request they no longer need when the query or filters change (type-ahead), so that at most the latest one or two are ever in flight, and (2) on this 429, wait the stated second and send the same request again, silently, without showing an error (keep the loading state). Only the list search (`GET /courses`) is capped; the filter lists and a single course are not. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -11967,7 +12967,7 @@ export interface paths {
          *
          *     SWITCHING OFF (`active: false`) does exactly what the platform's own switch does: the course leaves search, lists, facets and counts for students and consultancies, a read by id answers 404 for them, and it cannot be newly saved, shared or applied for. Nothing a student already has is removed: a saved course stays on their list and reads as no longer available (`visible: false`, name only) and they get the usual "Course no longer available" notice; applications already made for it are untouched. The course records `hidden_by: institute`.
          *
-         *     SWITCHING ON (`active: true`) is allowed only for a course this institute switched off itself (`hidden_by: institute`). A course immiNow switched off, and a draft that was never published (`hidden_by: null`), stay immiNow's to publish: 409 `hidden_by_platform`. A course that fails a catalogue check cannot be switched on: 409 `course_incomplete`, with `details.missing` listing the failed checks (`fee`, `duration`, `deadline`, `requirements`, `language`, `description`, `campus`) and a message naming them.
+         *     SWITCHING ON (`active: true`) is allowed for a course this institute switched off itself (`hidden_by: institute`) and — owner ruling 11, 2026-10-07 — for a DRAFT of its own college that was never published (`active: false`, `hidden_by: null`): the same call PUBLISHES it (the console labels the button "Publish"), and immiNow's catalogue staff are told a new course was published (`institute_course_switched`, variant `published`). A course immiNow switched off (`hidden_by: platform`) stays immiNow's to put back: 409 `hidden_by_platform`. A course that fails a catalogue check cannot be switched on or published: 409 `course_incomplete`, with `details.missing` listing the failed checks (`fee`, `duration`, `deadline`, `requirements`, `language`, `description`, `campus`) and a message naming them.
          *
          *     A request for the state the course is already in answers 200 and changes nothing (no notice, not counted). Every real switch notifies immiNow's catalogue staff (`institute_course_switched`) and is audited. A college may make a limited number of switches in any 24 hours (default 20, off and on each count): past that, 429 `rate_limited` with `Retry-After` and `details.retry_after_seconds`.
          */
@@ -12020,7 +13020,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Consultancy proposes a specific correction, routed to admin review queue (FR-057) */
+        /**
+         * Consultancy proposes a specific correction, routed to admin review queue (FR-057)
+         * @description Needs the staff permission `settings.manage_course_suggestions` (review F-096; it was open to every employee): anyone else is refused 403 `permission_denied`, so the console hides "Suggest a correction" for staff without it (`GET /me` → `staff.permissions`). The same applies to `POST /colleges/{id}/suggest-correction`. `payload` may hold at most 40 keys and 8 KB as JSON; a larger one is refused 400 `validation_failed` ("That suggestion is too long. Shorten the text and try again.").
+         */
         post: {
             parameters: {
                 query?: never;
@@ -12455,6 +13458,15 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description `rate_limited` (review F-103) — this operator has reached the hour's limit for this tool (20 an hour per Support Tools account; `Retry-After` says when). The first refusal in an hour alerts the Super Admins (notification `support_tool_burst`). The console shows the message as it is and does not retry by itself. 503 `service_unavailable` when the count cannot be kept. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -12731,7 +13743,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Client Profile — Overview/Plan/Commissions/Selected Colleges/Documents/Internal Notes/Activity (FR-101) */
+        /**
+         * Client Profile — Overview/Plan/Commissions/Selected Colleges/Documents/Internal Notes/Activity (FR-101)
+         * @description AFTER THE CASE HAS ENDED (owner decision 2; review F-054, 2026-10-07). For a case whose `status` is `closed`, `closed_completed` or `closed_switched` the consultancy's access is read-only, as the record stood at closing. `student` (name, email, phone, date of birth), `residence_state`, `residence_country`, `study_preferences` and `preferences` are the values the consultancy saw at the moment the case ended — nothing the student changes afterwards shows here or in `GET /clients`. Reopening the case (`reopen-case`) returns it to the live account. A case that ended before 2026-10-07 has no stored copy and keeps reading the account. After the student's account is erased the copy is removed and the case shows "Deleted User".
+         *
+         *     On an ended case the server also refuses, and the console hides or disables: `POST /clients/{id}/student-documents` — 409 `case_closed` ("This case has ended, so documents can no longer be added to the student's locker."); `POST /clients/{id}/applications` (a course suggestion) — 409 `case_closed` ("This case is closed."); `GET /clients/{id}/points` — 409 `case_closed` ("This case has ended, so the student's points are no longer shown."): hide the Points card; and `GET /courses?eligibility_for={client id}` — 404 `not_found` ("Client or lead not found."): do not offer "Check fit" / Course Finder for an ended case. A case moved to another consultancy answers 409 `case_moved` on the two writes, as before.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -14879,7 +15896,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** End a dispute (2026-09-09). Mediation itself happens off-platform, which is why `resolution_note` is REQUIRED rather than optional: this is the one decision in the system with real legal exposure and everything else about it happened in a phone call. `resume` returns the case to whatever it was doing; `close` ends it as a failure and reverses any commission; `reassign` puts it into the same Applicant Allocation queue a student complaint already feeds, and the case stays frozen until an admin allocates — it must not sit live with a consultancy the platform has decided to move it away from. */
+        /** End a dispute (2026-09-09). Mediation itself happens off-platform, which is why `resolution_note` is REQUIRED rather than optional: this is the one decision in the system with real legal exposure and everything else about it happened in a phone call. `resume` returns the case to whatever it was doing; `close` ends it as a failure and reverses any commission; `reassign` puts it into the same Applicant Allocation queue a student complaint already feeds, and the case stays frozen until an admin allocates — it must not sit live with a consultancy the platform has decided to move it away from. ACCOUNT DELETED WITH THE DISPUTE OPEN (owner ruling 3, 2026-10-07): when Support erased the student's account, the case is already closed (`closed_by: erasure`) and the dispute was left open for this decision. Only `close` is accepted then — it ends the dispute and changes neither the case nor any commission (Finance corrects money with its own tools); `resume` and `reassign` answer 409 `conflict` with a message saying so. Console: on such a dispute offer only "Close dispute". */
         post: {
             parameters: {
                 query?: never;
@@ -16355,6 +17372,15 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description `service_unavailable` (review F-059) — the upload limit cannot be counted right now (the cache is unreachable), so no upload is started. Clients show their ordinary "try again in a moment" message and retry; `POST /broadcast` answers the same way for the same reason. */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -16607,6 +17633,8 @@ export interface paths {
          *
          *     The student only (403 `permission_denied` for anyone else; the guardian gate applies). The file must be on one of the student's own cases that has closed or moved (404 `not_found` for anything else, including another student's file), and the student must have a live current case. Sharing the same file again answers 409 `already_shared` with the existing copy's id in `details.upload_id` — the listing's `shared_to_current_case` lets the app show "Shared" instead of the button. Audited on the current consultancy's log.
          *     Optional `step_id` (Wave 3 correction, owner ruling: one-tap share lives in a plan step, backend-confirmed 2026-09-27) — must be a step of the CURRENT live case (400 `validation_failed` otherwise) with a `file_upload` component to fill (422 `validation_failed` otherwise); the copy's `linked_step_id` is set to it.
+         *
+         *     ONLY INTO AN OPEN STEP (review F-067, 2026-10-07). The step must be `active`, the same rule as `PATCH /steps/{id}/responses`: a step the consultant has already approved (or one not opened yet) answers 409 `step_not_active` ("Only the active step can be filled in.") and nothing is copied. If every `file_upload` slot of the step already holds a file the share answers 409 `conflict` ("Every file on this step is already filled in. Remove one from the step first, then share the file again.") — it never overwrites a file. The app offers the one-tap share only on an `active` step with an empty file slot, and no longer on an approved step (owner ruling).
          */
         post: {
             parameters: {
@@ -18515,7 +19543,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Track apply-link click (total + unique, FR-053) */
+        /**
+         * Track apply-link click (total + unique, FR-053)
+         * @description Students only (review F-092, owner ruling 2026-10-06): one click is counted per student per job, EVER. A repeat answers 204 and counts nothing, so `total_clicks` and `unique_clicks` now move together (both are "students who clicked"). Any other role is refused 403 `permission_denied`: the console must not call this when staff open or preview a listing. The app keeps calling it on every tap of Apply; it need not remember what it sent.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -18527,12 +19558,30 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Tracked */
+                /** @description Tracked (or already counted for this student) */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description Not a student. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such job listing. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -19698,7 +20747,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Track click (FR-050) */
+        /**
+         * Track click (FR-050)
+         * @description One click is counted per student per ad, EVER (review F-092, owner ruling 2026-10-06): a repeat answers 204 and counts nothing, and `GET /ads/{id}/clicks` lists each student once (their first click). The ad must be one `GET /ads` is showing this student right now — live, its destination open, and aimed at them; anything else (off, over, deleted, aimed at someone else) answers 404 `not_found` and counts nothing. The app calls this on every tap and ignores a 404.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -19710,12 +20762,21 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Tracked */
+                /** @description Tracked (or already counted for this student) */
                 204: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description No such ad, or not one this student is being shown. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -22525,8 +23586,8 @@ export interface paths {
         };
         put?: never;
         /**
-         * Submit (or re-submit) the certificate — document_url from POST /media. A re-submission RESETS verification; a new document has not been reviewed, and keeping the badge over it would verify sight unseen. Notifies the Platform Admin.
-         * @description The certificate is not public (contract gate 4). `document_url` must be a URL POST /media issued to a member of THIS consultancy's staff; anything else — another tenant's upload, an external link, a URL no upload issued — is refused 400 `validation_failed` (the mock server checks only that it is present). On submit the real backend copies the file to private storage, so the public upload URL is never what reviewers read: `KycStatus.document_url` is an expiring link. Submission and verification are both audited.
+         * Submit (or re-submit) the certificate — upload_id from POST /consultancies/me/kyc/upload. A re-submission RESETS verification; a new document has not been reviewed, and keeping the badge over it would verify sight unseen. Notifies the Platform Admin.
+         * @description The certificate never has a public copy (review F-066, replacing contract gate 4's copy-from-`POST /media`). Three steps: (1) `POST /consultancies/me/kyc/upload` with the file's type and size; (2) `PUT` the file to the returned `put_url` with exactly that `Content-Type` and `Content-Length` (no Authorization header); (3) this call with the `upload_id`. The server checks the stored bytes really are a PDF or an image and moves the file to private storage. `document_url` is no longer accepted: sending it is refused 400 `validation_failed` (`details.fields.document_url`). `KycStatus.document_url` stays an expiring link. Submission and verification are both audited.
          */
         post: {
             parameters: {
@@ -22538,8 +23599,8 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        /** @description A URL POST /media returned to this consultancy's staff. */
-                        document_url: string;
+                        /** @description The `upload_id` of a finished upload (step 1's answer). */
+                        upload_id: string;
                     };
                 };
             };
@@ -22553,8 +23614,80 @@ export interface paths {
                         "application/json": components["schemas"]["KycStatus"];
                     };
                 };
-                /** @description `validation_failed` — `document_url` is missing, or is not an upload made by this consultancy's staff. */
+                /** @description `validation_failed` — `upload_id` is missing; names no finished upload of this consultancy ("That upload was not found. Upload the certificate again."); or the file is not what its type says ("That file is not a PDF or an image. Upload the certificate again." — the file is deleted). Also when `document_url` is sent. */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/consultancies/me/kyc/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A private upload link for one certificate file (PDF or image)
+         * @description Step 1 of submitting a certificate (review F-066). Returns a presigned `put_url` that works for 15 minutes and accepts exactly one file of the stated type and size: `PUT` the raw bytes to it with headers `Content-Type: <content_type>` and `Content-Length: <size_bytes>` and nothing else (no Authorization; a different type or size is refused by storage with 403). Then call `POST /consultancies/me/kyc` with `upload_id`. Allowed: `application/pdf`, `image/png`, `image/jpeg`, `image/webp`, up to 10 MB (10485760 bytes). Same permission as submitting (`settings.edit_profile`). At most 10 links an hour per account (429 `rate_limited` with `Retry-After`).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        content_type: "application/pdf" | "image/png" | "image/jpeg" | "image/webp";
+                        size_bytes: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Upload link issued */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            upload_id: string;
+                            put_url: string;
+                            content_type: string;
+                            size_bytes: number;
+                            /** Format: date-time */
+                            expires_at: string;
+                        };
+                    };
+                };
+                /** @description `validation_failed` — the type is not allowed (`details.fields.content_type`) or the size is not between 1 byte and 10 MB (`details.fields.size_bytes`). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description More than 10 upload links in an hour. */
+                429: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -23608,6 +24741,7 @@ export interface paths {
         /**
          * Approve a suggestion
          * @description type=new (2026-09-11): the course is first created with the ordinary POST /courses — the admin's Add Course form, pre-filled from `payload` — and approval links it by `course_id`; without one this is a 400 `course_required`. type=correction: `mode` `as_suggested` (default) writes the consultant's value, `modified` writes `value` instead, `manual` records it as accepted without touching the course. Only the fields in the suggestion's `applicable_fields` are ever written — a structured `fee.amount` or `intakes`, or an older correction's real course keys; its `note` is never copied. A college correction is always recorded as manual. Records the reviewer and notifies who suggested it (`course_suggestion_reviewed`). A suggestion already reviewed is a 409.
+         *     FREE TEXT AND LINKS NEED THE REVIEWER'S CONFIRMATION (review F-096, owner ruling 2026-10-06). The fields `description`, `benefits`, `eligibility`, `credentials`, `language` and `course_url` are a consultant's own words or a web address. With mode `as_suggested` they are copied into the course ONLY when named in `confirmed_fields`; any of them not named is left as it is on the course (the approval still succeeds and the other fields are applied). The console must show each such field's suggested text beside the current one with its own "Use this text" tick, unticked by default, and send the ticked names. A confirmed `course_url` must start with `https://` or `http://`, else 400 `validation_failed`. Naming any other field in `confirmed_fields` is a 400.
          */
         post: {
             parameters: {
@@ -23625,6 +24759,8 @@ export interface paths {
                         mode?: "as_suggested" | "modified" | "manual";
                         /** @description The value to apply when mode is `modified`. Ignored otherwise. */
                         value?: string;
+                        /** @description The free-text and link fields of this correction the reviewer has read and wants copied into the course (see the description). Absent or empty: none. */
+                        confirmed_fields?: ("description" | "benefits" | "eligibility" | "credentials" | "language" | "course_url")[];
                         /** @description type=new only — the course created from this suggestion. */
                         course_id?: components["schemas"]["UUID"];
                     };
@@ -25696,7 +26832,11 @@ export interface components {
                 /** @description Branches, active and inactive together (GET /staff/branches), 100. */
                 branches: number;
             };
-            /** @description The staff permission keys this consultancy's plan gives any meaning to (product owner, 2026-09-25) — what the designation editor and the per-person access editor show. A permission is left out when EVERY action it controls needs a plan feature this consultancy's `features` has off; one that controls at least one action with no plan feature, or with all of its features on, is included. Computed by the server from its own route declarations (each route's permission and plan features), so it cannot drift from what the routes actually allow. Keys left out keep whatever tick is stored on a designation or an override: an edit leaves them as they were, and they apply again as soon as the plan includes their feature. In the order of the 27 keys. Full record only. */
+            /**
+             * @description The staff permission keys this consultancy's plan gives any meaning to (product owner, 2026-09-25) — what the designation editor and the per-person access editor show. A permission is left out when EVERY action it controls needs a plan feature this consultancy's `features` has off; one that controls at least one action with no plan feature, or with all of its features on, is included. Computed by the server from its own route declarations (each route's permission and plan features), so it cannot drift from what the routes actually allow. Keys left out keep whatever tick is stored on a designation or an override: an edit leaves them as they were, and they apply again as soon as the plan includes their feature. In the order of the 27 keys. Full record only.
+             *
+             *     NEW KEY `leads.convert` (owner decision 6; review F-055, 2026-10-07), listed after `leads.delete` and always available (no plan feature hides it). Label "Convert leads to clients"; helper text "Send a lead the offer to become a client, and approve or decline a student's own request. Applies only to leads this person can see." The designation editor and the per-person override editor must show it with the other Leads keys. A designation saved before the key existed is served (`Designation.permissions`) with `leads.convert` already filled in as it applies: true when the designation has `leads.view_own` or `leads.view_all`, false otherwise; once saved either way the saved value stands.
+             */
             readonly available_permissions?: string[];
             /** @description Seats the plan allows. Full record only (own staff and platform staff) — omitted from the public projection (contract gate 4, see the schema description), which is why it is no longer required. */
             seat_limit?: number;
@@ -26023,7 +27163,11 @@ export interface components {
                 institute: number;
             }[];
         };
-        /** @description A unified read model over both `leads` (Sentpo-sourced) and `imported_leads` (self-sourced) — the API merges the two so Lead Pool/Active Leads/Lead Conversation work against one consistent shape (erd.md Marketplace section). `origin` tells you which table backs a given row; write endpoints resolve `id` against the right one server-side. */
+        /**
+         * @description A unified read model over both `leads` (Sentpo-sourced) and `imported_leads` (self-sourced) — the API merges the two so Lead Pool/Active Leads/Lead Conversation work against one consistent shape (erd.md Marketplace section). `origin` tells you which table backs a given row; write endpoints resolve `id` against the right one server-side.
+         *
+         *     AFTER THE LEAD HAS CLOSED (owner decision 2; review F-054, 2026-10-07) — on the STAFF view of a `closed` Sentpo lead, `name` and `preferences` are what the consultancy saw at the moment it closed, not the student's account as it is now; reopening it returns to the live values. A lead closed before 2026-10-07 has no stored copy and keeps reading the account. The student's own view is unaffected.
+         */
         Lead: {
             id: components["schemas"]["UUID"];
             /** @enum {string} */
@@ -26110,6 +27254,8 @@ export interface components {
             rating_cooldown_ends_at?: string | null;
             /** @description The most recent conversion_proposals row if its status is still `pending`; null otherwise. Drives whether Lead Conversation shows "Convert to Client" or a pending-proposal state. */
             active_proposal?: components["schemas"]["ConversionProposal"] | null;
+            /** @description STAFF VIEW, decided by the server (owner ruling "Lead reopen", 2026-10-06). True only when the reader may reopen this lead now: it is `closed`, the consultancy closed it itself, and the consultancy's plan includes `case_reopening`. False for an active or converted lead, for a lead closed because the student chose another consultancy, closed by the student, or closed because the student deleted their account (those can never be reopened by the consultancy — only the student restarts it, by starting a new chat), when the plan lacks the feature, and always on the student's own view. The console shows the Reopen control only when this is true and never works it out itself. `POST /leads/{id}/reopen` can still answer 409 for the reasons it lists (the student has a live case, another open chat with this consultancy, or 15 active chats). */
+            readonly can_reopen: boolean;
             /** @description STAFF, SINGLE LEAD ONLY (review F-029, 2026-10-06): present on `GET /leads/{id}` and on the Lead a staff write returns; absent from `GET /leads` list rows and from the student's own view. The state of the chat header's shortlist button, computed by the server from the WHOLE thread. The console reads it from here and never from the messages it happens to have loaded (a long chat pages; the header used to offer "Request Shortlist" again once the request had scrolled out of the loaded page). */
             readonly shortlist?: components["schemas"]["LeadShortlist"];
             /** @description STAFF, SINGLE LEAD ONLY, as `shortlist` (review F-029, 2026-10-06). Every course the consultancy has suggested on this lead's chat (`POST /leads/{id}/suggest-course`), from the whole thread, most recently suggested first, each once (at most 500). Course Finder and "Suggest a course" mark a course "Already suggested" from this list instead of scanning loaded messages. Empty for an imported lead. */
@@ -27007,7 +28153,7 @@ export interface components {
             /** @description Every campus this course actually runs at, resolved from `campus_ids` (2026-09-16). A course can be taught at several campuses of the same college — UBC's Vancouver and Okanagan, say — and before this the read model exposed only the FIRST one, so a student reading a course offered at three campuses saw one city and could not learn the others existed. Ordered as `campus_ids` is. Empty when the course lists no campuses. */
             readonly campuses?: components["schemas"]["CourseCampus"][];
             /**
-             * @description Who switched this course off (owner decision 18, 2026-10-06): `platform` (immiNow's catalogue staff) or `institute` (the college's own institute account, through `POST /courses/{id}/switch`). Null while the course is on (`active: true`), and on a draft that was never published (`active: false`, `hidden_by: null`). AUDIENCE: sent only to platform staff holding `catalog`, and to an institute's staff on courses of their own college. For every other caller — students, consultancies, platform staff without `catalog` — the property is ABSENT (never null): nobody else is told who hid a course, and a held reference to a hidden course (a saved course, an application, a chat card) carries only `visible: false`. An institute's console reads it to decide what its switch may do: on -> may switch off; off with `hidden_by: institute` -> may switch back on; off with `platform` or null -> locked, "Switched off by immiNow" / "Not published yet".
+             * @description Who switched this course off (owner decision 18, 2026-10-06): `platform` (immiNow's catalogue staff) or `institute` (the college's own institute account, through `POST /courses/{id}/switch`). Null while the course is on (`active: true`), and on a draft that was never published (`active: false`, `hidden_by: null`). AUDIENCE: sent only to platform staff holding `catalog`, and to an institute's staff on courses of their own college. For every other caller — students, consultancies, platform staff without `catalog` — the property is ABSENT (never null): nobody else is told who hid a course, and a held reference to a hidden course (a saved course, an application, a chat card) carries only `visible: false`. An institute's console reads it to decide what its switch may do: on -> may switch off; off with `hidden_by: institute` -> may switch back on; off with null -> a draft it may PUBLISH ("Not published yet", same `POST /courses/{id}/switch` with `active: true`); off with `platform` -> locked, "Switched off by immiNow".
              * @enum {string|null}
              */
             readonly hidden_by?: "platform" | "institute" | null;
@@ -29425,6 +30571,7 @@ export interface components {
             /**
              * @description WHICH LEDGER ROWS the two caps above are measured over (product owner, 2026-09-20: "article_read and view consultancy points should have daily cap instead of life time").
              *     `lifetime` counts everything this student has ever earned from the rule — the original meaning, and the default, so a rule left alone behaves exactly as before. `day` counts only TODAY's rows, and today is the **student's own calendar day** from `users.timezone` (UTC when unknown), the same day boundary `daily_login` already uses — a UTC one would refresh a Kolkata student's allowance at 05:30 local, which is neither a day they recognise nor one they can plan around.
+             *     CHANGED (review F-091, 2026-10-07): the real backend counts a `day` rule's caps over the ROLLING 24 HOURS before the award, not the calendar day. The calendar day was the day of the timezone on the profile, which the student sets: moving it to a zone whose midnight had just passed emptied the allowance, every hour. So "3 a day" now means at most 3 in any 24 hours; an allowance used at 22:00 comes back at 22:00 the next day, not at midnight. The app should not promise "resets at midnight". `earned_today` is still shown in the student's own calendar day. The frozen mock keeps the calendar-day rule.
              *     A daily cap is a pacing rule, not a liability ceiling: reading three articles is worth points every day, reading thirty in one sitting is not worth ten times as much. A lifetime cap on the same trigger says something harsher — that the fiftieth article a student ever reads is worth nothing, forever — which is what `article_read` (now 3 a day) and `consultancy_viewed` (2 a day) used to say.
              *     Per-subject de-duplication is unaffected: the same article never pays twice, on any day. A `day` rule must carry at least one of `cap` / `award_cap` — a daily rule with neither is no cap at all wearing a window, and is refused 400.
              * @enum {string}
@@ -29799,8 +30946,10 @@ export interface components {
         KycStatus: {
             /** @enum {string} */
             status: "not_submitted" | "pending" | "verified";
-            /** @description The latest submitted certificate, as an EXPIRING link from the real backend (contract gate 4): a presigned URL to the private copy, valid for a short time (minutes) and issued afresh on every read — fetch it when it is needed, never store or share it. The mock server returns the POST /media URL that was submitted. Null when nothing has been submitted. */
+            /** @description The latest submitted certificate, as an EXPIRING link from the real backend (contract gate 4): a presigned URL to the private copy, valid for a short time (minutes) and issued afresh on every read — fetch it when it is needed, never store or share it. Null when nothing has been submitted. */
             document_url?: string | null;
+            /** @description What the latest certificate is (review F-066): `application/pdf`, `image/png`, `image/jpeg` or `image/webp`. The console shows an image inline and opens a PDF in a new tab (or an embedded viewer). Null when nothing has been submitted. */
+            document_content_type?: string | null;
             /** Format: date-time */
             uploaded_at?: string | null;
             /** Format: date-time */
@@ -30352,6 +31501,20 @@ export interface components {
              * @description Set while an erasure is pending for this account (gate 12f): the instant its personal data is erased. Show a "Deletion scheduled {date}" badge; the account is locked, an export is refused (409 `conflict`), and a Super Admin can keep the account with DELETE /users/{id}/erasure. Null (or absent) otherwise.
              */
             erasure_due_at?: string | null;
+            /** @description A new sign-in email Support recorded (`POST /users/{id}/email`) that the person has not proven yet (owner ruling 4, 2026-10-07). It is NOT the account's email: `email` still is. Show "Waiting for confirmation: {pending_email} (until {pending_email_until})". Null (or absent) when nothing is waiting or it lapsed. */
+            pending_email?: string | null;
+            /**
+             * Format: date-time
+             * @description When the pending email lapses if nobody proves it. Null with `pending_email`.
+             */
+            pending_email_until?: string | null;
+            /** @description A new phone number Support recorded for a student (`POST /users/{id}/phone`) that the student has not proven yet (owner ruling 1, 2026-10-07). `phone` is still the account's number. Null (or absent) when nothing is waiting or it lapsed. */
+            pending_phone?: string | null;
+            /**
+             * Format: date-time
+             * @description When the pending phone lapses if nobody proves it. Null with `pending_phone`.
+             */
+            pending_phone_until?: string | null;
         };
         /** @description The answer to an erasure request (gate 12f). `erasure_pending`: the account is locked now and its personal data is erased at `due_at`, 30 days later, unless the erasure is cancelled before then (`cancel_until` is the same instant, named for the client's copy). `erasure_queued`: there is no window — Support asked for an immediate erasure, or the erasure was already under way — and both dates are null. */
         ErasureQueuedOut: {
@@ -30367,6 +31530,22 @@ export interface components {
              * @description Until when the account can still be kept. The same instant as `due_at`.
              */
             cancel_until?: string | null;
+        };
+        /** @description `GET /profile/erase` (owner rulings 2 and 3, 2026-10-07): whether the caller may ask for their own account's deletion now. When `available` is false the app shows `message` instead of the delete form. */
+        ErasureAvailabilityOut: {
+            available: boolean;
+            /**
+             * @description Null when `available`. Otherwise the error code `POST /profile/erase` would answer.
+             * @enum {string|null}
+             */
+            reason?: "erasure_dispute_open" | "erasure_cooldown" | null;
+            /** @description The sentence to show the person. Null when `available`. */
+            message?: string | null;
+            /**
+             * Format: date-time
+             * @description `erasure_cooldown` only — when a new self-serve request is accepted. Null otherwise.
+             */
+            available_at?: string | null;
         };
         /** @description One erasure on Support's list (gate 12f). `name`, `email` and `phone` are the account's own until the data is erased; afterwards `name` reads "Deleted User" (or "Former Employee") and the other two are null. The reason the person or an operator typed is never served. */
         ErasureRequest: {

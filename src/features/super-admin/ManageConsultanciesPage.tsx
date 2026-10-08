@@ -35,6 +35,8 @@ import { showToast } from '@/lib/toast'
 import { formatMoney } from '@/lib/money'
 import { useCurrencyCodes } from '@/lib/currencies'
 import { useConsultancyKyc, useVerifyKyc } from '@/queries/kyc'
+import { CONSULTANCY_PLAN_COLUMNS, useCanSeeConsultancyPlans } from '@/lib/me'
+import { KycDocument } from '@/components/KycDocument'
 import type { components } from '@/api/schema'
 import { BUSINESS_FEATURES, ULTIMATE_FEATURES, STARTER_FEATURES, STARTER_CORE_FEATURES, TIER_ORDER, FEATURE_KEYS, type FeatureDef } from '@/lib/features'
 import { humaniseCode } from '@/lib/humanise'
@@ -496,9 +498,9 @@ function KycSection({ consultancyId, kycVerified }: { consultancyId: string; kyc
           </Badge>
         </p>
         {kyc.data?.document_url ? (
-          <a href={kyc.data.document_url} target="_blank" rel="noreferrer" className="text-caption text-primary underline">
-            View submitted certificate
-          </a>
+          <div className="mt-xs">
+            <KycDocument kyc={kyc.data} label="certificate" size="sm" />
+          </div>
         ) : (
           <p className="text-caption text-text-secondary">No certificate submitted yet.</p>
         )}
@@ -1345,15 +1347,21 @@ export function ManageConsultanciesPage() {
   const [managingId, setManagingId] = useState<string | null>(searchParams.get('manage'))
   const [creating, setCreating] = useState(false)
   const paging = useCursorPagination()
+  // Plan data is sent only to accounts holding `consultancy_approval` or `finance` (review
+  // F-129/F-130). Without either, the plan columns, the Plan and Status filters and the plan sorts
+  // are not offered, and none of them is sent: the server would ignore them, and a filter that
+  // silently does nothing reads as "no account matches".
+  const canSeePlans = useCanSeeConsultancyPlans()
+  const usableSort = sort && (canSeePlans || !CONSULTANCY_PLAN_COLUMNS.includes(sort.field)) ? sort : null
 
   const consultancies = useAdminConsultancies({
     search: search || undefined,
-    tier: (tierFilter || undefined) as 'starter' | 'business' | 'ultimate' | undefined,
+    tier: ((canSeePlans && tierFilter) || undefined) as 'starter' | 'business' | 'ultimate' | undefined,
     // INSTITUTE_ACCOUNT_PLAN D10 — an institute is a row in this same list under D6, so the list
     // grows a tag and a filter rather than a second screen.
     kind: (kindFilter || undefined) as 'consultancy' | 'institute' | undefined,
-    status: (statusFilter || undefined) as ConsultancyFilters['status'],
-    sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
+    status: ((canSeePlans && statusFilter) || undefined) as ConsultancyFilters['status'],
+    sort: usableSort ? (usableSort.direction === 'desc' ? `-${usableSort.field}` : usableSort.field) : undefined,
     cursor: paging.cursor,
     limit: 20,
   })
@@ -1376,16 +1384,20 @@ export function ManageConsultanciesPage() {
   const kpis: [string, number | undefined][] = [
     ['Consultancies', kindCounts?.consultancy],
     ['Institutes', kindCounts?.institute],
-    ['Starter', tierCounts?.starter],
-    ['Business', tierCounts?.business],
-    ['Ultimate', tierCounts?.ultimate],
+    ...(canSeePlans
+      ? ([
+          ['Starter', tierCounts?.starter],
+          ['Business', tierCounts?.business],
+          ['Ultimate', tierCounts?.ultimate],
+        ] as [string, number | undefined][])
+      : []),
   ]
 
   function resetPaging() {
     paging.reset()
   }
 
-  const columns: TableColumn<Consultancy>[] = [
+  const allColumns: TableColumn<Consultancy>[] = [
     {
       key: 'name',
       header: 'Name',
@@ -1512,6 +1524,7 @@ export function ManageConsultanciesPage() {
       ),
     },
   ]
+  const columns = canSeePlans ? allColumns : allColumns.filter((c) => !CONSULTANCY_PLAN_COLUMNS.includes(c.key))
 
   return (
     <AdminShell>
@@ -1540,7 +1553,9 @@ export function ManageConsultanciesPage() {
             ))}
           </div>
           <p className="text-caption text-text-secondary">
-            Active accounts only. Plans count consultancies and institutes together.
+            {canSeePlans
+              ? 'Active accounts only. Plans count consultancies and institutes together.'
+              : 'Active accounts only.'}
           </p>
         </div>
 
@@ -1551,11 +1566,11 @@ export function ManageConsultanciesPage() {
           loading={consultancies.isLoading}
           error={consultancies.isError ? 'Could not load consultancies.' : undefined} errorSource={consultancies.error}
           emptyMessage={
-            search || tierFilter || kindFilter || statusFilter
+            search || kindFilter || (canSeePlans && (tierFilter || statusFilter))
               ? 'No accounts match these filters.'
               : 'No consultancies yet. Create the first one with the button above.'
           }
-          sort={sort}
+          sort={usableSort}
           onSortChange={(field, direction) => {
             setSort({ field, direction })
             resetPaging()
@@ -1582,37 +1597,41 @@ export function ManageConsultanciesPage() {
                 <option value="consultancy">Consultancies</option>
                 <option value="institute">Institutes</option>
               </CompactSelect>
-              <CompactSelect
-                value={tierFilter}
-                onChange={(e) => {
-                  setTierFilter(e.target.value)
-                  resetPaging()
-                }}
-                label="Plan"
-                className="capitalize"
-              >
-                <option value="">Any plan</option>
-                <option value="starter">Starter</option>
-                <option value="business">Business</option>
-                <option value="ultimate">Ultimate</option>
-              </CompactSelect>
-              <CompactSelect
-                value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value)
-                  resetPaging()
-                }}
-                label="Status"
-              >
-                <option value="">Any status</option>
-                <option value="active">Active</option>
-                <option value="suspended">Suspended</option>
-                <option value="kyc_pending">KYC to verify</option>
-                <option value="expiring">Subscription ending soon</option>
-                <option value="grace">In grace period</option>
-                <option value="lapsed">Subscription lapsed</option>
-                <option value="never_billed">Never billed</option>
-              </CompactSelect>
+              {canSeePlans && (
+                <>
+                  <CompactSelect
+                    value={tierFilter}
+                    onChange={(e) => {
+                      setTierFilter(e.target.value)
+                      resetPaging()
+                    }}
+                    label="Plan"
+                    className="capitalize"
+                  >
+                    <option value="">Any plan</option>
+                    <option value="starter">Starter</option>
+                    <option value="business">Business</option>
+                    <option value="ultimate">Ultimate</option>
+                  </CompactSelect>
+                  <CompactSelect
+                    value={statusFilter}
+                    onChange={(e) => {
+                      setStatusFilter(e.target.value)
+                      resetPaging()
+                    }}
+                    label="Status"
+                  >
+                    <option value="">Any status</option>
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
+                    <option value="kyc_pending">KYC to verify</option>
+                    <option value="expiring">Subscription ending soon</option>
+                    <option value="grace">In grace period</option>
+                    <option value="lapsed">Subscription lapsed</option>
+                    <option value="never_billed">Never billed</option>
+                  </CompactSelect>
+                </>
+              )}
             </>
           }
           pagination={{

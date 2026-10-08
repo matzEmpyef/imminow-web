@@ -8,6 +8,7 @@ import { BranchAccessPicker } from './BranchAccessPicker'
 import { primaryBranchError, type BranchAccess } from './branchAccess'
 import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
 import { showToast } from '@/lib/toast'
+import { inviteEmployeeErrorMessage } from '@/lib/inviteEmployeeWords'
 import type { components } from '@/api/schema'
 
 type Designation = components['schemas']['Designation']
@@ -90,7 +91,9 @@ export function InviteEmployeeModal({
       footer={
         <>
           {inviteEmployee.isError && (
-            <p className="mr-auto self-center text-body-sm text-error">{inviteEmployee.error.message}</p>
+            <p role="alert" className="mr-auto self-center text-body-sm text-error">
+              {inviteEmployeeErrorMessage(inviteEmployee.error)}
+            </p>
           )}
           <Button type="submit" form="invite-employee-form" loading={inviteEmployee.isPending} disabled={!canInvite}>
             Send Invite

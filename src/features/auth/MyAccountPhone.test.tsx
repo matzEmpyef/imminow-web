@@ -57,6 +57,11 @@ const PROFILE = {
 }
 
 let profile: typeof PROFILE
+// What `GET /auth/otp/step-up` answers. Null = the route says nothing (no first code needed).
+let stepUp: Record<string, unknown> | null
+
+const PHONE_CHANNEL = { channel: 'phone', destination_mask: '+91 ••••• ••210' }
+const EMAIL_CHANNEL = { channel: 'email', destination_mask: 'as•••@example.test' }
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
@@ -79,8 +84,10 @@ beforeEach(() => {
   useAuthStore.setState({ accessToken: 'test-token' })
   vi.mocked(useMe).mockReturnValue(meAnswered(staffMe()))
   profile = { ...PROFILE }
+  stepUp = null
   mockedGet.mockImplementation((async (path: string) => {
     if (path === '/profile') return ok({ ...profile })
+    if (path === '/auth/otp/step-up' && stepUp) return ok(stepUp)
     return ok({ items: [] })
   }) as never)
 })
@@ -208,7 +215,8 @@ describe('the phone number on My Account', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Remove' }))
     expect(mockedPatch).not.toHaveBeenCalled()
     profile = { ...PROFILE }
-    fireEvent.click(screen.getByRole('button', { name: 'Remove number' }))
+    // The server is asked first whether a code is needed; here it is not.
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove number' }))
     await waitFor(() => expect(mockedPatch).toHaveBeenCalledWith('/profile', { body: { phone: null } }))
     expect(showToast).toHaveBeenCalledWith('Phone number removed')
   })
@@ -217,7 +225,7 @@ describe('the phone number on My Account', () => {
     profile = { ...PROFILE, phone: '+919876543210', phone_verified: true }
     renderPage()
     fireEvent.click(await screen.findByRole('button', { name: 'Change' }))
-    fireEvent.change(screen.getByLabelText(/^New phone number/), { target: { value: '+919000000000' } })
+    fireEvent.change(await screen.findByLabelText(/^New phone number/), { target: { value: '+919000000000' } })
     mockedPost.mockResolvedValueOnce(ok({ resend_after_seconds: 30 }, 202))
     fireEvent.click(screen.getByRole('button', { name: 'Send code' }))
     await waitFor(() => expect(mockedPost).toHaveBeenCalledWith('/auth/otp/request', { body: { phone: '+919000000000' } }))
@@ -244,3 +252,117 @@ describe('the phone number on My Account', () => {
     await act(async () => {})
   })
 })
+
+// Owner ruling 1 (2026-10-07): a VERIFIED number is changed or removed only after a first code to
+// a contact the person already proved. The section says so before anything is sent.
+describe('changing or removing a verified number takes a first code', () => {
+  const firstDialog = () => screen.getByRole('dialog', { name: 'Step 1 of 2: confirm it is you' })
+
+  beforeEach(() => {
+    profile = { ...PROFILE, phone: '+919876543210', phone_verified: true }
+    stepUp = { required: true, granted: false, channels: [PHONE_CHANNEL, EMAIL_CHANNEL], valid_for_seconds: 900 }
+  })
+
+  it('says two codes are needed, and where the first can go, before anything is sent', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Change' }))
+
+    expect(await screen.findByText('Changing your number takes two codes')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'First we send a code to a contact you have already proved, so we know it is you. Then we send a code to the new number.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Your current number (+91 ••••• ••210)' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Your email (as•••@example.test)' })).not.toBeChecked()
+    expect(mockedPost).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText(/^New phone number/)).not.toBeInTheDocument()
+  })
+
+  it('runs both codes in order: the first to the chosen contact, then the new number', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Change' }))
+    fireEvent.click(await screen.findByRole('radio', { name: 'Your email (as•••@example.test)' }))
+
+    mockedPost.mockResolvedValueOnce(
+      ok({ channel: 'email', destination_mask: 'as•••@example.test', expires_in_seconds: 600, resend_after_seconds: 30 }, 202),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Send first code' }))
+    await waitFor(() => expect(mockedPost).toHaveBeenCalledWith('/auth/otp/step-up/request', { body: { channel: 'email' } }))
+    expect(await screen.findByRole('dialog', { name: 'Step 1 of 2: confirm it is you' })).toHaveTextContent('as•••@example.test')
+
+    fireEvent.change(within(firstDialog()).getByLabelText(/^Code/), { target: { value: '111111' } })
+    mockedPost.mockResolvedValueOnce(ok({ ok: true, valid_for_seconds: 900 }))
+    fireEvent.click(within(firstDialog()).getByRole('button', { name: 'Continue' }))
+    await waitFor(() => expect(mockedPost).toHaveBeenCalledWith('/auth/otp/step-up/verify', { body: { code: '111111' } }))
+
+    // Now, and only now, the new number is asked for.
+    expect(await screen.findByText('Step 2 of 2: your new number')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText(/^New phone number/), { target: { value: '+919000000000' } })
+    mockedPost.mockResolvedValueOnce(ok({ resend_after_seconds: 30 }, 202))
+    fireEvent.click(screen.getByRole('button', { name: 'Send code' }))
+    await waitFor(() => expect(mockedPost).toHaveBeenCalledWith('/auth/otp/request', { body: { phone: '+919000000000' } }))
+    expect(dialog()).toHaveTextContent('+919000000000')
+  })
+
+  it('names the one contact when there is no choice to make', async () => {
+    stepUp = { required: true, granted: false, channels: [PHONE_CHANNEL], valid_for_seconds: 900 }
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Change' }))
+    expect(await screen.findByText('Your current number (+91 ••••• ••210)')).toBeInTheDocument()
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+  })
+
+  it('goes straight to the new number when a first code was proved a moment ago', async () => {
+    stepUp = { required: true, granted: true, channels: [PHONE_CHANNEL], valid_for_seconds: 900 }
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Change' }))
+    expect(await screen.findByLabelText(/^New phone number/)).toBeInTheDocument()
+    expect(screen.queryByText('Changing your number takes two codes')).not.toBeInTheDocument()
+  })
+
+  it('removing takes the first code too, and the number goes once it is entered', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }))
+    expect(await screen.findByText('Removing your number takes a code')).toBeInTheDocument()
+    expect(mockedPatch).not.toHaveBeenCalled()
+
+    mockedPost.mockResolvedValueOnce(ok({ channel: 'sms', destination_mask: '+91 ••••• ••210', resend_after_seconds: 30 }, 202))
+    fireEvent.click(screen.getByRole('button', { name: 'Send code' }))
+    await waitFor(() => expect(mockedPost).toHaveBeenCalledWith('/auth/otp/step-up/request', { body: { channel: 'phone' } }))
+
+    const box = await screen.findByRole('dialog', { name: 'Confirm it is you' })
+    fireEvent.change(within(box).getByLabelText(/^Code/), { target: { value: '222222' } })
+    mockedPost.mockResolvedValueOnce(ok({ ok: true, valid_for_seconds: 900 }))
+    mockedPatch.mockResolvedValueOnce(ok({ ...PROFILE }))
+    fireEvent.click(within(box).getByRole('button', { name: 'Remove number' }))
+
+    await waitFor(() => expect(mockedPatch).toHaveBeenCalledWith('/profile', { body: { phone: null } }))
+    expect(showToast).toHaveBeenCalledWith('Phone number removed')
+  })
+
+  it('a change refused for want of a first code opens the first step, with the contacts it names', async () => {
+    // The check said a first code was already proved; by the time the new number is sent it has run out.
+    stepUp = { required: true, granted: true, channels: [PHONE_CHANNEL], valid_for_seconds: 900 }
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Change' }))
+    fireEvent.change(await screen.findByLabelText(/^New phone number/), { target: { value: '+919000000000' } })
+    mockedPost.mockResolvedValueOnce(
+      refused(400, 'step_up_required', 'Confirm it is you first.', { channels: [PHONE_CHANNEL, EMAIL_CHANNEL] }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Send code' }))
+
+    expect(await screen.findByText('Changing your number takes two codes')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Your email (as•••@example.test)' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('adding a first number, or verifying the one already here, asks for no first code', async () => {
+    profile = { ...PROFILE, phone: '+919876543210', phone_verified: false }
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Change' }))
+    expect(screen.getByLabelText(/^New phone number/)).toBeInTheDocument()
+    expect(mockedGet).not.toHaveBeenCalledWith('/auth/otp/step-up')
+  })
+})
+

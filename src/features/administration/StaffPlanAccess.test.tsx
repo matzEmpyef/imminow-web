@@ -36,6 +36,7 @@ import {
 import { useMyConsultancy } from '@/queries/consultancy'
 import { useMe } from '@/queries/me'
 import { meAnswered, staffMe } from '@/test/me'
+import { ApiError } from '@/api/errors'
 import { InviteEmployeeModal } from './InviteEmployeeModal'
 import { DesignationPermissionsModal } from './DesignationPermissionsModal'
 import { EmployeeAccessModal } from './EmployeeAccessModal'
@@ -129,6 +130,18 @@ describe('Invite Employee on a plan without designations (Starter = full access)
     )
     const dialog = renderStarterInvite()
     expect(within(dialog).getByText('Your plan allows 5 seats, and all 5 are taken.')).toBeInTheDocument()
+  })
+
+  it('says a refused address is on the team or invited, in fixed words, whatever text the server sent (F-061)', () => {
+    const refusal = new ApiError('fallback', {
+      error: { code: 'email_taken', message: 'This person is already on immiNow.', status: 409 },
+    })
+    vi.mocked(useInviteEmployee).mockReturnValue(mutation(inviteMutate, { isError: true, error: refusal }))
+    const dialog = renderStarterInvite()
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(
+      'That email is already on your team or has an invite waiting.',
+    )
+    expect(within(dialog).queryByText(/already on immiNow/)).not.toBeInTheDocument()
   })
 
   it('still sends the picked designation where the plan has the feature', () => {

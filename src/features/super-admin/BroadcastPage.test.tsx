@@ -193,4 +193,20 @@ describe('SendBroadcastModal — duplicate protection', () => {
     await waitFor(() => expect(sendCalls()).toHaveLength(2))
     expect(sentKey(sendCalls()[1])).not.toBe(sentKey(sendCalls()[0]))
   })
+
+  // Review F-059: when the server cannot count the hour's sends it starts nothing and says so.
+  it('503 service_unavailable: says nothing was sent, on the same screen, and a retry carries the same key', async () => {
+    sendAnswers = [{ status: 503, code: 'service_unavailable', message: 'Try again in a moment.' }]
+    renderModal()
+    fillDraft()
+    await sendFromDraft()
+
+    const confirm = await screen.findByRole('dialog', { name: 'Send to 180000 students?' })
+    expect(await within(confirm).findByRole('alert')).toHaveTextContent('Nothing was sent. Please try again in a moment.')
+    expect(screen.queryByRole('dialog', { name: 'This broadcast may have been sent' })).toBeNull()
+
+    fireEvent.click(within(confirm).getByRole('button', { name: /^Send to 180000 students$/ }))
+    await waitFor(() => expect(sendCalls()).toHaveLength(2))
+    expect(sentKey(sendCalls()[1])).toBe(sentKey(sendCalls()[0]))
+  })
 })

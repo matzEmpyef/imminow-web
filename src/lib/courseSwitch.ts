@@ -9,10 +9,12 @@ type Course = components['schemas']['Course']
  *   on                                  → may be switched off
  *   off, switched off by this college   → may be switched back on
  *   off, switched off by immiNow        → locked
- *   off, never published                → locked
+ *   off, never published (a draft)      → may be PUBLISHED (owner ruling 11, 2026-10-07)
  *
- * The college switches back on only what it switched off itself. The server enforces the same
- * rule (409 `hidden_by_platform`); this decides what is OFFERED.
+ * The college switches back on what it switched off itself, and publishes its own drafts: both are
+ * the same call (`active: true`), and a course that fails a catalogue check is refused either way
+ * (409 `course_incomplete`). What immiNow switched off stays immiNow's to put back (409
+ * `hidden_by_platform`). The server enforces all of it; this decides what is OFFERED.
  */
 export type CourseSwitchState = 'on' | 'off_by_college' | 'off_by_platform' | 'not_published'
 

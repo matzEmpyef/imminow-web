@@ -3,6 +3,7 @@ import { useMutation } from '@/lib/useSave'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { isRetryable } from '@/api/errors'
 import type { components } from '@/api/schema'
 
 export type UserSearchResult = components['schemas']['UserSearchResult']
@@ -22,6 +23,10 @@ export function useUserSearch(q: string, cursor?: string, limit?: number) {
       return data
     },
     enabled: isAuthed && trimmed.length >= 2,
+    // A 429 here is this operator's hourly allowance for the tool (review F-103), not a busy
+    // moment: asking again by itself only uses up more of it, so the message is shown at once.
+    retry: (failureCount, error) =>
+      failureCount < 2 && isRetryable(error) && !(error instanceof ApiError && error.status === 429),
   })
 }
 
@@ -76,9 +81,15 @@ export function useResendGuardianLink() {
 }
 
 /**
- * Changes a locked-out user's sign-in email (reworked 2026-09-11). The operator records how they
- * verified it's really the account holder; both addresses are emailed and the user is signed out
- * everywhere. 409 email_taken.
+ * RECORDS a new sign-in email for a locked-out user (owner ruling 4, 2026-10-07). Support no
+ * longer changes the email itself: the address waits on the account (`pending_email`,
+ * `pending_email_until` on the answer) until the person proves it, and nothing else changes —
+ * the current email keeps signing them in and nobody is signed out. The operator records how
+ * they verified it's really the account holder.
+ *
+ * Refusals carry the server's own sentence: 409 `email_taken` (another account has the address,
+ * as its email or waiting), 409 `conflict` (the account is scheduled for deletion), 403, 429
+ * `rate_limited` (this operator's hourly allowance; `details.retry_after_seconds`).
  */
 export function useUpdateUserEmail() {
   const queryClient = useQueryClient()
@@ -96,11 +107,49 @@ export function useUpdateUserEmail() {
       verification_method: 'called_registered_phone' | 'video_call' | 'id_document' | 'other'
       verification_note?: string
     }) => {
-      const { data, error } = await api.POST('/users/{id}/email', {
+      const { data, error, response } = await api.POST('/users/{id}/email', {
         params: { path: { id } },
         body: { new_email, reason, verification_method, verification_note },
       })
-      if (error) throw new ApiError('Could not update this email.', error)
+      if (error) throw new ApiError('Could not record this email.', error, (response as Response | undefined)?.status)
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user-search'] }),
+  })
+}
+
+/**
+ * RECORDS a new phone number for a student who cannot use their old one (owner ruling 1,
+ * 2026-10-07). As with the email: the number waits on the account (`pending_phone`,
+ * `pending_phone_until`) until the student proves it by signing in with it, and nothing else
+ * changes. Needs a reason and the operator's own password.
+ *
+ * Refusals carry the server's own sentence: 400 `validation_failed` (not a student, an invalid
+ * number, the number already on the account), `step_up_required`, `invalid_current_password`;
+ * 403; 404; 409 `identifier_in_use` (another account has the number, proven or waiting) or
+ * `conflict` (scheduled for deletion); 429 `rate_limited` (`details.retry_after_seconds`).
+ */
+export function useRecordUserPhone() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      new_phone,
+      reason,
+      password,
+    }: {
+      id: string
+      new_phone: string
+      reason: string
+      password: string
+    }) => {
+      const { data, error, response } = await api.POST('/users/{id}/phone', {
+        params: { path: { id } },
+        body: { new_phone, reason, password },
+      })
+      if (error) {
+        throw new ApiError('Could not record this phone number.', error, (response as Response | undefined)?.status)
+      }
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user-search'] }),

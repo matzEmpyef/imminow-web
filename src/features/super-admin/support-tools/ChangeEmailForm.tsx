@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Button } from '@/components/Button'
 import { SelectField } from '@/components/SelectField'
 import { TextField } from '@/components/TextField'
+import { aboutHowLong, retryAfterSeconds } from '@/lib/retryAfter'
+import { formatDate } from '@/lib/time'
 import { useUpdateUserEmail, type UserSearchResult } from '@/queries/supportTools'
 import { EMAIL_ERROR, isValidEmail } from '@/lib/validation'
 
@@ -14,31 +16,61 @@ const VERIFICATION_OPTIONS = [
 
 type VerificationMethod = (typeof VERIFICATION_OPTIONS)[number]['value']
 
+/** How this person confirms a recorded address, which differs by where they sign in. */
+function howToConfirm(result: UserSearchResult): string {
+  return result.role === 'student'
+    ? 'They confirm it by signing in to the app with the new address and entering the code sent to it.'
+    : 'They confirm it by choosing Forgot password on the sign-in page with the new address; the link is sent there.'
+}
+
 /**
- * Changes a locked-out user's sign-in email (rewritten 2026-09-12). Two steps: fill in the new
- * address and how identity was verified, then a confirm screen that spells out the consequence —
- * this signs them out everywhere — before it actually happens.
+ * Records a new sign-in email for a locked-out user (owner ruling 4, 2026-10-07; first written
+ * 2026-09-12 as a form that changed the email itself).
+ *
+ * Support no longer changes the email. This RECORDS the new address as waiting: the account's
+ * current email and phone keep signing the person in, and nobody is signed out. It becomes the
+ * sign-in email only when the person proves it, and lapses after a week if they never do. So the
+ * form never says the email was changed or that anyone was signed out. Two steps as before: the
+ * new address and how identity was verified, then a screen that says what will happen.
+ *
+ * Refusals are the server's own sentence: the address belongs to (or is waiting on) another
+ * account, the account is scheduled for deletion, or this operator has reached the hour's limit.
  */
-export function ChangeEmailForm({ result, onCancel }: { result: UserSearchResult; onCancel: () => void }) {
+export function ChangeEmailForm({
+  result,
+  onCancel,
+  onRecorded,
+}: {
+  result: UserSearchResult
+  onCancel: () => void
+  /** The account as it now stands, with the address waiting on it. */
+  onRecorded?: (updated: UserSearchResult) => void
+}) {
   const updateEmail = useUpdateUserEmail()
   const [newEmail, setNewEmail] = useState('')
   const [verificationMethod, setVerificationMethod] = useState<VerificationMethod | ''>('')
   const [verificationNote, setVerificationNote] = useState('')
   const [reason, setReason] = useState('')
   const [confirming, setConfirming] = useState(false)
-  const [succeeded, setSucceeded] = useState(false)
+  const [done, setDone] = useState<UserSearchResult | null>(null)
 
   const emailError = newEmail && !isValidEmail(newEmail) ? EMAIL_ERROR : undefined
   const noteRequired = verificationMethod === 'other'
   const canContinue = Boolean(
     newEmail && !emailError && verificationMethod && (!noteRequired || verificationNote.trim()) && reason.trim(),
   )
+  const waitSeconds = retryAfterSeconds(updateEmail.error)
+  const retry = waitSeconds ? aboutHowLong(waitSeconds) : null
 
-  if (succeeded) {
+  if (done) {
     return (
       <div className="flex flex-col gap-sm">
-        <p className="text-body-sm text-success">
-          Email updated. {result.email} and {newEmail} were both notified, and they've been signed out everywhere.
+        <p role="status" className="text-body-sm text-success">
+          Recorded. Waiting for {result.name} to confirm {done.pending_email ?? newEmail}
+          {done.pending_email_until ? `, until ${formatDate(done.pending_email_until)}` : ''}.
+        </p>
+        <p className="text-body-sm text-text-primary">
+          {howToConfirm(result)} Until then their current sign-in still works and nothing else has changed.
         </p>
         <div>
           <Button size="sm" variant="secondary" onClick={onCancel}>
@@ -53,11 +85,22 @@ export function ChangeEmailForm({ result, onCancel }: { result: UserSearchResult
     return (
       <div className="flex flex-col gap-sm">
         <p className="text-body-sm font-semibold text-text-primary">{result.name}</p>
-        <p className="rounded-md bg-background p-sm text-body-sm text-text-primary">
-          Their old address ({result.email}) and the new one ({newEmail}) are both emailed, and they are signed out on
-          every device.
-        </p>
-        {updateEmail.isError && <p className="text-body-sm text-error">{updateEmail.error.message}</p>}
+        <div className="flex flex-col gap-xs rounded-md bg-background p-sm text-body-sm text-text-primary">
+          <p>
+            {newEmail} is recorded as waiting for {result.name} to confirm. {howToConfirm(result)}
+          </p>
+          <p>
+            We email the new address how to confirm it and by when
+            {result.email ? `, and let ${result.email} know that a new address is waiting` : ''}. Their current
+            sign-in keeps working and they stay signed in.
+          </p>
+        </div>
+        {updateEmail.isError && (
+          <div role="alert" className="flex flex-col gap-0.5">
+            <p className="text-body-sm text-error">{updateEmail.error.message}</p>
+            {retry && <p className="text-caption text-text-secondary">You can try again in {retry}.</p>}
+          </div>
+        )}
         <div className="flex items-center justify-end gap-sm">
           <Button size="sm" variant="secondary" onClick={() => setConfirming(false)} disabled={updateEmail.isPending}>
             Back
@@ -74,11 +117,16 @@ export function ChangeEmailForm({ result, onCancel }: { result: UserSearchResult
                   verification_method: verificationMethod as VerificationMethod,
                   verification_note: noteRequired ? verificationNote.trim() : undefined,
                 },
-                { onSuccess: () => setSucceeded(true) },
+                {
+                  onSuccess: (updated) => {
+                    setDone(updated ?? result)
+                    if (updated) onRecorded?.(updated)
+                  },
+                },
               )
             }
           >
-            Confirm change
+            Record new email
           </Button>
         </div>
       </div>

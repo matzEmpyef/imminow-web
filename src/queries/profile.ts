@@ -4,6 +4,7 @@ import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 import { ME_QUERY_KEY, type Me } from './me'
+import type { paths } from '@/api/schema'
 
 interface ProfileEdits {
   first_name?: string
@@ -80,4 +81,64 @@ export function useVerifyPhoneCode() {
       queryClient.invalidateQueries({ queryKey: ['profile'] })
     },
   })
+}
+
+// CHANGING OR REMOVING A VERIFIED NUMBER TAKES A FIRST CODE (owner ruling 1, 2026-10-07). An
+// account that already holds a verified phone first proves a contact it already has (a code to
+// the current number, or to its verified email), and only then may the new number's own code
+// save it, or the number be removed. The proof is good for one change, for 15 minutes. Without
+// it `POST /auth/otp/request`, `/auth/otp/verify` and `PATCH /profile {phone: null}` answer 400
+// `step_up_required`, with the same `channels` in `details`.
+
+type StepUpStatus = paths['/auth/otp/step-up']['get']['responses'][200]['content']['application/json']
+export type StepUpChannel = StepUpStatus['channels'][number]
+
+/** Whether a first code is needed right now, and the contacts it can go to (masked). */
+export function usePhoneStepUp() {
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error, response } = await api.GET('/auth/otp/step-up')
+      if (error) throw new ApiError('Could not check your number.', error, (response as Response | undefined)?.status)
+      return data
+    },
+  })
+}
+
+/** Sends the first code to the current number, or to the verified email. */
+export function useRequestStepUpCode() {
+  return useMutation({
+    mutationFn: async (channel: StepUpChannel['channel']) => {
+      const { data, error, response } = await api.POST('/auth/otp/step-up/request', { body: { channel } })
+      if (error) throw new ApiError('Could not send a code.', error, (response as Response | undefined)?.status)
+      return data
+    },
+  })
+}
+
+/** Proves the first code. Nothing is saved by it: it only allows the one change that follows. */
+export function useVerifyStepUpCode() {
+  return useMutation({
+    mutationFn: async (code: string) => {
+      const { error, response } = await api.POST('/auth/otp/step-up/verify', { body: { code } })
+      if (error) throw new ApiError('Could not verify the code.', error, (response as Response | undefined)?.status)
+    },
+  })
+}
+
+/**
+ * The contacts a first code can go to, from a refused change (400 `step_up_required` carries them
+ * in `details.channels`). Null when the refusal is something else; an empty list when it is this
+ * one but named no contact.
+ */
+export function stepUpChannelsFrom(error: unknown): StepUpChannel[] | null {
+  if (!(error instanceof ApiError) || error.code !== 'step_up_required') return null
+  const given = error.details?.channels
+  if (!Array.isArray(given)) return []
+  return given.filter(
+    (c): c is StepUpChannel =>
+      Boolean(c) &&
+      typeof c === 'object' &&
+      ((c as StepUpChannel).channel === 'phone' || (c as StepUpChannel).channel === 'email') &&
+      typeof (c as StepUpChannel).destination_mask === 'string',
+  )
 }

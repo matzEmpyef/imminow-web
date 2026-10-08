@@ -7,13 +7,18 @@ import { formatDate } from '@/lib/time'
 import { ActionCard } from './ActionCard'
 import { CancelErasureModal } from './CancelErasureModal'
 import { ChangeEmailForm } from './ChangeEmailForm'
+import { ChangePhoneForm } from './ChangePhoneForm'
 import { DateOfBirthForm } from './DateOfBirthForm'
 import { EraseForm } from './EraseForm'
 import { ExportForm } from './ExportForm'
 import { GuardianForm } from './GuardianForm'
+import { PendingContact } from './PendingContact'
 import { SwitchConsultancyForm } from './SwitchConsultancyForm'
 
-type ActionKey = 'switch' | 'email' | 'guardian' | 'dob' | 'export' | 'erase'
+type ActionKey = 'switch' | 'email' | 'phone' | 'guardian' | 'dob' | 'export' | 'erase'
+
+/** Why a new contact cannot be recorded on a locked account (the server answers 409 `conflict`). */
+const LOCKED_FOR_DELETION = 'Not available while a deletion is scheduled. Keep the account first.'
 
 /**
  * Support Tools' per-user action popup (rebuilt 2026-09-12 from a single always-open modal into
@@ -24,12 +29,15 @@ type ActionKey = 'switch' | 'email' | 'guardian' | 'dob' | 'export' | 'erase'
  * too narrow for the switch-consultancy picker's candidate cards and country chips.
  */
 export function UserActionsModal({
-  result,
+  result: opened,
   onClose,
 }: {
   result: UserSearchResult
   onClose: () => void
 }) {
+  // The account as last answered by the server: recording a new email or number returns it with
+  // what is now waiting, and the card below must say so without a new search.
+  const [result, setResult] = useState(opened)
   const [openAction, setOpenAction] = useState<ActionKey | null>(null)
   const [cancellingErasure, setCancellingErasure] = useState(false)
   // Set while an erasure is pending (gate 12f): the account is locked and waiting out its 30
@@ -71,6 +79,7 @@ export function UserActionsModal({
             {result.email}
             {result.phone ? ` · ${result.phone}` : ''}
           </p>
+          <PendingContact user={result} />
           {result.consultancy_name && <p className="text-body-sm text-text-secondary">{result.consultancy_name}</p>}
         </div>
 
@@ -88,14 +97,31 @@ export function UserActionsModal({
             </ActionCard>
           )}
 
+          {/* Recorded, not changed (owner ruling 4, 2026-10-07): the address waits until the person
+              proves it. A locked account takes no new contact; the erasure is cancelled first. */}
           <ActionCard
-            title="Change sign-in email"
-            description="Replaces the address they sign in with, for someone locked out of their own account."
-            expanded={openAction === 'email'}
+            title="Record new email (user must confirm)"
+            description="For someone locked out of their own account. Records a new sign-in address, which becomes theirs once they confirm it. Their current sign-in keeps working until then."
+            expanded={openAction === 'email' && !erasureDueAt}
             onStart={() => setOpenAction('email')}
+            unavailableReason={erasureDueAt ? LOCKED_FOR_DELETION : undefined}
           >
-            <ChangeEmailForm result={result} onCancel={() => close('email')} />
+            <ChangeEmailForm result={result} onCancel={() => close('email')} onRecorded={setResult} />
           </ActionCard>
+
+          {/* Students only (owner ruling 1): a student who has lost their old number cannot pass
+              the first of the two codes a phone change takes, so Support records the new one. */}
+          {result.role === 'student' && (
+            <ActionCard
+              title="Change phone number (student must confirm)"
+              description="For a student who can no longer use their old number. Records a new number, which becomes theirs once they sign in with it."
+              expanded={openAction === 'phone' && !erasureDueAt}
+              onStart={() => setOpenAction('phone')}
+              unavailableReason={erasureDueAt ? LOCKED_FOR_DELETION : undefined}
+            >
+              <ChangePhoneForm result={result} onCancel={() => close('phone')} onRecorded={setResult} />
+            </ActionCard>
+          )}
 
           {guardianRelevant && (
             <ActionCard

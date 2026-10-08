@@ -62,7 +62,7 @@ describe('ConversionApprovalActions — the new proposal statuses', () => {
     ['cancelled', 'Cancelled'],
   ] as const)('%s reads "%s" and offers no buttons', (status, words) => {
     renderWithClient(
-      <ConversionApprovalActions leadId="l1" leadName="Asha Rao" proposal={proposal({ status, initiated_by: 'student' })} />,
+      <ConversionApprovalActions canConvert leadId="l1" leadName="Asha Rao" proposal={proposal({ status, initiated_by: 'student' })} />,
     )
     expect(screen.getByText(words)).toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
@@ -72,7 +72,7 @@ describe('ConversionApprovalActions — the new proposal statuses', () => {
 describe('ConversionApprovalActions — cancelling an offer the consultancy sent', () => {
   it('asks first, then cancels through DELETE /conversion-proposals/{id} and refreshes the lead', async () => {
     const { invalidate } = renderWithClient(
-      <ConversionApprovalActions leadId="l1" leadName="Asha Rao" proposal={proposal()} />,
+      <ConversionApprovalActions canConvert leadId="l1" leadName="Asha Rao" proposal={proposal()} />,
     )
     expect(screen.getByText(/Awaiting Asha Rao's response/)).toBeInTheDocument()
 
@@ -93,11 +93,33 @@ describe('ConversionApprovalActions — cancelling an offer the consultancy sent
 
   it("a student's own request has Approve and Decline and no Cancel offer", () => {
     renderWithClient(
-      <ConversionApprovalActions leadId="l1" leadName="Asha Rao" proposal={proposal({ initiated_by: 'student' })} />,
+      <ConversionApprovalActions canConvert leadId="l1" leadName="Asha Rao" proposal={proposal({ initiated_by: 'student' })} />,
     )
     expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Decline' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Cancel offer' })).not.toBeInTheDocument()
+  })
+
+  // Owner decision 6 (review F-055): answering a student's request needs "convert leads".
+  it("without the convert permission, a student's request is shown as a fact with no buttons", () => {
+    renderWithClient(
+      <ConversionApprovalActions
+        canConvert={false}
+        leadId="l1"
+        leadName="Asha Rao"
+        proposal={proposal({ initiated_by: 'student' })}
+      />,
+    )
+    expect(screen.getByText('Asha Rao has asked to become a client')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Decline' })).not.toBeInTheDocument()
+  })
+
+  it('without it, an offer the consultancy sent can still be cancelled (that needs only sight of the lead)', () => {
+    renderWithClient(
+      <ConversionApprovalActions canConvert={false} leadId="l1" leadName="Asha Rao" proposal={proposal()} />,
+    )
+    expect(screen.getByRole('button', { name: 'Cancel offer' })).toBeInTheDocument()
   })
 })
 

@@ -45,6 +45,23 @@ export function usePlatformPermission(key: keyof PlatformPermissions): boolean {
   return usePlatformPermissions()?.[key] === true
 }
 
+/**
+ * Whether this platform account is sent the COMMERCIAL side of a consultancy (review F-129/F-130):
+ * plan, seat limit and seats used, subscription dates and amounts, active applicants, and the
+ * per-plan counts. The server sends them only to the Super Admin and to platform staff holding
+ * `consultancy_approval` or `finance`; for anyone else the fields are absent, the `tier=` and
+ * `status=` filters are ignored and the plan sorts fall back to name. A screen hides those
+ * columns, filters and sorts on this answer, so nobody is shown an empty column or a control that
+ * does nothing. Fails closed while loading.
+ */
+export function useCanSeeConsultancyPlans(): boolean {
+  const permissions = usePlatformPermissions()
+  return permissions?.consultancy_approval === true || permissions?.finance === true
+}
+
+/** The list columns that are plan data, which are also the sorts only those accounts may use. */
+export const CONSULTANCY_PLAN_COLUMNS: readonly string[] = ['tier', 'subscription', 'seats_used', 'active_applicants']
+
 /** Consultancy or institute staff: the people the consultancy shell is for. */
 export function isStaffScope(scope: MeScope | undefined): boolean {
   return scope === 'consultancy' || scope === 'institute'

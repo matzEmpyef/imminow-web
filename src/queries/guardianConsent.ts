@@ -8,6 +8,10 @@ import { ApiError } from '@/api/errors'
 // token in the URL is the whole credential, which is why the payload it returns is deliberately
 // thin — a first name and an age, never contact details, messages or documents.
 //
+// The token travels in the request BODY on every call (review F-123): a URL path is written to
+// access logs, and this token decides a minor's consent. The page reads it from its own address
+// (`useLinkToken`); the `{token}` routes are not called any more.
+//
 // No auth header is required, and the shared client sending one when a staff member happens to be
 // signed in on the same browser is harmless: the endpoints ignore it.
 
@@ -20,7 +24,7 @@ export function useGuardianPrompt(token: string) {
     refetchOnWindowFocus: false,
     retry: false,
     queryFn: async ({ signal }) => {
-      const { data, error } = await api.GET('/guardian-consent/{token}', { signal, params: { path: { token } } })
+      const { data, error } = await api.POST('/guardian-consent/prompt', { signal, body: { token } })
       if (error) throw new ApiError('This link is not valid any more.', error)
       return data
     },
@@ -35,10 +39,7 @@ export function useGuardianDecision(token: string) {
       guardian_name: string
       confirms_adult_guardian: boolean
     }) => {
-      const { data, error } = await api.POST('/guardian-consent/{token}', {
-        params: { path: { token } },
-        body,
-      })
+      const { data, error } = await api.POST('/guardian-consent/decide', { body: { token, ...body } })
       if (error) throw new ApiError('Could not record your answer.', error)
       return data
     },
@@ -50,12 +51,26 @@ export function useGuardianWithdraw(token: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async () => {
-      const { data, error } = await api.POST('/guardian-consent/{token}/withdraw', {
-        params: { path: { token } },
-      })
+      const { data, error } = await api.POST('/guardian-consent/withdraw', { body: { token } })
       if (error) throw new ApiError('Could not withdraw your approval.', error)
       return data
     },
     onSuccess: (data) => queryClient.setQueryData(['guardian-consent', token], data),
+  })
+}
+
+/**
+ * "Send me a fresh link" (review F-124): a guardian link stops working a week after it was sent,
+ * in every status, so a parent who approved and later wants to see or withdraw that approval asks
+ * for a new one with the link they still hold. The answer is ALWAYS 202 with the same body,
+ * whether or not anything was mailed, so the page says the same sentence either way and a
+ * stranger trying tokens learns nothing.
+ */
+export function useGuardianFreshLink(token: string) {
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await api.POST('/guardian-consent/fresh-link', { body: { token } })
+      if (error) throw new ApiError('Could not ask for a new link. Please try again.', error)
+    },
   })
 }

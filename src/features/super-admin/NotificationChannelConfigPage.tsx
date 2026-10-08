@@ -91,7 +91,7 @@ const LABELS: Record<string, string> = {
   case_switched_away: 'Case moved to another consultancy',
   case_taken_over: 'A case you handled was taken over',
   mfa_policy_changed: 'Two-factor requirement changed for a consultancy',
-  institute_course_switched: 'A college switched one of its own courses off or on (catalogue staff)',
+  institute_course_switched: 'A college published one of its own courses, or switched one off or on (catalogue staff)',
   date_of_birth_corrected: 'Date of birth corrected by Support (to the student)',
   account_set_up_for_you: 'First sign-in to an account a consultancy set up (to the student)',
 }

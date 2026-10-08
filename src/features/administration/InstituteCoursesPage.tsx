@@ -35,7 +35,6 @@ const STATE_COLOR: Record<CourseSwitchState, 'success' | 'secondary' | 'warning'
 /** Why a locked switch cannot be used, for its tooltip and for a screen reader. */
 const LOCKED_REASON: Partial<Record<CourseSwitchState, string>> = {
   off_by_platform: 'Switched off by immiNow. Only immiNow can switch it back on.',
-  not_published: 'Not published yet. immiNow publishes a course once its details are complete.',
 }
 
 /** The catalogue checks a course must pass to be switched on, as `details.missing` names them. */
@@ -66,7 +65,8 @@ function retryIn(error: unknown): string | null {
 const SWITCH_FALLBACK = 'Could not switch this course.'
 
 /** The server's sentence; for an incomplete course with none, one built from what is missing. */
-function refusalText(error: Error): string {
+function refusalText(error: Error, publish: boolean): string {
+  const cannot = publish ? 'This course cannot be published yet.' : 'This course cannot be switched on yet.'
   if (error instanceof ApiError && error.code === 'course_incomplete') {
     const missing = Array.isArray(error.details?.missing)
       ? error.details.missing.filter((m): m is string => typeof m === 'string').map((m) => MISSING_LABEL[m] ?? m)
@@ -74,8 +74,8 @@ function refusalText(error: Error): string {
     // `ApiError` falls back to the caller's text when the server sent no sentence of its own.
     if (error.message === SWITCH_FALLBACK) {
       return missing.length > 0
-        ? `This course cannot be switched on yet. It is missing: ${missing.join(', ')}.`
-        : 'This course cannot be switched on yet. Some of its details are missing.'
+        ? `${cannot} It is missing: ${missing.join(', ')}.`
+        : `${cannot} Some of its details are missing.`
     }
   }
   return error.message
@@ -88,8 +88,22 @@ const FINAL_REFUSALS = new Set(['hidden_by_platform', 'course_incomplete', 'rate
  * Confirms a switch before it is made, saying exactly what happens (owner decision 18). Switching
  * off reaches students (the course leaves search, and anyone who saved it is told), so it is the
  * destructive one; both tell immiNow.
+ *
+ * `publish` is the same call as switching on (`active: true`), made on a draft that was never
+ * published (owner ruling 11, 2026-10-07): students see the course for the first time, so the
+ * words and the button say "Publish".
  */
-function SwitchCourseModal({ course, turnOn, onClose }: { course: Course; turnOn: boolean; onClose: () => void }) {
+function SwitchCourseModal({
+  course,
+  turnOn,
+  publish = false,
+  onClose,
+}: {
+  course: Course
+  turnOn: boolean
+  publish?: boolean
+  onClose: () => void
+}) {
   const switchCourse = useSwitchCourse()
   const name = course.name ?? 'this course'
   const error = switchCourse.error
@@ -102,7 +116,7 @@ function SwitchCourseModal({ course, turnOn, onClose }: { course: Course; turnOn
       { id: course.id!, active: turnOn },
       {
         onSuccess: () => {
-          showToast(turnOn ? `${name} switched back on` : `${name} switched off`)
+          showToast(publish ? `${name} published` : turnOn ? `${name} switched back on` : `${name} switched off`)
           onClose()
         },
         onError: (err) => {
@@ -119,7 +133,7 @@ function SwitchCourseModal({ course, turnOn, onClose }: { course: Course; turnOn
   return (
     <Modal
       onClose={onClose}
-      title={turnOn ? 'Switch this course back on?' : 'Switch this course off?'}
+      title={publish ? 'Publish this course?' : turnOn ? 'Switch this course back on?' : 'Switch this course off?'}
       widthRem={32}
       footer={
         isFinal ? (
@@ -132,7 +146,7 @@ function SwitchCourseModal({ course, turnOn, onClose }: { course: Course; turnOn
               Cancel
             </Button>
             <Button variant={turnOn ? 'primary' : 'destructive'} loading={switchCourse.isPending} onClick={confirm}>
-              {turnOn ? 'Switch on' : 'Switch off'}
+              {publish ? 'Publish' : turnOn ? 'Switch on' : 'Switch off'}
             </Button>
           </>
         )
@@ -140,7 +154,12 @@ function SwitchCourseModal({ course, turnOn, onClose }: { course: Course; turnOn
     >
       <div className="flex flex-col gap-sm">
         <p className="text-body-sm text-text-primary">
-          {turnOn ? (
+          {publish ? (
+            <>
+              Publish <span className="font-medium">{name}</span>? Students will be able to find it, save it and apply
+              for it. immiNow is told of this change.
+            </>
+          ) : turnOn ? (
             <>
               Switch <span className="font-medium">{name}</span> back on? Students will be able to find it again. immiNow
               is told of this change.
@@ -155,7 +174,7 @@ function SwitchCourseModal({ course, turnOn, onClose }: { course: Course; turnOn
         </p>
         {switchCourse.isError && (
           <div role="alert" className="flex flex-col gap-0.5 rounded-md bg-error/10 px-md py-sm">
-            <p className="text-body-sm text-error">{refusalText(switchCourse.error)}</p>
+            <p className="text-body-sm text-error">{refusalText(switchCourse.error, publish)}</p>
             {retry && <p className="text-caption text-text-secondary">You can try again in {retry}.</p>}
           </div>
         )}
@@ -167,8 +186,20 @@ function SwitchCourseModal({ course, turnOn, onClose }: { course: Course; turnOn
 function CourseSwitch({ course }: { course: Course }) {
   const [confirming, setConfirming] = useState(false)
   const state = courseSwitchState(course)
-  const locked = state === 'off_by_platform' || state === 'not_published'
+  const locked = state === 'off_by_platform'
   const name = course.name ?? 'this course'
+  // A draft has never been on, so it gets a button that says what pressing it does, not a switch
+  // that reads as "off": publishing is the college's own to do (owner ruling 11, 2026-10-07).
+  if (state === 'not_published') {
+    return (
+      <div className="flex items-center justify-end">
+        <Button size="sm" variant="secondary" aria-label={`Publish ${name}`} onClick={() => setConfirming(true)}>
+          Publish
+        </Button>
+        {confirming && <SwitchCourseModal course={course} turnOn publish onClose={() => setConfirming(false)} />}
+      </div>
+    )
+  }
   return (
     <div className="flex items-center justify-end" title={locked ? LOCKED_REASON[state] : undefined}>
       <Toggle
@@ -190,7 +221,8 @@ function CourseSwitch({ course }: { course: Course }) {
  * `GET /courses` answers an institute with its own college's courses only, the switched-off ones
  * included, so nothing here names the college: the server decides the scope. A course the college
  * switched off itself can be switched back on here; one immiNow switched off, or one that was
- * never published, is shown with the reason and a locked switch.
+ * shown with the reason and a locked switch. A draft that was never published has a Publish
+ * button in place of the switch.
  */
 export function InstituteCoursesPage() {
   const { isInstitute } = useAccountWords()
@@ -294,7 +326,8 @@ export function InstituteCoursesPage() {
           <h1 className="text-h1 text-text-primary">Your Courses</h1>
           <p className="text-body-sm text-text-secondary">
             Every course of your college, including the ones that are switched off. Switch a course off to stop
-            students finding it. You can switch back on any course your college switched off.
+            students finding it. You can switch back on any course your college switched off, and publish a
+            course that is not published yet.
           </p>
         </div>
 

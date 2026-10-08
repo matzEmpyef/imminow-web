@@ -148,11 +148,12 @@ describe("a college's own course list", () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('locks the switch on a course that was never published, and says so', async () => {
+  it('offers Publish, not a switch, on a course that was never published', async () => {
     renderPage()
     const row = await rowOf('PhD Physics')
     expect(within(row).getByText('Not published yet')).toBeInTheDocument()
-    expect(switchIn(row)).toBeDisabled()
+    expect(within(row).queryByRole('switch')).not.toBeInTheDocument()
+    expect(within(row).getByRole('button', { name: 'Publish PhD Physics' })).toBeEnabled()
   })
 
   it('filters by status through the server', async () => {
@@ -217,6 +218,47 @@ describe('switching a course off', () => {
     expect(switchIn(after)).not.toBeChecked()
     expect(switchIn(after)).toBeEnabled()
     expect(listCalls().length).toBe(listsBefore)
+  })
+})
+
+// Owner ruling 11 (2026-10-07): a college publishes its own draft. The same call as switching on.
+describe('publishing a draft', () => {
+  async function openConfirm() {
+    renderPage()
+    fireEvent.click(within(await rowOf('PhD Physics')).getByRole('button', { name: 'Publish PhD Physics' }))
+    return screen.getByRole('dialog', { name: 'Publish this course?' })
+  }
+
+  it('asks first, saying students will see it, then sends active true and shows the course as on', async () => {
+    mockedPost.mockResolvedValue({
+      data: { ...DRAFT, active: true, visible: true },
+      error: undefined,
+      response: { status: 200 },
+    } as never)
+    const dialog = await openConfirm()
+    expect(dialog).toHaveTextContent(
+      'Publish PhD Physics? Students will be able to find it, save it and apply for it. immiNow is told of this change.',
+    )
+    expect(mockedPost).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Publish' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(mockedPost.mock.calls[0][0]).toBe('/courses/{id}/switch')
+    expect(mockedPost.mock.calls[0][1]).toEqual({ params: { path: { id: 'c-draft' } }, body: { active: true } })
+    expect(showToast).toHaveBeenCalledWith('PhD Physics published')
+    const row = await rowOf('PhD Physics')
+    await waitFor(() => expect(within(row).getByText('On')).toBeInTheDocument())
+    expect(switchIn(row)).toBeChecked()
+  })
+
+  it('409 course_incomplete with no sentence: says it cannot be published and what is missing', async () => {
+    mockedPost.mockResolvedValue(refused(409, 'course_incomplete', '', { missing: ['fee', 'deadline'] }))
+    const dialog = await openConfirm()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Publish' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'This course cannot be published yet. It is missing: fee, application deadline.',
+    )
+    expect(within(dialog).getByRole('button', { name: 'OK' })).toBeInTheDocument()
   })
 })
 

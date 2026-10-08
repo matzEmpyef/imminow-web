@@ -10,7 +10,12 @@ import { CompactSelect } from '@/components/CompactSelect'
 import { SearchSelect } from '@/components/SearchSelect'
 import { Table, type TableColumn } from '@/components/Table'
 import { StopPropagation } from '@/components/StopPropagation'
-import { useApproveCourseSuggestion, useModerationQueue, useRejectCourseSuggestion } from '@/queries/moderation'
+import {
+  useApproveCourseSuggestion,
+  useModerationQueue,
+  useRejectCourseSuggestion,
+  type ConfirmableField,
+} from '@/queries/moderation'
 import { useAdminColleges, useCollegeDetail } from '@/queries/adminColleges'
 import { useStudyLevels } from '@/queries/studyLevels'
 import { useCursorPagination } from '@/lib/pagination'
@@ -57,6 +62,25 @@ const FIELD_LABELS: Record<string, string> = {
   delivery: 'Delivery',
 }
 
+/**
+ * The fields of a correction that are a consultant's own words or a web address (review F-096,
+ * owner ruling 2026-10-06). Every student sees them on the course page, and the app opens the
+ * link, so approving copies one into the course only when the reviewer has read THAT field and
+ * ticked "Use this text" on it. The server takes no other name in `confirmed_fields`.
+ */
+const CONFIRMABLE_FIELDS: readonly ConfirmableField[] = [
+  'description',
+  'benefits',
+  'eligibility',
+  'credentials',
+  'language',
+  'course_url',
+]
+
+function isConfirmable(key: string): key is ConfirmableField {
+  return (CONFIRMABLE_FIELDS as readonly string[]).includes(key)
+}
+
 function fieldLabel(key: string): string {
   return FIELD_LABELS[key] ?? key.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
 }
@@ -77,16 +101,40 @@ function subjectName(s: CourseSuggestion): string {
   return s.course?.name ?? s.college?.name ?? '—'
 }
 
-function Row({ label, current, suggested }: { label: string; current?: string; suggested: string }) {
+function Row({
+  label,
+  current,
+  suggested,
+  confirm,
+}: {
+  label: string
+  current?: string
+  suggested: string
+  /** Set on a free-text or link field of a pending correction: its own "Use this text" tick. */
+  confirm?: { checked: boolean; onChange: (checked: boolean) => void }
+}) {
   return (
     <div className="grid grid-cols-3 gap-sm border-b border-border py-xs text-body-sm last:border-0">
       <dt className="text-text-secondary">{label}</dt>
       {current !== undefined ? (
-        <dd className="text-text-secondary">{current}</dd>
+        <dd className="whitespace-pre-wrap break-words text-text-secondary">{current}</dd>
       ) : (
         <dd className="text-text-secondary" aria-hidden="true" />
       )}
-      <dd className="font-medium text-text-primary">{suggested}</dd>
+      <dd className="flex flex-col gap-xs">
+        <span className="whitespace-pre-wrap break-words font-medium text-text-primary">{suggested}</span>
+        {confirm && (
+          <label className="flex w-fit items-center gap-xs text-caption text-text-primary">
+            <input
+              type="checkbox"
+              checked={confirm.checked}
+              onChange={(e) => confirm.onChange(e.target.checked)}
+              aria-label={`Use this text for ${label}`}
+            />
+            Use this text
+          </label>
+        )}
+      </dd>
     </div>
   )
 }
@@ -156,7 +204,7 @@ function CreateFromSuggestion({
 // Four outcomes for a correction (user, 2026-08-24): Add, Add with modification, "I'll add
 // manually", Reject. Add is offered only when the server says approving would write something
 // (`applicable_fields`) — a Grade Match requirement or a college fact is always changed by hand.
-function SuggestionDetailModal({ suggestion, onClose }: { suggestion: CourseSuggestion; onClose: () => void }) {
+export function SuggestionDetailModal({ suggestion, onClose }: { suggestion: CourseSuggestion; onClose: () => void }) {
   const approve = useApproveCourseSuggestion()
   const reject = useRejectCourseSuggestion()
   const [showReject, setShowReject] = useState(false)
@@ -192,6 +240,20 @@ function SuggestionDetailModal({ suggestion, onClose }: { suggestion: CourseSugg
       ? { to: `/admin/colleges/${suggestion.college.id}`, label: 'Open college' }
       : null
   const legacyKeys = suggestion.type === 'correction' && !structured ? Object.keys(payload).filter((k) => k !== 'note') : []
+  // "Add" copies a consultant's own words or link into the course only for the fields ticked
+  // here; each starts unticked (review F-096). The rest of the correction is applied either way.
+  const confirmable = applicable.filter(isConfirmable)
+  const [confirmed, setConfirmed] = useState<ConfirmableField[]>([])
+  const confirmFor = (key: string) =>
+    pending && isConfirmable(key) && confirmable.includes(key)
+      ? {
+          checked: confirmed.includes(key),
+          onChange: (checked: boolean) =>
+            setConfirmed((now) => (checked ? [...now.filter((k) => k !== key), key] : now.filter((k) => k !== key))),
+        }
+      : undefined
+  // Nothing would be written: every field "Add" could apply is text waiting for its tick.
+  const nothingToAdd = applicable.length > 0 && confirmable.length === applicable.length && confirmed.length === 0
   const newKeys = suggestion.type === 'new' ? Object.keys(payload).filter((k) => !['note', 'college_id', 'campus_ids'].includes(k)) : []
 
   if (creating) {
@@ -305,9 +367,11 @@ function SuggestionDetailModal({ suggestion, onClose }: { suggestion: CourseSugg
                 {applicable.length > 0 && (
                   <Button
                     loading={approve.isPending && approve.variables?.mode === 'as_suggested'}
+                    disabled={nothingToAdd}
+                    title={nothingToAdd ? 'Tick "Use this text" on what you want added.' : undefined}
                     onClick={() =>
                       approve.mutate(
-                        { id: suggestion.id!, mode: 'as_suggested' },
+                        { id: suggestion.id!, mode: 'as_suggested', confirmedFields: confirmed },
                         {
                           onSuccess: () => {
                             showToast('Course suggestion approved')
@@ -351,7 +415,12 @@ function SuggestionDetailModal({ suggestion, onClose }: { suggestion: CourseSugg
               <span>Now</span>
               <span>Suggested</span>
             </div>
-            <Row label={payload.label ?? 'Field'} current={payload.current ?? '—'} suggested={payload.suggested ?? '—'} />
+            <Row
+              label={payload.label ?? 'Field'}
+              current={payload.current ?? '—'}
+              suggested={payload.suggested ?? '—'}
+              confirm={confirmFor(payload.field ?? '')}
+            />
           </dl>
         )}
         {legacyKeys.length > 0 && (
@@ -362,7 +431,13 @@ function SuggestionDetailModal({ suggestion, onClose }: { suggestion: CourseSugg
               <span>Suggested</span>
             </div>
             {legacyKeys.map((k) => (
-              <Row key={k} label={fieldLabel(k)} current={show(course?.[k])} suggested={show(payload[k])} />
+              <Row
+                key={k}
+                label={fieldLabel(k)}
+                current={show(course?.[k])}
+                suggested={show(payload[k])}
+                confirm={confirmFor(k)}
+              />
             ))}
           </dl>
         )}
@@ -379,6 +454,12 @@ function SuggestionDetailModal({ suggestion, onClose }: { suggestion: CourseSugg
           <p className="rounded-md bg-warning/10 p-sm text-caption text-text-secondary">
             This can&rsquo;t be applied automatically — {openLink ? `use ${openLink.label}` : 'edit it directly'}, then
             choose &ldquo;I&rsquo;ll add manually&rdquo;.
+          </p>
+        )}
+        {pending && confirmable.length > 0 && (
+          <p className="text-caption text-text-secondary">
+            Text and links are the consultant&rsquo;s own words. Read each one and tick &ldquo;Use this text&rdquo; to
+            add it to the course. Anything left unticked stays as it is now.
           </p>
         )}
         {pending && structured && applicable.length > 0 && (

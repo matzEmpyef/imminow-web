@@ -4,8 +4,11 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Review F-147 and the owner's rulings of 2026-10-06. Reopen is offered only where the server
-// allows it: the `case_reopening` plan feature, and never on a case that closed because the
-// student deleted their account. The two lists used to show the control on every closed row.
+// allows it. A LEAD: exactly when the server says so on the lead (`can_reopen`), which is false
+// for a lead the student closed, one that closed because they chose another consultancy, and on
+// a plan without reopening. A CASE: the `case_reopening` plan feature, and never one that closed
+// because the student deleted their account. The two lists used to show the control on every
+// closed row.
 vi.mock('@/api/client', () => ({ api: { GET: vi.fn(), POST: vi.fn(), PATCH: vi.fn() } }))
 vi.mock('@/features/auth/AppShell', () => ({
   AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -21,11 +24,13 @@ import { ActiveLeadsPage } from '@/features/sales/ActiveLeadsPage'
 import { useMe } from '@/queries/me'
 import { useAuthStore } from '@/stores/authStore'
 import { meAnswered, staffMe } from '@/test/me'
-import { canOfferCaseReopen, canOfferLeadReopen, leadClosedOnStudentSide } from './reopenRules'
+import { canOfferCaseReopen, canOfferLeadReopen } from './reopenRules'
 
 const LEADS = [
-  { id: 'l-open', name: 'Open Lead', status: 'active', origin: 'sentpo', tags: [], unread: 0 },
-  { id: 'l-closed', name: 'Closed Lead', status: 'closed', origin: 'sentpo', tags: [], unread: 0 },
+  { id: 'l-open', name: 'Open Lead', status: 'active', origin: 'sentpo', tags: [], unread: 0, can_reopen: false },
+  { id: 'l-closed', name: 'Closed Lead', status: 'closed', origin: 'sentpo', tags: [], unread: 0, can_reopen: true },
+  // Closed by the student, or because they chose another consultancy: the server says no.
+  { id: 'l-theirs', name: 'Student Closed', status: 'closed', origin: 'sentpo', tags: [], unread: 0, can_reopen: false },
 ]
 const student = (first: string) => ({ first_name: first, last_name: 'Case', email: `${first}@example.test` })
 const CLIENTS = [
@@ -62,11 +67,14 @@ beforeEach(() => {
 })
 
 describe('the rules', () => {
-  it('a lead: closed, and the plan includes reopening', () => {
-    expect(canOfferLeadReopen({ status: 'closed' }, true)).toBe(true)
-    expect(canOfferLeadReopen({ status: 'closed' }, false)).toBe(false)
-    expect(canOfferLeadReopen({ status: 'active' }, true)).toBe(false)
-    expect(canOfferLeadReopen({ status: 'converted' }, true)).toBe(false)
+  it("a lead: the server's own answer, and nothing worked out here", () => {
+    expect(canOfferLeadReopen({ can_reopen: true })).toBe(true)
+    expect(canOfferLeadReopen({ can_reopen: false })).toBe(false)
+    // A closed lead is not enough: who closed it is the server's to know.
+    expect(canOfferLeadReopen({ status: 'closed', can_reopen: false } as never)).toBe(false)
+    // No answer is not a yes.
+    expect(canOfferLeadReopen({})).toBe(false)
+    expect(canOfferLeadReopen({ can_reopen: null })).toBe(false)
   })
 
   it('a case: closed, the plan includes reopening, not moved, and not closed by an account deletion', () => {
@@ -77,26 +85,23 @@ describe('the rules', () => {
     expect(canOfferCaseReopen({ status: 'closed_switched' }, true)).toBe(false)
     expect(canOfferCaseReopen({ status: 'in_plan' }, true)).toBe(false)
   })
-
-  // The owner's lead rule cannot be applied yet: the contract's Lead says nothing about who
-  // closed it or why. This pins the present, honest answer so the day the field exists the
-  // change is made here, in one place, with this test rewritten.
-  it('cannot yet tell a lead the student closed from one the consultancy closed', () => {
-    expect(leadClosedOnStudentSide({ status: 'closed' })).toBe(false)
-  })
 })
 
 describe('the leads list', () => {
-  it('offers Reopen on a closed lead when the plan includes reopening', async () => {
+  it('offers Reopen on the closed lead the server says may be reopened, and on no other', async () => {
     renderPage(<ActiveLeadsPage />, ['case_reopening'])
     expect(await screen.findByRole('button', { name: 'Reopen Closed Lead' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Reopen Open Lead' })).not.toBeInTheDocument()
+    // Closed, on a plan with reopening, and still not offered: the student closed it.
+    expect(screen.getByText('Student Closed')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reopen Student Closed' })).not.toBeInTheDocument()
   })
 
-  it('offers no Reopen at all on a plan without it', async () => {
+  it("follows the server's answer, not the plan as this browser reads it", async () => {
+    // The server's `can_reopen` already includes the plan; the console does not second-guess it.
     renderPage(<ActiveLeadsPage />, [])
-    expect(await screen.findByText('Closed Lead')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^Reopen / })).not.toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Reopen Closed Lead' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reopen Student Closed' })).not.toBeInTheDocument()
   })
 })
 

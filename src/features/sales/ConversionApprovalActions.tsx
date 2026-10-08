@@ -21,14 +21,22 @@ type ConversionProposal = components['schemas']['ConversionProposal']
 // Contract gate 12f: the sender can take a pending proposal back. Staff cancel their own offer
 // here (Cancel offer, with a confirm); a student withdraws theirs in the app, and a proposal that
 // is no longer pending says how it ended rather than offering buttons that would be refused.
+//
+// Owner decision 6 (review F-055, 2026-10-07): answering a student's request needs the "convert
+// leads" permission, for Approve and Decline alike. Without it the request is still shown, as a
+// fact with no buttons. Cancelling an offer the consultancy sent needs only sight of the lead,
+// so that stays for everyone who can open this page.
 export function ConversionApprovalActions({
   leadId,
   leadName,
   proposal,
+  canConvert,
 }: {
   leadId: string
   leadName: string
   proposal: ConversionProposal
+  /** The reader may convert this lead (`useCanConvertLead`). */
+  canConvert: boolean
 }) {
   const navigate = useNavigate()
   const respond = useRespondToConversion(leadId)
@@ -64,6 +72,14 @@ export function ConversionApprovalActions({
             Cancel this offer? {leadName} will no longer be able to accept it.
           </CancelProposalModal>
         )}
+      </div>
+    )
+  }
+
+  if (!canConvert) {
+    return (
+      <div className="rounded-full bg-background px-sm py-1.5 text-caption text-text-secondary">
+        {leadName} has asked to become a client
       </div>
     )
   }

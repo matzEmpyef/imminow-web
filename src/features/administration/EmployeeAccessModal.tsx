@@ -220,10 +220,11 @@ function AccessModalBody({
                   const isOverride = perm.key in overrides
                   const effective = isOverride ? overrides[perm.key] : (baseline[perm.key] ?? false)
                   return (
-                    <div key={perm.key} className="flex items-center justify-between">
+                    <div key={perm.key} className="flex items-center justify-between gap-md">
                       <span className="text-body-sm text-text-primary">
                         {perm.label}
                         {isOverride && <span className="ml-xs text-caption text-primary">(override)</span>}
+                        {perm.hint && <span className="block text-caption text-text-secondary">{perm.hint}</span>}
                       </span>
                       <Toggle checked={effective} onChange={() => togglePermission(perm.key)} label={perm.label} />
                     </div>

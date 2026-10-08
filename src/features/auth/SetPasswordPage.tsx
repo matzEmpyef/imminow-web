@@ -1,13 +1,15 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { AuthLayout } from './AuthLayout'
 import { TextField } from '@/components/TextField'
 import { Button } from '@/components/Button'
 import { useAcceptInvite, useInvite } from '@/queries/auth'
 import { roleHomePath } from '@/lib/roleHome'
+import { useLinkToken } from '@/lib/linkToken'
 
 export function SetPasswordPage() {
-  const { token = '' } = useParams()
+  // From the fragment, else the path of a link mailed earlier; then out of the address (F-123).
+  const token = useLinkToken('/set-password')
   const navigate = useNavigate()
   const invite = useInvite(token)
   const acceptInvite = useAcceptInvite(token)
@@ -27,7 +29,7 @@ export function SetPasswordPage() {
     acceptInvite.mutate({ password }, { onSuccess: (data) => navigate(roleHomePath(data.user.role)) })
   }
 
-  if (invite.isLoading) {
+  if (token && invite.isLoading) {
     return (
       <AuthLayout title="Set your password">
         <p className="text-body text-text-secondary">Checking your invite…</p>
@@ -35,7 +37,8 @@ export function SetPasswordPage() {
     )
   }
 
-  if (invite.isError || !invite.data) {
+  // No token at all (the cleaned address was reloaded) reads the same as a spent one.
+  if (!token || invite.isError || !invite.data) {
     return (
       <AuthLayout title="Invite expired">
         <p className="text-body text-text-secondary">

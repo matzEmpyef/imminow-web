@@ -5,6 +5,7 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useSuggestCorrection } from '@/queries/courseSuggestions'
 import { showToast } from '@/lib/toast'
+import { usePermission } from '@/lib/permissions'
 
 /**
  * "Suggest this is wrong" — a small pencil next to ONE specific fact about a course, not a
@@ -23,6 +24,10 @@ import { showToast } from '@/lib/toast'
  * Suggestions page already uses, with a payload shaped as one field rather than a whole-course
  * diff — `{field, label, current, suggested, note}` reads as a sentence on the review page's raw
  * JSON dump even though that page was not changed, instead of an opaque partial-course object.
+ *
+ * Shown only to staff who hold `settings.manage_course_suggestions` (review F-096): the server
+ * refuses a suggestion, for a course or a college, from anyone else, so without the permission
+ * the pencil is not drawn at all rather than opening a form that ends in a refusal.
  */
 export function SuggestCorrectionButton({
   courseId,
@@ -54,7 +59,10 @@ export function SuggestCorrectionButton({
   const [suggested, setSuggested] = useState('')
   const [note, setNote] = useState('')
   const suggest = useSuggestCorrection()
+  const canSuggest = usePermission('settings.manage_course_suggestions')
   const isMissing = current == null
+
+  if (!canSuggest) return null
 
   return (
     <>

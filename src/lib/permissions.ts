@@ -7,6 +7,8 @@ import { useMe } from '@/queries/me'
 export interface PermissionDef {
   key: string
   label: string
+  /** One line under the label, for a permission whose reach the label alone does not make clear. */
+  hint?: string
 }
 
 export interface PermissionGroup {
@@ -27,6 +29,14 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'leads.import', label: 'Import leads' },
       { key: 'leads.edit_self_sourced', label: 'Edit self-sourced leads' },
       { key: 'leads.delete', label: 'Delete leads' },
+      // Owner decision 6 (review F-055, 2026-10-07): sending the offer to become a client, and
+      // answering a student's own request, is its own permission. Label and helper text are the
+      // contract's.
+      {
+        key: 'leads.convert',
+        label: 'Convert leads to clients',
+        hint: 'Send a lead the offer to become a client, and approve or decline a student\u2019s own request. Applies only to leads this person can see.',
+      },
     ],
   },
   {

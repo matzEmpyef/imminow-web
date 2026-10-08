@@ -73,11 +73,11 @@ export function useCourses(filters: CourseListFilters = {}) {
 
 /**
  * A college's own institute account switches one of its own courses off or on (owner decision 18,
- * `POST /courses/{id}/switch`). The answer is the course as it now stands, which replaces the row
+ * `POST /courses/{id}/switch`). `active: true` on a draft that was never published PUBLISHES it
+ * (owner ruling 11, 2026-10-07). The answer is the course as it now stands, which replaces the row
  * in every course list this browser holds, so the switch shows its new state without a reload.
  *
- * Refusals carry the server's own sentence: 409 `hidden_by_platform` (immiNow switched it off, or
- * it was never published), 409 `course_incomplete` (`details.missing` lists what is missing), 429
+ * Refusals carry the server's own sentence: 409 `hidden_by_platform` (immiNow switched it off), 409 `course_incomplete` (`details.missing` lists what is missing), 429
  * `rate_limited` (`details.retry_after_seconds`), 404 (no longer one of this college's courses).
  * Each of them means the list on screen may be out of date, so it is read again.
  */

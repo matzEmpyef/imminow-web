@@ -1,9 +1,15 @@
 import { useState, type FormEvent } from 'react'
-import { useParams } from 'react-router-dom'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { TextField } from '@/components/TextField'
-import { useGuardianDecision, useGuardianPrompt, useGuardianWithdraw } from '@/queries/guardianConsent'
+import { ApiError } from '@/api/errors'
+import { useLinkToken } from '@/lib/linkToken'
+import {
+  useGuardianDecision,
+  useGuardianFreshLink,
+  useGuardianPrompt,
+  useGuardianWithdraw,
+} from '@/queries/guardianConsent'
 
 // The page a parent lands on from the message Sentpo sent them (2026-09-05). Public, no account,
 // no console chrome — the person reading this has never heard of immiNow and is answering one
@@ -29,23 +35,63 @@ function Shell({ title, children }: { title: string; children: React.ReactNode }
 }
 
 export function GuardianApprovalPage() {
-  const { token = '' } = useParams()
+  // From the fragment, else the path of a link mailed earlier; then out of the address (F-123).
+  const token = useLinkToken('/guardian')
   const prompt = useGuardianPrompt(token)
+  const freshLink = useGuardianFreshLink(token)
   const decision = useGuardianDecision(token)
   const withdraw = useGuardianWithdraw(token)
   const [name, setName] = useState('')
   const [confirmed, setConfirmed] = useState(false)
   const [touched, setTouched] = useState(false)
 
-  if (prompt.isLoading) return <Shell title="Loading…">{null}</Shell>
+  if (token && prompt.isLoading) return <Shell title="Loading…">{null}</Shell>
 
-  if (prompt.isError || !prompt.data) {
+  // The server could not be reached, or answered with a fault: the link itself may be fine, so
+  // this must not read as "not valid" (and must not offer a new link the parent does not need).
+  const linkRefused = prompt.error instanceof ApiError && prompt.error.status === 404
+  if (token && prompt.isError && !linkRefused) {
     return (
-      <Shell title="This link is not valid">
-        <p className="text-body text-text-secondary">
-          Approval links last a week and can only be used once. If your child is still waiting, they can send
-          you a fresh one from the Sentpo app.
-        </p>
+      <Shell title="We could not open this page">
+        <p className="text-body text-text-secondary">Please check your connection and try again.</p>
+        <Button variant="secondary" loading={prompt.isFetching} onClick={() => prompt.refetch()}>
+          Try again
+        </Button>
+      </Shell>
+    )
+  }
+
+  if (!token || prompt.isError || !prompt.data) {
+    // A link stops working a week after it was sent, in every status (review F-124). The server
+    // answers a fresh-link request the same way whatever the token was, so the sentence below is
+    // deliberately conditional: it never confirms that this link belonged to an approval.
+    return (
+      <Shell title="This link is no longer valid">
+        {freshLink.isSuccess ? (
+          <p role="status" className="text-body text-text-primary">
+            If this link was for an approval you gave, we have emailed you a new one.
+          </p>
+        ) : (
+          <>
+            <p className="text-body text-text-secondary">
+              Approval links last a week. If you approved an account with this link and want to see or change
+              that approval, we can email you a new link. If your child is still waiting for an answer, they
+              can send you a new request from the Sentpo app.
+            </p>
+            {token && (
+              <>
+                {freshLink.isError && (
+                  <p role="alert" className="text-body-sm text-danger">
+                    {freshLink.error.message}
+                  </p>
+                )}
+                <Button variant="secondary" loading={freshLink.isPending} onClick={() => freshLink.mutate()}>
+                  Send me a fresh link
+                </Button>
+              </>
+            )}
+          </>
+        )}
       </Shell>
     )
   }
