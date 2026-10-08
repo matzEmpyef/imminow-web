@@ -15,7 +15,7 @@ vi.mock('@/api/client', () => ({
   requestNewAccessToken: vi.fn(async () => 'new-access-token'),
 }))
 
-import { requestNewAccessToken } from '@/api/client'
+import { api, requestNewAccessToken } from '@/api/client'
 import { queryClient } from '@/lib/queryClient'
 import { realtimeManager, startRealtime } from '@/lib/realtime'
 import { SESSION_END_MESSAGES, useSessionNoticeStore } from '@/lib/sessionNotice'
@@ -49,6 +49,7 @@ describe('idle lock bootstrap', () => {
     useSessionNoticeStore.setState({ notice: null, returnBlocked: false })
     useIdleLockStore.setState({ warning: false, secondsRemaining: 0 })
     vi.mocked(requestNewAccessToken).mockClear()
+    vi.mocked(api.POST).mockClear()
   })
 
   afterEach(() => {
@@ -70,6 +71,10 @@ describe('idle lock bootstrap', () => {
     const notice = useSessionNoticeStore.getState().notice
     expect(notice?.reason).toBe('idle')
     expect(SESSION_END_MESSAGES.idle).toBe('You were signed out after 30 minutes without activity.')
+    // Review F-294: the server's sign-out is called too, so the refresh token dies with the lock.
+    expect(api.POST).toHaveBeenCalledWith('/auth/logout', {
+      headers: { Authorization: 'Bearer a1' },
+    })
   })
 
   it('signs out after 12 hours regardless of activity, with its own explanation', () => {

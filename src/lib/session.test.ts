@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { useAuthStore } from '@/stores/authStore'
 import { queryClient } from '@/lib/queryClient'
+import { useChatWindowStore } from '@/stores/chatWindowStore'
 import { endSession } from './session'
 
 // The one way a session ends. Both exits (Log out, and the 401 interceptor giving up) go through
@@ -29,5 +30,23 @@ describe('endSession', () => {
     expect(sessionStorage.getItem('imminow-auth')).toContain('"accessToken":"a"')
     endSession()
     expect(sessionStorage.getItem('imminow-auth') ?? '').not.toContain('"accessToken":"a"')
+  })
+
+  // Review F-294: a shared desk's next person must not inherit the last one's open chat or their
+  // Course Finder choices, but unrelated saved keys stay.
+  it('closes the open chat window and forgets the Course Finder choices', () => {
+    useChatWindowStore.getState().open({ id: 'c1', type: 'client', name: 'Asha' })
+    localStorage.setItem('course_finder_last_client', 'p1:client')
+    localStorage.setItem('course_finder_state:p1', '{}')
+    localStorage.setItem('course_finder_shortlist:p1', '[]')
+    localStorage.setItem('unrelated', 'keep')
+
+    endSession()
+
+    expect(useChatWindowStore.getState().conversation).toBeNull()
+    expect(localStorage.getItem('course_finder_last_client')).toBeNull()
+    expect(localStorage.getItem('course_finder_state:p1')).toBeNull()
+    expect(localStorage.getItem('course_finder_shortlist:p1')).toBeNull()
+    expect(localStorage.getItem('unrelated')).toBe('keep')
   })
 })

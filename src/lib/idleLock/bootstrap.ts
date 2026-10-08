@@ -1,5 +1,6 @@
 import { requestNewAccessToken } from '@/api/client'
 import { endSession } from '@/lib/session'
+import { revokeServerSession } from '@/lib/revokeSession'
 import { useAuthStore } from '@/stores/authStore'
 import { sessionKeyFromRefreshToken } from './activityChannel'
 import { IdleLockManager, type IdleLockReason } from './idleLockManager'
@@ -18,6 +19,9 @@ import { IdleLockManager, type IdleLockReason } from './idleLockManager'
  * were on. The wording is `SESSION_END_MESSAGES` in `lib/sessionNotice.ts`.
  */
 function lockSession(reason: IdleLockReason): void {
+  // Review F-294: the server's sign-out too, so the locked session's refresh token dies with it
+  // (the 401 path does not need this: there the server is the one that refused the session).
+  revokeServerSession()
   endSession(reason)
 }
 
