@@ -7,6 +7,7 @@ vi.mock('@/queries/commissionEntries', () => ({ useVoidInstallment: vi.fn() }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
 
 import { useVoidInstallment } from '@/queries/commissionEntries'
+import { showToast } from '@/lib/toast'
 import { VoidInstallmentModal } from './VoidInstallmentModal'
 
 const mutate = vi.fn()
@@ -55,5 +56,42 @@ describe('VoidInstallmentModal', () => {
     } as never)
     render(<VoidInstallmentModal clientId="c1" entryId="entry-1" installment={installment} onClose={() => {}} />)
     expect(screen.getByText(/already allocated/)).toBeInTheDocument()
+  })
+})
+
+// Review F-078: when the installment's share is already due the server keeps the installment and
+// passes the void to immiNow Finance. The answer says so; the dialog must not claim it was voided.
+describe('VoidInstallmentModal, a void that needs immiNow Finance', () => {
+  function voidWith(result: Record<string, unknown>) {
+    mutate.mockImplementation((_vars, options: { onSuccess: (r: unknown) => void }) => options.onSuccess(result))
+    const onClose = vi.fn()
+    render(<VoidInstallmentModal clientId="c1" entryId="entry-1" installment={installment} onClose={onClose} />)
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'Entered twice' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Void installment' }))
+    return onClose
+  }
+
+  beforeEach(() => vi.mocked(showToast).mockReset())
+
+  it('says the void was sent for approval when the server is waiting for Finance', () => {
+    const onClose = voidWith({ id: 'inst-1', voided_at: null, void_requested_at: '2026-10-08T09:00:00Z' })
+    expect(showToast).toHaveBeenCalledWith('Void sent to immiNow Finance for approval')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('says it was voided when the server voided it at once', () => {
+    voidWith({ id: 'inst-1', voided_at: '2026-10-08T09:00:00Z', void_requested_at: null })
+    expect(showToast).toHaveBeenCalledWith('Installment voided')
+  })
+
+  it('shows the server’s sentence when a void is already waiting', () => {
+    vi.mocked(useVoidInstallment).mockReturnValue({
+      mutate,
+      isPending: false,
+      isError: true,
+      error: new Error('A void of this installment is already waiting for Finance.'),
+    } as never)
+    render(<VoidInstallmentModal clientId="c1" entryId="entry-1" installment={installment} onClose={() => {}} />)
+    expect(screen.getByText(/already waiting for Finance/)).toBeInTheDocument()
   })
 })

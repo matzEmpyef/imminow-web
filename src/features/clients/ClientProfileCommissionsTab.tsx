@@ -12,64 +12,78 @@ import { formatAmountOnly, formatApprox, formatMoneyAmount } from '@/lib/money'
 import { RecordInstallmentModal } from './RecordInstallmentModal'
 import { RecordPrContributionModal } from './RecordPrContributionModal'
 import { VoidInstallmentModal } from './VoidInstallmentModal'
+import { VoidPrContributionModal } from './VoidPrContributionModal'
 import { BOOKKEEPING_CAPTION, isBookkeepingChannel } from './bookkeeping'
 import type { components } from '@/api/schema'
 
-// One source's expected-vs-received line with a progress bar — the same treatment for the
-// college side and the applicant side so partial payment reads at a glance.
-function ExpectedVsReceived({
+type PayerProgress = components['schemas']['PayerProgress']
+type MoneyWithApprox = components['schemas']['Money']
+
+// One payer's expected-vs-received line with a progress bar — the same treatment for the college
+// side and the applicant side so partial payment reads at a glance.
+//
+// EVERY FIGURE IS THE SERVER'S (review F-160). This used to compare `expected` with `received`
+// itself, and the two can be in different currencies: ₹60,000 received against CAD 1,000 expected
+// read "60,000 / 1,000 CAD · fully paid". The entry now carries `college_progress` /
+// `student_progress`: expected, received and remaining in the currency agreed with that payer,
+// whether it is fully paid, and whether some of it arrived in another currency and was converted.
+// Nothing here subtracts, divides or compares an amount.
+function PayerProgressLine({
   label,
   expected,
   received,
+  progress,
 }: {
   label: string
-  expected: { amount?: number | null; currency: string; approx?: { amount: number; currency: string } | null } | null | undefined
-  received: { amount?: number | null; currency: string } | null | undefined
+  /** The agreed amount, for its "≈" in the consultancy's own currency (2026-09-10). */
+  expected: MoneyWithApprox | null | undefined
+  received: MoneyWithApprox | null | undefined
+  progress: PayerProgress | null | undefined
 }) {
-  if (!expected) return null
-  // Shown in the currency it is collected in, with the consultancy's own beside it (2026-09-10).
-  const approx = formatApprox(expected.approx)
-  const expectedAmount = expected.amount ?? 0
-  const receivedAmount = received?.amount ?? 0
-  // The two figures can be in DIFFERENT currencies (review F-160): when instalments arrived in
-  // mixed currencies and no rate exists for the expected one, the server reports "received" in
-  // rupees. Comparing the bare numbers then is meaningless: ₹60,000 received against CAD 1,000
-  // expected used to read "60,000 / 1,000 CAD · fully paid". Each amount is shown in its own
-  // currency instead, with no percentage, no bar and no "fully paid".
-  const receivedCurrency = received?.currency || expected.currency
-  if (receivedCurrency !== expected.currency) {
+  if (!progress) {
+    // No progress from the server (nothing agreed with this payer, or a server that does not send
+    // it yet): the two amounts as they are, each in its own currency, and no judgement about them.
+    if (!expected) return null
+    const approx = formatApprox(expected.approx)
     return (
-      <div className="flex flex-col gap-xs" data-testid="expected-vs-received" data-comparable="false">
+      <div className="flex flex-col gap-xs" data-testid="expected-vs-received" data-progress="none">
         <div className="flex items-center justify-between gap-md text-body-sm">
           <span className="font-medium text-text-primary">{label}</span>
           <span className="text-right text-text-secondary">
-            {formatMoneyAmount({ amount: receivedAmount, currency: receivedCurrency })} received ·{' '}
-            {formatMoneyAmount({ amount: expectedAmount, currency: expected.currency })}
+            {received ? `${formatMoneyAmount(received)} received · ` : ''}
+            {formatMoneyAmount(expected)}
             {approx ? ` (${approx})` : ''} expected
           </span>
         </div>
-        <p className="text-caption text-text-secondary">
-          Received and expected are in different currencies, so no percentage is shown.
-        </p>
       </div>
     )
   }
-  const pct = expectedAmount > 0 ? Math.min(100, Math.round((receivedAmount / expectedAmount) * 100)) : 0
-  const settled = expectedAmount > 0 && receivedAmount >= expectedAmount
+  const currency = progress.expected.currency
+  const approx = formatApprox(expected?.approx)
   return (
-    <div className="flex flex-col gap-xs" data-testid="expected-vs-received" data-comparable="true">
-      <div className="flex items-center justify-between text-body-sm">
+    <div className="flex flex-col gap-xs" data-testid="expected-vs-received" data-progress="server">
+      <div className="flex items-center justify-between gap-md text-body-sm">
         <span className="font-medium text-text-primary">{label}</span>
-        <span className="text-text-secondary">
-          {formatAmountOnly(expected.currency, receivedAmount)} / {formatAmountOnly(expected.currency, expectedAmount)}{' '}
-          {expected.currency}
+        <span className="text-right text-text-secondary">
+          {formatAmountOnly(currency, progress.received.amount)} / {formatAmountOnly(currency, progress.expected.amount)}{' '}
+          {currency}
           {approx ? ` (${approx})` : ''}
-          {settled ? ' · fully paid' : pct > 0 ? ` · ${pct}%` : ''}
+          {progress.fully_paid ? ' · fully paid' : ` · ${formatMoneyAmount(progress.remaining)} remaining`}
         </span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-background">
-        <div className={`h-full rounded-full ${settled ? 'bg-success' : 'bg-primary'}`} style={{ width: `${pct}%` }} />
+      {/* The bar is drawn from the server's own percentage: the unpaid share (`shortfall_percent`)
+          is the empty stretch at the end of a full bar, so no percentage is worked out here. */}
+      <div className={`relative h-1.5 overflow-hidden rounded-full ${progress.fully_paid ? 'bg-success' : 'bg-primary'}`}>
+        <div
+          className="absolute inset-y-0 right-0 bg-background"
+          style={{ width: `${progress.fully_paid ? 0 : progress.shortfall_percent}%` }}
+        />
       </div>
+      {progress.converted && (
+        <p className="text-caption text-text-secondary">
+          Some of this arrived in another currency and is counted in {currency} at the value fixed when it was recorded.
+        </p>
+      )}
     </div>
   )
 }
@@ -83,6 +97,7 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
   const canRecord = usePermission('billing.record_payment')
   const [showRecord, setShowRecord] = useState(false)
   const [showPrEntry, setShowPrEntry] = useState(false)
+  const [voidingPrEntry, setVoidingPrEntry] = useState(false)
   const [voiding, setVoiding] = useState<components['schemas']['CommissionInstallment'] | null>(null)
   if (commissions.isLoading) return <Skeleton className="h-24 rounded-lg" />
   if (commissions.isError || !commissions.data) {
@@ -138,24 +153,36 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
                   </>}
             </p>
           </div>
-          <Badge color="info" className="capitalize">
-            {entry.payer_method === 'applicant'
-              ? 'Applicant pays'
-              : entry.payer_method === 'college'
-                ? 'College pays'
-                : 'Split'}
-          </Badge>
+          <div className="flex shrink-0 items-center gap-sm">
+            <Badge color="info" className="capitalize">
+              {entry.payer_method === 'applicant'
+                ? 'Applicant pays'
+                : entry.payer_method === 'college'
+                  ? 'College pays'
+                  : 'Split'}
+            </Badge>
+            {/* A PR contribution recorded with the wrong amount or currency is voided here and
+                recorded again (review F-081). Same permission as recording it. A student case's
+                entry is undone by reverting the acceptance on the Applications tab instead. */}
+            {entry.case_type === 'pr' && canRecord && (
+              <Button size="sm" variant="secondary" onClick={() => setVoidingPrEntry(true)}>
+                Void contribution
+              </Button>
+            )}
+          </div>
         </div>
         {bookkeeping && <p className="text-caption text-text-secondary">{BOOKKEEPING_CAPTION}</p>}
-        <ExpectedVsReceived
+        <PayerProgressLine
           label="From college"
           expected={entry.expected_from_college}
           received={entry.received_from_college}
+          progress={entry.college_progress}
         />
-        <ExpectedVsReceived
+        <PayerProgressLine
           label="From applicant"
           expected={entry.expected_from_student}
           received={entry.received_from_student}
+          progress={entry.student_progress}
         />
       </Card>
 
@@ -176,6 +203,9 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
           <div className="flex flex-col gap-xs">
             {data.installments.map((inst) => {
               const isVoid = Boolean(inst.voided_at)
+              // The share of this installment has already fallen due, so its void waits for Sentpo
+              // Finance (review F-078). Nothing has changed yet: the installment still counts.
+              const voidWaiting = !isVoid && Boolean(inst.void_requested_at)
               return (
                 <div key={inst.id} className="flex items-center justify-between gap-md text-body-sm">
                   <div className={isVoid ? 'text-text-secondary' : undefined}>
@@ -198,9 +228,17 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
                         {inst.voided_reason ? ` — ${inst.voided_reason}` : ''}
                       </span>
                     )}
+                    {voidWaiting && (
+                      <span className="mt-xs block text-caption text-text-secondary">
+                        Void requested{inst.void_requested_at ? ` on ${formatDate(inst.void_requested_at)}` : ''}
+                        {inst.void_request_reason ? ` — ${inst.void_request_reason}` : ''}
+                      </span>
+                    )}
                   </div>
                   {isVoid ? (
                     <Badge color="secondary">Void</Badge>
+                  ) : voidWaiting ? (
+                    <Badge color="warning">Waiting for immiNow Finance</Badge>
                   ) : (
                     canRecord && (
                       <Button size="sm" variant="secondary" onClick={() => setVoiding(inst)}>
@@ -241,6 +279,14 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
             </div>
           ))}
         </Card>
+      )}
+
+      {voidingPrEntry && (
+        <VoidPrContributionModal
+          clientId={clientId}
+          contribution={entry.expected_from_student}
+          onClose={() => setVoidingPrEntry(false)}
+        />
       )}
 
       {voiding && (

@@ -30,7 +30,9 @@ function wordCount(value: string) {
 type ConsultancyRecord = NonNullable<ReturnType<typeof useMyConsultancy>['data']>
 
 export function ProfileTab({ consultancy }: { consultancy: ConsultancyRecord }) {
-  const updateProfile = useUpdateConsultancyProfile()
+  // The version of the record as last read goes back with the save (review F-075). When someone
+  // else saved first, the record reloads behind this form and what was typed here stays.
+  const updateProfile = useUpdateConsultancyProfile(consultancy.version)
 
   const [logoUrl, setLogoUrl] = useState('')
   const [description, setDescription] = useState('')

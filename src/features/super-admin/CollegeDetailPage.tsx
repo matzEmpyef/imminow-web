@@ -196,7 +196,7 @@ export function CourseFormModal({
 }) {
   const isEditing = Boolean(editingCourse)
   const createCourse = useCreateCourse()
-  const updateCourse = useUpdateCourse(editingCourse?.id ?? '')
+  const updateCourse = useUpdateCourse(editingCourse?.id ?? '', editingCourse?.version)
   const examsCatalog = useExams()
   const form = useCourseForm(college, editingCourse ?? (prefill as Course | undefined), defaultCampusId)
 
@@ -472,7 +472,7 @@ export function HiddenByCell({ course }: { course: Course }) {
 }
 
 function CourseRowActions({ college, course }: { college: College; course: Course }) {
-  const updateCourse = useUpdateCourse(course.id!)
+  const updateCourse = useUpdateCourse(course.id!, course.version)
   const [editing, setEditing] = useState(false)
   const [confirmingOff, setConfirmingOff] = useState(false)
 

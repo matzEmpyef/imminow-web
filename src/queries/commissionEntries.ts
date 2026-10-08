@@ -56,6 +56,12 @@ export function useRecordInstallment(clientId: string) {
  * removed, it stays in the money record marked void with who/why. 409 `part_settled` when a payment
  * is already allocated to the installment's share part (void that payment first), 409
  * `entry_not_active` when the entry itself was voided or reversed.
+ *
+ * When the installment's share has already fallen due the void needs immiNow Finance's approval
+ * (review F-078): the answer is still the installment, with `voided_at` null and
+ * `void_requested_at` / `void_request_reason` set, and nothing else changes until Finance answers.
+ * A second request while one is waiting is 409 `conflict` — the screen was showing a Void control
+ * that no longer applies, so the views are read again.
  */
 export function useVoidInstallment(clientId: string) {
   const queryClient = useQueryClient()
@@ -83,7 +89,8 @@ export function useVoidInstallment(clientId: string) {
     },
     onSuccess: () => invalidateCommissionViews(queryClient, clientId),
     onError: (err) => {
-      if (isAlreadyApplied(err)) invalidateCommissionViews(queryClient, clientId)
+      const alreadyWaiting = err instanceof ApiError && err.code === 'conflict'
+      if (isAlreadyApplied(err) || alreadyWaiting) invalidateCommissionViews(queryClient, clientId)
     },
   })
 }

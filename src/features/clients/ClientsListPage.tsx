@@ -48,16 +48,19 @@ function AssignClientTrigger({
   clientName,
   isAssigned,
   assignedEmployeeId,
+  version,
 }: {
   clientId: string
   clientName: string
   isAssigned: boolean
   /** The consultant who holds the case now: not offered as someone to transfer it to. */
   assignedEmployeeId?: string | null
+  /** The case record's version as the list last read it, sent back so a stale reassignment is refused (review F-075). */
+  version?: number
 }) {
   const [open, setOpen] = useState(false)
   const [employeeId, setEmployeeId] = useState('')
-  const assign = useAssignClient(clientId)
+  const assign = useAssignClient(clientId, version)
   const label = isAssigned ? 'Transfer Consultant' : 'Assign to consultant'
 
   return (
@@ -348,6 +351,7 @@ export function ClientsListPage() {
                     clientName={clientName}
                     isAssigned={Boolean(client.assigned_employee_id)}
                     assignedEmployeeId={client.assigned_employee_id}
+                    version={client.version}
                   />
                 )}
               </>

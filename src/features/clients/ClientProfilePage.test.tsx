@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -136,5 +136,25 @@ describe('ClientProfilePage — Reopen Case', () => {
     mockedClient.mockReturnValue(query(baseClient({ status: 'closed', close_sub_reason: 'lost_contact' })))
     renderProfile()
     expect(screen.queryByRole('button', { name: 'Reopen Case' })).not.toBeInTheDocument()
+  })
+})
+
+// Review F-069: a plan is reopened only at a completed step and never while another step is in
+// progress. The server refuses with 409 `conflict`, and its sentence is shown beside the button.
+describe('ClientProfilePage — Reopen Plan refused', () => {
+  it('shows the server’s sentence', () => {
+    mockedFeature.mockReturnValue(true)
+    mockedPermission.mockReturnValue(true)
+    mockedClient.mockReturnValue(query(baseClient({ status: 'plan_complete' })))
+    mockedReopenPlan.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: true,
+      error: new Error('This plan already has a step in progress.'),
+    } as never)
+    renderProfile()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reopen Plan' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('This plan already has a step in progress.')
   })
 })

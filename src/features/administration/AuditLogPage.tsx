@@ -1,3 +1,4 @@
+import { auditActionLabel } from '@/lib/auditActions'
 import { useState } from 'react'
 import { AUDIT_SEARCH_HINT, AUDIT_SEARCH_PLACEHOLDER, AuditEntryDetail } from './AuditEntryDetail'
 import { AuditDateRange, AuditWindowNote } from './AuditDateRange'
@@ -24,6 +25,11 @@ function labelize(value: string): string {
     .split('_')
     .map((word) => (word === 'kyc' ? 'KYC' : word.charAt(0).toUpperCase() + word.slice(1)))
     .join(' ')
+}
+
+// An action with words of its own (`lib/auditActions.ts`) reads as those; every other one as above.
+function actionLabel(action: string): string {
+  return auditActionLabel(action) ?? labelize(action)
 }
 
 type Entry = NonNullable<ReturnType<typeof useAuditLog>['data']>['items'][number]
@@ -64,7 +70,7 @@ export function AuditLogPage() {
       sortable: true,
       render: (e) => (
         <Badge color={ACTION_COLORS[e.action_type as keyof typeof ACTION_COLORS] ?? 'secondary'}>
-          {labelize(e.action_type)}
+          {actionLabel(e.action_type)}
         </Badge>
       ),
     },

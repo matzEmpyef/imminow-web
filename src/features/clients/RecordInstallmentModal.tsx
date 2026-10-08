@@ -57,7 +57,13 @@ export function RecordInstallmentModal({
     if (expected?.currency) setCurrency(expected.currency)
   }
 
-  const canSubmit = Number(amount) > 0 && currency !== '' && !record.isPending
+  // A date after today is refused here, before anything is sent (review F-078): the share's due
+  // date follows this day. The server refuses it too (422), judged on India's calendar day, and
+  // its sentence shows in the footer if this browser's day is ahead of that.
+  const today = localDateISO()
+  const receivedOnError = receivedOn > today ? 'Choose today or an earlier date.' : undefined
+
+  const canSubmit = Number(amount) > 0 && currency !== '' && !receivedOnError && !record.isPending
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -138,7 +144,14 @@ export function RecordInstallmentModal({
             ))}
           </SelectField>
         </div>
-        <TextField label="Received on" type="date" value={receivedOn} onChange={(e) => setReceivedOn(e.target.value)} />
+        <TextField
+          label="Received on"
+          type="date"
+          max={today}
+          value={receivedOn}
+          onChange={(e) => setReceivedOn(e.target.value)}
+          error={receivedOnError}
+        />
         <TextField label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
         {receipts.length > 0 && (
           <SelectField label="Link a platform receipt (optional)" value={receiptId} onChange={(e) => setReceiptId(e.target.value)}>

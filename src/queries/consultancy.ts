@@ -3,6 +3,7 @@ import { useMutation } from '@/lib/useSave'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { editError, reloadOnStaleEdit } from '@/lib/staleEdit'
 import type { components } from '@/api/schema'
 
 type Consultancy = components['schemas']['Consultancy']
@@ -106,15 +107,19 @@ export function useUpdateMyMfaPolicy() {
   })
 }
 
-export function useUpdateConsultancyProfile() {
+// `version` is the record's version as last read (review F-075): when someone else saved the
+// profile first the server answers 409 `version_conflict`, the record is read again and the form
+// keeps what was typed (`lib/staleEdit.ts`).
+export function useUpdateConsultancyProfile(version?: number) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (body: ConsultancyProfileEdits) => {
-      const { data, error } = await api.PATCH('/consultancies/me', { body })
-      if (error) throw new ApiError('Could not update the consultancy profile.', error)
+      const { data, error } = await api.PATCH('/consultancies/me', { body: { ...body, version } })
+      if (error) throw editError('Could not update the consultancy profile.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['consultancy', 'me'] }),
+    onError: (err) => reloadOnStaleEdit(err, () => queryClient.invalidateQueries({ queryKey: ['consultancy', 'me'] })),
   })
 }
 

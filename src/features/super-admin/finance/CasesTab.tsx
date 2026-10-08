@@ -8,7 +8,12 @@ import { Table, type TableColumn } from '@/components/Table'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate } from '@/lib/time'
 import { useCountries } from '@/queries/countries'
-import { useFinanceCases, type FinanceCaseRow, type FinanceCasesFilters } from '@/queries/financeDashboard'
+import {
+  useFinanceCases,
+  useFinanceVoidRequestCount,
+  type FinanceCaseRow,
+  type FinanceCasesFilters,
+} from '@/queries/financeDashboard'
 import { creditsByCurrency, money } from './money'
 import { ConsultancySearchSelect } from './ConsultancySearchSelect'
 import { FinanceCaseDrawer } from './FinanceCaseDrawer'
@@ -39,6 +44,10 @@ export function CasesTab() {
   // ?overdue=true (Overview's Overdue tile, 2026-09-11) pre-filters the same way ?rate=default
   // does — read once into local state, then this tab owns the filter like any other.
   const [overdueOnly, setOverdueOnly] = useState(searchParams.get('overdue') === 'true')
+  // Cases where a consultancy's void of an installment is waiting for Finance's answer (review
+  // F-078). The count on the chip is the server's `meta.total` for that filter.
+  const [voidRequestsOnly, setVoidRequestsOnly] = useState(false)
+  const voidRequestCount = useFinanceVoidRequestCount().data ?? 0
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const paging = useCursorPagination()
   const [viewingRow, setViewingRow] = useState<FinanceCaseRow | null>(null)
@@ -65,6 +74,7 @@ export function CasesTab() {
     payment_status: paymentStatus || undefined,
     rate_source: rateSource || undefined,
     overdue: overdueOnly || undefined,
+    void_requested: voidRequestsOnly || undefined,
     from: from || undefined,
     to: to || undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : 'accepted_at',
@@ -132,6 +142,10 @@ export function CasesTab() {
         return (
           <div className="flex flex-col items-end">
             <span className="tabular-nums">{inr(r.paid_inr)}</span>
+            {/* Shortfalls written off to settle parts: their own figure, never inside Paid. */}
+            {r.written_off_inr > 0 && (
+              <span className="text-caption text-text-secondary">Written off {inr(r.written_off_inr)}</span>
+            )}
             {credits.length > 0 && (
               <span className="text-caption text-warning">
                 Credit {credits.map((c) => money({ amount: c.credit, currency: c.currency })).join(' · ')}
@@ -174,7 +188,13 @@ export function CasesTab() {
     {
       key: 'payment_status',
       header: 'Status',
-      render: (r) => <Badge color={STATUS_COLOR[r.payment_status]}>{STATUS_LABEL[r.payment_status]}</Badge>,
+      render: (r) => (
+        <span className="flex flex-wrap items-center gap-xs">
+          <Badge color={STATUS_COLOR[r.payment_status]}>{STATUS_LABEL[r.payment_status]}</Badge>
+          {/* Nothing due is outstanding, and part of it was settled by a write-off (the server's flag). */}
+          {r.settled && <Badge color="info">Settled</Badge>}
+        </span>
+      ),
     },
     {
       key: 'accepted_at',
@@ -194,7 +214,16 @@ export function CasesTab() {
 
   const totals = cases.data?.totals
   const anyFilter = Boolean(
-    search || consultancyId || country || payerMethod || paymentStatus || rateSource || overdueOnly || from || to,
+    search ||
+      consultancyId ||
+      country ||
+      payerMethod ||
+      paymentStatus ||
+      rateSource ||
+      overdueOnly ||
+      voidRequestsOnly ||
+      from ||
+      to,
   )
 
   return (
@@ -310,14 +339,24 @@ export function CasesTab() {
           </>
         }
         quickFilters={
-          <FilterChip
-            label="Overdue"
-            active={overdueOnly}
-            onChange={(v) => {
-              setOverdueOnly(v)
-              resetPaging()
-            }}
-          />
+          <>
+            <FilterChip
+              label="Overdue"
+              active={overdueOnly}
+              onChange={(v) => {
+                setOverdueOnly(v)
+                resetPaging()
+              }}
+            />
+            <FilterChip
+              label={voidRequestCount > 0 ? `Void requests (${voidRequestCount})` : 'Void requests'}
+              active={voidRequestsOnly}
+              onChange={(v) => {
+                setVoidRequestsOnly(v)
+                resetPaging()
+              }}
+            />
+          </>
         }
         pagination={{
           hasNext: Boolean(cases.data?.meta.next_cursor),

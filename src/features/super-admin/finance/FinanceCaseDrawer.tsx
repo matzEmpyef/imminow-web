@@ -13,7 +13,11 @@ import { VoidDueModal } from './VoidDueModal'
 import { ReceiveDueModal } from './ReceiveDueModal'
 import { CloseDueModal } from './CloseDueModal'
 import { ReopenDueModal } from './ReopenDueModal'
+import { SettleDueModal } from './SettleDueModal'
+import { UndoSettlementModal } from './UndoSettlementModal'
+import { InstallmentVoidDecisionModal } from './InstallmentVoidDecisionModal'
 import { inr } from '@/lib/money'
+import { useIsSuperAdmin, usePlatformPermission } from '@/lib/me'
 
 type BadgeColor = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
 
@@ -59,6 +63,10 @@ function changeText(c: CommissionDueChange): string {
   if (c.kind === 'waived') {
     return `Closed ${amount} without payment`
   }
+  // A small-difference settlement (2026-10-08): `amount` is the shortfall written off.
+  if (c.kind === 'settled') {
+    return `Wrote off ${amount} to mark the part fully paid`
+  }
   const previous =
     c.previous_amount != null
       ? ` (was ${money({ amount: c.previous_amount, currency: c.previous_currency ?? c.currency ?? 'INR' })})`
@@ -81,6 +89,13 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
   const [recordingPayment, setRecordingPayment] = useState(false)
   const [closingPart, setClosingPart] = useState<CommissionDuePart | null>(null)
   const [reopeningPart, setReopeningPart] = useState<CommissionDuePart | null>(null)
+  const [settlingPart, setSettlingPart] = useState<CommissionDuePart | null>(null)
+  const [undoingSettlement, setUndoingSettlement] = useState<CommissionDuePart | null>(null)
+  const [decidingVoid, setDecidingVoid] = useState<{ part: CommissionDuePart; decision: 'approve' | 'decline' } | null>(null)
+  // Who may mark a part as fully paid is the server's answer on the part (`settle_needs`): Finance
+  // holders up to the limit, a Super Admin above it. These two only say which of them is signed in.
+  const isSuperAdmin = useIsSuperAdmin()
+  const holdsFinance = usePlatformPermission('finance')
 
   useEffect(() => {
     setRow(caseRow)
@@ -127,6 +142,8 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
             <SummaryStat label="Due (₹)" value={inr(row.due_inr)} />
             <SummaryStat label="Not yet due (₹)" value={inr(row.expected_share_inr)} />
             <SummaryStat label="Paid (₹)" value={inr(row.paid_inr)} />
+            {/* Its own figure, never inside Paid (small-difference settlement, 2026-10-08). */}
+            <SummaryStat label="Written off (₹)" value={inr(row.written_off_inr)} />
             <SummaryStat label="Awaiting confirmation (₹)" value={inr(row.awaiting_inr)} />
             <SummaryStat label="Outstanding (₹)" value={inr(row.outstanding_inr)} />
             <SummaryStat label="Overdue (₹)" value={inr(row.overdue_inr)} warning={(row.overdue_inr ?? 0) > 0} />
@@ -159,6 +176,7 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
                       <th className="px-sm py-xs text-right font-medium">Due</th>
                       <th className="px-sm py-xs text-right font-medium">Not yet due</th>
                       <th className="px-sm py-xs text-right font-medium">Paid</th>
+                      <th className="px-sm py-xs text-right font-medium">Written off</th>
                       <th className="px-sm py-xs text-right font-medium">Outstanding</th>
                       {hasCreditField && <th className="px-sm py-xs text-right font-medium">Credit</th>}
                       <th className="px-sm py-xs text-right font-medium">Overdue</th>
@@ -172,6 +190,9 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
                         <td className="px-sm py-xs text-right tabular-nums">{money({ amount: c.due ?? 0, currency: c.currency ?? 'INR' })}</td>
                         <td className="px-sm py-xs text-right tabular-nums">{money({ amount: c.expected ?? 0, currency: c.currency ?? 'INR' })}</td>
                         <td className="px-sm py-xs text-right tabular-nums">{money({ amount: c.paid ?? 0, currency: c.currency ?? 'INR' })}</td>
+                        <td className="px-sm py-xs text-right tabular-nums text-text-secondary">
+                          {money({ amount: c.written_off ?? 0, currency: c.currency ?? 'INR' })}
+                        </td>
                         <td className="px-sm py-xs text-right font-medium tabular-nums text-text-primary">
                           {money({ amount: c.outstanding ?? 0, currency: c.currency ?? 'INR' })}
                         </td>
@@ -218,11 +239,24 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
               {dueSchedule.map((part, i) => {
                 const label = partLabel(part, row.rate_percent, row.tuition_fee)
                 const canSettle = part.status === 'due' || part.status === 'overdue'
+                // "Mark as fully paid" only when the server says this person may use it on this part.
+                const mayMarkFullyPaid =
+                  part.settle_needs === 'super_admin'
+                    ? isSuperAdmin
+                    : part.settle_needs === 'finance'
+                      ? isSuperAdmin || holdsFinance
+                      : false
+                // A consultancy's void of this part's installment is waiting for an answer (review F-078).
+                const voidWaiting = Boolean(part.instalment_id && part.instalment_void_requested_at)
                 return (
                   <div key={part.key ?? part.id ?? `calculated-${i}`} className="rounded-md border border-border px-sm py-xs">
                     <div className="flex items-start justify-between gap-sm">
                       <span className="text-body-sm text-text-primary">{label}</span>
-                      <Badge color={PART_STATUS_COLOR[part.status ?? 'due']}>{PART_STATUS_LABEL[part.status ?? 'due']}</Badge>
+                      <span className="flex shrink-0 items-center gap-xs">
+                        {voidWaiting && <Badge color="warning">Void requested</Badge>}
+                        {part.settled && <Badge color="info">Settled</Badge>}
+                        <Badge color={PART_STATUS_COLOR[part.status ?? 'due']}>{PART_STATUS_LABEL[part.status ?? 'due']}</Badge>
+                      </span>
                     </div>
                     <p className="text-caption text-text-secondary">
                       {partAmount(part)} · {duePartDueDateText(part)} · Paid {money({ amount: part.paid ?? 0, currency: part.currency ?? 'INR' })}
@@ -234,7 +268,34 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
                         {part.waived_reason ? `: ${part.waived_reason}` : ''}
                       </p>
                     )}
-                    {(canSettle || part.status === 'waived' || part.kind === 'added') && (
+                    {/* Settled by writing off a small difference: the written-off amount is its own
+                        figure beside what was received, with who, when and why. */}
+                    {part.settled && (
+                      <p className="text-caption text-text-secondary">
+                        Written off {money({ amount: part.written_off, currency: part.currency ?? 'INR' })} by{' '}
+                        {part.settled_by_name ?? 'Unknown'}
+                        {part.settled_at ? ` on ${formatDate(part.settled_at)}` : ''}
+                        {part.settled_reason ? `: ${part.settled_reason}` : ''}
+                      </p>
+                    )}
+                    {voidWaiting && (
+                      <div className="mt-xs flex flex-col gap-xs rounded-md border border-warning bg-warning-subtle p-sm">
+                        <p className="text-body-sm text-text-primary">
+                          The consultancy asked to void this installment
+                          {part.instalment_void_requested_at ? ` on ${formatDate(part.instalment_void_requested_at)}` : ''}
+                          {part.instalment_void_request_reason ? `: ${part.instalment_void_request_reason}` : '.'}
+                        </p>
+                        <div className="flex flex-wrap gap-xs">
+                          <Button size="sm" onClick={() => setDecidingVoid({ part, decision: 'approve' })}>
+                            Approve
+                          </Button>
+                          <Button size="sm" variant="secondary" onClick={() => setDecidingVoid({ part, decision: 'decline' })}>
+                            Decline
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    {(canSettle || mayMarkFullyPaid || part.settled || part.status === 'waived' || part.kind === 'added') && (
                       <div className="mt-xs flex flex-wrap gap-xs">
                         {canSettle && (
                           <>
@@ -245,6 +306,16 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
                               Close without payment
                             </Button>
                           </>
+                        )}
+                        {mayMarkFullyPaid && (
+                          <Button size="sm" variant="secondary" onClick={() => setSettlingPart(part)}>
+                            Mark as fully paid
+                          </Button>
+                        )}
+                        {part.settled && part.settle_change_id && (
+                          <Button size="sm" variant="secondary" onClick={() => setUndoingSettlement(part)}>
+                            Undo
+                          </Button>
                         )}
                         {part.kind === 'added' && part.status !== 'waived' && (
                           <Button size="sm" variant="secondary" onClick={() => setVoidingPart(part)}>
@@ -276,7 +347,7 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
                     </p>
                     {c.voided_at && (
                       <p className="text-caption text-error">
-                        {c.kind === 'waived' ? 'Reopened' : 'Removed'} by {c.voided_by_name ?? 'Unknown'}
+                        {c.kind === 'waived' ? 'Reopened' : c.kind === 'settled' ? 'Undone' : 'Removed'} by {c.voided_by_name ?? 'Unknown'}
                         {c.void_reason ? `: ${c.void_reason}` : ''} · {formatDateTime(c.voided_at)}
                       </p>
                     )}
@@ -352,6 +423,45 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
           onClosed={(next) => {
             setRow(next)
             setClosingPart(null)
+          }}
+        />
+      )}
+      {row && settlingPart && (
+        <SettleDueModal
+          caseRow={row}
+          part={settlingPart}
+          label={partLabel(settlingPart, row.rate_percent, row.tuition_fee)}
+          onClose={() => setSettlingPart(null)}
+          onSettled={(next) => {
+            setRow(next)
+            setSettlingPart(null)
+          }}
+        />
+      )}
+      {row && undoingSettlement && (
+        <UndoSettlementModal
+          caseRow={row}
+          part={undoingSettlement}
+          onClose={() => setUndoingSettlement(null)}
+          onUndone={(next) => {
+            setRow(next)
+            setUndoingSettlement(null)
+          }}
+        />
+      )}
+      {row && decidingVoid && (
+        <InstallmentVoidDecisionModal
+          caseRow={row}
+          part={decidingVoid.part}
+          label={partLabel(decidingVoid.part, row.rate_percent, row.tuition_fee)}
+          decision={decidingVoid.decision}
+          onClose={() => setDecidingVoid(null)}
+          // The answer comes back as the installment, not the case, and under the "Void requests"
+          // filter the case then leaves the list: the drawer closes rather than keep showing a
+          // request that has been answered. The list behind it is read again.
+          onDecided={() => {
+            setDecidingVoid(null)
+            onClose()
           }}
         />
       )}

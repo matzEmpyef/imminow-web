@@ -116,6 +116,29 @@ export function paymentInrNote(p: PaymentMoney | null | undefined): string | nul
 }
 
 /**
+ * WHAT A PAYMENT IN ANOTHER CURRENCY SETTLED (review F-079). Finance can record money as it
+ * arrived — US dollars against Canadian-dollar dues — and the server freezes on the payment which
+ * currency's dues it settles, at what rate, and how much it has settled so far. This only writes
+ * those three facts out: "Settled CAD 1,400 of the CAD dues · 1 USD = 1.4 CAD". Null on every
+ * payment in the currency owed.
+ */
+export function paymentSettlesNote(
+  p:
+    | (PaymentMoney & {
+        settles_currency?: string | null
+        settles_rate?: number | null
+        settled?: { amount?: number | null; currency?: string | null } | null
+      })
+    | null
+    | undefined,
+): string | null {
+  if (!p?.settles_currency) return null
+  const settled = p.settled ? `Settled ${money(p.settled)} of the ${p.settles_currency} dues` : `Settles the ${p.settles_currency} dues`
+  const received = p.amount?.currency
+  return p.settles_rate != null && received ? `${settled} · 1 ${received} = ${p.settles_rate} ${p.settles_currency}` : settled
+}
+
+/**
  * The rupees-per-unit rate a payment was valued at (review F-300): the rate frozen onto the row when
  * it was declared, not one worked out from two amounts, which goes wrong when the rupee figure is
  * stale. 1 for a rupee payment. Only a row written before rates were stored falls back to the ratio

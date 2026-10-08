@@ -3,6 +3,7 @@ import { useMutation } from '@/lib/useSave'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { editError, reloadOnStaleEdit } from '@/lib/staleEdit'
 import type { components } from '@/api/schema'
 import { fetchEmployee, fetchEmployeePage, type Employee, type EmployeeActiveFilter } from './pickerSources'
 
@@ -80,15 +81,23 @@ export function useInviteEmployee() {
   })
 }
 
-export function useUpdateEmployee(id: string) {
+// `version` is the employee row's version as last read (review F-075): two admins changing one
+// member's designation or permissions no longer overwrite each other. A stale save is refused 409
+// `version_conflict`, the roster is read again and the dialog keeps what was chosen
+// (`lib/staleEdit.ts`).
+export function useUpdateEmployee(id: string, version?: number) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (body: EmployeePatchInput) => {
-      const { data, error } = await api.PATCH('/staff/employees/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update this employee.', error)
+      const { data, error } = await api.PATCH('/staff/employees/{id}', {
+        params: { path: { id } },
+        body: { ...body, version },
+      })
+      if (error) throw editError('Could not update this employee.', error)
       return data
     },
     onSuccess: () => invalidateEmployees(queryClient),
+    onError: (err) => reloadOnStaleEdit(err, () => invalidateEmployees(queryClient)),
   })
 }
 

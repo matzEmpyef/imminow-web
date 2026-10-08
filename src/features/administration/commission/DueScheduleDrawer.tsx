@@ -1,6 +1,7 @@
 import { Drawer } from '@/components/Drawer'
 import { Badge } from '@/components/Badge'
 import { formatMoneyAmount } from '@/lib/money'
+import { formatDate } from '@/lib/time'
 import { duePartDueDateText, duePartLabel } from '@/lib/duePart'
 import type { components } from '@/api/schema'
 
@@ -40,12 +41,25 @@ export function DueScheduleDrawer({ due, onClose }: { due: CommissionDue | null;
           <div key={part.id ?? `calculated-${i}`} className="rounded-md border border-border px-sm py-xs">
             <div className="flex items-start justify-between gap-sm">
               <span className="text-body-sm text-text-primary">{duePartLabel(part, due?.rate_percent, due?.tuition_fee, money)}</span>
-              {part.status && <Badge color={STATUS_COLOR[part.status]}>{STATUS_LABEL[part.status]}</Badge>}
+              <span className="flex shrink-0 items-center gap-xs">
+                {part.settled && <Badge color="info">Settled</Badge>}
+                {part.status && <Badge color={STATUS_COLOR[part.status]}>{STATUS_LABEL[part.status]}</Badge>}
+              </span>
             </div>
             <p className="text-caption text-text-secondary">
               {money({ amount: part.amount, currency: part.currency })} · {duePartDueDateText(part)} · Paid{' '}
               {money({ amount: part.paid, currency: part.currency })}
             </p>
+            {/* A small difference written off to mark the part fully paid (2026-10-08): its own
+                figure beside what was paid, with who, when and why. */}
+            {part.settled && (
+              <p className="text-caption text-text-secondary">
+                Written off {money({ amount: part.written_off, currency: part.currency })}
+                {part.settled_by_name ? ` by ${part.settled_by_name}` : ''}
+                {part.settled_at ? ` on ${formatDate(part.settled_at)}` : ''}
+                {part.settled_reason ? `: ${part.settled_reason}` : ''}
+              </p>
+            )}
             {part.status === 'waived' && part.waived_reason && (
               <p className="text-caption text-text-secondary">Closed without payment: {part.waived_reason}</p>
             )}

@@ -6935,6 +6935,8 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
+                        /** @description Optimistic lock (F-075, 2026-10-08): the record's `version` as last read. Omitted, last write wins; when the record has changed since, 409 `version_conflict` (with `details.current_version`) and nothing is written — reload and re-apply the edit. */
+                        version?: number;
                         logo_url?: string | null;
                         description?: string;
                         about_us?: string;
@@ -13461,6 +13463,8 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
+                        /** @description Optimistic lock (F-075, 2026-10-08): the record's `version` as last read. Omitted, last write wins; when the record has changed since, 409 `version_conflict` (with `details.current_version`) and nothing is written — reload and re-apply the edit. */
+                        version?: number;
                         name?: string;
                         college_id?: components["schemas"]["UUID"];
                         description?: string;
@@ -14652,6 +14656,8 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
+                        /** @description Optimistic lock (F-075, 2026-10-08): the record's `version` as last read. Omitted, last write wins; when the record has changed since, 409 `version_conflict` (with `details.current_version`) and nothing is written — reload and re-apply the edit. */
+                        version?: number;
                         branch_id: components["schemas"]["UUID"];
                     };
                 };
@@ -14696,6 +14702,8 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
+                        /** @description Optimistic lock (F-075, 2026-10-08): the record's `version` as last read. Omitted, last write wins; when the record has changed since, 409 `version_conflict` (with `details.current_version`) and nothing is written — reload and re-apply the edit. */
+                        version?: number;
                         country: string | null;
                     };
                 };
@@ -14944,6 +14952,8 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
+                        /** @description Optimistic lock (F-075, 2026-10-08): the record's `version` as last read. Omitted, last write wins; when the record has changed since, 409 `version_conflict` (with `details.current_version`) and nothing is written — reload and re-apply the edit. */
+                        version?: number;
                         assigned_employee_id: components["schemas"]["UUID"];
                     };
                 };
@@ -15110,7 +15120,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** The audited mistake-fix for a wrong acceptance (user decision, 2026-08-28) — voids the journey's active commission entry (reason recorded) and returns the college to offer_received, after which a different college can be accepted. The voided entry keeps its installment history; it is excluded from dues and dashboards. */
+        /**
+         * The audited mistake-fix for a wrong acceptance (user decision, 2026-08-28) — voids the journey's active commission entry (reason recorded) and returns the college to offer_received, after which a different college can be accepted. The voided entry keeps its installment history; it is excluded from dues and dashboards.
+         * @description Since 2026-10-08 (F-080): when the application is a copy carried over from another consultancy's case (a support switch or a dispute move), its commission entry lives on the SUBMITTING consultancy's own case; the revert voids that entry. A later acceptance creates a new entry for the college accepted then, and is refused (409 `conflict`) while the submitter's case still holds an active entry of a different application.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -15156,7 +15169,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** PR cases only — records the applicant's agreed contribution directly (a PR case has no Selected Colleges lifecycle to hang an acceptance on). Creates the journey's commission entry with payer `applicant`, priced by the country's `pr` Commission Rates row. 422 on a student case; 409 if an entry is already active. On a channel-B PR case it creates a bookkeeping entry instead (gate 12b, owner §15 Q5) with `channel` B, no `pr` rate lookup, no Sentpo share — see `CommissionEntryDetail`. */
+        /** PR cases only — records the applicant's agreed contribution directly (a PR case has no Selected Colleges lifecycle to hang an acceptance on). Creates the journey's commission entry with payer `applicant`, priced by the country's `pr` Commission Rates row. 422 on a student case; 409 if an entry is already active. On a channel-B PR case it creates a bookkeeping entry instead (gate 12b, owner §15 Q5) with `channel` B, no `pr` rate lookup, no Sentpo share — see `CommissionEntryDetail`. Needs `billing.record_payment` since 2026-10-08 (F-081; before that, any staff member on the case) and answers 403 `permission_denied` without it. */
         post: {
             parameters: {
                 query?: never;
@@ -15187,6 +15200,56 @@ export interface paths {
                 };
                 409: components["responses"]["ErrorResponse"];
                 422: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clients/{id}/commission-entry/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Void a PR contribution recorded with the wrong amount or currency (F-081)
+         * @description PR cases only. Voids the case's active commission entry with a reason, so the right contribution can be recorded with `POST /clients/{id}/commission-entry`. Needs `billing.record_payment` (403 `permission_denied`). Allowed only while the case is open (409 `case_closed` / `case_in_dispute` / `case_moved`, as every case write) and nothing is paid against the contribution: 409 `part_settled` when a received payment (installment) is recorded on it and not voided, or a payment to Sentpo is declared or confirmed. 404 `not_found` when the case has no active entry; 409 `conflict` on a student case (a college acceptance is undone with revert-acceptance); 400 `validation_failed` without a reason of at least 3 characters. The answer is the entry, now `voided` with its `void_reason`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description The voided entry */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommissionEntryDetail"];
+                    };
+                };
+                400: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
             };
         };
         delete?: never;
@@ -15283,7 +15346,7 @@ export interface paths {
         put?: never;
         /**
          * Reopen Plan (exceptional) — mandatory reason, audit-logged (FR-038)
-         * @description Optional `step_id` (Wave 3 correction, backend-confirmed 2026-09-27): reopens that step of the case's newest plan; 400 `validation_failed` when it names a step of a different case. Without it, reopens the newest plan's last `done` step, as before.
+         * @description Optional `step_id` (Wave 3 correction, backend-confirmed 2026-09-27): reopens that step of the case's newest plan; 400 `validation_failed` when it names a step of a different case. Without it, reopens the newest plan's last `done` step, as before. Since 2026-10-08 (F-069) only a `done` step is reopened and never beside another active step of its plan (409 `conflict`); the case's progress is recounted from its steps.
          */
         post: {
             parameters: {
@@ -15313,6 +15376,15 @@ export interface paths {
                 };
                 /** @description `validation_failed` — `step_id` is not a step of this case. */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `conflict` — the step is not a completed one (only a `done` step is reopened; a locked step is never activated out of order), or its plan already has a step in progress (a plan keeps one active step). Nothing is changed. */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -23203,7 +23275,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Finance marks money as received on a case (finance permission, 2026-09-11) — a confirmed payment recorded directly, no declaration needed. With part_key it settles that part first. The consultancy is notified. 409 for a part closed without payment. */
+        /**
+         * Finance marks money as received on a case (finance permission, 2026-09-11) — a confirmed payment recorded directly, no declaration needed. With part_key it settles that part first. The consultancy is notified. 409 for a part closed without payment.
+         * @description **A payment in another currency than the one owed (F-079, 2026-10-08).** By default the money must be in a currency the case owes (422 `currency_not_owed`; 422 `currency_mismatch` against a part of another currency). With `allow_cross_currency: true` Finance records it as it arrived — `amount` and `currency` are what reached the bank — and it settles the dues of the owed currency: the part's currency with `part_key`, else `owed_currency`, else the one currency the case owes (422 `validation_failed` naming the choices when it owes several; 422 `currency_not_owed` when it owes nothing in `owed_currency`). `rate` is how many units of the owed currency ONE unit of `currency` settles (USD received against CAD dues at 1 USD = 1.40 CAD → `rate: 1.4`; INR received against USD dues at ₹84 to the dollar → `rate: 0.0119047619`); left out, the server uses the day's two exchange rates. The rate is frozen on the payment (`settles_currency`, `settles_rate`) and written on each allocation with the payment's own money it used, so a later correction converts at the same rate. The ceiling is checked in the owed currency (409 `more_than_outstanding` unless `allow_overpayment`); money no due absorbs waits as credit in the currency it arrived in. Finance only — a consultancy's own declaration is never converted.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -23235,6 +23310,12 @@ export interface paths {
                         note?: string;
                         /** @description Required true to record more than is outstanding (review C5, 2026-09-12) — otherwise 409 more_than_outstanding with the outstanding figure in the message. */
                         allow_overpayment?: boolean;
+                        /** @description F-079. True to record money that arrived in another currency than the one owed; it settles the owed currency's dues at `rate`. See the description. */
+                        allow_cross_currency?: boolean;
+                        /** @description F-079, with `allow_cross_currency`: the currency of the dues to settle. Needed only when there is no `part_key` and the case owes more than one currency. */
+                        owed_currency?: string;
+                        /** @description F-079, with `allow_cross_currency`: units of the owed currency that one unit of `currency` settles. Left out: the day's exchange rates. */
+                        rate?: number;
                     };
                 };
             };
@@ -23259,6 +23340,67 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/commission-entries/{id}/settle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Finance marks a due part fully paid by writing off a small shortfall (owner's ruling 2026-10-06; `finance` permission).
+         * @description The part named by `part_key` must have fallen due, not be closed without payment and not be fully paid (409 `conflict` otherwise; 404 for a part not on this case). The shortfall — what is unpaid, with anything already written off on the part — is compared with what was originally due, in the part's own currency: up to 5% (the server's `COMMISSION_SETTLEMENT_FINANCE_PERCENT`) Finance may settle it; above that only a Super Admin (403 `permission_denied`, with `details.shortfall_percent` and `details.limit_percent`). There is no absolute cap. A `reason` is required and kept; the act is audited (`due_settled`) and the consultancy's billing staff are told. Afterwards the part reads `status: paid`, `settled: true`, `paid` = the money received and `written_off` = the difference — two separate figures; `amount` comes down to what was paid. Each part's `shortfall_percent` and `settle_needs` say beforehand what will happen, so no client computes a percentage. Undo it with `/commission-entries/{id}/dues/{changeId}/void` (the part's `settle_change_id`).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    /**
+                     * @description Required on every side-effecting endpoint listed in TRD Section 7 (commit, plan assignment, coupon redemption, attendance/payment recording, transfer execution, invoice creation, RSVP, CSV import commit). Client-generated; replay with the same key returns the original result rather than re-executing.
+                     *     A 1-128 character string (contract gate 10, K32) — relaxed from a UUID so a client that composes its own replay-stable key (e.g. from a local draft id) is not forced to wrap it in one. Still unique per caller per operation; the server does not interpret its contents.
+                     *
+                     *     WHICH ROUTES THIS IS (settled 2026-10-06). REQUIRED, and refused 400 `validation_failed` naming `Idempotency-Key` without it (`components/responses/IdempotencyKeyRequired`): only the writes that move money (`POST /commission/payments`, `POST /commission-entries/{id}/dues`, `/receive`, `/waive`, `/installments`, `/installments/{installmentId}/void`, `POST /freelancer-referrals/{id}/payouts`, `POST /invoices`, `POST /receipts`) and `POST /broadcast`. Every other write that documents the header now uses the optional `IdempotencyKey` parameter: the server accepts the request without it and replays when it is sent. The list at the top of this description is the set of writes a client should still send a key with.
+                     *     ANSWERS A KEY CAN PRODUCE on any of them: the first reply again with `Idempotent-Replayed: true`; 409 `request_in_progress`; 409 with `details.idempotency = "already_applied"` (the write landed: re-read, never resubmit); 422 `idempotency_key_reused` (same key, different body). See `components/responses/IdempotencyConflict` and `IdempotencyKeyReused`.
+                     */
+                    "Idempotency-Key": components["parameters"]["IdempotencyKeyHeader"];
+                };
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        part_key: string;
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description The case row after the settlement */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FinanceCaseRow"];
+                    };
+                };
+                400: components["responses"]["ErrorResponse"];
+                403: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
             };
         };
         delete?: never;
@@ -23445,7 +23587,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Void a mis-entered installment (billing.record_payment, audited with the amounts in the diff) — never deleted (gate 11, F14: erd Open 53, an append-only money record like every other). Replaces the DELETE this operation used to be. */
+        /**
+         * Void a mis-entered installment (billing.record_payment, audited with the amounts in the diff) — never deleted (gate 11, F14: erd Open 53, an append-only money record like every other). Replaces the DELETE this operation used to be.
+         * @description Since 2026-10-08 (F-078, owner's decision 12): when the installment's share of the platform's commission has already fallen due (the case closed as a success), the void needs Sentpo Finance's approval. The answer is still 200 with the installment, but `voided_at` stays null and `void_requested_at` / `void_request_reason` are set: nothing else changes until Finance approves (the installment is voided then, with this reason) or declines (the request is cleared and the consultancy is told why). A second request while one is waiting is 409 `conflict`. An installment whose share is not due yet (the case is open, or nothing is owed on it) is voided at once, as before.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -23483,7 +23628,7 @@ export interface paths {
                     };
                 };
                 404: components["responses"]["ErrorResponse"];
-                /** @description `entry_not_active` — the entry was voided or reversed. `part_settled` — a payment is already allocated to this installment's share part; void that payment first. */
+                /** @description `entry_not_active` — the entry was voided or reversed. `part_settled` — a payment is already allocated to this installment's share part; void that payment first. `conflict` — a void of this installment is already waiting for Finance. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -23492,6 +23637,59 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/commission-entries/{id}/installments/{installmentId}/void-decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Finance approves or declines a consultancy's void of an installment whose share is already due (F-078, owner's decision 12; `finance` permission).
+         * @description `approve: true` voids the installment exactly as the consultancy asked (its reason, its name as `voided_by_name`); the share part goes and the still-expected share is recomputed; the consultancy's billing staff are told. `approve: false` needs a `reason` (shown to the consultancy): the request is cleared and the installment and its share stay as they are. 409 `conflict` when no void is waiting; 409 `already_voided`; 409 `part_settled` when a payment was applied to the share meanwhile; 409 `entry_not_active`; 404 for an unknown entry or installment. Find the waiting ones with `GET /commission/finance/cases?filter[void_requested]=true` (each part of `due_schedule` carries `instalment_id` and `instalment_void_requested_at`).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    installmentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        approve: boolean;
+                        /** @description Required when declining; shown to the consultancy. */
+                        reason?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description The installment after the decision */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommissionInstallment"];
+                    };
+                };
+                400: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
             };
         };
         delete?: never;
@@ -25027,7 +25225,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Active commission cases, paged (finance permission). filter[consultancy_id], filter[destination_country], filter[payer_method], filter[rate_source] (configured|fallback_default), filter[overdue]=true (a dated part is past due and unpaid), filter[payment_status] (unpaid|part_paid|paid, comma = any of), filter[from]/filter[to] on the acceptance date; search matches student, consultancy and college. Totals cover the whole filtered set. */
+        /** Active commission cases, paged (finance permission). filter[consultancy_id], filter[destination_country], filter[payer_method], filter[rate_source] (configured|fallback_default), filter[overdue]=true (a dated part is past due and unpaid), filter[void_requested]=true (F-078 — a void of an installment is waiting for Finance's answer; `meta.total` is the count), filter[payment_status] (unpaid|part_paid|paid, comma = any of), filter[from]/filter[to] on the acceptance date; search matches student, consultancy and college. Totals cover the whole filtered set. */
         get: {
             parameters: {
                 query?: {
@@ -27118,6 +27316,8 @@ export interface components {
             lapsed: boolean;
         };
         Employee: {
+            /** @description Optimistic-locking version of the employee row (F-075, 2026-10-08), on the full row only (those who manage staff). Send it back as `version` on `PATCH /staff/employees/{id}` so two admins changing one member's designation or permission overrides cannot silently overwrite each other. */
+            readonly version?: number;
             id: components["schemas"]["UUID"];
             user: components["schemas"]["User"];
             consultancy_id: components["schemas"]["UUID"];
@@ -27183,6 +27383,8 @@ export interface components {
         };
         /** @description Edit an existing employee's name, phone, branch(es), designation, access rights, or individual permission overrides. Does not include `active` — disabling goes through DELETE /staff/employees/{id} (the lockout guard applies there, not here). */
         EmployeePatchInput: {
+            /** @description Optimistic lock (F-075, 2026-10-08): the record's `version` as last read. Omitted, last write wins; when the record has changed since, 409 `version_conflict` (with `details.current_version`) and nothing is written — reload and re-apply the edit. */
+            version?: number;
             first_name?: string;
             last_name?: string;
             phone?: string | null;
@@ -27618,6 +27820,8 @@ export interface components {
          *     WHO RECEIVES WHICH FIELDS (contract gate 4, Wave 2 plan G8 / REVIEW_TRIAGE item 22 — the response is role-scoped at the projection, never sent whole to be hidden client-side). FULL record: the consultancy's own active staff (GET /consultancies/me and its own GET /consultancies/{id}) and platform staff. PUBLIC projection: students, freelancers and every OTHER consultancy's staff — `id`, `created_at`, `name`, `logo_url`, `description`, `about_us`, `countries_served`, `country`, `city`, `public_email`, `public_phone`, `address`, `visiting_hours`, `visiting_schedule`, `kind`, `college_id`, `active`, `kyc_verified`, `rating`, `rating_count`, `rating_source`, `review_count`, `featured`, `is_new`, `typical_reply_hours`, `gallery`, `nearest_branch` and `nearest_branch_match`. Every other field — plan tier, seat, subscription, billing, entitlement, file-number, two-factor, freelancer-channel, upgrade/renewal, rating-override, `limits` and `available_permissions` — is OMITTED from the public projection, which is why none of them is required. The plan tier left the public projection on 2026-09-25 (product owner: students and other consultancies don't see Starter/Business/Ultimate). The mock server omits `tier`, `limits` and `available_permissions` from the public projection too but still sends the other private fields to every caller; the real backend's full projection is a deliberate difference (PHASE6_TEST_CHECKLIST).
          */
         Consultancy: {
+            /** @description Optimistic-locking version of the consultancy's record (F-075, 2026-10-08), in the full view only (the account's own staff and the platform team). Send it back as `version` on `PATCH /consultancies/me`. */
+            readonly version?: number;
             /** @description WHICH OF THIS ACCOUNT'S BRANCHES IS NEAREST to the calling student (product owner, 2026-09-21), so a card can name the office rather than leave the list's order looking arbitrary. Nearness is a four-step match and nothing else — same city, then same district, then same state, then same country — with no coordinates and no distance involved. Only the account's ACTIVE branches are considered: a switched-off office is not somewhere anyone can walk into. Null when the caller has named no location of their own (`StudentPreferences.city` / `district` / `state` / `resident_country` are all empty), and null when no branch of this account matches even on country. Present and null on every read that has no student caller to speak of, so a client never has to tell "no nearby branch" apart from "this response does not carry the fact". */
             readonly nearest_branch?: {
                 id?: components["schemas"]["UUID"];
@@ -28949,6 +29153,8 @@ export interface components {
             readonly added_at?: string;
         };
         Course: {
+            /** @description Optimistic-locking version of the course (F-075, 2026-10-08), sent only to those who can edit it (catalogue staff, and a college's own staff for its courses). Send it back as `version` on `PATCH /courses/{id}`. */
+            readonly version?: number;
             id: components["schemas"]["UUID"];
             name: string;
             college_id: components["schemas"]["UUID"];
@@ -29508,6 +29714,21 @@ export interface components {
             /** @description This journey's platform receipts, linkable from an installment. */
             receipts: components["schemas"]["Receipt"][];
         };
+        /** @description What one payer (the college or the applicant) agreed to pay on a commission entry, has paid and still has to — every figure in the currency agreed with that payer, computed by the server (F-160, F-194; 2026-10-08). Money received in another currency counts at the value frozen on it when it was recorded (F-077). Clients show these figures and never subtract or compare amounts themselves. */
+        PayerProgress: {
+            expected: components["schemas"]["Money"];
+            received: components["schemas"]["Money"];
+            /** @description Never negative — more than was agreed leaves nothing remaining. */
+            remaining: components["schemas"]["Money"];
+            /**
+             * Format: double
+             * @description `remaining` as a percent of `expected`, two places; 0 once fully paid.
+             */
+            shortfall_percent: number;
+            fully_paid: boolean;
+            /** @description Some of it arrived in another currency and was converted to the agreed one. */
+            converted: boolean;
+        };
         /**
          * @description One case's money agreement, snapshotted at acceptance (or at PR contribution entry). The platform's own cut is deliberately NOT part of this shape — it appears only in the Commission Details / Finance Dashboard read models.
          *     **A channel-B entry is a bookkeeping entry (gate 12b, owner §15 Q5 — read this before building F1/F2).** For a case whose journey is channel B, accepting a college (or recording a PR contribution) creates an entry exactly as for any case — same endpoint, same `commission` body, same `expected_from_*`, same installments, same void/revert/ reversal states — with `channel: 'B'`, and the backend skips everything that is Sentpo's: no rate lookup (so a missing Commission Rates row never blocks acceptance), `rate_percent` 0, `rate_source` `none`, `platform_due_inr` 0, `freelancer_sourced` false, and NO `commission_dues`, `commission_payment_allocations` or `commission_entry_balances` rows, ever. `channel` is stamped from the journey when the entry is created and never changes (an erased student cannot change it). Only `B` is bookkeeping-only; `A`, `C` and null (unknown, legacy) are commissionable as before. Consequences, all server-enforced: (1) every Finance read — `/commission/finance/*`, the consultancy's `GET /commission` dues and payment history, `/dashboard`'s commission figures, analytics revenue, the follow-up signals (`/case-followups`) — excludes channel B (`channel IS DISTINCT FROM 'B'`); (2) a Finance operation addressed to a channel-B entry (`/commission-entries/{id}/dues`, `/original-due`, `/receive`, `/waive`, `/dues/{changeId}/void`, `/commission/payments/…`) is 404 `not_found` — to Finance the entry does not exist; (3) `POST /commission/payments` (the consultancy declaring a payment to Sentpo) against one is 409 `bookkeeping_only`; (4) `POST /commission-entries/{id}/installments` and its void work as for any entry, with nothing allocated (so `part_settled` never applies); (5) `GET /me/commissions` (the student's own view) reports `has_commission: false` for it; (6) a switch or dispute move leaves it with the old consultancy (§15 Q1) and the new consultancy's own acceptance creates its own channel-B entry; (7) the database enforces it — a trigger refuses an entry insert whose `channel` disagrees with its journey's, and refuses a `commission_dues`/ allocation/balance row that points at a channel-B entry. Absent on the frozen mock, which creates no entry for a channel-B case at all (the console then shows today's behaviour).
@@ -29556,6 +29777,10 @@ export interface components {
             /** @description Computed sum of college-source installments, in the expected currency. */
             received_from_college: components["schemas"]["Money"] | null;
             received_from_student: components["schemas"]["Money"] | null;
+            /** @description F-160 (2026-10-08). The college side's expected / received / remaining and whether it is fully paid, worked out by the server in the currency agreed with the college. The console shows these instead of comparing `expected_from_college` with `received_from_college` itself. Null when nothing was agreed with the college. */
+            readonly college_progress?: components["schemas"]["PayerProgress"] | null;
+            /** @description The same for the applicant's side. Null when nothing was agreed with them. */
+            readonly student_progress?: components["schemas"]["PayerProgress"] | null;
             /**
              * @description A journey has at most one active entry. `voided` means the acceptance itself was reverted (reason recorded, audited). `reversed` (2026-09-09) means the acceptance was real and the student still never went — a visa refusal, a withdrawal, a no-show — so the money was earned on paper and then was not. Finance has to tell those two apart, which is why closing a case as a failure does NOT reuse `voided`.
              * @enum {string}
@@ -29590,6 +29815,13 @@ export interface components {
             voided_at?: string | null;
             voided_reason?: string | null;
             voided_by_name?: string | null;
+            /**
+             * Format: date-time
+             * @description F-078 (2026-10-08). Set while a void of this installment waits for Sentpo Finance: its share of the platform's commission has already fallen due, so the void needs Finance's approval. The installment and its share stand until then. Null when no void is waiting (never asked, declined, or approved — then `voided_at` is set).
+             */
+            void_requested_at?: string | null;
+            /** @description The consultancy's reason for the void that is waiting. Null to the applicant. */
+            void_request_reason?: string | null;
         };
         CommissionInstallmentInput: {
             /** @enum {string} */
@@ -29597,7 +29829,7 @@ export interface components {
             amount: components["schemas"]["Money"];
             /**
              * Format: date
-             * @description Defaults to today.
+             * @description Defaults to today. A date after today (in India, the settlement calendar) is refused with 422 `validation_failed` (F-078): the share's due date follows this day.
              */
             received_on?: string;
             note?: string;
@@ -29622,6 +29854,10 @@ export interface components {
             } | null;
             expected_from_student?: components["schemas"]["Money"] | null;
             received_from_student?: components["schemas"]["Money"] | null;
+            /** @description F-194 (2026-10-08). What the applicant still has to pay, worked out by the server in the currency agreed with them (`expected_from_student.currency`), exact to that currency's minor unit and never negative. A payment recorded in another currency counts at the value frozen on it when it was recorded. Home and Payments show this figure; the app does not subtract `received_from_student` from `expected_from_student`. Present whenever `has_commission` is true. */
+            remaining_from_student?: components["schemas"]["Money"] | null;
+            /** @description F-194. True when nothing remains (`remaining_from_student.amount` is 0) — decided by the server in the agreed currency, so the app never compares two amounts that may be in different currencies. Present whenever `has_commission` is true. */
+            fully_paid?: boolean;
             /** @description Student-source installments only. */
             installments?: components["schemas"]["CommissionInstallment"][];
         };
@@ -32003,6 +32239,12 @@ export interface components {
             readonly platform_expected: components["schemas"]["Money"];
             /** @description What has fallen due and is not yet paid, in INR (with approx). */
             readonly platform_outstanding: components["schemas"]["Money"];
+            /** @description Small-difference settlement (2026-10-08). What Sentpo Finance wrote off on this case, in INR — beside `platform_paid`, never inside it. */
+            readonly platform_written_off: components["schemas"]["Money"];
+            /** @description Nothing that has fallen due is outstanding, and part of it was settled by a write-off. */
+            readonly settled: boolean;
+            /** @description What is outstanding as a percent of what has fallen due, compared by the server in INR. Two places; 0 when nothing is outstanding. */
+            readonly shortfall_percent: number;
             readonly by_currency: components["schemas"]["CommissionCurrencyTotals"][];
             /** Format: date-time */
             readonly accepted_at: string;
@@ -32125,6 +32367,12 @@ export interface components {
         FinanceCaseRow: {
             /** @description Parts Finance closed without payment, in INR. */
             readonly waived_inr: number;
+            /** @description Small-difference settlement (2026-10-08). Shortfalls written off to settle parts, in INR — beside `paid_inr` (the money received), never inside it. */
+            readonly written_off_inr: number;
+            /** @description Nothing that has fallen due is outstanding, and part of it was settled by a write-off. */
+            readonly settled: boolean;
+            /** @description What is outstanding as a percent of what has fallen due, compared by the server in one currency (INR at today's rates) — never number against number across currencies (F-160). Two places; 0 when nothing is outstanding. */
+            readonly shortfall_percent: number;
             /**
              * Format: date-time
              * @description When the college was accepted (the commission entry was created).
@@ -32181,6 +32429,8 @@ export interface components {
         CommissionCurrencyTotals: {
             /** @description Closed by Finance without payment. */
             waived: number;
+            /** @description Small-difference settlement (2026-10-08). Shortfalls Finance wrote off to mark parts fully paid, in this currency — a figure of its own, in neither `due` nor `paid` (`paid` is the money received). */
+            written_off: number;
             currency: string;
             /** @description Parts that have fallen due (the case closed as a success; college money as it arrived). */
             due: number;
@@ -32205,6 +32455,24 @@ export interface components {
             waived_at: string | null;
             /** @description Pass to /commission-entries/{id}/dues/{changeId}/void to reopen the part. */
             waive_change_id: components["schemas"]["UUID"] | null;
+            /** @description Small-difference settlement (2026-10-08). The shortfall Finance wrote off on this part to mark it fully paid, in the part's currency; 0 when none. `amount` no longer includes it and `paid` is the money received, so `amount + written_off` is what was originally due. */
+            written_off: number;
+            /** @description The part was closed by writing off a shortfall (`written_off` > 0). */
+            settled: boolean;
+            settled_reason: string | null;
+            /** @description Who wrote it off — "Sentpo Finance" to a consultancy. */
+            settled_by_name: string | null;
+            /** Format: date-time */
+            settled_at: string | null;
+            /** @description Pass to /commission-entries/{id}/dues/{changeId}/void to undo the settlement. */
+            settle_change_id: components["schemas"]["UUID"] | null;
+            /** @description What is unpaid on this part now, together with anything already written off on it, as a percent of what was originally due (two places). 0 when there is nothing to settle. Computed by the server in the part's own currency. */
+            shortfall_percent: number;
+            /**
+             * @description Who may settle this part with `POST /commission-entries/{id}/settle`: `finance` when the shortfall is within the limit (5%), `super_admin` above it, null when there is nothing to settle (not due yet, paid, closed) — and always null to a consultancy.
+             * @enum {string|null}
+             */
+            settle_needs: "finance" | "super_admin" | null;
             /** @description A durable id for this due part (gate 11, F9 — every part is its own `commission_dues` row once the dues engine lands, never recomputed from scratch). The instalment, override or added row this part comes from. Still null on the frozen mock for a purely-calculated part with nothing triggering it (a share worked out fresh on every read, with no row of its own to point at) — the production backend gives every part an id, calculated ones included. */
             id: components["schemas"]["UUID"] | null;
             /** @enum {string} */
@@ -32232,6 +32500,18 @@ export interface components {
             instalment_received_on: string | null;
             /** @description The college instalment this part is a share of, as the consultancy recorded it. */
             instalment_amount: components["schemas"]["Money"] | null;
+            /**
+             * Format: uuid
+             * @description F-078. The installment this part is the share of (null for any other part).
+             */
+            instalment_id: string | null;
+            /**
+             * Format: date-time
+             * @description F-078. Set while the consultancy's void of that installment waits for Finance's answer (`POST /commission-entries/{id}/installments/{installmentId}/void-decision`).
+             */
+            instalment_void_requested_at: string | null;
+            /** @description F-078. The consultancy's reason for the void that is waiting. */
+            instalment_void_request_reason: string | null;
             paid: number;
             outstanding: number;
             /** @enum {string} */
@@ -32243,10 +32523,10 @@ export interface components {
             part_key: string | null;
             id: components["schemas"]["UUID"];
             /**
-             * @description original_changed is an override of the calculated share.
+             * @description original_changed is an override of the calculated share. settled (2026-10-08) is a small-difference settlement: `amount` is the shortfall written off.
              * @enum {string}
              */
-            kind: "added" | "original_changed" | "waived";
+            kind: "added" | "original_changed" | "waived" | "settled";
             amount: number;
             currency: string;
             /** Format: date */
@@ -32265,6 +32545,12 @@ export interface components {
         };
         /** @description A platform payment declared against ONE commission entry's due (reworked 2026-08-28 — "consultant click on the due transaction and enter the amount"). Legacy pooled payments recorded before this change carry a null commission_entry_id and show as "General" rather than against any one case. No proof upload is required or accepted; the optional transaction_id is the consultant's own bank/UPI reference, for their own bookkeeping — confirmation by immiNow finance is what actually settles the due. */
         CommissionPayment: {
+            /** @description F-079. Set on a payment Finance recorded in another currency than the one owed (`allow_cross_currency`): the currency of the dues it settles. Null on every same-currency payment. `amount` stays what arrived, in its own currency. */
+            readonly settles_currency: string | null;
+            /** @description F-079. Units of `settles_currency` that one unit of `amount.currency` settles — Finance's stated rate (or the day's), frozen when the payment was recorded. */
+            readonly settles_rate: number | null;
+            /** @description F-079. What the payment has settled so far, in `settles_currency` (the sum of its allocations). Null on a same-currency payment. */
+            readonly settled: components["schemas"]["Money"] | null;
             /** @description Recorded directly by immiNow Finance (money that arrived without a declaration). */
             readonly recorded_by_finance: boolean;
             /** Format: date */
@@ -32349,10 +32635,10 @@ export interface components {
             /**
              * @description The base CRUD/view set, plus named actions the mock writes that are not really a create/update/delete of the row they attach to (gate 2, 2026-09-24, grepped from every `recordAudit` call in the mock): `kyc_verified`, `link_college`, `rating_requested` (freelancer), `renewal_requested`, `upgrade_requested`, `upgrade_request_withdrawn` (consultancy plan), `rating_override_set`/ `rating_override_cleared` (Super Admin on a consultancy's rating), `rating_excluded`/`rating_restored` (2026-10-06: platform staff taking a student's rating out of a consultancy's score, or putting it back; entity_type `rating`), `hide`/`publish` (review moderation), and `country_content.updated` (the one dotted name in the set — left as the mock already writes it rather than renamed to fit the others).
              *
-             *     Gate 12c (2026-10-02) adds the named actions Waves 6 and 7 record (plan §4, §5). A plain create/update of a row stays `create`/`update` (an invoice, receipt, installment, dues row, complaint, freelancer rate or app-config edit); a name below is for an act that is more than that. Settlement (area `billing` for the consultancy's writes, `finance` for platform ones): `installment_voided`, `due_added`, `due_overridden` (the original due), `due_waived`, `due_change_voided`, `payment_declared`, `payment_confirmed`, `payment_rejected`, `payment_corrected`, `payment_received` (Finance's receive). Invoicing (`billing`): `invoice_voided`, `receipt_voided`. Moderation: `applicant_allocated`, `applicant_declined`. Support (`support`): `case_switched`, `email_changed`, `data_exported`, `note_added` (case notes, complaint and dispute notes, follow-up notes), `nudge_sent` (student and visit-request nudges), `complaint_assigned`, `complaint_resolved`, `dispute_raised`, `dispute_escalated`, `dispute_picked_up`, `dispute_resolved`. Freelancers: `freelancer_invited`, `freelancer_invite_resent`, `freelancer_rate_set`, `freelancer_payout_recorded`, `freelancer_payout_voided`. Platform: `app_config_changed`, `analytics_archived`, `analytics_restored` (Q8's archive and restore jobs). Also listed because the backend already writes them and the contract never did: `merchant_code_rejected` (a wrong redemption-partner code, K17) and `freelancer_referral_payment_updated` (legacy; F55 retired the field, so no new rows). Every value is a superset addition — none renamed or removed. The mock writes none of the new ones.
+             *     Gate 12c (2026-10-02) adds the named actions Waves 6 and 7 record (plan §4, §5). A plain create/update of a row stays `create`/`update` (an invoice, receipt, installment, dues row, complaint, freelancer rate or app-config edit); a name below is for an act that is more than that. Settlement (area `billing` for the consultancy's writes, `finance` for platform ones): `installment_voided`, `installment_void_requested` (the consultancy asks to void an installment whose share is due), `installment_void_declined` (Finance says no; an approval is `installment_voided` under `finance`), `due_added`, `due_overridden` (the original due), `due_settled` (a small shortfall written off), `due_waived`, `due_change_voided`, `payment_declared`, `payment_confirmed`, `payment_rejected`, `payment_corrected`, `payment_received` (Finance's receive). Invoicing (`billing`): `invoice_voided`, `receipt_voided`. Moderation: `applicant_allocated`, `applicant_declined`. Support (`support`): `case_switched`, `email_changed`, `data_exported`, `note_added` (case notes, complaint and dispute notes, follow-up notes), `nudge_sent` (student and visit-request nudges), `complaint_assigned`, `complaint_resolved`, `dispute_raised`, `dispute_escalated`, `dispute_picked_up`, `dispute_resolved`. Freelancers: `freelancer_invited`, `freelancer_invite_resent`, `freelancer_rate_set`, `freelancer_payout_recorded`, `freelancer_payout_voided`. Platform: `app_config_changed`, `analytics_archived`, `analytics_restored` (Q8's archive and restore jobs). Also listed because the backend already writes them and the contract never did: `merchant_code_rejected` (a wrong redemption-partner code, K17) and `freelancer_referral_payment_updated` (legacy; F55 retired the field, so no new rows). Every value is a superset addition — none renamed or removed. The mock writes none of the new ones.
              * @enum {string}
              */
-            action_type: "create" | "update" | "delete" | "view" | "kyc_verified" | "link_college" | "rating_requested" | "renewal_requested" | "upgrade_requested" | "upgrade_request_withdrawn" | "rating_override_set" | "rating_override_cleared" | "rating_excluded" | "rating_restored" | "hide" | "publish" | "country_content.updated" | "installment_voided" | "due_added" | "due_overridden" | "due_waived" | "due_change_voided" | "payment_declared" | "payment_confirmed" | "payment_rejected" | "payment_corrected" | "payment_received" | "invoice_voided" | "receipt_voided" | "applicant_allocated" | "applicant_declined" | "case_switched" | "email_changed" | "data_exported" | "note_added" | "nudge_sent" | "complaint_assigned" | "complaint_resolved" | "dispute_raised" | "dispute_escalated" | "dispute_picked_up" | "dispute_resolved" | "freelancer_invited" | "freelancer_invite_resent" | "freelancer_rate_set" | "freelancer_payout_recorded" | "freelancer_payout_voided" | "app_config_changed" | "analytics_archived" | "analytics_restored" | "merchant_code_rejected" | "freelancer_referral_payment_updated";
+            action_type: "create" | "update" | "delete" | "view" | "kyc_verified" | "link_college" | "rating_requested" | "renewal_requested" | "upgrade_requested" | "upgrade_request_withdrawn" | "rating_override_set" | "rating_override_cleared" | "rating_excluded" | "rating_restored" | "hide" | "publish" | "country_content.updated" | "installment_voided" | "installment_void_requested" | "installment_void_declined" | "due_added" | "due_overridden" | "due_waived" | "due_change_voided" | "due_settled" | "payment_declared" | "payment_confirmed" | "payment_rejected" | "payment_corrected" | "payment_received" | "invoice_voided" | "receipt_voided" | "applicant_allocated" | "applicant_declined" | "case_switched" | "email_changed" | "data_exported" | "note_added" | "nudge_sent" | "complaint_assigned" | "complaint_resolved" | "dispute_raised" | "dispute_escalated" | "dispute_picked_up" | "dispute_resolved" | "freelancer_invited" | "freelancer_invite_resent" | "freelancer_rate_set" | "freelancer_payout_recorded" | "freelancer_payout_voided" | "app_config_changed" | "analytics_archived" | "analytics_restored" | "merchant_code_rejected" | "freelancer_referral_payment_updated";
             /** @description e.g. lead, client, plan, step, employee, designation, branch, tag. */
             entity_type: string;
             /** @description The audited entity's key. A UUID for most entities; some are keyed by something else the mock already writes here — a country by name (`country_content.updated`), a currency code, a coupon/referral code, or the literal `defaults`, `platform_settings`, `app_config` or `trending` for singleton configuration rows (gate 2, 2026-09-24). */

@@ -45,7 +45,7 @@ function EditEmployeeModalBody({
   designations: Designation[]
   onClose: () => void
 }) {
-  const updateEmployee = useUpdateEmployee(employee.id!)
+  const updateEmployee = useUpdateEmployee(employee.id!, employee.version)
   const [firstName, setFirstName] = useState(employee.user!.first_name)
   const [lastName, setLastName] = useState(employee.user!.last_name)
   const [phone, setPhone] = useState(employee.user!.phone ?? '')

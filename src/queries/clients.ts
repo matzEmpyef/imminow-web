@@ -9,6 +9,7 @@ import { refreshStanding } from './standing'
 import { useThreadMessages } from './threadMessages'
 import { invalidateApplicantRequests, type ApplicantRequest } from './applicantRequests'
 import { isAlreadyApplied } from '@/lib/useIdempotencyKey'
+import { editError, reloadOnStaleEdit } from '@/lib/staleEdit'
 import type { components } from '@/api/schema'
 
 type InternalNote = components['schemas']['InternalNote']
@@ -143,21 +144,25 @@ export function useSetClientTags() {
   })
 }
 
+// `version` is the case record's version as last read (review F-075): a stale one is refused 409
+// `version_conflict`, the case is read again and the person is told (`lib/staleEdit.ts`). The same
+// on the finalized country and the reassignment below.
 export function useSetClientBranch() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, branchId }: { id: string; branchId: string }) => {
+    mutationFn: async ({ id, branchId, version }: { id: string; branchId: string; version?: number }) => {
       const { data, error } = await api.PATCH('/clients/{id}/branch', {
         params: { path: { id } },
-        body: { branch_id: branchId },
+        body: { branch_id: branchId, version },
       })
-      if (error) throw new ApiError('Could not update the branch for this client.', error)
+      if (error) throw editError('Could not update the branch for this client.', error)
       return data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })
       refreshStanding(queryClient)
     },
+    onError: (err) => reloadOnStaleEdit(err, () => queryClient.invalidateQueries({ queryKey: ['clients'] })),
   })
 }
 
@@ -167,15 +172,16 @@ export function useSetClientBranch() {
 export function useSetFinalizedCountry() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, country }: { id: string; country: string | null }) => {
+    mutationFn: async ({ id, country, version }: { id: string; country: string | null; version?: number }) => {
       const { data, error } = await api.PATCH('/clients/{id}/finalized-country', {
         params: { path: { id } },
-        body: { country },
+        body: { country, version },
       })
-      if (error) throw new ApiError('Could not update the finalized country for this client.', error)
+      if (error) throw editError('Could not update the finalized country for this client.', error)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
+    onError: (err) => reloadOnStaleEdit(err, () => queryClient.invalidateQueries({ queryKey: ['clients'] })),
   })
 }
 
@@ -219,21 +225,22 @@ export function useTransferApplicant(clientId: string) {
   })
 }
 
-export function useAssignClient(clientId: string) {
+export function useAssignClient(clientId: string, version?: number) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (assignedEmployeeId: string) => {
       const { data, error } = await api.PATCH('/clients/{id}/assign', {
         params: { path: { id: clientId } },
-        body: { assigned_employee_id: assignedEmployeeId },
+        body: { assigned_employee_id: assignedEmployeeId, version },
       })
-      if (error) throw new ApiError('Could not assign this client.', error)
+      if (error) throw editError('Could not assign this client.', error)
       return data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })
       refreshStanding(queryClient)
     },
+    onError: (err) => reloadOnStaleEdit(err, () => queryClient.invalidateQueries({ queryKey: ['clients'] })),
   })
 }
 
@@ -362,6 +369,31 @@ export function useCreatePrCommissionEntry(clientId: string) {
     },
     onSuccess: () => {
       // case_summary.contribution_recorded flips, and Close Case reads it (2026-09-10).
+      queryClient.invalidateQueries({ queryKey: ['clients', clientId] })
+      queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'commissions'] })
+      queryClient.invalidateQueries({ queryKey: ['commission'] })
+      queryClient.invalidateQueries({ queryKey: [FINANCE_QUERY_KEY] })
+    },
+  })
+}
+
+// PR cases only (review F-081): voids a contribution recorded with the wrong amount or currency, so
+// the right one can be recorded. Needs `billing.record_payment`. The server refuses once money is
+// recorded against it (409 `part_settled`) and on a student case (409 `conflict`); its sentence is
+// what the dialog shows.
+export function useVoidPrCommissionEntry(clientId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (reason: string) => {
+      const { data, error } = await api.POST('/clients/{id}/commission-entry/void', {
+        params: { path: { id: clientId } },
+        body: { reason },
+      })
+      if (error) throw new ApiError('Could not void the contribution.', error)
+      return data
+    },
+    onSuccess: () => {
+      // The same views recording it refreshes: case_summary.contribution_recorded flips back.
       queryClient.invalidateQueries({ queryKey: ['clients', clientId] })
       queryClient.invalidateQueries({ queryKey: ['clients', clientId, 'commissions'] })
       queryClient.invalidateQueries({ queryKey: ['commission'] })

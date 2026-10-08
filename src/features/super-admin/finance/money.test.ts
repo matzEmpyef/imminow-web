@@ -7,6 +7,7 @@ import {
   paymentInrNote,
   paymentMoney,
   paymentRateToInr,
+  paymentSettlesNote,
   paymentsTotalLabel,
 } from './money'
 import { PAYMENT_HISTORY_COLUMNS } from './paymentHistoryCsv'
@@ -169,5 +170,37 @@ describe('paymentRateToInr', () => {
 
   it('is null when there is nothing to work a rate from', () => {
     expect(paymentRateToInr({ amount: { amount: 0, currency: 'CAD' }, rate_used: null })).toBeNull()
+  })
+})
+
+// Review F-079: a payment Finance recorded in another currency than the one owed says what it
+// settled, from the three facts the server froze on it.
+describe('paymentSettlesNote', () => {
+  it('says what it settled and at what rate', () => {
+    expect(
+      paymentSettlesNote({
+        amount: { amount: 1000, currency: 'USD' },
+        settles_currency: 'CAD',
+        settles_rate: 1.4,
+        settled: { amount: 1400, currency: 'CAD' },
+      }),
+    ).toBe('Settled CAD 1,400 of the CAD dues · 1 USD = 1.4 CAD')
+  })
+
+  it('writes rupee dues with the symbol', () => {
+    expect(
+      paymentSettlesNote({
+        amount: { amount: 100, currency: 'USD' },
+        settles_currency: 'INR',
+        settles_rate: 84,
+        settled: { amount: 8400, currency: 'INR' },
+      }),
+    ).toBe('Settled ₹8,400 of the INR dues · 1 USD = 84 INR')
+  })
+
+  it('is nothing on a payment in the currency owed', () => {
+    expect(paymentSettlesNote({ amount: { amount: 1000, currency: 'CAD' }, settles_currency: null })).toBeNull()
+    expect(paymentSettlesNote({ amount: { amount: 1000, currency: 'CAD' } })).toBeNull()
+    expect(paymentSettlesNote(undefined)).toBeNull()
   })
 })

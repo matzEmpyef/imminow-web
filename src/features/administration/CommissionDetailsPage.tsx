@@ -10,7 +10,7 @@ import { usePermissionChecker } from '@/lib/permissions'
 import { useAccountWords } from '@/lib/accountWords'
 import { useCommission } from '@/queries/commission'
 import { cursorPager, useCursorPagination } from '@/lib/pagination'
-import { creditsByCurrency } from '@/features/super-admin/finance/money'
+import { creditsByCurrency, paymentSettlesNote } from '@/features/super-admin/finance/money'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { formatDate } from '@/lib/time'
 import { formatApprox, formatMoney, formatMoneyAmount, inrOrDash } from '@/lib/money'
@@ -77,6 +77,8 @@ function PaymentHistoryTab({ payments, pagination }: { payments: CommissionPayme
               <span className="text-caption text-text-secondary">Declared {formatMoneyAmount(p.declared_amount)}</span>
             )}
             {p.received_note && <span className="text-caption text-text-secondary">{p.received_note}</span>}
+            {/* It arrived in another currency than the one owed (review F-079): what it settled. */}
+            {paymentSettlesNote(p) && <span className="text-caption text-text-secondary">{paymentSettlesNote(p)}</span>}
           </div>
         )
       },
@@ -304,11 +306,18 @@ export function CommissionDetailsPage() {
       render: (due) => {
         const paid = due.platform_paid.amount ?? 0
         const awaiting = due.platform_awaiting.amount ?? 0
-        if (paid === 0 && awaiting === 0) return <span className="text-text-secondary">—</span>
+        // A small difference written off by immiNow Finance (2026-10-08): its own figure beside
+        // what was paid, never inside it.
+        const writtenOff = due.platform_written_off?.amount ?? 0
+        if (paid === 0 && awaiting === 0 && writtenOff === 0 && !due.settled) {
+          return <span className="text-text-secondary">—</span>
+        }
         return (
           <div className="flex flex-col items-end gap-2xs">
             {paid > 0 && <Badge color="success">{inr(due.platform_paid)} paid</Badge>}
             {awaiting > 0 && <Badge color="secondary">{inr(due.platform_awaiting)} awaiting</Badge>}
+            {writtenOff > 0 && <Badge color="secondary">{inr(due.platform_written_off)} written off</Badge>}
+            {due.settled && <Badge color="info">Settled</Badge>}
           </div>
         )
       },

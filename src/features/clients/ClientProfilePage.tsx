@@ -241,29 +241,39 @@ export function ClientProfilePage() {
         )}
 
         {showReopen && (
-          <Card className="flex items-end gap-sm">
-            <TextField
-              label="Reason (mandatory)"
-              value={reopenReason}
-              onChange={(e) => setReopenReason(e.target.value)}
-              className="flex-1"
-            />
-            <Button
-              variant="destructive"
-              disabled={!reopenReason}
-              loading={reopenPlan.isPending}
-              onClick={() =>
-                reopenPlan.mutate(reopenReason, {
-                  onSuccess: () => {
-                    showToast('Plan reopened')
-                    setShowReopen(false)
-                    setReopenReason('')
-                  },
-                })
-              }
-            >
-              Confirm Reopen
-            </Button>
+          <Card className="flex flex-col gap-sm">
+            <div className="flex items-end gap-sm">
+              <TextField
+                label="Reason (mandatory)"
+                value={reopenReason}
+                onChange={(e) => setReopenReason(e.target.value)}
+                className="flex-1"
+              />
+              <Button
+                variant="destructive"
+                disabled={!reopenReason}
+                loading={reopenPlan.isPending}
+                onClick={() =>
+                  reopenPlan.mutate(reopenReason, {
+                    onSuccess: () => {
+                      showToast('Plan reopened')
+                      setShowReopen(false)
+                      setReopenReason('')
+                    },
+                  })
+                }
+              >
+                Confirm Reopen
+              </Button>
+            </div>
+            {/* The server's own sentence, beside the button that was refused (review F-069): a plan is
+                reopened only at a completed step, and never while another step is in progress (409
+                `conflict`). */}
+            {reopenPlan.isError && (
+              <p role="alert" className="text-body-sm text-error">
+                {reopenPlan.error.message}
+              </p>
+            )}
           </Card>
         )}
 

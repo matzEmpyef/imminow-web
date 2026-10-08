@@ -200,7 +200,7 @@ export function OverviewTab({
           <span className="text-body-sm font-medium text-primary">Country finalized to apply</span>
           <CompactSelect
             value={data.finalized_country ?? ''}
-            onChange={(e) => setFinalizedCountry.mutate({ id: clientId, country: e.target.value || null })}
+            onChange={(e) => setFinalizedCountry.mutate({ id: clientId, country: e.target.value || null, version: data.version })}
             disabled={readOnly || setFinalizedCountry.isPending}
             title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
             label="Country finalized to apply"
@@ -353,7 +353,7 @@ export function OverviewTab({
                   <AssignBranchMenu
                     branches={employeeBranches.map((b) => ({ id: b.id!, name: b.name }))}
                     currentBranchId={data.branch_id}
-                    onSelect={(branchId) => setClientBranch.mutate({ id: clientId, branchId })}
+                    onSelect={(branchId) => setClientBranch.mutate({ id: clientId, branchId, version: data.version })}
                     label={
                       readOnly ? CASE_MOVED_ACTION_REASON : `Set branch for ${data.student.first_name} ${data.student.last_name}`
                     }

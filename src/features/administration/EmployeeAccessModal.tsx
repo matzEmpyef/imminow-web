@@ -75,7 +75,7 @@ function AccessModalBody({
   hasDesignations: boolean
   onClose: () => void
 }) {
-  const updateEmployee = useUpdateEmployee(employee.id!)
+  const updateEmployee = useUpdateEmployee(employee.id!, employee.version)
   const disableEmployee = useDisableEmployee()
   const [designationId, setDesignationId] = useState(employee.designation_id ?? '')
   // The stored primary, or the fallback the server itself applies when none was ever chosen —

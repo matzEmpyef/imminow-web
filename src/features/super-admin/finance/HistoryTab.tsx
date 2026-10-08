@@ -6,7 +6,7 @@ import { StopPropagation } from '@/components/StopPropagation'
 import { Table, type TableColumn } from '@/components/Table'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate, localDateISO } from '@/lib/time'
-import { money, paymentInrNote, paymentMoney } from './money'
+import { money, paymentInrNote, paymentMoney, paymentSettlesNote } from './money'
 import { fetchAllFinancePayments, useFinancePayments } from '@/queries/financeDashboard'
 import type { CommissionPayment } from '@/queries/commission'
 import { ConsultancySearchSelect } from './ConsultancySearchSelect'
@@ -92,6 +92,11 @@ export function HistoryTab() {
               moved whenever the rate table was edited. */}
           {paymentInrNote(p) && (
             <span className="whitespace-nowrap text-caption text-text-secondary">{paymentInrNote(p)}</span>
+          )}
+          {/* Recorded in another currency than the one owed (review F-079): what it settled, and
+              at the rate frozen on it. */}
+          {paymentSettlesNote(p) && (
+            <span className="whitespace-nowrap text-caption text-text-secondary">{paymentSettlesNote(p)}</span>
           )}
         </div>
       ),

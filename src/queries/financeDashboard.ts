@@ -80,6 +80,8 @@ export interface FinanceCasesFilters {
   rate_source?: 'configured' | 'fallback_default'
   /** A dated due part is past its date and unpaid (2026-09-11) — Cases' "Overdue" quick filter and the Overview tile both land here. */
   overdue?: boolean
+  /** A consultancy's void of an installment is waiting for Finance's answer (review F-078) — Cases' "Void requests" quick filter; `meta.total` is the count. */
+  void_requested?: boolean
   from?: string
   to?: string
   sort?: string
@@ -95,6 +97,7 @@ function financeCasesFilter(filters: FinanceCasesFilters): Record<string, string
   if (filters.payment_status) filter.payment_status = filters.payment_status
   if (filters.rate_source) filter.rate_source = filters.rate_source
   if (filters.overdue) filter.overdue = 'true'
+  if (filters.void_requested) filter.void_requested = 'true'
   if (filters.from) filter.from = filters.from
   if (filters.to) filter.to = filters.to
   return filter
@@ -120,6 +123,27 @@ export function useFinanceCases(filters: FinanceCasesFilters = {}) {
       })
       if (error) throw new ApiError('Could not load commission cases.', error)
       return data
+    },
+    enabled: isAuthed,
+  })
+}
+
+/**
+ * How many cases have a void of an installment waiting for Finance (review F-078): the `meta.total`
+ * of the cases list filtered to them, asked for one row. Sits under the same key prefix as the
+ * list, so every finance write refreshes it.
+ */
+export function useFinanceVoidRequestCount() {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: [FINANCE_QUERY_KEY, 'cases', 'void-request-count'],
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/commission/finance/cases', {
+        signal,
+        params: { query: { filter: { void_requested: 'true' }, limit: 1 } },
+      })
+      if (error) throw new ApiError('Could not count the void requests.', error)
+      return data?.meta.total ?? 0
     },
     enabled: isAuthed,
   })
@@ -317,6 +341,9 @@ export function useReceiveCommissionDue() {
       reference,
       note,
       allow_overpayment,
+      allow_cross_currency,
+      owed_currency,
+      rate,
       idempotencyKey,
     }: {
       entryId: string
@@ -328,10 +355,27 @@ export function useReceiveCommissionDue() {
       reference?: string
       note?: string
       allow_overpayment?: boolean
+      /** The money arrived in another currency than the one owed (review F-079): `amount` and `currency` are what reached the bank. */
+      allow_cross_currency?: boolean
+      /** With `allow_cross_currency`: the currency of the dues it settles. */
+      owed_currency?: string
+      /** With `allow_cross_currency`: units of the owed currency one unit of `currency` settles. Left out, the server uses the day's rate. */
+      rate?: number
     }) => {
       const { data, error, response } = await api.POST('/commission-entries/{id}/receive', {
         params: { path: { id: entryId }, header: { 'Idempotency-Key': idempotencyKey ?? crypto.randomUUID() } },
-        body: { amount, currency, part_key, received_on, reference, note, allow_overpayment },
+        body: {
+          amount,
+          currency,
+          part_key,
+          received_on,
+          reference,
+          note,
+          allow_overpayment,
+          allow_cross_currency,
+          owed_currency,
+          rate,
+        },
       })
       if (error) throw new ApiError('Could not record this payment.', error, response?.status)
       return data
@@ -373,6 +417,75 @@ export function useWaiveCommissionDue() {
     // The write already went through (the first answer was lost): refresh what success refreshes.
     onError: (err) => {
       if (isAlreadyApplied(err)) invalidateFinanceCaseViews(queryClient)
+    },
+  })
+}
+
+// Small-difference settlement (owner's ruling 2026-10-06): Finance marks a due part fully paid by
+// writing off a small shortfall, with a reason. Who may do it is the server's answer on the part
+// (`settle_needs`); above the limit it refuses anyone but a Super Admin with 403
+// `permission_denied`, `details.shortfall_percent` and `details.limit_percent`. 409 `conflict` when
+// the part is not due, already paid or closed. Undone with useVoidCommissionDue against the part's
+// `settle_change_id`.
+export function useSettleCommissionDue() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      entryId,
+      part_key,
+      reason,
+      idempotencyKey,
+    }: {
+      entryId: string
+      part_key: string
+      reason: string
+      idempotencyKey?: string
+    }) => {
+      const { data, error, response } = await api.POST('/commission-entries/{id}/settle', {
+        params: { path: { id: entryId }, header: { 'Idempotency-Key': idempotencyKey ?? crypto.randomUUID() } },
+        body: { part_key, reason },
+      })
+      if (error) throw new ApiError('Could not mark this part as fully paid.', error, response?.status)
+      return data
+    },
+    onSuccess: () => invalidateFinanceCaseViews(queryClient),
+    // The write already went through (the first answer was lost): refresh what success refreshes.
+    onError: (err) => {
+      if (isAlreadyApplied(err)) invalidateFinanceCaseViews(queryClient)
+    },
+  })
+}
+
+// Finance's answer to a consultancy's void of an installment whose share is already due (review
+// F-078). Approving voids the installment as the consultancy asked; declining needs a reason the
+// consultancy is shown and leaves the installment and its share as they are. 409 `conflict` when no
+// void is waiting any more, `already_voided`, or `part_settled` when a payment was applied to the
+// share meanwhile — the case is read again on any of them, since the drawer is showing a request
+// that no longer stands.
+export function useDecideInstallmentVoid() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      entryId,
+      installmentId,
+      approve,
+      reason,
+    }: {
+      entryId: string
+      installmentId: string
+      approve: boolean
+      reason?: string
+    }) => {
+      const { data, error, response } = await api.POST(
+        '/commission-entries/{id}/installments/{installmentId}/void-decision',
+        { params: { path: { id: entryId, installmentId } }, body: { approve, reason } },
+      )
+      if (error) throw new ApiError('Could not record this decision.', error, response?.status)
+      return data
+    },
+    onSuccess: () => invalidateFinanceCaseViews(queryClient),
+    onError: (err) => {
+      if (err instanceof ApiError && err.status === 409) invalidateFinanceCaseViews(queryClient)
     },
   })
 }

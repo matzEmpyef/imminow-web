@@ -15,7 +15,8 @@ const MIN_REASON_LENGTH = 3
  * Voids a mis-entered installment (contract gate 11, F14). It replaces the old one-click Remove:
  * the row is never deleted — it stays in the record marked void with the reason and who voided it —
  * so a reason is mandatory. The server refuses with `part_settled` when a payment is already
- * allocated against the installment's share part; that message is shown here as-is.
+ * allocated against the installment's share part; that message is shown here as-is. So is the 409
+ * `conflict` for a void that is already waiting for immiNow Finance (review F-078).
  */
 export function VoidInstallmentModal({
   clientId,
@@ -47,8 +48,12 @@ export function VoidInstallmentModal({
             onClose()
           }
         },
-        onSuccess: () => {
-          showToast('Installment voided')
+        onSuccess: (result) => {
+          // The share of this installment is already due (review F-078): the server kept the
+          // installment and passed the void to immiNow Finance. The row now reads "Waiting for
+          // immiNow Finance" with this reason.
+          const waiting = !result?.voided_at && Boolean(result?.void_requested_at)
+          showToast(waiting ? 'Void sent to immiNow Finance for approval' : 'Installment voided')
           onClose()
         },
       },

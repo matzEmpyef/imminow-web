@@ -3,6 +3,7 @@ import { useMutation } from '@/lib/useSave'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { editError, reloadOnStaleEdit } from '@/lib/staleEdit'
 import type { components } from '@/api/schema'
 
 type CourseInput = components['schemas']['CourseInput']
@@ -137,12 +138,15 @@ export function useCreateCourse() {
   })
 }
 
-export function useUpdateCourse(id: string) {
+// `version` is the course's version as last read (review F-075), sent to those who can edit it. A
+// stale save is refused 409 `version_conflict`: the course is read again and the form keeps what
+// was typed (`lib/staleEdit.ts`).
+export function useUpdateCourse(id: string, version?: number) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (body: Partial<CourseInput>) => {
-      const { data, error } = await api.PATCH('/courses/{id}', { params: { path: { id } }, body })
-      if (error) throw new ApiError('Could not update this course.', error)
+      const { data, error } = await api.PATCH('/courses/{id}', { params: { path: { id } }, body: { ...body, version } })
+      if (error) throw editError('Could not update this course.', error)
       return data
     },
     // Phase 5 cleanup (2026-09-24): the same breadth as useSetIntakeDeadline below — a course edit showed
@@ -155,6 +159,13 @@ export function useUpdateCourse(id: string) {
       queryClient.invalidateQueries({ queryKey: ['admin-college'] })
       queryClient.invalidateQueries({ queryKey: ['course-suggestions'] })
     },
+    // The course as it now stands, wherever this screen read it from.
+    onError: (err) =>
+      reloadOnStaleEdit(err, () => {
+        queryClient.invalidateQueries({ queryKey: ['courses'] })
+        queryClient.invalidateQueries({ queryKey: ['course', id] })
+        queryClient.invalidateQueries({ queryKey: ['admin-college'] })
+      }),
   })
 }
 

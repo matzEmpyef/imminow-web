@@ -1,3 +1,4 @@
+import { auditActionLabel } from '@/lib/auditActions'
 import { useState } from 'react'
 import { AUDIT_SEARCH_HINT, AUDIT_SEARCH_PLACEHOLDER, AuditEntryDetail } from '@/features/administration/AuditEntryDetail'
 import { AuditDateRange, AuditWindowNote } from '@/features/administration/AuditDateRange'
@@ -64,12 +65,17 @@ function labelize(value: string): string {
     .join(' ')
 }
 
+// An action with words of its own (`lib/auditActions.ts`) reads as those; every other one as above.
+function actionLabel(action: string): string {
+  return auditActionLabel(action) ?? labelize(action)
+}
+
 type Entry = NonNullable<ReturnType<typeof usePlatformAuditLog>['data']>['items'][number]
 
 const AUDIT_LOG_CSV_COLUMNS: CsvColumn<Entry>[] = [
   { header: 'Time', value: (e) => formatDateTime(e.created_at) },
   { header: 'Actor', value: (e) => e.actor_name ?? 'Unknown' },
-  { header: 'Action', value: (e) => labelize(e.action_type) },
+  { header: 'Action', value: (e) => actionLabel(e.action_type) },
   { header: 'Area', value: (e) => AREA_LABELS[e.area] ?? labelize(e.area) },
   { header: 'Entity type', value: (e) => labelize(e.entity_type) },
   { header: 'Entity', value: (e) => e.entity_label ?? '' },
@@ -129,7 +135,7 @@ export function PlatformAuditLogPage() {
       sortable: true,
       render: (e) => (
         <Badge color={ACTION_COLORS[e.action_type as keyof typeof ACTION_COLORS] ?? 'secondary'}>
-          {labelize(e.action_type)}
+          {actionLabel(e.action_type)}
         </Badge>
       ),
     },
