@@ -114,6 +114,7 @@ describe('pickers moved to server search (F-038)', () => {
       new_consultancy_id: 'acc-140',
       reason: 'Moving city',
       transfer_code: '7F2K9C1A',
+      carry: { documents: true, applications: false, preferences: false, chat: false },
     })
   })
 

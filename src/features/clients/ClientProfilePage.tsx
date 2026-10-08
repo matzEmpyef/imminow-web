@@ -11,6 +11,7 @@ import { usePlans } from '@/queries/plans'
 import { useFeature } from '@/lib/features'
 import { usePermission } from '@/lib/permissions'
 import { showToast } from '@/lib/toast'
+import { carriedOverLine } from '@/lib/caseCarry'
 import { CloseClientModal } from './CloseClientModal'
 import { RaiseIssueModal } from './RaiseIssueModal'
 import { CLIENT_TABS, isClientTab, type ClientTab } from '@/lib/clientTabs'
@@ -110,6 +111,7 @@ export function ClientProfilePage() {
   // the same place and shape as the moved-case banner.
   const accountDeletedBanner = accountDeletedBannerMessage(data)
   const closeReason = closeSubReasonLabel(data.close_sub_reason)
+  const carriedOver = carriedOverLine(data.carried)
   // Was a raw role === 'consultancy_admin' check — swapped to the permission key so an employee
   // whose designation grants clients.view_commissions actually gets the tab (admins still pass
   // via the is_consultancy_admin bypass inside the checker).
@@ -169,6 +171,10 @@ export function ClientProfilePage() {
                   </>
                 )}
               </p>
+              {/* A case that arrived by a move says what came with it (owner's ruling on review
+                  I-014, 2026-10-08), so nobody goes looking for a chat or applications that were
+                  never shared. Nothing is shown for a case that started here. */}
+              {carriedOver && <p className="text-body-sm text-text-secondary">{carriedOver}</p>}
             </div>
           </div>
           <div className="flex gap-sm">

@@ -34,9 +34,8 @@ import { formatDate, localDateISO } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { formatMoney } from '@/lib/money'
 import { useCurrencyCodes } from '@/lib/currencies'
-import { useConsultancyKyc, useVerifyKyc } from '@/queries/kyc'
 import { CONSULTANCY_PLAN_COLUMNS, useCanSeeConsultancyPlans } from '@/lib/me'
-import { KycDocument } from '@/components/KycDocument'
+import { KycSection } from './ManageConsultancyKyc'
 import type { components } from '@/api/schema'
 import { BUSINESS_FEATURES, ULTIMATE_FEATURES, STARTER_FEATURES, STARTER_CORE_FEATURES, TIER_ORDER, FEATURE_KEYS, type FeatureDef } from '@/lib/features'
 import { humaniseCode } from '@/lib/humanise'
@@ -502,47 +501,8 @@ function ReactivateConfirmModal({
 // then two tabs. Account holds the things that act the moment you use them — subscription, KYC,
 // rating, partner colleges — as one card of matching rows, with Suspend set apart at the bottom
 // behind its typed confirm. Plan & features is the one form in the popup, and the only place the
-// Save button appears, so it is never unclear what Save covers.
-/**
- * KYC review inside Manage (2026-08-19) — the other half of the consultancy's certificate
- * upload. Verify is enabled only when a document exists (the server 400s otherwise too — a
- * badge is never granted sight unseen), and the submitted certificate opens in a new tab for
- * actual review before approving.
- */
-function KycSection({ consultancyId, kycVerified }: { consultancyId: string; kycVerified: boolean }) {
-  const kyc = useConsultancyKyc(consultancyId)
-  const verify = useVerifyKyc()
-  const status = kyc.data?.status ?? (kycVerified ? 'verified' : 'not_submitted')
-
-  return (
-    <div className="flex items-center justify-between gap-md p-md">
-      <div className="min-w-0">
-        <p className="flex items-center gap-sm text-body-sm font-medium text-text-primary">
-          KYC
-          <Badge
-            color={status === 'verified' ? 'success' : status === 'pending' ? 'warning' : 'secondary'}
-            className="capitalize"
-          >
-            {status.replace(/_/g, ' ')}
-          </Badge>
-        </p>
-        {kyc.data?.document_url ? (
-          <div className="mt-xs">
-            <KycDocument kyc={kyc.data} label="certificate" size="sm" />
-          </div>
-        ) : (
-          <p className="text-caption text-text-secondary">No certificate submitted yet.</p>
-        )}
-        {verify.isError && <p className="text-caption text-error">{verify.error.message}</p>}
-      </div>
-      {status === 'pending' && (
-        <Button variant="secondary" loading={verify.isPending} onClick={() => verify.mutate(consultancyId)}>
-          Verify
-        </Button>
-      )}
-    </div>
-  )
-}
+// Save button appears, so it is never unclear what Save covers. The KYC row is `KycSection`
+// (ManageConsultancyKyc.tsx).
 
 // Subscription enforcement (2026-09-10, user: "14 days grace, keep serving existing clients, super
 // admin renews" / "after 14 days let only admin login"). The status is server-derived; this row

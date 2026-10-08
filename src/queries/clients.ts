@@ -199,13 +199,20 @@ export function useTransferApplicant(clientId: string) {
       newConsultancyId: string
       reason: string
       transferCode: string
+      /** What goes with the case, all four keys (owner's ruling on review I-014, 2026-10-08). */
+      carry: components['schemas']['CaseCarry']
       idempotencyKey: string
     }) => {
-      const { error, response } = await api.POST('/clients/{id}/transfer', {
+      const { data, error, response } = await api.POST('/clients/{id}/transfer', {
         // Required since contract gate 7 (transfer execution): one key per opened form and content
         // (review F-297), so a retry after a lost reply replays the first answer.
         params: { path: { id: clientId }, header: { 'Idempotency-Key': input.idempotencyKey } },
-        body: { new_consultancy_id: input.newConsultancyId, reason: input.reason, transfer_code: input.transferCode },
+        body: {
+          new_consultancy_id: input.newConsultancyId,
+          reason: input.reason,
+          transfer_code: input.transferCode,
+          carry: input.carry,
+        },
       })
       // The server's own message is what a consultant needs to read here — e.g. 409
       // `case_has_accepted_college` ("close the case or raise a dispute instead") or `case_moved`
@@ -217,6 +224,8 @@ export function useTransferApplicant(clientId: string) {
           error,
           response?.status,
         )
+      // `carried` says what actually went with the case.
+      return data
     },
     onSuccess: refresh,
     // The transfer already went through (the first reply was lost): refresh what success refreshes.

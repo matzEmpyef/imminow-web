@@ -5,6 +5,7 @@ import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { Modal } from '@/components/Modal'
 import { FieldLabel } from '@/components/FieldLabel'
+import { CaseCarryFields } from '@/components/CaseCarryFields'
 import { CompactSelect } from '@/components/CompactSelect'
 import { SearchSelect, type SearchSelectOption } from '@/components/SearchSelect'
 import { Table, type TableColumn } from '@/components/Table'
@@ -17,6 +18,7 @@ import {
 import { formatDate } from '@/lib/time'
 import { cursorPager, useCursorPagination } from '@/lib/pagination'
 import { showToast } from '@/lib/toast'
+import { DEFAULT_CARRY, movedSentence } from '@/lib/caseCarry'
 import type { components } from '@/api/schema'
 
 type QueueEntry = components['schemas']['ApplicantAllocationEntry']
@@ -168,6 +170,11 @@ function ResolveAction({ entry }: { entry: QueueEntry }) {
 function AllocateAction({ entry }: { entry: QueueEntry }) {
   const [open, setOpen] = useState(false)
   const [consultancyId, setConsultancyId] = useState('')
+  // A student changing consultancy has a case to bring things from, and the operator decides what
+  // goes (owner's ruling on review I-014, 2026-10-08). A freelancer referral opens a first case:
+  // there is nothing to carry, so the boxes are not shown and nothing is sent.
+  const isChange = entry.reason === 'consultancy_change'
+  const [carry, setCarry] = useState(DEFAULT_CARRY)
   const allocate = useAllocateApplicant(entry.id!)
   const candidates = useAllocationCandidates(entry.id!, open)
   const wants = lookingFor(entry)
@@ -221,12 +228,16 @@ function AllocateAction({ entry }: { entry: QueueEntry }) {
                 loading={allocate.isPending}
                 disabled={!consultancyId}
                 onClick={() =>
-                  allocate.mutate(consultancyId, {
-                    onSuccess: () => {
-                      showToast(`${entry.applicant_name} allocated`)
-                      setOpen(false)
+                  allocate.mutate(
+                    { consultancyId, carry: isChange ? carry : undefined },
+                    {
+                      onSuccess: (data) => {
+                        // A change row: what the server says went with the case.
+                        showToast(isChange ? movedSentence(data?.carried) : `${entry.applicant_name} allocated`)
+                        setOpen(false)
+                      },
                     },
-                  })
+                  )
                 }
               >
                 Allocate
@@ -261,6 +272,7 @@ function AllocateAction({ entry }: { entry: QueueEntry }) {
               Consultancies serving where they want to go are listed first, then those with the fewest active
               applicants. Institutes are never offered.
             </p>
+            {isChange && <CaseCarryFields value={carry} onChange={setCarry} disabled={allocate.isPending} />}
             {blocked.length > 0 && (
               <div className="flex flex-col gap-xs">
                 <p className="text-caption font-medium text-text-secondary">Not offered</p>

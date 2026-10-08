@@ -150,3 +150,25 @@ describe('ReceiveDueModal, it arrived in another currency', () => {
     expect(sent()).toMatchObject({ allow_cross_currency: true, allow_overpayment: true })
   })
 })
+
+// Review I-026: a reference is at most 200 characters and is not repeated on one case.
+describe('ReceiveDueModal, the reference', () => {
+  it('stops at 200 characters', () => {
+    open()
+    expect(screen.getByLabelText('Reference')).toHaveAttribute('maxlength', '200')
+  })
+
+  it('shows the server’s sentence beside the field when the reference is already recorded', () => {
+    const message = 'A payment with this transaction reference is already recorded for this case.'
+    vi.mocked(useReceiveCommissionDue).mockReturnValue(
+      mutation(new ApiError('x', { error: { code: 'already_exists', message } }, 409)),
+    )
+    open()
+    expect(screen.getByLabelText('Reference')).toHaveAccessibleDescription(message)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    // Changing the reference clears the refusal, which was about the one that was sent.
+    fireEvent.change(screen.getByLabelText('Reference'), { target: { value: 'UTR-2' } })
+    expect(reset).toHaveBeenCalled()
+  })
+})

@@ -12,6 +12,7 @@ vi.mock('@/api/client', () => ({ api: { GET: vi.fn(), POST: vi.fn() } }))
 import { api } from '@/api/client'
 import { useImportColleges } from './adminColleges'
 import { useTransferApplicant } from './clients'
+import { DEFAULT_CARRY } from '@/lib/caseCarry'
 import { useBulkAllocateLeads, useRespondToConversion } from './leads'
 
 const mockedPost = vi.mocked(api.POST)
@@ -47,7 +48,7 @@ describe('the key the form holds is the key that is sent', () => {
     const { wrapper } = setup()
     const { result } = renderHook(() => useTransferApplicant('c1'), { wrapper })
     await act(() =>
-      result.current.mutateAsync({ newConsultancyId: 'n1', reason: 'r', transferCode: 'ABC', idempotencyKey: 'key-1' }),
+      result.current.mutateAsync({ newConsultancyId: 'n1', reason: 'r', transferCode: 'ABC', carry: DEFAULT_CARRY, idempotencyKey: 'key-1' }),
     )
     expect(sentKey()).toBe('key-1')
   })
@@ -76,7 +77,7 @@ describe('an "already applied" answer refreshes what success refreshes', () => {
     const { result } = renderHook(() => useTransferApplicant('c1'), { wrapper })
     await act(() =>
       result.current
-        .mutateAsync({ newConsultancyId: 'n1', reason: 'r', transferCode: 'ABC', idempotencyKey: 'k' })
+        .mutateAsync({ newConsultancyId: 'n1', reason: 'r', transferCode: 'ABC', carry: DEFAULT_CARRY, idempotencyKey: 'k' })
         .catch(() => {}),
     )
     await waitFor(() => expect(refreshed()).toContainEqual(['clients']))

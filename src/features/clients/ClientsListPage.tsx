@@ -30,6 +30,7 @@ import { useAccountWords } from '@/lib/accountWords'
 import { useMeStaff } from '@/lib/me'
 import { useCursorPagination } from '@/lib/pagination'
 import { showToast } from '@/lib/toast'
+import { carriedOverLine } from '@/lib/caseCarry'
 import { CASE_MOVED_ACTION_REASON, isCaseMoved } from '@/lib/clientStatus'
 
 type Client = NonNullable<ReturnType<typeof useClients>['data']>['items'][number]
@@ -206,6 +207,10 @@ export function ClientsListPage() {
             {client.status === 'closed' && <Badge color="secondary">Closed</Badge>}
           </div>
           {client.file_number && <span className="text-caption text-text-secondary">{client.file_number}</span>}
+          {/* Arrived by a move from another consultancy: what came with it (review I-014). */}
+          {carriedOverLine(client.carried) && (
+            <span className="text-caption text-text-secondary">{carriedOverLine(client.carried)}</span>
+          )}
         </div>
       ),
     },

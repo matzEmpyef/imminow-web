@@ -2,10 +2,12 @@ import { useState, type FormEvent } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { ServerSearchSelect } from '@/components/ServerSearchSelect'
+import { CaseCarryFields } from '@/components/CaseCarryFields'
 import { useTransferApplicant } from '@/queries/clients'
 import { useMyConsultancy } from '@/queries/consultancy'
 import { consultancySource } from '@/queries/pickerSources'
 import { showToast } from '@/lib/toast'
+import { DEFAULT_CARRY, movedSentence } from '@/lib/caseCarry'
 import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 
 // Cross-consultancy Transfer Applicant (restored 2026-08-20 — user: "Transfer Applicant is
@@ -38,6 +40,8 @@ export function TransferApplicantModal({
   const [reason, setReason] = useState('')
   const [transferCode, setTransferCode] = useState('')
   const [confirmText, setConfirmText] = useState('')
+  // What goes with the case: the sender decides (owner's ruling on review I-014, 2026-10-08).
+  const [carry, setCarry] = useState(DEFAULT_CARRY)
 
   const ready =
     Boolean(newConsultancyId) &&
@@ -48,12 +52,13 @@ export function TransferApplicantModal({
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!ready) return
-    const payload = { newConsultancyId, reason: reason.trim(), transferCode: transferCode.trim().toUpperCase() }
+    const payload = { newConsultancyId, reason: reason.trim(), transferCode: transferCode.trim().toUpperCase(), carry }
     transfer.mutate(
       { ...payload, idempotencyKey: keyFor(payload) },
       {
-        onSuccess: () => {
-          showToast(`${clientName} transferred to another consultancy`)
+        onSuccess: (data) => {
+          // What the server says went with the case, not what was ticked.
+          showToast(movedSentence(data?.carried))
           onTransferred()
         },
         onError: (err) => {
@@ -96,7 +101,8 @@ export function TransferApplicantModal({
       <form id="transfer-applicant-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <p className="text-body-sm text-text-secondary">
           <strong className="text-text-primary">{clientName}</strong> will be moved to another consultancy. Their case
-          here closes as switched and drops out of your Clients List — this cannot be undone from your side.
+          here closes as switched and drops out of your Clients List — this cannot be undone from your side. The
+          new consultancy opens a new case and receives only what you choose below.
         </p>
         <div className="flex flex-col gap-xs">
           <ServerSearchSelect
@@ -122,6 +128,7 @@ export function TransferApplicantModal({
             className="rounded-md border border-border bg-surface px-3 py-sm text-body"
           />
         </div>
+        <CaseCarryFields value={carry} onChange={setCarry} />
         <div className="flex flex-col gap-xs">
           <label className="text-body-sm font-medium text-text-primary" htmlFor="transfer-code">
             Transfer code

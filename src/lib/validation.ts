@@ -47,3 +47,10 @@ export function isAtLeastMinimumAge(dateOfBirth: string, minimumAge = MIN_SIGNUP
   if (!hadBirthday) age -= 1
   return age >= minimumAge
 }
+
+/**
+ * The longest a payment's transaction id / reference may be (review I-026; the contract's
+ * `maxLength` on a declared payment's `transaction_id` and a received payment's `reference`). The
+ * inputs stop at it, so nobody types a reference the server would refuse.
+ */
+export const PAYMENT_REFERENCE_MAX = 200

@@ -4,6 +4,7 @@ import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 import { toPage } from '@/lib/pagination'
+import type { components } from '@/api/schema'
 
 export interface AllocationQueueFilters {
   /** Matches the applicant's name. */
@@ -63,12 +64,15 @@ export function useAllocationCandidates(id: string, enabled: boolean) {
 export function useAllocateApplicant(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (consultancyId: string) => {
-      const { error } = await api.POST('/applicant-allocation-queue/{id}/allocate', {
+    // `carry` is for a consultancy-change row only (owner's ruling on review I-014, 2026-10-08):
+    // a freelancer row opens a first case, so there is nothing to carry and it is left out.
+    mutationFn: async ({ consultancyId, carry }: { consultancyId: string; carry?: components['schemas']['CaseCarry'] }) => {
+      const { data, error } = await api.POST('/applicant-allocation-queue/{id}/allocate', {
         params: { path: { id } },
-        body: { consultancy_id: consultancyId },
+        body: { consultancy_id: consultancyId, ...(carry ? { carry } : {}) },
       })
       if (error) throw new ApiError('Could not allocate this applicant.', error)
+      return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['applicant-allocation-queue'] }),
     // The queue moved under the admin: a concurrent allocation took the row (409 already_allocated,

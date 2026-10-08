@@ -982,11 +982,12 @@ export interface paths {
         /**
          * Continue with Google / Sign in with Apple — signs in, or clears sign-up (students)
          * @description NEW 2026-10-08 (owner decisions 35, 48). One call for a first-time and a returning person. The app runs the provider's own sign-in and sends what it was given; the server verifies the provider's signed ID token itself and answers EXACTLY like POST /auth/passwordless/verify: `status: authenticated` with `auth`, or `status: signup_required` with a `signup_token` that POST /auth/passwordless/complete-signup accepts unchanged (date of birth, consent, referral code and the guardian rule all stay on that screen; the provider's verified email becomes the account's verified email), or `status: erasure_pending` with `erasure` (then POST /auth/erasure/cancel, as after a code).
-         *     WHAT THE APP SENDS. (1) Before starting the provider's sign-in the app makes a random one-time value (`nonce`, 16 to 255 characters, e.g. 32 random bytes as hex) and uses it for this one attempt only. GOOGLE: pass it as the nonce of the Google ID-token request; the audience (server client id) is the "Web" client id the backend is configured with. APPLE: pass the SHA-256 of it (lowercase hex) to Apple as the request's nonce, and send the raw value here — the usual `sign_in_with_apple` pattern. (2) `id_token` exactly as the provider returned it. (3) Apple only: `authorization_code` from the same sign-in (the server exchanges it for the token it needs to revoke the account at Apple on deletion — send it every time), and `given_name` / `family_name` when Apple supplied them (Apple does so on the first sign-in only). (4) `X-Device-Id`, `platform` and `app_version` as on the passwordless door.
+         *     WHAT THE APP SENDS. (1) Before starting the provider's sign-in the app makes a random one-time value (`nonce`, 16 to 255 characters, e.g. 32 random bytes as hex) and uses it for this one attempt only. GOOGLE: pass it as the nonce of the Google ID-token request; the audience (server client id) is the "Web" client id the backend is configured with. APPLE: pass the SHA-256 of it (lowercase hex) to Apple as the request's nonce, and send the raw value here — the usual `sign_in_with_apple` pattern. (2) `id_token` exactly as the provider returned it. (3) Apple only: `authorization_code` from the same sign-in (the server exchanges it for the token it needs to revoke the account at Apple on deletion — SEND IT EVERY TIME: it is required for a sign-up and whenever the server holds no Apple token for the account, 400 `validation_failed` with `details.fields.authorization_code` otherwise), and `given_name` / `family_name` when Apple supplied them (Apple does so on the first sign-in only). (4) `X-Device-Id`, `platform` and `app_version` as on the passwordless door.
          *     A TOKEN IS ACCEPTED ONCE and only for 10 minutes after the provider issued it: never retry a failed call with the same token — start the provider's sign-in again with a new `nonce`.
-         *     WHICH ACCOUNT. The provider's permanent account id is looked up first, never the email. Not linked yet, and the provider's VERIFIED email is a student account's verified email: that account is signed in and the provider is added to it (the account gets a notice, "Google was added as a way to sign in"). An account a consultancy created and nobody has signed in to is claimed, as a code claims it. Otherwise `signup_required`. Two accounts are never merged. Apple "Hide my email" gives a private relay address, which matches no existing account: `prefill.private_relay` is then true and THE APP shows, on the details screen, "Already use Sentpo? Sign in with your email or phone first, then add Apple in Profile."
+         *     WHICH ACCOUNT. The provider's permanent account id is looked up first, never the email. Not linked yet, and the provider's VERIFIED email is a student account's verified email: that account is signed in and the provider is added to it (the account gets two notices: "New sign-in with a Google account" and "Google was added as a way to sign in"). An account a consultancy created and nobody has signed in to is claimed, as a code claims it. Otherwise `signup_required`. Two accounts are never merged.
+         *     WHEN GOOGLE'S WORD IS NOT ENOUGH (security review, 2026-10-08). Google goes on saying an address is verified long after the mailbox may have changed hands, unless Google hosts the mailbox itself. So the paragraph above applies to a Google token only for a `gmail.com` / `googlemail.com` address or a Google Workspace address (the token's `hd` claim equals the address's domain). For any OTHER address: (1) if an account already holds it — 409 `sign_in_with_email_first`, "You already have a Sentpo account with this email. Sign in with a code sent to your email, then add Google in Profile."; THE APP opens the email door with the address filled in. (2) If nobody holds it — `signup_required` as usual, but `prefill.email_verified` is false: the account is created with the address UNVERIFIED (it signs in with Google; the address is not a door), and the app asks for its code straight after sign-up with POST /profile/email/change + POST /profile/email/confirm for that same address (skippable). Apple is not affected: its addresses are always `email_verified: true`. Apple "Hide my email" gives a private relay address, which matches no existing account: `prefill.private_relay` is then true and THE APP shows, on the details screen, "Already use Sentpo? Sign in with your email or phone first, then add Apple in Profile."
          *     ANDROID offers Google only; Sign in with Apple is in the iOS app (Phase 14). An account made with Apple is used on Android by adding and verifying a phone or an email in Profile and signing in with that.
-         *     REFUSALS. 400 `invalid_federated_token` — the token was not accepted (not ours, expired, older than 10 minutes, the `nonce` does not match, used before) or the provider is switched off on this environment (message "Signing in with Google isn't available yet. Use your email or phone number instead."): offer the email/phone door. 400 `federated_email_unverified` — the provider does not vouch for the address, or shared none, and no account is linked: offer the email/phone door. 400 `validation_failed` — `provider`, `id_token` or `nonce` missing or malformed. 403 `use_console` — the address is a console (staff) account's: "Use the immiNow console to sign in."; nothing is created. 403 `account_disabled`, and 403 `account_locked_for_erasure` once a deletion has started — as at the door. 429 `rate_limited` — every call is counted per caller address with the door's own counters (60 in 10 minutes), and a refused token counts as a wrong code (10 in 10 minutes per address): `Retry-After` says when. 502 `upstream_unavailable` — the provider's keys could not be fetched: try again in a moment.
+         *     REFUSALS. 400 `invalid_federated_token` — the token was not accepted (not ours, expired, older than 10 minutes, the `nonce` does not match, used before), or the provider is switched off on this environment (message "Signing in with Google isn't available yet. Use your email or phone number instead."), or the account that has this email already signs in with a DIFFERENT account of the same provider (message "That sign-in could not be used for this account. Sign in another way."): offer the email/phone door. 409 `sign_in_with_email_first` — see above. 400 `federated_email_unverified` — the provider does not vouch for the address, or shared none, and no account is linked: offer the email/phone door. 400 `validation_failed` — `provider`, `id_token` or `nonce` missing or malformed. 403 `use_console` — the address is a console (staff) account's: "Use the immiNow console to sign in."; nothing is created. 403 `account_disabled`, and 403 `account_locked_for_erasure` once a deletion has started — as at the door. 429 `rate_limited` — every call is counted per caller address with the door's own counters (60 in 10 minutes), and a refused token — or a 409 `sign_in_with_email_first` — counts as a wrong code (10 in 10 minutes per address): `Retry-After` says when. 502 `upstream_unavailable` — the provider's keys could not be fetched: try again in a moment.
          */
         post: {
             parameters: {
@@ -1011,7 +1012,7 @@ export interface paths {
                         id_token: string;
                         /** @description The app's raw one-time value for this attempt (16 to 255 characters). The token must carry it — as given for Google, as its SHA-256 hex for Apple. */
                         nonce: string;
-                        /** @description Apple only — the authorisation code of the same sign-in. */
+                        /** @description Apple only — the authorisation code of the same sign-in. Required for a sign-up and whenever no Apple token is stored for the account. */
                         authorization_code?: string | null;
                         /** @description Apple only, first sign-in only — the name Apple gave the app. Used to pre-fill the details screen and for nothing else. */
                         given_name?: string | null;
@@ -1046,6 +1047,8 @@ export interface paths {
                             /** @description Present only with `status: signup_required`: what the details screen starts from. The person may change the names; the email is fixed (it is what the provider proved and what the account is created with). */
                             prefill?: {
                                 email: string;
+                                /** @description False only for a Google address Google does not host: the account is created with the address unverified — ask for its code after sign-up (POST /profile/email/change with this address, then /confirm). */
+                                email_verified: boolean;
                                 first_name?: string | null;
                                 last_name?: string | null;
                                 /** @description True for an Apple "Hide my email" address: show the "Already use Sentpo?" hint on the details screen. */
@@ -1065,6 +1068,15 @@ export interface paths {
                 };
                 /** @description `use_console`, `account_disabled` or `account_locked_for_erasure` — see the description. */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `sign_in_with_email_first` — a Google token for an address Google does not host, and an account holds that address. Nothing was signed in or linked. `error.details` is `{field: "email", login_identifier_mask: "ak•••@example.com"}`: the address the token carries, masked exactly as the passwordless door masks an identifier, so the app can say which address to sign in with ("Sign in with a code sent to ak•••@example.com") and pre-fill the door from what Google gave it. The server echoes nothing the token did not already say. */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1342,8 +1354,22 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Changing my phone number — does it take two codes, and where can the first go?
-         * @description PHONE NUMBER CHANGE = TWO CODES (owner ruling 1, 2026-10-07). An account that already has
+         * A fresh proof of a contact I already proved — is it needed, and where can the code go?
+         * @description WHAT THIS IS (widened 2026-10-08, same response shape): a FRESH PROOF OF A CONTACT THE
+         *     ACCOUNT HAS ALREADY PROVEN — a code to its verified phone or its verified email — which
+         *     leaves a grant on this install, good for `valid_for_seconds` and for ONE change. Two
+         *     things spend it:
+         *     * replacing or removing a VERIFIED PHONE (below);
+         *     * adding or removing Google or Apple (POST / DELETE /profile/sign-in-methods/{provider}):
+         *       needed by EVERY account that has a proven contact.
+         *     `required` (CHANGED 2026-10-08) is true whenever the account has a proven contact,
+         *     phone or email — that is, whenever the next of these changes needs a grant.
+         *     `granted: true` means a grant is live on this install: go straight to the change.
+         *     One exception the app may use: an account whose `channels` has no `phone` is ADDING its
+         *     first number, and POST /auth/otp/request {phone} does not ask for a grant there (taking
+         *     one first is harmless and is not used up by it).
+         *
+         *     PHONE NUMBER CHANGE = TWO CODES (owner ruling 1, 2026-10-07). An account that already has
          *     a VERIFIED phone (`phone_verified: true`) — a student's or a console account's — may
          *     replace or remove it only after proving a contact it already holds: a code to the current
          *     number, or to its verified email when it has one. Then the new number's own code
@@ -1351,8 +1377,9 @@ export interface paths {
          *     ADDING: only the new number's code, nothing here.
          *
          *     Call this when the person opens "Change phone number", BEFORE asking for anything:
-         *     * `required: false` -> go straight to `POST /auth/otp/request {phone}`.
-         *     * `required: true` -> say so up front: "We'll send a code to your current number
+         *     * no `phone` in `channels` (or `required: false`) -> go straight to
+         *       `POST /auth/otp/request {phone}`.
+         *     * `phone` in `channels` -> say so up front: "We'll send a code to your current number
          *       ({mask}), then one to the new number." `channels` lists where the first code can go,
          *       masked; when it includes `email`, offer "Send it to my email instead". Then:
          *         1. `POST /auth/otp/step-up/request {channel}` — the first code is sent;
@@ -1391,11 +1418,11 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            /** @description True when the account holds a verified phone number. */
+                            /** @description True when the account has a proven contact (a verified phone or a verified email): its next sensitive change — replacing or removing a verified phone, adding or removing Google or Apple — needs a grant. CHANGED 2026-10-08: it used to be true only with a verified phone. */
                             required: boolean;
                             /** @description True when a first code was already proven on this install and its grant has neither run out nor been used. */
                             granted: boolean;
-                            /** @description Empty when `required` is false. The phone first. */
+                            /** @description The account's proven contacts, the phone first: where the first code can go. An account with only a verified email lists it. Empty only when `required` is false (no proven contact). */
                             channels: {
                                 /** @enum {string} */
                                 channel: "phone" | "email";
@@ -1427,16 +1454,18 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Phone change, code 1 of 2 — send a code to my current number or my verified email
+         * Fresh proof, the code — send a code to my current number or my verified email
          * @description See `GET /auth/otp/step-up`. Sends the first code to the account's own verified contact:
-         *     `channel: phone` (default) = the current number, `channel: email` = the verified email.
+         *     `channel: phone` = the current number, `channel: email` = the verified email; left out,
+         *     it is the phone when the account has a verified one, else the verified email.
          *     Asking again while the code is live sends the SAME code; within 30 seconds: 429
          *     `rate_limited` ("Wait Ns before requesting another code."). The send counts against the
          *     ordinary sending limits of that number or inbox, the device and the caller address
          *     (`POST /auth/passwordless/request`, SENDING LIMITS) and at most 12 first codes are opened
          *     per account in an hour: 429 `rate_limited` with `Retry-After`.
-         *     400 `validation_failed` when the account has no verified phone (nothing to protect — add
-         *     the number directly) or no verified contact of the `channel` asked for. 502
+         *     400 `validation_failed` when the account has no verified contact at all, or none of the
+         *     `channel` asked for. CHANGED 2026-10-08: an account with a verified email and no phone
+         *     is no longer refused here (it needs this code to add or remove Google or Apple). 502
          *     `upstream_unavailable` when the code could not be sent.
          */
         post: {
@@ -1457,7 +1486,7 @@ export interface paths {
                 content: {
                     "application/json": {
                         /**
-                         * @description Where to send the first code. Default `phone`.
+                         * @description Where to send the first code. Default: `phone` when the account has a verified one, else `email`.
                          * @enum {string}
                          */
                         channel?: "phone" | "email";
@@ -1480,7 +1509,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description `validation_failed` — no verified phone to protect, or no such verified contact */
+                /** @description `validation_failed` — no verified contact, or none of the channel asked for */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -2054,6 +2083,8 @@ export interface paths {
                                 added_at?: string | null;
                                 /** @description Whether DELETE would be accepted now. Always false for email and phone (they are changed on their own screens). For a provider: it is present AND a verified email or phone would remain (an Apple "Hide my email" relay address does not count when removing Apple). */
                                 removable: boolean;
+                                /** @description True on the `email` row when the address is an Apple "Hide my email" relay address (the account was made with Apple and has no address of its own yet). Always false on the other rows. */
+                                private_relay: boolean;
                             }[];
                         };
                     };
@@ -2083,7 +2114,8 @@ export interface paths {
         /**
          * Add Google or Apple as a way to sign in (a fresh provider sign-in)
          * @description NEW 2026-10-08. The app runs the provider's sign-in again, with a new `nonce`, and sends the result — the same three fields, checked the same way and counted the same way as POST /auth/federated (a token is accepted once; 400 `invalid_federated_token`, 429 `rate_limited`, 502 `upstream_unavailable` as there). The account is told (bell, push and its verified email) and the change is audited. Sending the provider account that is already added answers 200 and changes nothing.
-         *     FRESH PROOF: when the account has a VERIFIED PHONE, this call and the DELETE need the same first code a phone change needs — ask GET /auth/otp/step-up (send `X-Device-Id`); if `required` and not `granted`, run POST /auth/otp/step-up/request and /auth/otp/step-up/verify first. Without it: 400 `step_up_required` (`details.channels` says where the code can go). The grant is used up by one change. The app should check this BEFORE starting the provider's sign-in. An account with no verified phone needs no code here.
+         *     FRESH PROOF (owner ruling 2026-10-08): this call and the DELETE need a fresh proof of a contact the account has ALREADY proven — its phone or its verified email. Ask GET /auth/otp/step-up (send `X-Device-Id`): when `channels` is not empty and `granted` is false, run POST /auth/otp/step-up/request {channel} and /auth/otp/step-up/verify first. Without it: 400 `step_up_required` (`details.channels` says where the code can go). The grant is used up by ONE change. Do this BEFORE starting the provider's sign-in. THE SERVER CHECKS THE GRANT BEFORE IT LOOKS AT THE PROVIDER'S TOKEN: a request refused 400 `step_up_required` (or 400 `validation_failed` for a missing Apple `authorization_code`) has NOT used the token up — after the code the same `id_token` and `nonce` may be sent again, while the token is under 10 minutes old. Only an account with no proven contact at all (`required: false`, `channels` empty) needs no code.
+         *     APPLE: `authorization_code` is required whenever no Apple token is stored for the account (400 `validation_failed`, `details.fields.authorization_code`): send it always.
          *     409 `identifier_in_use` — that provider account already signs in to another Sentpo account, or the email it vouches for belongs to another account (sign in to that account instead). 409 `conflict` — another account of the same provider is already added: remove it first.
          */
         post: {
@@ -2135,6 +2167,8 @@ export interface paths {
                                 added_at?: string | null;
                                 /** @description Whether DELETE would be accepted now. Always false for email and phone (they are changed on their own screens). For a provider: it is present AND a verified email or phone would remain (an Apple "Hide my email" relay address does not count when removing Apple). */
                                 removable: boolean;
+                                /** @description True on the `email` row when the address is an Apple "Hide my email" relay address (the account was made with Apple and has no address of its own yet). Always false on the other rows. */
+                                private_relay: boolean;
                             }[];
                         };
                     };
@@ -2149,7 +2183,7 @@ export interface paths {
         };
         /**
          * Remove Google or Apple (only while a verified email or phone remains)
-         * @description NEW 2026-10-08. 409 `last_sign_in_method` unless a VERIFIED email or a VERIFIED phone remains — an account is never left with no way in (show the message: "Add and verify an email address or phone number first…"). 404 when that provider is not one of the account's methods. 400 `step_up_required` as on the POST when the account has a verified phone. Removing Apple also revokes the account at Apple (in the background; it never delays the answer). The account is told and the change is audited.
+         * @description NEW 2026-10-08. 409 `last_sign_in_method` unless a VERIFIED email or a VERIFIED phone remains — an account is never left with no way in (show the message: "Add and verify an email address or phone number first…"). 404 when that provider is not one of the account's methods. 400 `step_up_required` as on the POST (any account with a proven phone or email). Removing Apple also revokes the account at Apple (in the background; it never delays the answer). The account is told and the change is audited.
          */
         delete: {
             parameters: {
@@ -2191,6 +2225,8 @@ export interface paths {
                                 added_at?: string | null;
                                 /** @description Whether DELETE would be accepted now. Always false for email and phone (they are changed on their own screens). For a provider: it is present AND a verified email or phone would remain (an Apple "Hide my email" relay address does not count when removing Apple). */
                                 removable: boolean;
+                                /** @description True on the `email` row when the address is an Apple "Hide my email" relay address (the account was made with Apple and has no address of its own yet). Always false on the other rows. */
+                                private_relay: boolean;
                             }[];
                         };
                     };
@@ -14139,7 +14175,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Move a student to another consultancy (support_tools permission, reworked 2026-09-11) — through the same allocation path Applicant Allocation uses: the old case closes as switched and loses access to the student's shared documents, a new case opens at the chosen consultancy, the student and both consultancies are told. 409 case_closed / case_in_dispute (use Disputes), 400 same_consultancy / not_allocatable, 409 no_active_staff / subscription_lapsed. Reason required; audited under support. */
+        /** Move a student to another consultancy (support_tools permission, reworked 2026-09-11) — through the same allocation path Applicant Allocation uses: the old case closes as switched and loses access to the student's shared documents, a new case opens at the chosen consultancy, the student and both consultancies are told. 409 case_closed / case_in_dispute (use Disputes), 400 same_consultancy / not_allocatable, 409 no_active_staff / subscription_lapsed. Reason required; audited under support. The operator chooses what goes with the case with the optional `carry` (`CaseCarry`; owner's ruling on review I-014, 2026-10-08) — the documents only when it is left out — and `carried` in the answer says what went. Same rule and code path as `/clients/{id}/transfer`. */
         post: {
             parameters: {
                 query?: never;
@@ -14154,6 +14190,7 @@ export interface paths {
                     "application/json": {
                         new_consultancy_id: components["schemas"]["UUID"];
                         reason: string;
+                        carry?: components["schemas"]["CaseCarry"];
                     };
                 };
             };
@@ -14167,6 +14204,8 @@ export interface paths {
                         "application/json": {
                             ok?: boolean;
                             client_id?: components["schemas"]["UUID"];
+                            /** @description What went with the case, in the fixed order (`CaseCarry`). */
+                            carried?: components["schemas"]["CarriedItem"][];
                         };
                     };
                 };
@@ -14733,7 +14772,9 @@ export interface paths {
         put?: never;
         /**
          * Transfer an applicant to ANOTHER consultancy (permission `clients.transfer_applicant`) — restored 2026-08-20 (user "Transfer Applicant is needed, both to other consultancy and Transfer Consultant also is needed. Just that Transfer Applicant should not be that accessible"). Closes the journey as `closed_switched`; deliberately surfaced only as a buried, typed-confirmation action, coexisting with /clients/{id}/assign's within-consultancy Transfer Consultant.
-         * @description **A fresh case opens at the receiver** (product owner, 2026-09-24): the sender's case closes as `closed_switched` (read-only to the sender from then on — 409 `case_moved` on its writes, notes excepted) and a new case opens at the receiving consultancy — `pending_plan_assignment`, unassigned, the receiver's own file number, nothing of the plan, applications or commission carried, `previous_journey_id` pointing back. The documents the student had shared with the sender are revoked there and shared with the receiver on the new case. The receiver's admins are notified (`incoming_transfer`) and so is the student (`consultancy_assigned`).
+         * @description **A fresh case opens at the receiver** (product owner, 2026-09-24): the sender's case closes as `closed_switched` (read-only to the sender from then on — 409 `case_moved` on its writes, notes excepted) and a new case opens at the receiving consultancy — `pending_plan_assignment`, unassigned, the receiver's own file number, nothing of the plan or commission carried, `previous_journey_id` pointing back.
+         *
+         *     **The staff member sending the case away decides what goes with it** (owner's ruling on review I-014, 2026-10-08) with the optional `carry` (`CaseCarry`): `documents`, `applications`, `preferences`, `chat`. Left out — or for an older client that sends no `carry` at all — the documents only: the documents the student had shared with the sender are revoked there and shared with the receiver on the new case, and the receiver starts fresh on everything else. What was carried is returned (`carried`), audited on both consultancies' logs, shown to the receiver as `Client.carried`, and told to the student in their `consultancy_assigned` notice (variant `moved_with_…`, with the list in the notice's `carried` param). The receiver's admins are notified (`incoming_transfer`). This is the same rule, and the same code path, as a platform move (`/journeys/{id}/switch-consultancy`, a change row's `/allocate`).
          *
          *     The transfer code must have been issued by `new_consultancy_id` for this student's registered email or phone (whichever the code is bound to — contract gate 7), unused and unexpired; it is spent in the same transaction. Checked in this order, so a refused transfer never spends the receiver's code: the caller's permission, a moved case, the body, the case's state, the receiver, an accepted college, then the code.
          *
@@ -14762,6 +14803,7 @@ export interface paths {
                         reason: string;
                         /** @description One-time code issued by the RECEIVING consultancy via POST /transfer-codes (reworked 2026-08-20 per "Transfer code should come from receiving consultancy... do not involve immiNow admin"; originally Platform-Admin-issued the same day) — must have been issued by the selected `new_consultancy_id` FOR this client's registered student email or phone, unused, and unexpired. The code is the receiving consultancy's consent to accept the case, so every cross-consultancy transfer stays a two-party act — sender intent plus receiver acceptance — never unilateral. */
                         transfer_code: string;
+                        carry?: components["schemas"]["CaseCarry"];
                     };
                 };
             };
@@ -14775,6 +14817,8 @@ export interface paths {
                         "application/json": {
                             /** @enum {string} */
                             status: "transferred";
+                            /** @description What went with the case, in the fixed order (`CaseCarry`). */
+                            carried: components["schemas"]["CarriedItem"][];
                         };
                     };
                 };
@@ -17876,7 +17920,7 @@ export interface paths {
         put?: never;
         /**
          * Create form template. plan_template_id deliberately dropped as an input (user-requested) — see FormTemplate.plan_template_id's own description for why.
-         * @description Needs the `settings.manage_templates` staff permission since 2026-10-08 (review F-146 / F-055), as do editing and duplicating a form; without it 403 `forbidden`. Any employee could rewrite the form every applicant fills before, and the console only hid the page. Reading (the list, one template) stays open to every employee of the consultancy.
+         * @description Needs the `settings.manage_templates` staff permission since 2026-10-08 (review F-146 / F-055), as do editing and duplicating a form; without it 403 `permission_denied`. Any employee could rewrite the form every applicant fills before, and the console only hid the page. Reading (the list, one template) stays open to every employee of the consultancy.
          */
         post: {
             parameters: {
@@ -17989,7 +18033,7 @@ export interface paths {
         head?: never;
         /**
          * Edit — creates a new immutable version; in-progress responses stay bound to their original version (FR-098)
-         * @description A change to `fields` creates a new immutable version (new id, version + 1, same form_family_id) and returns it; the previous version keeps its fields, so existing form_responses and plan-step form_links stay renderable. A name-only edit updates the row in place (2026-09-03). Needs the `settings.manage_templates` staff permission since 2026-10-08 (review F-146 / F-055); without it 403 `forbidden`.
+         * @description A change to `fields` creates a new immutable version (new id, version + 1, same form_family_id) and returns it; the previous version keeps its fields, so existing form_responses and plan-step form_links stay renderable. A name-only edit updates the row in place (2026-09-03). Needs the `settings.manage_templates` staff permission since 2026-10-08 (review F-146 / F-055); without it 403 `permission_denied`.
          */
         patch: {
             parameters: {
@@ -18044,7 +18088,7 @@ export interface paths {
         put?: never;
         /**
          * Duplicate — Forms page's "Duplicate builds variants" (build reference 2.2)
-         * @description Needs the `settings.manage_templates` staff permission since 2026-10-08 (review F-146 / F-055); without it 403 `forbidden`.
+         * @description Needs the `settings.manage_templates` staff permission since 2026-10-08 (review F-146 / F-055); without it 403 `permission_denied`.
          */
         post: {
             parameters: {
@@ -23008,7 +23052,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Declare a payment against one case's due (reworked 2026-08-28 — "consultant click on the due transaction and enter the amount") — notifies immiNow finance; the amount may be partial, and confirmation by immiNow finance is what settles it. 409 `bookkeeping_only` for a channel-B entry (gate 12b) — nothing is owed to Sentpo on it. */
+        /** Declare a payment against one case's due (reworked 2026-08-28 — "consultant click on the due transaction and enter the amount") — notifies immiNow finance; the amount may be partial, and confirmation by immiNow finance is what settles it. 409 `bookkeeping_only` for a channel-B entry (gate 12b) — nothing is owed to Sentpo on it. 409 `already_exists` when the case already has a payment with the same `transaction_id` (letter case ignored) that was not rejected (review I-026). */
         post: {
             parameters: {
                 query?: never;
@@ -23048,7 +23092,7 @@ export interface paths {
                         "application/json": components["schemas"]["CommissionPayment"];
                     };
                 };
-                /** @description `bookkeeping_only` — the entry is a channel-B bookkeeping entry (gate 12b). */
+                /** @description `bookkeeping_only` — the entry is a channel-B bookkeeping entry (gate 12b). `already_exists` — the case already has a payment with this `transaction_id`. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -23317,7 +23361,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Finance marks money as received on a case (finance permission, 2026-09-11) — a confirmed payment recorded directly, no declaration needed. With part_key it settles that part first. The consultancy is notified. 409 for a part closed without payment.
+         * Finance marks money as received on a case (finance permission, 2026-09-11) — a confirmed payment recorded directly, no declaration needed. With part_key it settles that part first. The consultancy is notified. 409 for a part closed without payment. 409 `already_exists` when the case already has a payment with the same `reference` (letter case ignored) that was not rejected (review I-026) — confirm the consultancy's declaration instead.
          * @description **A payment in another currency than the one owed (F-079, 2026-10-08).** By default the money must be in a currency the case owes (422 `currency_not_owed`; 422 `currency_mismatch` against a part of another currency). With `allow_cross_currency: true` Finance records it as it arrived — `amount` and `currency` are what reached the bank — and it settles the dues of the owed currency: the part's currency with `part_key`, else `owed_currency`, else the one currency the case owes (422 `validation_failed` naming the choices when it owes several; 422 `currency_not_owed` when it owes nothing in `owed_currency`). `rate` is how many units of the owed currency ONE unit of `currency` settles (USD received against CAD dues at 1 USD = 1.40 CAD → `rate: 1.4`; INR received against USD dues at ₹84 to the dollar → `rate: 0.0119047619`); left out, the server uses the day's two exchange rates. The rate is frozen on the payment (`settles_currency`, `settles_rate`) and written on each allocation with the payment's own money it used, so a later correction converts at the same rate. The ceiling is checked in the owed currency (409 `more_than_outstanding` unless `allow_overpayment`); money no due absorbs waits as credit in the currency it arrived in. Finance only — a consultancy's own declaration is never converted.
          */
         post: {
@@ -24885,6 +24929,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/consultancies/{id}/kyc/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject the submitted certificate with a reason (consultancy-approval permission; review I-010) — sets kyc_records.rejected_at/by/reason; the state reads `rejected` and the consultancy's admins are notified (`kyc_rejected`) with the reason. The consultancy submits again (POST /consultancies/me/kyc), which clears the rejection and reads `pending`. Audit-logged. 400 no_document when nothing has been submitted; 409 already_reviewed when the certificate is already verified or already rejected. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description Shown to the consultancy. */
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Rejected */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["KycStatus"];
+                    };
+                };
+                400: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/freelancer-referrals": {
         parameters: {
             query?: never;
@@ -26121,6 +26213,8 @@ export interface paths {
         /**
          * Allocate to a consultancy
          * @description Opens a new, unassigned case for the chosen consultancy's staff on the student's own account, removes the row, and notifies the consultancy's admins (`applicant_allocated`) and the student (`consultancy_assigned`). A consultancy change archives the old case as `closed_switched`. Every check runs before the row is removed (2026-09-11): the target must be one of the row's candidates with `blocked_reason: null`, so an applicant can no longer be dropped on an account with nobody to work the case.
+         *
+         *     For a consultancy-change row (a student's change request, or a dispute's reassign) the operator chooses what goes with the case with the optional `carry` (`CaseCarry`; owner's ruling on review I-014, 2026-10-08) — the documents only when it is left out — and `carried` in the answer says what went. A freelancer row opens a first case: there is nothing to carry, `carry` has no effect and `carried` is absent.
          */
         post: {
             parameters: {
@@ -26135,6 +26229,7 @@ export interface paths {
                 content: {
                     "application/json": {
                         consultancy_id: components["schemas"]["UUID"];
+                        carry?: components["schemas"]["CaseCarry"];
                     };
                 };
             };
@@ -26149,6 +26244,8 @@ export interface paths {
                             ok: boolean;
                             /** @description The new case. */
                             client_id?: components["schemas"]["UUID"];
+                            /** @description A consultancy change only: what went with the case, in the fixed order (`CaseCarry`). */
+                            carried?: components["schemas"]["CarriedItem"][];
                         };
                     };
                 };
@@ -29684,6 +29781,8 @@ export interface components {
             readonly case_summary?: components["schemas"]["CaseSummary"];
             /** @description The case this one continues, when the student has been with this consultancy before (2026-09-09). A returning student used to arrive as a stranger: blank address, no branch, no consultant and a fresh file number, with nothing linking the two records — so the consultant who worked the first case had no way to know it was the same person coming back. Only the SAME consultancy's history is carried; handing another one the address this one collected would leak a tenant's data. */
             readonly previous_journey_id?: components["schemas"]["UUID"];
+            /** @description What came with the case when it was moved here from another consultancy (a transfer, a support switch, an allocation of a change row) — chosen by whoever made the move (`CaseCarry`; owner's ruling on review I-014, 2026-10-08). The console shows "Carried over: documents, applications". Null for a case that did not arrive by a move. Without `chat` in the list this consultancy has no access to the student's earlier conversation by any route; with it, the earlier thread is shown read-only above this case's own. */
+            readonly carried?: components["schemas"]["CarriedItem"][] | null;
             readonly is_returning?: boolean;
             /**
              * @description How the case ended, DERIVED at close from whether a college was accepted (for a PR case, whether the applicant's contribution was recorded) and whether the student actually went — never chosen by the consultancy (2026-09-09). Null while live.
@@ -32119,10 +32218,45 @@ export interface components {
             /** Format: double */
             rate: number;
         };
-        /** @description One consultancy's KYC state, derived from kyc_records (erd.md) — status is not_submitted (no document ever), pending (submitted, unreviewed), or verified. */
+        /**
+         * @description One of the four things a case can take with it when it moves (`CaseCarry`).
+         * @enum {string}
+         */
+        CarriedItem: "documents" | "applications" | "preferences" | "chat";
+        /** @description What goes with a case when it moves to another consultancy — chosen by the person making the move (owner's ruling on review I-014, 2026-10-08), the same on `/clients/{id}/transfer`, `/journeys/{id}/switch-consultancy` and a change row's `/applicant-allocation-queue/{id}/allocate`. Left out entirely, or for any key left out: `documents` true, the rest false ("the receiving consultancy starts fresh, documents only"). Always carried, never a choice: the student, the case type, the acquisition channel and the link to the previous case. Never carried: the plan, internal notes, the commission entry and its payments. */
+        CaseCarry: {
+            /**
+             * @description The documents the student had shared with the consultancy they are leaving are shared with the new one on the new case.
+             * @default true
+             */
+            documents: boolean;
+            /**
+             * @description The case's college applications, with their statuses; each keeps the consultancy that submitted it.
+             * @default false
+             */
+            applications: boolean;
+            /**
+             * @description The selected country (`finalized_country`) and the payer method (`payer_method`) — exactly these two.
+             * @default false
+             */
+            preferences: boolean;
+            /**
+             * @description The conversation with the previous consultancy, by reference and read-only to the receiver. False — the receiver has no access to the earlier thread at all.
+             * @default false
+             */
+            chat: boolean;
+        };
+        /** @description One consultancy's KYC state, derived from kyc_records (erd.md) — status is not_submitted (no document ever), pending (submitted, unreviewed), verified, or rejected (a reviewer turned the latest certificate down; review I-010 — the consultancy submits again and the state returns to pending). */
         KycStatus: {
             /** @enum {string} */
-            status: "not_submitted" | "pending" | "verified";
+            status: "not_submitted" | "pending" | "verified" | "rejected";
+            /**
+             * Format: date-time
+             * @description When the latest certificate was rejected; null unless status is rejected.
+             */
+            rejected_at?: string | null;
+            /** @description The reviewer's reason, shown to the consultancy; null unless status is rejected. */
+            rejected_reason?: string | null;
             /** @description The latest submitted certificate, as an EXPIRING link from the real backend (contract gate 4): a presigned URL to the private copy, valid for a short time (minutes) and issued afresh on every read — fetch it when it is needed, never store or share it. Null when nothing has been submitted. */
             document_url?: string | null;
             /** @description What the latest certificate is (review F-066): `application/pdf`, `image/png`, `image/jpeg` or `image/webp`. The console shows an image inline and opens a PDF in a new tab (or an embedded viewer). Null when nothing has been submitted. */

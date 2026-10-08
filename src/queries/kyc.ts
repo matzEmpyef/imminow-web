@@ -119,3 +119,35 @@ export function useVerifyKyc() {
     },
   })
 }
+
+/**
+ * Turn the submitted certificate down, with a reason the consultancy is shown (review I-010). The
+ * consultancy is told and submits again. Only a certificate still waiting for review can be
+ * rejected: 409 `already_reviewed` once it is verified or already rejected, and the server's own
+ * sentence is what the reviewer reads.
+ */
+export function useRejectKyc() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ consultancyId, reason }: { consultancyId: string; reason: string }) => {
+      const { data, error, response } = await api.POST('/consultancies/{id}/kyc/reject', {
+        params: { path: { id: consultancyId } },
+        body: { reason },
+      })
+      if (error) throw new ApiError('Could not reject the certificate.', error, response?.status)
+      return data
+    },
+    onSuccess: (_data, { consultancyId }) => {
+      queryClient.invalidateQueries({ queryKey: ['kyc', consultancyId] })
+      queryClient.invalidateQueries({ queryKey: ['admin-consultancies'] })
+      // It is no longer waiting for a review, so the "KYC to verify" count falls by one.
+      queryClient.invalidateQueries({ queryKey: ['admin-attention'] })
+    },
+    // Someone else reviewed it first: show the row as it now stands.
+    onError: (err, { consultancyId }) => {
+      if (err instanceof ApiError && err.status === 409) {
+        queryClient.invalidateQueries({ queryKey: ['kyc', consultancyId] })
+      }
+    },
+  })
+}

@@ -46,13 +46,13 @@ beforeEach(() => {
 describe('a 409 that says the row is stale refreshes the list behind it', () => {
   it('allocate: already_allocated refetches the queue and keeps the code on the error', async () => {
     mockedPost.mockResolvedValue({ data: undefined, error: refusal('already_allocated'), response: { status: 409 } } as never)
-    const { before, after } = await run('/applicant-allocation-queue', () => useApplicantAllocationQueue(), () => useAllocateApplicant('q1'), (w) => w.mutateAsync('c1'))
+    const { before, after } = await run('/applicant-allocation-queue', () => useApplicantAllocationQueue(), () => useAllocateApplicant('q1'), (w) => w.mutateAsync({ consultancyId: 'c1' }))
     await waitFor(() => expect(after()).toBeGreaterThan(before))
   })
 
   it('allocate: already_a_case leaves the queue alone (the row stays by design)', async () => {
     mockedPost.mockResolvedValue({ data: undefined, error: refusal('already_a_case'), response: { status: 409 } } as never)
-    const { before, after } = await run('/applicant-allocation-queue', () => useApplicantAllocationQueue(), () => useAllocateApplicant('q1'), (w) => w.mutateAsync('c1'))
+    const { before, after } = await run('/applicant-allocation-queue', () => useApplicantAllocationQueue(), () => useAllocateApplicant('q1'), (w) => w.mutateAsync({ consultancyId: 'c1' }))
     await new Promise((r) => setTimeout(r, 50))
     expect(after()).toBe(before)
   })

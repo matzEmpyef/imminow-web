@@ -104,6 +104,20 @@ describe('the KYC card', () => {
   })
 })
 
+describe('the KYC card, a rejected certificate', () => {
+  it('says why it was not accepted and still offers the upload', async () => {
+    mockedGet.mockResolvedValue(
+      ok({ status: 'rejected', rejected_at: '2026-10-08T09:00:00Z', rejected_reason: 'The name does not match.', document_url: null }),
+    )
+    renderCard()
+    expect(await screen.findByText('Your certificate was not accepted: The name does not match.')).toBeInTheDocument()
+    expect(screen.getByText('rejected')).toBeInTheDocument()
+    expect(screen.getByText(/Upload a new certificate below to have it reviewed again\./)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Choose file' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Submit for verification' })).toBeInTheDocument()
+  })
+})
+
 describe('the submitted certificate', () => {
   it('shows an image in place', () => {
     render(<KycDocument kyc={{ document_url: 'https://s/c.png', document_content_type: 'image/png' }} label="certificate" />)

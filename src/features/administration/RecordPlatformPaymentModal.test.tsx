@@ -109,3 +109,27 @@ describe('RecordPlatformPaymentModal — duplicate protection', () => {
     expect(sentKey(second)).not.toBe(sentKey(first))
   })
 })
+
+// Review I-026: a transaction id is at most 200 characters and is not repeated on one case.
+describe('RecordPlatformPaymentModal — the transaction id', () => {
+  it('stops at 200 characters', () => {
+    renderModal()
+    expect(screen.getByLabelText('Transaction ID (optional)')).toHaveAttribute('maxlength', '200')
+  })
+
+  it('shows the server’s sentence beside the field when the id is already recorded, and stays open', async () => {
+    const message = 'A payment with this transaction reference is already recorded for this case.'
+    answers = [{ status: 409, code: 'already_exists', message }]
+    const { onClose } = renderModal()
+    fireEvent.change(screen.getByLabelText('Transaction ID (optional)'), { target: { value: 'UTR-1' } })
+    submit()
+
+    await waitFor(() => expect(screen.getByLabelText('Transaction ID (optional)')).toHaveAccessibleDescription(message))
+    expect(screen.getAllByText(message)).toHaveLength(1)
+    expect(onClose).not.toHaveBeenCalled()
+
+    // A different id is a new attempt: the refusal goes with the id it was about.
+    fireEvent.change(screen.getByLabelText('Transaction ID (optional)'), { target: { value: 'UTR-2' } })
+    await waitFor(() => expect(screen.queryByText(message)).not.toBeInTheDocument())
+  })
+})

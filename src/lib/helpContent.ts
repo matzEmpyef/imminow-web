@@ -131,8 +131,9 @@ const HELP_TOPICS: HelpTopic[] = [
     body: [
       'Transfer Consultant (on the Clients List) moves a client between consultants inside your own consultancy — use it for everyday reassignment.',
       "Transferring an applicant to ANOTHER consultancy is different and deliberate: ask the RECEIVING consultancy to issue a one-time transfer code from their own console (Consultancy Management → Incoming Transfers), bound to this student's registered email. Their code is their consent to accept the case; codes expire after 72 hours.",
-      'Then open the Overview tab and use the "Transfer applicant to another consultancy" link at the bottom of the page — pick the receiving consultancy, give a reason, enter their code, and type TRANSFER to confirm.',
-      'The transfer closes the case on your side permanently ("switched") and it drops off your Clients List — the receiving consultancy onboards the student fresh. This cannot be undone from your side.',
+      'Then open the Overview tab and use the "Transfer applicant to another consultancy" link at the bottom of the page — pick the receiving consultancy, give a reason, choose what moves with the case, enter their code, and type TRANSFER to confirm.',
+      'You choose what the receiving consultancy gets: the documents the student has shared (ticked to begin with), college applications, case preferences and the earlier conversation (read-only). The student is told what was shared. The plan, internal notes and commission records never move.',
+      'The transfer closes the case on your side permanently ("switched") and it drops off your Clients List — the receiving consultancy opens a new case with what you chose to share. This cannot be undone from your side.',
     ],
   },
   {
@@ -142,6 +143,7 @@ const HELP_TOPICS: HelpTopic[] = [
       'This queue combines freelancer-sourced applicants with students who asked to change consultancy — the reason badge tells you which.',
       'Only active consultancies appear in the target list.',
       'Allocating is immediate and final for that applicant — there’s no confirmation step, so check the target before clicking.',
+      'For a student changing consultancy you choose what the new consultancy receives: documents (ticked to begin with), college applications, case preferences and the earlier conversation (read-only). The student is told what was shared; the plan, internal notes and commission records never move. A freelancer referral is a first case, so there is nothing to choose.',
     ],
   },
   {

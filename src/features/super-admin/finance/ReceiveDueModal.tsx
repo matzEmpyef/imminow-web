@@ -8,6 +8,7 @@ import { ApiError } from '@/api/errors'
 import { currencyOptions, money } from './money'
 import { useReceiveCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
 import { localDateISO } from '@/lib/time'
+import { PAYMENT_REFERENCE_MAX } from '@/lib/validation'
 import { showToast } from '@/lib/toast'
 import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 
@@ -89,6 +90,9 @@ export function ReceiveDueModal({
   const serverSaysOverpayment = crossCurrency && refusal?.code === 'more_than_outstanding'
   // Nothing is owed in the currency given: point at the other-currency path when it is not on.
   const notOwedHint = !crossCurrency && refusal?.code === 'currency_not_owed'
+  // The same reference is already on a payment for this case (409 `already_exists`, review
+  // I-026): the server's sentence is shown beside the Reference field.
+  const duplicateReference = refusal?.code === 'already_exists' ? refusal.message : undefined
 
   const invalid =
     !isValidAmount || !receivedOn || crossInvalid || ((isOverpayment || serverSaysOverpayment) && !allowOverpayment)
@@ -117,7 +121,7 @@ export function ReceiveDueModal({
       widthRem={26}
       footer={
         <>
-          {receiveDue.isError && !serverSaysOverpayment && (
+          {receiveDue.isError && !serverSaysOverpayment && !duplicateReference && (
             <p role="alert" className="mr-auto self-center text-body-sm text-error">
               {receiveDue.error.message}
             </p>
@@ -299,7 +303,17 @@ export function ReceiveDueModal({
             className="h-12 rounded-full border border-border bg-surface px-5 text-body text-text-primary outline-none focus:border-2 focus:border-primary"
           />
         </div>
-        <TextField label="Reference" value={reference} onChange={(e) => setReference(e.target.value)} />
+        <TextField
+          label="Reference"
+          value={reference}
+          onChange={(e) => {
+            setReference(e.target.value)
+            // The refusal was about the reference as it was sent.
+            if (duplicateReference) receiveDue.reset()
+          }}
+          maxLength={PAYMENT_REFERENCE_MAX}
+          error={duplicateReference}
+        />
         <TextAreaField label="Note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
         <p className="text-caption text-text-secondary">
           Records the money as received — no declaration from the consultancy is needed. They&rsquo;re told.

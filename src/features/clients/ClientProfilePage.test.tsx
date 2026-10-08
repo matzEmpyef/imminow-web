@@ -115,6 +115,27 @@ describe('ClientProfilePage — case moved to another consultancy', () => {
   })
 })
 
+// Owner's ruling on review I-014 (2026-10-08): a case that arrived by a move says what came with it.
+describe('ClientProfilePage — carried over', () => {
+  it('names what came with a case that was moved here', () => {
+    mockedClient.mockReturnValue(query(baseClient({ carried: ['documents', 'applications'] })))
+    renderProfile()
+    expect(screen.getByText('Carried over: documents, college applications')).toBeInTheDocument()
+  })
+
+  it('says "nothing" when the case was moved with nothing', () => {
+    mockedClient.mockReturnValue(query(baseClient({ carried: [] })))
+    renderProfile()
+    expect(screen.getByText('Carried over: nothing')).toBeInTheDocument()
+  })
+
+  it('says nothing at all for a case that did not arrive by a move', () => {
+    mockedClient.mockReturnValue(query(baseClient({ carried: null })))
+    renderProfile()
+    expect(screen.queryByText(/Carried over/)).not.toBeInTheDocument()
+  })
+})
+
 // Review F-147 and the owner's ruling of 2026-10-06: "Reopen Case" follows the one shared rule.
 describe('ClientProfilePage — Reopen Case', () => {
   it('is offered on a closed case when the plan includes reopening', () => {

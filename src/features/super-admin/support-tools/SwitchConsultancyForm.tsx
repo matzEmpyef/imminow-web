@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
+import { CaseCarryFields } from '@/components/CaseCarryFields'
+import { DEFAULT_CARRY, movedSentence, type CarriedItem } from '@/lib/caseCarry'
 import { useSwitchCandidates, useSwitchConsultancy, type UserSearchResult } from '@/queries/supportTools'
 
 const BLOCKED_REASON_LABELS: Record<string, string> = {
@@ -29,16 +31,22 @@ export function SwitchConsultancyForm({ result, onCancel }: { result: UserSearch
   const [selectedId, setSelectedId] = useState('')
   const [reason, setReason] = useState('')
   const [confirming, setConfirming] = useState(false)
-  const [successClientId, setSuccessClientId] = useState<string | null>(null)
+  // What goes with the case: the operator decides (owner's ruling on review I-014, 2026-10-08).
+  const [carry, setCarry] = useState(DEFAULT_CARRY)
+  const [moved, setMoved] = useState<{ clientId?: string; carried?: CarriedItem[] } | null>(null)
 
-  if (successClientId) {
+  if (moved) {
     return (
       <div className="flex flex-col gap-sm">
         <p className="text-body-sm text-success">{result.name}'s case has been moved.</p>
+        {/* What the server says went with the case, not what was ticked. */}
+        <p className="text-body-sm text-text-primary">{movedSentence(moved.carried)}</p>
         <div className="flex items-center gap-sm">
-          <Link to={`/admin/applicants/${successClientId}`} className="text-body-sm font-medium text-primary hover:underline">
-            Open the new case
-          </Link>
+          {moved.clientId && (
+            <Link to={`/admin/applicants/${moved.clientId}`} className="text-body-sm font-medium text-primary hover:underline">
+              Open the new case
+            </Link>
+          )}
           <Button size="sm" variant="secondary" onClick={onCancel}>
             Close
           </Button>
@@ -90,6 +98,7 @@ export function SwitchConsultancyForm({ result, onCancel }: { result: UserSearch
           {selected.name}. {current?.name ?? 'The current consultancy'} loses access to their shared documents. The
           student and both consultancies are told.
         </p>
+        <CaseCarryFields value={carry} onChange={setCarry} disabled={switchConsultancy.isPending} />
         {switchConsultancy.isError && <p className="text-body-sm text-error">{switchConsultancy.error.message}</p>}
         <div className="flex items-center justify-end gap-sm">
           <Button size="sm" variant="secondary" onClick={() => setConfirming(false)} disabled={switchConsultancy.isPending}>
@@ -100,8 +109,13 @@ export function SwitchConsultancyForm({ result, onCancel }: { result: UserSearch
             loading={switchConsultancy.isPending}
             onClick={() =>
               switchConsultancy.mutate(
-                { journeyId: result.journey_id!, new_consultancy_id: selected.consultancy_id, reason: reason.trim() },
-                { onSuccess: (data) => data?.client_id && setSuccessClientId(data.client_id) },
+                {
+                  journeyId: result.journey_id!,
+                  new_consultancy_id: selected.consultancy_id,
+                  reason: reason.trim(),
+                  carry,
+                },
+                { onSuccess: (data) => setMoved({ clientId: data?.client_id, carried: data?.carried }) },
               )
             }
           >

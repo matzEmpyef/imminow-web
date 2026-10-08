@@ -4,6 +4,8 @@ import { Button } from '@/components/Button'
 import { CompactSelect } from '@/components/CompactSelect'
 import { TextField } from '@/components/TextField'
 import { useRecordCommissionPayment } from '@/queries/commission'
+import { ApiError } from '@/api/errors'
+import { PAYMENT_REFERENCE_MAX } from '@/lib/validation'
 import { formatMoneyAmount } from '@/lib/money'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
@@ -43,6 +45,13 @@ export function RecordPlatformPaymentModal({ due, onClose }: { due: CommissionDu
   // disabled declared the amount twice. The same content reuses the key (a retry replays); edited
   // content gets a new one.
   const { keyFor, settle } = usePayloadIdempotencyKey()
+
+  // The same transaction id is already on a payment for this case (409 `already_exists`, review
+  // I-026): the server's sentence belongs beside the field it is about, not in the footer.
+  const duplicateReference =
+    recordPayment.error instanceof ApiError && recordPayment.error.code === 'already_exists'
+      ? recordPayment.error.message
+      : undefined
 
   function handleCurrencyChange(next: string) {
     setCurrency(next)
@@ -87,7 +96,7 @@ export function RecordPlatformPaymentModal({ due, onClose }: { due: CommissionDu
       widthRem={28}
       footer={
         <>
-          {recordPayment.isError && (
+          {recordPayment.isError && !duplicateReference && (
             <p className="mr-auto self-center text-body-sm text-error">{recordPayment.error.message}</p>
           )}
           <div className="flex gap-sm">
@@ -134,7 +143,13 @@ export function RecordPlatformPaymentModal({ due, onClose }: { due: CommissionDu
         <TextField
           label="Transaction ID (optional)"
           value={transactionId}
-          onChange={(e) => setTransactionId(e.target.value)}
+          onChange={(e) => {
+            setTransactionId(e.target.value)
+            // The refusal was about the id as it was sent.
+            if (duplicateReference) recordPayment.reset()
+          }}
+          maxLength={PAYMENT_REFERENCE_MAX}
+          error={duplicateReference}
           placeholder="UTR / UPI reference"
         />
       </form>

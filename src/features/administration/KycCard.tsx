@@ -7,6 +7,7 @@ import { KycDocument } from '@/components/KycDocument'
 import { KYC_FILE_TYPES, kycFileProblem, useMyKyc, useSubmitKyc } from '@/queries/kyc'
 import { useAccountWords } from '@/lib/accountWords'
 import { showToast } from '@/lib/toast'
+import { formatDate } from '@/lib/time'
 
 /**
  * KYC certificate card (2026-08-19 — "option for consultancy to upload their certificate").
@@ -75,7 +76,9 @@ export function KycCard() {
       <div className="flex items-center gap-sm">
         <h2 className="text-h2 text-text-primary">{isInstitute ? 'Verification' : 'KYC Verification'}</h2>
         <Badge
-          color={status === 'verified' ? 'success' : status === 'pending' ? 'warning' : 'secondary'}
+          color={
+            status === 'verified' ? 'success' : status === 'pending' ? 'warning' : status === 'rejected' ? 'error' : 'secondary'
+          }
           className="capitalize"
         >
           {status.replace(/_/g, ' ')}
@@ -86,10 +89,20 @@ export function KycCard() {
           ? `Your ${noun} is verified — students see the Verified badge on your profile.`
           : status === 'pending'
             ? `Your ${noun} is with the Platform Admin for review.`
-            : isInstitute
-              ? 'Send us your accreditation or registration document so students see the Verified badge.'
-              : 'Upload your registration certificate to earn the Verified badge students see.'}
+            : status === 'rejected'
+              ? // The reviewer's own reason (review I-010). The upload control below is how a new
+                // one is sent; submitting it puts the card back to pending.
+                `Your ${noun} was not accepted${kyc.data?.rejected_reason ? `: ${kyc.data.rejected_reason}` : '.'}`
+              : isInstitute
+                ? 'Send us your accreditation or registration document so students see the Verified badge.'
+                : 'Upload your registration certificate to earn the Verified badge students see.'}
       </p>
+      {status === 'rejected' && (
+        <p className="mt-xs text-body-sm text-text-secondary">
+          {kyc.data?.rejected_at ? `Reviewed on ${formatDate(kyc.data.rejected_at)}. ` : ''}Upload a new {noun} below to
+          have it reviewed again.
+        </p>
+      )}
       <div className="mt-md flex flex-col gap-md">
         <KycDocument kyc={kyc.data} label={noun} />
         <div className="flex flex-col gap-xs">
