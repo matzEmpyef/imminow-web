@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { BookOpen, ExternalLink, Landmark, MapPin, Medal, Percent, Trophy } from 'lucide-react'
 import { Modal } from '@/components/Modal'
+import { MoreRowsNote } from '@/components/MoreRowsNote'
 import { CountryLabel } from '@/components/CountryLabel'
 import { Badge } from '@/components/Badge'
 import { IconBadge } from '@/components/IconBadge'
@@ -264,6 +265,13 @@ export function CollegeDetailModal({ college, onClose }: { college: College; onC
           ))}
         </ul>
       )}
+      <MoreRowsNote
+        shown={courses.data?.items.length ?? 0}
+        total={courses.data?.meta.total}
+        hasMore={Boolean(courses.data?.meta.next_cursor)}
+        noun="courses"
+        hint="Search in Course Finder to see the rest."
+      />
     </Section>
   )
 

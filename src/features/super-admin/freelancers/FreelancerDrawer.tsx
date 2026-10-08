@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Drawer } from '@/components/Drawer'
 import { CopyButton } from '@/components/CopyButton'
 import { Badge } from '@/components/Badge'
+import { MoreRowsNote } from '@/components/MoreRowsNote'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import {
@@ -232,6 +233,14 @@ export function FreelancerDrawer({ freelancer, onClose }: { freelancer: Freelanc
                   </p>
                 </div>
               ))}
+              <MoreRowsNote
+                shown={rows.length}
+                total={referrals.data?.meta?.total}
+                hasMore={Boolean(referrals.data?.meta?.next_cursor)}
+                noun="referrals"
+                to="/admin/freelancer-payouts"
+                linkLabel="See every referral in Freelancer payouts"
+              />
             </div>
           </div>
         </div>
