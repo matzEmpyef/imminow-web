@@ -414,7 +414,7 @@ export function CollegesCoursesPage() {
             <div className="flex gap-sm">
               <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleFileChange} />
               <Button variant="secondary" loading={importColleges.isPending} onClick={handleImportClick}>
-                Import CSV
+                Import colleges (CSV)
               </Button>
               <Button onClick={() => setShowAddCollege(true)}>Add College</Button>
             </div>
