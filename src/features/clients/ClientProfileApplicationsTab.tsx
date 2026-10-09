@@ -13,6 +13,7 @@ import { AddApplicationModal } from './AddApplicationModal'
 import { AcceptCollegeModal } from './AcceptCollegeModal'
 import { RevertAcceptanceModal } from './RevertAcceptanceModal'
 import { CASE_MOVED_ACTION_REASON } from '@/lib/clientStatus'
+import { campusLabel } from '@/lib/campus'
 
 type ApplicationRowData = import('@/api/schema').components['schemas']['Application']
 
@@ -215,7 +216,7 @@ function ApplicationRow({
               <>
                 {' · '}
                 <span className="font-medium text-text-primary">
-                  {[row.campus.city, row.campus.province_state].filter(Boolean).join(', ') || row.campus.country}
+                  {campusLabel(row.campus)}
                 </span>
               </>
             )}

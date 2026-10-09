@@ -34,6 +34,7 @@ import { ROLLED_DEADLINE_NOTE } from '@/features/super-admin/courseFormShared'
 import { IntakeStatusBadge } from '@/features/super-admin/IntakeStatusBadge'
 import { useLevelLadder } from '@/lib/studyLevels'
 import { DetailSection as Section } from './DetailSection'
+import { campusLabel } from '@/lib/campus'
 
 type Course = components['schemas']['Course']
 type IntakeDeadline = components['schemas']['IntakeDeadline']
@@ -322,7 +323,7 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
           {(course.campus_ids ?? []).length === 0
             ? gap('campus_ids', 'Campuses', 'None linked')
             : offeredCampuses.length > 0
-              ? offeredCampuses.map((c) => [c.city, c.province_state].filter(Boolean).join(', ') || c.country).join(' · ')
+              ? offeredCampuses.map((c) => campusLabel(c)).join(' · ')
               : college.isLoading
                 ? // A bar, not the word "Loading…" (console review M5, 2026-09-13) — text in a
                   // fact tile reads as the fact itself, so the tile looked like it was answering

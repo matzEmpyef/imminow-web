@@ -11,6 +11,7 @@ import type { components } from '@/api/schema'
 import { mediaUrl } from '@/lib/mediaUrl'
 import { countOf, formatCount } from '@/lib/counts'
 import { DetailSection as Section } from './DetailSection'
+import { campusLabel } from '@/lib/campus'
 
 type College = components['schemas']['College']
 type IconColor = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
@@ -203,7 +204,7 @@ export function CollegeDetailModal({ college, onClose }: { college: College; onC
               </tr>
             ) : (
               campuses.map((campus) => {
-                const name = campus.city ?? 'Campus'
+                const name = campusLabel(campus) || 'Campus'
                 return (
                   <tr key={campus.id} className="border-t border-border">
                     <td className="px-md py-sm text-text-primary">
@@ -211,6 +212,8 @@ export function CollegeDetailModal({ college, onClose }: { college: College; onC
                         {show(campus.city, `campus.${campus.id}.city`, 'Campus city')}
                         {campus.active === false && <Badge color="error">Inactive</Badge>}
                       </span>
+                      {/* A campus with its own name carries it under the city (two campuses can share one). */}
+                      {campus.name && <p className="text-caption text-text-secondary">{campus.name}</p>}
                     </td>
                     <td className="px-md py-sm text-text-primary">
                       {show(campus.province_state, `campus.${campus.id}.province_state`, `${name} state / province`)}

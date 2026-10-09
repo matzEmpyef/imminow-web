@@ -4,6 +4,8 @@ interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string
   error?: string
   valid?: boolean
+  // Helper text under the field; the error replaces it while there is one.
+  hint?: string
 }
 
 // ui-ux-design-web.md Section 5: pill-shaped field, 1px Border at rest, 2px Primary when
@@ -38,6 +40,7 @@ export function TextField({
   label,
   error,
   valid,
+  hint,
   id,
   className,
   value,
@@ -96,7 +99,7 @@ export function TextField({
             error ? 'border-error' : 'border-border'
           } ${iconCount === 1 ? 'pr-11' : iconCount === 2 ? 'pr-16' : ''}`}
           aria-invalid={Boolean(error)}
-          aria-describedby={error ? `${fieldId}-error` : undefined}
+          aria-describedby={error ? `${fieldId}-error` : hint ? `${fieldId}-hint` : undefined}
           {...props}
         />
         <label
@@ -144,11 +147,15 @@ export function TextField({
           </span>
         )}
       </div>
-      {error && (
+      {error ? (
         <span id={`${fieldId}-error`} className="pl-lg text-caption text-error">
           {error}
         </span>
-      )}
+      ) : hint ? (
+        <span id={`${fieldId}-hint`} className="pl-lg text-caption text-text-secondary">
+          {hint}
+        </span>
+      ) : null}
     </div>
   )
 }

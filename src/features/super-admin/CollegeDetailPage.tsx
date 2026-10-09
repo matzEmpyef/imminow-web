@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Pencil } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
+import { fieldMessages } from '@/api/errors'
+import { campusLabel } from '@/lib/campus'
 import { Card } from '@/components/Card'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { Button } from '@/components/Button'
@@ -74,10 +76,6 @@ function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? '' : 's'}`
 }
 
-function campusLabel(campus: Campus): string {
-  return [campus.city, campus.province_state, campus.country].filter(Boolean).join(', ')
-}
-
 function CampusFormModal({
   collegeId,
   editingCampus,
@@ -91,16 +89,23 @@ function CampusFormModal({
   const createCampus = useCreateCampus(collegeId)
   const updateCampus = useUpdateCampus(collegeId)
   const [provinceState, setProvinceState] = useState(editingCampus?.province_state ?? '')
+  const [name, setName] = useState(editingCampus?.name ?? '')
   const [city, setCity] = useState(editingCampus?.city ?? '')
   const [country, setCountry] = useState(editingCampus?.country ?? '')
 
   const mutation = isEditing ? updateCampus : createCampus
+  // The server's own sentence for the name (a duplicate within the college, a name that is too
+  // long) sits beside the field; it stays only while the name is as it was when refused.
+  const [sentName, setSentName] = useState<string | null>(null)
+  const nameError = sentName === name.trim() ? fieldMessages(mutation.error).name : undefined
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!provinceState || !country) return
-    const body = { province_state: provinceState, city: city || null, country }
-    const label = [city, provinceState].filter(Boolean).join(', ') || 'Campus'
+    // Blank sends null, so clearing the field on an edit removes the name.
+    const body = { name: name.trim() || null, province_state: provinceState, city: city || null, country }
+    const label = name.trim() || [city, provinceState].filter(Boolean).join(', ') || 'Campus'
+    setSentName(name.trim())
     if (editingCampus) {
       updateCampus.mutate(
         { campusId: editingCampus.id!, body },
@@ -128,7 +133,7 @@ function CampusFormModal({
       widthRem={26}
       footer={
         <>
-          {mutation.isError && <p className="mr-auto self-center text-body-sm text-error">{mutation.error.message}</p>}
+          {mutation.isError && !nameError && <p className="mr-auto self-center text-body-sm text-error">{mutation.error.message}</p>}
           <Button
             type="submit"
             form="campus-form"
@@ -142,6 +147,14 @@ function CampusFormModal({
       }
     >
       <form id="campus-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
+        <TextField
+          label="Campus name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Toronto Downtown"
+          hint="Needed when a college has more than one campus in the same city."
+          error={nameError}
+        />
         <TextField
           label="City"
           value={city ?? ''}
@@ -518,7 +531,7 @@ function CampusRow({ collegeId, campus }: { collegeId: string; campus: Campus })
   return (
     <div className="flex items-center gap-sm border-b border-border py-sm last:border-0">
       <div className="min-w-0 flex-1">
-        <p className="text-body-sm text-text-primary">{campusLabel(campus)}</p>
+        <p className="text-body-sm text-text-primary">{campusLabel(campus, { withPlace: true })}</p>
         <p className="text-caption text-text-secondary">{plural(courseCount, 'course')} taught here</p>
       </div>
       {campus.active && !campus.visible && <Badge color="secondary">Hidden — college inactive</Badge>}
@@ -529,12 +542,12 @@ function CampusRow({ collegeId, campus }: { collegeId: string; campus: Campus })
             ? updateCampus.mutate({ campusId: campus.id!, body: { active: true } })
             : setConfirmingOff(true)
         }
-        label={`${campusLabel(campus)} campus active`}
+        label={`${campusLabel(campus, { withPlace: true })} campus active`}
       />
       <button
         type="button"
         onClick={() => setEditing(true)}
-        aria-label={`Edit ${campusLabel(campus)} campus`}
+        aria-label={`Edit ${campusLabel(campus, { withPlace: true })} campus`}
         title="Edit"
         className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
       >

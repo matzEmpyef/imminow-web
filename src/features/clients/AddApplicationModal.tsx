@@ -5,6 +5,7 @@ import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { courseSource, type Course } from '@/queries/pickerSources'
 import { useAddApplication } from '@/queries/clients'
 import { showToast } from '@/lib/toast'
+import { campusLabel } from '@/lib/campus'
 
 // User-requested (2026-08-19) — Applications had a working POST /clients/{id}/
 // colleges endpoint and mutation hook, but no frontend surface ever called it: there was no way
@@ -115,7 +116,7 @@ export function AddApplicationModal({
               loading={addCollege.isPending}
               onClick={() => add(campusCourse, campus.id)}
             >
-              {[campus.city, campus.province_state, campus.country].filter(Boolean).join(', ')}
+              {campusLabel(campus, { withPlace: true })}
             </Button>
           ))}
         </div>

@@ -111,6 +111,7 @@ export function ButtonMenu({ label, items, variant = 'secondary', loading }: But
         <div
           id={menuId}
           role="menu"
+          tabIndex={-1}
           aria-label={label}
           onKeyDown={onMenuKeyDown}
           style={{ minWidth: '14rem' }}

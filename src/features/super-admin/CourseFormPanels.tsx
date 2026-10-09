@@ -27,6 +27,7 @@ import type { CourseFormValue } from './useCourseForm'
 import { useStudyLevels } from '@/queries/studyLevels'
 import { useFieldsOfStudy } from '@/queries/fieldsOfStudy'
 import { useCourseLanguages } from '@/queries/courseFinder'
+import { campusLabel } from '@/lib/campus'
 
 type College = components['schemas']['College']
 type Exam = components['schemas']['Exam']
@@ -329,7 +330,7 @@ export function CourseCampusIntakesPanel({
                 <CheckRow
                   checked={form.campusIds.includes(c.id!)}
                   onChange={() => form.onToggleCampus(c.id!)}
-                  label={[c.city, c.province_state, c.country].filter(Boolean).join(', ')}
+                  label={campusLabel(c, { withPlace: true })}
                 />
               </div>
             ))}
