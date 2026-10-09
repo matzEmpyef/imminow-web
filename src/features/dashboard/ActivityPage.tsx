@@ -19,13 +19,16 @@ import {
   localDateISO,
 } from '@/lib/time'
 import { AssignTaskModal } from './AssignTaskModal'
+import { CompletedTasksSection } from './CompletedTasksSection'
 import type { components } from '@/api/schema'
 
 type ActivityTask = components['schemas']['ActivityTask']
 
 // The feed is bounded (review F-112): each of its lists carries at most this many rows, and
 // `truncated` says at least one was cut. The contract names the number; it is not sent per list,
-// so a list holding exactly this many while `truncated` is true is taken to be a cut one.
+// so a list holding exactly this many while `truncated` is true is taken to be a cut one. The two
+// task lists are the exception: `tasks_truncated` and `delegated_tasks_truncated` (2026-10-09)
+// say outright which of them was cut, and are read first.
 const FEED_LIST_CAP = 200
 
 function FirstRowsNote() {
@@ -96,6 +99,9 @@ export function ActivityPage() {
   const data = feed.data
   const today = localDateISO()
   const cut = (list: unknown[]) => data.truncated === true && list.length >= FEED_LIST_CAP
+  const tasksCut = typeof data.tasks_truncated === 'boolean' ? data.tasks_truncated : cut(data.tasks)
+  const delegatedCut =
+    typeof data.delegated_tasks_truncated === 'boolean' ? data.delegated_tasks_truncated : cut(data.delegated_tasks)
 
   // "My tasks due/overdue" — open, due today or earlier (same window needs_action_today_count
   // itself counts server-side). Future open tasks show instead under Coming Up.
@@ -322,7 +328,7 @@ export function ActivityPage() {
             )}
 
             {myTasksDue.length > 0 && (
-              <ActionSection title="My tasks" count={myTasksDue.length} cut={cut(data.tasks)}>
+              <ActionSection title="My tasks" count={myTasksDue.length} cut={tasksCut}>
                 {/* N6 (second-pass review): a failed complete used to vanish silently, and one
                     shared isPending put every row's button into "Please wait…" for any click —
                     `variables` scopes the spinner to the row actually in flight. */}
@@ -378,7 +384,7 @@ export function ActivityPage() {
               </div>
             ))}
           </div>
-          {(cut(data.tasks) || cut(data.upcoming_due_dates) || cut(data.application_deadlines) || cut(data.pending_proposals)) && (
+          {(tasksCut || cut(data.upcoming_due_dates) || cut(data.application_deadlines) || cut(data.pending_proposals)) && (
             <FirstRowsNote />
           )}
         </Card>
@@ -428,9 +434,11 @@ export function ActivityPage() {
                 </div>
               ))}
             </div>
-            {cut(data.delegated_tasks) && <FirstRowsNote />}
+            {delegatedCut && <FirstRowsNote />}
           </Card>
         )}
+
+        <CompletedTasksSection />
       </div>
     </AppShell>
   )

@@ -11,6 +11,7 @@ vi.mock('./AssignTaskModal', () => ({ AssignTaskModal: () => null }))
 vi.mock('@/queries/activity', () => ({
   useActivityFeed: vi.fn(),
   useCompleteActivityTask: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
+  useCompletedActivityTasks: vi.fn(),
 }))
 
 import { useActivityFeed } from '@/queries/activity'
@@ -72,6 +73,39 @@ describe('the Activity page when the feed was cut', () => {
 
   it('says nothing under a short list of a feed that was cut elsewhere', () => {
     renderWith(feed({ truncated: true, unread_chats: chats(3) }))
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument()
+  })
+})
+
+// 2026-10-09 (review F-112): the feed now says which of its two task lists was cut.
+describe('the Activity page when a task list was cut', () => {
+  const task = (id: string) => ({
+    id,
+    note: `Task ${id}`,
+    status: 'open',
+    due_date: '2000-01-01',
+    assigned_to: { user: { first_name: 'Asha', last_name: 'Nair' } },
+    assigned_by: { user: { first_name: 'Ravi', last_name: 'Das' } },
+  })
+
+  it('puts the notice under My tasks and Coming up when tasks_truncated, not under Tasks I’ve assigned', () => {
+    renderWith(feed({ truncated: true, tasks_truncated: true, tasks: [task('a')], delegated_tasks: [task('b')] }))
+    const notes = screen.getAllByText(NOTE)
+    expect(notes).toHaveLength(2)
+    expect(notes[0].closest('div')).toHaveTextContent('My tasks')
+    expect(notes[1].closest('div')).toHaveTextContent('Coming up')
+    expect(screen.getByText('Tasks I\'ve assigned').closest('div')).not.toHaveTextContent('Showing the first 200')
+  })
+
+  it('puts the notice under Tasks I’ve assigned when only delegated_tasks_truncated', () => {
+    renderWith(feed({ truncated: true, delegated_tasks_truncated: true, tasks: [task('a')], delegated_tasks: [task('b')] }))
+    const notes = screen.getAllByText(NOTE)
+    expect(notes).toHaveLength(1)
+    expect(notes[0].closest('div')).toHaveTextContent("Tasks I've assigned")
+  })
+
+  it('says nothing about a short list just because the flag is off', () => {
+    renderWith(feed({ truncated: true, tasks_truncated: false, delegated_tasks_truncated: false, tasks: [task('a')] }))
     expect(screen.queryByText(NOTE)).not.toBeInTheDocument()
   })
 })
