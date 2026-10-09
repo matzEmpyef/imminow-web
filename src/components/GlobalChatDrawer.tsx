@@ -159,6 +159,8 @@ export function GlobalChatDrawer() {
                         {conversation.badge ?? CHAT_TYPE_LABELS[conversation.type]}
                       </span>
                       {conversation.closed === true && <Badge color="secondary">Closed</Badge>}
+                      {/* An active lead nobody has been given yet (owner's ruling 2026-10-09). */}
+                      {conversation.unassigned === true && <Badge color="warning">Unassigned</Badge>}
                     </div>
                     <p className="truncate text-caption text-text-secondary">
                       {conversation.last_message_preview ?? 'No messages yet'}

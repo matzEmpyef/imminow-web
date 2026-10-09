@@ -132,6 +132,20 @@ describe('the chat drawer', () => {
     expect(listRequests().at(-1)).toMatchObject({ 'filter[show_closed]': true, limit: 20 })
   })
 
+  it('tags a lead nobody has been given yet as Unassigned, and no other row', async () => {
+    mockedGet.mockImplementation((async (_path: unknown, opts: { params: { query: Query } }) =>
+      opts.params.query.limit === 1
+        ? answer([row('l1')])
+        : answer([row('l1', { unassigned: true }), row('l2', { unassigned: false }), row('l3')])) as never)
+    renderDrawer()
+    await openDrawer()
+    await screen.findByText('Student l1')
+
+    expect(screen.getAllByText('Unassigned')).toHaveLength(1)
+    expect(screen.getByText('Student l1').closest('button')).toHaveTextContent('Unassigned')
+    expect(screen.getByText('Student l2').closest('button')).not.toHaveTextContent('Unassigned')
+  })
+
   it('opens a closed row as closed, and an open or internal row as not closed', async () => {
     renderDrawer()
     await openDrawer()
