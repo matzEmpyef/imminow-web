@@ -329,3 +329,123 @@ describe('FormsTab layout and heading', () => {
     expect(screen.getByText('From step: Background')).toBeInTheDocument()
   })
 })
+
+// Owner ruling 2026-10-09: the checkbox spacing "looks random". Every field is a [label] over
+// [control] block with one small gap, yes/no is a left-aligned segmented control under its label,
+// and multi-select options wrap with a fixed gap. Values written stay exactly as before.
+describe('FormsTab field spacing', () => {
+  const field = (id: string, type: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    type,
+    label: id,
+    required: false,
+    position: 0,
+    width: 'half',
+    ...extra,
+  })
+  const blockOf = (label: string) => screen.getByText(label, { exact: false }).closest('label, div.flex-col') as HTMLElement
+
+  it('puts the yes/no control under its label, left aligned, and writes the same words', () => {
+    setup({ q: 'Yes' }, [field('q', 'yes_no'), field('Name', 'text')])
+    renderTab()
+
+    const block = blockOf('q')
+    expect(block).toHaveClass('flex', 'flex-col', 'gap-xs')
+    // Label first, control after it - not side by side at opposite ends of the row.
+    expect(block.firstElementChild).toHaveTextContent('q')
+    const control = within(block).getByRole('group', { name: 'q' })
+    expect(block.lastElementChild).toBe(control)
+    expect(control).toHaveClass('w-fit', 'h-9')
+    expect(block.className).not.toMatch(/justify-between/)
+    expect(within(control).getByRole('button', { name: 'Yes' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(control).getByRole('button', { name: 'No' })).toHaveAttribute('aria-pressed', 'false')
+    // Same block shape as the text field beside it, so the two line up.
+    expect(blockOf('Name')).toHaveClass('flex', 'flex-col', 'gap-xs')
+
+    fireEvent.click(within(control).getByRole('button', { name: 'No' }))
+    expect(sentAnswers()).toEqual({ q: 'No' })
+  })
+
+  it('wraps multi-select options with fixed gaps, and a click on the option text toggles it', () => {
+    setup({ topics: ['Maths'] }, [field('topics', 'multi_select', { options: ['Maths', 'Physics', 'Biology'] })])
+    renderTab()
+
+    const block = blockOf('topics')
+    expect(block).toHaveClass('flex', 'flex-col', 'gap-xs')
+    const options = block.lastElementChild as HTMLElement
+    expect(options).toHaveClass('flex', 'flex-wrap', 'gap-x-lg', 'gap-y-sm')
+    expect(options.children).toHaveLength(3)
+    for (const option of Array.from(options.children)) {
+      // The whole option is one label with a fixed box-to-text gap.
+      expect(option.tagName).toBe('LABEL')
+      expect(option).toHaveClass('flex', 'items-center', 'gap-xs')
+    }
+    expect(screen.getByLabelText('Maths')).toBeChecked()
+
+    fireEvent.click(screen.getByText('Physics'))
+    expect(screen.getByLabelText('Physics')).toBeChecked()
+    fireEvent.click(screen.getByText('Maths'))
+    expect(sentAnswers()).toEqual({ topics: ['Physics'] })
+  })
+
+  it('spaces fields in a grid and a group card with one rhythm', () => {
+    setup(null, [
+      field('Section', 'group', { fields: [field('Inner', 'text')] }),
+      field('Outer', 'text'),
+    ])
+    renderTab()
+
+    const top = screen.getByText('Outer', { exact: false }).closest('div.grid') as HTMLElement
+    expect(top).toHaveClass('gap-x-md', 'gap-y-md')
+    const card = screen.getByText('Section', { selector: 'p' }).parentElement as HTMLElement
+    expect(card).toHaveClass('flex', 'flex-col', 'gap-md', 'p-md')
+    expect(card.querySelector('div.grid')).toHaveClass('gap-x-md', 'gap-y-md')
+  })
+
+  it('lays three third-width fields in one row, equal cells, every control the full cell width', () => {
+    setup(null, [
+      field('First name', 'text', { width: 'third' }),
+      field('Date of birth', 'date', { width: 'third' }),
+      field('Gender', 'single_select', { width: 'third', options: ['Female', 'Male'] }),
+      field('Married', 'yes_no', { width: 'third' }),
+    ])
+    renderTab()
+
+    const cells = ['First name', 'Date of birth', 'Gender'].map((label) => {
+      const cell = screen.getByText(label, { exact: false }).closest('div[class*="col-span"]') as HTMLElement
+      // Three to a row from the wide container size up, one column below it.
+      expect(cell).toHaveClass('col-span-6', '@md:col-span-2', 'min-w-0')
+      return cell
+    })
+    expect(new Set(cells.map((c) => c.parentElement)).size).toBe(1)
+    expect(cells[0].parentElement).toHaveClass('@container', 'grid', 'grid-cols-6', 'gap-x-md')
+    // Text, date and select all fill their cell, so the three line up edge to edge.
+    expect(screen.getByLabelText('First name')).toHaveClass('w-full', 'h-9')
+    expect(screen.getByLabelText('Date of birth')).toHaveClass('w-full', 'h-9')
+    expect(screen.getByLabelText('Gender')).toHaveClass('w-full', 'h-9')
+    // Every label sits directly above its control, in the same block shape.
+    for (const label of ['First name', 'Date of birth', 'Gender']) {
+      expect(blockOf(label)).toHaveClass('flex', 'flex-col', 'gap-xs')
+    }
+  })
+
+  it('makes a text area as wide as its cell too', () => {
+    setup(null, [field('Notes', 'long_text')])
+    renderTab()
+    expect(screen.getByLabelText('Notes')).toHaveClass('w-full')
+  })
+
+  it('looks the same on a closed case, just disabled', () => {
+    setup({ q: 'No', topics: ['Maths'] }, [
+      field('q', 'yes_no'),
+      field('topics', 'multi_select', { options: ['Maths', 'Physics'] }),
+    ])
+    renderTab(true)
+
+    expect(blockOf('q')).toHaveClass('flex', 'flex-col', 'gap-xs')
+    expect(screen.getByRole('button', { name: 'No' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'No' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByLabelText('Maths')).toBeDisabled()
+    expect(screen.getByLabelText('Maths')).toBeChecked()
+  })
+})

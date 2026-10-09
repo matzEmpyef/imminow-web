@@ -96,9 +96,9 @@ function FillableField({
 
   if (field.type === 'group') {
     return (
-      <div className="flex flex-col gap-sm rounded-md border border-border p-md">
+      <div className="flex flex-col gap-md rounded-md border border-border p-md">
         <p className="text-body-sm font-medium text-text-primary">{field.label}</p>
-        <div className="grid grid-cols-6 gap-sm pl-md">
+        <div className="grid grid-cols-6 gap-x-md gap-y-md">
           {(field.fields ?? []).map((child) => (
             <div key={child.id} className={`${fillWidthClass(child)} min-w-0`}>
               <FillableField
@@ -132,7 +132,7 @@ function FillableField({
           {label}
           <input
             type="text"
-            className="h-9 rounded-md border border-border bg-surface px-sm text-body-sm text-text-primary"
+            className="h-9 w-full rounded-md border border-border bg-surface px-sm text-body-sm text-text-primary"
             value={typeof value === 'string' ? value : ''}
             onChange={(e) => onChange(field.id, e.target.value)}
           />
@@ -144,7 +144,7 @@ function FillableField({
           {label}
           <textarea
             rows={3}
-            className="rounded-md border border-border bg-surface p-sm text-body-sm text-text-primary"
+            className="w-full rounded-md border border-border bg-surface p-sm text-body-sm text-text-primary"
             value={typeof value === 'string' ? value : ''}
             onChange={(e) => onChange(field.id, e.target.value)}
           />
@@ -156,7 +156,7 @@ function FillableField({
           {label}
           <input
             type="date"
-            className="h-9 w-fit rounded-md border border-border bg-surface px-sm text-body-sm text-text-primary"
+            className="h-9 w-full rounded-md border border-border bg-surface px-sm text-body-sm text-text-primary"
             value={typeof value === 'string' ? value.slice(0, 10) : ''}
             onChange={(e) => onChange(field.id, e.target.value)}
           />
@@ -167,7 +167,7 @@ function FillableField({
         <label className="flex flex-col gap-xs">
           {label}
           <select
-            className="h-9 w-fit rounded-md border border-border bg-surface px-sm text-body-sm text-text-primary"
+            className="h-9 w-full rounded-md border border-border bg-surface px-sm text-body-sm text-text-primary"
             value={typeof value === 'string' ? value : ''}
             onChange={(e) => onChange(field.id, e.target.value)}
           >
@@ -185,12 +185,17 @@ function FillableField({
       return (
         <div className="flex flex-col gap-xs">
           {label}
-          <div className="flex flex-wrap gap-sm">
+          {/* Each option is one <label>: box and text share a fixed gap, the whole thing is the
+              click target, and the set wraps with an even gap both ways. */}
+          <div className="flex flex-wrap gap-x-lg gap-y-sm">
             {(field.options ?? []).map((option) => (
-              <label key={option} className="flex items-center gap-xs text-body-sm text-text-primary">
+              <label
+                key={option}
+                className="flex cursor-pointer items-center gap-xs text-body-sm text-text-primary has-disabled:cursor-not-allowed has-disabled:opacity-60"
+              >
                 <input
                   type="checkbox"
-                  className="h-4 w-4"
+                  className="h-4 w-4 shrink-0 accent-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                   checked={selected.includes(option)}
                   onChange={(e) =>
                     onChange(field.id, e.target.checked ? [...selected, option] : selected.filter((o) => o !== option))
@@ -204,20 +209,21 @@ function FillableField({
       )
     }
     case 'yes_no':
+      // Label on top like every other field; underneath, one compact Yes | No control, left
+      // aligned and the height of a text input, so it lines up with its neighbour in a two-up row.
       return (
-        <div className="flex items-center justify-between gap-md">
+        <div className="flex flex-col gap-xs">
           {label}
-          <div className="flex gap-xs">
+          <div role="group" aria-label={field.label} className="flex h-9 w-fit overflow-hidden rounded-md border border-border">
             {(['Yes', 'No'] as const).map((option) => (
               <button
                 key={option}
                 type="button"
+                aria-pressed={value === option}
                 onClick={() => onChange(field.id, option)}
-                className={`rounded-full border px-sm py-1 text-caption font-medium ${
-                  value === option
-                    ? 'border-pill-selected bg-pill-selected text-text-on-primary'
-                    : 'border-border bg-surface text-text-primary'
-                }`}
+                className={`px-md text-body-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60 ${
+                  option === 'No' ? 'border-l border-border' : ''
+                } ${value === option ? 'bg-pill-selected text-text-on-primary' : 'bg-surface text-text-primary'}`}
               >
                 {option}
               </button>
@@ -289,7 +295,7 @@ function LinkedFormViewer({
   const fromProfile = new Set(Object.keys(gaps).filter((id) => answers[id] === gaps[id]))
 
   return (
-    <div className="flex flex-col gap-sm">
+    <div className="flex flex-col gap-lg">
       {saved.data?.submitted_at && (
         <p className="text-caption text-text-secondary">Last saved {formatDateTime(saved.data.submitted_at)}</p>
       )}
@@ -300,7 +306,7 @@ function LinkedFormViewer({
         {/* The fields sit on the same six-column grid the form builder's preview uses, so a half
             or third width field shares its row from md up (by the width of this box, not the
             window) and every field stacks full width below that. */}
-        <div className="@container grid grid-cols-6 gap-sm">
+        <div className="@container grid grid-cols-6 gap-x-md gap-y-md">
           {form.data.fields.map((field) => (
             <div key={field.id} className={`${fillWidthClass(field)} min-w-0`}>
               <FillableField
