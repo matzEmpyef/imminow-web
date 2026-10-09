@@ -373,7 +373,9 @@ describe('FormsTab field spacing', () => {
     const block = blockOf('topics')
     expect(block).toHaveClass('flex', 'flex-col', 'gap-xs')
     const options = block.lastElementChild as HTMLElement
-    expect(options).toHaveClass('flex', 'flex-wrap', 'gap-x-lg', 'gap-y-sm')
+    // Equal columns that fill the row, as many as fit (owner, 2026-10-09).
+    expect(options).toHaveClass('grid', 'gap-x-md', 'gap-y-sm')
+    expect((options as HTMLElement).style.gridTemplateColumns).toBe('repeat(auto-fit, minmax(9rem, 1fr))')
     expect(options.children).toHaveLength(3)
     for (const option of Array.from(options.children)) {
       // The whole option is one label with a fixed box-to-text gap.

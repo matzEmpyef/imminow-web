@@ -20,6 +20,10 @@ type Client = NonNullable<ReturnType<typeof useClient>['data']>
 // birth, and still handed the consultant a blank "First name" to retype. A form's fields are
 // free text authored by each consultancy, so the match is on what the label SAYS, normalised:
 // "First Name", "first name*" and "Given name" are all the same question.
+// Equal columns that fill the row: each at least wide enough for a short option, sharing the
+// rest evenly. Written as a style because the column count follows the space, not a breakpoint.
+const MULTI_SELECT_COLUMNS = { gridTemplateColumns: 'repeat(auto-fit, minmax(9rem, 1fr))' } as const
+
 function normaliseLabel(label: string): string {
   return label
     .toLowerCase()
@@ -185,9 +189,10 @@ function FillableField({
       return (
         <div className="flex flex-col gap-xs">
           {label}
-          {/* Each option is one <label>: box and text share a fixed gap, the whole thing is the
-              click target, and the set wraps with an even gap both ways. */}
-          <div className="flex flex-wrap gap-x-lg gap-y-sm">
+          {/* Each option is one <label>: box and text share a fixed gap and the whole thing is
+              the click target. The options fill the row in equal columns (owner, 2026-10-09):
+              as many as fit side by side, wrapping to further equal rows when narrow. */}
+          <div className="grid gap-x-md gap-y-sm" style={MULTI_SELECT_COLUMNS}>
             {(field.options ?? []).map((option) => (
               <label
                 key={option}
