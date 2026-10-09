@@ -564,7 +564,7 @@ export function ImportApply({ item }: { item: CatalogImport }) {
             </p>
           ) : (
             <p className="text-body-sm text-text-primary">
-              Ready to apply. New campuses and courses are saved as drafts. Changes to live courses show at once.
+              New campuses and courses are saved as drafts. Changes to live courses show at once.
             </p>
           )}
           <p className="text-caption text-text-secondary">You can undo an import for 7 days.</p>

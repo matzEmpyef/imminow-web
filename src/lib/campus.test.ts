@@ -20,6 +20,21 @@ describe('campusLabel', () => {
     expect(campusLabel({ city: ' ', province_state: '', country: 'Canada' })).toBe('Canada')
   })
 
+  it('uses the label the server sent, whatever the rest of the object says', () => {
+    expect(campusLabel({ ...named, label: 'Toronto Downtown' })).toBe('Toronto Downtown')
+    expect(campusLabel({ ...unnamed, label: 'Toronto' })).toBe('Toronto')
+    expect(campusLabel({ ...unnamed, label: 'Server says so' })).toBe('Server says so')
+    expect(campusLabel({ ...named, label: 'Toronto Downtown' }, { withPlace: true })).toBe(
+      'Toronto Downtown — Toronto, Ontario, Canada',
+    )
+    expect(campusLabel({ ...unnamed, label: 'Toronto' }, { withPlace: true })).toBe('Toronto, Ontario, Canada')
+  })
+
+  it('ignores a blank label and applies the rule itself', () => {
+    expect(campusLabel({ ...named, label: '  ' })).toBe('Toronto Downtown')
+    expect(campusLabel({ ...unnamed, label: null })).toBe('Toronto')
+  })
+
   it('trims the name', () => {
     expect(campusLabel({ ...unnamed, name: '  Toronto Downtown ' })).toBe('Toronto Downtown')
   })

@@ -12738,7 +12738,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add a campus to a college (admin) */
+        /**
+         * Add a campus to a college (admin)
+         * @description The rule on `Campus` (2026-10-09) decides the 409 `duplicate_campus` refusals, each with its own message. A `name` another campus of the college already goes by: "This college already has a campus with that name." No `name`, in a place where the college already has an unnamed campus: "<College> already has a campus in <City>. Give this campus a name to add another one there." No `name`, in a city whose name a named campus of the college goes by: "<College> already has a campus called <City>. Give this campus a name to tell them apart." A named campus in a city that already has campuses is created. `details.fields` on every one of these 409s holds exactly one key, `name`, with the same sentence as `message`: the way out is always in the Name field (another name, or a name at all), so that is the field to mark — never `city`.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -12785,7 +12788,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Edit a campus (admin) — incl. active toggle. All fields optional, unlike POST's CampusInput. */
+        /**
+         * Edit a campus (admin) — incl. active toggle. All fields optional, unlike POST's CampusInput.
+         * @description The same rule and 409 `duplicate_campus` messages as POST (see `Campus`), checked when `name`, `city`, `province_state` or `country` is sent: clearing a name (`name: null`) or moving an unnamed campus is refused where the college already has an unnamed campus in that place. Switching `active` alone is never refused for it. `details.fields` is `{name: <the message>}` on each of these 409s, as on POST.
+         */
         patch: {
             parameters: {
                 query?: never;
@@ -30147,10 +30153,13 @@ export interface components {
             /** @description Applications applied / offer received / accepted on cases still in progress. */
             live_applications: number;
         };
+        /** @description SEVERAL CAMPUSES IN ONE CITY (owner's ruling, 2026-10-09). A college may have any number of NAMED campuses in the same city as long as their names differ (University of Toronto: "St. George" and "Scarborough", both in Toronto). A campus WITHOUT a name is identified by its city, so a college has at most one unnamed campus per place (city + province/state + country, ignoring case and spacing). A named and an unnamed campus may share a place: the unnamed one is "the Toronto campus". No two campuses of a college ever have the same `label`, so clients show `label` wherever a campus is named (chips, pickers, cards) and two campuses in one city never read alike. */
         Campus: {
             id: components["schemas"]["UUID"];
-            /** @description The campus's own name, e.g. "Toronto Downtown" (bulk import plan, 2026-10-09). Null for a campus that was never given one: show its city (or province) instead. Unique within its college, ignoring case and spacing (409 `duplicate_campus`). */
+            /** @description The campus's own name, e.g. "Toronto Downtown" (bulk import plan, 2026-10-09). Null for a campus that was never given one: show its city (or province) instead — `label` is that rule, worked out. Unique within its college, ignoring case and spacing, and never equal to the city an unnamed campus of the college goes by (409 `duplicate_campus`). */
             name?: string | null;
+            /** @description What to show the campus as (2026-10-09): its `name`, or — never given one — its `city` (its `province_state` when it has no city). Always sent by the FastAPI backend; unique within the college. A client that does not get it applies the same rule itself. */
+            readonly label?: string;
             /** @description One of GET /countries/{name}/states for this campus's country (2026-09-15); anything else is refused 422. */
             province_state: string;
             city?: string | null;
@@ -30162,7 +30171,7 @@ export interface components {
             readonly course_count?: number;
         };
         CampusInput: {
-            /** @description Optional. See `Campus.name`. */
+            /** @description Optional. See `Campus.name` and the rule on `Campus`: needed to add a campus in a place where the college already has an unnamed one. */
             name?: string | null;
             /** @description One of GET /countries/{name}/states for this campus's country (2026-09-15); anything else is refused 422. */
             province_state: string;
@@ -30193,7 +30202,7 @@ export interface components {
             status: "checking" | "failed" | "ready" | "applying" | "applied" | "stale" | "undoing" | "undone";
             /** @description The state in a word or two for the history list, to show as it is: "Checking", "Could not be read", "Needs fixing", "Nothing to change", "Already imported", "Preview ready", "Expired", "Applying", "Applied", "Not applied", "Undoing", "Undone". */
             state_label: string;
-            /** @description One plain sentence about where this import stands, to show as it is. Always sent (never null) by this backend, for every status. */
+            /** @description One plain sentence about where this import stands, to show as it is. Always sent (never null) by this backend, for every status. A preview that can be applied reads "Ready to apply: 1 new, 0 changed and 0 unchanged rows."; while it holds near-match warnings (`summary.warnings` > 0), which Apply refuses until each is sent in `accepted_warning_ids`, it says what is needed first: "Ready to apply once the 1 near match is confirmed: …" / "Ready to apply once all 3 near matches are confirmed: …". The acceptance is the client's (ticks on the page), so the server's sentence does not change when they are ticked; it is worded to read right both before and after. */
             message?: string | null;
             file_name: string;
             /** @enum {string} */
@@ -30206,7 +30215,7 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             uploaded_by?: components["schemas"]["CatalogImportPerson"] | null;
-            /** @description While `checking`, `applying` or `undoing`; null otherwise. */
+            /** @description Present only while work is in progress: `status` is `checking`, `applying` or `undoing`. Null (always sent, never left out) in every other status. POLLING: keep reading GET /catalog-imports/{id} while `status` is one of those three and stop as soon as it is anything else — `failed`, `ready`, `applied`, `stale` and `undone` are resting states in which nothing is running and nothing will change until somebody presses Apply or Undo (which answer 202 with `applying` / `undoing`, and polling starts again). Decide on `status`, not on `progress`. */
             progress?: {
                 /** @enum {string} */
                 phase: "check" | "apply" | "undo";
@@ -30323,6 +30332,7 @@ export interface components {
             /** @description The values the column accepts (the first 50 of a long list). */
             allowed_values?: string[] | null;
             allowed_values_total?: number | null;
+            /** @description The listed value the typed one is a slip for, to offer as a one-click correction. Sent only when it is the same thing mistyped (a letter or two out, or a known slip for a currency code such as CDN for CAD); null otherwise. It is never a nearest guess: a different currency, college or field is not suggested (2026-10-09). */
             did_you_mean?: string | null;
         };
         CatalogImportWarning: {
@@ -30835,9 +30845,13 @@ export interface components {
                 min_age?: number | null;
             } | null;
         };
-        /** @description One campus a course is taught at, resolved for display (2026-09-16). */
+        /** @description One campus a course is taught at, resolved for display (2026-09-16). A course may be taught at several campuses in one city (see `Campus`, 2026-10-09): show `label`, not `city`, as the campus chip. */
         CourseCampus: {
             id: components["schemas"]["UUID"];
+            /** @description The campus's own name; null when it was never given one. See `Campus.name`. */
+            name?: string | null;
+            /** @description What to show the campus as: its `name`, or its `city` (its `province_state` when it has no city) while it has none. See `Campus.label`. */
+            readonly label?: string;
             city?: string | null;
             province_state?: string | null;
             country: string;

@@ -3,6 +3,9 @@
 // city in its college. Every list, chip, picker and table in the console goes through here, so a
 // campus reads the same wherever it appears.
 export interface CampusLike {
+  // What the server says to show the campus as (name, else city); read-only, always sent by the
+  // backend. An object without it (an older answer, a half-built row) gets the same rule below.
+  label?: string | null
   name?: string | null
   city?: string | null
   province_state?: string | null
@@ -18,7 +21,7 @@ function place(campus: CampusLike): string {
 }
 
 /**
- * The campus's name when it has one, otherwise its city (the contract's fallback is "city (or
+ * The server's `label` when it sent one; otherwise the campus's name when it has one, else its city (the contract's fallback is "city (or
  * province)"; a campus with neither falls to its country, never to a blank).
  *
  * `withPlace` is for pickers and lists that need to tell campuses apart at a glance: a named
@@ -27,7 +30,7 @@ function place(campus: CampusLike): string {
  */
 export function campusLabel(campus: CampusLike, options?: { withPlace?: boolean }): string {
   const name = clean(campus.name)
-  const short = name || clean(campus.city) || clean(campus.province_state) || clean(campus.country)
+  const short = clean(campus.label) || name || clean(campus.city) || clean(campus.province_state) || clean(campus.country)
   if (!options?.withPlace) return short
   const where = place(campus)
   if (name) return where ? `${name} — ${where}` : name

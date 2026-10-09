@@ -768,6 +768,20 @@ describe('near matches', () => {
     warnings = ok({ items: WARNINGS })
   })
 
+  it('leaves the "Ready to apply once…" headline to the server and does not say it a second time', async () => {
+    const headline = 'Ready to apply once the 1 near match is confirmed: 2 new and 1 changed.'
+    states = [ok(anImport({ message: headline, summary: { ...SUMMARY, warnings: 1 } }))]
+    warnings = ok({ items: [WARNINGS[0]] })
+    renderAt('/admin/colleges/import/imp-1')
+    const box = await screen.findByLabelText(WARNINGS[0].message)
+    expect(screen.getAllByText(/Ready to apply/)).toHaveLength(1)
+    expect(screen.getByText(headline)).toBeInTheDocument()
+    fireEvent.click(box)
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
+    expect(screen.getAllByText(/Ready to apply/)).toHaveLength(1)
+    expect(screen.getByText(/saved as drafts/)).toBeInTheDocument()
+  })
+
   it('keeps Apply off until every one is ticked, then sends the ticked ids and follows the apply', async () => {
     renderAt('/admin/colleges/import/imp-1')
     const first = await screen.findByLabelText(WARNINGS[0].message)
