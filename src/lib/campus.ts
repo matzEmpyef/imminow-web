@@ -36,3 +36,19 @@ export function campusLabel(campus: CampusLike, options?: { withPlace?: boolean 
   if (name) return where ? `${name} — ${where}` : name
   return where || short
 }
+
+export interface CourseCampusLike {
+  // The server's read-only line for a course's place: the one campus's name (else its city), or
+  // the first campus's city when the course has several; null when no campus is switched on.
+  campus_label?: string | null
+  campus_city?: string | null
+}
+
+/**
+ * What to write after a college's name as a course's place. The served `campus_label` when there
+ * is one, else `campus_city` (an older answer, a half-built row); an empty string when the course
+ * has neither, so callers can test it and never print a dangling comma.
+ */
+export function courseCampusLabel(course: CourseCampusLike): string {
+  return clean(course.campus_label) || clean(course.campus_city)
+}

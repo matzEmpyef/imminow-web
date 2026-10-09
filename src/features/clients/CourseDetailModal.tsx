@@ -34,7 +34,7 @@ import { ROLLED_DEADLINE_NOTE } from '@/features/super-admin/courseFormShared'
 import { IntakeStatusBadge } from '@/features/super-admin/IntakeStatusBadge'
 import { useLevelLadder } from '@/lib/studyLevels'
 import { DetailSection as Section } from './DetailSection'
-import { campusLabel } from '@/lib/campus'
+import { campusLabel, courseCampusLabel } from '@/lib/campus'
 
 type Course = components['schemas']['Course']
 type IntakeDeadline = components['schemas']['IntakeDeadline']
@@ -214,7 +214,7 @@ export function CourseDetailModal({ course, onClose }: { course: Course; onClose
         <p className="flex flex-wrap items-center gap-xs text-body text-text-secondary">
           <span>
             {course.college_name}
-            {course.campus_city ? `, ${course.campus_city}` : ''}
+            {courseCampusLabel(course) ? `, ${courseCampusLabel(course)}` : ''}
           </span>
           {course.country && (
             <>

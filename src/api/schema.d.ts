@@ -178,7 +178,7 @@ export interface paths {
                     };
                 };
                 401: components["responses"]["ErrorResponse"];
-                /** @description `account_disabled` or `subscription_lapsed` — the account may not sign in. Phase 6 (Staff 2FA, owner-approved 2026-09-24) adds `mfa_required` for a console user with an authenticator enrolled: the password was right, no tokens are issued yet, and `error.details.mfa_session` (string, short-lived, single use) is sent to POST /auth/mfa/verify with the 6-digit code to finish signing in. An error code rather than a second 200 shape, so the generated TokenPair type stays intact. The mock server never sends `mfa_required`. Gate 12f adds `account_locked_for_erasure`: the account is scheduled for deletion (`error.details.due_at`, date-time, says when; the message carries the date). A console account cannot keep itself — it contacts Sentpo support, and a Super Admin cancels with DELETE /users/{id}/erasure. */
+                /** @description `account_disabled` or `subscription_lapsed` — the account may not sign in. Phase 6 (Staff 2FA, owner-approved 2026-09-24) adds `mfa_required` for a console user with an authenticator enrolled: the password was right, no tokens are issued yet, and `error.details.mfa_session` (string, short-lived, single use) is sent to POST /auth/mfa/verify with the 6-digit code to finish signing in. An error code rather than a second 200 shape, so the generated TokenPair type stays intact. The mock server never sends `mfa_required`. Gate 12f adds `account_locked_for_erasure`: the account is scheduled for deletion (`error.details.due_at`, date-time, says when; the message carries the date). A console account cannot keep itself — it contacts immiNow support (the message names the account's own support team: "immiNow support" for a console account, "Sentpo support" for a student — 2026-10-09), and a Super Admin cancels with DELETE /users/{id}/erasure. */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -2453,7 +2453,9 @@ export interface paths {
          *     support" action (Report a problem), and nothing else:
          *     * `reason: erasure_dispute_open` — a dispute is open on the student's case. `message` is
          *       "You have an open dispute. To delete your account, please contact Sentpo support and
-         *       we'll help you." `available_at` is null (it ends when the dispute does).
+         *       we'll help you." `available_at` is null (it ends when the dispute does). The messages
+         *       of this route name the caller's own support team (2026-10-09): "Sentpo support" to a
+         *       student, "immiNow support" to a console account.
          *     * `reason: erasure_cooldown` — the person cancelled a deletion request of their own less
          *       than 30 days ago (server setting `SELF_ERASURE_COOLDOWN_DAYS`). `message` names the day
          *       it was cancelled and the day they can ask again; `available_at` is that instant, for a
@@ -2521,6 +2523,7 @@ export interface paths {
          *     code is spent; ask `GET /profile/erase` first and show its message instead of the form:
          *     * 409 `erasure_dispute_open` — a dispute is open on the student's case: "You have an open
          *       dispute. To delete your account, please contact Sentpo support and we'll help you."
+         *       (To a console account the two messages here say "immiNow support" — 2026-10-09.)
          *     * 409 `erasure_cooldown` — a self-serve deletion request of this account was cancelled
          *       less than 30 days ago; `error.message` gives both dates and
          *       `error.details.available_at` (date-time) when a new request is accepted.
@@ -9605,7 +9608,7 @@ export interface paths {
         put?: never;
         /**
          * Suspend a consultancy (build reference 1.23), optionally signing out and blocking all of its staff
-         * @description Suspension takes the consultancy off the student app; its staff keep signing in and see their existing work. Owner decision 58 (2026-10-08): with `block_staff: true` every session of every member of the consultancy's staff also ends at once, and none of them (the Owner/Admin included) can sign in or use a token until the consultancy is reactivated: sign-in and every request answer 403 `account_disabled` with "You can't sign in at the moment. Please contact Sentpo support." and nothing more. The tick is stored (`staff_blocked` on the consultancy), audited, cleared by POST /consultancies/{id}/reactivate, and the Owner/Admin is told by email. A later suspension without the tick never lifts a block already set. The body may be omitted.
+         * @description Suspension takes the consultancy off the student app; its staff keep signing in and see their existing work. Owner decision 58 (2026-10-08): with `block_staff: true` every session of every member of the consultancy's staff also ends at once, and none of them (the Owner/Admin included) can sign in or use a token until the consultancy is reactivated: sign-in and every request answer 403 `account_disabled` with "You can't sign in at the moment. Please contact immiNow support." and nothing more. The tick is stored (`staff_blocked` on the consultancy), audited, cleared by POST /consultancies/{id}/reactivate, and the Owner/Admin is told by email. A later suspension without the tick never lifts a block already set. The body may be omitted.
          */
         post: {
             parameters: {
@@ -10310,7 +10313,7 @@ export interface paths {
          * CSV bulk import, step 2 — commit a previously validated batch
          * @description Creates one unallocated imported lead per valid row, skipping duplicates (owner Q7, 2026-09-25; build reference 3.10): a row whose email or phone repeats an earlier row of the same file, or matches an active imported lead the consultancy already holds. Every skipped row is listed with the reason, so nothing disappears silently. Needs `leads.import`, the `own_leads` feature and an active subscription. 400 `invalid_batch` for an unknown, expired or already committed batch.
          *
-         *     A SUSPENDED consultancy takes on nothing new (review F-062, 2026-10-07): this route, `POST /leads`, `POST /leads/{id}/reopen` and `POST /leads/{id}/convert` answer 409 `consultancy_unavailable` ("Your consultancy cannot take on new clients right now. Contact Sentpo support."), as Create Applicant and every way of opening a case already do. The console shows the message as it is.
+         *     A SUSPENDED consultancy takes on nothing new (review F-062, 2026-10-07): this route, `POST /leads`, `POST /leads/{id}/reopen` and `POST /leads/{id}/convert` answer 409 `consultancy_unavailable` ("Your consultancy cannot take on new clients right now. Contact immiNow support."), as Create Applicant and every way of opening a case already do. The console shows the message as it is.
          */
         post: {
             parameters: {
@@ -16013,7 +16016,7 @@ export interface paths {
         put?: never;
         /**
          * Void a PR contribution recorded with the wrong amount or currency (F-081)
-         * @description PR cases only. Voids the case's active commission entry with a reason, so the right contribution can be recorded with `POST /clients/{id}/commission-entry`. Needs `billing.record_payment` (403 `permission_denied`). Allowed only while the case is open (409 `case_closed` / `case_in_dispute` / `case_moved`, as every case write) and nothing is paid against the contribution: 409 `part_settled` when a received payment (installment) is recorded on it and not voided, or a payment to Sentpo is declared or confirmed. 404 `not_found` when the case has no active entry; 409 `conflict` on a student case (a college acceptance is undone with revert-acceptance); 400 `validation_failed` without a reason of at least 3 characters. The answer is the entry, now `voided` with its `void_reason`.
+         * @description PR cases only. Voids the case's active commission entry with a reason, so the right contribution can be recorded with `POST /clients/{id}/commission-entry`. Needs `billing.record_payment` (403 `permission_denied`). Allowed only while the case is open (409 `case_closed` / `case_in_dispute` / `case_moved`, as every case write) and nothing is paid against the contribution: 409 `part_settled` when a received payment (installment) is recorded on it and not voided, or a payment to immiNow is declared or confirmed. 404 `not_found` when the case has no active entry; 409 `conflict` on a student case (a college acceptance is undone with revert-acceptance); 400 `validation_failed` without a reason of at least 3 characters. The answer is the entry, now `voided` with its `void_reason`.
          */
         post: {
             parameters: {
@@ -24130,7 +24133,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Declare a payment against one case's due (reworked 2026-08-28 — "consultant click on the due transaction and enter the amount") — notifies immiNow finance; the amount may be partial, and confirmation by immiNow finance is what settles it. 409 `bookkeeping_only` for a channel-B entry (gate 12b) — nothing is owed to Sentpo on it. 409 `already_exists` when the case already has a payment with the same `transaction_id` (letter case ignored) that was not rejected (review I-026). */
+        /** Declare a payment against one case's due (reworked 2026-08-28 — "consultant click on the due transaction and enter the amount") — notifies immiNow finance; the amount may be partial, and confirmation by immiNow finance is what settles it. 409 `bookkeeping_only` for a channel-B entry (gate 12b) — nothing is owed to immiNow on it. 409 `already_exists` when the case already has a payment with the same `transaction_id` (letter case ignored) that was not rejected (review I-026). */
         post: {
             parameters: {
                 query?: never;
@@ -30711,6 +30714,8 @@ export interface components {
             readonly college_logo_url?: string | null;
             /** @description Read-model convenience — the course's first linked campus's `Campus.city`, same resolution rule as `country` above. Null if the course has no campuses or the campus records no city. **Says nothing about how many campuses teach this course** — for that, read `campuses` below. */
             readonly campus_city?: string | null;
+            /** @description Read-model convenience (2026-10-09) — what to write after the college's name in a course header. When the course is taught at exactly ONE campus students can reach (one entry in `campuses`), that campus's `CourseCampus.label`: its name, or its city (its province or state when it has no city) while it has none. When it is taught at several, the same value as `campus_city` (the first campus's city, which may be null): one campus's name would not say where the course is taught, so read `campuses` for the list. Null when the course has no campus students can reach. Served wherever `campus_city` is, to every caller. */
+            readonly campus_label?: string | null;
             /** @description Every campus this course actually runs at, resolved from `campus_ids` (2026-09-16). A course can be taught at several campuses of the same college — UBC's Vancouver and Okanagan, say — and before this the read model exposed only the FIRST one, so a student reading a course offered at three campuses saw one city and could not learn the others existed. Ordered as `campus_ids` is. Empty when the course lists no campuses. */
             readonly campuses?: components["schemas"]["CourseCampus"][];
             /**

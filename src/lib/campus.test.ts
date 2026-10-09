@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { campusLabel } from './campus'
+import { campusLabel, courseCampusLabel } from './campus'
 
 const unnamed = { name: null, city: 'Toronto', province_state: 'Ontario', country: 'Canada' }
 const named = { ...unnamed, name: 'Toronto Downtown' }
@@ -43,5 +43,22 @@ describe('campusLabel', () => {
     expect(campusLabel(named, { withPlace: true })).toBe('Toronto Downtown — Toronto, Ontario, Canada')
     expect(campusLabel(unnamed, { withPlace: true })).toBe('Toronto, Ontario, Canada')
     expect(campusLabel({ name: 'Main', country: '' }, { withPlace: true })).toBe('Main')
+  })
+})
+
+describe('courseCampusLabel', () => {
+  it('shows the served campus_label when there is one', () => {
+    expect(courseCampusLabel({ campus_label: 'Toronto Downtown', campus_city: 'Toronto' })).toBe('Toronto Downtown')
+  })
+
+  it('falls back to campus_city when the label is missing, null or blank', () => {
+    expect(courseCampusLabel({ campus_city: 'Toronto' })).toBe('Toronto')
+    expect(courseCampusLabel({ campus_label: null, campus_city: 'Toronto' })).toBe('Toronto')
+    expect(courseCampusLabel({ campus_label: '  ', campus_city: 'Toronto' })).toBe('Toronto')
+  })
+
+  it('is an empty string when the course has neither', () => {
+    expect(courseCampusLabel({})).toBe('')
+    expect(courseCampusLabel({ campus_label: null, campus_city: null })).toBe('')
   })
 })

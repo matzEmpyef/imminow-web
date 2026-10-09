@@ -135,7 +135,7 @@ describe('campus form: Campus name', () => {
       error: {
         error: {
           code: 'duplicate_campus',
-          message: 'This college already has a campus with that name.',
+          message: 'This college already has a campus with that name or in that place.',
           details: { fields: { name: 'This college already has a campus called Toronto Midtown.' } },
         },
       },
@@ -150,7 +150,7 @@ describe('campus form: Campus name', () => {
     const field = within(dialog).getByLabelText('Campus name')
     expect(field).toHaveAttribute('aria-invalid', 'true')
     expect(field.getAttribute('aria-describedby')).toBe(message.id)
-    expect(within(dialog).queryByText('This college already has a campus with that name.')).not.toBeInTheDocument()
+    expect(within(dialog).queryByText('This college already has a campus with that name or in that place.')).not.toBeInTheDocument()
 
     // Changing the name clears the old refusal; the helper text is back.
     fireEvent.change(field, { target: { value: 'Ottawa South' } })
