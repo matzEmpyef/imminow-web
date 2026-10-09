@@ -203,7 +203,7 @@ export function PerformanceLeaguePage() {
           <div>
             <h1 className="text-h1 text-text-primary">Performance League</h1>
             <p className="text-body-sm text-text-secondary">
-              How each account handles the leads Sentpo sends it. Sort any column; badges mark what needs a look.
+              How each account handles the leads it receives from the Sentpo app. Sort any column; badges mark what needs a look.
             </p>
             <AsOfCaption asOf={league.data?.as_of} />
           </div>

@@ -117,6 +117,7 @@ export function ClientConversationPage() {
           // Case moved to another consultancy (product owner 2026-09-24) — the server 409s
           // `case_moved` on a send here, same idiom Lead Pool's unallocated-lead lock already
           // uses for `composerLocked`: say why up front rather than let the send fail.
+          closed={thread.closed}
           composerLocked={
             isCaseMoved(client.data.status) ? CASE_MOVED_COMPOSER_NOTE : thread.closed ? thread.note : undefined
           }

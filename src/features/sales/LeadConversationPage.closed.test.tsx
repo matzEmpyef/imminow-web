@@ -115,6 +115,22 @@ describe('the Lead conversation page', () => {
     expect(screen.getByRole('button', { name: 'Reopen Lead' })).toBeInTheDocument()
   })
 
+  it('says only that an empty closed thread has no messages, never "say hello"', () => {
+    vi.mocked(useLeadMessages).mockReturnValue({
+      items: [], isLoading: false, isError: false, refetch: vi.fn(), hasEarlier: false, loadingEarlier: false, loadEarlier: vi.fn(),
+    } as never)
+    serveLead(lead({ status: 'closed' }))
+    const view = render(page())
+    expect(screen.getByText('No messages in this conversation.')).toBeInTheDocument()
+    expect(screen.queryByText(/say hello/)).not.toBeInTheDocument()
+    expect(screen.getByText(CLOSED_NOTE)).toBeInTheDocument()
+    view.unmount()
+
+    serveLead(lead())
+    render(page())
+    expect(screen.getByText('No messages yet — say hello.')).toBeInTheDocument()
+  })
+
   it('says closed before "allocate this lead" on a closed lead nobody holds', () => {
     serveLead(lead({ status: 'closed', assigned_employee_id: null }))
     render(page())

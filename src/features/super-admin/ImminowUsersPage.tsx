@@ -132,7 +132,7 @@ export function ImminowUsersPage() {
           <div>
             <h1 className="text-h1 text-text-primary">immiNow Users</h1>
             <p className="text-body-sm text-text-secondary">
-              Every consultancy's and institute's employees. Select a person to see their sign-in history. Sentpo's own platform staff are under Platform Team.
+              Every consultancy's and institute's employees. Select a person to see their sign-in history. immiNow's own platform staff are under Platform Team.
             </p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-xs">

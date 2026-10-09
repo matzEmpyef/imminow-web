@@ -124,8 +124,8 @@ function HowYouEarnInfo() {
           style={{ width: '20rem' }}
           className="absolute left-0 top-8 z-50 rounded-md border border-border bg-surface p-md text-body-sm text-text-secondary shadow-card"
         >
-          You earn your share of the commission Sentpo collects on each student you bring. It becomes payable once
-          Sentpo has been paid for that student.
+          You earn your share of the commission immiNow collects on each student you bring. It becomes payable once
+          immiNow has been paid for that student.
         </div>
       )}
     </div>
@@ -260,7 +260,7 @@ function ReferralDrawer({ referral, onClose }: { referral: FreelancerReferral | 
             {detail.isError && <p className="text-body-sm text-error">Could not load payments.</p>}
             {!detail.isLoading && !detail.isError && payouts.length === 0 && (
               <p className="text-body-sm text-text-secondary">
-                No payments yet — you&rsquo;re paid once Sentpo has been paid for this student.
+                No payments yet — you&rsquo;re paid once immiNow has been paid for this student.
               </p>
             )}
             {!detail.isLoading && !detail.isError && payouts.length > 0 && (

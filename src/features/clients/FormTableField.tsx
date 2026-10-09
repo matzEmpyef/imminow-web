@@ -136,7 +136,7 @@ export function FormTableField({
     // Same box and title as a `group` section, so a form whose sections are part groups and part
     // tables (the default Student Application Form) reads as one document. `min-w-0` keeps a wide
     // table's sideways scroll inside this box.
-    <div className="flex min-w-0 flex-col gap-sm rounded-md border border-border p-md">
+    <div className="flex min-w-0 flex-col gap-md rounded-md border border-border p-md">
       <div className="flex items-center justify-between gap-md">
         <p className="text-body-sm font-medium text-text-primary">
           {field.label}
@@ -172,7 +172,7 @@ export function FormTableField({
             </div>
           }
         >
-          <div className="flex flex-col gap-sm">
+          <div className="flex flex-col gap-md">
             {columns.map((column) => (
               <div key={column.id}>
                 {renderInput(column, editing.row, (columnId, cell) =>

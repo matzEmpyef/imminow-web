@@ -8,6 +8,7 @@ import { Button } from './Button'
 import { Modal } from './Modal'
 import { formatDate, formatDayLabel, formatTime, isSameCalendarDay } from '@/lib/time'
 import { formatMoney } from '@/lib/money'
+import { emptyThreadText } from '@/lib/closedThread'
 import type { components } from '@/api/schema'
 
 type Course = components['schemas']['Course']
@@ -87,6 +88,9 @@ interface ChatPanelProps {
   // the pool, which no one on staff may reply to until it is allocated (user, 2026-09-10). The
   // server refuses those replies too; this only says why before anyone types.
   composerLocked?: ReactNode
+  // The thread is closed and read-only (`lib/closedThread.ts`): an empty one then says so plainly
+  // rather than inviting a message that cannot be sent.
+  closed?: boolean
   // The lead or client this conversation is with. Lets a shared search card reopen Course Finder
   // for them; internal conversations leave it unset.
   person?: { id: string; kind: 'lead' | 'client' }
@@ -225,6 +229,7 @@ export function ChatPanel({
   heightClassName = 'h-96',
   onUnsend,
   composerLocked,
+  closed,
   person,
   composerAction,
   composerError,
@@ -326,7 +331,7 @@ export function ChatPanel({
         )}
         {!isLoading && !isError && messages?.length === 0 && (
           <div className="flex h-full items-center justify-center">
-            <p className="text-body-sm text-text-secondary">No messages yet — say hello.</p>
+            <p className="text-body-sm text-text-secondary">{emptyThreadText(closed)}</p>
           </div>
         )}
         {!isLoading && !isError && onLoadEarlier && Boolean(messages?.length) && (

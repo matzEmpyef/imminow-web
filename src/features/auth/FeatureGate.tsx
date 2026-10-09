@@ -55,7 +55,7 @@ export function FeatureGate({ feature, children }: { feature: FeatureDef; childr
           <Card>
             <p className="text-body text-error">{feature.label} is switched off for your account.</p>
             <p className="mt-xs text-body-sm text-text-secondary">
-              It is part of every plan, so this was turned off for your {org} specifically. Contact Sentpo support to
+              It is part of every plan, so this was turned off for your {org} specifically. Contact immiNow support to
               have it switched back on.
             </p>
           </Card>

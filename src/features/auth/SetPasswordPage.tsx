@@ -62,7 +62,7 @@ export function SetPasswordPage() {
   return (
     <AuthLayout title={`Welcome, ${invite.data.first_name}`}>
       {isFreelancer && (
-        <p className="mb-md text-body-sm text-text-secondary">You&rsquo;re joining Sentpo as a referral partner.</p>
+        <p className="mb-md text-body-sm text-text-secondary">You&rsquo;re joining immiNow as a referral partner.</p>
       )}
       {isPlatformStaff && (
         <p className="mb-md text-body-sm text-text-secondary">You&rsquo;re joining the immiNow team.</p>

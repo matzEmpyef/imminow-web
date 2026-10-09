@@ -102,7 +102,7 @@ export function ConsultancyReviewsPage() {
           <h1 className="text-h1 text-text-primary">Reviews</h1>
           <p className="text-body-sm text-text-secondary">
             Students rate you from their chat once you have talked enough, and may write a review when their case
-            ends. Each student counts once. Sentpo checks every written review before it appears. Contact support if
+            ends. Each student counts once. immiNow checks every written review before it appears. Contact support if
             a review breaks the rules.
           </p>
         </div>

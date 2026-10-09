@@ -419,7 +419,7 @@ export function CollegesCoursesPage() {
                 Import campuses and courses
               </Button>
               <Button variant="secondary" loading={importColleges.isPending} onClick={handleImportClick}>
-                Import CSV
+                Import colleges (CSV)
               </Button>
               <Button onClick={() => setShowAddCollege(true)}>Add College</Button>
             </div>

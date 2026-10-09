@@ -487,6 +487,7 @@ export function LeadConversationPage() {
                   }}
                 />
               }
+              closed={thread.closed}
               composerLocked={
                 thread.closed
                   ? thread.note

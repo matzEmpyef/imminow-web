@@ -100,7 +100,7 @@ export function DisputeResolveModal({
               so this note is the only part of the decision the record ever gets — and this is the
               one decision here with real legal exposure. */}
           <p className={`text-caption ${noteError ? 'text-error' : 'text-text-secondary'}`}>
-            {noteError ?? 'Required. The conversation happened off Sentpo; this is the only record of it.'}
+            {noteError ?? 'Required. The conversation happened outside immiNow; this is the only record of it.'}
           </p>
         </div>
       </div>

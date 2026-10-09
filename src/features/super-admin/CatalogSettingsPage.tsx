@@ -1830,7 +1830,7 @@ function ScoreSchemeConversionsTab() {
       <div className="flex flex-col gap-xs">
         <h2 className="text-h3 text-text-primary">Score scheme conversions</h2>
         <p className="text-body-sm text-text-secondary">
-          A student enters a score and says what it is out of. To check it against a course&rsquo;s minimum, Sentpo
+          A student enters a score and says what it is out of. To check it against a course&rsquo;s minimum, immiNow
           converts it to a percentage with this formula:
         </p>
         <p className="rounded-md bg-background px-md py-sm text-body-sm text-text-primary">

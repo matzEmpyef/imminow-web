@@ -46,6 +46,17 @@ export const WIDTH_CLASSES: Record<Width, string> = {
   third: 'col-span-6 @md:col-span-2',
 }
 
+// Where a form is FILLED IN (the client's Forms tab) rather than built, a table and a long text
+// need the room, so they ignore a narrower width and take the whole row; a group is a section
+// heading with its own grid inside, so it does too. Any other field honours its width. The row
+// must be a `grid grid-cols-6` inside an `@container`, as in the builder's preview.
+const ALWAYS_FULL_WHEN_FILLING = new Set<string>(['table', 'long_text', 'group'])
+
+export function fillWidthClass(field: { type: string; width?: Width | string | null }): string {
+  if (ALWAYS_FULL_WHEN_FILLING.has(field.type)) return WIDTH_CLASSES.full
+  return WIDTH_CLASSES[(field.width as Width | null | undefined) ?? 'full'] ?? WIDTH_CLASSES.full
+}
+
 export const WIDTH_LABELS: Record<Width, string> = {
   full: 'Full width',
   half: 'Half width',
@@ -58,6 +69,21 @@ export const WIDTH_LABELS: Record<Width, string> = {
 // FormFieldInput.id's own description, so this isn't a special case for it.
 export function newFieldId() {
   return crypto.randomUUID()
+}
+
+/**
+ * How many fields a person fills in on a form: every field inside a group, each field outside
+ * one, and a table as one. A group is a heading, not a field, so it is not counted itself.
+ */
+export function countFillableFields(
+  fields: readonly { type: FieldType; fields?: readonly unknown[] }[] | undefined,
+): number {
+  let count = 0
+  for (const f of fields ?? []) {
+    if (f.type === 'group') count += f.fields?.length ?? 0
+    else count += 1
+  }
+  return count
 }
 
 export function listGroups(fields: FormFieldInput[]): { id: string; label: string }[] {

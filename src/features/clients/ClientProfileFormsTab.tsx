@@ -9,6 +9,7 @@ import { useClient } from '@/queries/clients'
 import { formatDateTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard'
+import { fillWidthClass } from '@/lib/formFields'
 import { FormTableField } from './FormTableField'
 
 type FormField = NonNullable<ReturnType<typeof useFormTemplate>['data']>['fields'][number]
@@ -19,6 +20,10 @@ type Client = NonNullable<ReturnType<typeof useClient>['data']>
 // birth, and still handed the consultant a blank "First name" to retype. A form's fields are
 // free text authored by each consultancy, so the match is on what the label SAYS, normalised:
 // "First Name", "first name*" and "Given name" are all the same question.
+// Equal columns that fill the row: each at least wide enough for a short option, sharing the
+// rest evenly. Written as a style because the column count follows the space, not a breakpoint.
+const MULTI_SELECT_COLUMNS = { gridTemplateColumns: 'repeat(auto-fit, minmax(9rem, 1fr))' } as const
+
 function normaliseLabel(label: string): string {
   return label
     .toLowerCase()
@@ -95,18 +100,19 @@ function FillableField({
 
   if (field.type === 'group') {
     return (
-      <div className="flex flex-col gap-sm rounded-md border border-border p-md">
+      <div className="flex flex-col gap-md rounded-md border border-border p-md">
         <p className="text-body-sm font-medium text-text-primary">{field.label}</p>
-        <div className="flex flex-col gap-sm pl-md">
+        <div className="grid grid-cols-6 gap-x-md gap-y-md">
           {(field.fields ?? []).map((child) => (
-            <FillableField
-              key={child.id}
-              field={child}
-              answers={answers}
-              onChange={onChange}
-              fromProfile={fromProfile}
-              readOnly={readOnly}
-            />
+            <div key={child.id} className={`${fillWidthClass(child)} min-w-0`}>
+              <FillableField
+                field={child}
+                answers={answers}
+                onChange={onChange}
+                fromProfile={fromProfile}
+                readOnly={readOnly}
+              />
+            </div>
           ))}
         </div>
       </div>
@@ -130,7 +136,7 @@ function FillableField({
           {label}
           <input
             type="text"
-            className="h-9 rounded-md border border-border bg-surface px-sm text-body-sm text-text-primary"
+            className="h-9 w-full rounded-md border border-border bg-surface px-sm text-body-sm text-text-primary"
             value={typeof value === 'string' ? value : ''}
             onChange={(e) => onChange(field.id, e.target.value)}
           />
@@ -142,7 +148,7 @@ function FillableField({
           {label}
           <textarea
             rows={3}
-            className="rounded-md border border-border bg-surface p-sm text-body-sm text-text-primary"
+            className="w-full rounded-md border border-border bg-surface p-sm text-body-sm text-text-primary"
             value={typeof value === 'string' ? value : ''}
             onChange={(e) => onChange(field.id, e.target.value)}
           />
@@ -154,7 +160,7 @@ function FillableField({
           {label}
           <input
             type="date"
-            className="h-9 w-fit rounded-md border border-border bg-surface px-sm text-body-sm text-text-primary"
+            className="h-9 w-full rounded-md border border-border bg-surface px-sm text-body-sm text-text-primary"
             value={typeof value === 'string' ? value.slice(0, 10) : ''}
             onChange={(e) => onChange(field.id, e.target.value)}
           />
@@ -165,7 +171,7 @@ function FillableField({
         <label className="flex flex-col gap-xs">
           {label}
           <select
-            className="h-9 w-fit rounded-md border border-border bg-surface px-sm text-body-sm text-text-primary"
+            className="h-9 w-full rounded-md border border-border bg-surface px-sm text-body-sm text-text-primary"
             value={typeof value === 'string' ? value : ''}
             onChange={(e) => onChange(field.id, e.target.value)}
           >
@@ -183,12 +189,18 @@ function FillableField({
       return (
         <div className="flex flex-col gap-xs">
           {label}
-          <div className="flex flex-wrap gap-sm">
+          {/* Each option is one <label>: box and text share a fixed gap and the whole thing is
+              the click target. The options fill the row in equal columns (owner, 2026-10-09):
+              as many as fit side by side, wrapping to further equal rows when narrow. */}
+          <div className="grid gap-x-md gap-y-sm" style={MULTI_SELECT_COLUMNS}>
             {(field.options ?? []).map((option) => (
-              <label key={option} className="flex items-center gap-xs text-body-sm text-text-primary">
+              <label
+                key={option}
+                className="flex cursor-pointer items-center gap-xs text-body-sm text-text-primary has-disabled:cursor-not-allowed has-disabled:opacity-60"
+              >
                 <input
                   type="checkbox"
-                  className="h-4 w-4"
+                  className="h-4 w-4 shrink-0 accent-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                   checked={selected.includes(option)}
                   onChange={(e) =>
                     onChange(field.id, e.target.checked ? [...selected, option] : selected.filter((o) => o !== option))
@@ -202,20 +214,21 @@ function FillableField({
       )
     }
     case 'yes_no':
+      // Label on top like every other field; underneath, one compact Yes | No control, left
+      // aligned and the height of a text input, so it lines up with its neighbour in a two-up row.
       return (
-        <div className="flex items-center justify-between gap-md">
+        <div className="flex flex-col gap-xs">
           {label}
-          <div className="flex gap-xs">
+          <div role="group" aria-label={field.label} className="flex h-9 w-fit overflow-hidden rounded-md border border-border">
             {(['Yes', 'No'] as const).map((option) => (
               <button
                 key={option}
                 type="button"
+                aria-pressed={value === option}
                 onClick={() => onChange(field.id, option)}
-                className={`rounded-full border px-sm py-1 text-caption font-medium ${
-                  value === option
-                    ? 'border-pill-selected bg-pill-selected text-text-on-primary'
-                    : 'border-border bg-surface text-text-primary'
-                }`}
+                className={`px-md text-body-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60 ${
+                  option === 'No' ? 'border-l border-border' : ''
+                } ${value === option ? 'bg-pill-selected text-text-on-primary' : 'bg-surface text-text-primary'}`}
               >
                 {option}
               </button>
@@ -287,24 +300,30 @@ function LinkedFormViewer({
   const fromProfile = new Set(Object.keys(gaps).filter((id) => answers[id] === gaps[id]))
 
   return (
-    <div className="flex flex-col gap-sm">
+    <div className="flex flex-col gap-lg">
       {saved.data?.submitted_at && (
         <p className="text-caption text-text-secondary">Last saved {formatDateTime(saved.data.submitted_at)}</p>
       )}
       {/* One switch for every input on the form when the case is read-only. `min-w-0`: a
           fieldset is otherwise as wide as its widest child, which would let a wide table push
           the page sideways. */}
-      <fieldset disabled={readOnly} className="flex min-w-0 flex-col gap-sm">
-        {form.data.fields.map((field) => (
-          <FillableField
-            key={field.id}
-            field={field}
-            answers={answers}
-            fromProfile={fromProfile}
-            readOnly={readOnly}
-            onChange={(fieldId, value) => setDraft({ ...answers, [fieldId]: value })}
-          />
-        ))}
+      <fieldset disabled={readOnly} className="min-w-0">
+        {/* The fields sit on the same six-column grid the form builder's preview uses, so a half
+            or third width field shares its row from md up (by the width of this box, not the
+            window) and every field stacks full width below that. */}
+        <div className="@container grid grid-cols-6 gap-x-md gap-y-md">
+          {form.data.fields.map((field) => (
+            <div key={field.id} className={`${fillWidthClass(field)} min-w-0`}>
+              <FillableField
+                field={field}
+                answers={answers}
+                fromProfile={fromProfile}
+                readOnly={readOnly}
+                onChange={(fieldId, value) => setDraft({ ...answers, [fieldId]: value })}
+              />
+            </div>
+          ))}
+        </div>
       </fieldset>
       {!readOnly && (
         <div className="flex items-center gap-sm">
@@ -314,7 +333,7 @@ function LinkedFormViewer({
             onClick={() =>
               saveForm.mutate(answers as Record<string, unknown>, {
                 onSuccess: () => {
-                  showToast(`${formName} saved`)
+                  showToast(`${form.data?.name || formName} saved`)
                   setDraft(null)
                 },
               })
@@ -326,6 +345,20 @@ function LinkedFormViewer({
         </div>
       )}
     </div>
+  )
+}
+
+// The heading is the FORM's own name (the template's `name`, e.g. "Student Application Form"),
+// not the plan step component's title it is linked under; the step stays named underneath. The
+// component's name stands in only until the form has been read. The read is the one the viewer
+// below makes too, so it costs nothing extra.
+function FormHeading({ formId, fallbackName, stepTitle }: { formId: string; fallbackName: string; stepTitle: string }) {
+  const form = useFormTemplate(formId)
+  return (
+    <>
+      <h2 className="text-h3 text-text-primary">{form.data?.name || fallbackName}</h2>
+      <p className="text-caption text-text-secondary">From step: {stepTitle}</p>
+    </>
   )
 }
 
@@ -382,8 +415,7 @@ export function FormsTab({ clientId, readOnly = false }: { clientId: string; rea
     <Card className="flex flex-col gap-md">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-h3 text-text-primary">{current.formName}</h2>
-          <p className="text-caption text-text-secondary">From step: {current.stepTitle}</p>
+          <FormHeading formId={current.formId} fallbackName={current.formName} stepTitle={current.stepTitle} />
         </div>
         <div className="flex items-center gap-sm">
           <Button variant="secondary" disabled={index === 0} onClick={() => guard.requestLeave(() => setIndex((i) => Math.max(0, i - 1)))}>
