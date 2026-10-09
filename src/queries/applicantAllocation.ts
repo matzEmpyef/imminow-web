@@ -77,10 +77,12 @@ export function useAllocateApplicant(id: string) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['applicant-allocation-queue'] }),
     // The queue moved under the admin: a concurrent allocation took the row (409 already_allocated,
     // so it should leave the list), or the chosen consultancy filled its last seat in the meantime
-    // (409 seat_limit_reached, so its candidate row is stale). A live case (already_a_case) leaves
+    // (409 seat_limit_reached, so its candidate row is stale), or the student is under 18 and the
+    // guardian has not approved (409 guardian_consent_required: the row's tag and its disabled
+    // Allocate come from a read that was out of date). A live case (already_a_case) leaves
     // the row on the queue by design and needs no refresh.
     onError: (err) => {
-      if (err instanceof ApiError && (err.code === 'already_allocated' || err.code === 'seat_limit_reached')) {
+      if (err instanceof ApiError && (err.code === 'already_allocated' || err.code === 'seat_limit_reached' || err.code === 'guardian_consent_required')) {
         queryClient.invalidateQueries({ queryKey: ['applicant-allocation-queue'] })
       }
     },

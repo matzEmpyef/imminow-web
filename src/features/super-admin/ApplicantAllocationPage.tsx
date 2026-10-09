@@ -19,6 +19,7 @@ import { formatDate } from '@/lib/time'
 import { cursorPager, useCursorPagination } from '@/lib/pagination'
 import { showToast } from '@/lib/toast'
 import { DEFAULT_CARRY, movedSentence } from '@/lib/caseCarry'
+import { guardianHoldLabel } from '@/lib/guardianGate'
 import type { components } from '@/api/schema'
 
 type QueueEntry = components['schemas']['ApplicantAllocationEntry']
@@ -183,6 +184,9 @@ function AllocateAction({ entry }: { entry: QueueEntry }) {
   const allocate = useAllocateApplicant(entry.id!)
   const candidates = useAllocationCandidates(entry.id!, open)
   const wants = lookingFor(entry)
+  // Under 18 and the guardian has not approved: the server refuses the allocation (409
+  // `guardian_consent_required`), so the button is not offered and says why.
+  const hold = guardianHoldLabel(entry)
 
   const eligible = (candidates.data ?? []).filter((c) => !c.blocked_reason)
   const blocked = (candidates.data ?? []).filter((c) => c.blocked_reason)
@@ -210,13 +214,14 @@ function AllocateAction({ entry }: { entry: QueueEntry }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
+        disabled={hold != null}
         aria-label={`Allocate ${entry.applicant_name}`}
-        title="Allocate to Consultancy"
-        className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
+        title={hold ?? 'Allocate to Consultancy'}
+        className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-text-secondary"
       >
         <UserPlus className="h-4 w-4" />
       </button>
-      {open && (
+      {open && !hold && (
         <Modal
           onClose={() => setOpen(false)}
           title="Allocate to Consultancy"
@@ -329,6 +334,13 @@ export function ApplicantAllocationPage() {
             {e.case_type === 'pr' && <Badge color="info">PR</Badge>}
           </span>
           <span className="text-caption text-text-secondary">{[e.email, e.phone].filter(Boolean).join(' · ')}</span>
+          {/* Under 18 with no guardian approval: the row cannot be allocated yet (owner's ruling
+              2026-10-09). It leaves this state by itself when the guardian approves. */}
+          {guardianHoldLabel(e) && (
+            <span className="mt-0.5 self-start">
+              <Badge color={e.guardian_status === 'pending' ? 'warning' : 'error'}>{guardianHoldLabel(e)}</Badge>
+            </span>
+          )}
         </div>
       ),
     },
