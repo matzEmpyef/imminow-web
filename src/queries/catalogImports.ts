@@ -82,7 +82,11 @@ export function useCatalogImport(id: string | undefined) {
       return q.state.error && !isRetryable(q.state.error) ? false : CATALOG_IMPORT_POLL_MS
     },
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
+    // Coming back to the tab asks again only while the server is still working. A final state
+    // (ready, applied, failed, stale, undone) is read once and then left alone: the browser's
+    // own focus and reconnect refetches must not turn into a request on every focus.
+    refetchOnWindowFocus: (q) => isInProgress(q.state.data),
+    refetchOnReconnect: (q) => isInProgress(q.state.data),
   })
 
   const status = query.data?.status

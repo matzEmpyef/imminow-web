@@ -501,6 +501,108 @@ describe('uploading a file', () => {
     expect(gets('/catalog-imports/{id}').length).toBeGreaterThan(before)
   })
 
+  it('asks once for an import in a final state and never again, however long the page stays open', async () => {
+    states = [
+      ok(
+        anImport({
+          state_label: 'Needs fixing',
+          summary: { ...SUMMARY, errors: 2 },
+          can_apply: false,
+          apply_blocked_reason: 'errors',
+          has_error_file: true,
+        }),
+      ),
+    ]
+    errors = page([{ sheet: 'courses', row_number: 7, column: 'Level', value: 'x', message: 'Not a study level.' }])
+    renderAt('/admin/colleges/import/imp-1')
+    await screen.findByText('Needs fixing')
+    await tick()
+    const settled = gets('/catalog-imports/{id}').length
+    expect(settled).toBe(1)
+    await tick()
+    await tick()
+    await tick()
+    expect(gets('/catalog-imports/{id}')).toHaveLength(settled)
+    // Leaving the tab and coming back does not ask again either.
+    act(() => focusManager.setFocused(false))
+    act(() => focusManager.setFocused(true))
+    await tick()
+    expect(gets('/catalog-imports/{id}')).toHaveLength(settled)
+    // The pages of rows and problems are asked for once as well, not on a clock.
+    const errorReads = gets('/catalog-imports/{id}/errors').length
+    await tick()
+    expect(gets('/catalog-imports/{id}/errors')).toHaveLength(errorReads)
+  })
+
+  it('stops asking once the import reaches a final state, and asks again after Apply is pressed', async () => {
+    const applying = anImport({
+      status: 'applying',
+      state_label: 'Applying',
+      can_apply: false,
+      progress: { phase: 'apply', done: 0, total: 3, percent: 0 },
+    })
+    const applied = anImport({ status: 'applied', state_label: 'Applied', message: 'Applied.', can_apply: false })
+    states = [ok(CHECKING), ok(anImport())]
+    renderAt('/admin/colleges/import/imp-1')
+    await screen.findByRole('progressbar')
+    await tick()
+    await screen.findByRole('button', { name: 'Apply' })
+    const settled = gets('/catalog-imports/{id}').length
+    await tick()
+    await tick()
+    expect(gets('/catalog-imports/{id}')).toHaveLength(settled)
+
+    // Apply answers 202 with the import applying; the page follows it until it ends.
+    states = [ok(applying), ok(applied)]
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+    await screen.findByRole('progressbar', { name: 'Applying the import' })
+    await tick()
+    expect(gets('/catalog-imports/{id}').length).toBeGreaterThan(settled)
+    await tick()
+    expect(await screen.findByText('Applied')).toBeInTheDocument()
+
+    const ended = gets('/catalog-imports/{id}').length
+    await tick()
+    await tick()
+    expect(gets('/catalog-imports/{id}')).toHaveLength(ended)
+  })
+
+  it('asks again after Undo is pressed, and stops when the undo ends', async () => {
+    const applied = anImport({
+      status: 'applied',
+      state_label: 'Applied',
+      message: 'Applied.',
+      can_apply: false,
+      can_undo: true,
+      applied_at: '2026-10-09T10:00:00Z',
+      undo_until: '2026-10-16T10:00:00Z',
+    })
+    const undoing = anImport({ status: 'undoing', state_label: 'Undoing', can_apply: false, progress: { phase: 'undo', done: 0, total: 3, percent: 0 } })
+    const undone = anImport({ status: 'undone', state_label: 'Undone', message: 'Undone.', can_apply: false, undone_at: '2026-10-09T11:00:00Z' })
+    states = [ok(applied)]
+    renderAt('/admin/colleges/import/imp-1')
+    const openUndo = await screen.findByRole('button', { name: 'Undo this import' })
+    const settled = gets('/catalog-imports/{id}').length
+    await tick()
+    await tick()
+    expect(gets('/catalog-imports/{id}')).toHaveLength(settled)
+
+    states = [ok(undoing), ok(undone)]
+    undoAnswer = ok(undoing, 202)
+    fireEvent.click(openUndo)
+    const dialog = await screen.findByRole('dialog', { name: 'Undo this import?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Undo this import' }))
+    await screen.findByRole('progressbar')
+    await tick()
+    expect(gets('/catalog-imports/{id}').length).toBeGreaterThan(settled)
+    await tick()
+    expect(await screen.findByText('Undone')).toBeInTheDocument()
+    const ended = gets('/catalog-imports/{id}').length
+    await tick()
+    await tick()
+    expect(gets('/catalog-imports/{id}')).toHaveLength(ended)
+  })
+
   it('shows the server’s sentence for a file that could not be read, with “Upload again”', async () => {
     states = [ok(anImport({ status: 'failed', state_label: 'Could not be read', summary: null, can_apply: false, message: 'This is not an Excel file we can read. Save it as .xlsx and upload it again.' }))]
     renderAt('/admin/colleges/import/imp-1')
