@@ -11,6 +11,7 @@ import { useDuplicateFormTemplate, useFormTemplates } from '@/queries/formTempla
 import { usePermissionChecker } from '@/lib/permissions'
 import { showToast } from '@/lib/toast'
 import { EDIT_DEFAULT_CONFIRMED } from '@/lib/defaultForm'
+import { countFillableFields } from '@/lib/formFields'
 import { EditDefaultFormDialog, RestoreDefaultFormDialog } from './DefaultFormDialogs'
 import type { components } from '@/api/schema'
 
@@ -176,7 +177,7 @@ export function FormsPage() {
       key: 'fields',
       header: 'Fields',
       align: 'right',
-      render: (form) => form.fields.length,
+      render: (form) => countFillableFields(form.fields),
     },
     ...(canManage
       ? [

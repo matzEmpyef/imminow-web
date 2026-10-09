@@ -9,6 +9,7 @@ import { useClient } from '@/queries/clients'
 import { formatDateTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard'
+import { fillWidthClass } from '@/lib/formFields'
 import { FormTableField } from './FormTableField'
 
 type FormField = NonNullable<ReturnType<typeof useFormTemplate>['data']>['fields'][number]
@@ -97,16 +98,17 @@ function FillableField({
     return (
       <div className="flex flex-col gap-sm rounded-md border border-border p-md">
         <p className="text-body-sm font-medium text-text-primary">{field.label}</p>
-        <div className="flex flex-col gap-sm pl-md">
+        <div className="grid grid-cols-6 gap-sm pl-md">
           {(field.fields ?? []).map((child) => (
-            <FillableField
-              key={child.id}
-              field={child}
-              answers={answers}
-              onChange={onChange}
-              fromProfile={fromProfile}
-              readOnly={readOnly}
-            />
+            <div key={child.id} className={`${fillWidthClass(child)} min-w-0`}>
+              <FillableField
+                field={child}
+                answers={answers}
+                onChange={onChange}
+                fromProfile={fromProfile}
+                readOnly={readOnly}
+              />
+            </div>
           ))}
         </div>
       </div>
@@ -294,17 +296,23 @@ function LinkedFormViewer({
       {/* One switch for every input on the form when the case is read-only. `min-w-0`: a
           fieldset is otherwise as wide as its widest child, which would let a wide table push
           the page sideways. */}
-      <fieldset disabled={readOnly} className="flex min-w-0 flex-col gap-sm">
-        {form.data.fields.map((field) => (
-          <FillableField
-            key={field.id}
-            field={field}
-            answers={answers}
-            fromProfile={fromProfile}
-            readOnly={readOnly}
-            onChange={(fieldId, value) => setDraft({ ...answers, [fieldId]: value })}
-          />
-        ))}
+      <fieldset disabled={readOnly} className="min-w-0">
+        {/* The fields sit on the same six-column grid the form builder's preview uses, so a half
+            or third width field shares its row from md up (by the width of this box, not the
+            window) and every field stacks full width below that. */}
+        <div className="@container grid grid-cols-6 gap-sm">
+          {form.data.fields.map((field) => (
+            <div key={field.id} className={`${fillWidthClass(field)} min-w-0`}>
+              <FillableField
+                field={field}
+                answers={answers}
+                fromProfile={fromProfile}
+                readOnly={readOnly}
+                onChange={(fieldId, value) => setDraft({ ...answers, [fieldId]: value })}
+              />
+            </div>
+          ))}
+        </div>
       </fieldset>
       {!readOnly && (
         <div className="flex items-center gap-sm">
@@ -314,7 +322,7 @@ function LinkedFormViewer({
             onClick={() =>
               saveForm.mutate(answers as Record<string, unknown>, {
                 onSuccess: () => {
-                  showToast(`${formName} saved`)
+                  showToast(`${form.data?.name || formName} saved`)
                   setDraft(null)
                 },
               })
@@ -326,6 +334,20 @@ function LinkedFormViewer({
         </div>
       )}
     </div>
+  )
+}
+
+// The heading is the FORM's own name (the template's `name`, e.g. "Student Application Form"),
+// not the plan step component's title it is linked under; the step stays named underneath. The
+// component's name stands in only until the form has been read. The read is the one the viewer
+// below makes too, so it costs nothing extra.
+function FormHeading({ formId, fallbackName, stepTitle }: { formId: string; fallbackName: string; stepTitle: string }) {
+  const form = useFormTemplate(formId)
+  return (
+    <>
+      <h2 className="text-h3 text-text-primary">{form.data?.name || fallbackName}</h2>
+      <p className="text-caption text-text-secondary">From step: {stepTitle}</p>
+    </>
   )
 }
 
@@ -382,8 +404,7 @@ export function FormsTab({ clientId, readOnly = false }: { clientId: string; rea
     <Card className="flex flex-col gap-md">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-h3 text-text-primary">{current.formName}</h2>
-          <p className="text-caption text-text-secondary">From step: {current.stepTitle}</p>
+          <FormHeading formId={current.formId} fallbackName={current.formName} stepTitle={current.stepTitle} />
         </div>
         <div className="flex items-center gap-sm">
           <Button variant="secondary" disabled={index === 0} onClick={() => guard.requestLeave(() => setIndex((i) => Math.max(0, i - 1)))}>

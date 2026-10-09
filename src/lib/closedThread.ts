@@ -19,6 +19,14 @@ export const CASE_CLOSED_CHAT_NOTE = 'This case is closed, so its chat is read-o
 /** What stands in place of the composer on a closed lead, and on a closed row of the chat list. */
 export const CLOSED_CONVERSATION_NOTE = 'This conversation is closed and read-only.'
 
+/** What an empty thread says. A closed one is read-only, so it does not invite anyone to say hello. */
+export const EMPTY_THREAD_TEXT = 'No messages yet — say hello.'
+export const EMPTY_CLOSED_THREAD_TEXT = 'No messages in this conversation.'
+
+export function emptyThreadText(closed: boolean | undefined): string {
+  return closed ? EMPTY_CLOSED_THREAD_TEXT : EMPTY_THREAD_TEXT
+}
+
 /** The case has ended, so nothing more is written into its chat. */
 export function isCaseChatClosed(status: string | null | undefined): boolean {
   return status === 'closed' || status === 'closed_completed'

@@ -237,11 +237,17 @@ export function AddLeadModal({ onClose }: { onClose: () => void }) {
   const shownBesideAField = Boolean(nameError || phoneError || emailError)
   const canSubmit = Boolean(name) && !phoneError && !emailError && !nameError
 
+  // The "added" line belongs to the lead just added: it goes as soon as the next one is begun.
+  const edits = (set: (value: string) => void) => (e: { target: { value: string } }) => {
+    setStored(null)
+    set(e.target.value)
+  }
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
+    setStored(null)
     if (!canSubmit) return
     setSent({ name, phone, email })
-    setStored(null)
     createLead.mutate(
       { name, phone: phone || null, email: email || null, source, notes: notes || null },
       {
@@ -280,20 +286,20 @@ export function AddLeadModal({ onClose }: { onClose: () => void }) {
             {stored.name} added. Phone saved as <span className="font-medium tabular-nums">{stored.phone}</span>.
           </p>
         )}
-        <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required error={nameError} />
-        <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} error={phoneError} />
+        <TextField label="Name" value={name} onChange={edits(setName)} required error={nameError} />
+        <TextField label="Phone" value={phone} onChange={edits(setPhone)} error={phoneError} />
         <TextField
           label="Email"
           type="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={edits(setEmail)}
           error={emailError}
         />
         <SelectField
           label="Source"
           id="manual-source"
           value={source}
-          onChange={(e) => setSource(e.target.value as Source)}
+          onChange={edits((value) => setSource(value as Source))}
         >
           {SOURCES.map((s) => (
             <option key={s.value} value={s.value}>
@@ -308,7 +314,7 @@ export function AddLeadModal({ onClose }: { onClose: () => void }) {
           <textarea
             id="manual-notes"
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onChange={edits(setNotes)}
             rows={3}
             className="rounded-md border border-border bg-surface px-3 py-sm text-body"
           />

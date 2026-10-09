@@ -109,6 +109,19 @@ describe('ClientConversationPage — closed case', () => {
     expect(screen.queryByRole('button', { name: 'Suggest a course' })).not.toBeInTheDocument()
   })
 
+  it.each(['closed', 'closed_completed'])('does not invite a hello into an empty %s case', (status) => {
+    mockedClient.mockReturnValue(aiko(status))
+    renderConversation()
+    expect(screen.getByText('No messages in this conversation.')).toBeInTheDocument()
+    expect(screen.queryByText(/say hello/)).not.toBeInTheDocument()
+  })
+
+  it('still invites a hello into an empty thread of a live case', () => {
+    mockedClient.mockReturnValue(aiko('in_plan'))
+    renderConversation()
+    expect(screen.getByText('No messages yet — say hello.')).toBeInTheDocument()
+  })
+
   it('leaves a moved case with its own wording', () => {
     mockedClient.mockReturnValue(aiko('closed_switched'))
     renderConversation()

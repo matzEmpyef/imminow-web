@@ -102,6 +102,29 @@ beforeEach(() => {
 })
 
 describe('the Forms list', () => {
+  it('counts the fields a person fills: each one inside a group, each one outside, a table as one', () => {
+    const f = (id: string, type = 'text') => ({ id, label: id, type, required: false })
+    listOf([
+      {
+        ...DEFAULT_FORM,
+        fields: [
+          { id: 'g1', label: 'Personal', type: 'group', required: false, fields: [f('a'), f('b'), f('c')] },
+          { id: 'g2', label: 'Empty section', type: 'group', required: false, fields: [] },
+          { id: 'g3', label: 'Education', type: 'group', required: false, fields: [f('d'), f('t', 'table')] },
+          f('loose'),
+          { ...f('tbl', 'table'), table_columns: [f('c1'), f('c2'), f('c3')] },
+        ],
+      },
+      { ...OTHER_FORM, fields: [] },
+    ])
+    renderAt('/administration/forms')
+    // 3 + 0 + 2 inside groups, 1 loose field, 1 table = 7 (not the 5 top-level entries).
+    const cells = within(screen.getByText('Student Application Form').closest('tr')!).getAllByRole('cell')
+    expect(cells[2]).toHaveTextContent(/^7$/)
+    const other = within(screen.getByText('Student intake').closest('tr')!).getAllByRole('cell')
+    expect(other[2]).toHaveTextContent(/^0$/)
+  })
+
   it('marks the default form, and only it', () => {
     renderAt('/administration/forms')
     const defaultRow = screen.getByText('Student Application Form').closest('tr')!

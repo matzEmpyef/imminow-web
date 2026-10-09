@@ -6,6 +6,7 @@ import {
   CASE_CLOSED_CHAT_NOTE,
   CLOSED_CONVERSATION_NOTE,
   closedThreadRefusal,
+  emptyThreadText,
   isCaseChatClosed,
   refreshIfThreadClosed,
   useClosedThread,
@@ -52,6 +53,14 @@ describe('which chats are closed', () => {
 
     refreshIfThreadClosed(queryClient, 'lead', 'l1', refusal('lead_closed', 'Closed.'))
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['leads', 'l1'], exact: true })
+  })
+})
+
+describe('what an empty thread says', () => {
+  it('invites a first message on an open thread and only states the fact on a closed one', () => {
+    expect(emptyThreadText(false)).toBe('No messages yet — say hello.')
+    expect(emptyThreadText(undefined)).toBe('No messages yet — say hello.')
+    expect(emptyThreadText(true)).toBe('No messages in this conversation.')
   })
 })
 

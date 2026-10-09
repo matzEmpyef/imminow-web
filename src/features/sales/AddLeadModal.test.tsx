@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Add Lead, one at a time (review F-208, 2026-10-08): the server checks the name, email and
@@ -39,10 +39,44 @@ describe('Add Lead — what the server says about the contact', () => {
     expect(mutate.mock.calls[0][0]).toMatchObject({ name: 'Asha Nair', phone: '98765 43210' })
 
     // The form re-renders when the answer arrives.
-    mutate.mock.calls[0][1].onSuccess({ id: 'l1', name: 'Asha Nair', phone: '+919876543210' })
-    fireEvent.change(screen.getByLabelText(/^Notes/), { target: { value: ' ' } })
+    act(() => mutate.mock.calls[0][1].onSuccess({ id: 'l1', name: 'Asha Nair', phone: '+919876543210' }))
     expect(screen.getByRole('status')).toHaveTextContent('Asha Nair added. Phone saved as +919876543210.')
     expect(screen.getByLabelText(/^Phone/)).toHaveValue('')
+  })
+
+  it('drops the "added" line as soon as any field is edited', () => {
+    const added = () => {
+      act(() => mutate.mock.calls.at(-1)![1].onSuccess({ id: 'l1', name: 'Asha Nair', phone: '+919876543210' }))
+    }
+    const edits: [string, () => void][] = [
+      ['name', () => fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'B' } })],
+      ['phone', () => fireEvent.change(screen.getByLabelText(/^Phone/), { target: { value: '9' } })],
+      ['email', () => fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: 'a@b.com' } })],
+      ['source', () => fireEvent.change(screen.getByLabelText(/^Source/), { target: { value: 'walk_in' } })],
+      ['notes', () => fireEvent.change(screen.getByLabelText(/^Notes/), { target: { value: 'x' } })],
+    ]
+    render(<AddLeadModal onClose={() => {}} />)
+    for (const [, edit] of edits) {
+      fill('Asha Nair', '98765 43210')
+      fireEvent.click(screen.getByRole('button', { name: 'Add Lead' }))
+      added()
+      expect(screen.getByRole('status')).toBeInTheDocument()
+      edit()
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    }
+  })
+
+  it('drops the "added" line when the next attempt is submitted, even one that is refused', () => {
+    render(<AddLeadModal onClose={() => {}} />)
+    fill('Asha Nair', '98765 43210')
+    fireEvent.click(screen.getByRole('button', { name: 'Add Lead' }))
+    act(() => mutate.mock.calls[0][1].onSuccess({ id: 'l1', name: 'Asha Nair', phone: '+919876543210' }))
+    expect(screen.getByRole('status')).toBeInTheDocument()
+
+    // Submitting the empty form (Enter in a field) is refused on the spot, with no request.
+    fireEvent.submit(document.getElementById('add-lead-form')!)
+    expect(mutate).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
   it("puts each refused field's sentence beside that field, until it is changed", () => {

@@ -197,6 +197,7 @@ export function FloatingChatWindow() {
           if (composerError) setComposerError(null)
         }}
         onSend={handleSend}
+        closed={conversation.closed === true || thread.closed}
         composerLocked={
           // A closed conversation is read-only (owner ruling 2026-10-06): the server refuses a
           // message to it, so the thread is shown with this line where the composer would be.

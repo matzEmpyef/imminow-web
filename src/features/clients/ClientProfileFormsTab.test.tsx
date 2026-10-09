@@ -50,7 +50,7 @@ const FULL_ROW = {
   finished_on: '2021-05-31',
 }
 
-function setup(answers: Record<string, unknown> | null, fields: unknown[] = [EDUCATION]) {
+function setup(answers: Record<string, unknown> | null, fields: unknown[] = [EDUCATION], formName?: string) {
   vi.mocked(usePlans).mockReturnValue({
     isLoading: false,
     data: {
@@ -67,7 +67,7 @@ function setup(answers: Record<string, unknown> | null, fields: unknown[] = [EDU
       ],
     },
   } as never)
-  vi.mocked(useFormTemplate).mockReturnValue({ isLoading: false, isError: false, data: { id: 'form-1', fields } } as never)
+  vi.mocked(useFormTemplate).mockReturnValue({ isLoading: false, isError: false, data: { id: 'form-1', name: formName, fields } } as never)
   vi.mocked(useLatestFormResponse).mockReturnValue({
     isLoading: false,
     data: answers ? { answers, submitted_at: '2026-10-01T10:00:00Z' } : null,
@@ -251,5 +251,81 @@ describe('FormsTab table fields', () => {
     expect(screen.getByRole('heading', { name: 'Second form' })).toBeInTheDocument()
     // The next form opens on its own saved answers, not the edits left behind.
     expect(screen.getByText('Kerala University')).toBeInTheDocument()
+  })
+})
+
+// Owner rulings 2026-10-09: the tab honours each field's width (the builder's own six-column
+// grid), and its heading is the form's own name, with the step named underneath.
+describe('FormsTab layout and heading', () => {
+  const field = (id: string, type: string, width: string | null, extra: Record<string, unknown> = {}) => ({
+    id,
+    type,
+    label: id,
+    required: false,
+    position: 0,
+    width,
+    ...extra,
+  })
+  const cellOf = (label: string) => screen.getByText(label, { exact: false }).closest('div[class*="col-span"]') as HTMLElement
+
+  it('puts half and third width fields on shared rows, inside groups too, and keeps tables and long text full', () => {
+    setup(null, [
+      field('Half A', 'text', 'half'),
+      field('Third B', 'text', 'third'),
+      field('Default C', 'text', null),
+      field('Notes', 'long_text', 'half'),
+      field('Grid', 'table', 'third', { table_columns: [column('c', 'text', 'Col')] }),
+      field('Section', 'group', 'half', {
+        fields: [field('Inner half', 'date', 'half'), field('Inner full', 'text', 'full')],
+      }),
+    ])
+    renderTab()
+
+    expect(cellOf('Half A')).toHaveClass('col-span-6', '@md:col-span-3')
+    expect(cellOf('Third B')).toHaveClass('col-span-6', '@md:col-span-2')
+    expect(cellOf('Default C')).toHaveClass('col-span-6')
+    expect(cellOf('Default C')).not.toHaveClass('@md:col-span-3')
+    // Long text, a table and a group take the whole row whatever their width says.
+    for (const label of ['Notes', 'Grid', 'Section']) {
+      expect(cellOf(label)).toHaveClass('col-span-6')
+      expect(cellOf(label).className).not.toMatch(/@md:col-span/)
+    }
+    expect(cellOf('Inner half')).toHaveClass('@md:col-span-3')
+    expect(cellOf('Inner full')).not.toHaveClass('@md:col-span-3')
+    // The grid answers to the width of its own box, as the builder's preview does.
+    expect(cellOf('Half A').parentElement).toHaveClass('@container', 'grid', 'grid-cols-6')
+  })
+
+  it('keeps required marks and Save as before', () => {
+    setup({ name: 'Asha' }, [field('name', 'text', 'half', { required: true })])
+    renderTab()
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Asha K' } })
+    expect(sentAnswers()).toEqual({ name: 'Asha K' })
+  })
+
+  it("heads the tab with the form's own name and names the step underneath", () => {
+    setup(null, [], 'Student Application Form')
+    vi.mocked(usePlans).mockReturnValue({
+      isLoading: false,
+      data: {
+        items: [
+          {
+            steps: [
+              {
+                title: 'Background',
+                position: 0,
+                components: [
+                  { type: 'form_link', label: 'Form', payload: { form_template_id: 'form-1', form_name: 'Applicant Background Form' } },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    } as never)
+    renderTab()
+    expect(screen.getByRole('heading', { name: 'Student Application Form' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Applicant Background Form' })).not.toBeInTheDocument()
+    expect(screen.getByText('From step: Background')).toBeInTheDocument()
   })
 })
