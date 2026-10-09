@@ -293,12 +293,25 @@ describe('who may open the import', () => {
     expect(await screen.findByRole('heading', { name: 'Import campuses and courses' })).toBeInTheDocument()
   })
 
-  it('is reached from Colleges & Courses, beside the college import', async () => {
+  it('is reached from the one Import menu on Colleges & Courses', async () => {
     renderAt('/admin/colleges')
-    expect(await screen.findByRole('button', { name: 'Import CSV' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Import campuses and courses' }))
+    expect(screen.queryByRole('button', { name: 'Import campuses and courses' })).not.toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: 'Import' }))
+    expect(screen.getByRole('menuitem', { name: 'Colleges (CSV)' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Campuses and courses' }))
     expect(await screen.findByRole('heading', { name: 'Import campuses and courses' })).toBeInTheDocument()
     expect(screen.getByTestId('where')).toHaveTextContent('/admin/colleges/import')
+  })
+
+  it('opens the college CSV file picker from the same menu', async () => {
+    renderAt('/admin/colleges')
+    const picker = document.querySelector<HTMLInputElement>('input[type=file][accept=".csv"]')
+    expect(picker).not.toBeNull()
+    const click = vi.spyOn(picker!, 'click').mockImplementation(() => {})
+    fireEvent.click(await screen.findByRole('button', { name: 'Import' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Colleges (CSV)' }))
+    expect(click).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
   it('sends anyone without it to the console home, and asks the server nothing', async () => {

@@ -1,9 +1,11 @@
-import type { ButtonHTMLAttributes } from 'react'
+import type { ButtonHTMLAttributes, Ref } from 'react'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'destructive'
   size?: 'sm' | 'md'
   loading?: boolean
+  // React 19 passes `ref` as an ordinary prop; ButtonMenu needs it to return focus after Esc.
+  ref?: Ref<HTMLButtonElement>
 }
 
 // ui-ux-design-web.md Section 5: filled Primary / outlined Secondary / filled Error

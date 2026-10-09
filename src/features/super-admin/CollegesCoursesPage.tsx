@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Pencil } from 'lucide-react'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { Button } from '@/components/Button'
+import { ButtonMenu } from '@/components/ButtonMenu'
 import { Badge } from '@/components/Badge'
 import { Table, type TableColumn } from '@/components/Table'
 import { StopPropagation } from '@/components/StopPropagation'
@@ -413,14 +414,16 @@ export function CollegesCoursesPage() {
           <div className="flex flex-col items-end gap-xs">
             <div className="flex flex-wrap justify-end gap-sm">
               <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleFileChange} />
-              {/* Colleges come in through the CSV import beside it; their campuses and courses
-                  through this one (bulk import plan, 2026-10-09). */}
-              <Button variant="secondary" onClick={() => navigate('/admin/colleges/import')}>
-                Import campuses and courses
-              </Button>
-              <Button variant="secondary" loading={importColleges.isPending} onClick={handleImportClick}>
-                Import colleges (CSV)
-              </Button>
+              {/* One Import button (owner, 2026-10-09): colleges come in by CSV, their campuses
+                  and courses through the import page. */}
+              <ButtonMenu
+                label="Import"
+                loading={importColleges.isPending}
+                items={[
+                  { label: 'Colleges (CSV)', onSelect: handleImportClick },
+                  { label: 'Campuses and courses', onSelect: () => navigate('/admin/colleges/import') },
+                ]}
+              />
               <Button onClick={() => setShowAddCollege(true)}>Add College</Button>
             </div>
             <p className="text-caption text-text-secondary">CSV columns: name, website, description</p>
