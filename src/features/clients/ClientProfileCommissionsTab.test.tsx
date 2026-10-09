@@ -74,15 +74,15 @@ beforeEach(() => {
 })
 
 describe('CommissionsTab, channel-B bookkeeping record', () => {
-  it('explains it is the consultancy’s own record and shows no Sentpo share or declare control', () => {
+  it('explains it is the consultancy’s own record and shows no immiNow share or declare control', () => {
     setup({ entry: { ...baseEntry, channel: 'B' }, client: { acquisition_source: 'B' } })
 
     expect(screen.getByText(/your own record for this client/i)).toBeInTheDocument()
     expect(screen.getByText(/not shared with immiNow/i)).toBeInTheDocument()
-    // No Sentpo share, rate, dues or declare-payment anywhere.
+    // No immiNow share, rate, dues or declare-payment anywhere.
     expect(screen.queryByText(/declare/i)).toBeNull()
-    expect(screen.queryByText(/due to sentpo/i)).toBeNull()
-    expect(screen.queryByText(/sentpo.s share/i)).toBeNull()
+    expect(screen.queryByText(/due to imminow/i)).toBeNull()
+    expect(screen.queryByText(/imminow.s share/i)).toBeNull()
     expect(screen.queryByText(/rate/i)).toBeNull()
     expect(screen.queryByRole('button', { name: /declare/i })).toBeNull()
     // Installments still work as normal.

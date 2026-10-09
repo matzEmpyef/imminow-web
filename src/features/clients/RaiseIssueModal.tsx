@@ -65,7 +65,7 @@ export function RaiseIssueModal({
       <form id="raise-issue-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <p className="text-body-sm text-text-secondary">
           Use this when something has gone wrong between you and{' '}
-          <strong className="text-text-primary">{clientName}</strong> that you can&rsquo;t resolve yourselves. Sentpo
+          <strong className="text-text-primary">{clientName}</strong> that you can&rsquo;t resolve yourselves. immiNow
           will speak to both sides.
         </p>
 
@@ -89,7 +89,7 @@ export function RaiseIssueModal({
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={4}
-            placeholder="Give Sentpo enough to go on — dates, what you've already tried."
+            placeholder="Give immiNow enough to go on — dates, what you've already tried."
             className="rounded-md border border-border bg-surface px-3 py-sm text-body"
           />
           <p className="text-body-sm text-text-secondary">

@@ -72,7 +72,7 @@ export const ULTIMATE_FEATURES = FEATURE_REGISTRY.filter((f) => f.tier === 'ulti
 // (`multi_branch`), so "single branch" left this list: it is no longer true, and the flag's own
 // label now carries branches wherever the enabled features are listed.
 export const STARTER_CORE_FEATURES = [
-  'Sentpo listing, discovery & ratings, KYC',
+  'Listing in the Sentpo app, discovery & ratings, KYC',
   'Lead Pool (Sentpo leads) + allocation',
   'Active Leads, lead chat & close',
   'Convert to client',

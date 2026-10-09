@@ -258,7 +258,7 @@ export function CommissionDetailsPage() {
     },
     {
       key: 'platform_due',
-      header: isInstitute ? 'Due to Sentpo' : 'Due to immiNow',
+      header: 'Due to immiNow',
       align: 'right',
       render: (due) => {
         const others = (due.by_currency ?? []).filter((c) => c.currency && c.currency !== 'INR' && (c.outstanding ?? 0) > 0)

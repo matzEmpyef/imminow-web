@@ -153,7 +153,7 @@ export function MyAccountPage() {
     : isPlatform
       ? 'immiNow platform team'
       : isFreelancer
-        ? 'Sentpo freelancer partner'
+        ? 'immiNow freelancer partner'
         : ''
   const copyKey = isPlatform ? 'platform' : isFreelancer ? 'freelancer' : 'staff'
   const roleLabel = user.role === 'consultancy_admin' ? words.adminLabel : ROLE_LABEL[user.role]

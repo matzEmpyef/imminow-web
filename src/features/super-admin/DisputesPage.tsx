@@ -175,7 +175,7 @@ export function DisputesPage() {
           rowKey={(d) => d.id}
           loading={disputes.isLoading}
           error={disputes.isError ? 'Could not load the dispute queue.' : undefined} errorSource={disputes.error}
-          emptyMessage="No case is waiting on a decision from Sentpo right now."
+          emptyMessage="No case is waiting on a decision from immiNow right now."
           onRowClick={(d) => setViewing(d)}
           search={{
             value: search,
