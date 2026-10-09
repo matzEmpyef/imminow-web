@@ -33,6 +33,7 @@ import {
 import { ExchangeRatesTab } from './ExchangeRatesTab'
 import { FieldsOfStudyTab } from './FieldsOfStudyTab'
 import { JobCategoriesTab } from './JobCategoriesTab'
+import { LeadRepliesTab } from './LeadRepliesTab'
 import { SettingsUsedIn } from './SettingsUsedIn'
 import {
   useCountrySettings,
@@ -71,6 +72,7 @@ const TABS = [
   'Exchange Rates',
   'Score Schemes',
   'Course Popularity',
+  'Lead Replies',
 ] as const
 
 const SCORE_TYPES = [
@@ -130,8 +132,10 @@ export function CatalogSettingsPage() {
           <ExchangeRatesTab readOnly={!canEditRates} />
         ) : activeTab === 'Score Schemes' ? (
           <ScoreSchemeConversionsTab />
-        ) : (
+        ) : activeTab === 'Course Popularity' ? (
           <CoursePopularityTab />
+        ) : (
+          <LeadRepliesTab />
         )}
       </div>
     </AdminShell>

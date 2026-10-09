@@ -140,6 +140,13 @@ export function useUpdatePlatformSettings() {
        * (CGPA − 0.75) × 10, so the formula belongs to an admin rather than to the code.
        */
       score_scheme_conversions?: Record<string, { multiplier: number; offset: number }>
+      /**
+       * Owner's ruling 2026-10-09 (default 2, 1–48): working hours a student's first message on a
+       * lead may wait before the consultancy is reminded, once.
+       */
+      lead_reply_reminder_hours?: number
+      /** The same ruling (default 24, 1–168): hours before the platform is told of an unanswered first contact. */
+      lead_platform_alert_hours?: number
     }) => {
       const { data, error } = await api.PATCH('/platform/settings', { body })
       if (error) throw new ApiError('Could not save this setting.', error)
