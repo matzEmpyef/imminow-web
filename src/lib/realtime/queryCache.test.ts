@@ -40,6 +40,7 @@ function conversation(overrides: Partial<Conversation> = {}): Conversation {
     last_message_preview: 'old preview',
     unread: false,
     closed: false,
+    unassigned: false,
     ...overrides,
   }
 }
