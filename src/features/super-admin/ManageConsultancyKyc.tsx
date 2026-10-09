@@ -28,7 +28,11 @@ export function KycSection({ consultancyId, kycVerified }: { consultancyId: stri
   const reject = useRejectKyc()
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
-  const status: KycState = kyc.data?.status ?? (kycVerified ? 'verified' : 'not_submitted')
+  // An account verified offline has no certificate on record: the list reads it as verified
+  // (`Consultancy.kyc_status`), so this row must too, not "No certificate".
+  const served = kyc.data?.status
+  const verifiedOffline = kycVerified && (served === undefined || served === 'not_submitted')
+  const status: KycState = verifiedOffline ? 'verified' : (served ?? 'not_submitted')
   const badge = KYC_BADGE[status]
   const uploadedAt = kyc.data?.uploaded_at
 
@@ -57,7 +61,9 @@ export function KycSection({ consultancyId, kycVerified }: { consultancyId: stri
               <KycDocument kyc={kyc.data} label="certificate" size="sm" />
             </div>
           ) : (
-            <p className="text-caption text-text-secondary">No certificate submitted yet.</p>
+            <p className="text-caption text-text-secondary">
+              {verifiedOffline ? 'Verified without a certificate on file.' : 'No certificate submitted yet.'}
+            </p>
           )}
           {verify.isError && <p className="text-caption text-error">{verify.error.message}</p>}
         </div>
