@@ -495,7 +495,7 @@ export interface paths {
         put?: never;
         /**
          * Resolve an invite for the Set Your Password screen — the token in the request body
-         * @description The same answer as `GET /auth/invite/{token}`, with the token in the body (review F-123): a URL path is written to the access log of every server between the browser and the API, and an invite token is a working credential for 7 days. The console's Set Your Password page must read the token from the page address — the fragment (`/set-password#<token>`) when present, else the last path segment (`/set-password/<token>`, the shape of links already mailed) — and call this route and `POST /auth/invite/accept`. It must not call the `{token}` routes any more, and should replace the address with `/set-password` (history.replaceState) once it has read the token. Emailed links switch to the fragment shape when the backend setting `LINK_TOKENS_IN_FRAGMENT` is turned on, after the console change is live.
+         * @description The same answer as `GET /auth/invite/{token}`, with the token in the body (review F-123): a URL path is written to the access log of every server between the browser and the API, and an invite token is a working credential for 7 days. The console's Set Your Password page must read the token from the page address — the fragment (`/set-password#<token>`) when present, else the last path segment (`/set-password/<token>`, the shape of links already mailed) — and call this route and `POST /auth/invite/accept`. It must not call the `{token}` routes any more, and should replace the address with `/set-password` (history.replaceState) once it has read the token. Emailed links have the fragment shape by default since 2026-10-09 (owner's ruling; the backend setting `LINK_TOKENS_IN_FRAGMENT`, now on unless set to false). The password-reset link follows the same setting: `/reset-password#<token>`, with `/reset-password?token=<token>` the old form the page must still read.
          */
         post: {
             parameters: {
@@ -2741,7 +2741,7 @@ export interface paths {
         put?: never;
         /**
          * What the guardian's approval page shows — the token in the request body
-         * @description The same answer as `GET /guardian-consent/{token}`, with the token in the body (review F-123): a URL path is written to access logs, and a guardian token decides a minor's consent. The guardian page (web) must read the token from the page address — the fragment (`/guardian#<token>`) when present, else the last path segment (`/guardian/<token>`, links already mailed) — and call `prompt`, `decide`, `withdraw` and `fresh-link` with it in the body. It must not call the `{token}` routes any more, and should replace the address with `/guardian` once it has read the token. Emailed links switch to the fragment shape when `LINK_TOKENS_IN_FRAGMENT` is turned on.
+         * @description The same answer as `GET /guardian-consent/{token}`, with the token in the body (review F-123): a URL path is written to access logs, and a guardian token decides a minor's consent. The guardian page (web) must read the token from the page address — the fragment (`/guardian#<token>`) when present, else the last path segment (`/guardian/<token>`, links already mailed) — and call `prompt`, `decide`, `withdraw` and `fresh-link` with it in the body. It must not call the `{token}` routes any more, and should replace the address with `/guardian` once it has read the token. Emailed links have the fragment shape by default since 2026-10-09 (`LINK_TOKENS_IN_FRAGMENT`, on unless set to false).
          */
         post: {
             parameters: {
@@ -6502,11 +6502,16 @@ export interface paths {
         /**
          * List activity tasks
          * @description Paged (contract gate 7): `{items, meta}`, newest first (`created_at`, then `id`), pages of `limit` (default 20, max 100) walked with `meta.next_cursor`; `meta.total` counts every match. **Transition:** a request with neither `limit` nor `cursor` gets the pre-gate-7 bare array of every task (mock only, for builds already installed); clients send `limit`.
+         *     **Completed tasks (2026-10-09, review F-112).** `GET /activity-feed` leaves out tasks completed more than 30 days ago; this is where the console reads them. `filter[status]=done` lists completed tasks only, newest COMPLETED first (`completed_at`, then `id`), with the same paging; `filter[completed_before]=<date-time>` keeps those completed before that instant (it implies `done`), so "older than 30 days" is `filter[completed_before]=<now minus 30 days>`. `filter[status]=open` lists open tasks only, newest created first. `meta.total` counts what the filters keep. Who sees which task is unchanged by any filter: an admin every task of the consultancy, anyone else the tasks they gave or were given and those on a case they can work on; `assigned_to_me=true` narrows to the caller's own.
          */
         get: {
             parameters: {
                 query?: {
                     assigned_to_me?: boolean;
+                    /** @description Only open tasks, or only completed ones (newest completed first). */
+                    "filter[status]"?: "open" | "done";
+                    /** @description Completed tasks finished before this instant (implies done). */
+                    "filter[completed_before]"?: string;
                     /** @description Opaque pagination cursor from a previous response's next_cursor. Omit for the first page. */
                     cursor?: components["parameters"]["CursorParam"];
                     /** @description Page size. Default 20, max 100 (TRD Section 7) — requests above max are silently capped, not rejected. */
@@ -6528,6 +6533,15 @@ export interface paths {
                             items: components["schemas"]["ActivityTask"][];
                             meta: components["schemas"]["PaginatedMeta"];
                         };
+                    };
+                };
+                /** @description `validation_failed` — `filter[status]` is not `open` or `done`, `filter[completed_before]` is not an ISO 8601 date-time or was sent with `filter[status]=open`, or an unknown filter was sent. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -10566,6 +10580,8 @@ export interface paths {
                 content: {
                     "application/json": {
                         employee_id: components["schemas"]["UUID"];
+                        /** @description Owner's ruling 2026-10-09 ("Take this lead" / "Assign to a colleague" in the staff app). Send `true` when acting on a lead shown as unassigned: if a colleague has it by the time the call arrives the answer is 409 `lead_already_assigned`, even for a caller who holds `leads.reassign`. Omitted or false, such a caller's call is a reassignment, as before. */
+                        only_if_unassigned?: boolean;
                     };
                 };
             };
@@ -10577,6 +10593,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Lead"];
+                    };
+                };
+                /** @description `lead_already_assigned` (owner's ruling 2026-10-09) — the lead was unassigned when the caller looked and a colleague has taken it since: the caller may work the Lead Pool (`leads.allocate_from_pool`) and either may not reassign or sent `only_if_unassigned: true`. The message names who has it ("Asha has already taken this lead."), and `error.details` carries `assigned_employee_id` and `assigned_employee_name`. When two people assign the same unassigned lead at the same moment exactly one succeeds; the other gets this (asking for the employee who already has it is a 200 with nothing changed). `conflict` — the lead is closed or converted ("Only an active lead can be allocated. This one is closed."). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -27386,7 +27411,10 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description No active staff (`no_active_staff`), a lapsed subscription (`subscription_lapsed`), the target at its seat limit (`seat_limit_reached`, gate 12, F44 — the mock answered 500 here, a missing-key bug this corrects), the student already has a live case (`already_a_case`, gate 12, F43), or this row was already allocated by a concurrent call (`already_allocated`, gate 12, W9). The row stays on the queue. */
+                /**
+                 * @description No active staff (`no_active_staff`), a lapsed subscription (`subscription_lapsed`), the target at its seat limit (`seat_limit_reached`, gate 12, F44 — the mock answered 500 here, a missing-key bug this corrects), the student already has a live case (`already_a_case`, gate 12, F43), or this row was already allocated by a concurrent call (`already_allocated`, gate 12, W9). The row stays on the queue.
+                 *     `guardian_consent_required` (owner's ruling 2026-10-09): the student is under 18 and their guardian has not approved — "This student is under 18 and their guardian has not approved yet. They can be assigned once the guardian approves." Checked before everything else, for a freelancer row and a consultancy-change row alike; nothing is written. The same call succeeds as soon as the guardian approves (or the student turns 18), with no other step. Adults and approved minors are allocated as before.
+                 */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -28768,6 +28796,11 @@ export interface components {
             status: "open" | "done";
             /** Format: date-time */
             created_at: string;
+            /**
+             * Format: date-time
+             * @description When the task was completed (2026-10-09, review F-112); null while it is `open`. A task completed before this field existed carries the time its row last changed, the best date there is for it. The feed's "completed in the last 30 days" and the completed list's order are judged on this, never on `updated_at`.
+             */
+            readonly completed_at?: string | null;
         };
         /** @description Set a follow-up reminder for a lead (build reference 1.22 Activity extension, Ultimate only, user-requested). Always self-assigned — no assigned_to field, unlike ActivityTaskInput's teammate-assignment flow. */
         LeadReminderInput: {
@@ -28852,6 +28885,16 @@ export interface components {
              * @default false
              */
             truncated: boolean;
+            /**
+             * @description 2026-10-09 (review F-112). True when `tasks` was cut: the caller has more open or recently completed tasks of their own than the 200 sent. The rest are on `GET /activity-tasks?assigned_to_me=true`. `truncated` stays true whenever this is.
+             * @default false
+             */
+            tasks_truncated: boolean;
+            /**
+             * @description The same for `delegated_tasks`. `truncated` stays true whenever this is.
+             * @default false
+             */
+            delegated_tasks_truncated: boolean;
             /** @description User-requested (2026-08-19) — folded in from the now-retired standalone Step Approvals page ("instead of separate page show it activities"). Approve/Send Back no longer happen here — a row links to `/clients/{journey_id}?tab=Plan&step={step_id}`, landing on the Plan tab with that step pre-selected, where the actions now live. */
             pending_step_approvals: {
                 step_id: components["schemas"]["UUID"];
@@ -28914,6 +28957,11 @@ export interface components {
              * @default false
              */
             closed: boolean;
+            /**
+             * @description True for an active lead nobody is assigned to yet (owner's ruling 2026-10-09). Such a row is listed only for staff who may work the Lead Pool, so the reader may always assign it (`POST /leads/{id}/allocate`); the thread takes no staff message until it is assigned (409 `lead_not_allocated`). Always false on client and internal rows, and on a closed lead.
+             * @default false
+             */
+            unassigned: boolean;
         };
         /** @description The answer to `POST /realtime/tickets` (contract gate 8). */
         RealtimeTicket: {
@@ -29420,6 +29468,17 @@ export interface components {
             readonly current_consultancy_id: components["schemas"]["UUID"] | null;
             /** @description Who the student is with today, i.e. who they are asking to leave. */
             readonly current_consultancy_name: string | null;
+            /**
+             * @description Owner's ruling 2026-10-09. Where the student stands with the guardian gate, worked out when the page is read: `not_required` for anyone 18 or over; for a 16- or 17-year-old `pending` (no guardian named yet, or the guardian has not answered), `approved`, `declined`, `withdrawn` (the guardian took an approval back) or `expired` (the link lapsed unanswered). Only `not_required` and `approved` rows can be allocated.
+             * @default not_required
+             * @enum {string}
+             */
+            readonly guardian_status: "not_required" | "pending" | "approved" | "declined" | "withdrawn" | "expired";
+            /**
+             * @description True when `guardian_status` is anything but `not_required` or `approved`: `POST /applicant-allocation-queue/{id}/allocate` answers 409 `guardian_consent_required` for this row. The page shows "Waiting for guardian approval" on it (for `declined`: "Guardian declined — waiting for a new approval") and does not offer Allocate. It turns false by itself when the guardian approves.
+             * @default false
+             */
+            readonly awaiting_guardian_approval: boolean;
         };
         /**
          * @description One work queue that needs the platform team (2026-09-10, user: "anything that needs platform team attention will be alerted — they should be able to identify").
@@ -29624,6 +29683,11 @@ export interface components {
             rating_cooldown_ends_at?: string | null;
             /** @description The most recent conversion_proposals row if its status is still `pending`; null otherwise. Drives whether Lead Conversation shows "Convert to Client" or a pending-proposal state. */
             active_proposal?: components["schemas"]["ConversionProposal"] | null;
+            /**
+             * @description STAFF VIEW, decided by the server (owner's ruling 2026-10-09). True when the reader may give this lead a consultant now with `POST /leads/{id}/allocate`: the lead is `active` and either unassigned (`assigned_employee_id` null) and the reader holds `leads.allocate_from_pool`, or assigned and the reader holds `leads.reassign` (a consultancy admin holds both). With `assigned_employee_id` null it is the staff app's "Take this lead" (allocate to the reader's own employee id, `GET /me`) and "Assign to a colleague" (pick from `GET /staff/employees`). Once assigned, `assigned_employee_name` says to whom. Nobody on staff can write in the thread while the lead is unassigned (409 `lead_not_allocated`). Always false on the student's own view. A consultancy with exactly one active member of staff has no unassigned Sentpo leads: each new one is assigned to that person as it arrives.
+             * @default false
+             */
+            readonly can_assign: boolean;
             /** @description STAFF VIEW, decided by the server (owner ruling "Lead reopen", 2026-10-06). True only when the reader may reopen this lead now: it is `closed`, the consultancy closed it itself, and the consultancy's plan includes `case_reopening`. False for an active or converted lead, for a lead closed because the student chose another consultancy, closed by the student, or closed because the student deleted their account (those can never be reopened by the consultancy — only the student restarts it, by starting a new chat), when the plan lacks the feature, and always on the student's own view. The console shows the Reopen control only when this is true and never works it out itself. `POST /leads/{id}/reopen` can still answer 409 for the reasons it lists (the student has a live case, another open chat with this consultancy, or 15 active chats). */
             readonly can_reopen: boolean;
             /** @description STAFF, SINGLE LEAD ONLY (review F-029, 2026-10-06): present on `GET /leads/{id}` and on the Lead a staff write returns; absent from `GET /leads` list rows and from the student's own view. The state of the chat header's shortlist button, computed by the server from the WHOLE thread. The console reads it from here and never from the messages it happens to have loaded (a long chat pages; the header used to offer "Request Shortlist" again once the request had scrolled out of the loaded page). */
@@ -30506,6 +30570,10 @@ export interface components {
             show_course_view_counts?: boolean;
             /** @description Open cases one active staff member can handle (2026-09-11, default 20) — the capacity assumption behind Supply & Demand's Coverage by Country. Editable by Super Admin / `catalog_settings`; every change is audited. */
             cases_per_staff?: number;
+            /** @description Owner's ruling 2026-10-09 (default 2). How many of a consultancy's own WORKING hours a student's first message on a lead may wait for a reply before the consultancy is reminded once (notification `lead_reply_overdue`: whoever can act on the lead — the Lead Pool's staff while it is unassigned, else its assignee — and the consultancy's admins; bell and push). Working hours are the consultancy's `visiting_schedule` in its own time zone, or Monday to Saturday 10:00-17:00 India time when it has set none. Applies to first messages sent after the change. Editable by Super Admin / `catalog_settings`; every change is audited. */
+            lead_reply_reminder_hours?: number;
+            /** @description Owner's ruling 2026-10-09 (default 24). Clock hours after which the platform is told that a student's FIRST contact with a consultancy (their first lead with it) has had no reply from anyone there: notification `lead_unanswered`, once per lead, to platform staff holding `support`, and from the same moment the student is on the service follow-up queue under the `lead_no_reply` signal (which otherwise starts 48 hours after the student's latest unanswered message). Applies to first messages sent after the change. Editable by Super Admin / `catalog_settings`; every change is audited. */
+            lead_platform_alert_hours?: number;
             /** @description How a CGPA is read as a percentage for eligibility (2026-09-19, assumptions audit C3): percentage = (score - offset) x multiplier. Defaults are the CBSE x9.5 for a 10-point CGPA and x25 for a 4-point GPA; boards that publish a different formula (Anna University (CGPA - 0.5) x 10, VTU (CGPA - 0.75) x 10) are set here rather than hard-coded. Where a transcript states a percentage, that is stored as `percentage` and never converted. */
             score_scheme_conversions?: {
                 cgpa_10?: components["schemas"]["ScoreSchemeConversion"];
@@ -32270,7 +32338,10 @@ export interface components {
             id: components["schemas"]["UUID"];
             /** @description Added 2026-08-19 alongside the first "an action also notifies someone" mechanism (awardPoints() crediting Sentpo points) — which user this notification belongs to. */
             user_id?: components["schemas"]["UUID"];
-            /** @description The notification catalogue's template key (not enumerated here — the catalogue grows with every wave). Gate 11 adds `commission_payment_confirmed` (F16): sent to `consultancy_billing` when Finance confirms a declared payment at the declared amount (a different amount already sent `payment_amount_changed`; this was the silent gap — confirming the exact figure told nobody). */
+            /**
+             * @description The notification catalogue's template key (not enumerated here — the catalogue grows with every wave). Gate 11 adds `commission_payment_confirmed` (F16): sent to `consultancy_billing` when Finance confirms a declared payment at the declared amount (a different amount already sent `payment_amount_changed`; this was the silent gap — confirming the exact figure told nobody).
+             *     Owner's ruling 2026-10-09 (a student's first message must never sit unseen) adds three console notices about a lead. `new_lead` (category `chat`, bell and push): a lead nobody was assigned, sent to every active staff member who may work the Lead Pool (`leads.allocate_from_pool`, and the consultancy's admins); `deep_link` `/sales/active-leads/{lead_id}`. An auto-assigned lead sends `lead_allocated` to its consultant instead, as before. `lead_reply_overdue` (category `chat`, bell and push): the one reminder after `PlatformSettings.lead_reply_reminder_hours` working hours with no reply to the student's first message; same link. `lead_unanswered` (no category, bell only): to platform staff holding `support` after `PlatformSettings.lead_platform_alert_hours` hours with no reply to a student's first contact with a consultancy; `deep_link` `/admin/student-followups`. While a lead is unassigned, each message the student sends also pushes (never the bell) the same Lead Pool staff, collapsed per conversation like every chat push.
+             */
             type: string;
             /**
              * @description Which notification-settings toggle row governs this notification's email/push delivery (notification-settings enforcement, 2026-08-20; `jobs`/`billing`/`account` and `rewards` added contract gate 9 — the mock already emitted `jobs` as `job_alert`'s category before the enum here caught up, and a generated client that does not know a value it receives can fail to decode the whole row). Wording corrected per assumptions audit C14 (2026-09-19): null does NOT mean "every channel" — `category` is now required at every server-side `notify()` call site, and a null value here means either a row from before that requirement, or (per C14) a genuinely uncategorised call, which defaults to in-app only, never email or push. The in-app feed always receives every notification regardless of category — see `channels` below — so "in-app only" and "never delivered" are not the same thing. `blog` (added 2026-08-20, user "we want push notification too") is the odd one out — in-app + push gated by the single `blog_push` switch, never email. `rewards` (owner Q4, 2026-09-27) covers points-earned and coupon-redeemed notices, push-enabled by default; the daily-login points award is deliberately NOT gated by it — it stays in-app only regardless of any toggle.
