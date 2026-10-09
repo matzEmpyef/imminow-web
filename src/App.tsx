@@ -421,6 +421,8 @@ function App() {
           {/* The address lead notifications carry (`/leads/{lead_id}`): the same page, at the
               console's own address for it. */}
           <Route path="/leads/:id" element={<LeadNoticeRedirect />} />
+          {/* `new_lead` and `lead_reply_overdue` carry `/sales/active-leads/{lead_id}`. */}
+          <Route path="/sales/active-leads/:id" element={<LeadNoticeRedirect />} />
           <Route path="/clients" element={<ClientsListPage />} />
           <Route path="/clients/course-finder" element={<CourseFinderPage />} />
           {/* C3 (2026-09-13): both lists are money the server now guards with

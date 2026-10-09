@@ -24,6 +24,9 @@ const ALLOWED_EXACT = [
   '/admin/disputes',
   '/admin/finance-dashboard',
   '/admin/ratings',
+  // `lead_unanswered` (2026-10-09): a student's first contact with a consultancy went unanswered;
+  // the notice opens the service follow-up queue, where it is already listed as `lead_no_reply`.
+  '/admin/student-followups',
   '/admin/reviews',
   '/administration/commission-details',
   '/administration/consultancy-profile',
@@ -31,6 +34,8 @@ const ALLOWED_EXACT = [
   '/administration/reviews',
   '/clients',
   '/freelancer/dashboard',
+  // The Lead Pool, for staff who may work it (2026-10-09 lead notices).
+  '/sales/lead-pool',
   '/staff/conversations',
 ]
 
@@ -48,6 +53,9 @@ const ALLOWED_PREFIXES = [
   // Lead notices carry `/leads/{lead_id}` (e.g. `client_account_deleted` for a chat that closed
   // when its student deleted their account); App.tsx sends it on to the lead's conversation.
   '/leads/',
+  // `new_lead` and `lead_reply_overdue` (2026-10-09) carry `/sales/active-leads/{lead_id}`; App.tsx
+  // sends it on to the lead's page, `/sales/leads/{lead_id}`.
+  '/sales/active-leads/',
   '/staff/conversations/',
 ]
 
