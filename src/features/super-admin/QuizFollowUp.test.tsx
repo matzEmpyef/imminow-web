@@ -55,6 +55,7 @@ function quiz(overrides: Partial<Event> = {}): Event {
     schedule_locked: true,
     results_final: false,
     results_final_at: FINAL_AT,
+    version: 3,
     ...overrides,
   } as Event
 }

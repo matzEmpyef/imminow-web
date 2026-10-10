@@ -3,7 +3,7 @@ import { useMutation } from '@/lib/useSave'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
-import { editError, reloadOnStaleEdit } from '@/lib/staleEdit'
+import { editError, reloadOnStaleEdit, requireVersion } from '@/lib/staleEdit'
 import type { components } from '@/api/schema'
 
 type EventInput = components['schemas']['EventInput']
@@ -78,7 +78,10 @@ export function useUpdateEvent(id: string, version?: number) {
     // `listed` (2026-09-04): false unlists the event for students, true restores it — a PATCH-only
     // field, so it sits beside EventInput rather than inside it.
     mutationFn: async (body: Partial<EventInput> & { listed?: boolean }) => {
-      const { data, error } = await api.PATCH('/events/{id}', { params: { path: { id } }, body: { ...body, version } })
+      const { data, error } = await api.PATCH('/events/{id}', {
+        params: { path: { id } },
+        body: { ...body, version: requireVersion(version) },
+      })
       if (error) throw editError('Could not update this event.', error)
       return data
     },

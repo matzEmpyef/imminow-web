@@ -3,6 +3,7 @@ import { useMutation } from '@/lib/useSave'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { requireVersion } from '@/lib/staleEdit'
 import type { components } from '@/api/schema'
 
 type FormFieldInput = components['schemas']['FormFieldInput']
@@ -51,13 +52,13 @@ export function useUpdateFormTemplate(id: string) {
     mutationFn: async (body: {
       name?: string
       fields?: FormFieldInput[]
-      // Optimistic lock (contract gate 7, BR §3.6) — the version the edit started from. Omitted,
-      // last write wins as before; stale, the server answers 409 `version_conflict`.
-      version?: number
+      // Optimistic lock (contract gate 7, BR §3.6) — the version the edit started from. REQUIRED
+      // by the server since 2026-10-10 (400 without it); stale, it answers 409 `version_conflict`.
+      version: number | undefined
     }) => {
       const { data, error } = await api.PATCH('/form-templates/{id}', {
         params: { path: { id } },
-        body,
+        body: { ...body, version: requireVersion(body.version) },
       })
       if (error) throw new ApiError('Could not update this form template.', error)
       return data

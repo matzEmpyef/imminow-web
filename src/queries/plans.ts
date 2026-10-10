@@ -4,6 +4,7 @@ import { api } from '@/api/client'
 import { presignedUpload } from '@/lib/uploads'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
+import { requireVersion } from '@/lib/staleEdit'
 import type { components } from '@/api/schema'
 
 type ComponentInput = components['schemas']['ComponentInput']
@@ -102,13 +103,13 @@ export function useUpdatePlanTemplate() {
       id: string
       name?: string
       steps?: StepTemplateInput[]
-      // Optimistic lock (contract gate 7, BR §3.6) — the version the edit started from. Omitted,
-      // last write wins as before; stale, the server answers 409 `version_conflict`.
-      version?: number
+      // Optimistic lock (contract gate 7, BR §3.6) — the version the edit started from. REQUIRED
+      // by the server since 2026-10-10 (400 without it); stale, it answers 409 `version_conflict`.
+      version: number | undefined
     }) => {
       const { data, error } = await api.PATCH('/plan-templates/{id}', {
         params: { path: { id } },
-        body: { name, steps, version },
+        body: { name, steps, version: requireVersion(version) },
       })
       if (error) throw new ApiError('Could not update this plan template.', error)
       return data
@@ -175,13 +176,13 @@ export function useUpdateStep(clientId: string) {
       expected_end_date?: string | null
       components?: ComponentInput[]
       reason?: string
-      // Optimistic lock (contract gate 7, BR §3.6) — the step's `version` as last read. Omitted,
-      // last write wins as before; stale, the server answers 409 `version_conflict`.
-      version?: number
+      // Optimistic lock (contract gate 7, BR §3.6) — the step's `version` as last read. REQUIRED
+      // by the server since 2026-10-10 (400 without it); stale, it answers 409 `version_conflict`.
+      version: number | undefined
     }) => {
       const { data, error } = await api.PATCH('/steps/{id}', {
         params: { path: { id: stepId } },
-        body,
+        body: { ...body, version: requireVersion(body.version) },
       })
       if (error) throw new ApiError('Could not update this step.', error)
       return data

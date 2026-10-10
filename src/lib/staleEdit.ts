@@ -21,6 +21,23 @@ import { ApiError } from '@/api/errors'
 export const STALE_EDIT_NOTICE =
   'Someone else changed this while you were editing. We have loaded the latest version — please check and save again.'
 
+/**
+ * The `version` an edit is based on, which the server now REQUIRES on every edit of a versioned
+ * record (400 `validation_failed` naming `version` without it, since 2026-10-10). A record that
+ * arrives without one cannot be edited blind: the save stops here with a sentence instead of
+ * sending a request the server will refuse.
+ */
+export const MISSING_VERSION_NOTICE =
+  'We could not tell which version of this you were editing, so nothing was saved. Please reload the page and try again.'
+
+export function requireVersion(version: number | undefined): number {
+  if (typeof version !== 'number')
+    throw new ApiError(MISSING_VERSION_NOTICE, {
+      error: { code: 'validation_failed', message: MISSING_VERSION_NOTICE },
+    })
+  return version
+}
+
 /** True for the server's 409 `version_conflict`. */
 export function isStaleEdit(err: unknown): boolean {
   return err instanceof ApiError && err.code === 'version_conflict'

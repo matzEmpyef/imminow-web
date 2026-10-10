@@ -3,7 +3,7 @@ import { useMutation } from '@/lib/useSave'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
-import { editError, reloadOnStaleEdit } from '@/lib/staleEdit'
+import { editError, reloadOnStaleEdit, requireVersion } from '@/lib/staleEdit'
 import type { components } from '@/api/schema'
 
 type CourseInput = components['schemas']['CourseInput']
@@ -145,7 +145,10 @@ export function useUpdateCourse(id: string, version?: number) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (body: Partial<CourseInput>) => {
-      const { data, error } = await api.PATCH('/courses/{id}', { params: { path: { id } }, body: { ...body, version } })
+      const { data, error } = await api.PATCH('/courses/{id}', {
+        params: { path: { id } },
+        body: { ...body, version: requireVersion(version) },
+      })
       if (error) throw editError('Could not update this course.', error)
       return data
     },
@@ -216,7 +219,10 @@ export function useCourseSuggestions() {
       const all: CourseSuggestion[] = []
       let cursor: string | undefined
       do {
-        const { data, error } = await api.GET('/course-suggestions', { signal, params: { query: { limit: 100, cursor } } })
+        const { data, error } = await api.GET('/course-suggestions', {
+          signal,
+          params: { query: { limit: 100, cursor } },
+        })
         if (error) throw new ApiError('Could not load submission history.', error)
         all.push(...data.items)
         cursor = data.meta.next_cursor ?? undefined
@@ -241,7 +247,10 @@ export function useSuggestCorrection() {
       payload: Record<string, unknown>
     }) => {
       const { data, error } = collegeId
-        ? await api.POST('/colleges/{id}/suggest-correction', { params: { path: { id: collegeId } }, body: { payload } })
+        ? await api.POST('/colleges/{id}/suggest-correction', {
+            params: { path: { id: collegeId } },
+            body: { payload },
+          })
         : await api.POST('/courses/{id}/suggest-correction', { params: { path: { id: courseId! } }, body: { payload } })
       if (error) throw new ApiError('Could not submit this correction.', error)
       return data

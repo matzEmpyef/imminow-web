@@ -3,7 +3,7 @@ import { useMutation } from '@/lib/useSave'
 import { api } from '@/api/client'
 import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
-import { editError, reloadOnStaleEdit } from '@/lib/staleEdit'
+import { editError, reloadOnStaleEdit, requireVersion } from '@/lib/staleEdit'
 import type { components } from '@/api/schema'
 
 type AdBannerInput = components['schemas']['AdBannerInput']
@@ -64,7 +64,10 @@ export function useUpdateAd(id: string, version?: number) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (body: Partial<AdBannerInput>) => {
-      const { data, error } = await api.PATCH('/ads/{id}', { params: { path: { id } }, body: { ...body, version } })
+      const { data, error } = await api.PATCH('/ads/{id}', {
+        params: { path: { id } },
+        body: { ...body, version: requireVersion(version) },
+      })
       if (error) throw editError('Could not update this ad.', error)
       return data
     },

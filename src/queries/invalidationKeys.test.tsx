@@ -109,7 +109,7 @@ describe('mutation invalidations reach the query they mean to refresh', () => {
     await expectRefetch(
       '/courses/{id}',
       () => useCourse('course-1'),
-      () => useUpdateCourse('course-1'),
+      () => useUpdateCourse('course-1', 2),
       (w) => w.mutateAsync({ name: 'Renamed' } as never),
     )
   })
@@ -118,7 +118,7 @@ describe('mutation invalidations reach the query they mean to refresh', () => {
     await expectRefetch(
       '/colleges/{id}',
       () => useCollegeDetail('c1'),
-      () => useUpdateCourse('course-1'),
+      () => useUpdateCourse('course-1', 2),
       (w) => w.mutateAsync({ name: 'Renamed' } as never),
     )
   })
@@ -135,8 +135,8 @@ describe('a lead or case changing hands or standing refreshes the screens that s
   } as const
 
   const SAVES = {
-    'assigning a client': [() => useAssignClient('c1'), (w: { mutateAsync: (v: never) => Promise<unknown> }) => w.mutateAsync('e2' as never)],
-    "changing a client's branch": [() => useSetClientBranch(), (w: { mutateAsync: (v: never) => Promise<unknown> }) => w.mutateAsync({ id: 'c1', branchId: 'b2' } as never)],
+    'assigning a client': [() => useAssignClient('c1', 2), (w: { mutateAsync: (v: never) => Promise<unknown> }) => w.mutateAsync('e2' as never)],
+    "changing a client's branch": [() => useSetClientBranch(), (w: { mutateAsync: (v: never) => Promise<unknown> }) => w.mutateAsync({ id: 'c1', branchId: 'b2', version: 2 } as never)],
     'closing a case': [() => useCloseClient(), (w: { mutateAsync: (v: never) => Promise<unknown> }) => w.mutateAsync({ id: 'c1', reason: 'Lost contact' } as never)],
     'reopening a case': [() => useReopenClientCase(), (w: { mutateAsync: (v: never) => Promise<unknown> }) => w.mutateAsync('c1' as never)],
     'transferring an applicant': [() => useTransferApplicant('c1'), (w: { mutateAsync: (v: never) => Promise<unknown> }) => w.mutateAsync({ newConsultancyId: 'x', reason: 'Moved city', transferCode: 'ABC123' } as never)],

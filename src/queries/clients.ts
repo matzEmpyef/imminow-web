@@ -10,7 +10,7 @@ import { useThreadMessages } from './threadMessages'
 import { invalidateApplicantRequests, type ApplicantRequest } from './applicantRequests'
 import { isAlreadyApplied } from '@/lib/useIdempotencyKey'
 import { refreshIfThreadClosed } from '@/lib/closedThread'
-import { editError, reloadOnStaleEdit } from '@/lib/staleEdit'
+import { editError, reloadOnStaleEdit, requireVersion } from '@/lib/staleEdit'
 import { CLOSE_REASONS, type CloseReason } from '@/lib/clientStatus'
 import type { components } from '@/api/schema'
 
@@ -86,8 +86,7 @@ type Client = components['schemas']['Client']
  * student, made nothing, and asked the student to accept in the app.
  */
 export type CreateApplicantResult =
-  | { kind: 'created'; client: Client }
-  | { kind: 'requested'; request: ApplicantRequest }
+  { kind: 'created'; client: Client } | { kind: 'requested'; request: ApplicantRequest }
 
 export function useCreateApplicant() {
   const queryClient = useQueryClient()
@@ -152,10 +151,10 @@ export function useSetClientTags() {
 export function useSetClientBranch() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, branchId, version }: { id: string; branchId: string; version?: number }) => {
+    mutationFn: async ({ id, branchId, version }: { id: string; branchId: string; version: number | undefined }) => {
       const { data, error } = await api.PATCH('/clients/{id}/branch', {
         params: { path: { id } },
-        body: { branch_id: branchId, version },
+        body: { branch_id: branchId, version: requireVersion(version) },
       })
       if (error) throw editError('Could not update the branch for this client.', error)
       return data
@@ -174,10 +173,18 @@ export function useSetClientBranch() {
 export function useSetFinalizedCountry() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, country, version }: { id: string; country: string | null; version?: number }) => {
+    mutationFn: async ({
+      id,
+      country,
+      version,
+    }: {
+      id: string
+      country: string | null
+      version: number | undefined
+    }) => {
       const { data, error } = await api.PATCH('/clients/{id}/finalized-country', {
         params: { path: { id } },
-        body: { country, version },
+        body: { country, version: requireVersion(version) },
       })
       if (error) throw editError('Could not update the finalized country for this client.', error)
       return data
@@ -242,7 +249,7 @@ export function useAssignClient(clientId: string, version?: number) {
     mutationFn: async (assignedEmployeeId: string) => {
       const { data, error } = await api.PATCH('/clients/{id}/assign', {
         params: { path: { id: clientId } },
-        body: { assigned_employee_id: assignedEmployeeId, version },
+        body: { assigned_employee_id: assignedEmployeeId, version: requireVersion(version) },
       })
       if (error) throw editError('Could not assign this client.', error)
       return data
@@ -487,7 +494,10 @@ export function useAddInternalNote(clientId: string) {
         const [first, ...rest] = old.pages
         return {
           ...old,
-          pages: [{ ...first, items: [note, ...first.items], meta: { ...first.meta, total: (first.meta.total ?? 0) + 1 } }, ...rest],
+          pages: [
+            { ...first, items: [note, ...first.items], meta: { ...first.meta, total: (first.meta.total ?? 0) + 1 } },
+            ...rest,
+          ],
         }
       }),
   })

@@ -56,10 +56,11 @@ describe('version sent on PATCH', () => {
     )
   })
 
-  it('omits version entirely when the caller has none yet (a brand new edit)', async () => {
+  it('refuses to send a step edit that has no version (the server would answer 400)', async () => {
     const { result } = renderHook(() => useUpdateStep('client-1'), { wrapper })
-    await result.current.mutateAsync({ stepId: 'step-1', title: 'Renamed' })
-    const call = mockedPatch.mock.calls[0] as unknown as [string, { body: Record<string, unknown> }]
-    expect(call[1].body.version).toBeUndefined()
+    await expect(
+      result.current.mutateAsync({ stepId: 'step-1', title: 'Renamed', version: undefined }),
+    ).rejects.toThrow(/reload the page/i)
+    expect(mockedPatch).not.toHaveBeenCalled()
   })
 })
