@@ -44,12 +44,12 @@ const FIELDS: {
   },
   {
     key: 'lead_platform_alert_after_reminder_hours',
-    label: 'Working hours the consultancy gets after its reminder before the platform is told',
+    label: 'Working hours the consultancy gets after its reminder before immiNow is told',
     fallback: 4,
     min: 1,
     max: 48,
     hint:
-      'The platform is told at the later of this and the 24-hour limit, so it never hears before the ' +
+      'immiNow is told at the later of this and the limit above, so it never hears before the ' +
       'consultancy has been reminded.',
   },
 ]

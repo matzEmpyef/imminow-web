@@ -65,7 +65,7 @@ describe('the Lead Replies settings', () => {
     await waitFor(() => expect(afterReminder()).toHaveValue(6))
     expect(
       screen.getByText(
-        'The platform is told at the later of this and the 24-hour limit, so it never hears before the consultancy has been reminded.',
+        'immiNow is told at the later of this and the limit above, so it never hears before the consultancy has been reminded.',
       ),
     ).toBeInTheDocument()
   })
