@@ -16096,6 +16096,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/clients/{id}/commission-suggestion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The commission figure to offer when accepting a college for this case (consultancy staff who can open the case; added 2026-10-10, owner's rule confirmed that day).
+         * @description The Accept College dialog prefills "expected from the college" with a suggestion. The rule is the owner's: **the course's listed tuition fee × the commission percent agreed with that college ÷ 100, rounded to two decimals** (half away from zero), in the fee's currency. The dialog used to work this out itself and round to whole units; it now shows `expected_from_college` as served and does no arithmetic. The fee is the course's own (`Course.fee`, whatever its period); the percent is the `commission_percent` of the caller's consultancy's ACTIVE partner relation with the course's college — the same two facts the acceptance itself reads. It stays a suggestion: the consultant may type another figure, and what is sent on acceptance is what counts. When the course lists no fee, or there is no active relation, or it carries no percent, `expected_from_college` is null — never zero — and the dialog offers nothing. 404 for a case the caller cannot open or a course that does not exist.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description The course of the application being accepted. */
+                    course_id: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The suggestion */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommissionSuggestion"];
+                    };
+                };
+                404: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/clients/{id}/commission-entry": {
         parameters: {
             query?: never;
@@ -24488,6 +24533,106 @@ export interface paths {
         };
         trace?: never;
     };
+    "/commission/payments/{id}/confirm/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The figures of a confirmation Finance is about to make — nothing is written (finance permission; added 2026-10-10, owner's ruling, review F-300).
+         * @description The Confirm dialog and the bulk-confirm dialog used to compare the typed amount with the declared one and with what the case still owes in the browser. Send the amount as typed (`received_amount`; left out, the declared amount) and show what comes back. The body is read by the same code as `PATCH /commission/payments/{id}/confirm` and held to the same ceiling, so the refusals match: 409 for a payment that is not waiting or a case whose commission is no longer active, 400 for an amount that is not above zero or has more than two decimal places. **Bulk confirm** calls this once per row whose amount was changed — there is no separate batch route.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        received_amount?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description The figures */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ConfirmPreview"];
+                    };
+                };
+                400: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/commission/payments/{id}/correct/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The figures of a correction Finance is about to make — nothing is written (finance permission; added 2026-10-10, owner's ruling, review F-300).
+         * @description The Correct dialog used to multiply the change by a rate and compare rupees in the browser. Send the corrected `amount` and show what comes back. Read by the same code as `POST /commission/payments/{id}/correct` and held to the same ceiling — the INCREASE may not be more than is still unpaid on the case — so the refusals match: 409 for a payment that is not confirmed, 400 for an amount below zero, with more than two decimal places, or equal to the amount already on record. No `reason` is needed to preview.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        amount: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description The figures */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CorrectPreview"];
+                    };
+                };
+                400: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/commission/payments/{id}/correct": {
         parameters: {
             query?: never;
@@ -31580,6 +31725,18 @@ export interface components {
             /** @description This journey's platform receipts, linkable from an installment. */
             receipts: components["schemas"]["Receipt"][];
         };
+        /** @description The figure the Accept College dialog offers for what the college will pay the consultancy (`GET /clients/{id}/commission-suggestion`; 2026-10-10): fee × percent ÷ 100 at two decimals. Each part is null when it is not known. */
+        CommissionSuggestion: {
+            /** @description The suggestion, in the fee's currency. Null (never zero) when the fee or the percent is missing. */
+            expected_from_college: components["schemas"]["Money"] | null;
+            /** @description The course's listed tuition fee the suggestion was worked out from. Null when the course lists none. */
+            fee: components["schemas"]["Money"] | null;
+            /**
+             * Format: double
+             * @description The percent agreed with the course's college (the active partner relation's). Null when there is none.
+             */
+            commission_percent: number | null;
+        };
         /** @description What one payer (the college or the applicant) agreed to pay on a commission entry, has paid and still has to — every figure in the currency agreed with that payer, computed by the server (F-160, F-194; 2026-10-08). Money received in another currency counts at the value frozen on it when it was recorded (F-077). Clients show these figures and never subtract or compare amounts themselves. */
         PayerProgress: {
             expected: components["schemas"]["Money"];
@@ -34319,6 +34476,52 @@ export interface components {
             outstanding_inr: number;
             oldest_unpaid_days: number | null;
         };
+        /** @description What confirming a declared payment would do (`POST /commission/payments/{id}/confirm/preview`; 2026-10-10). Every figure is the server's, in the payment's own currency; the console compares and subtracts nothing. */
+        ConfirmPreview: {
+            currency: string;
+            declared_amount: components["schemas"]["Money"];
+            /** @description The amount as it would be confirmed — `received_amount` as sent, else the declared one. */
+            received_amount: components["schemas"]["Money"];
+            /** @description True when the amount received is not the amount declared. */
+            differs: boolean;
+            /** @description `received_amount` less `declared_amount` — negative when less arrived, 0 when the same. */
+            difference_from_declared: components["schemas"]["Money"];
+            /** @enum {string} */
+            difference_direction: "more" | "less" | "same";
+            /** @description True when the confirmation needs its `note` (the amounts differ). */
+            needs_note: boolean;
+            /** @description The most that can be confirmed without `allow_overpayment` — the confirmation's own ceiling. */
+            outstanding: components["schemas"]["Money"];
+            is_overpayment: boolean;
+            /** @description `received_amount` less `outstanding` when `is_overpayment`; else null. */
+            overpaid_by: components["schemas"]["Money"] | null;
+            /** @description Rupees per unit of `currency` today — the rate the confirmation would freeze. Null when there is none. */
+            rate: number | null;
+            /** @description `received_amount` in rupees at `rate`. Null when there is no rate. */
+            received_amount_inr: components["schemas"]["Money"] | null;
+        };
+        /** @description What correcting a confirmed payment would do (`POST /commission/payments/{id}/correct/preview`; 2026-10-10). Every figure is the server's. */
+        CorrectPreview: {
+            currency: string;
+            /** @description The amount on record now (after any earlier correction). */
+            current_amount: components["schemas"]["Money"];
+            /** @description The corrected amount as entered. */
+            amount: components["schemas"]["Money"];
+            /** @description `amount` less `current_amount` — negative for a correction downwards. */
+            change: components["schemas"]["Money"];
+            /** @enum {string} */
+            change_direction: "more" | "less";
+            /** @description The most the amount may go UP by without `allow_overpayment`. */
+            outstanding: components["schemas"]["Money"];
+            /** @description True when the increase is more than `outstanding`. */
+            is_overpayment: boolean;
+            /** @description The increase beyond `outstanding`, in `currency`, when `is_overpayment`; else null. */
+            overpaid_by: components["schemas"]["Money"] | null;
+            /** @description Rupees per unit — the rate frozen on the payment (1 for a rupee payment). Null on a row stored without one. */
+            rate: number | null;
+            /** @description `overpaid_by` in rupees at `rate`. Null when it is not an over-payment or there is no rate. */
+            overpaid_by_inr: components["schemas"]["Money"] | null;
+        };
         /** @description What a receipt Finance is about to record would do (`POST /commission-entries/{id}/receive/preview`; 2026-10-10). Every figure is the server's: the console shows them and neither compares nor subtracts an amount. */
         ReceivePreview: {
             /** @description The currency the money is in, as the receipt would record it. */
@@ -34599,6 +34802,10 @@ export interface components {
             readonly entry_outstanding_inr: number | null;
             /** @description The same outstanding, in the PAYMENT's currency (assumptions audit H14, 2026-09-19), so the confirm screen compares like with like instead of deriving a rate from amount_inr / declared amount — which was 0 whenever amount_inr was missing. */
             readonly entry_outstanding: components["schemas"]["Money"] | null;
+            /** @description Added 2026-10-10 (owner's ruling, review F-300). On a payment that waits for Finance (`status: declared`): true when confirming it as declared would be more than may still be recorded on its case — the confirmation's own test, in the payment's own currency. Null on every other payment. The Awaiting list marks the row "More than owed" from this; it no longer compares `amount` (the payment's currency) with `entry_outstanding_inr` (rupees), which was wrong for every payment not in rupees. Optional (the frozen mock does not carry it); the backend always sends it. */
+            readonly exceeds_outstanding?: boolean | null;
+            /** @description By how much, in the payment's currency, when `exceeds_outstanding`; else null. */
+            readonly exceeds_outstanding_by?: components["schemas"]["Money"] | null;
             id: components["schemas"]["UUID"];
             /**
              * Format: uuid
