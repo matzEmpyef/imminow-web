@@ -9,7 +9,7 @@ import { useFreelancerReferralsAdmin, type FreelancerReferral } from '@/queries/
 import { FreelancerFilterSelect } from './FreelancerFilterSelect'
 import { RecordPayoutModal } from './RecordPayoutModal'
 import { BulkRecordPayoutModal } from './BulkRecordPayoutModal'
-import { inr } from '@/lib/money'
+import { formatAmountOnly, inr } from '@/lib/money'
 
 /**
  * Backs both the "Owed" and "Not yet due" tabs on Freelancer Payouts (2026-09-11) — same columns
@@ -172,7 +172,7 @@ export function ReferralsTab({ payoutStatus }: { payoutStatus: 'owed' | 'not_due
           selected.size > 0 && (
             <div className="flex items-center gap-sm">
               <Button size="sm" onClick={() => setBulkPaying(true)}>
-                Record payouts for {selected.size} selected (₹{selectedTotal.toLocaleString('en-IN')})
+                Record payouts for {selected.size} selected (₹{formatAmountOnly('INR', selectedTotal)})
               </Button>
               <button
                 type="button"

@@ -19,10 +19,10 @@ describe('duePartLabel', () => {
   it('writes money in the caller\'s own format — Finance "₹", the consultancy "INR"', () => {
     const tuition = part({ source: 'tuition' })
     const fee = { amount: 350000, currency: 'INR' }
-    expect(duePartLabel(tuition, 10, fee, financeMoney)).toBe('Tuition — 10% share of ₹3,50,000')
-    expect(duePartLabel(tuition, 10, fee, formatMoneyAmount)).toBe('Tuition — 10% share of INR 3,50,000')
+    expect(duePartLabel(tuition, 10, fee, financeMoney)).toBe('Tuition — 10% share of ₹3,50,000.00')
+    expect(duePartLabel(tuition, 10, fee, formatMoneyAmount)).toBe('Tuition — 10% share of INR 3,50,000.00')
     expect(duePartLabel(tuition, null, { amount: 32000, currency: 'CAD' }, financeMoney)).toBe(
-      'Tuition — rate not set of CAD 32,000',
+      'Tuition — rate not set of CAD 32,000.00',
     )
   })
 

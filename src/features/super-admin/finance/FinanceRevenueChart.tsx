@@ -1,3 +1,4 @@
+import { formatAmountOnly } from '@/lib/money'
 import { Skeleton } from '@/components/QueryState'
 import type { FinanceSummary } from '@/queries/financeDashboard'
 
@@ -33,9 +34,9 @@ export function FinanceRevenueChart({ months, loading }: { months?: FinanceSumma
           const barHeight = m.amount_inr > 0 ? Math.max(4, Math.round((m.amount_inr / max) * CHART_HEIGHT)) : 2
           return (
             <div key={m.month} className="flex flex-1 flex-col items-center justify-end gap-xs" style={{ height: CHART_HEIGHT }}>
-              {isMax && <span className="text-caption font-medium text-text-primary">₹{m.amount_inr.toLocaleString('en-IN')}</span>}
+              {isMax && <span className="text-caption font-medium text-text-primary">₹{formatAmountOnly('INR', m.amount_inr)}</span>}
               <div
-                title={`${monthLabel(m.month)}: ₹${m.amount_inr.toLocaleString('en-IN')}`}
+                title={`${monthLabel(m.month)}: ₹${formatAmountOnly('INR', m.amount_inr)}`}
                 className={`w-full rounded-t-sm ${m.amount_inr > 0 ? 'bg-primary' : 'bg-border'}`}
                 style={{ height: barHeight }}
               />

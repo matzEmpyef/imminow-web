@@ -143,7 +143,7 @@ describe('CommissionsTab, expected against received', () => {
     })
     const line = screen.getAllByTestId('expected-vs-received')[0]
     expect(line).toHaveAttribute('data-progress', 'server')
-    expect(line).toHaveTextContent('400 / 1,000 CAD · CAD 600 remaining')
+    expect(line).toHaveTextContent('400.00 / 1,000.00 CAD · CAD 600.00 remaining')
     expect(line).not.toHaveTextContent('fully paid')
     expect(line).not.toHaveTextContent('60,000')
   })
@@ -171,7 +171,7 @@ describe('CommissionsTab, expected against received', () => {
         }),
       },
     })
-    expect(screen.getAllByTestId('expected-vs-received').at(-1)).toHaveTextContent('1,000 / 1,000 CAD · fully paid')
+    expect(screen.getAllByTestId('expected-vs-received').at(-1)).toHaveTextContent('1,000.00 / 1,000.00 CAD · fully paid')
   })
 
   it('notes when some of it arrived in another currency and was converted', () => {
@@ -189,7 +189,7 @@ describe('CommissionsTab, expected against received', () => {
     })
     const line = screen.getAllByTestId('expected-vs-received')[0]
     expect(line).toHaveAttribute('data-progress', 'none')
-    expect(line).toHaveTextContent('CAD 1,000 received · CAD 1,000 expected')
+    expect(line).toHaveTextContent('CAD 1,000.00 received · CAD 1,000.00 expected')
     expect(line).not.toHaveTextContent('fully paid')
     expect(line).not.toHaveTextContent('%')
   })

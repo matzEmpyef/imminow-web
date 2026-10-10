@@ -12,6 +12,20 @@ interface MoneyLike {
 }
 
 /**
+ * MONEY IS ALWAYS SHOWN WITH EXACTLY TWO DECIMALS, in every currency (owner's ruling
+ * 2026-10-10): INR 1,240.00, JPY 1,500.00, KWD 1.25. The platform keeps every amount in hundredths
+ * (`currency_exponent` is 2 for every currency), so no currency is shown with none or three.
+ * Every place that writes an amount out goes through these functions rather than its own
+ * `toLocaleString`, which shows "1,240" for a whole figure and up to three decimals for a long one.
+ */
+const TWO_DECIMALS = { minimumFractionDigits: 2, maximumFractionDigits: 2 } as const
+
+/** The digits of an amount: grouped for the currency's locale (Indian for INR), always two decimals. */
+export function formatMoneyDigits(amount: number, currency?: string | null): string {
+  return amount.toLocaleString(currency === 'INR' ? 'en-IN' : 'en-US', TWO_DECIMALS)
+}
+
+/**
  * Formats a currency amount with locale-aware digit grouping: Indian grouping (35,00,000) for
  * INR via `en-IN`, western grouping (3,500,000) for everything else via `en-US` — matching the
  * mobile app's money_format.dart so every console reads a figure identically. Renders as
@@ -19,8 +33,7 @@ interface MoneyLike {
  */
 export function formatMoney(currency: string | null | undefined, amount: number | null | undefined): string {
   if (amount == null) return '—'
-  const locale = currency === 'INR' ? 'en-IN' : 'en-US'
-  const formatted = amount.toLocaleString(locale)
+  const formatted = formatMoneyDigits(amount, currency)
   return currency ? `${currency} ${formatted}` : formatted
 }
 
@@ -30,8 +43,7 @@ export function formatMoney(currency: string | null | undefined, amount: number 
  */
 export function formatAmountOnly(currency: string | null | undefined, amount: number | null | undefined): string {
   if (amount == null) return '—'
-  const locale = currency === 'INR' ? 'en-IN' : 'en-US'
-  return amount.toLocaleString(locale)
+  return formatMoneyDigits(amount, currency)
 }
 
 /**
@@ -44,12 +56,12 @@ export function formatAmountOnly(currency: string | null | undefined, amount: nu
 export function inr(n: number | null | undefined): string {
   const value = n ?? 0
   // A negative reads "-₹500", not "₹-500" (gate 12: a freelancer's `owed` can go negative — overpaid).
-  return value < 0 ? `-₹${Math.abs(value).toLocaleString('en-IN')}` : `₹${value.toLocaleString('en-IN')}`
+  return value < 0 ? `-₹${formatMoneyDigits(Math.abs(value), 'INR')}` : `₹${formatMoneyDigits(value, 'INR')}`
 }
 
 /** {@link inr}, but a missing value reads as "—" rather than ₹0. */
 export function inrOrDash(n: number | null | undefined): string {
-  return n == null ? '—' : `₹${n.toLocaleString('en-IN')}`
+  return n == null ? '—' : `₹${formatMoneyDigits(n, 'INR')}`
 }
 
 /** Same as {@link formatMoney}, taking the `{ amount, currency }` shape the API returns directly. */
@@ -75,7 +87,7 @@ export function formatCourseFee(fee: MoneyLike | null | undefined, feePeriod?: s
  */
 export function formatApprox(approx: MoneyLike | null | undefined): string | null {
   if (!approx || approx.amount == null || !approx.currency) return null
-  return `≈ ${formatMoney(approx.currency, Math.round(approx.amount))}`
+  return `≈ ${formatMoney(approx.currency, approx.amount)}`
 }
 
 /** A course fee's "≈" — only when the server actually converted it into another currency. */

@@ -21,7 +21,7 @@ beforeEach(() => {
 describe('VoidPrContributionModal', () => {
   it('keeps Void disabled until a reason is given, then sends it trimmed', () => {
     render(<VoidPrContributionModal clientId="c1" contribution={contribution} onClose={() => {}} />)
-    expect(screen.getByRole('dialog', { name: 'Void contribution — INR 50,000' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Void contribution — INR 50,000.00' })).toBeInTheDocument()
     const button = screen.getByRole('button', { name: 'Void contribution' })
     expect(button).toBeDisabled()
 

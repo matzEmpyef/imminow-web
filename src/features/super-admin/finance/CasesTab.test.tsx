@@ -78,8 +78,8 @@ describe('CasesTab, void requests', () => {
 describe('CasesTab, a case settled by a write-off', () => {
   it('shows written-off as its own figure beside Paid, and the Settled mark', () => {
     setup([row({ paid_inr: 57600, written_off_inr: 2400, settled: true, outstanding_inr: 0, payment_status: 'paid' })])
-    expect(screen.getByText('₹57,600')).toBeInTheDocument()
-    expect(screen.getByText('Written off ₹2,400')).toBeInTheDocument()
+    expect(screen.getByText('₹57,600.00')).toBeInTheDocument()
+    expect(screen.getByText('Written off ₹2,400.00')).toBeInTheDocument()
     expect(screen.getByText('Settled')).toBeInTheDocument()
   })
 

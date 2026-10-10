@@ -41,10 +41,10 @@ describe('the bulk-confirm total', () => {
   it('is the same on the button and in the dialog for a mixed-currency selection', () => {
     for (const box of screen.getAllByRole('checkbox')) if (!(box as HTMLInputElement).checked) fireEvent.click(box)
     const button = screen.getByRole('button', { name: /^Confirm 2 selected/ })
-    expect(button).toHaveTextContent('Confirm 2 selected (≈ ₹88,000 (mixed currencies))')
+    expect(button).toHaveTextContent('Confirm 2 selected (≈ ₹88,000.00 (mixed currencies))')
 
     fireEvent.click(button)
     const dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByText(/Total declared:/)).toHaveTextContent('Total declared: ≈ ₹88,000 (mixed currencies)')
+    expect(within(dialog).getByText(/Total declared:/)).toHaveTextContent('Total declared: ≈ ₹88,000.00 (mixed currencies)')
   })
 })

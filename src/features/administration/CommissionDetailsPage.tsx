@@ -13,7 +13,7 @@ import { cursorPager, useCursorPagination } from '@/lib/pagination'
 import { creditsByCurrency, paymentSettlesNote } from '@/features/super-admin/finance/money'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { formatDate } from '@/lib/time'
-import { formatApprox, formatMoney, formatMoneyAmount, inrOrDash } from '@/lib/money'
+import { formatAmountOnly, formatApprox, formatMoney, formatMoneyAmount, inrOrDash } from '@/lib/money'
 import { RecordPlatformPaymentModal } from './RecordPlatformPaymentModal'
 import { DueScheduleDrawer } from './commission/DueScheduleDrawer'
 import type { components } from '@/api/schema'
@@ -277,7 +277,7 @@ export function CommissionDetailsPage() {
             </div>
             {others.length > 0 && (
               <span className="text-caption text-text-secondary">
-                {others.map((c) => `${c.currency} ${(c.outstanding ?? 0).toLocaleString('en-US')}`).join(' · ')}
+                {others.map((c) => `${c.currency} ${formatAmountOnly(c.currency, c.outstanding ?? 0)}`).join(' · ')}
               </span>
             )}
             {/* Paid beyond what is owed (contract gate 11) — held as credit, per currency. */}
@@ -285,7 +285,7 @@ export function CommissionDetailsPage() {
               <span className="text-caption text-success">
                 Credit{' '}
                 {creditsByCurrency(due.by_currency)
-                  .map((c) => `${c.currency} ${c.credit.toLocaleString('en-US')}`)
+                  .map((c) => `${c.currency} ${formatAmountOnly(c.currency, c.credit)}`)
                   .join(' · ')}
               </span>
             )}

@@ -7,7 +7,7 @@ import { batchSummary, useBatchRun } from '@/lib/useBatchRun'
 import { useRecordFreelancerPayout } from '@/queries/freelancerReferrals'
 import type { FreelancerReferral } from '@/queries/freelancerReferrals'
 import { localDateISO } from '@/lib/time'
-import { inr } from '@/lib/money'
+import { formatAmountOnly, inr } from '@/lib/money'
 
 /**
  * Records a payout for every selected referral in one go (2026-09-11), each for its own full owed
@@ -83,7 +83,7 @@ export function BulkRecordPayoutModal({
               Cancel
             </Button>
             <Button onClick={handleConfirm}>
-              Record {referrals.length} payout{referrals.length === 1 ? '' : 's'} (₹{total.toLocaleString('en-IN')})
+              Record {referrals.length} payout{referrals.length === 1 ? '' : 's'} (₹{formatAmountOnly('INR', total)})
             </Button>
           </>
         )

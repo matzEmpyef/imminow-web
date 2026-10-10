@@ -5,47 +5,55 @@ import { formatAmountOnly, formatCourseFee, formatMoney, formatMoneyAmount, inr,
 // rendered with western grouping on one page and Indian grouping on another. These pin the rule
 // so a future "simplification" to a single toLocaleString() cannot quietly bring it back.
 describe('formatMoney', () => {
+  it('always shows exactly two decimals, in every currency (owner’s ruling 2026-10-10)', () => {
+    expect(formatMoney('JPY', 1500)).toBe('JPY 1,500.00')
+    expect(formatMoney('KWD', 1.25)).toBe('KWD 1.25')
+    expect(formatMoney('KWD', 1.2)).toBe('KWD 1.20')
+    expect(formatMoney('INR', 1240.6)).toBe('INR 1,240.60')
+    expect(formatMoney('USD', 12.345)).toBe('USD 12.35')
+  })
+
   it('groups INR the Indian way (lakh/crore), matching the mobile app', () => {
-    expect(formatMoney('INR', 3500000)).toBe('INR 35,00,000')
-    expect(formatMoney('INR', 12000)).toBe('INR 12,000')
-    expect(formatMoney('INR', 123456789)).toBe('INR 12,34,56,789')
+    expect(formatMoney('INR', 3500000)).toBe('INR 35,00,000.00')
+    expect(formatMoney('INR', 12000)).toBe('INR 12,000.00')
+    expect(formatMoney('INR', 123456789)).toBe('INR 12,34,56,789.00')
   })
 
   it('groups every other currency the western way', () => {
-    expect(formatMoney('CAD', 3500000)).toBe('CAD 3,500,000')
-    expect(formatMoney('USD', 999)).toBe('USD 999')
+    expect(formatMoney('CAD', 3500000)).toBe('CAD 3,500,000.00')
+    expect(formatMoney('USD', 999)).toBe('USD 999.00')
   })
 
   it('renders a dash for a missing amount and omits the code when there is none', () => {
     expect(formatMoney('INR', null)).toBe('—')
     expect(formatMoney('INR', undefined)).toBe('—')
-    expect(formatMoney(null, 1500)).toBe('1,500')
+    expect(formatMoney(null, 1500)).toBe('1,500.00')
   })
 
   it('formats zero as a real amount, not as missing', () => {
-    expect(formatMoney('INR', 0)).toBe('INR 0')
+    expect(formatMoney('INR', 0)).toBe('INR 0.00')
   })
 })
 
 describe('formatAmountOnly', () => {
   it('applies the same grouping rule without the currency prefix', () => {
-    expect(formatAmountOnly('INR', 3500000)).toBe('35,00,000')
-    expect(formatAmountOnly('GBP', 3500000)).toBe('3,500,000')
+    expect(formatAmountOnly('INR', 3500000)).toBe('35,00,000.00')
+    expect(formatAmountOnly('GBP', 3500000)).toBe('3,500,000.00')
     expect(formatAmountOnly('INR', null)).toBe('—')
   })
 })
 
 describe('formatMoneyAmount / formatCourseFee', () => {
   it('reads the { amount, currency } shape the API returns', () => {
-    expect(formatMoneyAmount({ amount: 250000, currency: 'INR' })).toBe('INR 2,50,000')
+    expect(formatMoneyAmount({ amount: 250000, currency: 'INR' })).toBe('INR 2,50,000.00')
     expect(formatMoneyAmount(null)).toBe('—')
     expect(formatMoneyAmount({ amount: null, currency: 'INR' })).toBe('—')
   })
 
   it('appends /yr only for per_year fees', () => {
-    expect(formatCourseFee({ amount: 32000, currency: 'CAD' }, 'per_year')).toBe('CAD 32,000/yr')
-    expect(formatCourseFee({ amount: 32000, currency: 'CAD' }, 'total')).toBe('CAD 32,000')
-    expect(formatCourseFee({ amount: 32000, currency: 'CAD' })).toBe('CAD 32,000')
+    expect(formatCourseFee({ amount: 32000, currency: 'CAD' }, 'per_year')).toBe('CAD 32,000.00/yr')
+    expect(formatCourseFee({ amount: 32000, currency: 'CAD' }, 'total')).toBe('CAD 32,000.00')
+    expect(formatCourseFee({ amount: 32000, currency: 'CAD' })).toBe('CAD 32,000.00')
     expect(formatCourseFee({ amount: null, currency: 'CAD' }, 'per_year')).toBe('—')
   })
 })
@@ -54,15 +62,15 @@ describe('formatMoneyAmount / formatCourseFee', () => {
 // pinned exactly as those copies wrote them, since each call site kept its own missing-value rule.
 describe('inr / inrOrDash', () => {
   it('writes a rupee figure with the ₹ symbol and Indian grouping', () => {
-    expect(inr(3500000)).toBe('₹35,00,000')
-    expect(inr(0)).toBe('₹0')
-    expect(inrOrDash(123456789)).toBe('₹12,34,56,789')
-    expect(inrOrDash(0)).toBe('₹0')
+    expect(inr(3500000)).toBe('₹35,00,000.00')
+    expect(inr(0)).toBe('₹0.00')
+    expect(inrOrDash(123456789)).toBe('₹12,34,56,789.00')
+    expect(inrOrDash(0)).toBe('₹0.00')
   })
 
   it('reads a missing value as ₹0 in inr and as a dash in inrOrDash', () => {
-    expect(inr(undefined)).toBe('₹0')
-    expect(inr(null)).toBe('₹0')
+    expect(inr(undefined)).toBe('₹0.00')
+    expect(inr(null)).toBe('₹0.00')
     expect(inrOrDash(undefined)).toBe('—')
     expect(inrOrDash(null)).toBe('—')
   })
@@ -71,7 +79,7 @@ describe('inr / inrOrDash', () => {
 // A freelancer's `owed` can go negative (contract gate 12 — overpaid): the sign leads the symbol.
 describe('inr with a negative', () => {
   it('writes -₹500, not ₹-500', () => {
-    expect(inr(-500)).toBe('-₹500')
-    expect(inr(-1234567)).toBe('-₹12,34,567')
+    expect(inr(-500)).toBe('-₹500.00')
+    expect(inr(-1234567)).toBe('-₹12,34,567.00')
   })
 })

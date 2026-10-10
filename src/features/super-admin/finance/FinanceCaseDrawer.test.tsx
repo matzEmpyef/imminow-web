@@ -131,9 +131,9 @@ describe('Mark as fully paid', () => {
     openDrawer()
     fireEvent.click(screen.getByRole('button', { name: 'Mark as fully paid' }))
     const modal = within(dialog('Mark as fully paid'))
-    expect(modal.getByText('CAD 1,000')).toBeInTheDocument()
-    expect(modal.getByText('CAD 960')).toBeInTheDocument()
-    expect(modal.getByText('CAD 40 · 4%')).toBeInTheDocument()
+    expect(modal.getByText('CAD 1,000.00')).toBeInTheDocument()
+    expect(modal.getByText('CAD 960.00')).toBeInTheDocument()
+    expect(modal.getByText('CAD 40.00 · 4%')).toBeInTheDocument()
 
     const confirm = modal.getByRole('button', { name: 'Mark as fully paid' })
     expect(confirm).toBeDisabled()
@@ -197,17 +197,17 @@ describe('a settled part', () => {
   it('reads Settled, with the written-off amount as its own figure, who, when and why', () => {
     openDrawer(settled, { paid_inr: 57600, written_off_inr: 2400 })
     expect(screen.getByText('Settled')).toBeInTheDocument()
-    expect(screen.getByText(/Written off CAD 40 by Priya Nair on 08\/10\/2026: Bank charges/)).toBeInTheDocument()
+    expect(screen.getByText(/Written off CAD 40\.00 by Priya Nair on 08\/10\/2026: Bank charges/)).toBeInTheDocument()
     // The case's written-off total is its own tile, beside Paid and not inside it.
-    expect(screen.getByText('Written off (₹)').parentElement).toHaveTextContent('₹2,400')
-    expect(screen.getByText('Paid (₹)').parentElement).toHaveTextContent('₹57,600')
+    expect(screen.getByText('Written off (₹)').parentElement).toHaveTextContent('₹2,400.00')
+    expect(screen.getByText('Paid (₹)').parentElement).toHaveTextContent('₹57,600.00')
     expect(screen.queryByRole('button', { name: 'Mark as fully paid' })).toBeNull()
   })
 
   it('is undone through the dues void, with the part’s settle_change_id', () => {
     openDrawer(settled)
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
-    const modal = within(dialog('Undo CAD 40 written off'))
+    const modal = within(dialog('Undo CAD 40.00 written off'))
     fireEvent.change(modal.getByLabelText(/Reason/), { target: { value: 'Settled by mistake' } })
     fireEvent.click(modal.getByRole('button', { name: 'Undo' }))
     expect(voidMutate.mock.calls[0][0]).toEqual({ entryId: 'e1', changeId: 'chg-1', reason: 'Settled by mistake' })
@@ -303,3 +303,4 @@ describe('a void of an installment waiting for Finance', () => {
     expect(within(dialog('Approve the void')).getByRole('alert')).toHaveTextContent(`Refused: ${code}.`)
   })
 })
+

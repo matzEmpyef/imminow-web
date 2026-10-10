@@ -1,4 +1,4 @@
-import { formatMoneyAmount } from '@/lib/money'
+import { formatMoneyAmount, formatMoneyDigits } from '@/lib/money'
 
 type Money = Parameters<typeof formatMoneyAmount>[0]
 
@@ -11,7 +11,7 @@ export interface PaymentMoney {
   amount: { amount?: number | null; currency?: string | null }
   /** The stored fact, in minor units. */
   amount_minor?: number
-  /** ISO 4217 minor-unit exponent for `currency`: 2 for most, 0 for JPY/KRW/VND, 3 for the Gulf dinars. */
+  /** Decimal places of `amount_minor`: 2 for every currency (owner's ruling 2026-10-10 — JPY is no longer 0, the Gulf dinars no longer 3). */
   currency_exponent?: number
   amount_inr?: number | null
   /** The INR-per-unit rate FROZEN onto the row when the payment was declared. */
@@ -63,7 +63,7 @@ export function paymentsTotalLabel(payments: readonly PaymentMoney[]): string {
     return money({ amount: total, currency: [...currencies][0] ?? 'INR' })
   }
   const totalInr = payments.reduce((sum, p) => sum + (paymentInrAmount(p) ?? 0), 0)
-  return `≈ ₹${totalInr.toLocaleString('en-IN')} (mixed currencies)`
+  return `≈ ₹${formatMoneyDigits(totalInr, 'INR')} (mixed currencies)`
 }
 
 /** The payment's own amount, formatted — minor units where they exist (M15). */
@@ -109,7 +109,7 @@ function shortDate(iso: string): string {
 export function paymentInrNote(p: PaymentMoney | null | undefined): string | null {
   const currency = p?.amount?.currency
   if (!p || !currency || currency === 'INR' || p.amount_inr == null) return null
-  const approx = `≈ ₹${p.amount_inr.toLocaleString('en-IN')}`
+  const approx = `≈ ₹${formatMoneyDigits(p.amount_inr, 'INR')}`
   if (p.rate_used == null) return approx
   const asOf = p.rate_as_of ? shortDate(p.rate_as_of) : ''
   return `${approx} at ${p.rate_used}${asOf ? `, rate of ${asOf}` : ''}`
@@ -159,7 +159,7 @@ export function paymentRateToInr(p: PaymentMoney | null | undefined): number | n
  */
 export function money(m: Money): string {
   if (!m || m.amount == null) return '—'
-  return m.currency === 'INR' ? `₹${m.amount.toLocaleString('en-IN')}` : formatMoneyAmount(m)
+  return m.currency === 'INR' ? `₹${formatMoneyDigits(m.amount, 'INR')}` : formatMoneyAmount(m)
 }
 
 /**

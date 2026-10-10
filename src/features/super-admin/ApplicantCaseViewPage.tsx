@@ -1,3 +1,4 @@
+import { formatAmountOnly } from '@/lib/money'
 import { useState } from 'react'
 import { useParams, Link, useLocation } from 'react-router-dom'
 import { Card } from '@/components/Card'
@@ -148,7 +149,7 @@ export function ApplicantCaseViewPage() {
             {data.commission ? (
               <>
                 <p className="text-body-sm text-text-secondary">
-                  Platform due ₹{(data.commission.platform_due_inr ?? 0).toLocaleString('en-IN')}
+                  Platform due ₹{formatAmountOnly('INR', data.commission.platform_due_inr ?? 0)}
                 </p>
                 {/* The line between earned and due. An entry with no recognised date is money on
                     paper that nobody owes yet. "Due since" is meaningless once the due amount has

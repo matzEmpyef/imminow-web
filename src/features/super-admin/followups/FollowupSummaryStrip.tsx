@@ -1,3 +1,4 @@
+import { formatAmountOnly } from '@/lib/money'
 import type { ReactNode } from 'react'
 import { Skeleton } from '@/components/QueryState'
 import type { FollowupSummary } from '@/queries/caseFollowups'
@@ -77,7 +78,7 @@ export function FollowupSummaryStrip({
 
   return (
     <div className="flex flex-wrap gap-sm">
-      {showPendingInr && <Tile label="Pending" value={`₹${(summary.pending_inr ?? 0).toLocaleString('en-IN')}`} />}
+      {showPendingInr && <Tile label="Pending" value={`₹${formatAmountOnly('INR', summary.pending_inr ?? 0)}`} />}
       <Tile label={totalLabel} value={summary.total} />
       <Tile label="Not called yet" value={summary.not_called} active={notCalledActive} onClick={onToggleNotCalled} />
       <Tile label="Due for a call" value={summary.due_for_call} active={dueActive} onClick={onToggleDue} />

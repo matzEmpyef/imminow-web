@@ -1,3 +1,4 @@
+import { formatAmountOnly } from '@/lib/money'
 import { useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
@@ -23,7 +24,7 @@ const MIN_REASON_LENGTH = 3
  */
 function approxInr(amountInr: number | undefined, currency: string | undefined): string | null {
   if (!currency || currency === 'INR' || amountInr == null) return null
-  return `≈ ₹${amountInr.toLocaleString('en-IN')}`
+  return `≈ ₹${formatAmountOnly('INR', amountInr)}`
 }
 
 export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionPayment; onClose: () => void }) {
