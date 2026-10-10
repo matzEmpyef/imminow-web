@@ -79,6 +79,15 @@ describe('VoidInstallmentModal, a void that needs immiNow Finance', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  // Owner's ruling 2026-10-10: the same while a Finance override is in force on the case. Nothing
+  // on the screen tells the two apart in advance, so the dialog does not promise an immediate void
+  // and its words follow the server's answer, whatever the reason for the request.
+  it('does not promise an immediate void before it is sent', () => {
+    render(<VoidInstallmentModal clientId="c1" entryId="entry-1" installment={installment} onClose={() => {}} />)
+    expect(screen.getByText(/Finance has set its own amount for the case/)).toBeInTheDocument()
+    expect(screen.getByText(/sent to immiNow Finance as a request instead/)).toBeInTheDocument()
+  })
+
   it('says it was voided when the server voided it at once', () => {
     voidWith({ id: 'inst-1', voided_at: '2026-10-08T09:00:00Z', void_requested_at: null })
     expect(showToast).toHaveBeenCalledWith('Installment voided')

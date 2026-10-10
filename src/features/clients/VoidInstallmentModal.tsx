@@ -17,6 +17,12 @@ const MIN_REASON_LENGTH = 3
  * so a reason is mandatory. The server refuses with `part_settled` when a payment is already
  * allocated against the installment's share part; that message is shown here as-is. So is the 409
  * `conflict` for a void that is already waiting for immiNow Finance (review F-078).
+ *
+ * WHETHER IT IS A REQUEST IS THE SERVER'S ANSWER, never assumed here: a share already due, or a
+ * Finance override in force on the case (since 2026-10-10, the share has only stepped aside for
+ * the override and comes back when it is removed), makes the void a request that waits for
+ * Finance. The answer carries `void_requested_at` with `voided_at` empty, and the message below
+ * follows it.
  */
 export function VoidInstallmentModal({
   clientId,
@@ -89,6 +95,13 @@ export function VoidInstallmentModal({
           {formatMoneyAmount(installment.amount)} received from {installment.source === 'student' ? 'the applicant' : 'the college'} on{' '}
           {formatDate(installment.received_on)}. Voiding keeps the row on record, marked void, and takes the amount out of
           what has been received.
+        </p>
+        {/* Not promised as immediate: whether it is a request is the server's call (the share is
+            already due, or Finance has set its own amount for the case), and its answer decides
+            what the row reads afterwards. */}
+        <p className="text-body-sm text-text-secondary">
+          If immiNow&rsquo;s share of this case is already due, or immiNow Finance has set its own amount for the case,
+          this is sent to immiNow Finance as a request instead. The installment stays as it is until they answer.
         </p>
         <TextAreaField
           label="Reason"
