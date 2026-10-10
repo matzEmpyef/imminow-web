@@ -1649,7 +1649,7 @@ export function ManageConsultanciesPage() {
                     <option value="">Any status</option>
                     <option value="active">Active</option>
                     <option value="suspended">Suspended</option>
-                    <option value="kyc_pending">KYC to verify</option>
+                    <option value="kyc_pending">KYC pending review</option>
                     <option value="kyc_rejected">KYC rejected</option>
                     <option value="expiring">Subscription ending soon</option>
                     <option value="grace">In grace period</option>

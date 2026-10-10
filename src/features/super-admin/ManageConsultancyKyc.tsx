@@ -18,9 +18,10 @@ const REASON_MAX = 500
  * actual review before approving.
  *
  * Reject (review I-010) sits beside Verify while a certificate is waiting: the reviewer gives a
- * reason, the consultancy is shown it and submits again. A verified certificate cannot be
- * rejected (409), so Reject is offered for a pending one only; a rejected one can still be
- * verified, which is the reviewer changing their mind about the same document.
+ * reason, the consultancy is shown it and submits again. Both are offered for a PENDING
+ * certificate only. A verified one cannot be rejected (409 `already_reviewed`), and a rejected one
+ * is its own state (review 2.115): the contract does not allow verifying it, so Verify is not
+ * offered; the consultancy submits a new certificate, which reads pending and is reviewed again.
  */
 export function KycSection({ consultancyId, kycVerified }: { consultancyId: string; kycVerified: boolean }) {
   const kyc = useConsultancyKyc(consultancyId)
@@ -65,9 +66,12 @@ export function KycSection({ consultancyId, kycVerified }: { consultancyId: stri
               {verifiedOffline ? 'Verified without a certificate on file.' : 'No certificate submitted yet.'}
             </p>
           )}
+          {status === 'rejected' && (
+            <p className="mt-xs text-caption text-text-secondary">Waiting for the consultancy to submit a new certificate.</p>
+          )}
           {verify.isError && <p className="text-caption text-error">{verify.error.message}</p>}
         </div>
-        {!rejecting && (status === 'pending' || status === 'rejected') && (
+        {!rejecting && status === 'pending' && (
           <div className="flex shrink-0 gap-sm">
             {/* Verify names the certificate on screen by its upload time (review F-207), so it is
                 offered once that certificate has been served. */}
@@ -79,11 +83,9 @@ export function KycSection({ consultancyId, kycVerified }: { consultancyId: stri
             >
               Verify
             </Button>
-            {status === 'pending' && (
-              <Button variant="secondary" disabled={verify.isPending} onClick={() => setRejecting(true)}>
-                Reject
-              </Button>
-            )}
+            <Button variant="secondary" disabled={verify.isPending} onClick={() => setRejecting(true)}>
+              Reject
+            </Button>
           </div>
         )}
       </div>

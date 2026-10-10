@@ -62,6 +62,15 @@ describe('KYC review — rejecting a certificate', () => {
     expect(screen.queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument()
   })
 
+  // Review 2.115: rejected is its own state. The contract allows verifying a pending certificate
+  // only, so a rejected one waits for the consultancy's new upload.
+  it('offers neither Verify nor Reject on a rejected certificate, and says what happens next', () => {
+    show({ ...pending, status: 'rejected', rejected_at: '2026-10-08T09:00:00Z', rejected_reason: 'Blurred.' })
+    expect(screen.queryByRole('button', { name: 'Verify' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument()
+    expect(screen.getByText('Waiting for the consultancy to submit a new certificate.')).toBeInTheDocument()
+  })
+
   it('offers no Reject once the certificate is verified', () => {
     show({ ...pending, status: 'verified' })
     expect(screen.getByText('KYC verified')).toBeInTheDocument()

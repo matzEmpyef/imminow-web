@@ -84,6 +84,16 @@ describe('Manage Consultancies filters in the address', () => {
     expect(screen.getByTestId('address')).not.toHaveTextContent('kyc=pending')
   })
 
+  it('names the pending filter for what it holds, apart from KYC rejected (review 2.115)', async () => {
+    renderPage('/admin/consultancies')
+    expect(await screen.findByText('Northwind Education')).toBeInTheDocument()
+    const status = screen.getByRole('combobox', { name: 'Status' })
+    const options = Array.from(status.querySelectorAll('option')).map((o) => [o.value, o.textContent])
+    expect(options).toContainEqual(['kyc_pending', 'KYC pending review'])
+    expect(options).toContainEqual(['kyc_rejected', 'KYC rejected'])
+    expect(options).not.toContainEqual(['kyc_pending', 'KYC to verify'])
+  })
+
   it('offers KYC rejected in the Status filter, and asks the server for it', async () => {
     renderPage('/admin/consultancies')
     expect(await screen.findByText('Northwind Education')).toBeInTheDocument()
