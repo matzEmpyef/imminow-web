@@ -52,7 +52,12 @@ describe('KYC review — rejecting a certificate', () => {
     fireEvent.change(screen.getByLabelText(/Reason for rejecting/), { target: { value: '  The name does not match.  ' } })
     expect(send).toBeEnabled()
     fireEvent.click(send)
-    expect(reject.mock.calls[0][0]).toEqual({ consultancyId: 'c1', reason: 'The name does not match.' })
+    // Reject names the certificate on screen by its upload time, as Verify does.
+    expect(reject.mock.calls[0][0]).toEqual({
+      consultancyId: 'c1',
+      reason: 'The name does not match.',
+      uploadedAt: '2026-10-08T08:15:00.123456Z',
+    })
   })
 
   it('a rejected certificate reads KYC rejected, with the date and the reason', () => {
@@ -76,6 +81,23 @@ describe('KYC review — rejecting a certificate', () => {
     expect(screen.getByText('KYC verified')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Verify' })).not.toBeInTheDocument()
+  })
+
+  it('offers no Reject until the upload time of the certificate is known', () => {
+    show({ ...pending, uploaded_at: null })
+    expect(screen.getByRole('button', { name: 'Reject' })).toBeDisabled()
+  })
+
+  it('closes the reason box and shows the server’s sentence when a 409 comes back', () => {
+    reject.mockImplementation((_vars, options) =>
+      options.onError(new ApiError('x', { error: { code: 'conflict', message: 'The consultancy has submitted a newer certificate.' } }, 409)),
+    )
+    show(pending)
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
+    fireEvent.change(screen.getByLabelText(/Reason for rejecting/), { target: { value: 'Blurred.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Reject certificate' }))
+    expect(screen.queryByLabelText(/Reason for rejecting/)).not.toBeInTheDocument()
+    expect(screen.getByText('The consultancy has submitted a newer certificate.')).toBeInTheDocument()
   })
 
   it('shows the server’s sentence when the certificate was reviewed in the meantime', () => {

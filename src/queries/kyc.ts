@@ -103,13 +103,20 @@ export function useConsultancyKyc(consultancyId: string | null) {
 /** What the reviewer reads when the consultancy sent another certificate while this one was open. */
 export const KYC_NEWER_CERTIFICATE_NOTICE = 'A newer certificate was submitted. Please review it.'
 
+/** What a 409 reads when the server's own sentence is missing: a newer certificate, or already decided. */
+function conflictFallback(code: string | undefined): string {
+  return code === 'conflict' ? KYC_NEWER_CERTIFICATE_NOTICE : 'This certificate has already been reviewed.'
+}
+
 /**
  * Approve the certificate — flips the kyc_verified badge everywhere, audit-logged server-side.
  *
  * The request names the certificate the reviewer is looking at, by its `uploaded_at` exactly as
  * the review row was served it (review F-207). When the consultancy has submitted another one
- * since, the server answers 409 `conflict` and verifies nothing: the row is read again so the new
- * certificate is the one on screen, and the reviewer is asked to look at it.
+ * since, the server answers 409 `conflict` and verifies nothing; a certificate already verified or
+ * rejected answers 409 `already_reviewed`. Either way the row is read again so the certificate as
+ * it now stands is the one on screen, and the reviewer reads the server's own sentence (the
+ * constant below is only the fallback when the answer carries none).
  */
 export function useVerifyKyc() {
   const queryClient = useQueryClient()
@@ -120,13 +127,9 @@ export function useVerifyKyc() {
         body: { uploaded_at: uploadedAt },
       })
       if (error) {
-        if (error.error?.code === 'conflict') {
-          throw new ApiError(
-            KYC_NEWER_CERTIFICATE_NOTICE,
-            { error: { ...error.error, message: KYC_NEWER_CERTIFICATE_NOTICE } },
-            response?.status,
-          )
-        }
+        // 409 `conflict` (a newer certificate) and 409 `already_reviewed` (verified or rejected in
+        // the meantime) each carry their own sentence: that is what the reviewer reads.
+        if (response?.status === 409) throw new ApiError(conflictFallback(error.error?.code), error, 409)
         throw new ApiError('Could not verify — has a certificate been submitted?', error, response?.status)
       }
       return data
@@ -137,9 +140,9 @@ export function useVerifyKyc() {
       // The Needs attention "KYC to verify" count falls by one (review F-314).
       queryClient.invalidateQueries({ queryKey: ['admin-attention'] })
     },
-    // A newer certificate arrived: show the row as it now stands.
+    // A newer certificate arrived, or someone reviewed it first: show the row as it now stands.
     onError: (err, { consultancyId }) => {
-      if (err instanceof ApiError && err.code === 'conflict') {
+      if (err instanceof ApiError && err.status === 409) {
         queryClient.invalidateQueries({ queryKey: ['kyc', consultancyId] })
       }
     },
@@ -151,16 +154,30 @@ export function useVerifyKyc() {
  * consultancy is told and submits again. Only a certificate still waiting for review can be
  * rejected: 409 `already_reviewed` once it is verified or already rejected, and the server's own
  * sentence is what the reviewer reads.
+ *
+ * Like Verify, the request names the certificate the reviewer opened, by its `uploaded_at` exactly
+ * as served; if another was submitted since, 409 `conflict` and nothing is rejected.
  */
 export function useRejectKyc() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ consultancyId, reason }: { consultancyId: string; reason: string }) => {
+    mutationFn: async ({
+      consultancyId,
+      reason,
+      uploadedAt,
+    }: {
+      consultancyId: string
+      reason: string
+      uploadedAt: string
+    }) => {
       const { data, error, response } = await api.POST('/consultancies/{id}/kyc/reject', {
         params: { path: { id: consultancyId } },
-        body: { reason },
+        body: { reason, uploaded_at: uploadedAt },
       })
-      if (error) throw new ApiError('Could not reject the certificate.', error, response?.status)
+      if (error) {
+        const fallback = response?.status === 409 ? conflictFallback(error.error?.code) : 'Could not reject the certificate.'
+        throw new ApiError(fallback, error, response?.status)
+      }
       return data
     },
     onSuccess: (_data, { consultancyId }) => {
@@ -169,7 +186,7 @@ export function useRejectKyc() {
       // It is no longer waiting for a review, so the "KYC to verify" count falls by one.
       queryClient.invalidateQueries({ queryKey: ['admin-attention'] })
     },
-    // Someone else reviewed it first: show the row as it now stands.
+    // Someone else reviewed it first, or a newer certificate arrived: show the row as it now stands.
     onError: (err, { consultancyId }) => {
       if (err instanceof ApiError && err.status === 409) {
         queryClient.invalidateQueries({ queryKey: ['kyc', consultancyId] })

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ApiError } from '@/api/errors'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { KycDocument } from '@/components/KycDocument'
@@ -29,6 +30,9 @@ export function KycSection({ consultancyId, kycVerified }: { consultancyId: stri
   const reject = useRejectKyc()
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
+  // The server's sentence when a rejection came back 409 (reviewed already, or a newer certificate
+  // arrived): the reject box closes, the row is read again, and this says why.
+  const [notice, setNotice] = useState<string | null>(null)
   // An account verified offline has no certificate on record: the list reads it as verified
   // (`Consultancy.kyc_status`), so this row must too, not "No certificate".
   const served = kyc.data?.status
@@ -70,6 +74,7 @@ export function KycSection({ consultancyId, kycVerified }: { consultancyId: stri
             <p className="mt-xs text-caption text-text-secondary">Waiting for the consultancy to submit a new certificate.</p>
           )}
           {verify.isError && <p className="text-caption text-error">{verify.error.message}</p>}
+          {notice && <p className="text-caption text-error">{notice}</p>}
         </div>
         {!rejecting && status === 'pending' && (
           <div className="flex shrink-0 gap-sm">
@@ -79,17 +84,29 @@ export function KycSection({ consultancyId, kycVerified }: { consultancyId: stri
               variant="secondary"
               loading={verify.isPending}
               disabled={!uploadedAt}
-              onClick={() => uploadedAt && verify.mutate({ consultancyId, uploadedAt })}
+              onClick={() => {
+                if (!uploadedAt) return
+                setNotice(null)
+                verify.mutate({ consultancyId, uploadedAt })
+              }}
             >
               Verify
             </Button>
-            <Button variant="secondary" disabled={verify.isPending} onClick={() => setRejecting(true)}>
+            {/* Reject names the certificate on screen too, so it waits for the same upload time. */}
+            <Button
+              variant="secondary"
+              disabled={verify.isPending || !uploadedAt}
+              onClick={() => {
+                setNotice(null)
+                setRejecting(true)
+              }}
+            >
               Reject
             </Button>
           </div>
         )}
       </div>
-      {rejecting && (
+      {rejecting && status === 'pending' && (
         <div className="flex flex-col gap-sm">
           <TextAreaField
             label="Reason for rejecting"
@@ -108,14 +125,21 @@ export function KycSection({ consultancyId, kycVerified }: { consultancyId: stri
             <Button
               variant="destructive"
               loading={reject.isPending}
-              disabled={!reason.trim()}
+              disabled={!reason.trim() || !uploadedAt}
               onClick={() =>
+                uploadedAt &&
                 reject.mutate(
-                  { consultancyId, reason: reason.trim() },
+                  { consultancyId, reason: reason.trim(), uploadedAt },
                   {
                     onSuccess: () => {
                       showToast('Certificate rejected — the consultancy has been told')
                       closeReject()
+                    },
+                    onError: (err) => {
+                      if (err instanceof ApiError && err.status === 409) {
+                        closeReject()
+                        setNotice(err.message)
+                      }
                     },
                   },
                 )
