@@ -28,9 +28,9 @@ import { canOfferCaseReopen, canOfferLeadReopen } from './reopenRules'
 
 const LEADS = [
   { id: 'l-open', name: 'Open Lead', status: 'active', origin: 'sentpo', tags: [], unread: 0, can_reopen: false },
-  { id: 'l-closed', name: 'Closed Lead', status: 'closed', origin: 'sentpo', tags: [], unread: 0, can_reopen: true },
+  { id: 'l-closed', name: 'Closed Lead', status: 'closed', origin: 'sentpo', tags: [], unread: 0, can_reopen: true, closed_by: 'consultancy', closed_reason_label: 'Lost contact' },
   // Closed by the student, or because they chose another consultancy: the server says no.
-  { id: 'l-theirs', name: 'Student Closed', status: 'closed', origin: 'sentpo', tags: [], unread: 0, can_reopen: false },
+  { id: 'l-theirs', name: 'Student Closed', status: 'closed', origin: 'sentpo', tags: [], unread: 0, can_reopen: false, closed_by: 'student', closed_reason_label: 'The student ended this chat.' },
 ]
 const student = (first: string) => ({ first_name: first, last_name: 'Case', email: `${first}@example.test` })
 const CLIENTS = [
@@ -75,6 +75,9 @@ describe('the rules', () => {
     // No answer is not a yes.
     expect(canOfferLeadReopen({})).toBe(false)
     expect(canOfferLeadReopen({ can_reopen: null })).toBe(false)
+    // A chat the student ended is never the consultancy's to reopen, whatever else says so.
+    expect(canOfferLeadReopen({ can_reopen: true, closed_by: 'student' })).toBe(false)
+    expect(canOfferLeadReopen({ can_reopen: true, closed_by: 'consultancy' })).toBe(true)
   })
 
   it('a case: closed, the plan includes reopening, not moved, and not closed by an account deletion', () => {
@@ -95,6 +98,12 @@ describe('the leads list', () => {
     // Closed, on a plan with reopening, and still not offered: the student closed it.
     expect(screen.getByText('Student Closed')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Reopen Student Closed' })).not.toBeInTheDocument()
+  })
+
+  it('says why each closed lead closed, in the server’s own sentence', async () => {
+    renderPage(<ActiveLeadsPage />, ['case_reopening'])
+    expect(await screen.findByText('The student ended this chat.')).toBeInTheDocument()
+    expect(screen.getByText('Lost contact')).toBeInTheDocument()
   })
 
   it("follows the server's answer, not the plan as this browser reads it", async () => {

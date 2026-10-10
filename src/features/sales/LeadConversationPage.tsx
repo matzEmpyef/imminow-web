@@ -36,7 +36,7 @@ import { useBranches } from '@/queries/staff'
 import { chronologicalPages } from '@/lib/pagination'
 import { useFeature } from '@/lib/features'
 import { canOfferLeadReopen } from '@/lib/reopenRules'
-import { CLOSED_CONVERSATION_NOTE, useClosedThread } from '@/lib/closedThread'
+import { closedLeadNote, useClosedThread } from '@/lib/closedThread'
 import { useCanConvertLead } from '@/lib/convertRules'
 import { usePermission } from '@/lib/permissions'
 import { formatDate, formatDateTime } from '@/lib/time'
@@ -325,7 +325,7 @@ export function LeadConversationPage() {
   // A closed lead's conversation is read-only (owner ruling 2026-10-06): no composer, and none of
   // the header actions that write into it. Also entered when the server refuses a write with 409
   // `lead_closed` (a colleague closed it a moment ago); Reopen Lead brings the composer back.
-  const thread = useClosedThread(id || null, lead.data?.status === 'closed', CLOSED_CONVERSATION_NOTE)
+  const thread = useClosedThread(id || null, lead.data?.status === 'closed', closedLeadNote(lead.data))
 
   // Read on open, and again for each message that arrives while the consultant is looking at the
   // thread (review F-143; the shared hook all four chat screens use).

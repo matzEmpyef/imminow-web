@@ -19,6 +19,15 @@ export const CASE_CLOSED_CHAT_NOTE = 'This case is closed, so its chat is read-o
 /** What stands in place of the composer on a closed lead, and on a closed row of the chat list. */
 export const CLOSED_CONVERSATION_NOTE = 'This conversation is closed and read-only.'
 
+/**
+ * The sentence for a closed lead's banner: the server's own reason line first ("The student ended
+ * this chat."), then the read-only note. The reason is written for the reader and shown as it is.
+ */
+export function closedLeadNote(lead: { closed_reason_label?: string | null } | null | undefined): string {
+  const reason = lead?.closed_reason_label?.trim()
+  return reason ? `${reason} ${CLOSED_CONVERSATION_NOTE}` : CLOSED_CONVERSATION_NOTE
+}
+
 /** What an empty thread says. A closed one is read-only, so it does not invite anyone to say hello. */
 export const EMPTY_THREAD_TEXT = 'No messages yet — say hello.'
 export const EMPTY_CLOSED_THREAD_TEXT = 'No messages in this conversation.'

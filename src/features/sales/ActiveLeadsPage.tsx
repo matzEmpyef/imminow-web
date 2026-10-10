@@ -132,8 +132,12 @@ export function ActiveLeadsPage() {
       header: 'Tags',
       render: (lead) => (
         <div className="flex items-center gap-xs">
-          <div className="flex flex-wrap gap-xs">
+          <div className="flex flex-wrap items-center gap-xs">
             {lead.status === 'closed' && <Badge color="secondary">Closed</Badge>}
+            {/* Why it closed, in the server's own sentence ("The student ended this chat."). */}
+            {lead.status === 'closed' && lead.closed_reason_label && (
+              <span className="text-caption text-text-secondary">{lead.closed_reason_label}</span>
+            )}
             {lead.unattended && <Badge color="error">Pending Response</Badge>}
             {lead.tags?.map((t) => (
               <Badge key={t} color="secondary">

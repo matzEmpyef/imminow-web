@@ -27,6 +27,7 @@ export function useCanReopen(): boolean {
 
 interface LeadForReopen {
   can_reopen?: boolean | null
+  closed_by?: string | null
 }
 
 /**
@@ -45,6 +46,9 @@ interface LeadForReopen {
  * chats); the Reopen dialog shows that in the server's own words.
  */
 export function canOfferLeadReopen(lead: LeadForReopen): boolean {
+  // A chat the student ended themselves is theirs to restart (a new chat), never the consultancy's
+  // to reopen: hidden even if a stale answer still says otherwise.
+  if (lead.closed_by === 'student') return false
   return lead.can_reopen === true
 }
 

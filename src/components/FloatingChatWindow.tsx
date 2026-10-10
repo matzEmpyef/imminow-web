@@ -20,6 +20,7 @@ import { threadPagesOldestFirst } from '@/lib/pagination'
 import {
   CASE_CLOSED_CHAT_NOTE,
   CLOSED_CONVERSATION_NOTE,
+  closedLeadNote,
   isCaseChatClosed,
   useClosedThread,
 } from '@/lib/closedThread'
@@ -63,7 +64,7 @@ export function FloatingChatWindow() {
   const thread = useClosedThread(
     conversationId ?? null,
     isLead ? lead.data?.status === 'closed' : isClient && isCaseChatClosed(client.data?.status),
-    isClient ? CASE_CLOSED_CHAT_NOTE : CLOSED_CONVERSATION_NOTE,
+    isClient ? CASE_CLOSED_CHAT_NOTE : closedLeadNote(isLead ? lead.data : null),
   )
 
   // Read on open, and again for each message that arrives while this window is up and the person

@@ -175,4 +175,26 @@ describe('the Lead conversation page', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Could not send this message.')
     expect(screen.getByPlaceholderText('Write a message…')).toBeInTheDocument()
   })
+
+  it('says why a lead closed, in the server’s own sentence, ahead of the read-only note', () => {
+    serveLead(lead({ status: 'closed', closed_by: 'student', closed_reason_label: 'The student ended this chat.' }))
+    render(page())
+    expect(screen.getByText(`The student ended this chat. ${CLOSED_NOTE}`)).toBeInTheDocument()
+  })
+
+  it('hides Reopen on a chat the student ended, even when the lead still says it can be reopened', () => {
+    serveLead(
+      lead({ status: 'closed', can_reopen: true, closed_by: 'student', closed_reason_label: 'The student ended this chat.' }),
+    )
+    render(page())
+    expect(screen.queryByRole('button', { name: 'Reopen Lead' })).not.toBeInTheDocument()
+    expect(screen.getByText('Closed')).toBeInTheDocument()
+  })
+
+  it('still offers Reopen on a lead the consultancy closed itself', () => {
+    serveLead(lead({ status: 'closed', can_reopen: true, closed_by: 'consultancy', closed_reason_label: 'Lost contact' }))
+    render(page())
+    expect(screen.getByText(`Lost contact ${CLOSED_NOTE}`)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reopen Lead' })).toBeInTheDocument()
+  })
 })
