@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -25,11 +25,11 @@ function code(overrides: Record<string, unknown>) {
   }
 }
 
-function renderTab() {
+function renderTab(isInstitute = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <IncomingTransfersTab />
+      <IncomingTransfersTab isInstitute={isInstitute} />
     </QueryClientProvider>,
   )
 }
@@ -61,5 +61,49 @@ describe('the Incoming Transfers list', () => {
     // The rows that still have a contact show it, as before.
     expect(within(screen.getByText('TC-0001').closest('tr')!).getByText('meera@example.test')).toBeInTheDocument()
     expect(within(screen.getByText('TC-0002').closest('tr')!).getByText('+919876543210')).toBeInTheDocument()
+  })
+})
+
+// Owner's ruling 2026-10-10: receiving a transferred student is open to every plan (the permission
+// is the only gate, applied by the page), so the tab carries no plan check of its own. Only a
+// university account is refused.
+describe('issuing a transfer code', () => {
+  const EMPTY = { data: { items: [], meta: { next_cursor: null, total: 0 } }, error: undefined } as never
+
+  it('is offered with no plan entitlement to check', async () => {
+    mockedGet.mockResolvedValue(EMPTY)
+    renderTab()
+    expect(await screen.findByRole('button', { name: /Issue a code/ })).toBeInTheDocument()
+  })
+
+  it('hides the Issue action for a university account and says why', async () => {
+    mockedGet.mockResolvedValue(EMPTY)
+    renderTab(true)
+    expect(await screen.findByText(/A university account cannot receive transferred students/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Issue a code/ })).not.toBeInTheDocument()
+  })
+
+  it('shows the server’s sentence when the code is refused', async () => {
+    mockedGet.mockResolvedValue(EMPTY)
+    vi.mocked(api.POST).mockResolvedValue({
+      data: undefined,
+      error: {
+        error: {
+          code: 'feature_locked',
+          message: 'A university account cannot receive transferred students.',
+          status: 403,
+        },
+      },
+      response: { status: 403 },
+    } as never)
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /Issue a code/ }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText(/registered email/), { target: { value: 'meera@example.test' } })
+    fireEvent.change(within(dialog).getByLabelText(/^Reason/), { target: { value: 'Moving cities' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Issue code' }))
+    await waitFor(() =>
+      expect(within(dialog).getByText('A university account cannot receive transferred students.')).toBeInTheDocument(),
+    )
   })
 })

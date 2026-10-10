@@ -186,27 +186,35 @@ export function IncomingTransfersTab({ isInstitute = false }: { isInstitute?: bo
     <div className="flex flex-col gap-md">
       <Card className="flex flex-wrap items-start justify-between gap-md">
         <div className="min-w-0 flex-1">
-          <h2 className="text-h3 text-text-primary">Accept an incoming transfer</h2>
-          <p className="mt-xs text-body-sm text-text-secondary">
-            When another consultancy wants to transfer an applicant to you, issue a code here and share it with them —
-            they need it to complete the transfer. Issuing a code is your consent to take the case. Codes are single-use
-            and expire after 72 hours.
-          </p>
-          {/* H3 (2026-09-13): a college reading "another consultancy wants to transfer an
-              applicant to you" had no idea why that would ever happen to it. */}
-          {isInstitute && (
-            <p className="mt-xs text-body-sm text-text-secondary">
-              Use this when a consultancy applied to your college on a student&rsquo;s behalf and wants you to take
-              over servicing the applicant.
-            </p>
+          {isInstitute ? (
+            <>
+              {/* Receiving is open to every plan, but not to a university account: the server
+                  refuses it a code ("A university account cannot receive transferred students."),
+                  so there is no Issue action here. */}
+              <h2 className="text-h3 text-text-primary">Incoming transfers</h2>
+              <p className="mt-xs text-body-sm text-text-secondary">
+                A university account cannot receive transferred students, so there is no code to issue.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-h3 text-text-primary">Accept an incoming transfer</h2>
+              <p className="mt-xs text-body-sm text-text-secondary">
+                When another consultancy wants to transfer an applicant to you, issue a code here and share it with
+                them — they need it to complete the transfer. Issuing a code is your consent to take the case. Codes
+                are single-use and expire after 72 hours.
+              </p>
+            </>
           )}
         </div>
-        <Button onClick={() => setIssuing(true)} className="inline-flex shrink-0 items-center gap-xs">
-          <Plus className="h-4 w-4" aria-hidden />
-          Issue a code
-        </Button>
+        {!isInstitute && (
+          <Button onClick={() => setIssuing(true)} className="inline-flex shrink-0 items-center gap-xs">
+            <Plus className="h-4 w-4" aria-hidden />
+            Issue a code
+          </Button>
+        )}
       </Card>
-      {issuing && <IssueCodeModal onClose={() => setIssuing(false)} />}
+      {issuing && !isInstitute && <IssueCodeModal onClose={() => setIssuing(false)} />}
 
       <Table
         columns={columns}
