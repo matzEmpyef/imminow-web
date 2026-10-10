@@ -14873,8 +14873,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * My earlier case conversations, read-only (owner's ruling 2026-10-10)
+         * My earlier conversations, read-only (owner's ruling 2026-10-10)
          * @description Student only. A student always finds their own earlier conversations. Every earlier case of the caller whose conversation is not already part of a later one, newest ended first (at most 50): a case that moved to another consultancy WITHOUT its chat, a closed case, and a completed case the student has left for Stage 1. The case the student's screens are on now is not listed (its chat is the case chat), and neither is a case whose chat was carried to the case that followed it (those messages are read inside the later case's thread). Each entry opens with `GET /clients/{id}/messages` and is shown without a reply box - and the server refuses a write into it (409 `case_moved` or `case_closed`, with the entry's own words). Nothing here is visible to a consultancy: a receiving consultancy still cannot read a conversation that was not carried to it.
+         *
+         *     **Closed lead chats are listed too (2026-10-10).** A student who ends a chat (`POST /leads/{id}/end`) is told they can still read it, so it must stay on their chats list. Every closed lead chat of the caller that has at least one message, or that the caller ended themselves, is an entry with `kind: lead`: `label` is the consultancy's name, `note` is the sentence the closed chat shows the student (the lead's `closed_reason_label`, never the consultancy's own reason), `ended` is `closed`, and it opens read-only with `GET /leads/{id}/messages` (a write is refused 409 `lead_closed`). A chat that became a case is not a closed chat and is not listed: its messages open the case's own thread. Case conversations and lead chats are merged, newest ended first, and the 50 is for both together. Entries without `kind` are case conversations.
          */
         get: {
             parameters: {
@@ -30484,19 +30486,25 @@ export interface components {
                 resets_at: string;
             };
         };
-        /** @description One of the student's own earlier case conversations (`GET /journeys/me/earlier-chats`). Open it with `GET /clients/{id}/messages`; it is history and is never written to. */
+        /** @description One of the student's own earlier conversations (`GET /journeys/me/earlier-chats`): an earlier case conversation, or a lead chat that closed (`kind`). A case conversation opens with `GET /clients/{id}/messages`, a lead chat with `GET /leads/{id}/messages`; either way it is history and is never written to. */
         EarlierChat: {
-            /** @description The earlier case — the id `GET /clients/{id}/messages` takes. */
+            /**
+             * @description What the entry is, and so how it opens (2026-10-10). `case`: an earlier case conversation, and `id` is the id `GET /clients/{id}/messages` takes. `lead`: a lead chat that closed - the student ended it, the consultancy closed it, or it closed when the student chose another consultancy - and `id` is the id `GET /leads/{id}/messages` (and `GET /leads/{id}`) takes. Optional: an entry without it is a `case` (the mock lists case conversations only and does not send it); the server always sends it.
+             * @default case
+             * @enum {string}
+             */
+            kind: "case" | "lead";
+            /** @description The earlier case - the id `GET /clients/{id}/messages` takes - or, for `kind: lead`, the closed lead chat. */
             id: components["schemas"]["UUID"];
             consultancy_id: components["schemas"]["UUID"];
             /** @description The consultancy the conversation was with. */
             consultancy_name: string | null;
-            /** @description The entry's title, written by the server: "Earlier conversation with <consultancy>". */
+            /** @description The entry's title, written by the server: "Earlier conversation with <consultancy>" for a case conversation; the consultancy's name for a lead chat. */
             label: string;
-            /** @description The line under the title: why this is history, and that it is read-only. */
+            /** @description The line under the title: why this is history, and that it is read-only. For a lead chat it is the lead's own `closed_reason_label` as the student reads it - "You ended this chat.", "The consultancy closed this chat.", "This chat closed when you chose another consultancy." - and never the consultancy's own reason for closing. */
             note: string;
             /**
-             * @description How that case ended: the student moved to another consultancy, or the case was closed or completed.
+             * @description How that case ended: the student moved to another consultancy, or the case was closed or completed. A lead chat is always `closed`.
              * @enum {string}
              */
             ended: "moved" | "closed" | "completed";
@@ -30506,7 +30514,7 @@ export interface components {
             ended_at: string;
             /**
              * Format: date-time
-             * @description The case's own last message. Null when everything was said in the lead chat the case began from, which the thread opens with.
+             * @description The case's own last message. Null when everything was said in the lead chat the case began from, which the thread opens with. For a lead chat, its last message; null when the student ended it before anything was said.
              */
             last_message_at: string | null;
             /** @description Always true. The app shows the thread without a reply box. */
