@@ -61,15 +61,16 @@ export function AwaitingTab() {
       key: 'entry_outstanding',
       header: 'Case still owes',
       align: 'right',
-      render: (p) => {
-        const overpays = (p.amount.amount ?? 0) > (p.entry_outstanding_inr ?? Infinity)
-        return (
-          <span className="flex items-center justify-end gap-xs">
-            {inrOrDash(p.entry_outstanding_inr)}
-            {overpays && <Badge color="warning">More than owed</Badge>}
-          </span>
-        )
-      },
+      // "More than owed" is the server's call (review F-300, 2026-10-10): confirming this payment as
+      // declared would be more than may still be recorded on its case, judged in the payment's own
+      // currency. The tab used to compare the payment's amount with a rupee figure. No answer (null
+      // or absent) is no mark.
+      render: (p) => (
+        <span className="flex items-center justify-end gap-xs">
+          {inrOrDash(p.entry_outstanding_inr)}
+          {p.exceeds_outstanding === true && <Badge color="warning">More than owed</Badge>}
+        </span>
+      ),
     },
     { key: 'reference', header: 'Reference', hideBelow: 'md', render: (p) => p.transaction_id ?? '—' },
     {

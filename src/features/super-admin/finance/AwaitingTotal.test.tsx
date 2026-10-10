@@ -28,6 +28,7 @@ vi.mock('@/queries/financeDashboard', () => ({
 }))
 vi.mock('@/queries/commission', () => ({
   useConfirmCommissionPayment: () => ({ mutateAsync: vi.fn(), mutate: vi.fn(), isPending: false }),
+  useConfirmPreview: () => ({ data: undefined, error: null, isFetching: false }),
   useRejectCommissionPayment: () => ({ mutate: vi.fn(), isPending: false }),
 }))
 
