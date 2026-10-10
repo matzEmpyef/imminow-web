@@ -197,4 +197,23 @@ describe('the Lead conversation page', () => {
     expect(screen.getByText(`Lost contact ${CLOSED_NOTE}`)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Reopen Lead' })).toBeInTheDocument()
   })
+
+  it('shows one quiet Earlier conversation link that opens that lead', () => {
+    serveLead(lead({ previous_lead_ids: ['old-1'] }))
+    render(page())
+    expect(screen.getByRole('link', { name: 'Earlier conversation' })).toHaveAttribute('href', '/sales/leads/old-1')
+  })
+
+  it('lists several earlier conversations, newest first, each opening its own lead', () => {
+    serveLead(lead({ previous_lead_ids: ['old-3', 'old-2', 'old-1'] }))
+    render(page())
+    const links = screen.getAllByRole('link', { name: /Most recent|back/ })
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/sales/leads/old-3', '/sales/leads/old-2', '/sales/leads/old-1'])
+  })
+
+  it('shows nothing about earlier conversations when there are none', () => {
+    serveLead(lead({ previous_lead_ids: [] }))
+    render(page())
+    expect(screen.queryByText(/Earlier conversation/)).not.toBeInTheDocument()
+  })
 })

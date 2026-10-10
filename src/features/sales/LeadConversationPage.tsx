@@ -109,6 +109,40 @@ export function ShortlistAction({ lead }: { lead: Lead }) {
   )
 }
 
+// When this student chatted with this consultancy before and that chat was closed, the server
+// lists those closed chats on the new lead, newest first (`Lead.previous_lead_ids`). Each opens on
+// this same page, read-only because it is closed; the threads are never merged. Quiet on purpose:
+// a link in the line under the title, not a panel.
+export function EarlierConversations({ ids }: { ids: readonly string[] | undefined }) {
+  if (!ids || ids.length === 0) return null
+  const linkClass = 'text-primary hover:underline'
+  return (
+    <p className="shrink-0 text-body-sm text-text-secondary">
+      {ids.length === 1 ? (
+        <Link to={`/sales/leads/${ids[0]}`} className={linkClass}>
+          Earlier conversation
+        </Link>
+      ) : (
+        <>
+          Earlier conversations:{' '}
+          {ids.map((earlierId, index) => (
+            <span key={earlierId}>
+              {index > 0 && ', '}
+              <Link
+                to={`/sales/leads/${earlierId}`}
+                className={linkClass}
+                title={index === 0 ? 'The most recent earlier conversation' : undefined}
+              >
+                {index === 0 ? 'Most recent' : `${index + 1} back`}
+              </Link>
+            </span>
+          ))}
+        </>
+      )}
+    </p>
+  )
+}
+
 // The lead's own routing/engagement facts — NEVER phone or email (user, 2026-08-23: "In the
 // leads details page we need to show the leads details except contact information"). Status,
 // Last message, and Awaiting reply were all dropped (user, 2026-08-24: "no need to show status,
@@ -427,6 +461,8 @@ export function LeadConversationPage() {
             )}
           </div>
         </div>
+
+        <EarlierConversations ids={data.previous_lead_ids} />
 
         {showReminderModal && <SetReminderModal leadId={id} onClose={() => setShowReminderModal(false)} />}
         {showRatingModal && (
