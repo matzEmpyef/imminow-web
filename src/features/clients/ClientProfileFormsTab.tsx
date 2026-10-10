@@ -9,7 +9,7 @@ import { useClient } from '@/queries/clients'
 import { formatDateTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard'
-import { fillWidthClass } from '@/lib/formFields'
+import { fillWidthClass, withoutBlankTableRows } from '@/lib/formFields'
 import { FormTableField } from './FormTableField'
 
 type FormField = NonNullable<ReturnType<typeof useFormTemplate>['data']>['fields'][number]
@@ -331,7 +331,8 @@ function LinkedFormViewer({
             disabled={draft === null}
             loading={saveForm.isPending}
             onClick={() =>
-              saveForm.mutate(answers as Record<string, unknown>, {
+              // A row left entirely empty is dropped here, quietly (review 2.63).
+              saveForm.mutate(withoutBlankTableRows(form.data.fields, answers), {
                 onSuccess: () => {
                   showToast(`${form.data?.name || formName} saved`)
                   setDraft(null)

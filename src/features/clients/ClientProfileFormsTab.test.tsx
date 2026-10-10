@@ -176,6 +176,37 @@ describe('FormsTab table fields', () => {
     expect(sentAnswers()).toEqual({ education: [{ ...FULL_ROW, notes: 'Distinction' }, second] })
   })
 
+  // Review 2.63: the server is about to refuse a blank table row.
+  it('does not let a row be added with nothing in it', () => {
+    setup({ education: [FULL_ROW] })
+    renderTab()
+    fireEvent.click(screen.getByRole('button', { name: 'Add row' }))
+    const dialog = screen.getByRole('dialog', { name: 'Add row: Education' })
+    expect(within(dialog).getByRole('button', { name: 'Add row' })).toBeDisabled()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+  })
+
+  it('does not let a row be updated down to nothing', () => {
+    setup({ education: [{ institution: 'MG College' }] })
+    renderTab()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit row 1' }))
+    const edit = screen.getByRole('dialog', { name: 'Edit row 1: Education' })
+    expect(within(edit).getByRole('button', { name: 'Update row' })).toBeEnabled()
+    fireEvent.change(within(edit).getByLabelText(/^Institution/), { target: { value: '' } })
+    expect(within(edit).getByRole('button', { name: 'Update row' })).toBeDisabled()
+  })
+
+  it('drops an entirely empty row on Save without an error and keeps the others in order', () => {
+    const second = { institution: 'MG College' }
+    setup({ education: [FULL_ROW, {}, { institution: '  ', notes: '', subjects: [] }, second], other: 'kept' })
+    renderTab()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove row 2' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Remove row' })).getByRole('button', { name: 'Remove' }))
+    expect(sentAnswers()).toEqual({ education: [FULL_ROW, second], other: 'kept' })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('removes a row only after the confirm', () => {
     setup({ education: [FULL_ROW, { institution: 'MG College' }] })
     renderTab()

@@ -89,3 +89,39 @@ export function countFillableFields(
 export function listGroups(fields: FormFieldInput[]): { id: string; label: string }[] {
   return fields.filter((f) => isGroup(f) && f.id).map((f) => ({ id: f.id!, label: f.label }))
 }
+
+function isFilledCell(value: unknown): boolean {
+  if (typeof value === 'string') return value.trim() !== ''
+  if (Array.isArray(value)) return value.length > 0
+  return value !== undefined && value !== null
+}
+
+/** A table row with nothing answered in it: not an object, or every cell empty. */
+export function isBlankTableRow(row: unknown): boolean {
+  if (!row || typeof row !== 'object' || Array.isArray(row)) return true
+  return !Object.values(row as Record<string, unknown>).some(isFilledCell)
+}
+
+/**
+ * The answers as they are SENT on Save: every table's blank rows are left out (review 2.63). The
+ * row dialog will not add a blank row, but one can still arrive (saved from the app, or a row
+ * edited down to nothing), and the server is about to refuse them. Dropping them is silent and
+ * keeps the row order of the rest. Everything else in the answers goes through untouched, and the
+ * original object is not changed.
+ */
+export function withoutBlankTableRows(
+  fields: readonly { id: string; type: string; fields?: readonly { id: string; type: string }[] }[],
+  answers: Record<string, unknown>,
+): Record<string, unknown> {
+  const out = { ...answers }
+  const visit = (list: readonly { id: string; type: string; fields?: readonly { id: string; type: string }[] }[]) => {
+    for (const f of list) {
+      if (f.type === 'group') visit(f.fields ?? [])
+      else if (f.type === 'table' && Array.isArray(out[f.id])) {
+        out[f.id] = (out[f.id] as unknown[]).filter((row) => !isBlankTableRow(row))
+      }
+    }
+  }
+  visit(fields)
+  return out
+}
