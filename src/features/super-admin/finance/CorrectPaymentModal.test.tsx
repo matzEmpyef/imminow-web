@@ -1,14 +1,14 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Review F-227: a correction UPWARDS is held to what is still unpaid on the case. The server
 // answers 409 `more_than_outstanding`; the dialog shows its sentence with the same "record it
 // anyway" tick the receive dialog offers, and sends the correction again with `allow_overpayment`.
-vi.mock('@/queries/commission', () => ({ useCorrectCommissionPayment: vi.fn() }))
+vi.mock('@/queries/commission', () => ({ useCorrectCommissionPayment: vi.fn(), useCorrectPreview: vi.fn() }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
 
 import { ApiError } from '@/api/errors'
-import { useCorrectCommissionPayment } from '@/queries/commission'
+import { useCorrectCommissionPayment, useCorrectPreview } from '@/queries/commission'
 import { CorrectPaymentModal } from './CorrectPaymentModal'
 
 const mutate = vi.fn()
@@ -16,6 +16,26 @@ const reset = vi.fn()
 
 function mutation(error: Error | null = null) {
   return { mutate, reset, isPending: false, isError: Boolean(error), error } as never
+}
+
+/** What the server's preview answers; nothing here is worked out by the dialog. */
+function previewAnswer(over: Record<string, unknown> = {}, error: Error | null = null) {
+  const data = error
+    ? undefined
+    : {
+        currency: 'CAD',
+        current_amount: { amount: 1000, currency: 'CAD' },
+        amount: { amount: 2000, currency: 'CAD' },
+        change: { amount: 1000, currency: 'CAD' },
+        change_direction: 'more',
+        outstanding: { amount: 400, currency: 'CAD' },
+        is_overpayment: false,
+        overpaid_by: null,
+        rate: 61.5,
+        overpaid_by_inr: null,
+        ...over,
+      }
+  return { data, error, isFetching: false } as never
 }
 
 const payment = {
@@ -50,6 +70,8 @@ beforeEach(() => {
   mutate.mockReset()
   reset.mockReset()
   vi.mocked(useCorrectCommissionPayment).mockReturnValue(mutation())
+  vi.mocked(useCorrectPreview).mockReset()
+  vi.mocked(useCorrectPreview).mockReturnValue({ data: undefined, error: null, isFetching: false } as never)
 })
 
 describe('CorrectPaymentModal — a correction above what is still unpaid', () => {
@@ -96,5 +118,78 @@ describe('CorrectPaymentModal — a correction above what is still unpaid', () =
     expect(screen.getByText('This payment is not confirmed.')).toBeInTheDocument()
     expect(screen.queryByLabelText(/It is an over-payment/)).not.toBeInTheDocument()
     expect(save()).toBeEnabled()
+  })
+})
+
+// Review F-300: the dialog works nothing out. It asks the server's preview as the amount changes and
+// shows what comes back.
+describe('CorrectPaymentModal, the preview', () => {
+  const lastCall = () => {
+    const calls = vi.mocked(useCorrectPreview).mock.calls
+    return calls[calls.length - 1]
+  }
+
+  it('asks about the new amount once typing pauses, and never about a bad one or the amount on record', async () => {
+    render(<CorrectPaymentModal payment={payment} onClose={() => {}} />)
+    // The amount on record is not a correction: nothing is asked.
+    expect(lastCall()[1]).toBeUndefined()
+    fireEvent.change(screen.getByLabelText(/New amount received/), { target: { value: '1500' } })
+    // Typing is not followed by a request on every key.
+    expect(lastCall()[1]).not.toBe(1500)
+    await waitFor(() => expect(lastCall().slice(0, 2)).toEqual(['p1', 1500]))
+
+    fireEvent.change(screen.getByLabelText(/New amount received/), { target: { value: '1500.123' } })
+    await waitFor(() => expect(lastCall()[1]).toBeUndefined())
+  })
+
+  it('shows the server’s change and what is still unpaid', async () => {
+    vi.mocked(useCorrectPreview).mockReturnValue(previewAnswer())
+    open()
+    expect(await screen.findByText(/Change: CAD 1,000\.00 \(more than now\)/)).toBeInTheDocument()
+    expect(screen.getByText(/Still unpaid on this case: CAD 400\.00/)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/It is an over-payment/)).not.toBeInTheDocument()
+    expect(save()).toBeEnabled()
+  })
+
+  it('shows the server’s over-payment figures, with the rupee value, and holds the button until it is ticked', async () => {
+    vi.mocked(useCorrectPreview).mockReturnValue(
+      previewAnswer({
+        is_overpayment: true,
+        overpaid_by: { amount: 600, currency: 'CAD' },
+        overpaid_by_inr: { amount: 36900, currency: 'INR' },
+      }),
+    )
+    open()
+    expect(await screen.findByRole('alert')).toHaveTextContent('That’s CAD 600.00 more than this case still owes (≈ ₹36,900.00).')
+    expect(save()).toBeDisabled()
+    fireEvent.click(screen.getByLabelText('It is an over-payment — record it anyway'))
+    fireEvent.click(save())
+    expect(sent()).toMatchObject({ paymentId: 'p1', amount: 2000, allow_overpayment: true })
+  })
+
+  it('does not warn when the server says it is not an over-payment, whatever the amounts look like', async () => {
+    vi.mocked(useCorrectPreview).mockReturnValue(previewAnswer({ is_overpayment: false }))
+    open()
+    await screen.findByText(/Change:/)
+    expect(screen.queryByLabelText(/It is an over-payment/)).not.toBeInTheDocument()
+    fireEvent.click(save())
+    expect(sent().allow_overpayment).toBeUndefined()
+  })
+
+  it('shows the server’s sentence when the preview refuses, and does not stop the typing', async () => {
+    vi.mocked(useCorrectPreview).mockReturnValue(
+      previewAnswer({}, new ApiError('x', { error: { code: 'conflict', message: 'This payment is not confirmed.' } }, 409)),
+    )
+    open()
+    expect(await screen.findByText('This payment is not confirmed.')).toBeInTheDocument()
+    expect(save()).toBeEnabled()
+  })
+
+  it('does no arithmetic of its own: a mixed-up preview is shown as it came', async () => {
+    vi.mocked(useCorrectPreview).mockReturnValue(
+      previewAnswer({ change: { amount: 7, currency: 'CAD' }, outstanding: { amount: 3, currency: 'CAD' } }),
+    )
+    open()
+    expect(await screen.findByText(/Change: CAD 7\.00/)).toBeInTheDocument()
   })
 })

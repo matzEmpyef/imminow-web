@@ -1,12 +1,13 @@
 import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
 import { MoneyField } from '@/components/MoneyField'
 import { useState } from 'react'
+import { useDebouncedValue } from '@/lib/useDebounce'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextAreaField } from '@/components/TextAreaField'
 import { formatDateTime } from '@/lib/time'
-import { money, paymentInrNote, paymentMoney, paymentRateToInr } from './money'
-import { useCorrectCommissionPayment, type CommissionPayment } from '@/queries/commission'
+import { money, paymentInrNote, paymentMoney } from './money'
+import { useCorrectCommissionPayment, useCorrectPreview, type CommissionPayment } from '@/queries/commission'
 import { showToast } from '@/lib/toast'
 import { ApiError } from '@/api/errors'
 
@@ -18,6 +19,13 @@ const MIN_REASON_LENGTH = 3
  * `corrections` with who and why; the consultancy is shown the reason. Entering ₹0 records that
  * nothing actually arrived — Confirm itself now requires a positive amount, so this is the only
  * way a confirmed payment ends up recording zero.
+ *
+ * NOTHING IS WORKED OUT HERE (review F-300, 2026-10-10). After a short pause in typing, the new
+ * amount goes to `POST /commission/payments/{id}/correct/preview` (nothing is written) and the
+ * dialog shows what comes back: the change and its direction, and whether the increase is more
+ * than is still unpaid on the case, by how much, and what that is in rupees. The figures belong to
+ * the amount they were asked for and are never shown for another one; a refusal from the preview
+ * shows the server's sentence and does not stop the typing.
  */
 export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionPayment; onClose: () => void }) {
   const correct = useCorrectCommissionPayment()
@@ -49,33 +57,31 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
           : undefined
   const reasonError = attempted && trimmedReason.length < MIN_REASON_LENGTH ? 'Add a reason (at least 3 characters).' : undefined
 
-  // An early, informational note worked out from what the list already holds. The decision is the
-  // server's (below): it holds a correction upwards to what is still unpaid on the case.
-  // `entry_outstanding_inr` already has the CURRENT confirmed amount subtracted out (this payment
-  // is already confirmed), so what matters is only the extra the correction adds on top of that —
-  // not the corrected total against outstanding.
-  // The rate is the payment's own recorded one (review F-300), not worked out from two amounts.
-  const currentRateToInr = paymentRateToInr(payment)
-  const deltaInr = isValidNumber && currentRateToInr != null ? (parsed - currentAmount) * currentRateToInr : null
-  const overpaymentInr =
-    deltaInr != null && payment.entry_outstanding_inr != null && deltaInr > payment.entry_outstanding_inr
-      ? deltaInr - payment.entry_outstanding_inr
-      : 0
+  // The corrected amount as it would be sent, asked of the server after a short pause in typing;
+  // none goes while it is not a valid amount, or is the amount already on record.
+  const asked = isValidNumber && parsed >= 0 && !hasTooManyDecimals(amount) && parsed !== currentAmount ? parsed : null
+  const settled = useDebouncedValue(asked)
+  const preview = useCorrectPreview(payment.id, settled ?? undefined, settled != null)
+  const draftSettled = asked != null && settled === asked
+  // The figures belong to the amount they were asked for: not shown while it has moved on.
+  const previewCurrent = draftSettled && !preview.isFetching ? preview.data : undefined
+  const previewRefusal = draftSettled && preview.error instanceof ApiError ? preview.error : null
+  const isOverpayment = previewCurrent?.is_overpayment === true
 
-  // The server's refusal of a correction upwards past what is still unpaid (409
-  // `more_than_outstanding`, review F-227): its sentence is shown with the same "record it anyway"
-  // tick the receive dialog offers, and the correction is then sent with `allow_overpayment`.
+  // A correction upwards past what is still unpaid (review F-227): the preview says so first, and the
+  // server's own refusal (409 `more_than_outstanding`) is the same thing said later. Either way the
+  // tick the receive dialog offers is the answer, and the correction is then sent with `allow_overpayment`.
   const [allowOverpayment, setAllowOverpayment] = useState(false)
   const refusal = correct.error instanceof ApiError ? correct.error : null
   // The server's own sentence for the amount, when it refused it (`details.fields`).
   const amountMessage = serverMoneyMessage(correct.error, 'amount', 'received_amount')
   const serverSaysOverpayment = refusal?.code === 'more_than_outstanding'
+  const overpaymentShown = isOverpayment || serverSaysOverpayment
 
   // The refusal was about the amount as it was sent: once it changes, neither it nor the tick applies.
   function clearServerOverpayment() {
-    if (!serverSaysOverpayment) return
-    correct.reset()
     setAllowOverpayment(false)
+    if (serverSaysOverpayment) correct.reset()
   }
 
   return (
@@ -93,7 +99,7 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
           </Button>
           <Button
             loading={correct.isPending}
-            disabled={serverSaysOverpayment && !allowOverpayment}
+            disabled={overpaymentShown && !allowOverpayment}
             onClick={() => {
               if (invalid) {
                 setAttempted(true)
@@ -104,7 +110,7 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
                   paymentId: payment.id,
                   amount: parsed,
                   reason: trimmedReason,
-                  allow_overpayment: serverSaysOverpayment ? allowOverpayment : undefined,
+                  allow_overpayment: overpaymentShown ? allowOverpayment : undefined,
                 },
                 {
                   onSuccess: () => {
@@ -154,9 +160,29 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
           }}
           error={amountError ?? amountMessage}
         />
-        {serverSaysOverpayment && (
+        {previewCurrent && !overpaymentShown && (
+          <p className="text-caption text-text-secondary">
+            Change: {money(previewCurrent.change)} ({previewCurrent.change_direction} than now). Still unpaid on this
+            case: {money(previewCurrent.outstanding)}.
+          </p>
+        )}
+        {previewRefusal && !overpaymentShown && (
+          <p role="status" className="text-caption text-text-secondary">
+            {previewRefusal.message}
+          </p>
+        )}
+        {overpaymentShown && (
           <div role="alert" className="flex flex-col gap-sm rounded-md border border-warning bg-warning-subtle p-sm">
-            <p className="text-body-sm text-text-primary">{refusal?.message}</p>
+            <p className="text-body-sm text-text-primary">
+              {serverSaysOverpayment ? (
+                refusal?.message
+              ) : (
+                <>
+                  That&rsquo;s {money(previewCurrent?.overpaid_by)} more than this case still owes
+                  {previewCurrent?.overpaid_by_inr && currency !== 'INR' ? ` (≈ ${money(previewCurrent.overpaid_by_inr)})` : ''}.
+                </>
+              )}
+            </p>
             <label className="flex items-center gap-sm text-body-sm text-text-primary">
               <input
                 type="checkbox"
@@ -167,12 +193,6 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
               It is an over-payment — record it anyway
             </label>
           </div>
-        )}
-        {!serverSaysOverpayment && overpaymentInr > 0 && (
-          <p className="text-body-sm text-warning">
-            That&rsquo;s {currency === 'INR' ? '' : '~'}
-            {money({ amount: overpaymentInr, currency: 'INR' })} more than this case still owes.
-          </p>
         )}
         <TextAreaField
           label="Reason"
