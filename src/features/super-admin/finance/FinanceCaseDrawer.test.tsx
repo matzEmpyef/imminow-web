@@ -304,3 +304,50 @@ describe('a void of an installment waiting for Finance', () => {
   })
 })
 
+// Review F-300 (2026-10-10): the drawer compares and subtracts nothing. The Paid / Part-paid mark
+// is the part's `paid_state`, and "Overpaid by" is the served `overpaid_by_inr`.
+describe('The Paid / Part-paid mark', () => {
+  it('shows Part-paid from paid_state, whatever the amounts look like', () => {
+    openDrawer({ paid_state: 'part_paid', paid: 0, amount: 1000 })
+    expect(screen.getByText('Part-paid')).toBeInTheDocument()
+  })
+
+  it('shows nothing extra when paid_state says unpaid, even if the figures differ', () => {
+    openDrawer({ paid_state: 'unpaid', paid: 960, amount: 1000 })
+    expect(screen.queryByText('Part-paid')).toBeNull()
+    expect(screen.queryByText('Paid', { selector: 'span' })).toBeNull()
+  })
+
+  it('shows no mark at all when the server sends no paid_state', () => {
+    openDrawer({ paid: 1000, amount: 1000 })
+    expect(screen.queryByText('Part-paid')).toBeNull()
+    expect(screen.queryByText('Paid', { selector: 'span' })).toBeNull()
+  })
+
+  it('shows Paid once, when the part is paid and its status badge says so too', () => {
+    openDrawer({ paid_state: 'paid', status: 'paid' })
+    expect(screen.getAllByText('Paid', { selector: 'span' })).toHaveLength(1)
+  })
+
+  it('shows Paid from paid_state when the status says something else', () => {
+    openDrawer({ paid_state: 'paid', status: 'due', settled: true })
+    expect(screen.getByText('Paid', { selector: 'span' })).toBeInTheDocument()
+  })
+})
+
+describe('Overpaid by', () => {
+  it('is the served overpaid_by_inr', () => {
+    openDrawer({}, { overpaid_by_inr: 1250.5, paid_inr: 1, due_inr: 100000 })
+    expect(screen.getByText('Overpaid by ₹1,250.50')).toBeInTheDocument()
+  })
+
+  it('is not worked out from paid and due when the server sends none', () => {
+    openDrawer({}, { paid_inr: 90000, due_inr: 60000 })
+    expect(screen.queryByText(/Overpaid/)).toBeNull()
+  })
+
+  it('is not shown when the server says there is none', () => {
+    openDrawer({}, { overpaid_by_inr: 0, paid_inr: 90000, due_inr: 60000 })
+    expect(screen.queryByText(/Overpaid/)).toBeNull()
+  })
+})

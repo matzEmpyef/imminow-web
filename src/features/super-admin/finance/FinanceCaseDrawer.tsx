@@ -36,6 +36,15 @@ const PART_STATUS_LABEL: Record<string, string> = {
   waived: 'Closed',
 }
 
+// The Paid / Part-paid mark of a due part is the server's word (`paid_state`, decided in the part's
+// own currency, 2026-10-10): the console never compares `paid` with `amount` to make one. Absent
+// (the frozen mock does not send it): no mark. Nothing is added for `unpaid`, and a closed part
+// already reads "Closed".
+const PAID_STATE_MARK: Partial<Record<NonNullable<CommissionDuePart['paid_state']>, { label: string; color: BadgeColor }>> = {
+  part_paid: { label: 'Part-paid', color: 'info' },
+  paid: { label: 'Paid', color: 'success' },
+}
+
 function SummaryStat({ label, value, warning }: { label: string; value: string; warning?: boolean }) {
   return (
     <div className="rounded-md border border-border px-sm py-xs">
@@ -107,6 +116,8 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
   const hasOverride = dueSchedule.some((p) => p.kind === 'override')
   const credits = creditsByCurrency(byCurrency)
   const hasCreditField = byCurrency.some((c) => c.credit != null)
+  // The ₹ value of the money held beyond what the case owes — the server's figure (2026-10-10).
+  const overpaidByInr = row?.overpaid_by_inr ?? 0
 
   return (
     <Drawer open={row != null} onClose={onClose} title={row?.applicant_name ?? 'Case'}>
@@ -151,18 +162,15 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
 
           {/* outstanding_inr floors at 0 (review C5, 2026-09-12), so a genuine over-payment
               recorded via ReceiveDueModal's checkbox would otherwise vanish from this drawer
-              entirely — paid_inr - due_inr surfaces it back. */}
-          {/* From contract gate 11 the server reports the surplus itself, per currency, as `credit`;
-              that is the truth when present, and the ₹ inference stays for a server that sends none. */}
+              entirely. The server reports the surplus itself: per currency as `credit`, and in
+              rupees as `overpaid_by_inr` (2026-10-10) — nothing is subtracted here. */}
           {credits.length > 0 ? (
             <p className="text-body-sm text-warning">
               Overpaid — credit held: {credits.map((c) => money({ amount: c.credit, currency: c.currency })).join(' · ')}
+              {overpaidByInr > 0 && credits.some((c) => c.currency !== 'INR') && <> (about {inr(overpaidByInr)} in all)</>}
             </p>
           ) : (
-            !hasCreditField &&
-            row.paid_inr > row.due_inr && (
-              <p className="text-body-sm text-warning">Overpaid by {inr(row.paid_inr - row.due_inr)}</p>
-            )
+            overpaidByInr > 0 && <p className="text-body-sm text-warning">Overpaid by {inr(overpaidByInr)}</p>
           )}
 
           {byCurrency.length > 0 && (
@@ -248,6 +256,7 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
                       : false
                 // A consultancy's void of this part's installment is waiting for an answer (review F-078).
                 const voidWaiting = Boolean(part.instalment_id && part.instalment_void_requested_at)
+                const paidMark = part.paid_state ? PAID_STATE_MARK[part.paid_state] : undefined
                 return (
                   <div key={part.key ?? part.id ?? `calculated-${i}`} className="rounded-md border border-border px-sm py-xs">
                     <div className="flex items-start justify-between gap-sm">
@@ -255,6 +264,9 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
                       <span className="flex shrink-0 items-center gap-xs">
                         {voidWaiting && <Badge color="warning">Void requested</Badge>}
                         {part.settled && <Badge color="info">Settled</Badge>}
+                        {paidMark && paidMark.label !== PART_STATUS_LABEL[part.status ?? 'due'] && (
+                          <Badge color={paidMark.color}>{paidMark.label}</Badge>
+                        )}
                         <Badge color={PART_STATUS_COLOR[part.status ?? 'due']}>{PART_STATUS_LABEL[part.status ?? 'due']}</Badge>
                       </span>
                     </div>
