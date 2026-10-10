@@ -3772,7 +3772,7 @@ export interface paths {
         };
         /**
          * The consultancies a student has a conversation with (permission support)
-         * @description The picker of the conversation export for disputes (owner ruling, 2026-10-06): every consultancy this student has a lead or case conversation with, the one talked to last first, with how many messages. Platform staff holding `support` (disputes and complaints) and Super Admins. 404 for an unknown user, 409 `conflict` when the account is not a student's.
+         * @description The picker of the conversation export for disputes (owner ruling, 2026-10-06): every consultancy this student has a lead or case conversation with, the one talked to last first, with how many messages. Platform staff holding `support` (disputes and complaints) and Super Admins. 404 for an unknown user, 409 `conflict` when the account is not a student's. A CHAT CARRIED IN A MOVE COUNTS UNDER BOTH CONSULTANCIES (owner's ruling 2026-10-10). When a case moved and the mover carried the chat, the receiving consultancy reads the earlier conversation as its own case's history, so it is listed here — also before it has written anything itself — and its `message_count` and its export include the carried messages up to the moment the case moved, each line named after the consultancy it was written with. The earlier consultancy's entry and export are unchanged. A move made without the chat adds nothing to the receiver's.
          */
         get: {
             parameters: {
@@ -9137,7 +9137,7 @@ export interface paths {
                     tier?: "starter" | "business" | "ultimate";
                     /** @description Narrows to one kind of account (INSTITUTE_ACCOUNT_PLAN D10, 2026-09-10). Institutes are already rows in this list under D6, so discovery needs a tag and a filter rather than a new screen. Discovery's institute "view all" is this plus the endpoint's own default `sort=name` ascending — alphabetical, deliberately NOT `-rating` or `match`, because D15 removes the ranking problem by not ranking institutes against consultancies at all. */
                     kind?: "consultancy" | "institute";
-                    /** @description Manage Consultancies' status filter (2026-09-11). `active` and `suspended` are the account switch, `kyc_pending` is KYC uploaded and awaiting verification (gate 12d, owner 2026-10-04: the account has submitted a certificate that nobody has verified yet — exactly the accounts Needs Attention's `kyc_pending` card counts, so the card and the list it opens always agree; an unverified account that has uploaded nothing is NOT listed. The frozen mock still lists every account whose KYC is not verified), and `expiring`, `grace` and `lapsed` match `subscription_status`. An unknown value is a 400. `kyc_rejected` (2026-10-08) lists the accounts whose latest certificate a reviewer turned down and that have not uploaded another — the rows whose `kyc_status` reads `rejected`. Like `tier`, this filter is the platform's commercial readers' and is ignored for anyone else. */
+                    /** @description Manage Consultancies' status filter (2026-09-11). `active` and `suspended` are the account switch, `kyc_pending` is KYC uploaded and awaiting verification (gate 12d, owner 2026-10-04: the account has submitted a certificate that nobody has reviewed yet — exactly the accounts Needs Attention's `kyc_pending` card counts, so the card and the list it opens always agree; an unverified account that has uploaded nothing is NOT listed, and since 2026-10-10 neither is one whose certificate was REJECTED: that is `kyc_rejected`, and the list is exactly the rows whose `kyc_status` reads `pending`. The frozen mock still lists every account whose KYC is not verified), and `expiring`, `grace` and `lapsed` match `subscription_status`. An unknown value is a 400. `kyc_rejected` (2026-10-08) lists the accounts whose latest certificate a reviewer turned down and that have not uploaded another — the rows whose `kyc_status` reads `rejected`. Like `tier`, this filter is the platform's commercial readers' and is ignored for anyone else. */
                     status?: "active" | "suspended" | "kyc_pending" | "kyc_rejected" | "expiring" | "grace" | "lapsed";
                     active?: boolean;
                     /** @description Discovery List's DESTINATION filter — matches against countries_served, i.e. the country a student wants to study in. Unchanged by 2026-09-21's branch filters below, deliberately: one key cannot also mean "has an office there", and re-pointing this one would have silently changed every caller already sending it. */
@@ -10437,7 +10437,7 @@ export interface paths {
         put?: never;
         /**
          * Mark this lead's conversation read — clears Lead.unread / the Global Chat Drawer badge for it. Called when a consultant opens the conversation (dedicated page or the floating chat window), not on every message fetch.
-         * @description Moves the CALLER's own read marker (contract gate 7): consultancy staff move the staff side's marker, the lead's student moves theirs (`LeadSummary.unread` in `GET /leads/mine`). One side reading never clears the other side's unread.
+         * @description Moves the CALLER's own read marker (contract gate 7): consultancy staff move the staff side's marker, the lead's student moves theirs (`LeadSummary.unread` in `GET /leads/mine`). One side reading never clears the other side's unread. THE STAFF APP ON THE PHONE CALLS THIS TOO (owner's ruling 2026-10-10) — once, when a staff member opens the lead's chat — and `POST /clients/{id}/read` for a client's chat. The moment it answers, `Lead.unread`, the conversation's `unread` in `GET /conversations`, `meta.unread_count` there and `chat_unread` in `GET /me/badges` all read the conversation as read. Any staff member who can see the conversation may mark it (also on a lead still in the pool, and on a closed or moved one); there is ONE staff marker per conversation, so one colleague reading clears it for the others.
          */
         post: {
             parameters: {
@@ -14744,6 +14744,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/journeys/me/earlier-chats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My earlier case conversations, read-only (owner's ruling 2026-10-10)
+         * @description Student only. A student always finds their own earlier conversations. Every earlier case of the caller whose conversation is not already part of a later one, newest ended first (at most 50): a case that moved to another consultancy WITHOUT its chat, a closed case, and a completed case the student has left for Stage 1. The case the student's screens are on now is not listed (its chat is the case chat), and neither is a case whose chat was carried to the case that followed it (those messages are read inside the later case's thread). Each entry opens with `GET /clients/{id}/messages` and is shown without a reply box. Nothing here is visible to a consultancy: a receiving consultancy still cannot read a conversation that was not carried to it.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: components["schemas"]["EarlierChat"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/conversion-requests": {
         parameters: {
             query?: never;
@@ -15609,7 +15650,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description `invalid_transfer_code` — the code is unknown, already used, expired, or issued by another consultancy or for another student; `permission_denied` — the caller lacks `clients.transfer_applicant`; `feature_locked` — the plan lacks `applicant_transfer`. */
+                /** @description `invalid_transfer_code` — the code is unknown, already used, expired, or issued by another consultancy or for another student; `permission_denied` — the caller lacks `clients.transfer_applicant`; `feature_locked` — the SENDING consultancy's plan lacks `applicant_transfer` (Ultimate). The receiving consultancy may be on any plan (owner's ruling 2026-10-10). */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -15731,7 +15772,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description `permission_denied` — the caller lacks `clients.transfer_applicant`; or `feature_locked` — the consultancy's plan has no Applicant Transfer (Ultimate), which the receiving side needs too (review F-282, 2026-10-08: an admin on a lower plan could issue codes). `GET /transfer-codes` answers the same two. */
+                /** @description `permission_denied` — the caller lacks `clients.transfer_applicant`; or `feature_locked` — the caller's account is a university (institute) account, which takes no part in applicant transfers. RECEIVING a transferred student is open to every plan (owner's ruling 2026-10-10): a Starter or Business consultancy issues and lists these codes like an Ultimate one. Only SENDING (`POST /clients/{id}/transfer`) needs the Ultimate plan's Applicant Transfer. `GET /transfer-codes` needs the permission only. */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -19014,13 +19055,22 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Submitted. The form must be one the case was given — a step of the case links it (any version of the same form). Any other template, the consultancy's own included, is 404 `not_found` for the student and for staff alike (review F-284, 2026-10-08). */
+                /** @description Submitted. The form must be one the case was given — a step of the case links it (any version of the same form). Any other template, the consultancy's own included, is 404 `not_found` for the student and for staff alike (review F-284, 2026-10-08). The stored `answers` are the ones sent, except that every table answer loses its completely blank rows (a row with no filled cell), so the app and the console read back the same rows (owner's ruling 2026-10-10). */
                 201: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": components["schemas"]["FormResponse"];
+                    };
+                };
+                /** @description `validation_failed` — `journey_id` or `answers` is missing; or a table field marked `required` has no row with anything in it (owner's ruling 2026-10-10: the server enforces this, for the student and for staff saving on their behalf). The message reads "Add at least one row to <field label>." and `details.fields` maps each such field's id to that sentence, so the screen can mark the table. Nothing is stored. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
                 /** @description `guardian_consent_required` — a 16- or 17-year-old whose guardian has not approved (review F-213, 2026-10-08): this write passes the guardian gate like every other student-side write. `details.guardian_consent` carries the consent state. */
@@ -20916,6 +20966,104 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/events/webinar-link/attend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open an emailed webinar link: attendance, points and the meeting's address (public; owner's ruling 2026-10-10)
+         * @description A webinar watched from the emailed link counts. The email sent by `POST /events/{id}/webinar/email-link` no longer carries the meeting's own address: its button opens `<Sentpo web>/webinar#<token>`, a link of that student's own. The web page there must read the token from the fragment, call this route with it in the body (a fragment and a body are in no access log), replace the address with `/webinar`, and then send the reader on to `redirect_url`. On a refusal it shows `error.message` — the sentences are written for the student — and no meeting address. Nobody is signed in: the link names its own student. The token is signed by the server (a changed token is refused), time-limited (it expires when the webinar ends, or 12 hours after the start of one with no end time) and works ONCE. Opening it while the webinar is live (`starts_at <= now <= ends_at`, the Join route's own window) records the student's attendance and awards `webinar_attended` exactly as Join does, under the same caps: one attendance per student per webinar, so Join in the app and the link never both award — whichever comes second gets `points_awarded: null`. A refusal spends nothing: a link opened before the start still works once the webinar has started. Asking for the link again (two sends at most) issues a new link and the older email's stops working.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description The part after `#` of the emailed webinar link. */
+                        token: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Attendance recorded; the meeting's address returned */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description The meeting's own address. The page sends the reader on to it. */
+                            redirect_url: string;
+                            event_title: string;
+                            /** @description What opening the link just credited. Null when the student was already counted as attending (Join in the app came first), the rule is inactive or a cap was reached. */
+                            points_awarded?: number | null;
+                            award_reason?: string | null;
+                        };
+                    };
+                };
+                /** @description `outside_window` — the webinar has not started ("This webinar has not started yet. Open this link again when it starts.", `details.opens_at`) or has ended ("This webinar has ended."). The link is not spent. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `not_found` — the token is not one the server issued (or was altered), or its webinar or account is no longer available: "This link is not valid. Ask for the webinar link again from the Sentpo app." */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `no_meeting_link` — this webinar has no meeting link yet. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `gone` — the link has expired ("This link has expired."), was already opened once ("This link has already been used. Tap Join in the Sentpo app, or ask for the link again.") or was replaced by a newer email ("A newer link was emailed to you. Please use the newest email."). */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `rate_limited` — too many link openings from one address in a minute. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/events/{id}/webinar/email-link": {
         parameters: {
             query?: never;
@@ -20927,7 +21075,7 @@ export interface paths {
         put?: never;
         /**
          * Email this webinar link to the caller (user, 2026-08-23)
-         * @description For students who would rather watch on a laptop than the phone the app is on. Opens 15 minutes before the start, capped at 2 sends per student per webinar. It sends the email and nothing else: attendance and the webinar_attended points are recorded by the Join route only, while the webinar is live (review F-243, owner 2026-10-07 — this route used to count as participation). points_awarded and award_reason are always null here.
+         * @description For students who would rather watch on a laptop than the phone the app is on. Opens 15 minutes before the start, capped at 2 sends per student per webinar. It sends the email and nothing else: asking for the link is not attending (review F-243, owner 2026-10-07 — this route used to count as participation), so points_awarded and award_reason are always null here. Since 2026-10-10 the email's button is the student's own one-time attendance link (`<Sentpo web>/webinar#<token>`), not the meeting's address: OPENING it while the webinar is live records attendance and awards the points (`POST /events/webinar-link/attend`), as Join in the app does. Each send issues a new link; the older email's link stops working.
          */
         post: {
             parameters: {
@@ -21275,7 +21423,7 @@ export interface paths {
                 /**
                  * @description The place is not one we serve (product owner, 2026-09-20). Either `country` is missing on a listing whose `work_mode` is not `remote` — "A job needs the country it is based in, unless its work mode is remote." — or `province_state` is not on that country's list ("Pick a state or province of {country} from the list."), the same refusal the institution, campus and partner-location routes give.
                  *
-                 *     OR THE CATEGORY IS NOT ON THE LIST (review F-292, owner decision 69c, 2026-10-08): `category` must be the name of an ACTIVE entry of `GET /job-categories` (matched without regard to case or spacing; the list's own spelling is what is stored) — `validation_failed` with `details.fields.category` otherwise. The same holds on `PATCH /jobs/{id}` when `category` is sent, except that a listing's present category sent back unchanged is always kept. FOR NOW a listing created with no `category` is still filed under "General", as before the list, while "General" is an active category; where it is not, a missing category is this 422 too.
+                 *     OR THE CATEGORY IS NOT ON THE LIST (review F-292, owner decision 69c, 2026-10-08): `category` must be the name of an ACTIVE entry of `GET /job-categories` (matched without regard to case or spacing; the list's own spelling is what is stored) — `validation_failed` with `details.fields.category` otherwise. The same holds on `PATCH /jobs/{id}` when `category` is sent, except that a listing's present category sent back unchanged is always kept. THE CATEGORY IS REQUIRED (owner's ruling 2026-10-10; this replaces the "General" fallback): a listing created with no `category`, or with an empty one, is this 422 — "A job needs a category from the job categories list.", `details.fields.category` — and so is a `PATCH` that sends `category` empty or null. Nothing is filed under "General" on the writer's behalf any more. Listings already stored keep the category they have; "General" stays an ordinary category where it is on the list.
                  */
                 422: {
                     headers: {
@@ -26018,7 +26166,7 @@ export interface paths {
         put?: never;
         /**
          * Approve the submitted certificate (Super Admin) — sets kyc_records.verified_at/by and flips Consultancy.kyc_verified true. Audit-logged. 400 no_document when nothing has been submitted — a badge can never be granted sight unseen.
-         * @description The body names the certificate the reviewer looked at (review F-207, 2026-10-08): `uploaded_at` exactly as `GET /consultancies/{id}/kyc` returned it. If the consultancy has submitted another certificate since, the answer is 409 `conflict` and nothing is verified — read the review surface again, look at the new certificate, then verify. The consultancy's admins are told when a certificate is verified (in-app `kyc_verified`).
+         * @description The body names the certificate the reviewer looked at (review F-207, 2026-10-08): `uploaded_at` exactly as `GET /consultancies/{id}/kyc` returned it. If the consultancy has submitted another certificate since, the answer is 409 `conflict` and nothing is verified — read the review surface again, look at the new certificate, then verify. The consultancy's admins are told when a certificate is verified (in-app `kyc_verified`). A certificate that was REJECTED cannot be verified (owner's ruling 2026-10-10; it could before): 409 `already_reviewed`, "This certificate was rejected and the consultancy has been told. It can be verified once they upload a new one." Only a `pending` certificate is verified.
          */
         post: {
             parameters: {
@@ -26056,7 +26204,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description `conflict` — a newer certificate has been submitted since the one named. Nothing was verified. Reload `GET /consultancies/{id}/kyc`, review the newer certificate and send its `uploaded_at`. */
+                /** @description `conflict` — a newer certificate has been submitted since the one named. Nothing was verified. Reload `GET /consultancies/{id}/kyc`, review the newer certificate and send its `uploaded_at`. Or `already_reviewed` — the certificate named was rejected: it is verified only as a new upload. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -26082,7 +26230,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reject the submitted certificate with a reason (consultancy-approval permission; review I-010) — sets kyc_records.rejected_at/by/reason; the state reads `rejected` and the consultancy's admins are notified (`kyc_rejected`) with the reason. The consultancy submits again (POST /consultancies/me/kyc), which clears the rejection and reads `pending`. Audit-logged. 400 no_document when nothing has been submitted; 409 already_reviewed when the certificate is already verified or already rejected. */
+        /**
+         * Reject the submitted certificate with a reason (consultancy-approval permission; review I-010) — sets kyc_records.rejected_at/by/reason; the state reads `rejected` and the consultancy's admins are notified (`kyc_rejected`) with the reason. The consultancy submits again (POST /consultancies/me/kyc), which clears the rejection and reads `pending`. Audit-logged. 400 no_document when nothing has been submitted; 409 already_reviewed when the certificate is already verified or already rejected.
+         * @description The body names the certificate the reviewer looked at, as verify does (owner's ruling 2026-10-10): `uploaded_at` exactly as `GET /consultancies/{id}/kyc` returned it. Without it the answer is 400 `validation_failed` with `details.fields.uploaded_at`; if the consultancy has submitted another certificate since, 409 `conflict` and nothing is rejected — "The consultancy has submitted a newer certificate since you opened this one. Review the new certificate before you decide." A rejected certificate stays rejected: it leaves the "to verify" list and count, and cannot be verified until the consultancy uploads a new one.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -26097,6 +26248,11 @@ export interface paths {
                     "application/json": {
                         /** @description Shown to the consultancy. */
                         reason: string;
+                        /**
+                         * Format: date-time
+                         * @description The certificate being rejected — its `uploaded_at` as the review surface returned it.
+                         */
+                        uploaded_at: string;
                     };
                 };
             };
@@ -29991,6 +30147,34 @@ export interface components {
                 resets_at: string;
             };
         };
+        /** @description One of the student's own earlier case conversations (`GET /journeys/me/earlier-chats`). Open it with `GET /clients/{id}/messages`; it is history and is never written to. */
+        EarlierChat: {
+            /** @description The earlier case — the id `GET /clients/{id}/messages` takes. */
+            id: components["schemas"]["UUID"];
+            consultancy_id: components["schemas"]["UUID"];
+            /** @description The consultancy the conversation was with. */
+            consultancy_name: string | null;
+            /** @description The entry's title, written by the server: "Earlier conversation with <consultancy>". */
+            label: string;
+            /** @description The line under the title: why this is history, and that it is read-only. */
+            note: string;
+            /**
+             * @description How that case ended: the student moved to another consultancy, or the case was closed or completed.
+             * @enum {string}
+             */
+            ended: "moved" | "closed" | "completed";
+            /** Format: date-time */
+            started_at: string;
+            /** Format: date-time */
+            ended_at: string;
+            /**
+             * Format: date-time
+             * @description The case's own last message. Null when everything was said in the lead chat the case began from, which the thread opens with.
+             */
+            last_message_at: string | null;
+            /** @description Always true. The app shows the thread without a reply box. */
+            read_only: boolean;
+        };
         /** @description Contract gate 12f. The student's view of one open request from a consultancy — the request card. It is either the consultancy's offer on a chat the student has with it (`lead_id` set) or an applicant request (`lead_id` null — the consultancy entered the student's email or phone in Create Applicant). Both are accepted or declined with `POST /conversion-proposals/{id}/respond`, using `proposal.id`. Nothing the consultancy typed about the student is in it. */
         ConversionRequest: {
             proposal: components["schemas"]["ConversionProposal"];
@@ -30039,7 +30223,10 @@ export interface components {
         };
         /** @description The counts Home uses to decorate its own chrome, in one call. Server-computed: the client would otherwise have to fetch every chat thread and every suggestion just to count them, and a badge that arrives late is worse than none — it appears after the student has already looked at the thing it was meant to point them at. */
         HomeBadges: {
-            /** @description Threads with a message the student has not read. Stage 1 counts lead threads, Stage 2 the single journey thread; a student is in one stage or the other, so these never double-count. Distinct from the `unread` flag on Lead/Client, which means "the student said something STAFF have not read" — the mirror image. */
+            /**
+             * @description Threads with a message the student has not read. Stage 1 counts lead threads, Stage 2 the single journey thread; a student is in one stage or the other, so these never double-count. Distinct from the `unread` flag on Lead/Client, which means "the student said something STAFF have not read" — the mirror image.
+             *     FOR CONSULTANCY STAFF (owner's ruling 2026-10-10; it was always 0 for them) this is the staff inbox badge instead — the number of the caller's conversations (leads, clients, colleagues) holding something they have not read, exactly `GET /conversations`' `meta.unread_count` and the realtime `unread.changed` count. It drops as soon as the thread is marked read with `POST /leads/{id}/read` or `POST /clients/{id}/read`. `suggestions_unseen` and `live_events` stay 0 for staff; platform staff and freelancers get 0 for all three.
+             */
             chat_unread: number;
             /**
              * @description Anything on Dream Courses the student has not looked at since they last opened it — a course their consultant suggested, OR an application whose status has moved (broadened 2026-09-09). Both are the same kind of event to that screen now that it shows the student their own applications: go and look. Time-based rather than a per-row flag, since opening the screen has seen all of them at once.
@@ -31901,6 +32088,8 @@ export interface components {
             version: number;
             /** @description True on the consultancy's own copy of the default application form ("Student Application Form" — owner decisions 30/31/59/60), on every version of it; false on every other form, including a duplicate of the default. Every consultancy has exactly one default form, made for it when the consultancy is created. The Forms page uses this to ask before the default is edited ("This is your default form. We suggest making a copy and editing the copy, so you always have the original to go back to." — Make a copy / Edit anyway) and to offer Restore default (`POST /form-templates/restore-default`). Editing it is allowed and keeps it the default. Set by the server only; not accepted on create or edit. */
             is_default: boolean;
+            /** @description Decided by the server for the READER (owner's ruling 2026-10-10): true when the caller may change this form — create, edit, duplicate and Restore default all need `settings.manage_templates` (a consultancy admin holds it). False for every other employee and for a student. Every employee of the consultancy may still READ a form (`GET /form-templates`, `GET /form-templates/{id}`): the console opens it read-only — fields shown, nothing editable, no Save, Duplicate or Restore default — when this is false, instead of hiding it. Absent means false. */
+            readonly can_edit?: boolean;
             /** @description Groups every version of "the same form" (erd.md form_templates). A change to fields via PATCH creates a NEW row in this family with the next version and returns it; the previous version keeps its fields forever, which is what form_responses.form_version and plan-step form_links point at. GET /form-templates lists the latest per family. */
             readonly form_family_id?: components["schemas"]["UUID"];
             fields: components["schemas"]["FormField"][];
@@ -32817,7 +33006,7 @@ export interface components {
             province_state?: string | null;
             /** @description Free text, deliberately (product owner, 2026-09-20): a managed world city list is a rabbit hole nobody asked for, and a city is one rung below what the filters need. Searchable through the composed `location`, but not a filter of its own. */
             city?: string | null;
-            category?: string;
+            category: string;
             /** @enum {string} */
             job_type?: "full_time" | "internship" | "part_time";
             description?: string;
@@ -33680,7 +33869,7 @@ export interface components {
              */
             chat: boolean;
         };
-        /** @description One consultancy's KYC state, derived from kyc_records (erd.md) — status is not_submitted (no document ever), pending (submitted, unreviewed), verified, or rejected (a reviewer turned the latest certificate down; review I-010 — the consultancy submits again and the state returns to pending). */
+        /** @description One consultancy's KYC state, derived from kyc_records (erd.md) — status is not_submitted (no document ever), pending (submitted, unreviewed), verified, or rejected (a reviewer turned the latest certificate down; review I-010 — the consultancy submits again and the state returns to pending). REJECTED IS ITS OWN STATE (owner's ruling 2026-10-10) — a review decides one certificate once. Offer Verify and Reject only while `status` is `pending`; on `rejected` show the reason and that the consultancy must upload a new certificate — Verify is refused on a rejected certificate (409 `already_reviewed`) until a new one is uploaded, and a rejected certificate is not counted or listed as "to verify" (`status=kyc_pending`). */
         KycStatus: {
             /** @enum {string} */
             status: "not_submitted" | "pending" | "verified" | "rejected";
