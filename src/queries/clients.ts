@@ -271,6 +271,31 @@ export function useApplications(clientId: string | undefined) {
   })
 }
 
+export type CommissionSuggestion = components['schemas']['CommissionSuggestion']
+
+/**
+ * The figure the Accept College dialog offers for what the college will pay the consultancy
+ * (review F-300, 2026-10-10): the course's listed fee times the commission percent agreed with its
+ * college, worked out by the server at two decimals. The dialog shows `expected_from_college` as
+ * served and does no arithmetic; null means nothing is offered. `fee` and `commission_percent` are
+ * what it was worked out from, for display.
+ */
+export function useCommissionSuggestion(clientId: string | undefined, courseId: string | undefined, enabled = true) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['clients', clientId, 'commission-suggestion', courseId],
+    queryFn: async ({ signal }) => {
+      const { data, error, response } = await api.GET('/clients/{id}/commission-suggestion', {
+        signal,
+        params: { path: { id: clientId! }, query: { course_id: courseId! } },
+      })
+      if (error) throw new ApiError('Could not work out a suggested commission.', error, response?.status)
+      return data
+    },
+    enabled: isAuthed && enabled && Boolean(clientId) && Boolean(courseId),
+  })
+}
+
 type CollegeStatus = 'considering' | 'applied' | 'offer_received' | 'accepted' | 'rejected'
 
 export function useAddApplication(clientId: string) {

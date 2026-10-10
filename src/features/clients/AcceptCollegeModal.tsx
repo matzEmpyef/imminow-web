@@ -6,7 +6,7 @@ import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { SelectField } from '@/components/SelectField'
-import { useUpdateApplication, type AcceptCommissionBody } from '@/queries/clients'
+import { useCommissionSuggestion, useUpdateApplication, type AcceptCommissionBody } from '@/queries/clients'
 import { usePartnerColleges } from '@/queries/partnerColleges'
 import { MONTHS } from '@/features/super-admin/courseFormShared'
 import { useCurrencyCodes } from '@/lib/currencies'
@@ -46,6 +46,11 @@ const PAYER_LABELS: Record<PayerMethod, string> = {
  * immiNow's own cut is a % of THAT commission, not of the tuition — the arithmetic server-side
  * is unchanged, only what expected_from_college means. A college/split payer with no priced
  * relation blocks acceptance, same shape as the no-payer-method notice below.
+ *
+ * THE SUGGESTION IS THE SERVER'S (review F-300, 2026-10-10). The figure comes from
+ * `GET /clients/{id}/commission-suggestion` (fee x percent / 100, at two decimals) and is shown as
+ * served; nothing is multiplied or rounded here. When the server offers nothing (null) the box
+ * starts empty. It fills the box only while the consultant has not typed a figure of their own.
  */
 export function AcceptCollegeModal({
   clientId,
@@ -127,12 +132,14 @@ export function AcceptCollegeModal({
   const [startMonth, setStartMonth] = useState(defaultMonth)
   const [startYear, setStartYear] = useState(defaultYear)
 
-  // Prefill once the relation's % and the course fee are both known — computed, not the raw
-  // fee. Only while the consultant hasn't typed their own figure in.
+  // The server's suggestion for this course. It is only an offer: it fills the box while the
+  // consultant has not typed a figure of their own, so one that arrives late never overwrites it.
+  const suggestion = useCommissionSuggestion(clientId, course.id, needsCollege)
+  const suggested = suggestion.data?.expected_from_college?.amount
   useEffect(() => {
-    if (collegeAmountTouched || !needsCollege || commissionPercent == null || course.fee?.amount == null) return
-    setCollegeAmount(String(Math.round((course.fee.amount * commissionPercent) / 100)))
-  }, [collegeAmountTouched, needsCollege, commissionPercent, course.fee?.amount])
+    if (collegeAmountTouched || !needsCollege || suggested == null) return
+    setCollegeAmount(suggested.toFixed(2))
+  }, [collegeAmountTouched, needsCollege, suggested])
 
   const collegeOk = !needsCollege || (Number(collegeAmount) > 0 && !hasTooManyDecimals(collegeAmount) && feeCurrency !== '')
   const studentOk = !needsStudent || (Number(studentAmount) > 0 && !hasTooManyDecimals(studentAmount) && studentCurrency !== '')
@@ -248,10 +255,11 @@ export function AcceptCollegeModal({
                     agreed to pay in.
                   </p>
                 )}
-                {course.fee?.amount != null && courseFeeCurrency && (
+                {suggestion.data?.fee?.amount != null && suggestion.data.commission_percent != null && (
                   <p className="col-span-3 -mt-xs text-caption text-text-secondary">
-                    {commissionPercent}% of the {formatMoney(courseFeeCurrency, course.fee.amount)} tuition — edit if
-                    the agreed figure differs.
+                    {suggestion.data.commission_percent}% of the{' '}
+                    {formatMoney(suggestion.data.fee.currency, suggestion.data.fee.amount)} tuition — edit if the agreed
+                    figure differs.
                   </p>
                 )}
               </div>
