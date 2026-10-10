@@ -42,6 +42,11 @@ function formatTableCell(column: FormField, value: unknown): string {
   }
 }
 
+/** The id of a table field's box on the page, so a refused save can scroll to it. */
+export function tableFieldDomId(fieldId: string): string {
+  return `form-field-${fieldId}`
+}
+
 interface IndexedRow {
   index: number
   row: FormTableRow
@@ -55,12 +60,15 @@ export function FormTableField({
   value,
   onChange,
   readOnly = false,
+  error,
   renderInput,
 }: {
   field: FormField
   value: unknown
   onChange: (rows: FormTableRow[]) => void
   readOnly?: boolean
+  // The server's sentence when it refused the save over this table ("Add at least one row to ...").
+  error?: string
   // The tab's own input for one field, so a cell is filled with the same control as that field
   // type anywhere else on the form.
   renderInput: (column: FormField, row: FormTableRow, onCellChange: (columnId: string, value: unknown) => void) => ReactNode
@@ -136,7 +144,11 @@ export function FormTableField({
     // Same box and title as a `group` section, so a form whose sections are part groups and part
     // tables (the default Student Application Form) reads as one document. `min-w-0` keeps a wide
     // table's sideways scroll inside this box.
-    <div className="flex min-w-0 flex-col gap-md rounded-md border border-border p-md">
+    <div
+      id={tableFieldDomId(field.id)}
+      tabIndex={-1}
+      className={`flex min-w-0 flex-col gap-md rounded-md border p-md outline-none ${error ? 'border-error' : 'border-border'}`}
+    >
       <div className="flex items-center justify-between gap-md">
         <p className="text-body-sm font-medium text-text-primary">
           {field.label}
@@ -155,6 +167,11 @@ export function FormTableField({
         rowKey={({ index }) => String(index)}
         emptyMessage="No rows yet."
       />
+      {error && (
+        <p role="alert" className="text-body-sm text-error">
+          {error}
+        </p>
+      )}
 
       {editing && (
         <Modal

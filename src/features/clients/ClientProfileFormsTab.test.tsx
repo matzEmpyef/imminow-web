@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { ApiError } from '@/api/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Forms tab, table fields (2026-10-08): a table shows the applicant's saved rows as a real table,
@@ -480,5 +481,50 @@ describe('FormsTab field spacing', () => {
     expect(screen.getByRole('button', { name: 'No' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByLabelText('Maths')).toBeDisabled()
     expect(screen.getByLabelText('Maths')).toBeChecked()
+  })
+})
+
+// Owner's ruling 2026-10-10: a required table with no row is refused 400 `validation_failed`, the
+// field named by id. The sentence sits on that table, which is scrolled into view.
+describe('FormsTab, a save refused over a required table', () => {
+  const SENTENCE = 'Add at least one row to Education.'
+  const refusal = new ApiError('Could not save the form.', {
+    error: { code: 'validation_failed', message: 'Check the form.', details: { fields: { education: SENTENCE } }, status: 400 },
+  })
+
+  function refuseOnSave() {
+    mutate.mockImplementation((_answers, options) => options.onError(refusal))
+    vi.mocked(useSaveFormResponse).mockReturnValue({ mutate, isPending: false, error: refusal } as never)
+  }
+
+  it('shows the server’s sentence on the table, scrolls to it, and not in the footer', () => {
+    const scroll = vi.fn()
+    window.HTMLElement.prototype.scrollIntoView = scroll
+    setup({ other: 'x' }, [EDUCATION, column('other', 'text', 'Other')])
+    renderTab()
+    fireEvent.change(screen.getByLabelText('Other'), { target: { value: 'y' } })
+    refuseOnSave()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent(SENTENCE)
+    expect(document.getElementById('form-field-education')).toContainElement(alert)
+    expect(scroll).toHaveBeenCalledTimes(1)
+    expect(screen.getAllByText(SENTENCE)).toHaveLength(1)
+  })
+
+  it('drops the sentence once that table is changed', () => {
+    window.HTMLElement.prototype.scrollIntoView = vi.fn()
+    setup({ education: [FULL_ROW] })
+    renderTab()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove row 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    refuseOnSave()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(screen.getByText(SENTENCE)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Add row' }))
+    fireEvent.change(screen.getByLabelText(/Institution/), { target: { value: 'MG College' } })
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add row' }))
+    expect(screen.queryByText(SENTENCE)).not.toBeInTheDocument()
   })
 })

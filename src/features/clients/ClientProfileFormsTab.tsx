@@ -10,7 +10,8 @@ import { formatDateTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard'
 import { fillWidthClass, withoutBlankTableRows } from '@/lib/formFields'
-import { FormTableField } from './FormTableField'
+import { FormTableField, tableFieldDomId } from './FormTableField'
+import { fieldMessages } from '@/api/errors'
 
 type FormField = NonNullable<ReturnType<typeof useFormTemplate>['data']>['fields'][number]
 type FormAnswers = Record<string, unknown>
@@ -86,10 +87,13 @@ function FillableField({
   onChange,
   fromProfile,
   readOnly,
+  errors,
 }: {
   field: FormField
   answers: FormAnswers
   onChange: (fieldId: string, value: unknown) => void
+  // The server's sentence for a field it refused the save over, by field id.
+  errors: Record<string, string>
   // A case that moved to another consultancy: the answers still show, nothing can be changed.
   readOnly: boolean
   // Field ids currently showing a value taken from the applicant's profile rather than typed or
@@ -111,6 +115,7 @@ function FillableField({
                 onChange={onChange}
                 fromProfile={fromProfile}
                 readOnly={readOnly}
+                errors={errors}
               />
             </div>
           ))}
@@ -242,9 +247,17 @@ function FillableField({
           field={field}
           value={value}
           readOnly={readOnly}
+          error={errors[field.id]}
           onChange={(rows) => onChange(field.id, rows)}
           renderInput={(column, row, onCellChange) => (
-            <FillableField field={column} answers={row} onChange={onCellChange} fromProfile={NO_PREFILL} readOnly={false} />
+            <FillableField
+              field={column}
+              answers={row}
+              onChange={onCellChange}
+              fromProfile={NO_PREFILL}
+              readOnly={false}
+              errors={NO_ERRORS}
+            />
           )}
         />
       )
@@ -255,6 +268,27 @@ function FillableField({
 
 // A table cell is never prefilled from the profile.
 const NO_PREFILL = new Set<string>()
+const NO_ERRORS: Record<string, string> = {}
+
+// Every table field on the form, groups included: the fields a refused save can name.
+function tableFieldIds(fields: readonly FormField[]): Set<string> {
+  const ids = new Set<string>()
+  const walk = (list: readonly FormField[]) => {
+    for (const field of list) {
+      if (field.type === 'table') ids.add(field.id)
+      if (field.type === 'group') walk(field.fields ?? [])
+    }
+  }
+  walk(fields)
+  return ids
+}
+
+// A refused save names the field to fix: bring it into view and put focus on it.
+function showFieldProblem(fieldId: string) {
+  const box = document.getElementById(tableFieldDomId(fieldId))
+  box?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+  box?.focus({ preventScroll: true })
+}
 
 function LinkedFormViewer({
   formId,
@@ -277,6 +311,9 @@ function LinkedFormViewer({
   const client = useClient(clientId)
   const [draft, setDraft] = useState<FormAnswers | null>(null)
   const dirty = draft !== null
+  // Fields the person has changed since the server last refused the save: their message is
+  // stale, so it goes.
+  const [touched, setTouched] = useState<Set<string>>(new Set())
   useEffect(() => {
     onDirtyChange(dirty)
   }, [dirty, onDirtyChange])
@@ -297,6 +334,20 @@ function LinkedFormViewer({
     }),
   )
   const answers = draft ?? { ...savedAnswers, ...gaps }
+  // `validation_failed` names fields by id ("Add at least one row to Education."): the table it
+  // names shows the sentence; anything the page cannot place stays in the footer.
+  const refused = fieldMessages(saveForm.error)
+  const tableIds = tableFieldIds(form.data.fields)
+  const fieldErrors = Object.fromEntries(Object.entries(refused).filter(([id]) => tableIds.has(id) && !touched.has(id)))
+  const footerError = saveForm.error
+    ? Object.keys(refused).length === 0
+      ? saveForm.error.message
+      : Object.entries(refused)
+          .filter(([id]) => !tableIds.has(id))
+          .map(([, message]) => message)
+          .join(' ')
+    : ''
+
   const fromProfile = new Set(Object.keys(gaps).filter((id) => answers[id] === gaps[id]))
 
   return (
@@ -319,7 +370,11 @@ function LinkedFormViewer({
                 answers={answers}
                 fromProfile={fromProfile}
                 readOnly={readOnly}
-                onChange={(fieldId, value) => setDraft({ ...answers, [fieldId]: value })}
+                errors={fieldErrors}
+                onChange={(fieldId, value) => {
+                  setTouched((prev) => new Set(prev).add(fieldId))
+                  setDraft({ ...answers, [fieldId]: value })
+                }}
               />
             </div>
           ))}
@@ -330,19 +385,24 @@ function LinkedFormViewer({
           <Button
             disabled={draft === null}
             loading={saveForm.isPending}
-            onClick={() =>
+            onClick={() => {
+              setTouched(new Set())
               // A row left entirely empty is dropped here, quietly (review 2.63).
               saveForm.mutate(withoutBlankTableRows(form.data.fields, answers), {
                 onSuccess: () => {
                   showToast(`${form.data?.name || formName} saved`)
                   setDraft(null)
                 },
+                onError: (err) => {
+                  const first = Object.keys(fieldMessages(err)).find((id) => tableIds.has(id))
+                  if (first) showFieldProblem(first)
+                },
               })
-            }
+            }}
           >
             Save
           </Button>
-          {saveForm.error && <p className="text-body-sm text-error">{saveForm.error.message}</p>}
+          {footerError && <p className="text-body-sm text-error">{footerError}</p>}
         </div>
       )}
     </div>
