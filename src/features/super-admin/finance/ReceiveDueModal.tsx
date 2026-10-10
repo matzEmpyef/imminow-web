@@ -1,14 +1,22 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { CompactSelect } from '@/components/CompactSelect'
 import { TextField } from '@/components/TextField'
+import { MoneyField } from '@/components/MoneyField'
 import { TextAreaField } from '@/components/TextAreaField'
-import { ApiError } from '@/api/errors'
+import { ApiError, fieldMessages } from '@/api/errors'
 import { currencyOptions, money } from './money'
-import { useReceiveCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
+import {
+  useReceiveCommissionDue,
+  useReceivePreview,
+  type CommissionDuePart,
+  type FinanceCaseRow,
+} from '@/queries/financeDashboard'
 import { localDateISO } from '@/lib/time'
 import { PAYMENT_REFERENCE_MAX } from '@/lib/validation'
+import { hasTooManyDecimals } from '@/lib/moneyInput'
+import { useDebouncedValue } from '@/lib/useDebounce'
 import { showToast } from '@/lib/toast'
 import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 
@@ -26,6 +34,14 @@ import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } fr
  * says which currency's dues it settles: the part's own, or one chosen from the currencies the
  * case owes. The rate is optional; left empty the server uses the day's rate. The server does the
  * conversion and checks the ceiling in the owed currency; nothing is converted here.
+ *
+ * NOTHING IS WORKED OUT HERE (review F-300, 2026-10-10). As the draft changes — after a short
+ * pause in typing — it is sent to `POST /commission-entries/{id}/receive/preview`, which writes
+ * nothing and answers with the figures: what is outstanding, what the amount settles, whether it
+ * is an over-payment and by how much. The warning, the tick and the amount offered in the box are
+ * those answers. The server judges a receipt against the WHOLE case's ceiling (what is still
+ * unpaid in the owed currency on the case, less credit already held), not against one part, and
+ * the wording below says "on this case" for that reason.
  */
 export function ReceiveDueModal({
   caseRow,
@@ -45,15 +61,19 @@ export function ReceiveDueModal({
   // The currencies the case owes, as the server lists them.
   const owedCurrencies = (caseRow.by_currency ?? []).map((c) => c.currency).filter((c): c is string => Boolean(c))
   const currencies = currencyOptions(owedCurrencies, part?.currency)
+  // What is offered in the amount box: the part's own unpaid amount. The server's figure
+  // (`part_outstanding` of the preview) replaces this as soon as it arrives, until the amount is
+  // touched.
   const [amount, setAmount] = useState(part ? String(part.outstanding ?? part.amount ?? '') : '')
+  const [amountTouched, setAmountTouched] = useState(false)
   const [currency, setCurrency] = useState(part?.currency ?? currencies[0] ?? 'INR')
   const [receivedOn, setReceivedOn] = useState(localDateISO())
   const [reference, setReference] = useState('')
   const [note, setNote] = useState('')
   const { keyFor, settle } = usePayloadIdempotencyKey()
-  // Overpayment guard (review C5, 2026-09-12) — the modal already knows what's outstanding for
-  // this part/case+currency, so it warns before the round trip rather than waiting on the
-  // server's 409. Only ticking the checkbox sends allow_overpayment: true.
+  // Overpayment guard (review C5, 2026-09-12) — the preview says before the round trip whether
+  // the amount is an over-payment, rather than waiting on the server's 409. Only ticking the
+  // checkbox sends allow_overpayment: true.
   const [allowOverpayment, setAllowOverpayment] = useState(false)
 
   // "It arrived in another currency": what it settles, and at what rate.
@@ -63,17 +83,10 @@ export function ReceiveDueModal({
 
   // With a part the dues settled are the part's own; otherwise the one chosen here.
   const settlesCurrency = part ? (part.currency ?? 'INR') : owedCurrency
-  const effectiveCurrency = !crossCurrency && part ? (part.currency ?? 'INR') : currency
-  const outstanding = part
-    ? part.outstanding
-    : (caseRow.by_currency ?? []).find((c) => c.currency === effectiveCurrency)?.outstanding
 
   const parsed = Number(amount)
-  const isValidAmount = amount.trim() !== '' && Number.isFinite(parsed) && parsed > 0
-  // Only when the money is in the currency owed: across currencies the server compares, at the
-  // rate it settles at, and answers 409 `more_than_outstanding` (handled below).
-  const isOverpayment = !crossCurrency && isValidAmount && outstanding != null && parsed > outstanding
-  const overpaymentBy = isOverpayment ? parsed - outstanding! : 0
+  const tooManyDecimals = hasTooManyDecimals(amount)
+  const isValidAmount = amount.trim() !== '' && Number.isFinite(parsed) && parsed > 0 && !tooManyDecimals
 
   const parsedRate = Number(rate)
   const rateGiven = rate.trim() !== ''
@@ -84,18 +97,61 @@ export function ReceiveDueModal({
       : undefined
   const crossInvalid = crossCurrency && (settlesCurrency === '' || Boolean(sameCurrencyError) || Boolean(rateError))
 
-  // The server's own refusals. `more_than_outstanding` across currencies: its sentence names what
-  // is outstanding in the owed currency, and the same "record it anyway" tick answers it.
+  // The draft as the receipt would be sent: asked of the server after a short pause in typing.
+  // No amount goes while it is not a valid one; the answer then carries only what is outstanding.
+  const sentCurrency = crossCurrency ? currency : part ? (part.currency ?? undefined) : currency
+  const draft = useMemo(
+    () => ({
+      part_key: part?.key,
+      currency: sentCurrency,
+      amount: isValidAmount ? parsed : undefined,
+      ...(crossCurrency
+        ? {
+            allow_cross_currency: true,
+            owed_currency: part ? undefined : owedCurrency || undefined,
+            rate: rateGiven && !rateError ? parsedRate : undefined,
+          }
+        : {}),
+    }),
+    [part, sentCurrency, isValidAmount, parsed, crossCurrency, owedCurrency, rateGiven, rateError, parsedRate],
+  )
+  const draftKey = JSON.stringify(draft)
+  const settledDraftKey = useDebouncedValue(draftKey)
+  const settledDraft = useMemo(() => JSON.parse(settledDraftKey) as typeof draft, [settledDraftKey])
+  const previewReady = !crossInvalid && !(crossCurrency && !part && owedCurrency === '')
+  const preview = useReceivePreview(caseRow.id, settledDraft, previewReady)
+  // The figures belong to the draft they were asked for: not shown while the draft has moved on.
+  const previewCurrent = settledDraftKey === draftKey && !preview.isFetching ? preview.data : undefined
+  const previewRefusal =
+    settledDraftKey === draftKey &&
+    preview.error instanceof ApiError &&
+    preview.error.status != null &&
+    preview.error.status < 500
+      ? preview.error
+      : null
+
+  // The amount offered in the box is the server's figure for the part, until the amount is touched.
+  const offered = !crossCurrency && !amountTouched ? preview.data?.part_outstanding?.amount : undefined
+  useEffect(() => {
+    if (offered != null) setAmount(String(offered))
+  }, [offered])
+
+  // The server's own refusals. `more_than_outstanding` (the preview normally says so first): its
+  // sentence names what is outstanding, and the same "record it anyway" tick answers it.
   const refusal = receiveDue.error instanceof ApiError ? receiveDue.error : null
-  const serverSaysOverpayment = crossCurrency && refusal?.code === 'more_than_outstanding'
+  const serverSaysOverpayment = refusal?.code === 'more_than_outstanding'
   // Nothing is owed in the currency given: point at the other-currency path when it is not on.
   const notOwedHint = !crossCurrency && refusal?.code === 'currency_not_owed'
   // The same reference is already on a payment for this case (409 `already_exists`, review
   // I-026): the server's sentence is shown beside the Reference field.
   const duplicateReference = refusal?.code === 'already_exists' ? refusal.message : undefined
 
+  const isOverpayment = previewCurrent?.is_overpayment === true
   const invalid =
     !isValidAmount || !receivedOn || crossInvalid || ((isOverpayment || serverSaysOverpayment) && !allowOverpayment)
+
+  // The server's sentence for the amount field (`details.fields`), when a save was refused on it.
+  const amountFieldMessage = fieldMessages(receiveDue.error).amount
 
   // The server's "more than is outstanding" was about the figures as they were sent: once one of
   // them changes, the refusal and the tick that answered it no longer apply.
@@ -111,6 +167,7 @@ export function ReceiveDueModal({
     receiveDue.reset()
     // The pre-filled amount is the part's outstanding in the OWED currency: it is not what arrived.
     setAmount(next ? '' : part ? String(part.outstanding ?? part.amount ?? '') : '')
+    setAmountTouched(false)
     if (!next && part) setCurrency(part.currency ?? 'INR')
   }
 
@@ -121,7 +178,7 @@ export function ReceiveDueModal({
       widthRem={26}
       footer={
         <>
-          {receiveDue.isError && !serverSaysOverpayment && !duplicateReference && (
+          {receiveDue.isError && !serverSaysOverpayment && !duplicateReference && !amountFieldMessage && (
             <p role="alert" className="mr-auto self-center text-body-sm text-error">
               {receiveDue.error.message}
             </p>
@@ -136,7 +193,7 @@ export function ReceiveDueModal({
               const payload = {
                 entryId: caseRow.id,
                 amount: parsed,
-                currency: crossCurrency ? currency : part ? (part.currency ?? undefined) : currency,
+                currency: sentCurrency,
                 part_key: part?.key,
                 received_on: receivedOn,
                 reference: reference.trim() || undefined,
@@ -190,17 +247,17 @@ export function ReceiveDueModal({
           It arrived in another currency
         </label>
         <div className="flex items-center gap-sm">
-          <TextField
+          <MoneyField
             label={crossCurrency ? 'Amount received' : 'Amount'}
-            type="number"
-            min={0.01}
-            step="0.01"
             required
             value={amount}
             onChange={(e) => {
               setAmount(e.target.value)
+              setAmountTouched(true)
               clearServerOverpayment()
+              if (amountFieldMessage) receiveDue.reset()
             }}
+            error={amountFieldMessage}
             className="flex-1"
           />
           {part && !crossCurrency ? (
@@ -270,13 +327,36 @@ export function ReceiveDueModal({
             currency&rdquo;.
           </p>
         )}
+        {previewCurrent && crossCurrency && previewCurrent.settles && (
+          <p className="text-caption text-text-secondary">
+            That settles {money(previewCurrent.settles)} of the {previewCurrent.owed_currency} dues
+            {previewCurrent.rate != null && (
+              <>
+                {' '}
+                (1 {previewCurrent.currency} = {previewCurrent.rate} {previewCurrent.owed_currency})
+              </>
+            )}
+            .
+          </p>
+        )}
+        {previewCurrent && !isOverpayment && !serverSaysOverpayment && (
+          <p className="text-caption text-text-secondary">Outstanding on this case: {money(previewCurrent.outstanding)}</p>
+        )}
+        {previewRefusal && !isOverpayment && !serverSaysOverpayment && (
+          <p role="status" className="text-caption text-text-secondary">
+            {previewRefusal.message}
+          </p>
+        )}
         {(isOverpayment || serverSaysOverpayment) && (
           <div className="flex flex-col gap-sm rounded-md border border-warning bg-warning-subtle p-sm">
             <p className="text-body-sm text-text-primary">
               {serverSaysOverpayment ? (
                 refusal?.message
               ) : (
-                <>That&rsquo;s {money({ amount: overpaymentBy, currency: effectiveCurrency })} more than is outstanding.</>
+                <>
+                  That&rsquo;s {money(previewCurrent?.overpaid_by)} more than is outstanding on this case (
+                  {money(previewCurrent?.outstanding)}).
+                </>
               )}
             </p>
             <label className="flex items-center gap-sm text-body-sm text-text-primary">

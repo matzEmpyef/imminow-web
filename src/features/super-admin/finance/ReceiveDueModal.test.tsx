@@ -1,18 +1,37 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Review F-079: Finance records a payment that reached the bank in another currency than the one
 // owed. The dialog sends what arrived and which dues it settles; the server converts. Nothing is
 // converted in the browser.
-vi.mock('@/queries/financeDashboard', () => ({ useReceiveCommissionDue: vi.fn() }))
+vi.mock('@/queries/financeDashboard', () => ({ useReceiveCommissionDue: vi.fn(), useReceivePreview: vi.fn() }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
 
 import { ApiError } from '@/api/errors'
-import { useReceiveCommissionDue } from '@/queries/financeDashboard'
+import { useReceiveCommissionDue, useReceivePreview } from '@/queries/financeDashboard'
 import { ReceiveDueModal } from './ReceiveDueModal'
 
 const mutate = vi.fn()
 const reset = vi.fn()
+
+/** What the server's preview answers; nothing here is worked out by the dialog. */
+function previewAnswer(over: Record<string, unknown> = {}, error: Error | null = null) {
+  const data = error
+    ? undefined
+    : {
+        currency: 'CAD',
+        owed_currency: 'CAD',
+        outstanding: { amount: 1400, currency: 'CAD' },
+        part_outstanding: null,
+        amount: null,
+        settles: null,
+        rate: null,
+        is_overpayment: false,
+        overpaid_by: null,
+        ...over,
+      }
+  return { data, error, isFetching: false } as never
+}
 
 function mutation(error: Error | null = null) {
   return { mutate, reset, isPending: false, isError: Boolean(error), error } as never
@@ -40,6 +59,8 @@ beforeEach(() => {
   mutate.mockReset()
   reset.mockReset()
   vi.mocked(useReceiveCommissionDue).mockReturnValue(mutation())
+  vi.mocked(useReceivePreview).mockReset()
+  vi.mocked(useReceivePreview).mockReturnValue({ data: undefined, error: null, isFetching: false } as never)
 })
 
 describe('ReceiveDueModal, a payment in the currency owed', () => {
@@ -170,5 +191,121 @@ describe('ReceiveDueModal, the reference', () => {
     // Changing the reference clears the refusal, which was about the one that was sent.
     fireEvent.change(screen.getByLabelText('Reference'), { target: { value: 'UTR-2' } })
     expect(reset).toHaveBeenCalled()
+  })
+})
+
+// Review F-300: the dialog works nothing out. It asks the server's preview as the draft changes and
+// shows what comes back.
+describe('ReceiveDueModal, the preview', () => {
+  const lastDraft = () => {
+    const calls = vi.mocked(useReceivePreview).mock.calls
+    return calls[calls.length - 1][1] as Record<string, unknown>
+  }
+
+  it('asks about the draft as it would be sent, once typing pauses, and never with a bad amount', async () => {
+    open(caseRow(['CAD']), part)
+    expect(vi.mocked(useReceivePreview).mock.calls[0][0]).toBe('e1')
+    fireEvent.change(screen.getByLabelText(/Amount/), { target: { value: '500' } })
+    // Typing is not followed by a request on every key: the old draft is still the one asked.
+    expect(lastDraft().amount).not.toBe(500)
+    await waitFor(() => expect(lastDraft()).toMatchObject({ part_key: 'p1', currency: 'CAD', amount: 500 }))
+
+    fireEvent.change(screen.getByLabelText(/Amount/), { target: { value: '500.123' } })
+    await waitFor(() => expect(lastDraft().amount).toBeUndefined())
+  })
+
+  it('offers the amount the server gives for the part, until the amount is touched', () => {
+    vi.mocked(useReceivePreview).mockReturnValue(
+      previewAnswer({ part_outstanding: { amount: 1234.56, currency: 'CAD' } }),
+    )
+    open(caseRow(['CAD']), part)
+    expect(screen.getByLabelText(/Amount/)).toHaveValue(1234.56)
+  })
+
+  it('shows the server’s over-payment figures and holds the button until it is confirmed', async () => {
+    vi.mocked(useReceivePreview).mockReturnValue(
+      previewAnswer({
+        amount: { amount: 2000, currency: 'CAD' },
+        is_overpayment: true,
+        overpaid_by: { amount: 600, currency: 'CAD' },
+      }),
+    )
+    open()
+    fireEvent.change(screen.getByLabelText(/Amount/), { target: { value: '2000' } })
+    // The hint speaks of the whole case, not of one part.
+    expect(await screen.findByText(/more than is outstanding on this case/)).toHaveTextContent('CAD 600.00')
+    expect(submit()).toBeDisabled()
+    fireEvent.click(screen.getByLabelText(/Record it anyway/))
+    fireEvent.click(submit())
+    expect(sent()).toMatchObject({ amount: 2000, allow_overpayment: true })
+  })
+
+  it('does not warn when the server says it is not an over-payment, whatever the part looks like', async () => {
+    open(caseRow(['CAD']), { key: 'p1', currency: 'CAD', amount: 10, outstanding: 10 })
+    vi.mocked(useReceivePreview).mockReturnValue(previewAnswer({ is_overpayment: false }))
+    fireEvent.change(screen.getByLabelText(/Amount/), { target: { value: '5000' } })
+    expect(await screen.findByText(/Outstanding on this case/)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/Record it anyway/)).not.toBeInTheDocument()
+    expect(submit()).toBeEnabled()
+    fireEvent.click(submit())
+    expect(sent().allow_overpayment).toBeUndefined()
+  })
+
+  it('shows the server’s sentence when the preview refuses, and does not stop the typing', async () => {
+    vi.mocked(useReceivePreview).mockReturnValue(
+      previewAnswer({}, new ApiError('x', { error: { code: 'currency_not_owed', message: 'Nothing is owed in USD on this case.' } }, 422)),
+    )
+    open()
+    fireEvent.change(screen.getByLabelText(/Amount/), { target: { value: '500' } })
+    expect(await screen.findByText('Nothing is owed in USD on this case.')).toBeInTheDocument()
+    expect(submit()).toBeEnabled()
+  })
+
+  it('says what a payment in another currency settles, from the server’s figures', async () => {
+    vi.mocked(useReceivePreview).mockReturnValue(
+      previewAnswer({
+        currency: 'USD',
+        amount: { amount: 1000, currency: 'USD' },
+        settles: { amount: 1400, currency: 'CAD' },
+        rate: 1.4,
+      }),
+    )
+    open()
+    tickOtherCurrency()
+    fireEvent.change(screen.getByLabelText(/Amount received/), { target: { value: '1000' } })
+    fireEvent.change(screen.getByLabelText('Currency received'), { target: { value: 'USD' } })
+    expect(await screen.findByText(/That settles CAD 1,400\.00 of the CAD dues \(1 USD = 1\.4 CAD\)/)).toBeInTheDocument()
+  })
+})
+
+// Owner's ruling 2026-10-10: money has at most two decimal places.
+describe('ReceiveDueModal, decimals', () => {
+  it('refuses a third decimal beside the field and keeps the button off', () => {
+    open()
+    fireEvent.change(screen.getByLabelText(/Amount/), { target: { value: '12.345' } })
+    expect(screen.getByLabelText(/Amount/)).toHaveAccessibleDescription('Amounts have at most two decimal places.')
+    expect(submit()).toBeDisabled()
+  })
+
+  it('accepts a trailing zero', () => {
+    open()
+    fireEvent.change(screen.getByLabelText(/Amount/), { target: { value: '12.340' } })
+    expect(screen.getByLabelText(/Amount/)).not.toHaveAttribute('aria-invalid', 'true')
+    expect(submit()).toBeEnabled()
+  })
+
+  it('shows the server’s message for the amount on the field', () => {
+    vi.mocked(useReceiveCommissionDue).mockReturnValue(
+      mutation(
+        new ApiError(
+          'x',
+          { error: { code: 'validation_failed', message: 'Check the form.', details: { fields: { amount: 'Amounts have at most two decimal places.' } } } },
+          400,
+        ),
+      ),
+    )
+    open()
+    expect(screen.getByLabelText(/Amount/)).toHaveAccessibleDescription('Amounts have at most two decimal places.')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

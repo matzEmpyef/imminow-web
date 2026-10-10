@@ -388,6 +388,45 @@ export function useReceiveCommissionDue() {
   })
 }
 
+export type ReceivePreview = components['schemas']['ReceivePreview']
+
+/** The receive dialog's draft, as the receipt itself would be sent (without its date, note or reference). */
+export interface ReceivePreviewDraft {
+  part_key?: string
+  currency?: string
+  amount?: number
+  allow_cross_currency?: boolean
+  owed_currency?: string
+  rate?: number
+}
+
+/**
+ * What the receipt in the "Mark as received" / "Record a payment" dialog would do, worked out by
+ * the server (review F-300, 2026-10-10). Nothing is written. The dialog sends its draft as it
+ * stands and shows the figures that come back — what is outstanding on the case, what the amount
+ * settles, whether it is an over-payment and by how much — and compares or subtracts nothing
+ * itself. The draft is expected to be debounced by the caller; the request is cancelled with
+ * React Query's signal when the draft moves on.
+ */
+export function useReceivePreview(entryId: string, draft: ReceivePreviewDraft, enabled = true) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: [FINANCE_QUERY_KEY, 'receive-preview', entryId, draft],
+    queryFn: async ({ signal }) => {
+      const { data, error, response } = await api.POST('/commission-entries/{id}/receive/preview', {
+        signal,
+        params: { path: { id: entryId } },
+        body: draft,
+      })
+      if (error) throw new ApiError('Could not check this payment.', error, response?.status)
+      return data
+    },
+    enabled: isAuthed && enabled,
+    // Always the figures of this draft; the answer to an older draft is never shown for it.
+    gcTime: 0,
+  })
+}
+
 // Closes a due part without payment, with a reason the consultancy is shown (finance permission,
 // 2026-09-11). It stops counting as outstanding or overdue; 409 when the part isn't due yet,
 // already paid, or already closed. Reopen it with useVoidCommissionDue against the returned
