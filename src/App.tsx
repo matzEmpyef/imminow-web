@@ -492,14 +492,17 @@ function App() {
           {/* The list is open to every employee; creating, editing and duplicating a form need
               `settings.manage_templates`, which the server checks (review F-146 / F-055). */}
           <Route path="/administration/forms" element={<FormsPage />} />
+          {/* Creating needs the permission; opening an existing form does not: without it the form
+              opens read-only (review 2.64), and the page decides which from the permission. */}
           <Route
-            path="/administration/forms/:id"
+            path="/administration/forms/new"
             element={
               <PermissionGate permission="settings.manage_templates" area="Forms">
                 <FormBuilderPage />
               </PermissionGate>
             }
           />
+          <Route path="/administration/forms/:id" element={<FormBuilderPage />} />
           <Route
             path="/administration/branches"
             element={

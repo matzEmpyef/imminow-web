@@ -10,6 +10,8 @@ import { ApiError } from '@/api/errors'
 import { AddFieldModal } from './AddFieldModal'
 import { AddGroupModal } from './AddGroupModal'
 import { FormFieldsPreview } from './FormFieldsPreview'
+import { FormReadOnlyView } from './FormReadOnlyView'
+import { usePermissionChecker } from '@/lib/permissions'
 import { useCreateFormTemplate, useFormTemplate, useUpdateFormTemplate } from '@/queries/formTemplates'
 import { isGroup, listGroups, type FormFieldInput } from '@/lib/formFields'
 import { ErrorState, Skeleton } from '@/components/QueryState'
@@ -17,7 +19,35 @@ import { showToast } from '@/lib/toast'
 import { isEditDefaultConfirmed } from '@/lib/defaultForm'
 import { EditDefaultFormDialog, RestoreDefaultFormDialog } from './DefaultFormDialogs'
 
+// The editor is for staff who hold `settings.manage_templates`; everyone else who opens an existing
+// form from the list sees it read-only (review 2.64), since the server lets any employee READ a
+// form and keeps only the writes behind the permission. "New" stays behind the permission gate on
+// its route.
 export function FormBuilderPage() {
+  const { id } = useParams()
+  const isNew = !id || id === 'new'
+  const { can, isLoading, isError, refetch } = usePermissionChecker()
+  if (isNew) return <FormEditor />
+  // Until the permission is known, every key answers false: hold a skeleton rather than flash the
+  // read-only view at someone who can edit (the same reasoning as PermissionGate).
+  if (isLoading) {
+    return (
+      <AppShell>
+        <Skeleton className="h-64 rounded-lg" />
+      </AppShell>
+    )
+  }
+  if (isError) {
+    return (
+      <AppShell>
+        <ErrorState message="Could not check your permissions." onRetry={refetch} />
+      </AppShell>
+    )
+  }
+  return can('settings.manage_templates') ? <FormEditor /> : <FormReadOnlyView id={id!} />
+}
+
+function FormEditor() {
   const { id } = useParams()
   const isNew = !id || id === 'new'
   const navigate = useNavigate()

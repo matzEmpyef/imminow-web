@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Copy, Pencil, RotateCcw } from 'lucide-react'
+import { Copy, Eye, Pencil, RotateCcw } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
@@ -179,17 +179,26 @@ export function FormsPage() {
       align: 'right',
       render: (form) => countFillableFields(form.fields),
     },
-    ...(canManage
-      ? [
-          {
-            key: 'actions',
-            header: '',
-            render: (form: FormTemplate) => (
-              <FormRowActions form={form} duplicateForm={duplicateForm} onEdit={openForEdit} />
-            ),
-          },
-        ]
-      : []),
+    {
+      key: 'actions',
+      header: '',
+      render: (form: FormTemplate) =>
+        canManage ? (
+          <FormRowActions form={form} duplicateForm={duplicateForm} onEdit={openForEdit} />
+        ) : (
+          // Without the permission a form still opens, read-only (review 2.64).
+          <StopPropagation className="flex justify-end">
+            <Link
+              to={`/administration/forms/${form.id}`}
+              aria-label={`View ${form.name}`}
+              title="View"
+              className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-background hover:text-text-primary"
+            >
+              <Eye className="h-4 w-4" />
+            </Link>
+          </StopPropagation>
+        ),
+    },
   ]
 
   return (
@@ -227,7 +236,7 @@ export function FormsPage() {
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search forms…' }}
-          onRowClick={canManage ? openForEdit : undefined}
+          onRowClick={canManage ? openForEdit : (form) => navigate(`/administration/forms/${form.id}`)}
         />
 
         {editingDefault && (
