@@ -412,5 +412,12 @@ describe('realtime query cache patches', () => {
       applyNotificationCreated(queryClient)
       expect(spy).toHaveBeenCalledWith({ queryKey: ['applicant-requests'] })
     })
+
+    it('reads the team list again, since a lost invite removes someone from it', () => {
+      const spy = vi.spyOn(queryClient, 'invalidateQueries')
+      applyNotificationCreated(queryClient)
+      expect(spy).toHaveBeenCalledWith({ queryKey: ['employees'] })
+      expect(spy).toHaveBeenCalledWith({ queryKey: ['picker', 'employees'] })
+    })
   })
 })

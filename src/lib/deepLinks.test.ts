@@ -17,3 +17,10 @@ describe('the lead notices', () => {
     expect(isAllowedDeepLink('/sales/lead-pool/../../x')).toBe(false)
   })
 })
+
+// `staff_invite_lapsed` (owner's ruling 2026-10-09): "An invitation is no longer valid" opens the team page.
+describe('the lost-invite notice', () => {
+  it('lets through the team page', () => {
+    expect(isAllowedDeepLink('/administration/employees')).toBe(true)
+  })
+})

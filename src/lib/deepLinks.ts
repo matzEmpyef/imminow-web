@@ -31,6 +31,9 @@ const ALLOWED_EXACT = [
   '/administration/commission-details',
   '/administration/consultancy-profile',
   '/administration/course-suggestions',
+  // `staff_invite_lapsed` (2026-10-09): an invited person accepted another consultancy's invite and
+  // was taken off the team list; the notice opens the team page.
+  '/administration/employees',
   '/administration/reviews',
   '/clients',
   '/freelancer/dashboard',

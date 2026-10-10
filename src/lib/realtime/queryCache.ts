@@ -268,6 +268,11 @@ export function applyNotificationCreated(queryClient: QueryClient): void {
   // gate 12f), and the frame does not say what it is about, so the Clients page's waiting panel is
   // marked stale with the bell. It refetches only while that panel is on screen.
   queryClient.invalidateQueries({ queryKey: ['applicant-requests'] })
+  // A lost invite (`staff_invite_lapsed`) takes the invited person off the team list on the server
+  // with no other signal, so the roster is read again with the bell; it refetches only while a
+  // team screen or picker is on screen.
+  queryClient.invalidateQueries({ queryKey: ['employees'] })
+  queryClient.invalidateQueries({ queryKey: ['picker', 'employees'] })
 }
 
 /**
