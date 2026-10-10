@@ -41,6 +41,9 @@ const ForgotPasswordPage = lazyPage(() =>
 const GuardianApprovalPage = lazyPage(() =>
   import('@/features/guardian/GuardianApprovalPage').then((m) => ({ default: m.GuardianApprovalPage })),
 )
+const WebinarLinkPage = lazyPage(() =>
+  import('@/features/webinar/WebinarLinkPage').then((m) => ({ default: m.WebinarLinkPage })),
+)
 const ResetPasswordPage = lazyPage(() =>
   import('@/features/auth/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })),
 )
@@ -399,6 +402,9 @@ function App() {
             takes it out of the address once read without being remounted (useLinkToken, F-123). */}
         <Route path="/guardian/:token?" element={<GuardianApprovalPage />} />
         <Route path="/set-password/:token?" element={<SetPasswordPage />} />
+        {/* Public, no account: the button of the webinar email, `/webinar#<token>` (2026-10-10).
+            The token segment is optional for the same reason as above. */}
+        <Route path="/webinar/:token?" element={<WebinarLinkPage />} />
         <Route element={<ProtectedLayout />}>
           <Route path="/account" element={<MyAccountPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />

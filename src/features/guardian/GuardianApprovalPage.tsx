@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/Button'
-import { Card } from '@/components/Card'
+import { PublicPageShell } from '@/components/PublicPageShell'
 import { TextField } from '@/components/TextField'
 import { ApiError } from '@/api/errors'
 import { useLinkToken } from '@/lib/linkToken'
@@ -22,18 +22,6 @@ import {
 // What it must never do is leak the child's data. The payload behind it is a first name and an
 // age; anyone holding a forwarded link learns nothing more than the message already told them.
 
-function Shell({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-md py-xl">
-      <Card className="w-full max-w-[32rem] border border-border">
-        <p className="text-caption uppercase tracking-wide text-text-secondary">Sentpo</p>
-        <h1 className="mt-xs text-h1 text-text-primary">{title}</h1>
-        <div className="mt-lg flex flex-col gap-md">{children}</div>
-      </Card>
-    </div>
-  )
-}
-
 export function GuardianApprovalPage() {
   // From the fragment, else the path of a link mailed earlier; then out of the address (F-123).
   const token = useLinkToken('/guardian')
@@ -45,19 +33,19 @@ export function GuardianApprovalPage() {
   const [confirmed, setConfirmed] = useState(false)
   const [touched, setTouched] = useState(false)
 
-  if (token && prompt.isLoading) return <Shell title="Loading…">{null}</Shell>
+  if (token && prompt.isLoading) return <PublicPageShell title="Loading…">{null}</PublicPageShell>
 
   // The server could not be reached, or answered with a fault: the link itself may be fine, so
   // this must not read as "not valid" (and must not offer a new link the parent does not need).
   const linkRefused = prompt.error instanceof ApiError && prompt.error.status === 404
   if (token && prompt.isError && !linkRefused) {
     return (
-      <Shell title="We could not open this page">
+      <PublicPageShell title="We could not open this page">
         <p className="text-body text-text-secondary">Please check your connection and try again.</p>
         <Button variant="secondary" loading={prompt.isFetching} onClick={() => prompt.refetch()}>
           Try again
         </Button>
-      </Shell>
+      </PublicPageShell>
     )
   }
 
@@ -66,7 +54,7 @@ export function GuardianApprovalPage() {
     // answers a fresh-link request the same way whatever the token was, so the sentence below is
     // deliberately conditional: it never confirms that this link belonged to an approval.
     return (
-      <Shell title="This link is no longer valid">
+      <PublicPageShell title="This link is no longer valid">
         {freshLink.isSuccess ? (
           <p role="status" className="text-body text-text-primary">
             If this link was for an approval you gave, we have emailed you a new one.
@@ -92,7 +80,7 @@ export function GuardianApprovalPage() {
             )}
           </>
         )}
-      </Shell>
+      </PublicPageShell>
     )
   }
 
@@ -100,7 +88,7 @@ export function GuardianApprovalPage() {
 
   if (status === 'approved') {
     return (
-      <Shell title={`You approved ${student}'s account`}>
+      <PublicPageShell title={`You approved ${student}'s account`}>
         <p className="text-body text-text-secondary">
           {student} can now talk to a consultancy, share documents with the one they choose, and attend
           in-person meetings. You can change your mind at any time.
@@ -115,39 +103,39 @@ export function GuardianApprovalPage() {
           Withdrawing pauses those things again. {student} keeps their account and can still search courses
           and read articles.
         </p>
-      </Shell>
+      </PublicPageShell>
     )
   }
 
   if (status === 'withdrawn') {
     return (
-      <Shell title="Your approval has been withdrawn">
+      <PublicPageShell title="Your approval has been withdrawn">
         <p className="text-body text-text-secondary">
           {student} can still search courses, read articles and save the ones they like, but cannot talk to a
           consultancy, share documents or attend meetings until a parent or guardian approves again.
         </p>
-      </Shell>
+      </PublicPageShell>
     )
   }
 
   if (status === 'declined') {
     return (
-      <Shell title="You declined">
+      <PublicPageShell title="You declined">
         <p className="text-body text-text-secondary">
           Nothing has changed for {student} beyond what was already paused. They can still search courses and
           read articles, and they can ask another parent or guardian instead.
         </p>
-      </Shell>
+      </PublicPageShell>
     )
   }
 
   if (status === 'expired') {
     return (
-      <Shell title="This link has expired">
+      <PublicPageShell title="This link has expired">
         <p className="text-body text-text-secondary">
           Approval links last a week. {student} can send you a new one from the Sentpo app.
         </p>
-      </Shell>
+      </PublicPageShell>
     )
   }
 
@@ -159,7 +147,7 @@ export function GuardianApprovalPage() {
   }
 
   return (
-    <Shell title={`Approve ${student}'s Sentpo account`}>
+    <PublicPageShell title={`Approve ${student}'s Sentpo account`}>
       <p className="text-body text-text-primary">
         {student}
         {age != null ? `, who is ${age},` : ''} has asked you to approve their account. Sentpo helps students
@@ -233,6 +221,6 @@ export function GuardianApprovalPage() {
           Declining does not delete {student}&apos;s account. They can still search courses and read articles.
         </p>
       </form>
-    </Shell>
+    </PublicPageShell>
   )
 }
