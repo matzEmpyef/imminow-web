@@ -8,8 +8,9 @@ import { usePlatformSettings, useUpdatePlatformSettings } from '@/queries/catalo
 import { SettingsUsedIn } from './SettingsUsedIn'
 
 // Owner's ruling 2026-10-09: a student's first message must never sit unseen. Two clocks run from
-// it, and both are set here. The defaults and ranges are the server's (`PlatformSettings`).
-type LeadReplyField = 'lead_reply_reminder_hours' | 'lead_platform_alert_hours'
+// it, and all are set here. The defaults and ranges are the server's (`PlatformSettings`).
+type LeadReplyField =
+  'lead_reply_reminder_hours' | 'lead_platform_alert_hours' | 'lead_platform_alert_after_reminder_hours'
 
 const FIELDS: {
   key: LeadReplyField
@@ -37,8 +38,19 @@ const FIELDS: {
     min: 1,
     max: 168,
     hint:
-      'How many hours a student’s first contact with a consultancy can go without any reply before immiNow ' +
-      'support is told. The student also joins the follow-up queue from that moment.',
+      'The earliest immiNow support is told that a student’s first contact with a consultancy has had no ' +
+      'reply, counted in hours from the student’s message. The student also joins the follow-up queue from ' +
+      'that moment. It can be later than this: see the setting below.',
+  },
+  {
+    key: 'lead_platform_alert_after_reminder_hours',
+    label: 'Working hours the consultancy gets after its reminder before the platform is told',
+    fallback: 4,
+    min: 1,
+    max: 48,
+    hint:
+      'The platform is told at the later of this and the 24-hour limit, so it never hears before the ' +
+      'consultancy has been reminded.',
   },
 ]
 
@@ -53,7 +65,8 @@ function valid(value: string, min: number, max: number): boolean {
 
 /**
  * Lead Replies — how long a student's first message to a consultancy may wait for an answer
- * before the consultancy is reminded, and before immiNow is told. A change applies to first
+ * before the consultancy is reminded, and before immiNow is told (the later of a clock limit and
+ * some working hours after the reminder). A change applies to first
  * messages sent after it is saved; each change is audited by the server.
  */
 export function LeadRepliesTab() {
@@ -62,6 +75,7 @@ export function LeadRepliesTab() {
   const saved: Record<LeadReplyField, number> = {
     lead_reply_reminder_hours: settings.data?.lead_reply_reminder_hours ?? 2,
     lead_platform_alert_hours: settings.data?.lead_platform_alert_hours ?? 24,
+    lead_platform_alert_after_reminder_hours: settings.data?.lead_platform_alert_after_reminder_hours ?? 4,
   }
   const [draft, setDraft] = useState<Record<LeadReplyField, string> | null>(null)
   // What the last refused save sent, so the server's sentence stays only beside a value it judged.
@@ -69,6 +83,7 @@ export function LeadRepliesTab() {
   const current = draft ?? {
     lead_reply_reminder_hours: String(saved.lead_reply_reminder_hours),
     lead_platform_alert_hours: String(saved.lead_platform_alert_hours),
+    lead_platform_alert_after_reminder_hours: String(saved.lead_platform_alert_after_reminder_hours),
   }
   const refused = fieldMessages(update.error)
 
@@ -86,6 +101,7 @@ export function LeadRepliesTab() {
     const body = {
       lead_reply_reminder_hours: parse(current.lead_reply_reminder_hours),
       lead_platform_alert_hours: parse(current.lead_platform_alert_hours),
+      lead_platform_alert_after_reminder_hours: parse(current.lead_platform_alert_after_reminder_hours),
     }
     setSent(current)
     update.mutate(body, {
@@ -104,8 +120,9 @@ export function LeadRepliesTab() {
       <div className="flex flex-col gap-xs">
         <h2 className="text-h3 text-text-primary">Lead replies</h2>
         <p className="text-body-sm text-text-secondary">
-          When a student writes to a consultancy for the first time, two clocks start. The first reminds the
-          consultancy; the second tells immiNow. A change applies to first messages sent after you save it.
+          When a student writes to a consultancy for the first time, the consultancy is reminded once. immiNow is told
+          later, and never before the consultancy has been reminded and has had some working hours to answer. A change
+          applies to first messages sent after you save it.
         </p>
       </div>
 

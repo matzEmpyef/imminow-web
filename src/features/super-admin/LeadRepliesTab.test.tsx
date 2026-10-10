@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Owner's ruling 2026-10-09: two clocks on a student's first message to a consultancy, set in
+// Owner's ruling 2026-10-09: three numbers on a student's first message to a consultancy, set in
 // Settings. Pinned: the saved (or default) values show, a value out of range cannot be saved, a
 // change goes out as one PATCH with both numbers, and the server's field sentence is shown beside
 // the field it names.
@@ -28,6 +28,7 @@ function renderTab() {
 
 const reminder = () => screen.getByLabelText(/Remind the consultancy after/)
 const alert = () => screen.getByLabelText(/Tell immiNow after/)
+const afterReminder = () => screen.getByLabelText(/Working hours the consultancy gets after its reminder/)
 const save = () => screen.getByRole('button', { name: 'Save' })
 
 beforeEach(() => {
@@ -36,7 +37,7 @@ beforeEach(() => {
   vi.mocked(showToast).mockClear()
   useAuthStore.setState({ accessToken: 'test-token' })
   mockedGet.mockResolvedValue({
-    data: { lead_reply_reminder_hours: 3, lead_platform_alert_hours: 30 },
+    data: { lead_reply_reminder_hours: 3, lead_platform_alert_hours: 30, lead_platform_alert_after_reminder_hours: 6 },
     error: undefined,
   } as never)
   mockedPatch.mockResolvedValue({ data: {}, error: undefined } as never)
@@ -47,14 +48,73 @@ describe('the Lead Replies settings', () => {
     renderTab()
     await waitFor(() => expect(reminder()).toHaveValue(3))
     expect(alert()).toHaveValue(30)
+    expect(afterReminder()).toHaveValue(6)
     expect(save()).toBeDisabled()
   })
 
-  it('falls back to the defaults, 2 and 24, when the server sends none', async () => {
+  it('falls back to the defaults, 2, 24 and 4, when the server sends none', async () => {
     mockedGet.mockResolvedValue({ data: {}, error: undefined } as never)
     renderTab()
     await waitFor(() => expect(reminder()).toHaveValue(2))
     expect(alert()).toHaveValue(24)
+    expect(afterReminder()).toHaveValue(4)
+  })
+
+  it('explains that the platform hears at the later of the two limits', async () => {
+    renderTab()
+    await waitFor(() => expect(afterReminder()).toHaveValue(6))
+    expect(
+      screen.getByText(
+        'The platform is told at the later of this and the 24-hour limit, so it never hears before the consultancy has been reminded.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('refuses a value outside 1–48 on the after-reminder hours, and sends it with the others', async () => {
+    renderTab()
+    await waitFor(() => expect(afterReminder()).toHaveValue(6))
+    fireEvent.change(afterReminder(), { target: { value: '49' } })
+    expect(screen.getByText('A whole number from 1 to 48.')).toBeInTheDocument()
+    expect(save()).toBeDisabled()
+    fireEvent.change(afterReminder(), { target: { value: '0' } })
+    expect(save()).toBeDisabled()
+    fireEvent.change(afterReminder(), { target: { value: '2.5' } })
+    expect(save()).toBeDisabled()
+    expect(mockedPatch).not.toHaveBeenCalled()
+
+    fireEvent.change(afterReminder(), { target: { value: '8' } })
+    fireEvent.click(save())
+    await waitFor(() =>
+      expect(mockedPatch).toHaveBeenCalledWith('/platform/settings', {
+        body: {
+          lead_reply_reminder_hours: 3,
+          lead_platform_alert_hours: 30,
+          lead_platform_alert_after_reminder_hours: 8,
+        },
+      }),
+    )
+  })
+
+  it('shows the server’s sentence on the after-reminder field', async () => {
+    mockedPatch.mockResolvedValue({
+      data: undefined,
+      error: {
+        error: {
+          code: 'validation_failed',
+          message: 'Some settings are not valid.',
+          details: {
+            fields: { lead_platform_alert_after_reminder_hours: 'Must be a whole number of hours from 1 to 48.' },
+          },
+        },
+      },
+    } as never)
+    renderTab()
+    await waitFor(() => expect(afterReminder()).toHaveValue(6))
+    fireEvent.change(afterReminder(), { target: { value: '7' } })
+    fireEvent.click(save())
+    expect(await screen.findByText('Must be a whole number of hours from 1 to 48.')).toBeInTheDocument()
+    fireEvent.change(afterReminder(), { target: { value: '9' } })
+    expect(screen.queryByText('Must be a whole number of hours from 1 to 48.')).not.toBeInTheDocument()
   })
 
   it('refuses a value outside 1–48 and 1–168 before sending anything', async () => {
@@ -85,7 +145,11 @@ describe('the Lead Replies settings', () => {
 
     await waitFor(() =>
       expect(mockedPatch).toHaveBeenCalledWith('/platform/settings', {
-        body: { lead_reply_reminder_hours: 4, lead_platform_alert_hours: 30 },
+        body: {
+          lead_reply_reminder_hours: 4,
+          lead_platform_alert_hours: 30,
+          lead_platform_alert_after_reminder_hours: 6,
+        },
       }),
     )
     await waitFor(() => expect(showToast).toHaveBeenCalledWith('Lead reply settings saved'))

@@ -147,6 +147,12 @@ export function useUpdatePlatformSettings() {
       lead_reply_reminder_hours?: number
       /** The same ruling (default 24, 1–168): hours before the platform is told of an unanswered first contact. */
       lead_platform_alert_hours?: number
+      /**
+       * Owner's ruling 2026-10-10 (default 4, 1–48): working hours the consultancy gets after its
+       * reminder before the platform is told — the platform hears at the later of this and
+       * `lead_platform_alert_hours`.
+       */
+      lead_platform_alert_after_reminder_hours?: number
     }) => {
       const { data, error } = await api.PATCH('/platform/settings', { body })
       if (error) throw new ApiError('Could not save this setting.', error)
