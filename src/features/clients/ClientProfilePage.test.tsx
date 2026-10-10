@@ -83,7 +83,7 @@ describe('ClientProfilePage — case moved to another consultancy', () => {
 
     expect(
       screen.getByText(
-        "This case moved to another consultancy on 20/09/2026 — you can read its history, but it's read-only now.",
+        "This case moved to another consultancy on 20-09-2026 — you can read its history, but it's read-only now.",
       ),
     ).toBeInTheDocument()
   })

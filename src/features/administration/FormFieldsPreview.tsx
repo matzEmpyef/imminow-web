@@ -358,7 +358,7 @@ function FieldMockInput({ field }: { field: FormFieldInput }) {
     case 'date':
       return (
         <div className="flex h-9 items-center justify-between rounded-md border border-border bg-background px-sm text-caption text-text-secondary">
-          <span>dd/mm/yyyy</span>
+          <span>dd-mm-yyyy</span>
           <Calendar className="h-3 w-3" />
         </div>
       )

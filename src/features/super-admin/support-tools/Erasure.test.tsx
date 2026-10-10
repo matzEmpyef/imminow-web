@@ -182,7 +182,7 @@ describe('the erase form', () => {
       expect(await screen.findByText(NOTICE)).toBeInTheDocument()
       expect(screen.getByText('Open disputes')).toBeInTheDocument()
       const rows = screen.getAllByRole('listitem').filter((li) => li.textContent?.includes('opened'))
-      expect(rows.map((li) => li.textContent)).toEqual(['Bright Path · opened 20/09/2026', 'Northwind Education · opened 01/10/2026'])
+      expect(rows.map((li) => li.textContent)).toEqual(['Bright Path · opened 20-09-2026', 'Northwind Education · opened 01-10-2026'])
       const confirm = await confirmButton('Schedule erasure')
       expect(rows[1].compareDocumentPosition(confirm) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
       expect(mockedPost).not.toHaveBeenCalled()

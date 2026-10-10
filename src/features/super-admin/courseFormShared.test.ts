@@ -5,7 +5,7 @@ import { aptitudeRequiredFromServer, intakeStatusLabel } from './courseFormShare
 // 2026-09-24); the console only words it. Pinned so every screen that shows it says the same.
 describe('intakeStatusLabel', () => {
   it('names the date an open intake is open until', () => {
-    expect(intakeStatusLabel('open', '2027-03-31')).toBe('Open until 31/03/2027')
+    expect(intakeStatusLabel('open', '2027-03-31')).toBe('Open until 31-03-2027')
   })
 
   it('says "Open" alone when an open intake somehow carries no date', () => {

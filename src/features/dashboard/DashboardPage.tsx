@@ -112,6 +112,7 @@ function CardOrLink({
 function LeadsOverTimeChart({ points }: { points: { date: string; count: number }[] }) {
   if (points.length === 0) return <p className="text-body-sm text-text-secondary">No data yet.</p>
   const data = points.map((p) => ({
+    // date-guard-ok: a chart axis label (day and month), not a full date
     date: new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(p.date)),
     count: p.count,
   }))

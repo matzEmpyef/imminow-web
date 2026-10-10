@@ -116,7 +116,7 @@ describe('FormsTab table fields', () => {
       'Yes',
       'Bachelor',
       'Maths, Physics',
-      '31/05/2021',
+      '31-05-2021',
     ])
     // Cells nobody filled, and an empty multi-select, read as a dash.
     expect(within(second).getAllByRole('cell').slice(0, 6).map((td) => td.textContent)).toEqual([

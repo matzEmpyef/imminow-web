@@ -74,8 +74,8 @@ describe('Completed tasks older than 30 days', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Completed tasks older than 30 days' }))
 
     expect(await screen.findByText('Chase documents t1')).toBeInTheDocument()
-    expect(screen.getByText('Completed 01/08/2026')).toBeInTheDocument()
-    expect(screen.getByText('Completed 15/07/2026')).toBeInTheDocument()
+    expect(screen.getByText('Completed 01-08-2026')).toBeInTheDocument()
+    expect(screen.getByText('Completed 15-07-2026')).toBeInTheDocument()
     expect(screen.getAllByText(/Asha Nair · assigned by Ravi Das/)).toHaveLength(2)
 
     const q = requests()[0]

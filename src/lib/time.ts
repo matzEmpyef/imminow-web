@@ -72,13 +72,14 @@ function pad(n: number): string {
   return String(n).padStart(2, '0')
 }
 
-// Platform-wide date convention (user-requested): every displayed date reads dd/mm/yyyy, not
+// Platform-wide date convention (user-requested): every displayed date reads DD-MM-YYYY (dashes,
+// owner's ruling 2026-10-10: one format across the platform), not
 // whatever the browser's locale would otherwise produce via toLocaleDateString().
 //
 // A DATE-ONLY string ("2026-03-15" — a deadline, a subscription end, a due date) is a calendar
 // date, not an instant, and is rendered as TEXT (assumptions audit C13, approved 2026-09-19).
 // `new Date("2026-03-15")` is UTC midnight, and reading it back with the local getters below
-// showed 14/03/2026 to anyone west of UTC — every deadline, grace end and due date a day early.
+// showed 14-03-2026 to anyone west of UTC — every deadline, grace end and due date a day early.
 // Same reasoning and the same parse as `formatEventDateTime`'s `starts_at_local` below: a value
 // that carries no offset must never be routed through Date. Strings that DO carry a time are
 // genuine instants and keep the local rendering, which is what they mean.
@@ -87,12 +88,33 @@ export function formatDate(input: string | Date): string {
     const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(input.trim())
     if (dateOnly) {
       const [, year, month, day] = dateOnly
-      return `${day}/${month}/${year}`
+      return `${day}-${month}-${year}`
     }
   }
   const d = typeof input === 'string' ? new Date(input) : input
-  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`
+  return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`
 }
+
+// A month-and-year LABEL ("October 2026"), for a heading that names a period rather than a day.
+// Not a date, so it keeps month words; it lives here so no screen reaches for toLocaleDateString.
+export function formatMonthYear(input: Date = new Date()): string {
+  return `${MONTH_NAMES[input.getMonth()]} ${input.getFullYear()}`
+}
+
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
 
 // A calendar date as YYYY-MM-DD on the browser's own clock — what "today" means to the person
 // using the console. `toISOString().slice(0, 10)` is the UTC date instead, which in India reads
@@ -143,7 +165,7 @@ export function formatEventDateTime(event: {
     if (parts) {
       const [, year, month, day, hour, minute] = parts
       const zone = event.timezone_label || browserTimezoneAbbreviation()
-      return `${day}/${month}/${year}, ${hour}:${minute}${zone ? ` ${zone}` : ''}`
+      return `${day}-${month}-${year}, ${hour}:${minute}${zone ? ` ${zone}` : ''}`
     }
   }
   if (!event.starts_at) return ''
@@ -169,7 +191,7 @@ export function isSameCalendarDay(a: string | Date, b: string | Date): boolean {
   return isSameDay(typeof a === 'string' ? new Date(a) : a, typeof b === 'string' ? new Date(b) : b)
 }
 
-// WhatsApp-style day divider: "Today" / "Yesterday" / "Tomorrow", falling back to dd/mm/yyyy for
+// WhatsApp-style day divider: "Today" / "Yesterday" / "Tomorrow", falling back to DD-MM-YYYY for
 // anything further off. "Tomorrow" (2026-08-29 addition) backs Activity's Coming Up timeline,
 // which groups future dates by day — Yesterday/Today alone never needed a forward-looking label
 // before this, since every other caller only ever day-divides past messages.
@@ -202,7 +224,7 @@ export function formatDayLabel(input: string | Date): string {
  * no caption rather than an invented one.
  *
  * The DATE is added whenever the stamp is not from today (review F-161): "as of 14:00 on
- * 03/10/2026". An hour alone made three-day-old figures, or figures from a refresh that had been
+ * 03-10-2026". An hour alone made three-day-old figures, or figures from a refresh that had been
  * failing since yesterday, read exactly like fresh ones. `dated` asks for the date even today,
  * for a page whose figures are known to run behind.
  */
@@ -236,7 +258,7 @@ export function isAsOfStale(iso: string | null | undefined, now: Date = new Date
 /**
  * The demand rollup's own stamp (contract gate 12d, owner 2026-10-04). Demand deliberately runs
  * three days behind, so it carries its own `demand_as_of` beside the page's `as_of` — and at that
- * distance the claim is a DATE, not an hour: "as of 01/10/2026". Returns null (no caption) when the
+ * distance the claim is a DATE, not an hour: "as of 01-10-2026". Returns null (no caption) when the
  * stamp is missing or unparseable, or when it sits less than a day from the page's own `as_of`
  * (from now, when the page has none) — nothing worth saying then.
  */

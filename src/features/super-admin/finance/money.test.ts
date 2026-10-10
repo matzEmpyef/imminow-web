@@ -121,7 +121,7 @@ describe('the payment history export', () => {
 
   it('puts a CAD payment in CAD, exact to the cent, with its rupee value beside it', () => {
     expect(first).toBe(
-      '03/09/2026,confirmed,CAD,1240.6,76123,Alpha Consult,Asha Nair,TXN-1,01/09/2026,03/09/2026,Finance One,,,,',
+      '03-09-2026,confirmed,CAD,1240.6,76123,Alpha Consult,Asha Nair,TXN-1,01-09-2026,03-09-2026,Finance One,,,,',
     )
   })
 
@@ -137,13 +137,13 @@ describe('the payment history export', () => {
     } as unknown as CommissionPayment
     const [, row] = toCsv([usd], PAYMENT_HISTORY_COLUMNS).split('\r\n')
     expect(row).toBe(
-      '03/09/2026,confirmed,USD,1000,83000,Alpha Consult,Asha Nair,TXN-1,01/09/2026,03/09/2026,Finance One,,CAD,1.4,1400',
+      '03-09-2026,confirmed,USD,1000,83000,Alpha Consult,Asha Nair,TXN-1,01-09-2026,03-09-2026,Finance One,,CAD,1.4,1400',
     )
   })
 
   it('gives a rupee payment the same figure in both amount columns', () => {
     expect(second).toBe(
-      '04/09/2026,rejected,INR,5000,5000,"Beta, Abroad",General,,02/09/2026,04/09/2026,Finance Two,Not received,,,',
+      '04-09-2026,rejected,INR,5000,5000,"Beta, Abroad",General,,02-09-2026,04-09-2026,Finance Two,Not received,,,',
     )
   })
 

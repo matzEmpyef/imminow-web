@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dateFieldToIso, daysSince, daysUntil, formatAsOf, formatDate, isAsOfStale, localDateISO, relativeTime, timeAgo } from './time'
+import { dateFieldToIso, daysSince, daysUntil, formatAsOf, formatDate, formatDateTime, formatEventDateTime, formatMonthYear, isAsOfStale, localDateISO, relativeTime, timeAgo } from './time'
 
 // The bug this helper exists for (2026-09-12): "today" was taken from toISOString(), the UTC
 // date, so in India every date default read as yesterday between midnight and 05:30.
@@ -21,19 +21,19 @@ describe('localDateISO', () => {
 })
 
 // Assumptions audit C13 (approved 2026-09-19): `new Date("2026-03-15")` is UTC midnight, and
-// reading it back with the local getters this helper uses showed 14/03/2026 to anyone west of
+// reading it back with the local getters this helper uses showed 14-03-2026 to anyone west of
 // UTC — every deadline, grace end and due date a day early. A date-only string is now read as
 // text, so the rendering no longer depends on where the browser is.
 describe('formatDate', () => {
   it('renders a date-only string verbatim, with no timezone shift', () => {
-    expect(formatDate('2026-03-15')).toBe('15/03/2026')
-    expect(formatDate('2026-01-01')).toBe('01/01/2026')
-    expect(formatDate('2026-12-31')).toBe('31/12/2026')
+    expect(formatDate('2026-03-15')).toBe('15-03-2026')
+    expect(formatDate('2026-01-01')).toBe('01-01-2026')
+    expect(formatDate('2026-12-31')).toBe('31-12-2026')
   })
 
   it('still treats a value carrying a time as an instant on the local clock', () => {
-    expect(formatDate(new Date(2026, 2, 15, 9, 0))).toBe('15/03/2026')
-    expect(formatDate(new Date(2026, 2, 15, 9, 0).toISOString())).toBe('15/03/2026')
+    expect(formatDate(new Date(2026, 2, 15, 9, 0))).toBe('15-03-2026')
+    expect(formatDate(new Date(2026, 2, 15, 9, 0).toISOString())).toBe('15-03-2026')
   })
 })
 
@@ -105,8 +105,8 @@ describe('formatAsOf — figures that are not from today', () => {
   const now = new Date(2026, 9, 6, 10, 30)
 
   it('adds the date when the stamp is from another day', () => {
-    expect(formatAsOf(new Date(2026, 9, 3, 14, 5).toISOString(), { now })).toBe('as of 14:00 on 03/10/2026')
-    expect(formatAsOf(new Date(2026, 9, 5, 23, 0).toISOString(), { now })).toBe('as of 23:00 on 05/10/2026')
+    expect(formatAsOf(new Date(2026, 9, 3, 14, 5).toISOString(), { now })).toBe('as of 14:00 on 03-10-2026')
+    expect(formatAsOf(new Date(2026, 9, 5, 23, 0).toISOString(), { now })).toBe('as of 23:00 on 05-10-2026')
   })
 
   it('keeps the hour alone for today', () => {
@@ -114,7 +114,7 @@ describe('formatAsOf — figures that are not from today', () => {
   })
 
   it('shows the date even today when asked to (a page whose figures run behind)', () => {
-    expect(formatAsOf(new Date(2026, 9, 6, 9, 0).toISOString(), { now, dated: true })).toBe('as of 09:00 on 06/10/2026')
+    expect(formatAsOf(new Date(2026, 9, 6, 9, 0).toISOString(), { now, dated: true })).toBe('as of 09:00 on 06-10-2026')
   })
 })
 
@@ -150,5 +150,23 @@ describe('dateFieldToIso', () => {
 
   it('sends null for a cleared date', () => {
     expect(dateFieldToIso('2026-10-10T18:30:00.000Z', '')).toBeNull()
+  })
+})
+
+// Owner's ruling 2026-10-10: one display format across the platform, DD-MM-YYYY with dashes.
+describe('one date format, DD-MM-YYYY', () => {
+  it('a date with a time is DD-MM-YYYY, HH:mm on the 24-hour clock', () => {
+    expect(formatDateTime(new Date(2026, 7, 11, 15, 30))).toBe('11-08-2026, 15:30')
+    expect(formatDateTime(new Date(2026, 7, 11, 9, 5))).toBe('11-08-2026, 09:05')
+  })
+
+  it('an event authored in its own zone prints verbatim, with dashes', () => {
+    expect(formatEventDateTime({ starts_at_local: '2026-10-16T18:30:00', timezone_label: 'BST' })).toBe(
+      '16-10-2026, 18:30 BST',
+    )
+  })
+
+  it('a month heading is a label, not a date', () => {
+    expect(formatMonthYear(new Date(2026, 9, 10))).toBe('October 2026')
   })
 })

@@ -63,7 +63,7 @@ describe('KYC review — rejecting a certificate', () => {
   it('a rejected certificate reads KYC rejected, with the date and the reason', () => {
     show({ ...pending, status: 'rejected', rejected_at: '2026-10-08T09:00:00Z', rejected_reason: 'The name does not match.' })
     expect(screen.getByText('KYC rejected')).toBeInTheDocument()
-    expect(screen.getByText('Rejected on 08/10/2026: The name does not match.')).toBeInTheDocument()
+    expect(screen.getByText('Rejected on 08-10-2026: The name does not match.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument()
   })
 

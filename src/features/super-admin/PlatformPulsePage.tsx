@@ -131,13 +131,11 @@ function labelSections(sections: { module: string; views: number }[], labels: Re
 // Never a fabricated zero — every empty card says what is and is not known (user, 2026-09-11: the
 // old "Collecting since … check back as usage accrues" read vague). Follows the period at the top.
 function sparseMessage(collectingSince: string, windowDays: number) {
-  const since = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(
-    new Date(collectingSince),
-  )
-  return `Nothing recorded in the last ${windowDays} days. Recording since ${since}.`
+  return `Nothing recorded in the last ${windowDays} days. Recording since ${formatDate(collectingSince)}.`
 }
 
 function shortDay(isoDate: string) {
+  // date-guard-ok: a chart axis label (day and month), not a full date
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).format(new Date(`${isoDate}T00:00:00`))
 }
 

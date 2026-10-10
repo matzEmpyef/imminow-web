@@ -22,7 +22,7 @@ describe('AsOfCaption', () => {
   it('warns, with the date, when the figures are three days old', () => {
     render(<AsOfCaption asOf={new Date(2026, 9, 3, 14, 0).toISOString()} />)
     expect(screen.getByRole('status')).toHaveTextContent(
-      'Figures as of 14:00 on 03/10/2026. These are older than expected: the hourly refresh may be delayed.',
+      'Figures as of 14:00 on 03-10-2026. These are older than expected: the hourly refresh may be delayed.',
     )
   })
 
@@ -33,7 +33,7 @@ describe('AsOfCaption', () => {
 
   it('shows the date on a page that always wants it, without a warning when fresh', () => {
     render(<AsOfCaption asOf={new Date(2026, 9, 6, 10, 0).toISOString()} dated />)
-    expect(screen.getByText('Figures as of 10:00 on 06/10/2026, refreshed hourly.')).toBeInTheDocument()
+    expect(screen.getByText('Figures as of 10:00 on 06-10-2026, refreshed hourly.')).toBeInTheDocument()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 

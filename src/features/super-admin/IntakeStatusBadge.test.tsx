@@ -6,7 +6,7 @@ import { IntakeStatusBadge } from './IntakeStatusBadge'
 describe('IntakeStatusBadge', () => {
   it('shows an open intake with the date it is open until', () => {
     render(<IntakeStatusBadge status="open" deadline="2027-03-31" />)
-    expect(screen.getByText('Open until 31/03/2027')).toBeInTheDocument()
+    expect(screen.getByText('Open until 31-03-2027')).toBeInTheDocument()
   })
 
   it('shows a passed deadline and a missing one in words', () => {

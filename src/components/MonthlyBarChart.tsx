@@ -38,6 +38,7 @@ export function MonthlyBarChart({
   if (data.length === 0) return <p className="text-body-sm text-text-secondary">No data yet.</p>
   const formatted = data.map((d) => ({
     ...d,
+    // date-guard-ok: a chart axis label (month and year), not a date
     month: new Intl.DateTimeFormat(undefined, { month: 'short', year: '2-digit' }).format(new Date(`${d.month}-01`)),
   }))
   return (

@@ -43,7 +43,7 @@ describe('DueScheduleDrawer, a part settled by a write-off', () => {
       />,
     )
     expect(screen.getByText('Settled')).toBeInTheDocument()
-    expect(screen.getByText('Written off CAD 40.00 by immiNow Finance on 08/10/2026: Bank charges')).toBeInTheDocument()
+    expect(screen.getByText('Written off CAD 40.00 by immiNow Finance on 08-10-2026: Bank charges')).toBeInTheDocument()
     // What was paid stays the money received.
     expect(screen.getByText(/Paid CAD 960\.00/)).toBeInTheDocument()
   })

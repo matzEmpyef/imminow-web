@@ -31,7 +31,7 @@ describe('caseMovedBannerMessage', () => {
   it('adds the date from closed_at when the server sent one', () => {
     const message = caseMovedBannerMessage({ status: 'closed_switched', closed_at: '2026-09-20' })
     expect(message).toBe(
-      "This case moved to another consultancy on 20/09/2026 — you can read its history, but it's read-only now.",
+      "This case moved to another consultancy on 20-09-2026 — you can read its history, but it's read-only now.",
     )
   })
 })

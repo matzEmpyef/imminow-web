@@ -197,7 +197,7 @@ describe('a settled part', () => {
   it('reads Settled, with the written-off amount as its own figure, who, when and why', () => {
     openDrawer(settled, { paid_inr: 57600, written_off_inr: 2400 })
     expect(screen.getByText('Settled')).toBeInTheDocument()
-    expect(screen.getByText(/Written off CAD 40\.00 by Priya Nair on 08\/10\/2026: Bank charges/)).toBeInTheDocument()
+    expect(screen.getByText(/Written off CAD 40\.00 by Priya Nair on 08-10-2026: Bank charges/)).toBeInTheDocument()
     // The case's written-off total is its own tile, beside Paid and not inside it.
     expect(screen.getByText('Written off (₹)').parentElement).toHaveTextContent('₹2,400.00')
     expect(screen.getByText('Paid (₹)').parentElement).toHaveTextContent('₹57,600.00')
@@ -228,7 +228,7 @@ describe('a void of an installment waiting for Finance', () => {
   it('shows the request with its reason, and no decision controls on any other part', () => {
     openDrawer(waiting)
     expect(screen.getByText('Void requested')).toBeInTheDocument()
-    expect(screen.getByText(/asked to void this installment on 07\/10\/2026: Entered twice/)).toBeInTheDocument()
+    expect(screen.getByText(/asked to void this installment on 07-10-2026: Entered twice/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Decline' })).toBeInTheDocument()
   })

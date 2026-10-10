@@ -131,7 +131,7 @@ describe('the date-of-birth form', () => {
     fill()
     fireEvent.click(continueButton())
 
-    expect(screen.getByText('Change Meera Pillai’s date of birth to 02/03/2009?')).toBeInTheDocument()
+    expect(screen.getByText('Change Meera Pillai’s date of birth to 02-03-2009?')).toBeInTheDocument()
     expect(screen.getByText('The date of birth on their account is replaced with this one.')).toBeInTheDocument()
     expect(
       screen.getByText(
@@ -176,7 +176,7 @@ describe('the date-of-birth form', () => {
     renderForm()
     send()
     expect(await screen.findByRole('status')).toHaveTextContent(
-      'Date of birth corrected for Meera Pillai. It is now 02/03/2009 (it was 02/03/2005).',
+      'Date of birth corrected for Meera Pillai. It is now 02-03-2009 (it was 02-03-2005).',
     )
     expect(screen.queryByText(/guardian's approval/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
@@ -201,7 +201,7 @@ describe('the date-of-birth form', () => {
     mockedPost.mockResolvedValue(corrected('none', null))
     renderForm()
     send()
-    expect(await screen.findByRole('status')).toHaveTextContent('Date of birth corrected for Meera Pillai. It is now 02/03/2009.')
+    expect(await screen.findByRole('status')).toHaveTextContent('Date of birth corrected for Meera Pillai. It is now 02-03-2009.')
     expect(screen.getByRole('status')).not.toHaveTextContent('it was')
   })
 })

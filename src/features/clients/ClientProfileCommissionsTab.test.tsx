@@ -204,7 +204,7 @@ describe('CommissionsTab, a void waiting for immiNow Finance', () => {
       ],
     })
     expect(screen.getByText('Waiting for immiNow Finance')).toBeInTheDocument()
-    expect(screen.getByText(/Void requested on 07\/10\/2026 — Entered twice/)).toBeInTheDocument()
+    expect(screen.getByText(/Void requested on 07-10-2026 — Entered twice/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Void' })).toBeNull()
   })
 

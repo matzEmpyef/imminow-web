@@ -153,8 +153,8 @@ describe('asking for a conversation export', () => {
   it('lists the consultancies the student has talked to, with how many messages and the last one', async () => {
     renderModal()
     expect(await screen.findByLabelText(/Bright Path/)).not.toBeChecked()
-    expect(screen.getByText('128 messages · last message 05/10/2026')).toBeInTheDocument()
-    expect(screen.getByText('1 message · last message 11/08/2026')).toBeInTheDocument()
+    expect(screen.getByText('128 messages · last message 05-10-2026')).toBeInTheDocument()
+    expect(screen.getByText('1 message · last message 11-08-2026')).toBeInTheDocument()
     expect(calls('/users/{id}/conversations')[0][1]).toMatchObject({ params: { path: { id: 'user-meera' } } })
   })
 

@@ -1,4 +1,5 @@
 import { Skeleton } from '@/components/QueryState'
+import { formatMonthYear } from '@/lib/time'
 
 export interface DisputeSummary {
   open?: number
@@ -40,7 +41,7 @@ export function DisputeSummaryTiles({ summary, loading }: { summary?: DisputeSum
         {/* "This month" alone doesn't say which one (L9, product review 2026-09-12) — spelled out
             so the tile still reads right on a screenshot taken weeks later. */}
         <span className="text-caption text-text-secondary">
-          Resolved this month ({new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })})
+          Resolved this month ({formatMonthYear()})
         </span>
         <span className="text-h3 tabular-nums text-text-primary">{summary.resolved_this_month ?? 0}</span>
       </div>

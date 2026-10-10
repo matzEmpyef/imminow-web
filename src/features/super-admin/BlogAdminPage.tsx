@@ -32,7 +32,7 @@ type BlogArticle = components['schemas']['BlogArticle']
 const TABS = ['Articles', 'Category Mapping'] as const
 type Tab = (typeof TABS)[number]
 
-// Wraps the platform's shared formatDate (dd/mm/yyyy) rather than a local `.toLocaleDateString()`
+// Wraps the platform's shared formatDate (DD-MM-YYYY) rather than a local `.toLocaleDateString()`
 // re-implementation — this page's dates used to render in a different style (browser-locale-
 // dependent) from the rest of the app.
 const formatDate = (iso?: string) => (iso ? formatDateShared(iso) : '—')
