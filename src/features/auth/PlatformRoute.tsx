@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
 import { SessionGate } from '@/features/auth/SessionGate'
+import { AdminShell } from '@/features/auth/AdminShell'
+import { NoAccessCard } from '@/components/NoAccessCard'
 import { scopeHomePath } from '@/lib/roleHome'
 import type { components } from '@/api/schema'
 
@@ -34,11 +36,21 @@ export function PlatformRoute({
         // Read from `GET /me` on every visit (review F-036), not from a copy made at sign-in, so
         // a grant taken away stops opening its pages without a new sign-in.
         const permissions: Partial<Record<PlatformPermissionKey, boolean>> = me.user.platform_permissions ?? {}
-        // A platform account missing this one flag stays inside the console, on its landing page —
-        // /dashboard would bounce them into a shell they can't use either.
-        if (permission && !permissions[permission]) return <Navigate to="/admin/dashboard" replace />
-        if (anyPermission && !anyPermission.some((key) => permissions[key])) {
-          return <Navigate to="/admin/dashboard" replace />
+        // A platform account missing the flag stays inside the console and is told so (review 2.110):
+        // a silent bounce to the dashboard read as a broken link. The card carries the way back.
+        if (
+          (permission && !permissions[permission]) ||
+          (anyPermission && !anyPermission.some((key) => permissions[key]))
+        ) {
+          return (
+            <AdminShell>
+              <NoAccessCard
+                detail="Ask a Super Admin if you need it."
+                backTo="/admin/dashboard"
+                backLabel="Back to the dashboard"
+              />
+            </AdminShell>
+          )
         }
         return children
       }}

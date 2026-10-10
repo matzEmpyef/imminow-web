@@ -12,6 +12,7 @@ vi.mock('@/queries/me', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/queries/me')>()),
   useMe: vi.fn(),
 }))
+vi.mock('@/features/auth/AdminShell', () => ({ AdminShell: ({ children }: { children: React.ReactNode }) => <div data-testid="admin-shell">{children}</div> }))
 const logout = vi.fn()
 vi.mock('@/lib/useLogout', () => ({ useLogout: () => logout }))
 
@@ -199,10 +200,14 @@ describe('platform pages follow the grants in the current answer', () => {
     expect(screen.getByText('Ratings page')).toBeInTheDocument()
   })
 
-  it('keeps a staffer without the grant inside the console, on its dashboard', () => {
+  // Review 2.110: a silent bounce to the dashboard read as a broken link.
+  it('tells a staffer without the grant they have no access, inside the console, with a way back', () => {
     mockedMe.mockReturnValue(meAnswered(platformMe({ finance: true })))
     renderAt('/admin/ratings')
-    expect(screen.getByText('Console dashboard')).toBeInTheDocument()
+    expect(screen.queryByText('Ratings page')).not.toBeInTheDocument()
+    expect(screen.queryByText('Console dashboard')).not.toBeInTheDocument()
+    expect(screen.getByTestId('admin-shell')).toHaveTextContent('You don’t have access to this page.')
+    expect(screen.getByRole('link', { name: 'Back to the dashboard' })).toHaveAttribute('href', '/admin/dashboard')
   })
 
   it('closes the page as soon as the grant is gone from the answer, with no new sign-in', () => {
@@ -220,9 +225,10 @@ describe('platform pages follow the grants in the current answer', () => {
       </MemoryRouter>,
     )
     expect(screen.queryByText('Ratings page')).not.toBeInTheDocument()
+    expect(screen.getByText('You don’t have access to this page.')).toBeInTheDocument()
   })
 
-  it('opens an any-of page for either grant and for neither sends them to the dashboard', () => {
+  it('opens an any-of page for either grant and for neither shows the no-access card', () => {
     mockedMe.mockReturnValue(meAnswered(platformMe({ support: true })))
     const first = renderAt('/admin/case-followups')
     expect(screen.getByText('Follow-ups')).toBeInTheDocument()
@@ -230,12 +236,12 @@ describe('platform pages follow the grants in the current answer', () => {
 
     mockedMe.mockReturnValue(meAnswered(platformMe({ jobs: true })))
     renderAt('/admin/case-followups')
-    expect(screen.getByText('Console dashboard')).toBeInTheDocument()
+    expect(screen.getByText('You don’t have access to this page.')).toBeInTheDocument()
   })
 
   it('treats a platform account with no grants listed as holding none', () => {
     mockedMe.mockReturnValue(meAnswered({ ...platformMe(), user: { ...platformMe().user, platform_permissions: null } }))
     renderAt('/admin/ratings')
-    expect(screen.getByText('Console dashboard')).toBeInTheDocument()
+    expect(screen.getByText('You don’t have access to this page.')).toBeInTheDocument()
   })
 })

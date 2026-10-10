@@ -314,10 +314,10 @@ describe('who may open the import', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
-  it('sends anyone without it to the console home, and asks the server nothing', async () => {
+  it('tells anyone without it they have no access, and asks the server nothing', async () => {
     signInAs({ finance: true })
     renderAt('/admin/colleges/import')
-    expect(await screen.findByText('Console home')).toBeInTheDocument()
+    expect(await screen.findByText('You don’t have access to this page.')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Import campuses and courses' })).not.toBeInTheDocument()
 
     renderAt('/admin/colleges/import/imp-1')
