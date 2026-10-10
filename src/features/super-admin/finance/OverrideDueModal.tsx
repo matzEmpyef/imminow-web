@@ -1,8 +1,9 @@
+import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
+import { MoneyField } from '@/components/MoneyField'
 import { useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { CompactSelect } from '@/components/CompactSelect'
-import { TextField } from '@/components/TextField'
 import { TextAreaField } from '@/components/TextAreaField'
 import { currencyOptions, money } from './money'
 import { useOverrideCommissionDue, type CommissionDuePart, type FinanceCaseRow } from '@/queries/financeDashboard'
@@ -38,7 +39,9 @@ export function OverrideDueModal({
 
   const trimmedReason = reason.trim()
   const parsed = Number(amount)
-  const isValidAmount = amount.trim() !== '' && Number.isFinite(parsed) && parsed >= 0
+  const isValidAmount = amount.trim() !== '' && Number.isFinite(parsed) && parsed >= 0 && !hasTooManyDecimals(amount)
+  // The server's own sentence for the amount, when it refused it (`details.fields`).
+  const amountMessage = serverMoneyMessage(overrideDue.error, 'amount')
   const invalid =
     mode === 'clear' ? trimmedReason.length < MIN_REASON_LENGTH : !isValidAmount || trimmedReason.length < MIN_REASON_LENGTH
 
@@ -77,7 +80,9 @@ export function OverrideDueModal({
       widthRem={28}
       footer={
         <>
-          {overrideDue.isError && <p className="mr-auto self-center text-body-sm text-error">{overrideDue.error.message}</p>}
+          {overrideDue.isError && !amountMessage && (
+            <p className="mr-auto self-center text-body-sm text-error">{overrideDue.error.message}</p>
+          )}
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
@@ -112,14 +117,13 @@ export function OverrideDueModal({
               a reference, they just stop being what&rsquo;s owed.
             </p>
             <div className="flex items-center gap-sm">
-              <TextField
+              <MoneyField
                 label="Amount"
-                type="number"
                 min={0}
-                step="0.01"
                 required
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
+                error={amountMessage}
                 className="flex-1"
               />
               <CompactSelect label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)}>

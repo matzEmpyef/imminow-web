@@ -101,7 +101,7 @@ export const HOW_TO_FILL_STEPS: readonly string[] = [
   'Fill only the sheets you need: Campuses, Courses, Intakes, Tests. Use one row per campus or course.',
   'A cell with a small arrow is a list. Pick a value from it; don’t type a new one.',
   'Dark blue columns are needed for a new record. The other columns are optional.',
-  'Dates are written YYYY-MM-DD. Money is numbers only, with the currency in its own column.',
+  'Dates are written YYYY-MM-DD. Money is numbers only, with at most two decimal places, and the currency in its own column.',
   'For a new row, leave “Record ID” empty. To change existing records, download the current catalogue and edit that file. Don’t change “Record ID”.',
   'An empty cell is left as it is. Type CLEAR to empty a cell.',
   'Nothing is ever deleted. Set Active to No to retire a record, or “Remove this intake” to Yes to take a month off.',

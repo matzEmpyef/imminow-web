@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { MONEY_DECIMALS_ERROR, hasTooManyDecimals, moneyDecimalsError } from './moneyInput'
+import { ApiError } from '@/api/errors'
+import { MONEY_DECIMALS_ERROR, hasTooManyDecimals, moneyDecimalsError, serverMoneyMessage } from './moneyInput'
 
 describe('hasTooManyDecimals', () => {
   it.each(['12', '12.', '12.3', '12.34', '12.340', '12.3400', '0.10', '1e3', '', '  ', 'abc', '-5.50'])(
@@ -22,5 +23,21 @@ describe('hasTooManyDecimals', () => {
     expect(MONEY_DECIMALS_ERROR).toBe('Amounts have at most two decimal places.')
     expect(moneyDecimalsError('1.234')).toBe(MONEY_DECIMALS_ERROR)
     expect(moneyDecimalsError('1.23')).toBeUndefined()
+  })
+})
+
+describe('serverMoneyMessage', () => {
+  const refused = (fields: Record<string, string>) =>
+    new ApiError('x', { error: { code: 'validation_failed', message: 'Check the form.', details: { fields } } }, 400)
+
+  it('finds the first named field the server put a sentence on', () => {
+    const error = refused({ 'amount.amount': MONEY_DECIMALS_ERROR })
+    expect(serverMoneyMessage(error, 'amount', 'amount.amount')).toBe(MONEY_DECIMALS_ERROR)
+    expect(serverMoneyMessage(error, 'subscription_amount')).toBeUndefined()
+  })
+
+  it('says nothing for an error without fields, or for no error at all', () => {
+    expect(serverMoneyMessage(new ApiError('x', { error: { message: 'Nope.' } }, 500), 'amount')).toBeUndefined()
+    expect(serverMoneyMessage(null, 'amount')).toBeUndefined()
   })
 })

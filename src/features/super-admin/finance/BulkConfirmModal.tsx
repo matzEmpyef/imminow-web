@@ -1,3 +1,5 @@
+import { hasTooManyDecimals } from '@/lib/moneyInput'
+import { MoneyField } from '@/components/MoneyField'
 import { useCallback, useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
@@ -44,7 +46,7 @@ export function BulkConfirmModal({
 
   function rowValid(p: CommissionPayment): boolean {
     const parsed = Number(amounts[p.id])
-    if (amounts[p.id]?.trim() === '' || !Number.isFinite(parsed) || parsed <= 0) return false
+    if (amounts[p.id]?.trim() === '' || !Number.isFinite(parsed) || parsed <= 0 || hasTooManyDecimals(amounts[p.id])) return false
     if (changedAmount(p) && (notes[p.id] ?? '').trim().length < MIN_REASON_LENGTH) return false
     return true
   }
@@ -154,9 +156,8 @@ export function BulkConfirmModal({
                       </div>
                     </div>
                     <div className="flex items-end gap-sm">
-                      <TextField
+                      <MoneyField
                         label={`Amount received (${currency})`}
-                        type="number"
                         min={0}
                         required
                         value={amounts[p.id] ?? ''}

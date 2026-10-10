@@ -1,10 +1,11 @@
+import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
+import { MoneyField } from '@/components/MoneyField'
 import { useState, type FormEvent } from 'react'
 import { AppShell } from '@/features/auth/AppShell'
 import { PermissionGate } from '@/features/auth/PermissionGate'
 import { SelectField } from '@/components/SelectField'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
-import { TextField } from '@/components/TextField'
 import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
 import { Modal } from '@/components/Modal'
@@ -29,12 +30,15 @@ export function RecordReceiptForm({ onClose }: { onClose: () => void }) {
   const [invoiceId, setInvoiceId] = useState('')
   const [amount, setAmount] = useState('')
 
+  // The server's own sentence for the amount, when it refused it (`details.fields`).
+  const amountMessage = serverMoneyMessage(createReceipt.error, 'amount')
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     // T1 (third-pass review): Enter-Enter before the button's loading state painted recorded the
     // payment twice — money mutations get the same pending guard as the N7 fix.
     if (createReceipt.isPending) return
-    if (!invoiceId || !amount) return
+    if (!invoiceId || !amount || hasTooManyDecimals(amount)) return
     const invoice = invoices.data?.items.find((i) => i.id === invoiceId)
     const payload = { invoice_id: invoiceId, amount: Number(amount) }
     createReceipt.mutate(
@@ -65,10 +69,15 @@ export function RecordReceiptForm({ onClose }: { onClose: () => void }) {
       widthRem={28}
       footer={
         <>
-          {createReceipt.isError && (
+          {createReceipt.isError && !amountMessage && (
             <p className="mr-auto self-center text-body-sm text-error">{createReceipt.error.message}</p>
           )}
-          <Button type="submit" form="record-receipt-form" loading={createReceipt.isPending}>
+          <Button
+            type="submit"
+            form="record-receipt-form"
+            loading={createReceipt.isPending}
+            disabled={hasTooManyDecimals(amount)}
+          >
             Record Payment
           </Button>
         </>
@@ -88,7 +97,7 @@ export function RecordReceiptForm({ onClose }: { onClose: () => void }) {
             </option>
           ))}
         </SelectField>
-        <TextField label="Amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <MoneyField label="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} error={amountMessage} />
       </form>
     </Modal>
   )

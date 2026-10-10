@@ -380,7 +380,7 @@ export function CourseFormModal({
             would throw away in-progress state in the other tabs. See CourseFormPanels.tsx. */}
         <CourseBasicsPanel hidden={form.activeTab !== 'Basics'} form={form} />
         <CourseCampusIntakesPanel hidden={form.activeTab !== 'Campuses & Intakes'} college={college} form={form} />
-        <CourseFeesPanel hidden={form.activeTab !== 'Fees'} form={form} />
+        <CourseFeesPanel hidden={form.activeTab !== 'Fees'} form={form} refusal={mutation.error} />
         <CourseRequirementsPanel
           hidden={form.activeTab !== 'Entry Requirements'}
           activeExams={activeExams}

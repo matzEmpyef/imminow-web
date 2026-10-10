@@ -1,3 +1,5 @@
+import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
+import { MoneyField } from '@/components/MoneyField'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
@@ -132,8 +134,11 @@ export function AcceptCollegeModal({
     setCollegeAmount(String(Math.round((course.fee.amount * commissionPercent) / 100)))
   }, [collegeAmountTouched, needsCollege, commissionPercent, course.fee?.amount])
 
-  const collegeOk = !needsCollege || (Number(collegeAmount) > 0 && feeCurrency !== '')
-  const studentOk = !needsStudent || (Number(studentAmount) > 0 && studentCurrency !== '')
+  const collegeOk = !needsCollege || (Number(collegeAmount) > 0 && !hasTooManyDecimals(collegeAmount) && feeCurrency !== '')
+  const studentOk = !needsStudent || (Number(studentAmount) > 0 && !hasTooManyDecimals(studentAmount) && studentCurrency !== '')
+  // The server's own sentences for the amounts, when it refused one (`details.fields`).
+  const collegeMessage = serverMoneyMessage(updateStatus.error, 'expected_from_college.amount')
+  const studentMessage = serverMoneyMessage(updateStatus.error, 'expected_from_student.amount')
   const canSubmit =
     payerMethod != null && !missingCommissionPercent && collegeOk && studentOk && startMonth !== '' && !updateStatus.isPending
 
@@ -166,7 +171,7 @@ export function AcceptCollegeModal({
       widthRem={34}
       footer={
         <>
-          {updateStatus.isError && (
+          {updateStatus.isError && !collegeMessage && !studentMessage && (
             <p className="mr-auto self-center text-body-sm text-error">{updateStatus.error.message}</p>
           )}
           <div className="flex gap-sm">
@@ -206,10 +211,8 @@ export function AcceptCollegeModal({
           <>
             {needsCollege && (
               <div className="grid grid-cols-3 gap-sm">
-                <TextField
+                <MoneyField
                   label="From college (your commission)"
-                  type="number"
-                  min="1"
                   required
                   className="col-span-2"
                   value={collegeAmount}
@@ -217,6 +220,7 @@ export function AcceptCollegeModal({
                     setCollegeAmountTouched(true)
                     setCollegeAmount(e.target.value)
                   }}
+                  error={collegeMessage}
                 />
                 {/* Locked on purpose when the course has a fee currency — the college pays in
                     it. With no course currency there is nothing to lock to, so this is an
@@ -254,14 +258,13 @@ export function AcceptCollegeModal({
             )}
             {needsStudent && (
               <div className="grid grid-cols-3 gap-sm">
-                <TextField
+                <MoneyField
                   label="From applicant"
-                  type="number"
-                  min="1"
                   required
                   className="col-span-2"
                   value={studentAmount}
                   onChange={(e) => setStudentAmount(e.target.value)}
+                  error={studentMessage}
                 />
                 {/* Blank until chosen (C5) — what the applicant agreed to pay in is a fact about
                     this agreement, not a property of the consultancy's own display currency. */}

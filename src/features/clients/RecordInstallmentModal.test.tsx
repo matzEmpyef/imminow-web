@@ -73,3 +73,39 @@ describe('RecordInstallmentModal, the received date', () => {
     expect(screen.getByText('received_on cannot be after today.')).toBeInTheDocument()
   })
 })
+
+// Owner's ruling 2026-10-10: money has at most two decimal places, in every currency.
+describe('RecordInstallmentModal, the amount', () => {
+  it('refuses a third decimal beside the field, and sends nothing', () => {
+    open()
+    fireEvent.change(screen.getByLabelText(/Amount/), { target: { value: '25000.123' } })
+    expect(screen.getByLabelText(/Amount/)).toHaveAccessibleDescription('Amounts have at most two decimal places.')
+    expect(screen.getByRole('button', { name: 'Record' })).toBeDisabled()
+    fireEvent.submit(document.getElementById('record-installment-form')!)
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
+  it('takes two decimals and a trailing zero', () => {
+    open()
+    fireEvent.change(screen.getByLabelText(/Amount/), { target: { value: '25000.340' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }))
+    expect(mutate.mock.calls[0][0]).toMatchObject({ amount: { amount: 25000.34, currency: 'INR' } })
+  })
+
+  it('shows the server’s sentence for the amount on the field, not in the footer', () => {
+    const message = 'Amounts have at most two decimal places.'
+    vi.mocked(useRecordInstallment).mockReturnValue({
+      mutate,
+      isPending: false,
+      isError: true,
+      error: new ApiError(
+        'Could not record this installment.',
+        { error: { code: 'validation_failed', message: 'Check the amount.', details: { fields: { 'amount.amount': message } } } },
+        422,
+      ),
+    } as never)
+    open()
+    expect(screen.getByLabelText(/Amount/)).toHaveAccessibleDescription(message)
+    expect(screen.queryByText('Check the amount.')).toBeNull()
+  })
+})

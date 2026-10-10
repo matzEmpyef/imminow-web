@@ -2,10 +2,12 @@ import { useState, type FormEvent } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
+import { MoneyField } from '@/components/MoneyField'
 import { SelectField } from '@/components/SelectField'
 import { CountrySelect } from '@/components/CountrySelect'
 import { useCreatePrCommissionEntry } from '@/queries/clients'
 import { useCurrencyCodes } from '@/lib/currencies'
+import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
 import { useMyConsultancy } from '@/queries/consultancy'
 import { showToast } from '@/lib/toast'
 import { formatMoney } from '@/lib/money'
@@ -34,7 +36,9 @@ export function RecordPrContributionModal({
   const [country, setCountry] = useState(finalizedCountry ?? '')
   const [note, setNote] = useState('')
 
-  const canSubmit = Number(amount) > 0 && country.trim().length > 0 && !create.isPending
+  const canSubmit = Number(amount) > 0 && !hasTooManyDecimals(amount) && country.trim().length > 0 && !create.isPending
+  // The server's own sentence for the amount, when it refused it (`details.fields`).
+  const amountMessage = serverMoneyMessage(create.error, 'amount.amount', 'amount')
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -61,7 +65,9 @@ export function RecordPrContributionModal({
       widthRem={30}
       footer={
         <>
-          {create.isError && <p className="mr-auto self-center text-body-sm text-error">{create.error.message}</p>}
+          {create.isError && !amountMessage && (
+            <p className="mr-auto self-center text-body-sm text-error">{create.error.message}</p>
+          )}
           <div className="flex gap-sm">
             <Button type="submit" form="pr-contribution-form" loading={create.isPending} disabled={!canSubmit}>
               Record
@@ -79,14 +85,13 @@ export function RecordPrContributionModal({
           installments on the Commissions tab.
         </p>
         <div className="grid grid-cols-3 gap-sm">
-          <TextField
+          <MoneyField
             label="Amount"
-            type="number"
-            min="1"
             required
             className="col-span-2"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
+            error={amountMessage}
           />
           <SelectField label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)}>
             {currencyCodes.map((c) => (

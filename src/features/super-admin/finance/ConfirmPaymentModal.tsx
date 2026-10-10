@@ -1,8 +1,9 @@
+import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
+import { MoneyField } from '@/components/MoneyField'
 import { formatAmountOnly } from '@/lib/money'
 import { useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
-import { TextField } from '@/components/TextField'
 import { TextAreaField } from '@/components/TextAreaField'
 import { money, paymentInrNote, paymentMoney } from './money'
 import { useConfirmCommissionPayment, type CommissionPayment } from '@/queries/commission'
@@ -38,7 +39,10 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
   const isValidNumber = receivedAmount.trim() !== '' && Number.isFinite(parsed)
   const differs = isValidNumber && parsed !== declaredAmount
   const trimmedNote = note.trim()
-  const invalid = !isValidNumber || parsed <= 0 || (differs && trimmedNote.length < MIN_REASON_LENGTH)
+  const invalid =
+    !isValidNumber || parsed <= 0 || hasTooManyDecimals(receivedAmount) || (differs && trimmedNote.length < MIN_REASON_LENGTH)
+  // The server's own sentence for the amount, when it refused it (`details.fields`).
+  const amountMessage = serverMoneyMessage(confirm.error, 'received_amount', 'amount')
 
   // /commission/payments/{id}/confirm has no allow_overpayment flag (unlike /commission-
   // entries/{id}/receive — review C5, 2026-09-12) — a "received more than what's still owed" case
@@ -64,7 +68,9 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
       widthRem={28}
       footer={
         <>
-          {confirm.isError && <p className="mr-auto self-center text-body-sm text-error">{confirm.error.message}</p>}
+          {confirm.isError && !amountMessage && (
+            <p className="mr-auto self-center text-body-sm text-error">{confirm.error.message}</p>
+          )}
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
@@ -127,13 +133,13 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
           </div>
         </div>
 
-        <TextField
+        <MoneyField
           label={`Amount received (${currency})`}
-          type="number"
           min={0}
           required
           value={receivedAmount}
           onChange={(e) => setReceivedAmount(e.target.value)}
+          error={amountMessage}
         />
 
         {overpayment > 0 && (

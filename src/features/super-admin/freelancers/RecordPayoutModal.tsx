@@ -1,3 +1,5 @@
+import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
+import { MoneyField } from '@/components/MoneyField'
 import { useState, type FormEvent } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
@@ -21,7 +23,9 @@ export function RecordPayoutModal({ referral, onClose }: { referral: FreelancerR
   const { keyFor, settle } = usePayloadIdempotencyKey()
 
   const amountValue = Number(amount)
-  const valid = amountValue >= 1 && amountValue <= owed && Boolean(paidOn)
+  const valid = amountValue >= 1 && amountValue <= owed && !hasTooManyDecimals(amount) && Boolean(paidOn)
+  // The server's own sentence for the amount, when it refused it (`details.fields`).
+  const amountMessage = serverMoneyMessage(recordPayout.error, 'amount_inr', 'amount')
   const amountError = !attempted
     ? undefined
     : amount.trim() === '' || !Number.isFinite(amountValue) || amountValue < 1
@@ -68,7 +72,7 @@ export function RecordPayoutModal({ referral, onClose }: { referral: FreelancerR
       widthRem={28}
       footer={
         <>
-          {recordPayout.isError && (
+          {recordPayout.isError && !amountMessage && (
             <p className="mr-auto self-center text-body-sm text-error">{recordPayout.error.message}</p>
           )}
           <Button type="submit" form="record-payout-form" loading={recordPayout.isPending}>
@@ -82,15 +86,14 @@ export function RecordPayoutModal({ referral, onClose }: { referral: FreelancerR
           immiNow collected {inr(referral.collected_inr)} on this case; {referral.freelancer_name ? `${referral.freelancer_name}’s` : 'their'} share is{' '}
           {referral.rate_percent ?? 0}% = {inr(referral.earned_inr)}; {inr(referral.paid_inr)} already paid.
         </div>
-        <TextField
+        <MoneyField
           label="Amount (₹)"
-          type="number"
           min={1}
           max={owed}
           required
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          error={amountError}
+          error={amountError ?? amountMessage}
         />
         <TextField label="Paid on" type="date" required value={paidOn} onChange={(e) => setPaidOn(e.target.value)} />
         <TextField

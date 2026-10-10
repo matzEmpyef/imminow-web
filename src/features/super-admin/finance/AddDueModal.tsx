@@ -1,8 +1,9 @@
+import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
+import { MoneyField } from '@/components/MoneyField'
 import { useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { CompactSelect } from '@/components/CompactSelect'
-import { TextField } from '@/components/TextField'
 import { TextAreaField } from '@/components/TextAreaField'
 import { currencyOptions } from './money'
 import { useAddCommissionDue, type FinanceCaseRow } from '@/queries/financeDashboard'
@@ -37,7 +38,9 @@ export function AddDueModal({
   const { keyFor, settle } = usePayloadIdempotencyKey()
 
   const parsed = Number(amount)
-  const isValidAmount = amount.trim() !== '' && Number.isFinite(parsed) && parsed > 0
+  const isValidAmount = amount.trim() !== '' && Number.isFinite(parsed) && parsed > 0 && !hasTooManyDecimals(amount)
+  // The server's own sentence for the amount, when it refused it (`details.fields`).
+  const amountMessage = serverMoneyMessage(addDue.error, 'amount')
   const trimmedReason = reason.trim()
   const invalid = !isValidAmount || trimmedReason.length < MIN_REASON_LENGTH
 
@@ -57,7 +60,9 @@ export function AddDueModal({
       widthRem={26}
       footer={
         <>
-          {addDue.isError && <p className="mr-auto self-center text-body-sm text-error">{addDue.error.message}</p>}
+          {addDue.isError && !amountMessage && (
+            <p className="mr-auto self-center text-body-sm text-error">{addDue.error.message}</p>
+          )}
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
@@ -104,15 +109,12 @@ export function AddDueModal({
           {caseRow.applicant_name} · {caseRow.consultancy_name}
         </p>
         <div className="flex items-center gap-sm">
-          <TextField
+          <MoneyField
             label="Amount"
-            type="number"
-            min={1}
-            step="0.01"
             required
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            error={amountError}
+            error={amountError ?? amountMessage}
             className="flex-1"
           />
           <CompactSelect label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)}>

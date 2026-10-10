@@ -1,3 +1,5 @@
+import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
+import { MoneyField } from '@/components/MoneyField'
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { AppShell } from '@/features/auth/AppShell'
@@ -228,6 +230,9 @@ export function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
   const [journeyId, setJourneyId] = useState('')
   const [lineItems, setLineItems] = useState<LineItem[]>([{ description: '', amount: '' }])
 
+  // The server's own sentence for a line's amount, when it refused it (`details.fields`).
+  const lineMessages = lineItems.map((_, i) => serverMoneyMessage(createInvoice.error, `line_items[${i}].amount`))
+
   function updateItem(i: number, patch: Partial<LineItem>) {
     setLineItems((prev) => prev.map((item, idx) => (idx === i ? { ...item, ...patch } : item)))
   }
@@ -241,7 +246,7 @@ export function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
     const items = lineItems
       .filter((li) => li.description && li.amount)
       .map((li) => ({ description: li.description, amount: Number(li.amount) }))
-    if (!journeyId || items.length === 0) return
+    if (!journeyId || items.length === 0 || lineItems.some((li) => hasTooManyDecimals(li.amount))) return
     const payload = { journey_id: journeyId, line_items: items }
     createInvoice.mutate(
       { ...payload, idempotencyKey: keyFor(payload) },
@@ -269,10 +274,15 @@ export function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
       widthRem={32}
       footer={
         <>
-          {createInvoice.isError && (
+          {createInvoice.isError && !lineMessages.some(Boolean) && (
             <p className="mr-auto self-center text-body-sm text-error">{createInvoice.error.message}</p>
           )}
-          <Button type="submit" form="create-invoice-form" loading={createInvoice.isPending}>
+          <Button
+            type="submit"
+            form="create-invoice-form"
+            loading={createInvoice.isPending}
+            disabled={lineItems.some((li) => hasTooManyDecimals(li.amount))}
+          >
             Create Invoice
           </Button>
         </>
@@ -302,13 +312,13 @@ export function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
                 value={item.description}
                 onChange={(e) => updateItem(i, { description: e.target.value })}
               />
-              <TextField
+              <MoneyField
                 // Currency follows the consultancy country, so a fixed "(INR)" here lied to
                 // everyone outside India — the invoice it produced was already CAD/GBP/etc.
                 label={`Amount${invoiceCurrency ? ` (${invoiceCurrency})` : ''}`}
-                type="number"
                 value={item.amount}
                 onChange={(e) => updateItem(i, { amount: e.target.value })}
+                error={lineMessages[i]}
               />
             </div>
           ))}

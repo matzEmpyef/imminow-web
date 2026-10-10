@@ -1,3 +1,5 @@
+import { fieldMessages } from '@/api/errors'
+
 /**
  * Money is typed with at most two decimal places, in every currency (owner's ruling 2026-10-10).
  * The server refuses a third decimal with this very sentence, against the field in
@@ -29,4 +31,16 @@ export function hasTooManyDecimals(value: string | number | null | undefined): b
 /** The inline sentence for an amount typed with too many decimals, else undefined. */
 export function moneyDecimalsError(value: string | number | null | undefined): string | undefined {
   return hasTooManyDecimals(value) ? MONEY_DECIMALS_ERROR : undefined
+}
+
+/**
+ * The server's own sentence for an amount it refused, from `details.fields` of the failed save
+ * (400/422 `validation_failed`), so the form shows it on the field it is about. Fields are named
+ * as the server names them for that request — `amount`, `amount.amount`, `line_items[0].amount`,
+ * `subscription_amount` — so the caller says which to look for; the first one present wins.
+ */
+export function serverMoneyMessage(error: unknown, ...fields: string[]): string | undefined {
+  const messages = fieldMessages(error)
+  for (const field of fields) if (messages[field]) return messages[field]
+  return undefined
 }

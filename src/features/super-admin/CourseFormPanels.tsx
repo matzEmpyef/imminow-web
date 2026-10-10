@@ -1,3 +1,5 @@
+import { serverMoneyMessage } from '@/lib/moneyInput'
+import { MoneyField } from '@/components/MoneyField'
 import { useState, type ReactNode } from 'react'
 import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/Button'
@@ -397,9 +399,12 @@ export function CourseCampusIntakesPanel({
 export function CourseFeesPanel({
   hidden,
   form,
+  refusal,
 }: {
   hidden: boolean
   form: CourseFormValue
+  /** The error of the last save, for the server's own sentence on a fee it refused (`details.fields`). */
+  refusal?: unknown
 }) {
   // A fee can be entered in any currency the rate table holds (2026-09-10) — a fixed six meant a
   // Thai college's fee could not be entered in baht even after THB was added.
@@ -417,12 +422,12 @@ export function CourseFeesPanel({
     <div className={panelClass(hidden)}>
       <FormSection title="Tuition">
         <div className="grid grid-cols-1 gap-md sm:grid-cols-3">
-          <TextField
+          <MoneyField
             label="Tuition fee"
-            type="number"
-            min="0"
+            min={0}
             value={form.feeAmount}
             onChange={(e) => form.setFeeAmount(e.target.value)}
+            error={serverMoneyMessage(refusal, 'fee.amount')}
           />
           {/* No INR default (assumptions audit C5, approved 2026-09-19) — the campus's country
               fills this while it is empty, and an amount typed without one blocks the save. */}
@@ -463,13 +468,13 @@ export function CourseFeesPanel({
 
       <FormSection title="Application fee">
         <div className="grid grid-cols-1 items-center gap-md sm:grid-cols-3">
-          <TextField
+          <MoneyField
             label="Application fee"
-            type="number"
-            min="0"
+            min={0}
             value={form.appFeeAmount}
             onChange={(e) => form.setAppFeeAmount(e.target.value)}
             disabled={form.appFeeWaived}
+            error={serverMoneyMessage(refusal, 'application_fee.amount')}
           />
           <SelectField
             label="Currency"

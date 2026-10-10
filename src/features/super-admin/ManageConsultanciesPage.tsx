@@ -1,3 +1,5 @@
+import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
+import { MoneyField } from '@/components/MoneyField'
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { SelectField } from '@/components/SelectField'
@@ -563,7 +565,10 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
   // than just leaving Amount at 0, which would otherwise read as "the admin forgot to fill it in".
   const [noCharge, setNoCharge] = useState(false)
   const parsedAmount = Number(amount)
-  const amountValid = noCharge || (amount.trim() !== '' && Number.isFinite(parsedAmount) && parsedAmount > 0)
+  const amountValid =
+    noCharge || (amount.trim() !== '' && Number.isFinite(parsedAmount) && parsedAmount > 0 && !hasTooManyDecimals(amount))
+  // The server's own sentence for the amount, when it refused it (`details.fields`).
+  const amountMessage = serverMoneyMessage(renew.error, 'subscription_amount')
   const cycleValid = cycle !== ''
   const expiresValid = Boolean(expires)
   // A charged term needs to say which money it is in (C5). A no-charge term does not — there is
@@ -613,7 +618,9 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
       widthRem={28}
       footer={
         <>
-          {renew.isError && <p className="mr-auto self-center text-body-sm text-error">{renew.error.message}</p>}
+          {renew.isError && !amountMessage && (
+            <p className="mr-auto self-center text-body-sm text-error">{renew.error.message}</p>
+          )}
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
@@ -659,16 +666,15 @@ function RenewSubscriptionModal({ consultancy, onClose }: { consultancy: Consult
           </p>
         )}
         <div className="grid grid-cols-3 gap-sm">
-          <TextField
+          <MoneyField
             label="Amount"
-            type="number"
             required={!noCharge}
-            min="0"
+            min={0}
             disabled={noCharge}
             className="col-span-2"
             value={noCharge ? '0' : amount}
             onChange={(e) => setAmount(e.target.value)}
-            error={amountError}
+            error={amountError ?? amountMessage}
           />
           <SelectField
             label="Currency"

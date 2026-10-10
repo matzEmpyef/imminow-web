@@ -133,3 +133,38 @@ describe('RecordPlatformPaymentModal — the transaction id', () => {
     await waitFor(() => expect(screen.queryByText(message)).not.toBeInTheDocument())
   })
 })
+
+// Owner's ruling 2026-10-10: money has at most two decimal places, in every currency.
+describe('RecordPlatformPaymentModal, amount decimals', () => {
+  beforeEach(() => {
+    answers = []
+    mockedPost.mockReset()
+    mockedPost.mockImplementation((async () => resolveAnswer(answers.shift() ?? { ok: true })) as never)
+  })
+
+  it('refuses a third decimal beside the field, and declares nothing', () => {
+    renderModal()
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '100.001' } })
+    expect(screen.getByLabelText('Amount')).toHaveAccessibleDescription('Amounts have at most two decimal places.')
+    expect(screen.getByRole('button', { name: 'Declare' })).toBeDisabled()
+    fireEvent.submit(document.getElementById('record-platform-payment-form')!)
+    expect(paymentCalls()).toHaveLength(0)
+  })
+
+  it('shows the server’s sentence for the amount on the field', async () => {
+    answers = [
+      {
+        status: 400,
+        code: 'validation_failed',
+        message: 'Check the amount.',
+        details: { fields: { amount: 'Amounts have at most two decimal places.' } },
+      },
+    ]
+    renderModal()
+    fireEvent.click(screen.getByRole('button', { name: 'Declare' }))
+    await waitFor(() =>
+      expect(screen.getByLabelText('Amount')).toHaveAccessibleDescription('Amounts have at most two decimal places.'),
+    )
+    expect(screen.queryByText('Check the amount.')).toBeNull()
+  })
+})

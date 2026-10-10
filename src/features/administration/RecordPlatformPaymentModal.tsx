@@ -3,9 +3,11 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { CompactSelect } from '@/components/CompactSelect'
 import { TextField } from '@/components/TextField'
+import { MoneyField } from '@/components/MoneyField'
 import { useRecordCommissionPayment } from '@/queries/commission'
 import { ApiError } from '@/api/errors'
 import { PAYMENT_REFERENCE_MAX } from '@/lib/validation'
+import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
 import { formatMoneyAmount } from '@/lib/money'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
@@ -53,6 +55,9 @@ export function RecordPlatformPaymentModal({ due, onClose }: { due: CommissionDu
       ? recordPayment.error.message
       : undefined
 
+  // The server's own sentence for the amount, when it refused it (`details.fields`).
+  const amountMessage = serverMoneyMessage(recordPayment.error, 'amount')
+
   function handleCurrencyChange(next: string) {
     setCurrency(next)
     const outstanding = byCurrency.find((c) => c.currency === next)?.outstanding ?? 0
@@ -63,7 +68,7 @@ export function RecordPlatformPaymentModal({ due, onClose }: { due: CommissionDu
     e.preventDefault()
     if (recordPayment.isPending) return
     const value = Number(amount)
-    if (!amount || Number.isNaN(value) || value <= 0) return
+    if (!amount || Number.isNaN(value) || value <= 0 || hasTooManyDecimals(amount)) return
     const payload = {
       commission_entry_id: due.id,
       amount: value,
@@ -96,7 +101,7 @@ export function RecordPlatformPaymentModal({ due, onClose }: { due: CommissionDu
       widthRem={28}
       footer={
         <>
-          {recordPayment.isError && !duplicateReference && (
+          {recordPayment.isError && !duplicateReference && !amountMessage && (
             <p className="mr-auto self-center text-body-sm text-error">{recordPayment.error.message}</p>
           )}
           <div className="flex gap-sm">
@@ -104,7 +109,7 @@ export function RecordPlatformPaymentModal({ due, onClose }: { due: CommissionDu
               type="submit"
               form="record-platform-payment-form"
               loading={recordPayment.isPending}
-              disabled={!amount || Number(amount) <= 0}
+              disabled={!amount || Number(amount) <= 0 || hasTooManyDecimals(amount)}
             >
               Declare
             </Button>
@@ -128,7 +133,16 @@ export function RecordPlatformPaymentModal({ due, onClose }: { due: CommissionDu
           </p>
         </div>
         <div className="flex items-center gap-sm">
-          <TextField label="Amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="flex-1" />
+          <MoneyField
+            label="Amount"
+            value={amount}
+            onChange={(e) => {
+              setAmount(e.target.value)
+              if (amountMessage) recordPayment.reset()
+            }}
+            error={amountMessage}
+            className="flex-1"
+          />
           <CompactSelect label="Currency" value={currency} onChange={(e) => handleCurrencyChange(e.target.value)}>
             {currencyOptions.map((c) => (
               <option key={c} value={c}>

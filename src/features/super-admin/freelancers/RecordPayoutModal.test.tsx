@@ -34,3 +34,21 @@ describe('RecordPayoutModal idempotency key', () => {
     expect(mutate.mock.calls[2][0].idempotencyKey).not.toBe(first)
   })
 })
+
+// Owner's ruling 2026-10-10: money has at most two decimal places, in every currency.
+describe('RecordPayoutModal amount decimals', () => {
+  it('refuses a third decimal beside the field and records nothing', () => {
+    render(<RecordPayoutModal referral={referral as never} onClose={() => undefined} />)
+    fireEvent.change(screen.getByLabelText(/Amount/), { target: { value: '1200.555' } })
+    expect(screen.getByLabelText(/Amount/)).toHaveAccessibleDescription('Amounts have at most two decimal places.')
+    fireEvent.click(screen.getByRole('button', { name: 'Record payout' }))
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
+  it('takes two decimals', () => {
+    render(<RecordPayoutModal referral={referral as never} onClose={() => undefined} />)
+    fireEvent.change(screen.getByLabelText(/Amount/), { target: { value: '1200.50' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Record payout' }))
+    expect(mutate.mock.calls[0][0]).toMatchObject({ amount_inr: 1200.5 })
+  })
+})

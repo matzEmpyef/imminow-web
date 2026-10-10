@@ -1,7 +1,8 @@
+import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
+import { MoneyField } from '@/components/MoneyField'
 import { useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
-import { TextField } from '@/components/TextField'
 import { TextAreaField } from '@/components/TextAreaField'
 import { formatDateTime } from '@/lib/time'
 import { money, paymentInrNote, paymentMoney, paymentRateToInr } from './money'
@@ -29,7 +30,12 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
   const parsed = Number(amount)
   const isValidNumber = amount.trim() !== '' && Number.isFinite(parsed)
   const trimmedReason = reason.trim()
-  const invalid = !isValidNumber || parsed < 0 || parsed === currentAmount || trimmedReason.length < MIN_REASON_LENGTH
+  const invalid =
+    !isValidNumber ||
+    parsed < 0 ||
+    hasTooManyDecimals(amount) ||
+    parsed === currentAmount ||
+    trimmedReason.length < MIN_REASON_LENGTH
   const corrections = payment.corrections ?? []
 
   const amountError = !attempted
@@ -61,6 +67,8 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
   // tick the receive dialog offers, and the correction is then sent with `allow_overpayment`.
   const [allowOverpayment, setAllowOverpayment] = useState(false)
   const refusal = correct.error instanceof ApiError ? correct.error : null
+  // The server's own sentence for the amount, when it refused it (`details.fields`).
+  const amountMessage = serverMoneyMessage(correct.error, 'amount', 'received_amount')
   const serverSaysOverpayment = refusal?.code === 'more_than_outstanding'
 
   // The refusal was about the amount as it was sent: once it changes, neither it nor the tick applies.
@@ -77,7 +85,7 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
       widthRem={30}
       footer={
         <>
-          {correct.isError && !serverSaysOverpayment && (
+          {correct.isError && !serverSaysOverpayment && !amountMessage && (
             <p className="mr-auto self-center text-body-sm text-error">{correct.error.message}</p>
           )}
           <Button variant="secondary" onClick={onClose}>
@@ -135,9 +143,8 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
           </div>
         </div>
 
-        <TextField
+        <MoneyField
           label={`New amount received (${currency})`}
-          type="number"
           min={0}
           required
           value={amount}
@@ -145,7 +152,7 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
             setAmount(e.target.value)
             clearServerOverpayment()
           }}
-          error={amountError}
+          error={amountError ?? amountMessage}
         />
         {serverSaysOverpayment && (
           <div role="alert" className="flex flex-col gap-sm rounded-md border border-warning bg-warning-subtle p-sm">

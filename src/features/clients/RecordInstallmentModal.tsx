@@ -2,9 +2,11 @@ import { useState, type FormEvent } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
+import { MoneyField } from '@/components/MoneyField'
 import { SelectField } from '@/components/SelectField'
 import { useRecordInstallment } from '@/queries/commissionEntries'
 import { useCurrencyCodes } from '@/lib/currencies'
+import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
 import { formatMoneyAmount } from '@/lib/money'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
@@ -63,7 +65,10 @@ export function RecordInstallmentModal({
   const today = localDateISO()
   const receivedOnError = receivedOn > today ? 'Choose today or an earlier date.' : undefined
 
-  const canSubmit = Number(amount) > 0 && currency !== '' && !receivedOnError && !record.isPending
+  const canSubmit =
+    Number(amount) > 0 && !hasTooManyDecimals(amount) && currency !== '' && !receivedOnError && !record.isPending
+  // The server's own sentence for the amount, when it refused it (`details.fields`).
+  const amountMessage = serverMoneyMessage(record.error, 'amount.amount', 'amount')
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -102,7 +107,9 @@ export function RecordInstallmentModal({
       widthRem={32}
       footer={
         <>
-          {record.isError && <p className="mr-auto self-center text-body-sm text-error">{record.error.message}</p>}
+          {record.isError && !amountMessage && (
+            <p className="mr-auto self-center text-body-sm text-error">{record.error.message}</p>
+          )}
           <div className="flex gap-sm">
             <Button type="submit" form="record-installment-form" loading={record.isPending} disabled={!canSubmit}>
               Record
@@ -122,14 +129,13 @@ export function RecordInstallmentModal({
           </SelectField>
         )}
         <div className="grid grid-cols-3 gap-sm">
-          <TextField
+          <MoneyField
             label="Amount"
-            type="number"
-            min="1"
             required
             className="col-span-2"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
+            error={amountMessage}
           />
           <SelectField label="Currency" required value={currency} onChange={(e) => setCurrency(e.target.value)}>
             {currency === '' && (

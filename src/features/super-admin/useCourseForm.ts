@@ -1,3 +1,4 @@
+import { hasTooManyDecimals } from '@/lib/moneyInput'
 import { useEffect, useState } from 'react'
 import type { components } from '@/api/schema'
 import { useCountrySettings } from '@/queries/countries'
@@ -552,7 +553,9 @@ export function useCourseForm(college: College, editingCourse?: Course, defaultC
       !aptitudeRequiredError &&
       !feeCurrencyError &&
       !feePeriodError &&
-      !appFeeCurrencyError,
+      !appFeeCurrencyError &&
+      !hasTooManyDecimals(feeAmount) &&
+      !(hasTooManyDecimals(appFeeAmount) && !appFeeWaived),
     campusRequired,
     entryQualificationError,
     schemeError,
@@ -587,6 +590,9 @@ export function courseFormBlocker(form: CourseFormValue): { text: string; tone: 
   if (form.feeCurrencyError || form.appFeeCurrencyError) return { text: 'A fee needs its currency (Fees tab).', tone: 'error' }
   if (form.feePeriodError) {
     return { text: 'Say whether the tuition fee is per year or for the whole programme (Fees tab).', tone: 'error' }
+  }
+  if (hasTooManyDecimals(form.feeAmount) || (hasTooManyDecimals(form.appFeeAmount) && !form.appFeeWaived)) {
+    return { text: 'Amounts have at most two decimal places (Fees tab).', tone: 'error' }
   }
   return null
 }

@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'
 import type { ReactNode } from 'react'
 import type { components } from '@/api/schema'
-import { useCourseForm } from './useCourseForm'
+import { courseFormBlocker, useCourseForm } from './useCourseForm'
 
 type College = components['schemas']['College']
 type Course = components['schemas']['Course']
@@ -110,5 +110,50 @@ describe('useCourseForm intake deadlines', () => {
     // Typed back to the saved date, the saved status describes it again.
     act(() => result.current.onDeadlineChange('January', '2027-03-31'))
     expect(result.current.savedIntakeStatus('January')).toBe('open')
+  })
+})
+
+// Owner's ruling 2026-10-10: money has at most two decimal places, in every currency.
+describe('useCourseForm fee decimals', () => {
+  // The rules before the fees (name, level, field, language, delivery) are met, so the fee rule is the one that speaks.
+  function fillTheBasics(result: { current: ReturnType<typeof useCourseForm> }) {
+    act(() => {
+      result.current.setName('BSc Computing')
+      result.current.setLevel('undergraduate')
+      result.current.setFieldOfStudy('computing')
+      result.current.setLanguage('English')
+      result.current.setDelivery('on_campus')
+    })
+  }
+
+  it('blocks the save on a third decimal in the tuition or application fee, and says so', () => {
+    const { result } = renderHook(() => useCourseForm(college, courseWithOnlyInfoFlags), { wrapper })
+    fillTheBasics(result)
+    act(() => {
+      result.current.setFeeAmount('12000.50')
+      result.current.setFeeCurrency('CAD')
+      result.current.setFeePeriod('per_year')
+    })
+    expect(courseFormBlocker(result.current)?.text ?? '').not.toMatch(/decimal/)
+
+    act(() => result.current.setFeeAmount('12000.505'))
+    expect(result.current.isValid).toBe(false)
+    expect(courseFormBlocker(result.current)?.text).toBe('Amounts have at most two decimal places (Fees tab).')
+
+    act(() => result.current.setFeeAmount('12000.500'))
+    expect(courseFormBlocker(result.current)?.text ?? '').not.toMatch(/decimal/)
+  })
+
+  it('ignores the application fee while it is waived', () => {
+    const { result } = renderHook(() => useCourseForm(college, courseWithOnlyInfoFlags), { wrapper })
+    fillTheBasics(result)
+    act(() => {
+      result.current.setAppFeeAmount('50.123')
+      result.current.onAppFeeCurrencyChange('CAD')
+      result.current.setAppFeeWaived(true)
+    })
+    expect(courseFormBlocker(result.current)?.text ?? '').not.toMatch(/decimal/)
+    act(() => result.current.setAppFeeWaived(false))
+    expect(courseFormBlocker(result.current)?.text).toBe('Amounts have at most two decimal places (Fees tab).')
   })
 })

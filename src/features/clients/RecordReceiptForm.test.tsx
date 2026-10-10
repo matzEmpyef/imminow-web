@@ -131,3 +131,22 @@ describe('RecordReceiptForm — duplicate protection', () => {
     expect(sentKey(second)).not.toBe(sentKey(first))
   })
 })
+
+// Owner's ruling 2026-10-10: money has at most two decimal places, in every currency.
+describe('RecordReceiptForm — decimals', () => {
+  it('refuses a third decimal beside the field, and sends nothing', async () => {
+    renderForm()
+    await fill('1000.005')
+    expect(screen.getByLabelText('Amount')).toHaveAccessibleDescription('Amounts have at most two decimal places.')
+    expect(screen.getByRole('button', { name: 'Record Payment' })).toBeDisabled()
+    fireEvent.submit(document.getElementById('record-receipt-form')!)
+    expect(receiptCalls()).toHaveLength(0)
+  })
+
+  it('takes a trailing zero', async () => {
+    renderForm()
+    await fill('1000.250')
+    submit()
+    await waitFor(() => expect(receiptCalls()).toHaveLength(1))
+  })
+})

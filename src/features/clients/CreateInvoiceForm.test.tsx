@@ -116,3 +116,41 @@ describe('CreateInvoiceForm — duplicate protection', () => {
     expect(sentKey(second)).not.toBe(sentKey(first))
   })
 })
+
+// Owner's ruling 2026-10-10: money has at most two decimal places, in every currency.
+describe('CreateInvoiceForm — decimals', () => {
+  it('refuses a third decimal on a line beside the field, and sends nothing', () => {
+    renderForm()
+    fill('5000.125')
+    expect(screen.getByLabelText(/^Amount/)).toHaveAccessibleDescription('Amounts have at most two decimal places.')
+    expect(screen.getByRole('button', { name: 'Create Invoice' })).toBeDisabled()
+    fireEvent.submit(document.getElementById('create-invoice-form')!)
+    expect(invoiceCalls()).toHaveLength(0)
+  })
+
+  it('takes two decimals', async () => {
+    renderForm()
+    fill('5000.50')
+    submit()
+    await waitFor(() => expect(invoiceCalls()).toHaveLength(1))
+    expect((invoiceCalls()[0][1] as { body: { line_items: { amount: number }[] } }).body.line_items[0].amount).toBe(5000.5)
+  })
+
+  it('shows the server’s sentence on the line it is about', async () => {
+    answers = [
+      {
+        status: 400,
+        code: 'validation_failed',
+        message: 'Check the invoice.',
+        details: { fields: { 'line_items[0].amount': 'Amounts have at most two decimal places.' } },
+      } as WriteAnswer,
+    ]
+    renderForm()
+    fill('5000')
+    submit()
+    await waitFor(() =>
+      expect(screen.getByLabelText(/^Amount/)).toHaveAccessibleDescription('Amounts have at most two decimal places.'),
+    )
+    expect(screen.queryByText('Check the invoice.')).toBeNull()
+  })
+})
