@@ -5,6 +5,7 @@ import { AdminShell } from '@/features/auth/AdminShell'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
+import { MoneyField } from '@/components/MoneyField'
 import { Modal } from '@/components/Modal'
 import { CompactSelect } from '@/components/CompactSelect'
 import { SearchSelect } from '@/components/SearchSelect'
@@ -19,6 +20,7 @@ import {
 import { useAdminColleges, useCollegeDetail } from '@/queries/adminColleges'
 import { useStudyLevels } from '@/queries/studyLevels'
 import { useCursorPagination } from '@/lib/pagination'
+import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
 import { formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { CourseFormModal } from './CollegeDetailPage'
@@ -41,6 +43,11 @@ const RESOLUTION_LABEL: Record<string, string> = {
   modified: 'Added with modification',
   manual: 'Accepted — to be added by hand',
 }
+
+// The structured corrections whose value is an amount of money (what `payload.field` names): the
+// tuition fee and the application fee. Their "Value to apply if modified" takes at most two
+// decimal places, like every money input (owner's ruling 2026-10-10).
+const MONEY_FIELDS: readonly string[] = ['fee.amount', 'application_fee.amount']
 
 // Readable names for an older-style correction's raw course keys, and a new suggestion's fields.
 const FIELD_LABELS: Record<string, string> = {
@@ -226,6 +233,11 @@ export function SuggestionDetailModal({ suggestion, onClose }: { suggestion: Cou
   const structured = suggestion.type === 'correction' && typeof payload.field === 'string'
   const applicable = suggestion.applicable_fields ?? []
   const [modifiedValue, setModifiedValue] = useState(payload.suggested ?? '')
+  // A money field takes at most two decimals, and the server's own sentence for the value (when it
+  // refused one, `details.fields`) is shown beside it. Any other field's value is free text.
+  const isMoneyField = structured && MONEY_FIELDS.includes(payload.field ?? '')
+  const modifiedValueMessage = isMoneyField ? serverMoneyMessage(approve.error, 'value') : undefined
+  const modifiedValueTooPrecise = isMoneyField && hasTooManyDecimals(modifiedValue)
   const pending = suggestion.status === 'pending'
   const course = suggestion.course as (Course & Record<string, unknown>) | null | undefined
   // `?edit=<courseId>` (2026-09-12, product review H13) — opens straight to THIS course's edit
@@ -284,7 +296,7 @@ export function SuggestionDetailModal({ suggestion, onClose }: { suggestion: Cou
       footer={
         pending ? (
           <div className="flex flex-wrap items-center justify-end gap-sm">
-            {(approve.isError || reject.isError) && (
+            {(approve.isError || reject.isError) && !modifiedValueMessage && (
               <p className="mr-auto self-center text-body-sm text-error">
                 {approve.error?.message ?? reject.error?.message}
               </p>
@@ -348,7 +360,7 @@ export function SuggestionDetailModal({ suggestion, onClose }: { suggestion: Cou
                   <Button
                     variant="secondary"
                     loading={approve.isPending && approve.variables?.mode === 'modified'}
-                    disabled={!modifiedValue}
+                    disabled={!modifiedValue || modifiedValueTooPrecise}
                     onClick={() =>
                       approve.mutate(
                         { id: suggestion.id!, mode: 'modified', value: modifiedValue },
@@ -463,7 +475,20 @@ export function SuggestionDetailModal({ suggestion, onClose }: { suggestion: Cou
           </p>
         )}
         {pending && structured && applicable.length > 0 && (
-          <TextField label="Value to apply if modified" value={modifiedValue} onChange={(e) => setModifiedValue(e.target.value)} />
+          isMoneyField ? (
+            <MoneyField
+              label="Value to apply if modified"
+              min={0}
+              value={modifiedValue}
+              onChange={(e) => {
+                setModifiedValue(e.target.value)
+                if (modifiedValueMessage) approve.reset()
+              }}
+              error={modifiedValueMessage}
+            />
+          ) : (
+            <TextField label="Value to apply if modified" value={modifiedValue} onChange={(e) => setModifiedValue(e.target.value)} />
+          )
         )}
         {pending && suggestion.type === 'new' && (
           <p className="text-caption text-text-secondary">
