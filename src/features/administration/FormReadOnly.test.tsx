@@ -152,3 +152,45 @@ describe('Forms without the template permission', () => {
     expect(screen.queryByText(/You can look at this form/)).not.toBeInTheDocument()
   })
 })
+
+describe('Forms driven by can_edit from the server', () => {
+  it('opens read-only when can_edit is false, even for someone who holds the permission', () => {
+    access.keys = ['settings.manage_templates']
+    vi.mocked(useFormTemplate).mockReturnValue({
+      data: { ...FORM, can_edit: false },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    } as never)
+    renderAt('/administration/forms/f1')
+    expect(screen.getByText(/You can look at this form but not change it/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Save/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add Field' })).not.toBeInTheDocument()
+  })
+
+  it('opens the editor when can_edit is true, without waiting on the permission check', () => {
+    access.isLoading = true
+    vi.mocked(useFormTemplate).mockReturnValue({
+      data: { ...FORM, can_edit: true },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    } as never)
+    renderAt('/administration/forms/f1')
+    expect(screen.getByRole('heading', { name: 'Edit Form' })).toBeInTheDocument()
+  })
+
+  it('shows View, not Edit, on a listed form with can_edit false, and opens it on a row click', () => {
+    access.keys = ['settings.manage_templates']
+    vi.mocked(useFormTemplates).mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: [{ ...FORM, can_edit: false }],
+    } as never)
+    renderAt('/administration/forms')
+    expect(screen.queryByRole('link', { name: 'Edit Student intake' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'View Student intake' })).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Student intake'))
+    expect(screen.getByTestId('where')).toHaveTextContent('/administration/forms/f1')
+  })
+})

@@ -129,6 +129,9 @@ export function FormsPage() {
   // only to someone who holds it.
   const { can } = usePermissionChecker()
   const canManage = can('settings.manage_templates')
+  // The server says, per form, whether the reader may change it (`can_edit`, owner's ruling
+  // 2026-10-10). That answer wins; the permission is only the fallback for a form that carries none.
+  const canEditForm = (form: FormTemplate) => form.can_edit ?? canManage
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
   // The default form (owner decisions 30/31) asks before it is edited: a copy is the better way.
@@ -183,10 +186,10 @@ export function FormsPage() {
       key: 'actions',
       header: '',
       render: (form: FormTemplate) =>
-        canManage ? (
+        canEditForm(form) ? (
           <FormRowActions form={form} duplicateForm={duplicateForm} onEdit={openForEdit} />
         ) : (
-          // Without the permission a form still opens, read-only (review 2.64).
+          // A form the reader may not change still opens, read-only (review 2.64).
           <StopPropagation className="flex justify-end">
             <Link
               to={`/administration/forms/${form.id}`}
@@ -236,7 +239,7 @@ export function FormsPage() {
           sort={sort}
           onSortChange={(field, direction) => setSort({ field, direction })}
           search={{ value: search, onChange: setSearch, placeholder: 'Search forms…' }}
-          onRowClick={canManage ? openForEdit : (form) => navigate(`/administration/forms/${form.id}`)}
+          onRowClick={(form) => (canEditForm(form) ? openForEdit(form) : navigate(`/administration/forms/${form.id}`))}
         />
 
         {editingDefault && (

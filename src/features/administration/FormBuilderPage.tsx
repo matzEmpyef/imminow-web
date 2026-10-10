@@ -19,17 +19,27 @@ import { showToast } from '@/lib/toast'
 import { isEditDefaultConfirmed } from '@/lib/defaultForm'
 import { EditDefaultFormDialog, RestoreDefaultFormDialog } from './DefaultFormDialogs'
 
-// The editor is for staff who hold `settings.manage_templates`; everyone else who opens an existing
-// form from the list sees it read-only (review 2.64), since the server lets any employee READ a
-// form and keeps only the writes behind the permission. "New" stays behind the permission gate on
-// its route.
+// The server decides, per form, whether the reader may change it (`can_edit`, owner's ruling
+// 2026-10-10): true opens the editor, false opens the form read-only. Only a form that carries no
+// answer falls back to the `settings.manage_templates` permission. "New" stays behind the
+// permission gate on its route.
 export function FormBuilderPage() {
   const { id } = useParams()
   const isNew = !id || id === 'new'
+  const existing = useFormTemplate(isNew ? undefined : id)
   const { can, isLoading, isError, refetch } = usePermissionChecker()
   if (isNew) return <FormEditor />
-  // Until the permission is known, every key answers false: hold a skeleton rather than flash the
-  // read-only view at someone who can edit (the same reasoning as PermissionGate).
+  const canEdit = existing.data?.can_edit
+  if (canEdit !== undefined) return canEdit ? <FormEditor /> : <FormReadOnlyView id={id!} />
+  if (existing.isLoading) {
+    return (
+      <AppShell>
+        <Skeleton className="h-64 rounded-lg" />
+      </AppShell>
+    )
+  }
+  // No answer from the server: until the permission is known, every key answers false, so hold a
+  // skeleton rather than flash the read-only view at someone who can edit (as PermissionGate does).
   if (isLoading) {
     return (
       <AppShell>
