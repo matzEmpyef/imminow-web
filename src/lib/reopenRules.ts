@@ -63,3 +63,32 @@ export function canOfferCaseReopen(client: CaseForReopen, planIncludesReopening:
   if (!planIncludesReopening || client.status !== 'closed') return false
   return !isCaseMoved(client.status) && !isClosedByAccountDeletion(client)
 }
+
+interface PlanForReopen {
+  steps?: ReadonlyArray<{ status?: string | null }> | null
+}
+
+/**
+ * Reopen Plan is offered when the server will accept it (review 2.114). The route reopens the
+ * NEWEST plan's last `done` step, and refuses with 409 `conflict` when the plan has no completed
+ * step, or when another step of that plan is already in progress (a plan keeps one active step).
+ * Both are readable from the plan's own steps, so the console checks them instead of waiting for
+ * a case status the server never stores (`plan_complete` is legacy).
+ *
+ * `plans` is `GET /clients/{id}/plans`, oldest first, so the newest plan is the last. The case
+ * must be one this consultancy can still act on: not moved away, not under mediation, not closed.
+ * The contract is silent on closed cases; the page offers Reopen Case there instead.
+ *
+ * Pressing it can still be refused for a reason of the moment; the server's sentence is shown.
+ */
+export function canOfferPlanReopen(
+  client: CaseForReopen,
+  plans: ReadonlyArray<PlanForReopen> | null | undefined,
+  allowed: boolean,
+): boolean {
+  if (!allowed) return false
+  if (client.status === 'closed' || client.status === 'in_dispute' || isCaseMoved(client.status)) return false
+  const newest = plans?.[plans.length - 1]
+  const steps = newest?.steps ?? []
+  return steps.some((s) => s.status === 'done') && !steps.some((s) => s.status === 'active')
+}

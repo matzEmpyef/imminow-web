@@ -16,7 +16,7 @@ import { CloseClientModal } from './CloseClientModal'
 import { RaiseIssueModal } from './RaiseIssueModal'
 import { CLIENT_TABS, isClientTab, type ClientTab } from '@/lib/clientTabs'
 import { TabBar } from '@/components/TabBar'
-import { canOfferCaseReopen } from '@/lib/reopenRules'
+import { canOfferCaseReopen, canOfferPlanReopen } from '@/lib/reopenRules'
 import { ReopenClientModal } from './ReopenClientModal'
 import { OverviewTab } from './ClientProfileOverviewTab'
 import { PlanTab } from './ClientProfilePlanTab'
@@ -181,7 +181,7 @@ export function ClientProfilePage() {
             <Link to={`/clients/${id}/conversation`}>
               <Button variant="secondary">Conversation</Button>
             </Link>
-            {canReopenPlan && data.status === 'plan_complete' && (
+            {canOfferPlanReopen(data, plans.data?.items, canReopenPlan) && (
               <Button variant="secondary" onClick={() => setShowReopen((v) => !v)}>
                 Reopen Plan
               </Button>

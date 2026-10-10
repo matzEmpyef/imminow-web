@@ -160,13 +160,68 @@ describe('ClientProfilePage — Reopen Case', () => {
   })
 })
 
+function plan(statuses: string[]) {
+  return { id: 'p', steps: statuses.map((status, i) => ({ id: `s${i}`, status, components: [] })) }
+}
+
+// Review 2.114: the button used to wait for a case status the server never stores. It now follows
+// the newest plan's steps, which is what POST /clients/{id}/reopen itself checks.
+describe('ClientProfilePage — Reopen Plan is offered when the server will take it', () => {
+  const reopenPlanButton = () => screen.queryByRole('button', { name: 'Reopen Plan' })
+
+  beforeEach(() => {
+    mockedFeature.mockReturnValue(true)
+    mockedPermission.mockReturnValue(true)
+    mockedClient.mockReturnValue(query(baseClient()))
+  })
+
+  it('shows on a live case whose newest plan is completed', () => {
+    mockedPlans.mockReturnValue(query({ items: [plan(['done', 'done'])] }))
+    renderProfile()
+    expect(reopenPlanButton()).toBeInTheDocument()
+  })
+
+  it('reads the NEWEST plan: oldest first, so the last one', () => {
+    mockedPlans.mockReturnValue(query({ items: [plan(['done']), plan(['locked', 'locked'])] }))
+    renderProfile()
+    expect(reopenPlanButton()).not.toBeInTheDocument()
+  })
+
+  it('hides while another step is in progress (the server answers 409)', () => {
+    mockedPlans.mockReturnValue(query({ items: [plan(['done', 'active', 'locked'])] }))
+    renderProfile()
+    expect(reopenPlanButton()).not.toBeInTheDocument()
+  })
+
+  it('hides when no step is completed, or there is no plan', () => {
+    mockedPlans.mockReturnValue(query({ items: [plan(['active', 'locked'])] }))
+    renderProfile()
+    expect(reopenPlanButton()).not.toBeInTheDocument()
+  })
+
+  it('hides without the plan feature or the permission', () => {
+    mockedPlans.mockReturnValue(query({ items: [plan(['done'])] }))
+    mockedFeature.mockReturnValue(false)
+    renderProfile()
+    expect(reopenPlanButton()).not.toBeInTheDocument()
+  })
+
+  it.each(['closed', 'in_dispute', 'closed_switched'])('hides on a %s case', (status) => {
+    mockedPlans.mockReturnValue(query({ items: [plan(['done'])] }))
+    mockedClient.mockReturnValue(query(baseClient({ status })))
+    renderProfile()
+    expect(reopenPlanButton()).not.toBeInTheDocument()
+  })
+})
+
 // Review F-069: a plan is reopened only at a completed step and never while another step is in
 // progress. The server refuses with 409 `conflict`, and its sentence is shown beside the button.
 describe('ClientProfilePage — Reopen Plan refused', () => {
   it('shows the server’s sentence', () => {
     mockedFeature.mockReturnValue(true)
     mockedPermission.mockReturnValue(true)
-    mockedClient.mockReturnValue(query(baseClient({ status: 'plan_complete' })))
+    mockedClient.mockReturnValue(query(baseClient()))
+    mockedPlans.mockReturnValue(query({ items: [plan(['done', 'done'])] }))
     mockedReopenPlan.mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
