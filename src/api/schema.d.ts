@@ -7014,8 +7014,8 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        /** @description Optimistic lock (F-075, 2026-10-08): the record's `version` as last read. Omitted, last write wins; when the record has changed since, 409 `version_conflict` (with `details.current_version`) and nothing is written — reload and re-apply the edit. */
-                        version?: number;
+                        /** @description Optimistic lock (F-075, 2026-10-08): the record's `version` as last read. REQUIRED since 2026-10-10 (400 `validation_failed` naming `version` without it); when the record has changed since, 409 `version_conflict` (with `details.current_version`) and nothing is written — reload and re-apply the edit. */
+                        version: number;
                         /** @description The `url` POST /media answered for an uploaded image (null clears the logo). An address on any other server is refused with 400 `validation_failed`. */
                         logo_url?: string | null;
                         description?: string;
@@ -14341,8 +14341,8 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        /** @description Optimistic lock (F-075, 2026-10-08): the record's `version` as last read. Omitted, last write wins; when the record has changed since, 409 `version_conflict` (with `details.current_version`) and nothing is written — reload and re-apply the edit. */
-                        version?: number;
+                        /** @description Optimistic lock (F-075, 2026-10-08): the record's `version` as last read. REQUIRED since 2026-10-10 (400 `validation_failed` naming `version` without it); when the record has changed since, 409 `version_conflict` (with `details.current_version`) and nothing is written — reload and re-apply the edit. */
+                        version: number;
                         name?: string;
                         college_id?: components["schemas"]["UUID"];
                         description?: string;
@@ -15453,8 +15453,8 @@ export interface paths {
                     "application/json": {
                         address?: string | null;
                         phone?: string | null;
-                        /** @description Optional optimistic lock (contract gate 7, BR §3.6) — the `version` the edit was based on, as last read. Omitted, the edit applies as before (last write wins). Stale — someone saved in between — 409 `version_conflict` and nothing changes; re-read and re-apply. */
-                        version?: number;
+                        /** @description REQUIRED optimistic lock since 2026-10-10, 400 `validation_failed` naming `version` without it (contract gate 7, BR §3.6) — the `version` the edit was based on, as last read. Omitted, the edit applies as before (last write wins). Stale — someone saved in between — 409 `version_conflict` and nothing changes; re-read and re-apply. */
+                        version: number;
                     };
                 };
             };
@@ -15587,8 +15587,8 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        /** @description Optimistic lock (F-075, 2026-10-08): the record's `version` as last read. Omitted, last write wins; when the record has changed since, 409 `version_conflict` (with `details.current_version`) and nothing is written — reload and re-apply the edit. */
-                        version?: number;
+                        /** @description Optimistic lock (F-075, 2026-10-08): the record's `version` as last read. REQUIRED since 2026-10-10 (400 `validation_failed` naming `version` without it); when the record has changed since, 409 `version_conflict` (with `details.current_version`) and nothing is written — reload and re-apply the edit. */
+                        version: number;
                         branch_id: components["schemas"]["UUID"];
                     };
                 };
@@ -15633,8 +15633,8 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        /** @description Optimistic lock (F-075, 2026-10-08): the record's `version` as last read. Omitted, last write wins; when the record has changed since, 409 `version_conflict` (with `details.current_version`) and nothing is written — reload and re-apply the edit. */
-                        version?: number;
+                        /** @description Optimistic lock (F-075, 2026-10-08): the record's `version` as last read. REQUIRED since 2026-10-10 (400 `validation_failed` naming `version` without it); when the record has changed since, 409 `version_conflict` (with `details.current_version`) and nothing is written — reload and re-apply the edit. */
+                        version: number;
                         country: string | null;
                     };
                 };
@@ -15888,8 +15888,8 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        /** @description Optimistic lock (F-075, 2026-10-08): the record's `version` as last read. Omitted, last write wins; when the record has changed since, 409 `version_conflict` (with `details.current_version`) and nothing is written — reload and re-apply the edit. */
-                        version?: number;
+                        /** @description Optimistic lock (F-075, 2026-10-08): the record's `version` as last read. REQUIRED since 2026-10-10 (400 `validation_failed` naming `version` without it); when the record has changed since, 409 `version_conflict` (with `details.current_version`) and nothing is written — reload and re-apply the edit. */
+                        version: number;
                         assigned_employee_id: components["schemas"]["UUID"];
                     };
                 };
@@ -16336,7 +16336,7 @@ export interface paths {
         put?: never;
         /**
          * Reopen Plan (exceptional) — mandatory reason, audit-logged (FR-038)
-         * @description Optional `step_id` (Wave 3 correction, backend-confirmed 2026-09-27): reopens that step of the case's newest plan; 400 `validation_failed` when it names a step of a different case. Without it, reopens the newest plan's last `done` step, as before. Since 2026-10-08 (F-069) only a `done` step is reopened and never beside another active step of its plan (409 `conflict`); the case's progress is recounted from its steps.
+         * @description Optional `step_id` (Wave 3 correction, backend-confirmed 2026-09-27): names the step to reopen; 400 `validation_failed` when it names a step of a different case. Since 2026-10-10 it is accepted only when it names the ONE step that may be reopened (below); offer Reopen on that step only. Without it, reopens the newest plan's last `done` step, as before. Since 2026-10-08 (F-069) only a `done` step is reopened (a locked or already active one is 409 `conflict`, "Only a completed step can be reopened.") and the case's progress is recounted from its steps. The reopened step comes back plainly `active` (owner's ruling 2026-10-10) - its `submitted_at` is cleared, so it is not "submitted, awaiting review" and is in no review queue until the student submits again; its answers and uploads (`responses`) are kept for the student to change and send again. A STEP CAN BE REOPENED WHILE THE STEP AFTER IT IS IN PROGRESS (owner's ruling 2026-10-10 - this replaces F-069's 409 for that case). ONE RULE EVERYWHERE - only the most recently completed step of the sequence can be reopened. While a step is in progress that is the completed step just before it; any earlier one is 409 `conflict`, "Only the step just before the one in progress can be reopened. Reopen <that step> first." With no step in progress (a finished plan) it is the plan's last completed step; any earlier one is 409 `conflict`, "Only the last completed step can be reopened. Reopen <that step> first." (until 2026-10-10 any `done` step could be named there). Going further back is done one step at a time, and with no `step_id` the default is the allowed step. There is still only ever ONE `active` step in a plan - in the same request the step that was in progress goes back to `locked`, like any step that has not started. Nothing of its work is lost (uploads, form answers, notes, and a "completed" the student had sent all stay on it) and its dates are cleared so the wait is not counted against it. While it waits it is not an "upcoming" step - removing it, reordering it or changing its title or tasks is 409 ("This step was already started and is waiting for an earlier step to be completed again. It can't be removed, moved or have its tasks changed."). When the reopened step is approved again the plan goes on with its earliest `locked` step, so the moved-back step becomes `active` again with a fresh start date, and - if the student had submitted it - is waiting for review again at once. The student is told (`step_reopened`) - "Your consultant reopened <step>." or "Your consultant reopened <step>. <step in progress> will continue after it is completed." The plan completes only when every step is `done`.
          */
         post: {
             parameters: {
@@ -17927,8 +17927,8 @@ export interface paths {
                     "application/json": {
                         name?: string;
                         steps?: components["schemas"]["StepTemplateInput"][];
-                        /** @description Optional optimistic lock (contract gate 7, BR §3.6) — the template `version` the edit was based on, as last read. Omitted, the edit applies as before. When the family already has a newer version (someone saved a content edit in between) — 409 `version_conflict` and nothing changes. */
-                        version?: number;
+                        /** @description REQUIRED optimistic lock since 2026-10-10, 400 `validation_failed` naming `version` without it (contract gate 7, BR §3.6) — the template `version` the edit was based on, as last read. Omitted, the edit applies as before. When the family already has a newer version (someone saved a content edit in between) — 409 `version_conflict` and nothing changes. */
+                        version: number;
                     };
                 };
             };
@@ -18472,8 +18472,8 @@ export interface paths {
                         components?: components["schemas"]["ComponentInput"][];
                         /** @description User refinement, 2026-08-29: an `active` step now also accepts this PATCH for `expected_end_date` alone (title/components stay locked-only, unchanged) — moving an already-started step's date reaches the applicant, so an optional reason rides along into that notification (`step_due_date_changed`). Ignored for a `locked` step's edit, and ignored unless the date actually changed. */
                         reason?: string;
-                        /** @description Optional optimistic lock (contract gate 7, BR §3.6) — the `version` the edit was based on, as last read. Omitted, the edit applies as before (last write wins). Stale — someone saved in between — 409 `version_conflict` and nothing changes; re-read and re-apply. */
-                        version?: number;
+                        /** @description REQUIRED optimistic lock since 2026-10-10, 400 `validation_failed` naming `version` without it (contract gate 7, BR §3.6) — the `version` the edit was based on, as last read. Omitted, the edit applies as before (last write wins). Stale — someone saved in between — 409 `version_conflict` and nothing changes; re-read and re-apply. */
+                        version: number;
                     };
                 };
             };
@@ -18527,8 +18527,8 @@ export interface paths {
                 content: {
                     "application/json": {
                         name: string;
-                        /** @description Optional optimistic lock (contract gate 7, BR §3.6) — the `version` the edit was based on, as last read. Omitted, the edit applies as before (last write wins). Stale — someone saved in between — 409 `version_conflict` and nothing changes; re-read and re-apply. */
-                        version?: number;
+                        /** @description REQUIRED optimistic lock since 2026-10-10, 400 `validation_failed` naming `version` without it (contract gate 7, BR §3.6) — the `version` the edit was based on, as last read. Omitted, the edit applies as before (last write wins). Stale — someone saved in between — 409 `version_conflict` and nothing changes; re-read and re-apply. */
+                        version: number;
                     };
                 };
             };
@@ -19035,8 +19035,8 @@ export interface paths {
                     "application/json": {
                         name?: string;
                         fields?: components["schemas"]["FormFieldInput"][];
-                        /** @description Optional optimistic lock (contract gate 7, BR §3.6) — the template `version` the edit was based on, as last read. Omitted, the edit applies as before. When the family already has a newer version (someone saved a content edit in between) — 409 `version_conflict` and nothing changes. */
-                        version?: number;
+                        /** @description REQUIRED optimistic lock since 2026-10-10, 400 `validation_failed` naming `version` without it (contract gate 7, BR §3.6) — the template `version` the edit was based on, as last read. Omitted, the edit applies as before. When the family already has a newer version (someone saved a content edit in between) — 409 `version_conflict` and nothing changes. */
+                        version: number;
                     };
                 };
             };
@@ -20442,8 +20442,8 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        /** @description Optional (declared 2026-10-08). The `Event.version` the editor loaded: when sent and no longer current the edit is refused with 409 `version_conflict` (`details.current_version`) and nothing is written; left out, the edit is applied as before (last write wins). */
-                        version?: number;
+                        /** @description REQUIRED since 2026-10-10 (declared 2026-10-08). The `Event.version` the editor loaded: when it is no longer current the edit is refused with 409 `version_conflict` (`details.current_version`) and nothing is written; left out, the edit is refused with 400 `validation_failed` naming `version`. */
+                        version: number;
                         /** @description false unlists (soft-deletes) the event for students; true restores it. */
                         listed?: boolean;
                         title?: string;
@@ -23010,8 +23010,8 @@ export interface paths {
                         active_to?: string | null;
                         /** @description Set false to retire the ad. One-directional in the admin UI — the field itself is not otherwise restricted. */
                         active?: boolean;
-                        /** @description Optional optimistic lock (review I-029), as on `PATCH /events/{id}` — the `version` the edit was based on, as last read. Omitted, the edit applies as before (last write wins). Stale — someone saved in between — 409 `version_conflict` and nothing changes; re-read and re-apply. */
-                        version?: number;
+                        /** @description REQUIRED optimistic lock since 2026-10-10, 400 `validation_failed` naming `version` without it (review I-029), as on `PATCH /events/{id}` — the `version` the edit was based on, as last read. Stale — someone saved in between — 409 `version_conflict` and nothing changes; re-read and re-apply. */
+                        version: number;
                     };
                 };
             };
@@ -29108,8 +29108,8 @@ export interface components {
         };
         /** @description Edit an existing employee's name, phone, branch(es), designation, access rights, or individual permission overrides. Does not include `active` — disabling goes through DELETE /staff/employees/{id} (the lockout guard applies there, not here). */
         EmployeePatchInput: {
-            /** @description Optimistic lock (F-075, 2026-10-08): the record's `version` as last read. Omitted, last write wins; when the record has changed since, 409 `version_conflict` (with `details.current_version`) and nothing is written — reload and re-apply the edit. */
-            version?: number;
+            /** @description Optimistic lock (F-075, 2026-10-08): the record's `version` as last read. REQUIRED since 2026-10-10 (400 `validation_failed` naming `version` without it); when the record has changed since, 409 `version_conflict` (with `details.current_version`) and nothing is written — reload and re-apply the edit. */
+            version: number;
             first_name?: string;
             last_name?: string;
             phone?: string | null;
@@ -32317,6 +32317,12 @@ export interface components {
              * @description Set when the applicant marks the step complete, while status stays `active` — build reference 1.7's completion flow describes a distinct "submitted, awaiting consultant review" moment that the 3-value status enum alone can't represent. Cleared on reject (back to plain Active); status becomes `done` on approve, submitted_at is left set as a record of when it was submitted. Step Approvals' queue is every step where this is non-null and status is still `active`.
              */
             submitted_at?: string | null;
+            /** @description True only for a `locked` step that WAS in progress and went back to waiting because the step before it was reopened (Reopen Plan, owner's ruling 2026-10-10). Its uploads, answers and submission are kept on it (`responses`, `submission`, `submitted_at`) and it continues, by the ordinary sequence, when the reopened step is completed again. Show it as "waiting to continue" with its kept work readable, not as a step that has not started. False for a step that never started and for the same step once it is `active` again. The backend always sends it; absent means false. */
+            readonly waiting_to_continue?: boolean;
+            /** @description While `waiting_to_continue`, the step it is waiting for - the plan's step in progress. Null otherwise. */
+            readonly waiting_for_step_id?: components["schemas"]["UUID"] | null;
+            /** @description That step's title. Null otherwise. */
+            readonly waiting_for_step_title?: string | null;
             /** @description What the applicant actually submitted (checked checklist items, questionnaire answers, uploaded file references) — free-form like Component.payload, since it mirrors whichever component types the step contains. Null until submitted. */
             submission?: {
                 [key: string]: unknown;
