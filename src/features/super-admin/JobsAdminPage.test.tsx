@@ -118,6 +118,8 @@ function fillTheRest(dialog: HTMLElement) {
   fireEvent.change(within(dialog).getByLabelText(/^Title/), { target: { value: 'Data Analyst' } })
   fireEvent.change(within(dialog).getByLabelText(/^Company$|^Company \*/), { target: { value: 'Contoso' } })
   fireEvent.change(within(dialog).getByLabelText(/^Apply URL/), { target: { value: 'https://jobs.example.com/1' } })
+  // A category is mandatory; the tests that are about something else pick one.
+  fireEvent.change(within(dialog).getByLabelText(/^Category/), { target: { value: 'General' } })
 }
 
 beforeEach(() => {
@@ -345,7 +347,7 @@ describe('the job form: the category is picked from the managed list', () => {
   }
 
   function optionLabels(dialog: HTMLElement) {
-    return Array.from(within(dialog).getByLabelText<HTMLSelectElement>('Category').options).map((o) => o.textContent)
+    return Array.from(within(dialog).getByLabelText<HTMLSelectElement>(/^Category/).options).map((o) => o.textContent)
   }
 
   it('offers the active categories and sends the one picked', () => {
@@ -357,15 +359,50 @@ describe('the job form: the category is picked from the managed list', () => {
 
     fillTheRest(dialog)
     fireEvent.change(within(dialog).getByLabelText(/^Work mode/), { target: { value: 'remote' } })
-    fireEvent.change(within(dialog).getByLabelText('Category'), { target: { value: 'General' } })
+    fireEvent.change(within(dialog).getByLabelText(/^Category/), { target: { value: 'General' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create Listing' }))
     expect(createMutate.mock.calls[0][0]).toMatchObject({ category: 'General' })
+  })
+
+  // Owner's ruling 2026-10-10: a listing needs a category.
+  it('marks the category required and blocks Create with a message when none is picked', () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Add Listing' }))
+    const dialog = screen.getByRole('dialog', { name: 'Add Listing' })
+    fillTheRest(dialog)
+    fireEvent.change(within(dialog).getByLabelText(/^Work mode/), { target: { value: 'remote' } })
+    fireEvent.change(within(dialog).getByLabelText(/^Category/), { target: { value: '' } })
+    expect(within(dialog).getByLabelText(/^Category/)).toBeRequired()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create Listing' }))
+    expect(createMutate).not.toHaveBeenCalled()
+    expect(within(dialog).getByText('Pick a category.')).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/^Category/)).toHaveAttribute('aria-invalid', 'true')
+
+    fireEvent.change(within(dialog).getByLabelText(/^Category/), { target: { value: 'General' } })
+    expect(within(dialog).queryByText('Pick a category.')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Create Listing' }))
+    expect(createMutate.mock.calls[0][0]).toMatchObject({ category: 'General' })
+  })
+
+  it('opens a listing that has no category, and will not save it until one is picked', () => {
+    renderForm({ ...JOB, category: undefined } as never)
+    const dialog = screen.getByRole('dialog', { name: 'Edit Listing' })
+    expect(within(dialog).getByLabelText<HTMLSelectElement>(/^Category/).value).toBe('')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    expect(updateMutate).not.toHaveBeenCalled()
+    expect(within(dialog).getByText('Pick a category.')).toBeInTheDocument()
+
+    fireEvent.change(within(dialog).getByLabelText(/^Category/), { target: { value: 'Engineering' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    expect(updateMutate.mock.calls[0][0]).toMatchObject({ category: 'Engineering' })
   })
 
   it('shows a retired category as selected and marked, and lets the editor keep it', () => {
     renderForm({ ...JOB, category: 'Hospitality' })
     const dialog = screen.getByRole('dialog', { name: 'Edit Listing' })
-    expect(within(dialog).getByLabelText<HTMLSelectElement>('Category').value).toBe('Hospitality')
+    expect(within(dialog).getByLabelText<HTMLSelectElement>(/^Category/).value).toBe('Hospitality')
     expect(optionLabels(dialog)).toEqual(['Select a category…', 'Hospitality (inactive)', 'Engineering', 'General'])
 
     fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
@@ -386,7 +423,7 @@ describe('the job form: the category is picked from the managed list', () => {
     const dialog = screen.getByRole('dialog', { name: 'Edit Listing' })
     fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
 
-    const picker = within(dialog).getByLabelText('Category')
+    const picker = within(dialog).getByLabelText(/^Category/)
     expect(picker).toHaveAttribute('aria-invalid', 'true')
     expect(screen.getAllByText(sentence)).toHaveLength(1)
 

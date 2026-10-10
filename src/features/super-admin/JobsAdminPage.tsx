@@ -83,7 +83,12 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
   // The server's own refusal of the category (422, `details.fields.category`) sits beside the
   // picker until another one is chosen.
   const [categoryAtRefusal, setCategoryAtRefusal] = useState<string | null>(null)
-  const categoryError = categoryAtRefusal === category ? fieldMessages(mutation.error).category : undefined
+  const categoryError =
+    categoryAtRefusal === category
+      ? fieldMessages(mutation.error).category
+      : attempted && !category
+        ? 'Pick a category.'
+        : undefined
   const applyUrlError = !attempted
     ? undefined
     : !applyUrl.trim()
@@ -97,8 +102,16 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
   // if a case this form doesn't know about ever comes back.
   const countryRequired = workMode !== 'remote'
   const countryError = attempted && countryRequired && !country ? 'Required unless the work mode is Remote.' : undefined
+  // A category is mandatory (owner's ruling 2026-10-10). A listing filed before that, with none,
+  // still opens; saving it asks for one.
+  const categoryMissing = !category
   const canSubmit = Boolean(
-    title.trim() && company.trim() && applyUrl.trim() && applyUrl.startsWith('https://') && (!countryRequired || country),
+    title.trim() &&
+      company.trim() &&
+      applyUrl.trim() &&
+      applyUrl.startsWith('https://') &&
+      (!countryRequired || country) &&
+      !categoryMissing,
   )
   const titleError = attempted && !title.trim() ? 'Title is required.' : undefined
   const companyError = attempted && !company.trim() ? 'Company is required.' : undefined
@@ -137,8 +150,7 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
       country: country || null,
       province_state: country ? provinceState || null : null,
       city: city.trim() || null,
-      // Nothing picked is sent as no category at all; the server says what it needs if it needs one.
-      category: category || undefined,
+      category,
       job_type: jobType,
       description,
       apply_url: applyUrl,
@@ -200,6 +212,7 @@ export function JobFormModal({ editingJob, onClose }: { editingJob?: JobListing;
           />
           <SelectField
             label="Category"
+            required
             id="job-category"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
