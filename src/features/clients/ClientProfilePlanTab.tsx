@@ -21,6 +21,8 @@ import { ErrorState, Skeleton } from '@/components/QueryState'
 import { usePlans } from '@/queries/plans'
 import { usePermission } from '@/lib/permissions'
 import { CASE_MOVED_ACTION_REASON } from '@/lib/clientStatus'
+import { canOfferPlanReopen } from '@/lib/reopenRules'
+import { ReopenPlanCard } from '@/features/clients/ReopenPlanCard'
 import type { components } from '@/api/schema'
 
 type Plan = components['schemas']['Plan']
@@ -101,6 +103,7 @@ export function PlanTab({
   initialStepId,
   initialPlanId,
   readOnly = false,
+  canReopenPlan = false,
 }: {
   clientId: string
   initialStepId?: string
@@ -111,6 +114,11 @@ export function PlanTab({
   // action below now 409 `case_moved` server-side, so the builder is wrapped read-only rather than
   // left to fail one click at a time.
   readOnly?: boolean
+  // Whether the consultant may reopen a step of a plan on this case right now: permission, the
+  // `case_reopening` feature and a case that is still open to them, decided by the page. With
+  // several plans the Reopen Plan control lives here, in the selected plan's panel (with a single
+  // plan it stays in the page header).
+  canReopenPlan?: boolean
 }) {
   const plans = usePlans(clientId)
   const [showAddPlan, setShowAddPlan] = useState(false)
@@ -118,6 +126,9 @@ export function PlanTab({
   // Which plan is shown. Deep-linking to a step (Activity's Step Approvals) opens whichever plan
   // holds it; otherwise the plan Overview pointed at, otherwise the first. One is always shown.
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
+  // The plan whose Reopen Plan card is open. Tied to a plan, not a flag, so choosing another plan
+  // closes it rather than leaving a card that names the wrong one.
+  const [reopenOpenFor, setReopenOpenFor] = useState<string | null>(null)
 
   if (plans.isLoading) return <Skeleton className="h-24 rounded-lg" />
   if (plans.isError) return <ErrorState message="Could not load this case's plans." onRetry={() => plans.refetch()} error={plans.error} />
@@ -132,6 +143,9 @@ export function PlanTab({
     items[0] ??
     null
   const multiple = items.length > 1
+  // Offered here only when there are several plans (a single plan keeps the header button), and
+  // only when the SELECTED plan has a completed step; the server applies the rule inside that plan.
+  const offerReopen = multiple && canOfferPlanReopen({}, selectedPlan, canReopenPlan)
 
   return (
     <div className="flex flex-col gap-lg">
@@ -213,10 +227,29 @@ export function PlanTab({
                   {multiple && <span className="text-text-secondary">Steps in </span>}
                   {selectedPlan.name}
                 </h3>
-                {selectedPlan.progress && (
-                  <span className="text-body-sm tabular-nums text-text-secondary">{selectedPlan.progress} steps done</span>
-                )}
+                <div className="flex items-center gap-md">
+                  {selectedPlan.progress && (
+                    <span className="text-body-sm tabular-nums text-text-secondary">{selectedPlan.progress} steps done</span>
+                  )}
+                  {offerReopen && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => setReopenOpenFor((v) => (v === selectedPlan.id ? null : selectedPlan.id))}
+                    >
+                      Reopen Plan
+                    </Button>
+                  )}
+                </div>
               </div>
+              {offerReopen && reopenOpenFor === selectedPlan.id && (
+                <ReopenPlanCard
+                  key={`reopen-${selectedPlan.id}`}
+                  clientId={clientId}
+                  plan={selectedPlan}
+                  namePlan
+                  onDone={() => setReopenOpenFor(null)}
+                />
+              )}
               {/* `readOnly` threads straight into the builder (2026-09-24) rather than a blanket
                   `<fieldset disabled>` wrapper — a first attempt at that wrapper here also caught
                   Preview mode's step-selection rows, which are real `<button>`s for keyboard/AT

@@ -2,22 +2,20 @@ import { useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Lock } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
-import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
-import { TextField } from '@/components/TextField'
 import { ErrorState, Skeleton } from '@/components/QueryState'
-import { useClient, useReopenPlan } from '@/queries/clients'
+import { useClient } from '@/queries/clients'
 import { usePlans } from '@/queries/plans'
 import { useFeature } from '@/lib/features'
 import { usePermission } from '@/lib/permissions'
-import { showToast } from '@/lib/toast'
 import { carriedOverLine } from '@/lib/caseCarry'
 import { CloseClientModal } from './CloseClientModal'
 import { RaiseIssueModal } from './RaiseIssueModal'
 import { CLIENT_TABS, isClientTab, type ClientTab } from '@/lib/clientTabs'
 import { TabBar } from '@/components/TabBar'
-import { canOfferCaseReopen, canOfferPlanReopen, planReopenImpact } from '@/lib/reopenRules'
+import { canOfferCaseReopen, canOfferPlanReopen, caseAllowsPlanReopen } from '@/lib/reopenRules'
 import { ReopenClientModal } from './ReopenClientModal'
+import { ReopenPlanCard } from './ReopenPlanCard'
 import { OverviewTab } from './ClientProfileOverviewTab'
 import { PlanTab } from './ClientProfilePlanTab'
 import { CommissionsTab } from './ClientProfileCommissionsTab'
@@ -44,9 +42,6 @@ export function ClientProfilePage() {
   const initialStepId = searchParams.get('step') ?? undefined
   const client = useClient(id)
   const plans = usePlans(id)
-  const reopenPlan = useReopenPlan(id)
-  // Which step reopens and which (if any) goes back to waiting, named in the dialog before confirming.
-  const reopenImpact = planReopenImpact(plans.data?.items)
   // Reopening a completed plan is an elevated action — "defaulting to Consultancy Admin only,
   // delegable to trusted staff" (build reference §374). The permission key shipped with the
   // designation editor; the button never checked it until the contract audit (2026-08-23). Also
@@ -81,7 +76,6 @@ export function ClientProfilePage() {
     )
   }
   const [showReopen, setShowReopen] = useState(false)
-  const [reopenReason, setReopenReason] = useState('')
   const [showCloseCase, setShowCloseCase] = useState(false)
   const [showRaiseIssue, setShowRaiseIssue] = useState(false)
   const [showReopenCase, setShowReopenCase] = useState(false)
@@ -127,6 +121,12 @@ export function ClientProfilePage() {
   const hasLinkedForms = (plans.data?.items ?? []).some((plan) =>
     plan.steps.some((step) => step.components.some((c) => c.type === 'form_link')),
   )
+  // Reopen Plan acts on ONE plan (owner's ruling 2026-10-10). With a single plan it is unambiguous,
+  // so the button stays in the header as it always was. With several, the header cannot say which
+  // plan it would touch, so the Plan tab offers it inside the selected plan's own panel instead.
+  const planItems = plans.data?.items ?? []
+  const headerReopenPlan = planItems.length === 1 ? planItems[0] : null
+  const reopenPlanAllowed = canReopenPlan && caseAllowsPlanReopen(data)
   const visibleTabs = TABS.filter((tab) => {
     if (tab === 'Commissions') return canSeeCommissions
     if (tab === 'Applications') return data.case_type === 'student'
@@ -183,7 +183,7 @@ export function ClientProfilePage() {
             <Link to={`/clients/${id}/conversation`}>
               <Button variant="secondary">Conversation</Button>
             </Link>
-            {canOfferPlanReopen(data, plans.data?.items, canReopenPlan) && (
+            {headerReopenPlan && canOfferPlanReopen(data, headerReopenPlan, canReopenPlan) && (
               <Button variant="secondary" onClick={() => setShowReopen((v) => !v)}>
                 Reopen Plan
               </Button>
@@ -248,58 +248,8 @@ export function ClientProfilePage() {
           />
         )}
 
-        {showReopen && (
-          <Card className="flex flex-col gap-sm">
-            <div className="flex items-end gap-sm">
-              <TextField
-                label="Reason (mandatory)"
-                value={reopenReason}
-                onChange={(e) => setReopenReason(e.target.value)}
-                className="flex-1"
-              />
-              <Button
-                variant="destructive"
-                disabled={!reopenReason}
-                loading={reopenPlan.isPending}
-                onClick={() =>
-                  reopenPlan.mutate(
-                    { reason: reopenReason, stepId: reopenImpact?.reopened?.id },
-                    {
-                      onSuccess: () => {
-                        showToast('Plan reopened')
-                        setShowReopen(false)
-                        setReopenReason('')
-                      },
-                    },
-                  )
-                }
-              >
-                Confirm Reopen
-              </Button>
-            </div>
-            {/* One rule, no picker (owner's ruling 2026-10-10): only the most recently completed step is
-                reopened, so the dialog names it. */}
-            {reopenImpact?.reopened && (
-              <div className="flex flex-col gap-xs">
-                <p className="text-body-sm text-text-primary">This reopens {reopenImpact.reopened.title}.</p>
-                {reopenImpact.inProgress && (
-                  <p className="text-body-sm text-text-secondary">
-                    {reopenImpact.inProgress} will go back to waiting until {reopenImpact.reopened.title} is
-                    completed again. Its work is kept.
-                  </p>
-                )}
-                <p className="text-caption text-text-secondary">To go further back, reopen one step at a time.</p>
-              </div>
-            )}
-            {/* The server's own sentence, beside the button that was refused (review F-069): a plan is
-                reopened only at a completed step (409 `conflict` otherwise). Another step may be in
-                progress: it goes back to waiting, work kept, and the dialog says so first. */}
-            {reopenPlan.isError && (
-              <p role="alert" className="text-body-sm text-error">
-                {reopenPlan.error.message}
-              </p>
-            )}
-          </Card>
+        {showReopen && headerReopenPlan && (
+          <ReopenPlanCard clientId={id} plan={headerReopenPlan} namePlan={false} onDone={() => setShowReopen(false)} />
         )}
 
         {/* The one thing every tab below needs the consultant to know before they start clicking
@@ -335,6 +285,7 @@ export function ClientProfilePage() {
             initialStepId={initialStepId}
             initialPlanId={initialPlanId}
             readOnly={caseMoved}
+            canReopenPlan={reopenPlanAllowed}
           />
         )}
         {activeTab === 'Forms' && hasLinkedForms && <FormsTab clientId={id} readOnly={caseMoved} />}

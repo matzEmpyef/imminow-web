@@ -165,7 +165,8 @@ function plan(statuses: string[]) {
 }
 
 // Review 2.114: the button used to wait for a case status the server never stores. It now follows
-// the newest plan's steps, which is what POST /clients/{id}/reopen itself checks.
+// the plan's own steps. With a single plan it stays in the page header; with several it moves into
+// the Plan tab's selected plan.
 describe('ClientProfilePage — Reopen Plan is offered when the server will take it', () => {
   const reopenPlanButton = () => screen.queryByRole('button', { name: 'Reopen Plan' })
 
@@ -181,8 +182,11 @@ describe('ClientProfilePage — Reopen Plan is offered when the server will take
     expect(reopenPlanButton()).toBeInTheDocument()
   })
 
-  it('reads the NEWEST plan: oldest first, so the last one', () => {
-    mockedPlans.mockReturnValue(query({ items: [plan(['done']), plan(['locked', 'locked'])] }))
+  // With several plans the header cannot say which plan it would reopen, so it offers nothing; the
+  // control is in the selected plan's panel on the Plan tab instead
+  // (ClientProfilePlanTab.reopen.test.tsx).
+  it('is not in the header when the case runs several plans', () => {
+    mockedPlans.mockReturnValue(query({ items: [plan(['done', 'active']), plan(['locked', 'locked'])] }))
     renderProfile()
     expect(reopenPlanButton()).not.toBeInTheDocument()
   })

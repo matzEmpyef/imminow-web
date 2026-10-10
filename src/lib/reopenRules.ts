@@ -69,6 +69,7 @@ export function canOfferCaseReopen(client: CaseForReopen, planIncludesReopening:
 }
 
 interface PlanForReopen {
+  name?: string | null
   steps?: ReadonlyArray<{
     id?: string
     status?: string | null
@@ -78,45 +79,50 @@ interface PlanForReopen {
 }
 
 /**
- * Reopen Plan is offered when the server will accept it (review 2.114). The route reopens the
- * NEWEST plan's last `done` step, and refuses with 409 `conflict` when the plan has no completed
- * step. A step already in progress does NOT stop it (owner's ruling 2026-10-10): the plan still has
- * one active step, so the running one goes back to waiting, its work kept, and opens again when the
- * reopened step is completed (`planReopenImpact` names both). That is readable from the plan's own
- * steps, so the console checks it instead of waiting for a case status the server never stores
- * (`plan_complete` is legacy).
- *
- * `plans` is `GET /clients/{id}/plans`, oldest first, so the newest plan is the last. The case
- * must be one this consultancy can still act on: not moved away, not under mediation, not closed.
- * The contract is silent on closed cases; the page offers Reopen Case there instead.
+ * The case side of Reopen Plan: a case this consultancy can still act on, not moved away, not under
+ * mediation, not closed. The contract is silent on closed cases; the page offers Reopen Case there
+ * instead.
+ */
+export function caseAllowsPlanReopen(client: CaseForReopen): boolean {
+  return !(client.status === 'closed' || client.status === 'in_dispute' || isCaseMoved(client.status))
+}
+
+/**
+ * Reopen Plan is offered on ONE plan when the server will accept it (review 2.114). A case can run
+ * several plans side by side, and the route applies the rule inside the plan that owns the step it
+ * is sent (`step_id`; owner's ruling 2026-10-10, confirmed against the server), so the console asks
+ * the question of the plan the consultant is looking at, never of "the newest one". The route
+ * refuses with 409 `conflict` when that plan has no completed step. A step already in progress does
+ * NOT stop it: the plan still has one active step, so the running one goes back to waiting, its
+ * work kept, and opens again when the reopened step is completed (`planReopenImpact` names both).
+ * That is readable from the plan's own steps, so the console checks it instead of waiting for a
+ * case status the server never stores (`plan_complete` is legacy).
  *
  * Pressing it can still be refused for a reason of the moment; the server's sentence is shown.
  */
 export function canOfferPlanReopen(
   client: CaseForReopen,
-  plans: ReadonlyArray<PlanForReopen> | null | undefined,
+  plan: PlanForReopen | null | undefined,
   allowed: boolean,
 ): boolean {
-  if (!allowed) return false
-  if (client.status === 'closed' || client.status === 'in_dispute' || isCaseMoved(client.status)) return false
-  const newest = plans?.[plans.length - 1]
-  const steps = newest?.steps ?? []
-  return steps.some((s) => s.status === 'done')
+  if (!allowed || !caseAllowsPlanReopen(client)) return false
+  return (plan?.steps ?? []).some((s) => s.status === 'done')
 }
 
 /**
- * What pressing Reopen Plan will do, by step name, so the dialog can say so before it is
- * confirmed (owner's ruling 2026-10-10: one rule everywhere, no picker). Only the most recently
- * completed step is ever reopened: the step just before the one in progress, or the plan's last
- * `done` step when nothing is in progress. The step in progress, if there is one, goes back to
- * waiting with its work kept. `stepId` names the step to the server so it does not have to guess.
- * `reopened` is null when that step is not completed (the server then says so with its own 409).
+ * What pressing Reopen Plan will do on this plan, by step name, so the dialog can say so before it
+ * is confirmed (owner's ruling 2026-10-10: one rule everywhere, no picker). Only the plan's most
+ * recently completed step is ever reopened: the step just before the one in progress, or the
+ * plan's last `done` step when nothing is in progress. The step in progress, if there is one, goes
+ * back to waiting with its work kept; other plans are untouched. `id` names the step to the server
+ * so it does not have to guess. `reopened` is null when that step is not completed (the server then
+ * says so with its own 409).
  */
-export function planReopenImpact(plans: ReadonlyArray<PlanForReopen> | null | undefined): {
+export function planReopenImpact(plan: PlanForReopen | null | undefined): {
   reopened: { id?: string; title: string } | null
   inProgress: string | null
 } | null {
-  const steps = [...(plans?.[plans.length - 1]?.steps ?? [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+  const steps = [...(plan?.steps ?? [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
   if (!steps.some((s) => s.status === 'done')) return null
   const runningAt = steps.findIndex((s) => s.status === 'active')
   const target = runningAt >= 0 ? steps[runningAt - 1] : steps.filter((s) => s.status === 'done').at(-1)
