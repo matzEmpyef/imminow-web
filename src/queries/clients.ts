@@ -553,10 +553,11 @@ export function useMarkClientRead() {
 export function useReopenPlan(clientId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (reason: string) => {
+    // `stepId` is the one most recently completed step, named so the server reopens exactly it.
+    mutationFn: async ({ reason, stepId }: { reason: string; stepId?: string }) => {
       const { data, error } = await api.POST('/clients/{id}/reopen', {
         params: { path: { id: clientId } },
-        body: { reason },
+        body: { reason, step_id: stepId },
       })
       if (error) throw new ApiError('Could not reopen this plan.', error)
       return data

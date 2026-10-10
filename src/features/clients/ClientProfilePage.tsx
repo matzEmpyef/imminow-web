@@ -16,7 +16,7 @@ import { CloseClientModal } from './CloseClientModal'
 import { RaiseIssueModal } from './RaiseIssueModal'
 import { CLIENT_TABS, isClientTab, type ClientTab } from '@/lib/clientTabs'
 import { TabBar } from '@/components/TabBar'
-import { canOfferCaseReopen, canOfferPlanReopen } from '@/lib/reopenRules'
+import { canOfferCaseReopen, canOfferPlanReopen, planReopenImpact } from '@/lib/reopenRules'
 import { ReopenClientModal } from './ReopenClientModal'
 import { OverviewTab } from './ClientProfileOverviewTab'
 import { PlanTab } from './ClientProfilePlanTab'
@@ -45,6 +45,8 @@ export function ClientProfilePage() {
   const client = useClient(id)
   const plans = usePlans(id)
   const reopenPlan = useReopenPlan(id)
+  // Which step reopens and which (if any) goes back to waiting, named in the dialog before confirming.
+  const reopenImpact = planReopenImpact(plans.data?.items)
   // Reopening a completed plan is an elevated action — "defaulting to Consultancy Admin only,
   // delegable to trusted staff" (build reference §374). The permission key shipped with the
   // designation editor; the button never checked it until the contract audit (2026-08-23). Also
@@ -260,21 +262,38 @@ export function ClientProfilePage() {
                 disabled={!reopenReason}
                 loading={reopenPlan.isPending}
                 onClick={() =>
-                  reopenPlan.mutate(reopenReason, {
-                    onSuccess: () => {
-                      showToast('Plan reopened')
-                      setShowReopen(false)
-                      setReopenReason('')
+                  reopenPlan.mutate(
+                    { reason: reopenReason, stepId: reopenImpact?.reopened?.id },
+                    {
+                      onSuccess: () => {
+                        showToast('Plan reopened')
+                        setShowReopen(false)
+                        setReopenReason('')
+                      },
                     },
-                  })
+                  )
                 }
               >
                 Confirm Reopen
               </Button>
             </div>
+            {/* One rule, no picker (owner's ruling 2026-10-10): only the most recently completed step is
+                reopened, so the dialog names it. */}
+            {reopenImpact?.reopened && (
+              <div className="flex flex-col gap-xs">
+                <p className="text-body-sm text-text-primary">This reopens {reopenImpact.reopened.title}.</p>
+                {reopenImpact.inProgress && (
+                  <p className="text-body-sm text-text-secondary">
+                    {reopenImpact.inProgress} will go back to waiting until {reopenImpact.reopened.title} is
+                    completed again. Its work is kept.
+                  </p>
+                )}
+                <p className="text-caption text-text-secondary">To go further back, reopen one step at a time.</p>
+              </div>
+            )}
             {/* The server's own sentence, beside the button that was refused (review F-069): a plan is
-                reopened only at a completed step, and never while another step is in progress (409
-                `conflict`). */}
+                reopened only at a completed step (409 `conflict` otherwise). Another step may be in
+                progress: it goes back to waiting, work kept, and the dialog says so first. */}
             {reopenPlan.isError && (
               <p role="alert" className="text-body-sm text-error">
                 {reopenPlan.error.message}

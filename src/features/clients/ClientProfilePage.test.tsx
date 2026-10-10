@@ -161,7 +161,7 @@ describe('ClientProfilePage — Reopen Case', () => {
 })
 
 function plan(statuses: string[]) {
-  return { id: 'p', steps: statuses.map((status, i) => ({ id: `s${i}`, status, components: [] })) }
+  return { id: 'p', steps: statuses.map((status, i) => ({ id: `s${i}`, title: `Step ${i + 1}`, position: i, status, components: [] })) }
 }
 
 // Review 2.114: the button used to wait for a case status the server never stores. It now follows
@@ -187,10 +187,46 @@ describe('ClientProfilePage — Reopen Plan is offered when the server will take
     expect(reopenPlanButton()).not.toBeInTheDocument()
   })
 
-  it('hides while another step is in progress (the server answers 409)', () => {
+  // Owner's ruling 2026-10-10: a completed step may be reopened beside a running one.
+  it('shows while another step is in progress', () => {
     mockedPlans.mockReturnValue(query({ items: [plan(['done', 'active', 'locked'])] }))
     renderProfile()
-    expect(reopenPlanButton()).not.toBeInTheDocument()
+    expect(reopenPlanButton()).toBeInTheDocument()
+  })
+
+  // The plan keeps one active step: the running one goes back to waiting, its work kept. The dialog
+  // names both steps before the reopen is confirmed.
+  it('says which step goes back to waiting, by name, when another step is in progress', () => {
+    mockedPlans.mockReturnValue(query({ items: [plan(['done', 'done', 'active', 'locked'])] }))
+    renderProfile()
+    fireEvent.click(reopenPlanButton()!)
+    expect(
+      screen.getByText('Step 3 will go back to waiting until Step 2 is completed again. Its work is kept.'),
+    ).toBeInTheDocument()
+  })
+
+  it('says nothing of the kind when no step is in progress, and names the last completed step', () => {
+    mockedPlans.mockReturnValue(query({ items: [plan(['done', 'done', 'locked'])] }))
+    renderProfile()
+    fireEvent.click(reopenPlanButton()!)
+    expect(screen.queryByText(/will go back to waiting/)).not.toBeInTheDocument()
+    expect(screen.getByText('This reopens Step 2.')).toBeInTheDocument()
+    expect(screen.getByText('To go further back, reopen one step at a time.')).toBeInTheDocument()
+  })
+
+  // One rule, no picker: only the most recently completed step is reopened, and the request names it.
+  it('reopens only the step just before the one in progress, and sends it by id', () => {
+    const mutate = vi.fn()
+    mockedReopenPlan.mockReturnValue({ mutate, isPending: false, isError: false } as never)
+    mockedPlans.mockReturnValue(query({ items: [plan(['done', 'done', 'done', 'active', 'locked'])] }))
+    renderProfile()
+    fireEvent.click(reopenPlanButton()!)
+    expect(screen.getByText('This reopens Step 3.')).toBeInTheDocument()
+    expect(screen.queryByText(/Step 1|Step 2/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'Wrong marks' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Reopen' }))
+    expect(mutate.mock.calls[0][0]).toEqual({ reason: 'Wrong marks', stepId: 's2' })
   })
 
   it('hides when no step is completed, or there is no plan', () => {
@@ -214,8 +250,8 @@ describe('ClientProfilePage — Reopen Plan is offered when the server will take
   })
 })
 
-// Review F-069: a plan is reopened only at a completed step and never while another step is in
-// progress. The server refuses with 409 `conflict`, and its sentence is shown beside the button.
+// Review F-069: a plan is reopened only at a completed step. The server refuses with 409
+// `conflict` otherwise, and its sentence is shown beside the button.
 describe('ClientProfilePage — Reopen Plan refused', () => {
   it('shows the server’s sentence', () => {
     mockedFeature.mockReturnValue(true)
@@ -226,11 +262,11 @@ describe('ClientProfilePage — Reopen Plan refused', () => {
       mutate: vi.fn(),
       isPending: false,
       isError: true,
-      error: new Error('This plan already has a step in progress.'),
+      error: new Error('This plan has no completed step to reopen.'),
     } as never)
     renderProfile()
 
     fireEvent.click(screen.getByRole('button', { name: 'Reopen Plan' }))
-    expect(screen.getByRole('alert')).toHaveTextContent('This plan already has a step in progress.')
+    expect(screen.getByRole('alert')).toHaveTextContent('This plan has no completed step to reopen.')
   })
 })
