@@ -19,6 +19,7 @@ import { ApiError } from '@/api/errors'
 import { useAddStep, useDeleteStep, useReorderSteps, useUpdateStep } from '@/queries/plans'
 import { useApproveStep, useRejectStep } from '@/queries/steps'
 import { usePermission } from '@/lib/permissions'
+import { WAITING_STEP_CANT_CHANGE, isWaitingStep, waitingStepNote } from '@/lib/waitingStep'
 import { FieldLabel } from '@/components/FieldLabel'
 import { AWAITING_REVIEW_WARNING_DAYS, awaitingReviewLabel, daysSince, dateFieldToIso, formatDate, formatDateTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
@@ -291,9 +292,11 @@ function LiveStepRow({
   onSelect: () => void
   onDelete: () => void
 }) {
+  // Waiting for an earlier step to be completed again: it can't be moved or removed (server 409).
+  const waiting = isWaitingStep(step)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: step.id,
-    disabled: step.status === 'done',
+    disabled: step.status === 'done' || waiting,
   })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -324,7 +327,8 @@ function LiveStepRow({
         {...attributes}
         {...listeners}
         type="button"
-        disabled={step.status === 'done'}
+        disabled={step.status === 'done' || waiting}
+        title={waiting ? WAITING_STEP_CANT_CHANGE : undefined}
         onClick={(e) => e.stopPropagation()}
         className="cursor-grab text-text-secondary active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-30"
         aria-label={`Drag ${step.title}`}
@@ -339,9 +343,23 @@ function LiveStepRow({
         <p className="text-caption text-text-secondary">
           {count} component{count === 1 ? '' : 's'}
         </p>
+        {waiting && <p className="text-caption text-text-secondary">{waitingStepNote(step)}</p>}
       </div>
       <Badge color={STATUS_COLOR[step.status]}>{step.status}</Badge>
-      {step.status === 'locked' && (
+      {waiting && (
+        <StopPropagation>
+          <button
+            type="button"
+            disabled
+            title={WAITING_STEP_CANT_CHANGE}
+            aria-label={`Delete ${step.title}`}
+            className="cursor-not-allowed text-text-secondary opacity-30"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </StopPropagation>
+      )}
+      {step.status === 'locked' && !waiting && (
         <StopPropagation>
           <button
             type="button"
@@ -416,7 +434,10 @@ function LiveStepPreviewRow({
       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-background text-caption font-semibold text-text-secondary">
         {index + 1}
       </span>
-      <p className="min-w-0 flex-1 truncate text-body-sm font-medium text-text-primary">{step.title}</p>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-body-sm font-medium text-text-primary">{step.title}</span>
+        {isWaitingStep(step) && <span className="block text-caption text-text-secondary">{waitingStepNote(step)}</span>}
+      </span>
       <Badge color={STATUS_COLOR[step.status]}>{step.status}</Badge>
     </button>
   )
@@ -477,11 +498,15 @@ export function PlanStepBuilder({
   const steps = [...plan.steps].sort((a, b) => a.position - b.position)
   const selectedStep = steps.find((s) => s.id === selectedStepId) ?? null
   const selectedIndex = selectedStep ? steps.findIndex((s) => s.id === selectedStep.id) : -1
-  const canEdit = mode === 'edit' && selectedStep?.status === 'locked'
+  // A step waiting for an earlier one to be completed again keeps its work but takes no edit to its
+  // title or tasks (server 409): it is shown as the pending step it is, with its answers inert.
+  const selectedWaiting = selectedStep ? isWaitingStep(selectedStep) : false
+  const canEdit = mode === 'edit' && selectedStep?.status === 'locked' && !selectedWaiting
   // The Edit-step affordance alone widens to `active` (2026-08-29) — everything else governed
   // by `canEdit` (Add Component, component reorder, "components can no longer be edited") stays
   // locked-only, since only the date is editable on an active step now, not the step's shape.
-  const canEditStepDate = mode === 'edit' && (selectedStep?.status === 'locked' || selectedStep?.status === 'active')
+  const canEditStepDate =
+    mode === 'edit' && !selectedWaiting && (selectedStep?.status === 'locked' || selectedStep?.status === 'active')
   const mutationError = addStep.error ?? updateStep.error ?? deleteStep.error ?? reorder.error
 
   function handleStepDragEnd(event: DragEndEvent) {
@@ -640,12 +665,24 @@ export function PlanStepBuilder({
                     <Pencil className="h-4 w-4" />
                   </button>
                 )}
+                {mode === 'edit' && selectedWaiting && (
+                  <button
+                    type="button"
+                    disabled
+                    title={WAITING_STEP_CANT_CHANGE}
+                    aria-label={`Edit ${selectedStep.title}`}
+                    className="cursor-not-allowed text-text-secondary opacity-30"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                )}
               </div>
               {/* What happens in this step, in the consultant's own words — the same sentence
                   the student reads under the title in the app (user, 2026-09-09). */}
               {selectedStep.description && (
                 <p className="text-body-sm text-text-secondary">{selectedStep.description}</p>
               )}
+              {selectedWaiting && <p className="text-caption text-text-secondary">{waitingStepNote(selectedStep)}</p>}
               {selectedStep.expected_end_date && (
                 <p className="text-caption text-text-secondary">
                   Expected by {formatDate(selectedStep.expected_end_date)}
@@ -671,6 +708,9 @@ export function PlanStepBuilder({
                     Add Component
                   </Button>
                 </div>
+              )}
+              {mode === 'edit' && selectedWaiting && (
+                <p className="text-caption text-text-secondary">{WAITING_STEP_CANT_CHANGE}</p>
               )}
               {mode === 'edit' && selectedStep.status !== 'locked' && (
                 <p className="text-caption text-text-secondary">
