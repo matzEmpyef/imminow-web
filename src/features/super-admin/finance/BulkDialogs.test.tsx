@@ -7,7 +7,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // every row has its own result.
 const confirmOne = vi.fn()
 const recordOne = vi.fn()
-vi.mock('@/queries/commission', () => ({ useConfirmCommissionPayment: () => ({ mutateAsync: confirmOne }) }))
+vi.mock('@/queries/commission', () => ({
+  useConfirmCommissionPayment: () => ({ mutateAsync: confirmOne }),
+  useConfirmPreview: () => ({ data: undefined, error: null, isFetching: false }),
+}))
 vi.mock('@/queries/freelancerReferrals', () => ({ useRecordFreelancerPayout: () => ({ mutateAsync: recordOne }) }))
 
 import { Modal } from '@/components/Modal'
