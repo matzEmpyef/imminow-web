@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useEffect, useMemo, useRef } from 'react'
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import type { SearchSelectOption } from '@/components/SearchSelect'
+import { isStaleCursor } from '@/lib/pagination'
 
 /**
  * Where a server-searched picker gets its rows (review F-038). One per list — see
@@ -30,8 +31,10 @@ export interface ServerSearchSource<T> {
 export function useServerSearch<T>(source: ServerSearchSource<T>, term: string, enabled = true) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   const search = term.trim()
+  const queryClient = useQueryClient()
+  const key = [...source.queryKey, 'search', search]
   const query = useInfiniteQuery({
-    queryKey: [...source.queryKey, 'search', search],
+    queryKey: key,
     queryFn: ({ pageParam, signal }) => source.fetchPage({ search, cursor: pageParam, signal }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
@@ -56,11 +59,22 @@ export function useServerSearch<T>(source: ServerSearchSource<T>, term: string, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query.data])
 
+  // A page link the server no longer accepts (its cursors are sealed) is not an error to show:
+  // the list is read again from its first page.
+  const staleCursor = isStaleCursor(query.error)
+  const keyRef = useRef(key)
+  useEffect(() => {
+    keyRef.current = key
+  })
+  useEffect(() => {
+    if (staleCursor) void queryClient.resetQueries({ queryKey: keyRef.current, exact: true })
+  }, [staleCursor, queryClient])
+
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = query
   return {
     entries,
     isLoading: query.isPending && query.fetchStatus !== 'idle',
-    isError: query.isError,
+    isError: query.isError && !staleCursor,
     hasMore: Boolean(hasNextPage),
     isLoadingMore: isFetchingNextPage,
     loadMore: () => {

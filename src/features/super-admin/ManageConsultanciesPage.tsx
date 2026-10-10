@@ -31,7 +31,7 @@ import {
   useUpdateEntitlements,
   useUpdateMfaPolicy,
 } from '@/queries/adminConsultancies'
-import { useCursorPagination } from '@/lib/pagination'
+import { isStaleCursor, useCursorPagination, useRestartOnStaleCursor } from '@/lib/pagination'
 import { formatDate, localDateISO } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { formatMoney } from '@/lib/money'
@@ -1394,6 +1394,10 @@ export function ManageConsultanciesPage() {
     limit: 20,
   })
 
+  // A page link the server no longer accepts is not an error to show: the list starts again from
+  // its first page (the cursor is sealed, so an old one cannot be used).
+  useRestartOnStaleCursor(consultancies.error, paging.reset)
+
   const managedFromList = managingId ? consultancies.data?.items.find((c) => c.id === managingId) : undefined
   // Only fetched when the account is not on the page of the list being shown.
   const managedDirect = useAdminConsultancy(managingId && consultancies.data && !managedFromList ? managingId : null)
@@ -1595,7 +1599,7 @@ export function ManageConsultanciesPage() {
           rows={consultancies.data?.items ?? []}
           rowKey={(c) => c.id!}
           loading={consultancies.isLoading}
-          error={consultancies.isError ? 'Could not load consultancies.' : undefined} errorSource={consultancies.error}
+          error={consultancies.isError && !isStaleCursor(consultancies.error) ? 'Could not load consultancies.' : undefined} errorSource={consultancies.error}
           emptyMessage={
             search || kindFilter || (canSeePlans && (tierFilter || statusFilter))
               ? 'No accounts match these filters.'

@@ -1,7 +1,16 @@
 import { StrictMode } from 'react'
 import { act, renderHook } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
-import { chronologicalPages, cursorPager, fetchAllPages, toPage, useCursorPagination } from './pagination'
+import { describe, expect, it, vi } from 'vitest'
+import { ApiError } from '@/api/errors'
+import {
+  chronologicalPages,
+  cursorPager,
+  fetchAllPages,
+  isStaleCursor,
+  toPage,
+  useCursorPagination,
+  useRestartOnStaleCursor,
+} from './pagination'
 
 // Table's Previous button can only work if this hook remembers the cursor each page was reached
 // FROM — the server's cursor is opaque and one-directional. These pin the stack discipline.
@@ -165,5 +174,51 @@ describe('useCursorPagination in strict mode', () => {
     act(() => result.current.previous())
     expect(result.current.cursor).toBe('c2')
     expect(result.current.hasPrevious).toBe(true)
+  })
+})
+
+// The page links of a sealed list (`GET /consultancies`) are never altered by the console, and a
+// refused one is a reason to start the list again, not an error to show.
+describe('isStaleCursor', () => {
+  const refusal = (code: string, extra: Record<string, unknown> = {}) =>
+    new ApiError('Could not load.', { error: { code, message: 'That page link can no longer be used.', ...extra } }, 400)
+
+  it('is true for a validation_failed naming the cursor, by field or by its sentence', () => {
+    expect(isStaleCursor(refusal('validation_failed', { details: { fields: { cursor: 'Not usable.' } } }))).toBe(true)
+    expect(isStaleCursor(refusal('validation_failed'))).toBe(true)
+  })
+
+  it('is false for any other refusal or error', () => {
+    const unknownStatus = refusal('validation_failed', { message: 'Unknown status.', details: { fields: { status: 'Unknown.' } } })
+    expect(isStaleCursor(unknownStatus)).toBe(false)
+    expect(isStaleCursor(refusal('forbidden'))).toBe(false)
+    expect(isStaleCursor(new Error('That page link can no longer be used.'))).toBe(false)
+    expect(isStaleCursor(null)).toBe(false)
+  })
+})
+
+describe('useRestartOnStaleCursor', () => {
+  it('restarts the list on a refused page link, and only then', () => {
+    const restart = vi.fn()
+    const stale = new ApiError('x', { error: { code: 'validation_failed', details: { fields: { cursor: 'Not usable.' } } } }, 400)
+    const other = new ApiError('x', { error: { code: 'internal_error', message: 'Boom' } }, 500)
+    const { rerender } = renderHook(({ error }) => useRestartOnStaleCursor(error, restart), {
+      initialProps: { error: other as unknown },
+    })
+    expect(restart).not.toHaveBeenCalled()
+    rerender({ error: stale })
+    expect(restart).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('the cursor goes back unchanged', () => {
+  it('keeps a sealed link exactly as received, through next and back', () => {
+    const sealed = 'eyJ2IjoxfQ==.a+b/c=.9f2e '
+    const { result } = renderHook(() => useCursorPagination())
+    act(() => result.current.next(sealed))
+    expect(result.current.cursor).toBe(sealed)
+    act(() => result.current.next('second'))
+    act(() => result.current.previous())
+    expect(result.current.cursor).toBe(sealed)
   })
 })

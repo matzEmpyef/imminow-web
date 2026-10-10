@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { ApiError, fieldMessages } from '@/api/errors'
 
 // Cursor-stack bookkeeping for Table's Next/Previous controls — the server hands back an opaque
 // next_cursor (docs/sentpo_build_reference.md ~1361-1369), so "Previous" can't compute anything;
@@ -28,6 +29,33 @@ export function useCursorPagination() {
   }
 
   return { cursor, hasPrevious: stack.length > 0, next, previous, reset }
+}
+
+// A page link the server no longer accepts. `GET /consultancies` seals its `next_cursor`
+// (owner's ruling 2026-10-09): one that was altered, made up or issued before cursors were signed
+// is refused with 400 `validation_failed` naming `cursor` ("That page link can no longer be used.
+// Start again from the first page."). The cursor itself is only ever sent back exactly as it was
+// received (never trimmed, re-encoded or rebuilt), so the one way to meet this is an old link, and
+// the answer is to start the list again, not to show an error.
+export function isStaleCursor(err: unknown): boolean {
+  if (!(err instanceof ApiError) || err.code !== 'validation_failed') return false
+  if ('cursor' in fieldMessages(err)) return true
+  return /cursor|page link/i.test(err.message)
+}
+
+/**
+ * Starts a list again from its first page, silently, when the server refuses its page link
+ * (`isStaleCursor`). Give it the query's `error` and the list's reset (`useCursorPagination`'s
+ * `reset`); a screen then also leaves that error out of what it shows.
+ */
+export function useRestartOnStaleCursor(error: unknown, restart: () => void) {
+  const restartRef = useRef(restart)
+  useEffect(() => {
+    restartRef.current = restart
+  })
+  useEffect(() => {
+    if (isStaleCursor(error)) restartRef.current()
+  }, [error])
 }
 
 // Flattens `useInfiniteQuery` pages from a feed paged NEWEST FIRST (contract gate 7's 2026-09-26
