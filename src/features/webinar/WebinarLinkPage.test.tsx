@@ -89,6 +89,56 @@ describe('the webinar link page', () => {
     expect(screen.queryByText(/You earned/)).not.toBeInTheDocument()
   })
 
+  it('treats a repeat opening (0 points, with the reason) as a success: redirects, no points line, the reason shown quietly', async () => {
+    mockedPost.mockResolvedValue(
+      ok({
+        redirect_url: 'https://meet.example.com/abc',
+        event_title: 'Visa Q&A',
+        points_awarded: 0,
+        award_reason: 'Your attendance was already counted.',
+      }),
+    )
+    renderAt('/webinar#tok-repeat')
+
+    expect(await screen.findByRole('heading', { name: 'Taking you to Visa Q&A…' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByText(/You earned/)).not.toBeInTheDocument()
+    expect(screen.getByText('Your attendance was already counted.')).toBeInTheDocument()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+    expect(mockedGoTo).toHaveBeenCalledWith('https://meet.example.com/abc')
+  })
+
+  it('treats null points the same way: success, a redirect, and the reason when there is one', async () => {
+    mockedPost.mockResolvedValue(
+      ok({
+        redirect_url: 'https://meet.example.com/abc',
+        event_title: 'Visa Q&A',
+        points_awarded: null,
+        award_reason: 'You already joined from the app.',
+      }),
+    )
+    renderAt('/webinar#tok-null')
+    await screen.findByRole('heading', { name: 'Taking you to Visa Q&A…' })
+    expect(screen.queryByText(/You earned/)).not.toBeInTheDocument()
+    expect(screen.getByText('You already joined from the app.')).toBeInTheDocument()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+    expect(mockedGoTo).toHaveBeenCalledWith('https://meet.example.com/abc')
+  })
+
+  it('shows the points line, and no reason, when points were earned', async () => {
+    mockedPost.mockResolvedValue(
+      ok({ redirect_url: 'https://meet.example.com/abc', event_title: 'Visa Q&A', points_awarded: 1, award_reason: 'Ignored.' }),
+    )
+    renderAt('/webinar#tok-one')
+    await screen.findByRole('heading', { name: 'Taking you to Visa Q&A…' })
+    expect(screen.getByText(/You earned 1 point./)).toBeInTheDocument()
+    expect(screen.queryByText('Ignored.')).not.toBeInTheDocument()
+  })
+
   it('calls the server exactly once, even when React mounts the page twice', async () => {
     mockedPost.mockResolvedValue(
       ok({ redirect_url: 'https://meet.example.com/abc', event_title: 'Visa Q&A', points_awarded: 0 }),

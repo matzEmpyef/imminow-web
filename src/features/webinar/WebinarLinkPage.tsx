@@ -63,7 +63,11 @@ export function WebinarLinkPage() {
     )
   }
 
+  // 0 (this same link was opened before) and null (already counted, or a cap) are both a success:
+  // the student is counted and sent on. Points are mentioned only when some were just earned; when
+  // none were, the server's own reason is shown quietly.
   const points = answer?.points_awarded ?? 0
+  const reason = points > 0 ? null : (answer?.award_reason?.trim() || null)
   return (
     <PublicPageShell title={`Taking you to ${answer?.event_title}…`}>
       <p role="status" className="flex items-start gap-sm text-body text-text-primary">
@@ -78,6 +82,7 @@ export function WebinarLinkPage() {
           )}
         </span>
       </p>
+      {reason && <p className="text-body-sm text-text-secondary">{reason}</p>}
       <p className="text-caption text-text-secondary">
         Not moving?{' '}
         <a href={redirectUrl} className="text-primary underline">
