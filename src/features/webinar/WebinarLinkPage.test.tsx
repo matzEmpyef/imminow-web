@@ -47,6 +47,7 @@ function renderAt(address: string, strict = false) {
   return render(strict ? <StrictMode>{tree}</StrictMode> : tree)
 }
 
+// Each test opens its own link: the page asks the server once per token for as long as the page lives.
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   mockedPost.mockReset()
@@ -61,14 +62,14 @@ describe('the webinar link page', () => {
     mockedPost.mockResolvedValue(
       ok({ redirect_url: 'https://meet.example.com/abc', event_title: 'Visa Q&A', points_awarded: 5 }),
     )
-    renderAt('/webinar#tok-123')
+    renderAt('/webinar#tok-1')
 
     expect(await screen.findByRole('heading', { name: 'Taking you to Visa Q&A…' })).toBeInTheDocument()
     expect(screen.getByText(/You earned 5 points/)).toBeInTheDocument()
     expect(mockedPost).toHaveBeenCalledTimes(1)
     expect(mockedPost).toHaveBeenCalledWith(
       '/events/webinar-link/attend',
-      expect.objectContaining({ body: { token: 'tok-123' } }),
+      expect.objectContaining({ body: { token: 'tok-1' } }),
     )
     expect(screen.getByTestId('address')).toHaveTextContent(/^\/webinar$/)
 
@@ -83,7 +84,7 @@ describe('the webinar link page', () => {
     mockedPost.mockResolvedValue(
       ok({ redirect_url: 'https://meet.example.com/abc', event_title: 'Visa Q&A', points_awarded: null }),
     )
-    renderAt('/webinar#tok-123')
+    renderAt('/webinar#tok-2')
     await screen.findByRole('heading', { name: 'Taking you to Visa Q&A…' })
     expect(screen.queryByText(/You earned/)).not.toBeInTheDocument()
   })
@@ -92,7 +93,7 @@ describe('the webinar link page', () => {
     mockedPost.mockResolvedValue(
       ok({ redirect_url: 'https://meet.example.com/abc', event_title: 'Visa Q&A', points_awarded: 0 }),
     )
-    renderAt('/webinar#tok-123', true)
+    renderAt('/webinar#tok-3', true)
     await screen.findByRole('heading', { name: 'Taking you to Visa Q&A…' })
     expect(mockedPost).toHaveBeenCalledTimes(1)
   })
@@ -101,7 +102,7 @@ describe('the webinar link page', () => {
     mockedPost.mockResolvedValue(
       refused(410, 'gone', 'This link has already been used. Tap Join in the Sentpo app, or ask for the link again.'),
     )
-    renderAt('/webinar#tok-123')
+    renderAt('/webinar#tok-4')
 
     expect(await screen.findByRole('alert')).toHaveTextContent('This link has already been used.')
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
@@ -123,7 +124,7 @@ describe('the webinar link page', () => {
     mockedPost.mockResolvedValue(
       ok({ redirect_url: 'javascript:alert(1)', event_title: 'Visa Q&A', points_awarded: 0 }),
     )
-    renderAt('/webinar#tok-123')
+    renderAt('/webinar#tok-5')
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3000)

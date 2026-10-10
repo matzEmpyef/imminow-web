@@ -11,6 +11,30 @@ import { ApiError } from '@/api/errors'
 // mounts: React's development double-mount and any remount share the one request, and the answer
 // (or the refusal) is kept for the life of the page instead of being asked for again. Nothing here
 // retries: a second opening of a spent link would only be refused.
+// One request per link for the life of the page, however many times the page mounts or a client is
+// made: the link works once, so a second request could only be refused. It is kept here rather than
+// in the `queryFn` on purpose, and takes no abort signal: React Query cancels a request whose signal
+// was read when the page's observer unsubscribes (React's development double mount does exactly
+// that) and then sends it again, which is the one thing this call must never do.
+const attempts = new Map<string, ReturnType<typeof attend>>()
+
+async function attend(token: string) {
+  const { data, error } = await api.POST('/events/webinar-link/attend', { body: { token } })
+  if (error) {
+    throw new ApiError('This link could not be opened. Ask for the webinar link again from the Sentpo app.', error)
+  }
+  return data
+}
+
+function attendOnce(token: string) {
+  let attempt = attempts.get(token)
+  if (!attempt) {
+    attempt = attend(token)
+    attempts.set(token, attempt)
+  }
+  return attempt
+}
+
 export function useWebinarLinkAttend(token: string) {
   return useQuery({
     queryKey: ['webinar-link-attend', token],
@@ -22,14 +46,6 @@ export function useWebinarLinkAttend(token: string) {
     refetchOnReconnect: false,
     staleTime: Infinity,
     gcTime: Infinity,
-    // No abort signal on purpose: the link works once, so a request already sent must not be
-    // cancelled and sent again when the page's observer re-subscribes (React's double mount).
-    queryFn: async () => {
-      const { data, error } = await api.POST('/events/webinar-link/attend', { body: { token } })
-      if (error) {
-        throw new ApiError('This link could not be opened. Ask for the webinar link again from the Sentpo app.', error)
-      }
-      return data
-    },
+    queryFn: () => attendOnce(token),
   })
 }

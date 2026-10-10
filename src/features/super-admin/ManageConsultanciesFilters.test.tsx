@@ -164,7 +164,8 @@ describe('verifying a certificate', () => {
         .mutateAsync({ consultancyId: 'c1', uploadedAt: '2026-10-08T08:15:00Z' })
         .catch((e: unknown) => e as Error),
     )
-    expect((error as Error).message).toBe('A newer certificate was submitted. Please review it.')
+    // The server's own sentence is what the reviewer reads.
+    expect((error as Error).message).toBe('The consultancy has submitted a newer certificate.')
     const keys = invalidate.mock.calls.map((c) => (c[0] as { queryKey: unknown[] }).queryKey)
     expect(keys).toEqual([['kyc', 'c1']])
   })
