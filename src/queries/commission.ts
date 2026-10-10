@@ -89,17 +89,20 @@ export function useConfirmCommissionPayment() {
       paymentId,
       receivedAmount,
       note,
+      allow_overpayment,
     }: {
       paymentId: string
       receivedAmount?: number
       note?: string
+      /** Sent only once Finance has accepted an over-payment (the server refuses it with 409 `more_than_outstanding` otherwise). */
+      allow_overpayment?: boolean
     }) => {
-      const hasBody = receivedAmount != null || Boolean(note)
-      const { data, error } = await api.PATCH('/commission/payments/{id}/confirm', {
+      const hasBody = receivedAmount != null || Boolean(note) || allow_overpayment != null
+      const { data, error, response } = await api.PATCH('/commission/payments/{id}/confirm', {
         params: { path: { id: paymentId } },
-        ...(hasBody ? { body: { received_amount: receivedAmount, note } } : {}),
+        ...(hasBody ? { body: { received_amount: receivedAmount, note, allow_overpayment } } : {}),
       })
-      if (error) throw new ApiError('Could not confirm this payment.', error)
+      if (error) throw new ApiError('Could not confirm this payment.', error, response?.status)
       return data
     },
     onSuccess: () => {
@@ -107,6 +110,60 @@ export function useConfirmCommissionPayment() {
       queryClient.invalidateQueries({ queryKey: [FINANCE_QUERY_KEY] })
       queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] })
     },
+  })
+}
+
+export type ConfirmPreview = components['schemas']['ConfirmPreview']
+
+/**
+ * What confirming a declared payment would do, worked out by the server (review F-300,
+ * 2026-10-10). Nothing is written. The confirm dialogs send the amount as typed and show what
+ * comes back — whether it differs from the declaration, whether that needs a note, whether it is
+ * an over-payment and by how much — and compare or subtract nothing themselves. The caller
+ * debounces the amount; the request is cancelled with React Query's signal when it moves on.
+ * `receivedAmount` left out asks about the declared amount.
+ */
+export function useConfirmPreview(paymentId: string, receivedAmount: number | undefined, enabled = true) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['commission', 'confirm-preview', paymentId, receivedAmount ?? null],
+    queryFn: async ({ signal }) => {
+      const { data, error, response } = await api.POST('/commission/payments/{id}/confirm/preview', {
+        signal,
+        params: { path: { id: paymentId } },
+        body: { received_amount: receivedAmount },
+      })
+      if (error) throw new ApiError('Could not check this payment.', error, response?.status)
+      return data
+    },
+    enabled: isAuthed && enabled,
+    // Always the figures of this amount; the answer to an older amount is never shown for it.
+    gcTime: 0,
+  })
+}
+
+export type CorrectPreview = components['schemas']['CorrectPreview']
+
+/**
+ * What correcting a confirmed payment's amount would do, worked out by the server (review F-300,
+ * 2026-10-10): the change, its direction, whether the increase is more than is still unpaid on the
+ * case and by how much. Nothing is written; same debounce and cancel rules as {@link useConfirmPreview}.
+ */
+export function useCorrectPreview(paymentId: string, amount: number | undefined, enabled = true) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['commission', 'correct-preview', paymentId, amount ?? null],
+    queryFn: async ({ signal }) => {
+      const { data, error, response } = await api.POST('/commission/payments/{id}/correct/preview', {
+        signal,
+        params: { path: { id: paymentId } },
+        body: { amount: amount ?? 0 },
+      })
+      if (error) throw new ApiError('Could not check this correction.', error, response?.status)
+      return data
+    },
+    enabled: isAuthed && enabled && amount != null,
+    gcTime: 0,
   })
 }
 

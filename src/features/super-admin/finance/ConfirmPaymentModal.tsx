@@ -2,22 +2,17 @@ import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
 import { MoneyField } from '@/components/MoneyField'
 import { formatAmountOnly } from '@/lib/money'
 import { useState } from 'react'
+import { ApiError } from '@/api/errors'
+import { useDebouncedValue } from '@/lib/useDebounce'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextAreaField } from '@/components/TextAreaField'
 import { money, paymentInrNote, paymentMoney } from './money'
-import { useConfirmCommissionPayment, type CommissionPayment } from '@/queries/commission'
+import { useConfirmCommissionPayment, useConfirmPreview, type CommissionPayment } from '@/queries/commission'
 import { showToast } from '@/lib/toast'
 
 const MIN_REASON_LENGTH = 3
 
-/**
- * The declared → confirmed step (2026-09-11 rebuild, single-payment path — see BulkConfirmModal
- * for the multi-select one, which always confirms the declared amount as-is). "Amount received"
- * is prefilled with what the consultancy declared but editable: Finance can record a different
- * figure right here instead of confirming the wrong amount and correcting it after the fact. A
- * difference needs a reason — the consultancy is shown it, same as a rejection reason.
- */
 /**
  * The ≈ ₹ figure for a due's OUTSTANDING balance — a running total, not a settled payment, so it
  * carries no frozen rate of its own. A payment's own ≈ figure comes from `paymentInrNote`, which
@@ -28,6 +23,21 @@ function approxInr(amountInr: number | undefined, currency: string | undefined):
   return `≈ ₹${formatAmountOnly('INR', amountInr)}`
 }
 
+/**
+ * The declared → confirmed step (2026-09-11 rebuild, single-payment path — see BulkConfirmModal
+ * for the multi-select one, which always confirms the declared amount as-is). "Amount received"
+ * is prefilled with what the consultancy declared but editable: Finance can record a different
+ * figure right here instead of confirming the wrong amount and correcting it after the fact. A
+ * difference needs a reason — the consultancy is shown it, same as a rejection reason.
+ *
+ * NOTHING IS WORKED OUT HERE (review F-300, 2026-10-10). After a short pause in typing, the amount
+ * goes to `POST /commission/payments/{id}/confirm/preview` (nothing is written) and the dialog
+ * shows what comes back: whether it differs from the declaration, whether that needs a note, the
+ * difference, whether it is more than the case still owes and by how much, and the rupee value at
+ * the rate the confirmation would freeze. The figures belong to the amount they were asked for and
+ * are never shown for another one; a refusal from the preview shows the server's sentence and does
+ * not stop the typing.
+ */
 export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionPayment; onClose: () => void }) {
   const confirm = useConfirmCommissionPayment()
   const declaredAmount = payment.amount.amount ?? 0
@@ -36,30 +46,56 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
   const [note, setNote] = useState('')
 
   const parsed = Number(receivedAmount)
-  const isValidNumber = receivedAmount.trim() !== '' && Number.isFinite(parsed)
-  const differs = isValidNumber && parsed !== declaredAmount
+  const isValidAmount =
+    receivedAmount.trim() !== '' && Number.isFinite(parsed) && parsed > 0 && !hasTooManyDecimals(receivedAmount)
   const trimmedNote = note.trim()
-  const invalid =
-    !isValidNumber || parsed <= 0 || hasTooManyDecimals(receivedAmount) || (differs && trimmedNote.length < MIN_REASON_LENGTH)
   // The server's own sentence for the amount, when it refused it (`details.fields`).
   const amountMessage = serverMoneyMessage(confirm.error, 'received_amount', 'amount')
 
-  // /commission/payments/{id}/confirm has no allow_overpayment flag (unlike /commission-
-  // entries/{id}/receive — review C5, 2026-09-12) — a "received more than what's still owed" case
-  // here is only ever a corrected figure, already gated by the reason field above. This is an
-  // informational heads-up, not a second gate.
-  //
-  // Compared like with like against the server's `entry_outstanding`, which is in THIS payment's
-  // own currency (assumptions audit H14, approved 2026-09-19). The client used to derive an FX
-  // rate as `amount_inr / declared` and compare rupees: with `amount_inr` missing the rate came
-  // out 0, so CAD 8,000 confirmed against CAD 500 owed warned about nothing at all. No rate is
-  // computed here any more — when the server cannot say what is outstanding, the screen says so
-  // rather than staying quiet.
+  // The amount as it would be confirmed, asked of the server after a short pause in typing; none
+  // goes while it is not a valid amount.
+  const asked = isValidAmount ? parsed : null
+  const settled = useDebouncedValue(asked)
+  const preview = useConfirmPreview(payment.id, settled ?? undefined, settled != null)
+  const draftSettled = asked != null && settled === asked
+  // The figures belong to the amount they were asked for: not shown while it has moved on.
+  const previewCurrent = draftSettled && !preview.isFetching ? preview.data : undefined
+  const previewRefusal = draftSettled && preview.error instanceof ApiError ? preview.error : null
+  const awaitingPreview = isValidAmount && !previewCurrent && !previewRefusal
+
+  const differs = previewCurrent?.differs === true
+  const needsNote = previewCurrent?.needs_note === true
+  const isOverpayment = previewCurrent?.is_overpayment === true
+
+  // The server's refusal of an amount above what the case still owes (409 `more_than_outstanding`
+  // — the preview normally says so first): its sentence is shown with the same "record it anyway"
+  // tick, and the confirmation is then sent with `allow_overpayment: true`.
+  const [allowOverpayment, setAllowOverpayment] = useState(false)
+  const refusal = confirm.error instanceof ApiError ? confirm.error : null
+  const serverSaysOverpayment = refusal?.code === 'more_than_outstanding'
+  const overpaymentShown = isOverpayment || serverSaysOverpayment
+
+  const invalid =
+    !isValidAmount ||
+    awaitingPreview ||
+    (needsNote && trimmedNote.length < MIN_REASON_LENGTH) ||
+    (overpaymentShown && !allowOverpayment)
+
+  // What the case still owes: the server's figure for this confirmation, else the one the list holds
+  // (in this payment's own currency, assumptions audit H14).
   const outstanding = payment.entry_outstanding
-  const outstandingAmount =
-    outstanding?.amount != null && (outstanding.currency ?? currency) === currency ? outstanding.amount : null
-  const overpayment =
-    isValidNumber && outstandingAmount != null && parsed > outstandingAmount ? parsed - outstandingAmount : 0
+  const listedOwes =
+    outstanding?.amount != null && (outstanding.currency ?? currency) === currency
+      ? { amount: outstanding.amount, currency }
+      : null
+  const owes = previewCurrent?.outstanding ?? listedOwes
+
+  function changeAmount(value: string) {
+    setReceivedAmount(value)
+    // The tick and the server's refusal were about the amount as it was sent.
+    setAllowOverpayment(false)
+    if (serverSaysOverpayment || amountMessage) confirm.reset()
+  }
 
   return (
     <Modal
@@ -68,7 +104,7 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
       widthRem={28}
       footer={
         <>
-          {confirm.isError && !amountMessage && (
+          {confirm.isError && !amountMessage && !serverSaysOverpayment && (
             <p className="mr-auto self-center text-body-sm text-error">{confirm.error.message}</p>
           )}
           <Button variant="secondary" onClick={onClose}>
@@ -82,7 +118,8 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
                 {
                   paymentId: payment.id,
                   receivedAmount: parsed,
-                  note: differs ? trimmedNote : undefined,
+                  note: needsNote ? trimmedNote : undefined,
+                  allow_overpayment: overpaymentShown ? allowOverpayment : undefined,
                 },
                 {
                   onSuccess: () => {
@@ -114,7 +151,7 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
             <span className="text-caption text-text-secondary">Case still owes</span>
             <span className="flex flex-col items-end">
               <span className="text-body-sm text-text-primary">
-                {outstandingAmount != null ? money({ amount: outstandingAmount, currency }) : 'Not known'}
+                {owes ? money(owes) : 'Not known'}
               </span>
               {approxInr(payment.entry_outstanding_inr ?? undefined, currency) && (
                 <span className="text-caption text-text-secondary">
@@ -138,38 +175,62 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
           min={0}
           required
           value={receivedAmount}
-          onChange={(e) => setReceivedAmount(e.target.value)}
+          onChange={(e) => changeAmount(e.target.value)}
           error={amountMessage}
         />
 
-        {overpayment > 0 && (
-          <p className="text-body-sm text-warning">
-            That&rsquo;s {money({ amount: overpayment, currency })} more than this case still owes.
+        {previewCurrent?.received_amount_inr && previewCurrent.currency !== 'INR' && (
+          <p className="text-caption text-text-secondary">
+            ≈ {money(previewCurrent.received_amount_inr)}
+            {previewCurrent.rate != null && <> at {previewCurrent.rate}</>}
           </p>
         )}
-        {outstandingAmount == null && (
-          <p className="text-body-sm text-text-secondary">
-            This case&rsquo;s outstanding amount is unknown, so nothing here can tell you whether this is more than is
-            owed — check the case before confirming.
+        {previewRefusal && !overpaymentShown && (
+          <p role="status" className="text-caption text-text-secondary">
+            {previewRefusal.message}
           </p>
+        )}
+        {overpaymentShown && (
+          <div role="alert" className="flex flex-col gap-sm rounded-md border border-warning bg-warning-subtle p-sm">
+            <p className="text-body-sm text-text-primary">
+              {serverSaysOverpayment ? (
+                refusal?.message
+              ) : (
+                <>
+                  That&rsquo;s {money(previewCurrent?.overpaid_by)} more than this case still owes (
+                  {money(previewCurrent?.outstanding)}).
+                </>
+              )}
+            </p>
+            <label className="flex items-center gap-sm text-body-sm text-text-primary">
+              <input
+                type="checkbox"
+                checked={allowOverpayment}
+                onChange={(e) => setAllowOverpayment(e.target.checked)}
+                className="h-4 w-4 rounded border-border"
+              />
+              It is an over-payment — record it anyway
+            </label>
+          </div>
         )}
 
-        {differs && (
-          <>
-            <TextAreaField
-              label="Why is it different?"
-              required
-              rows={3}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              hint="The consultancy is shown this."
-            />
-            <p className="text-body-sm text-text-secondary">
-              Declared {money({ amount: declaredAmount, currency })} · Received{' '}
-              {isValidNumber ? money({ amount: parsed, currency }) : '—'} · Difference{' '}
-              {isValidNumber ? money({ amount: Math.abs(parsed - declaredAmount), currency }) : '—'}
-            </p>
-          </>
+        {needsNote && (
+          <TextAreaField
+            label="Why is it different?"
+            required
+            rows={3}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            hint="The consultancy is shown this."
+          />
+        )}
+        {differs && previewCurrent && (
+          <p className="text-body-sm text-text-secondary">
+            Declared {money(previewCurrent.declared_amount)} · Received {money(previewCurrent.received_amount)} ·{' '}
+            {previewCurrent.difference_direction === 'same'
+              ? 'No difference'
+              : `Difference ${money(previewCurrent.difference_from_declared)} (${previewCurrent.difference_direction} than declared)`}
+          </p>
         )}
 
         <p className="text-body-sm text-text-secondary">
