@@ -5,6 +5,7 @@ import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
 import type { components } from '@/api/schema'
 import { formatDate } from '@/lib/time'
+import { tableFieldDomId } from '@/lib/formFields'
 
 type FormField = components['schemas']['FormField']
 // One saved row: the column's id to that cell's answer. This is the shape the Sentpo app writes
@@ -40,11 +41,6 @@ function formatTableCell(column: FormField, value: unknown): string {
     default:
       return Array.isArray(value) ? value.map(String).join(', ') : String(value)
   }
-}
-
-/** The id of a table field's box on the page, so a refused save can scroll to it. */
-export function tableFieldDomId(fieldId: string): string {
-  return `form-field-${fieldId}`
 }
 
 interface IndexedRow {

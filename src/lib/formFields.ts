@@ -125,3 +125,8 @@ export function withoutBlankTableRows(
   visit(fields)
   return out
 }
+
+/** The id of a table field's box on the page, so a refused save can scroll to it. */
+export function tableFieldDomId(fieldId: string): string {
+  return `form-field-${fieldId}`
+}

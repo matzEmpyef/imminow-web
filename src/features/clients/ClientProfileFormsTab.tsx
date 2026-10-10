@@ -9,8 +9,8 @@ import { useClient } from '@/queries/clients'
 import { formatDateTime } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { useUnsavedChangesGuard } from '@/lib/useUnsavedChangesGuard'
-import { fillWidthClass, withoutBlankTableRows } from '@/lib/formFields'
-import { FormTableField, tableFieldDomId } from './FormTableField'
+import { fillWidthClass, tableFieldDomId, withoutBlankTableRows } from '@/lib/formFields'
+import { FormTableField } from './FormTableField'
 import { fieldMessages } from '@/api/errors'
 
 type FormField = NonNullable<ReturnType<typeof useFormTemplate>['data']>['fields'][number]
