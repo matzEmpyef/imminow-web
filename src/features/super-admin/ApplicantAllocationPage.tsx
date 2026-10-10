@@ -4,7 +4,7 @@ import { AdminShell } from '@/features/auth/AdminShell'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { Modal } from '@/components/Modal'
-import { FieldLabel } from '@/components/FieldLabel'
+import { TextAreaField } from '@/components/TextAreaField'
 import { CaseCarryFields } from '@/components/CaseCarryFields'
 import { CompactSelect } from '@/components/CompactSelect'
 import { SearchSelect, type SearchSelectOption } from '@/components/SearchSelect'
@@ -115,9 +115,6 @@ function ResolveAction({ entry }: { entry: QueueEntry }) {
           widthRem={28}
           footer={
             <>
-              {resolve.isError && (
-                <p className="mr-auto self-center text-body-sm text-error">{resolve.error.message}</p>
-              )}
               <Button variant="secondary" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
@@ -145,18 +142,22 @@ function ResolveAction({ entry }: { entry: QueueEntry }) {
               removes them from the transfer list.
             </p>
             <div className="flex flex-col gap-xs">
-              <FieldLabel htmlFor={`resolve-note-${entry.id}`} required>
-                Why are you declining the transfer?
-              </FieldLabel>
-              <textarea
+              <TextAreaField
+                label="Why are you declining the transfer?"
+                required
                 id={`resolve-note-${entry.id}`}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 rows={3}
                 maxLength={DECLINE_NOTE_MAX}
                 placeholder="Recorded against the complaint for whoever handles it next."
-                className="w-full rounded-md border border-border bg-surface p-sm text-body outline-none focus:border-primary"
+                // The server's own sentence if it still refuses the note.
+                error={resolve.isError ? resolve.error.message : undefined}
               />
+              {/* Always visible, not a hint: a hint gives way to an error message, and the limit must not. */}
+              <p className="pl-lg text-caption text-text-secondary">
+                {note.length.toLocaleString('en-US')}/{DECLINE_NOTE_MAX.toLocaleString('en-US')}
+              </p>
             </div>
             <p className="text-caption text-text-secondary">
               The complaint itself stays open — declining a transfer is not the same as resolving what they complained
