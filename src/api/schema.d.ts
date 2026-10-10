@@ -4386,6 +4386,7 @@ export interface paths {
          * Invite a new employee
          * @description GRANT RULES (owner decision 9 / review F-003, 2026-10-06). The Owner/Admin may do anything. Any other caller holding the staff-management permission is refused 403 `permission_denied` (message naming the permission keys) when the request would give or take away a permission the caller does not hold themselves, whether through `permission_overrides`, through a change of `designation_id`, or through what a designation carries ("You can only give or take away permissions you hold yourself. You do not hold: ..."). They may not change their own permissions, designation or branches ("You cannot change your own permissions. Ask the Owner/Admin."), nor the Owner/Admin's record ("Only the Owner/Admin can change the Owner/Admin's record."), nor edit the designation they are on. On a plan without `designations`, where every invitee gets Full access, a caller who holds less than Full access cannot invite at all. Disabling: only the Owner/Admin disables someone who holds Staff Administration, and nobody disables a colleague who holds a permission they do not; handing the work over needs the reassign permissions. Nothing is changed by a refused request. The console reads what the caller holds from `GET /me` (`staff.permissions`) and offers only those switches.
          *     AN INVITE RESERVES NOTHING (review F-061, owner ruling 2026-10-06). No account exists until the invitee accepts: the typed email and phone are kept on the invite, and the returned `Employee.user` shows them (with `last_login_at` null) so the roster reads as before. The invite is refused 409 `email_taken` ("That email is already on your team or has an invite waiting.") only for the caller's own consultancy's duplicate. Whether the address has an account anywhere else, or an invite from another consultancy, is never said: the answer is 201 either way and the mail goes out. Several consultancies may hold an invite for one address; the first one accepted wins, and every other link then answers 410 `invite_expired` exactly as an expired link does (so does a link to an address that is already someone's account). The console must not add its own "this person is already on immiNow" wording anywhere. A phone typed here is not checked against other accounts either; if another account holds it when the invite is accepted, the new account simply starts without a phone.
+         *     A LOST INVITE FREES ITS SEAT (owner's ruling 2026-10-09). When the address accepts another consultancy's invite, this consultancy's invited person is removed at once: the employee leaves `GET /staff/employees`, the seat is free for a new invite, and the consultancy's admins get a bell notification (`staff_invite_lapsed`: "An invitation is no longer valid" — "Your invitation to {name} can no longer be used. They have been removed from your team list and their seat is free again."). No reason is given, and the console must not add one. If leads, clients or tasks had already been assigned to the invited person, their row is switched off instead of removed (`active` false — the seat is free all the same) and the notice says that work needs a new owner. A consultancy's own first admin, invited by the platform, is never removed this way.
          */
         post: {
             parameters: {
@@ -9133,6 +9134,8 @@ export interface paths {
                     /**
                      * @description Narrows to one plan — the platform team only (Manage Consultancies). The plan is not public (product owner, 2026-09-25), so anyone else's `tier=` is ignored, as is their `sort=tier`, rather than letting a student read it back one query at a time.
                      *     WHO "THE PLATFORM TEAM" IS HERE (review F-129/F-130, 2026-10-07): the Super Admin and platform staff holding `consultancy_approval` or `finance`. Only they receive the commercial fields of a `Consultancy` (tier, limits, seat_limit, subscription_status, subscription dates and amounts, billing cycle, overrides, seats_used, active_applicants) and `tier_counts`, on this list and on `GET /consultancies/{id}`; every other platform account (Blog only, say) receives the public row. Only they may use `tier=`, `status=` and the sorts `tier`, `seat_limit`, `subscription`, `seats_used`, `active_applicants`. For anyone else (students, consultancy staff, other platform accounts) those filters are ignored and those sorts fall back to `name` in the direction asked for, so neither the order nor `meta.next_cursor` can carry a seat limit or a renewal date. The console must hide the plan columns, filters and sorts for a platform account without either permission (`GET /me`'s `platform_permissions`).
+                     *
+                     *     THE PAGE CURSOR IS SIGNED (owner's ruling 2026-10-09). `meta.next_cursor` of this list is sealed by the server, for every sort and every caller. Send it back exactly as it was received. A cursor that was altered, made up, or issued before cursors were signed is refused: 400 `validation_failed` naming `cursor` — "That page link can no longer be used. Start again from the first page." — and the client reloads the list from the first page (no cursor). A cursor issued for a different `sort` is still not an error: the list starts again from the top, as before.
                      */
                     tier?: "starter" | "business" | "ultimate";
                     /** @description Narrows to one kind of account (INSTITUTE_ACCOUNT_PLAN D10, 2026-09-10). Institutes are already rows in this list under D6, so discovery needs a tag and a filter rather than a new screen. Discovery's institute "view all" is this plus the endpoint's own default `sort=name` ascending — alphabetical, deliberately NOT `-rating` or `match`, because D15 removes the ranking problem by not ranking institutes against consultancies at all. */
@@ -9180,6 +9183,15 @@ export interface paths {
                                 institute: number;
                             };
                         };
+                    };
+                };
+                /** @description `validation_failed` — the `cursor` was not issued by this server as it stands (altered, made up, or from before cursors were signed): "That page link can no longer be used. Start again from the first page." Also an unknown `status`. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -10031,7 +10043,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Start a chat with this consultancy (Stage 1, Sentpo Mobile Wave 3 — Consultancy Detail's "Start Chat" button) — creates a new Sentpo-sourced lead for the caller, or returns their existing active one with this consultancy if they already have it (never a duplicate). Max 15 concurrent active leads per student (raised from 5 on 2026-09-07), application-enforced — see `leads` in erd.md. Exceeding it is a 409 `lead_limit_reached` whose message names the number, so a client can surface the refusal without hardcoding it.
+         * Start a chat with this consultancy (Stage 1, Sentpo Mobile Wave 3 — Consultancy Detail's "Start Chat" button) — creates a new Sentpo-sourced lead for the caller, or returns their existing active one with this consultancy if they already have it (never a duplicate). Max 15 concurrent active leads per student (raised from 5 on 2026-09-07), application-enforced — see `leads` in erd.md. Exceeding it is a 409 `lead_limit_reached` whose message names the number and says how to free a slot (owner's ruling 2026-10-10) — "You can have at most 15 active conversations at once. End a chat you no longer need to start a new one." (`POST /leads/{id}/end`) — so a client can surface the refusal without hardcoding it. When the student had an earlier, closed chat with this consultancy, the new lead points at it (`Lead.previous_lead_ids`).
          *
          *     Takes an optional `preferred_branch_id` since 2026-09-21 (product owner) — which branch of this consultancy the student would like to talk to. Because the endpoint REUSES an open conversation rather than ever creating a second, sending it again is also how a student changes their mind; omitting it leaves any stored preference alone.
          */
@@ -10772,6 +10784,67 @@ export interface paths {
                     };
                 };
                 /** @description `already_closed`. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leads/{id}/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A STUDENT ends one of their own active chats (owner's ruling 2026-10-10) — it frees one of their 15 active chats.
+         * @description Students only, and only their own Sentpo lead (404 `not_found` for anyone else's; 403 for a staff caller). No body. The lead closes with `closed_by` = `student` and the server's own reason "The student ended this chat."; a request to become a client that was waiting on the chat lapses (`expired`). The thread stays readable and becomes read-only for both sides, as every closed chat is (409 `lead_closed` on a send). Both sides are told on the bell — the consultant (for a lead nobody was given yet: everyone who may work the pool) reads notification `lead_ended_by_student`, the student `lead_chat_ended` — and the consultancy's audit log has the entry. The consultancy can never reopen it (`Lead.can_reopen` false; 409 on `POST /leads/{id}/reopen`): only the student restarts it, with `POST /consultancies/{id}/leads`, which opens a NEW lead that points at this one (`Lead.previous_lead_ids`).
+         *
+         *     A CHAT THE STUDENT HAS COMMITTED ON CANNOT BE ENDED: once it became a case (the lead is `converted`) the answer is 409 `already_committed`, with a sentence shown as it is — "You have committed to {consultancy name}, so this chat cannot be ended. Contact Sentpo support if you'd like to change consultancy."
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The lead, now `closed`, as the student reads it. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Lead"];
+                    };
+                };
+                /** @description `not_found` — not the caller's own lead. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `already_closed` — the chat has already ended ("This chat is already closed."). `already_committed` — the student committed to this consultancy; the chat is their case now. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -14753,7 +14826,7 @@ export interface paths {
         };
         /**
          * My earlier case conversations, read-only (owner's ruling 2026-10-10)
-         * @description Student only. A student always finds their own earlier conversations. Every earlier case of the caller whose conversation is not already part of a later one, newest ended first (at most 50): a case that moved to another consultancy WITHOUT its chat, a closed case, and a completed case the student has left for Stage 1. The case the student's screens are on now is not listed (its chat is the case chat), and neither is a case whose chat was carried to the case that followed it (those messages are read inside the later case's thread). Each entry opens with `GET /clients/{id}/messages` and is shown without a reply box. Nothing here is visible to a consultancy: a receiving consultancy still cannot read a conversation that was not carried to it.
+         * @description Student only. A student always finds their own earlier conversations. Every earlier case of the caller whose conversation is not already part of a later one, newest ended first (at most 50): a case that moved to another consultancy WITHOUT its chat, a closed case, and a completed case the student has left for Stage 1. The case the student's screens are on now is not listed (its chat is the case chat), and neither is a case whose chat was carried to the case that followed it (those messages are read inside the later case's thread). Each entry opens with `GET /clients/{id}/messages` and is shown without a reply box - and the server refuses a write into it (409 `case_moved` or `case_closed`, with the entry's own words). Nothing here is visible to a consultancy: a receiving consultancy still cannot read a conversation that was not carried to it.
          */
         get: {
             parameters: {
@@ -17238,7 +17311,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Calls and nudges on this student from the support team, newest first (support permission). */
+        /** Calls and nudges on this student from the support team, newest first (support permission). OPENING IT IS AUDITED (owner's ruling 2026-10-10): one `view` entry in the platform audit log per open — entity `user` (the student), `diff.view` = `support_notes`, the operator and the time; nothing of what was shown. Opening the same student's notes again within two minutes writes no second entry. */
         get: {
             parameters: {
                 query?: never;
@@ -17385,6 +17458,7 @@ export interface paths {
         /**
          * Where a given applicant actually is (2026-09-09). Platform staff previously had the allocation queue and a switch-consultancy button and nothing else, so anyone mediating a dispute or chasing a payment was deciding blind.
          *     DELIBERATELY CARRIES NO DOCUMENTS AND NO CHAT. The student's locker is theirs, shared with a consultancy by explicit grant; the platform is not a party to those grants and does not get a back door to them. Chat is out for the same reason — it is the consultancy's own record with their client.
+         *     OPENING IT IS AUDITED (owner's ruling 2026-10-10): one `view` entry in the platform audit log per open — entity `user` (the student), `diff.view` = `case_view`, the operator and the time; nothing of what was shown. The same operator opening the same student's view again within two minutes writes no second entry.
          */
         get: {
             parameters: {
@@ -18236,7 +18310,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Send a message in this client's conversation. Sentpo Mobile Wave 4 — a student caller may set `step_id` for the Step Detail "Ask a question" action (build reference 1.7); `type` is inferred server-side as `step_question` when present, `text` otherwise. Access restricted to the owning student or any consultant/staff caller (Wave 4), same `studentOwnsJourney` convention as `/leads/{id}/messages`. READ-ONLY ONCE CLOSED (owner ruling 2026-10-06) - a case whose status is `closed` or `closed_completed` refuses every write into its conversation, from the student and from the consultancy alike, with 409 `case_closed` (student - "This case is closed. Start a new chat with the consultancy if you need them."; staff - "This case is closed, so its chat is read-only."). That covers this route (a step question included), the four `share-*` routes, `request-visit` and `call-initiated`. Reading the thread and `POST /clients/{id}/read` still work, and a reopened case is writable again. Hide the composer and the share/visit/call actions when the client's `status` is `closed` or `closed_completed` (a moved case, `closed_switched`, keeps its own rule - 409 `case_moved` for the consultancy it left). */
+        /** Send a message in this client's conversation. Sentpo Mobile Wave 4 — a student caller may set `step_id` for the Step Detail "Ask a question" action (build reference 1.7); `type` is inferred server-side as `step_question` when present, `text` otherwise. Access restricted to the owning student or any consultant/staff caller (Wave 4), same `studentOwnsJourney` convention as `/leads/{id}/messages`. READ-ONLY ONCE CLOSED (owner ruling 2026-10-06) - a case whose status is `closed` or `closed_completed` refuses every write into its conversation, from the student and from the consultancy alike, with 409 `case_closed` (student - "This conversation is read-only. This case is closed." or, for a completed case, "This conversation is read-only. This case is complete."; staff - "This case is closed, so its chat is read-only."). That covers this route (a step question included), the four `share-*` routes, `request-visit` and `call-initiated`. Reading the thread and `POST /clients/{id}/read` still work, and a reopened case is writable again. Hide the composer and the share/visit/call actions when the client's `status` is `closed` or `closed_completed`. A MOVED CASE (`closed_switched`) IS READ-ONLY FOR BOTH SIDES TOO (owner's ruling 2026-10-10; until then the student could still write into the thread of the consultancy they had left) - 409 `case_moved`, for the consultancy it left ("This case has moved to <consultancy> — it is read-only now.") and for the student ("This conversation is read-only. You have since moved to another consultancy."), on this route and the four `share-*` routes. Hide the composer there as well. The student's sentences are the `note` of the same case in `GET /journeys/me/earlier-chats`. */
         post: {
             parameters: {
                 query?: never;
@@ -20977,7 +21051,7 @@ export interface paths {
         put?: never;
         /**
          * Open an emailed webinar link: attendance, points and the meeting's address (public; owner's ruling 2026-10-10)
-         * @description A webinar watched from the emailed link counts. The email sent by `POST /events/{id}/webinar/email-link` no longer carries the meeting's own address: its button opens `<Sentpo web>/webinar#<token>`, a link of that student's own. The web page there must read the token from the fragment, call this route with it in the body (a fragment and a body are in no access log), replace the address with `/webinar`, and then send the reader on to `redirect_url`. On a refusal it shows `error.message` — the sentences are written for the student — and no meeting address. Nobody is signed in: the link names its own student. The token is signed by the server (a changed token is refused), time-limited (it expires when the webinar ends, or 12 hours after the start of one with no end time) and works ONCE. Opening it while the webinar is live (`starts_at <= now <= ends_at`, the Join route's own window) records the student's attendance and awards `webinar_attended` exactly as Join does, under the same caps: one attendance per student per webinar, so Join in the app and the link never both award — whichever comes second gets `points_awarded: null`. A refusal spends nothing: a link opened before the start still works once the webinar has started. Asking for the link again (two sends at most) issues a new link and the older email's stops working.
+         * @description A webinar watched from the emailed link counts. The email sent by `POST /events/{id}/webinar/email-link` no longer carries the meeting's own address: its button opens `<Sentpo web>/webinar#<token>`, a link of that student's own. The web page there must read the token from the fragment, call this route with it in the body (a fragment and a body are in no access log), replace the address with `/webinar`, and then send the reader on to `redirect_url`. On a refusal it shows `error.message` — the sentences are written for the student — and no meeting address. Nobody is signed in: the link names its own student. The token is signed by the server (a changed token is refused), time-limited (it expires when the webinar ends, or 12 hours after the start of one with no end time) and COUNTS ONCE. Opening it while the webinar is live (`starts_at <= now <= ends_at`, the Join route's own window) records the student's attendance and awards `webinar_attended` exactly as Join does, under the same caps: one attendance per student per webinar, so Join in the app and the link never both award — whichever comes second gets `points_awarded: null`. OPENED AGAIN before the webinar ends, the same link succeeds again (owner's ruling 2026-10-10 - someone who dropped off gets back in): 200 with `redirect_url` and `event_title`, `points_awarded: 0` and `award_reason: "Your attendance was already counted."`; no second attendance, no second award. A refusal spends nothing: a link opened before the start still works once the webinar has started. Asking for the link again (two sends at most) issues a new link and the older email's stops working.
          */
         post: {
             parameters: {
@@ -21005,7 +21079,7 @@ export interface paths {
                             /** @description The meeting's own address. The page sends the reader on to it. */
                             redirect_url: string;
                             event_title: string;
-                            /** @description What opening the link just credited. Null when the student was already counted as attending (Join in the app came first), the rule is inactive or a cap was reached. */
+                            /** @description What opening the link just credited. Null when the student was already counted as attending (Join in the app came first), the rule is inactive or a cap was reached. 0 when this same link was opened before. */
                             points_awarded?: number | null;
                             award_reason?: string | null;
                         };
@@ -21038,7 +21112,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description `gone` — the link has expired ("This link has expired."), was already opened once ("This link has already been used. Tap Join in the Sentpo app, or ask for the link again.") or was replaced by a newer email ("A newer link was emailed to you. Please use the newest email."). */
+                /** @description `gone` — the link has expired ("This link has expired.") or was replaced by a newer email ("A newer link was emailed to you. Please use the newest email."). */
                 410: {
                     headers: {
                         [name: string]: unknown;
@@ -24276,7 +24350,7 @@ export interface paths {
                             currency: string;
                             /** @description `running_total` in whole minor units of `currency` (review I-024, 2026-10-08). Optional; the backend always sends it. */
                             running_total_minor?: number;
-                            /** @description ISO 4217 minor-unit exponent of `currency`. */
+                            /** @description Always 2 (two decimals in every currency, 2026-10-10). */
                             currency_exponent?: number;
                             /** @description running_total in the viewer's own currency (2026-09-10). Null when the viewer reads INR or there is no rate. */
                             running_total_approx?: components["schemas"]["ApproxMoney"] | null;
@@ -24697,6 +24771,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/commission-entries/{id}/receive/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The figures of a receipt Finance is about to record — nothing is written (finance permission; added 2026-10-10, owner's ruling on pre-push row 2.30, review F-300).
+         * @description The "Mark as received" / "Record a payment" dialog used to work its pre-check out in the browser: it compared the typed amount with a part's `outstanding` and subtracted to say "more than is outstanding by ...". That comparison is the server's now, with the same ceiling `POST /commission-entries/{id}/receive` enforces (what is still unpaid in the owed currency on the whole case, less credit already held — not one part's figure).
+         *     Send the dialog's draft as it stands: `part_key`, `currency`, and for money that arrived in another currency `allow_cross_currency`, `owed_currency` and `rate`, exactly as the receipt would be sent. `amount` is optional: without it the answer carries what is outstanding (and the part's own unpaid amount, to offer in the amount box); with it, what the amount settles in the owed currency, whether that is an over-payment and by how much. The body is read as the receipt's is, so the same refusals come back for a draft that could not be recorded at all (404 a part that is not on the case, 409 a part closed without payment, 422 `currency_mismatch` / `currency_not_owed` / no exchange rate, 400 an amount with more than two decimal places). Not idempotent-keyed: it changes nothing.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        amount?: number;
+                        currency?: string;
+                        part_key?: string;
+                        allow_cross_currency?: boolean;
+                        owed_currency?: string;
+                        rate?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description The figures */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ReceivePreview"];
+                    };
+                };
+                400: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
+                422: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/commission-entries/{id}/settle": {
         parameters: {
             query?: never;
@@ -24938,7 +25069,7 @@ export interface paths {
         put?: never;
         /**
          * Void a mis-entered installment (billing.record_payment, audited with the amounts in the diff) — never deleted (gate 11, F14: erd Open 53, an append-only money record like every other). Replaces the DELETE this operation used to be.
-         * @description Since 2026-10-08 (F-078, owner's decision 12): when the installment's share of the platform's commission has already fallen due (the case closed as a success), the void needs immiNow Finance's approval. The answer is still 200 with the installment, but `voided_at` stays null and `void_requested_at` / `void_request_reason` are set: nothing else changes until Finance approves (the installment is voided then, with this reason) or declines (the request is cleared and the consultancy is told why). A second request while one is waiting is 409 `conflict`. An installment whose share is not due yet (the case is open, or nothing is owed on it) is voided at once, as before.
+         * @description Since 2026-10-08 (F-078, owner's decision 12): when the installment's share of the platform's commission has already fallen due (the case closed as a success), the void needs immiNow Finance's approval. The answer is still 200 with the installment, but `voided_at` stays null and `void_requested_at` / `void_request_reason` are set: nothing else changes until Finance approves (the installment is voided then, with this reason) or declines (the request is cleared and the consultancy is told why). A second request while one is waiting is 409 `conflict`. An installment whose share is not due yet (the case is open, or nothing is owed on it) is voided at once, as before. Since 2026-10-10 (owner's ruling on pre-push row 2.23) the same holds while a Finance override is in force on the case: the share has only stepped aside for the override and comes back when it is removed, so the void is a request there too (it used to go through at once). No field changes.
          */
         post: {
             parameters: {
@@ -28015,7 +28146,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** One account's sign-in history (2026-09-10), newest first — every attempt with a password, email code, phone code or Google, successful or not, from login_events. Opened from either user directory (a student or a staff member; `id` is the user id both directories return). Gated to user_directory, like the directories. For support ("why can't I get in") and security ("was that me"); not audit-logged, since the audit log records changes only. filter[outcome]= accepts `failed` (every outcome but success) or one exact outcome. */
+        /** One account's sign-in history (2026-09-10), newest first — every attempt with a password, email code, phone code or Google, successful or not, from login_events. Opened from either user directory (a student or a staff member; `id` is the user id both directories return). Gated to user_directory, like the directories. For support ("why can't I get in") and security ("was that me"). OPENING IT IS AUDITED (owner's ruling 2026-10-10): one `view` entry in the platform audit log per open — entity `user` (the account), `diff.view` = `sign_in_history`, the operator and the time; nothing of what was shown. Paging and filtering the same history within two minutes writes no second entry. filter[outcome]= accepts `failed` (every outcome but success) or one exact outcome. */
         get: {
             parameters: {
                 query?: {
@@ -28237,9 +28368,9 @@ export interface components {
             currency: string;
             /** @description The same amount in the VIEWER's own currency (2026-09-10), converted server-side with the platform exchange-rate table. The money itself is always the currency it is charged or collected in; this is the "≈" companion. Null when the viewer already reads that currency, when there is no rate, or on responses that do not carry it. */
             readonly approx?: components["schemas"]["ApproxMoney"] | null;
-            /** @description `amount` as a whole number of the currency's MINOR units (review I-024, 2026-10-08): paise, cents, fils; whole yen for JPY. Exact, where `amount` is a floating-point number: a client that adds, subtracts or compares money works from here and divides by 10^`currency_exponent` only to show it. Rounded half away from zero to the currency's exponent on the rare value stored with more decimals than its currency has. Null when `amount` is null, and when `currency` is not an ISO 4217 code the platform keeps money in (then `currency_exponent` is null too). Optional so that older clients and the frozen mock stay valid; the backend always sends it. Ignored when a client sends it back. */
+            /** @description `amount` as a whole number of HUNDREDTHS (review I-024, 2026-10-08; owner's ruling 2026-10-10): money is always in two decimals on this platform, in every currency, so this is paise and cents — and JPY 1,500 is 150000, KWD 1.25 is 125. Exact, where `amount` is a floating-point number: a client that adds, subtracts or compares money works from here and divides by 10^`currency_exponent` only to show it. Rounded half away from zero on the rare value stored with a third decimal before the ruling. **Entering money:** an amount sent with more than two decimal places is refused — `validation_failed`, message "Amounts have at most two decimal places.", the same sentence against the field in `details.fields` — and never rounded. That holds for every money field a client writes (fees, budgets, subscription amounts, commission amounts, instalments, payments, corrections, dues, invoice lines, receipts, the import's money columns). Null when `amount` is null, and when `currency` is not an ISO 4217 code the platform keeps money in (then `currency_exponent` is null too). Optional so that older clients and the frozen mock stay valid; the backend always sends it. Ignored when a client sends it back. */
             readonly amount_minor?: number | null;
-            /** @description ISO 4217 minor-unit exponent of `currency` — 2 for most, 0 for JPY/KRW/VND and the other zero-decimal currencies, 3 for the Gulf dinars: `amount = amount_minor / 10^currency_exponent`. Null only for a currency the platform does not keep money in. */
+            /** @description Decimal places of `amount_minor`: always 2, for every currency (owner's ruling 2026-10-10 — the per-currency ISO 4217 exponents, 0 for JPY and 3 for the Gulf dinars, are gone). `amount = amount_minor / 10^currency_exponent`. Null only for a currency the platform does not keep money in. */
             readonly currency_exponent?: number | null;
         };
         /** @description An approximate conversion. Rates are set by hand, not live, so this is a guide rather than a quote. */
@@ -29846,6 +29977,15 @@ export interface components {
             readonly can_assign: boolean;
             /** @description STAFF VIEW, decided by the server (owner ruling "Lead reopen", 2026-10-06). True only when the reader may reopen this lead now: it is `closed`, the consultancy closed it itself, and the consultancy's plan includes `case_reopening`. False for an active or converted lead, for a lead closed because the student chose another consultancy, closed by the student, or closed because the student deleted their account (those can never be reopened by the consultancy — only the student restarts it, by starting a new chat), when the plan lacks the feature, and always on the student's own view. The console shows the Reopen control only when this is true and never works it out itself. `POST /leads/{id}/reopen` can still answer 409 for the reasons it lists (the student has a live case, another open chat with this consultancy, or 15 active chats). */
             readonly can_reopen: boolean;
+            /**
+             * @description Who closed a `closed` lead (null while it is not closed; owner's ruling 2026-10-10): `consultancy` — its own staff, with one of the listed reasons; `student` — the student ended the chat themselves (`POST /leads/{id}/end`); `committed_elsewhere` — the student committed to another consultancy; `account_deleted` — the student asked for their account's deletion. Served on both views.
+             * @enum {string|null}
+             */
+            readonly closed_by?: "consultancy" | "student" | "committed_elsewhere" | "account_deleted" | null;
+            /** @description Why a `closed` lead is closed, as ONE SENTENCE FOR THE READER, shown as it is (null while it is not closed). STAFF read their own reason's label ("Lost contact", "Visa refused", …), or "The student ended this chat.", "The student committed to another consultancy.", "The student deleted their Sentpo account.". The STUDENT reads "You ended this chat.", "This chat closed when you chose another consultancy." or "The consultancy closed this chat." — never the consultancy's own reason, which is its record. */
+            readonly closed_reason_label?: string | null;
+            /** @description THE EARLIER CONVERSATION (owner's ruling 2026-10-10). When a student starts a new chat with a consultancy they had a closed chat with, the new lead lists the ids of those earlier CLOSED chats between the same two, newest first (empty when there is none, and always for an imported lead). The threads are never merged: each id opens read-only with the existing routes — `GET /leads/{id}` and `GET /leads/{id}/messages` — for the student, and for staff who may see THIS lead (they may read its earlier chats even where their own visibility would not show them a colleague's closed lead; every write on such a lead still answers 404 for them). A chat that became a case is not listed: it went on as the case's conversation. */
+            readonly previous_lead_ids?: string[];
             /** @description STAFF, SINGLE LEAD ONLY (review F-029, 2026-10-06): present on `GET /leads/{id}` and on the Lead a staff write returns; absent from `GET /leads` list rows and from the student's own view. The state of the chat header's shortlist button, computed by the server from the WHOLE thread. The console reads it from here and never from the messages it happens to have loaded (a long chat pages; the header used to offer "Request Shortlist" again once the request had scrolled out of the loaded page). */
             readonly shortlist?: components["schemas"]["LeadShortlist"];
             /** @description STAFF, SINGLE LEAD ONLY, as `shortlist` (review F-029, 2026-10-06). Every course the consultancy has suggested on this lead's chat (`POST /leads/{id}/suggest-course`), from the whole thread, most recently suggested first, each once (at most 500). Course Finder and "Suggest a course" mark a course "Already suggested" from this list instead of scanning loaded messages. Empty for an imported lead. */
@@ -31451,6 +31591,11 @@ export interface components {
              * @description `remaining` as a percent of `expected`, two places; 0 once fully paid.
              */
             shortfall_percent: number;
+            /**
+             * Format: double
+             * @description Added 2026-10-10 (owner's ruling on pre-push row 2.31). What has been paid as a percent of `expected`: 0-100 at two places, never more than 100, and exactly `100 - shortfall_percent`, so the two stretches of a progress bar always add up to the whole. Clients draw the bar from this; they do not divide `received` by `expected`. Optional (the frozen mock does not carry it); the backend always sends it.
+             */
+            paid_percent?: number;
             fully_paid: boolean;
             /** @description Some of it arrived in another currency and was converted to the agreed one. */
             converted: boolean;
@@ -31584,6 +31729,16 @@ export interface components {
             remaining_from_student?: components["schemas"]["Money"] | null;
             /** @description F-194. True when nothing remains (`remaining_from_student.amount` is 0) — decided by the server in the agreed currency, so the app never compares two amounts that may be in different currencies. Present whenever `has_commission` is true. */
             fully_paid?: boolean;
+            /**
+             * Format: double
+             * @description Added 2026-10-10 (owner's ruling on pre-push row 2.31). How far the applicant's payments have got, as a percent of `expected_from_student`: 0-100 at two places, never more than 100, and 100 exactly when `fully_paid`. Worked out by the server in the agreed currency (a payment in another currency at its frozen value). The Payments progress bar is drawn from this (or from `paid_fraction`); the app does no arithmetic on `remaining_from_student` and `expected_from_student`. Present whenever `has_commission` is true.
+             */
+            paid_percent?: number;
+            /**
+             * Format: double
+             * @description The same figure as `paid_percent`, as a fraction 0-1 at four places (`paid_percent / 100`), for a progress widget that takes a fraction. Present whenever `has_commission` is true.
+             */
+            paid_fraction?: number;
             /** @description Student-source installments only. */
             installments?: components["schemas"]["CommissionInstallment"][];
         };
@@ -33996,7 +34151,7 @@ export interface components {
             description: string;
             /**
              * Format: double
-             * @description Major units, rounded to the currency's own exponent (gate 11, F3) — numeric(18,3) on the production backend, ISO 4217 minor-unit digits applied on write.
+             * @description Major units, with at most two decimal places in every currency (owner's ruling 2026-10-10): a third decimal is refused (`validation_failed`, "Amounts have at most two decimal places."), never rounded.
              */
             amount: number;
         };
@@ -34164,6 +34319,27 @@ export interface components {
             outstanding_inr: number;
             oldest_unpaid_days: number | null;
         };
+        /** @description What a receipt Finance is about to record would do (`POST /commission-entries/{id}/receive/preview`; 2026-10-10). Every figure is the server's: the console shows them and neither compares nor subtracts an amount. */
+        ReceivePreview: {
+            /** @description The currency the money is in, as the receipt would record it. */
+            currency: string;
+            /** @description The currency of the dues it settles: `currency` itself, or the owed one when the money arrived in another currency. */
+            owed_currency: string;
+            /** @description The most that can be recorded without `allow_overpayment`, in `owed_currency`: all that is still unpaid in it on the case, less credit already held. The receipt's own ceiling. */
+            outstanding: components["schemas"]["Money"];
+            /** @description The named part's own unpaid amount — the figure to offer in the amount box. Null without `part_key`. */
+            part_outstanding: components["schemas"]["Money"] | null;
+            /** @description The amount as entered, in `currency`. Null when none was sent. */
+            amount: components["schemas"]["Money"] | null;
+            /** @description What the amount settles, in `owed_currency`: the amount itself, or converted at `rate` and rounded to two decimals. Null when no amount was sent. */
+            settles: components["schemas"]["Money"] | null;
+            /** @description Units of `owed_currency` that one unit of `currency` settles — the stated `rate`, else the day's two exchange rates. Null when nothing is converted. */
+            rate: number | null;
+            /** @description True when `settles` is more than `outstanding`; the receipt then needs `allow_overpayment`. */
+            is_overpayment: boolean;
+            /** @description `settles` less `outstanding`, in `owed_currency`, when `is_overpayment`; else null. */
+            overpaid_by: components["schemas"]["Money"] | null;
+        };
         FinanceCaseRow: {
             /** @description Parts Finance closed without payment, in INR. */
             readonly waived_inr: number;
@@ -34219,6 +34395,8 @@ export interface components {
             paid_inr: number;
             awaiting_inr: number;
             outstanding_inr: number;
+            /** @description Added 2026-10-10 (owner's ruling on pre-push row 2.30, review F-300). The ₹ value of money held on the case beyond what any due part is owed — the per-currency `credit` of `by_currency`, converted and added by the server, in whole rupees; 0 when there is none. Like `credit` it counts money paid ahead of a share that has not fallen due yet as well as money beyond everything the case owes. The console shows "Overpaid by ..." from this and no longer subtracts `due_inr` from `paid_inr`. Optional (the frozen mock does not carry it); the backend always sends it. */
+            overpaid_by_inr?: number;
             /**
              * @description closed (review H2, 2026-09-12) — what was left was closed without payment; nothing more is expected and it was not collected. It used to read paid.
              * @enum {string}
@@ -34247,14 +34425,14 @@ export interface components {
         CommissionDuePart: {
             /** @description Stable id of the part (2026-09-11) — what receive and waive refer to. */
             key: string;
-            /** @description `amount` in whole minor units of `currency` (review I-024, 2026-10-08) — exact, where `amount` is a floating-point number. The same for `paid_minor`, `outstanding_minor`, `written_off_minor` and `waived_amount_minor`. Optional (older clients and the frozen mock do not carry them); the backend always sends them. */
+            /** @description `amount` in hundredths (review I-024, 2026-10-08; two decimals in every currency since 2026-10-10) — exact, where `amount` is a floating-point number. The same for `paid_minor`, `outstanding_minor`, `written_off_minor` and `waived_amount_minor`. Optional (older clients and the frozen mock do not carry them); the backend always sends them. */
             amount_minor?: number;
             paid_minor?: number;
             outstanding_minor?: number;
             written_off_minor?: number;
             /** @description Null exactly when `waived_amount` is. */
             waived_amount_minor?: number | null;
-            /** @description ISO 4217 minor-unit exponent of `currency`: `amount = amount_minor / 10^currency_exponent`. */
+            /** @description Always 2 (two decimals in every currency, owner's ruling 2026-10-10): `amount = amount_minor / 10^currency_exponent`. */
             currency_exponent?: number;
             waived_amount: number | null;
             /** @description Set when Finance closed the part without payment. */
@@ -34325,6 +34503,11 @@ export interface components {
             outstanding: number;
             /** @enum {string} */
             status: "expected" | "due" | "overdue" | "paid" | "waived";
+            /**
+             * @description Added 2026-10-10 (owner's ruling on pre-push row 2.30). How much of the part has been paid, decided by the server in the part's own currency: `unpaid` — nothing on it; `part_paid` — some money, not all; `paid` — nothing of it is left; `closed` — closed without payment. Clients show a Paid / Part-paid mark from this and never compare `paid` with `amount`. Optional (the frozen mock does not carry it); the backend always sends it.
+             * @enum {string}
+             */
+            paid_state?: "unpaid" | "part_paid" | "paid" | "closed";
         };
         /** @description A change Finance made to a case's share, with who and why (2026-09-11): an amount added, or an override of the calculated share. Removed ones stay listed. */
         CommissionDueChange: {
@@ -34340,11 +34523,11 @@ export interface components {
             currency: string;
             /** @description `amount` in whole minor units of `currency` (review I-024, 2026-10-08). Optional; the backend always sends it. */
             amount_minor?: number;
-            /** @description ISO 4217 minor-unit exponent of `currency`. */
+            /** @description Always 2 (two decimals in every currency, 2026-10-10). */
             currency_exponent?: number;
             /** @description `previous_amount` in whole minor units of `previous_currency`; null when `previous_amount` is. */
             previous_amount_minor?: number | null;
-            /** @description ISO 4217 minor-unit exponent of `previous_currency`; null when that is. */
+            /** @description Always 2 (two decimals in every currency); null when `previous_currency` is. */
             previous_currency_exponent?: number | null;
             /** Format: date */
             due_on: string | null;
@@ -34376,7 +34559,7 @@ export interface components {
             readonly applies_to: string | null;
             /** @description The amount in MINOR UNITS — the stored fact (assumptions audit M15, product owner 2026-09-19). A received amount used to be `Math.round`ed to whole units, so CAD 1,240.60 was recorded as 1,241 and CAD 1,240.40 as 1,240; over a year of settlements that is real money, and it was invisible because the number looked exact. `amount` above is derived from this. A client totalling or comparing received money works from here, never from the floating-point major-unit figure. */
             readonly amount_minor: number;
-            /** @description ISO 4217 minor-unit exponent for `currency` — 2 for most, 0 for JPY/KRW/VND and the other zero-decimal currencies, 3 for the Gulf dinars. `amount = amount_minor / 10^n`. */
+            /** @description Always 2 — money is in two decimals in every currency (owner's ruling 2026-10-10). `amount = amount_minor / 10^n`. */
             readonly currency_exponent: number;
             /** @description The INR-per-unit rate this settlement was valued at, FROZEN onto the row when the payment was declared (assumptions audit M15, product owner 2026-09-19). Cross-currency settlement used to convert at today's rate on every read, so which part of a due a payment settled changed retroactively whenever an admin edited the rate table. Null only on a row written before 2026-09-19. */
             readonly rate_used: number | null;
