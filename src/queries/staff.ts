@@ -54,16 +54,21 @@ export function useEmployee(id: string | null | undefined) {
 }
 
 /**
- * How many people work here now: what the plan's seat limit counts (the server counts active
- * employees). One row is asked for; the answer is the list's own total.
+ * How many seats are taken: what the plan's seat limit counts. The server counts every active
+ * employee, an invited person who has not accepted yet included (they hold a seat), but its
+ * default roster leaves them out. So this asks for everyone and for the switched-off, one row each,
+ * and reads the two totals the server gives; no roster is loaded.
  */
 export function useActiveEmployeeCount() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({
     queryKey: ['employees', 'count'],
     queryFn: async ({ signal }) => {
-      const page = await fetchEmployeePage({ limit: 1, signal })
-      return page.meta.total ?? page.items.length
+      const [everyone, switchedOff] = await Promise.all([
+        fetchEmployeePage({ limit: 1, active: 'all', signal }),
+        fetchEmployeePage({ limit: 1, active: 'false', signal }),
+      ])
+      return (everyone.meta.total ?? everyone.items.length) - (switchedOff.meta.total ?? switchedOff.items.length)
     },
     enabled: isAuthed,
   })

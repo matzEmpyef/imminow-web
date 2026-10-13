@@ -37,13 +37,13 @@ function person(id: string, first: string, extra: Record<string, unknown> = {}) 
     id,
     detail: 'full',
     active: true,
+    status: 'active',
     branch_ids: [],
     assigned_work_count: 0,
     user: {
       first_name: first,
       last_name: 'Test',
       email: `${first.toLowerCase()}@example.test`,
-      last_login_at: '2026-10-01T09:00:00Z',
     },
     ...extra,
   }
@@ -53,10 +53,8 @@ const ROWS = [
   person('e-owner', 'Olive', { is_consultancy_admin: true }),
   person('e-me', 'Mira'),
   person('e-colleague', 'Colin'),
-  person('e-invited', 'Ines', {
-    user: { first_name: 'Ines', last_name: 'Test', email: 'ines@example.test', last_login_at: null },
-  }),
-  person('e-off', 'Omar', { active: false }),
+  person('e-invited', 'Ines', { status: 'invited' }),
+  person('e-off', 'Omar', { active: false, status: 'deactivated' }),
 ]
 
 const disable = vi.fn()

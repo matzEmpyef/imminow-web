@@ -198,8 +198,11 @@ export const institutionSource: ServerSearchSource<Institution> = {
 
 export const employeeName = (e: Employee) => `${e.user.first_name} ${e.user.last_name}`.trim()
 
-/** Which part of the roster: people who work here now (the server's default), or leavers too. */
-export type EmployeeActiveFilter = 'true' | 'all'
+/**
+ * Which part of the roster: people who work here now (the server's default: active and accepted),
+ * leavers only (`false`), or everyone, invited people included (`all`).
+ */
+export type EmployeeActiveFilter = 'true' | 'false' | 'all'
 
 /** One page of the caller's own roster (`GET /staff/employees`): `search` matches the name. */
 export async function fetchEmployeePage({

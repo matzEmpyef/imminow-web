@@ -3,20 +3,20 @@ import { directoryStanding, employeeStanding } from './employeeStanding'
 
 // T1-13: "Invited" until the person accepts; the two lists read the same words.
 describe('employeeStanding (a consultancy roster row)', () => {
-  it('reads a person who has never signed in as invited', () => {
-    expect(employeeStanding({ active: true, detail: 'full', user: { last_login_at: null } })).toBe('invited')
+  it('reads the status the server serves', () => {
+    expect(employeeStanding({ status: 'invited', active: true })).toBe('invited')
+    expect(employeeStanding({ status: 'active', active: true })).toBe('active')
+    expect(employeeStanding({ status: 'deactivated', active: false })).toBe('disabled')
   })
-  it('reads a person who has signed in as active', () => {
-    expect(employeeStanding({ active: true, detail: 'full', user: { last_login_at: '2026-10-01T09:00:00Z' } })).toBe(
-      'active',
-    )
+  it('does not guess from a sign-in time: an active person who has not signed in yet is active', () => {
+    expect(
+      employeeStanding({ status: 'active', active: true, user: { last_login_at: null } } as never),
+    ).toBe('active')
   })
-  it('reads a switched-off person as disabled, and a switched-off invitation as withdrawn', () => {
-    expect(employeeStanding({ active: false, user: { last_login_at: '2026-10-01T09:00:00Z' } })).toBe('disabled')
-    expect(employeeStanding({ active: false, user: { last_login_at: null } })).toBe('withdrawn')
-  })
-  it('does not guess from a summary row, which carries no sign-in time', () => {
-    expect(employeeStanding({ active: true, detail: 'summary', user: { last_login_at: null } })).toBe('active')
+  it('falls back to the plain switch when a row carries no status', () => {
+    expect(employeeStanding({ active: true })).toBe('active')
+    expect(employeeStanding({ active: false })).toBe('disabled')
+    expect(employeeStanding({})).toBe('active')
   })
 })
 

@@ -41,10 +41,11 @@ type Row = {
   consultancy_id: string
   detail: 'full' | 'summary'
   active: boolean
+  status?: 'invited' | 'active' | 'deactivated'
   branch_ids: string[]
   designation_id?: string | null
   is_consultancy_admin?: boolean
-  user: { id: string; first_name: string; last_name: string; role: string; designation: string | null; email: string | null; phone: string | null; last_login_at?: string | null }
+  user: { id: string; first_name: string; last_name: string; role: string; designation: string | null; email: string | null; phone: string | null }
 }
 
 /** 150 employees, oldest first. Number 7 has left. */
@@ -56,6 +57,7 @@ function employee(n: number, overrides: Partial<Row> = {}): Row {
     consultancy_id: 'c1',
     detail: 'full',
     active: n !== 7,
+    status: n === 7 ? 'deactivated' : 'active',
     branch_ids: [],
     designation_id: 'd1',
     is_consultancy_admin: false,
@@ -67,8 +69,6 @@ function employee(n: number, overrides: Partial<Row> = {}): Row {
       designation: 'Counsellor',
       email: `staff${n}@example.test`,
       phone: null,
-      // Someone who has worked here: an unsigned-in row reads "Invited" (T1-13).
-      last_login_at: '2026-10-01T09:00:00Z',
     },
     ...overrides,
   }
@@ -124,6 +124,8 @@ beforeEach(() => {
     const { search, cursor, limit = 20, 'filter[active]': active = 'true' } = init?.params?.query ?? {}
     const matching = roster
       .filter((r) => active === 'all' || r.active === (active === 'true'))
+      // The default list leaves out someone invited who has not accepted yet (T1-13).
+      .filter((r) => !(active === 'true' && r.status === 'invited'))
       .filter((r) => !search || `${r.user.first_name} ${r.user.last_name}`.toLowerCase().includes(search.toLowerCase()))
     const start = cursor ? Number(cursor) : 0
     const end = start + limit
@@ -230,11 +232,10 @@ describe('the screens that show the whole roster (lane x)', () => {
   it('Employees asks for leavers too and loads every page, so nobody is cut off at 100', async () => {
     render(<EmployeesPage />, { wrapper })
     expect(await screen.findByText('Staff 150')).toBeInTheDocument()
-    // The page also asks once for the seat count (one row, people who work here now) for its
+    // The page also asks for the seat count (one row each: everyone, and the switched-off) for its
     // Invite button; the roster itself is every other request.
     const seatCount = rosterCalls().filter((q) => Number(q.limit) === 1)
-    expect(seatCount).toHaveLength(1)
-    expect(seatCount[0]['filter[active]']).toBe('true')
+    expect(seatCount.map((q) => q['filter[active]']).sort()).toEqual(['all', 'false'])
     const calls = rosterCalls().filter((q) => Number(q.limit) !== 1)
     expect(calls.every((q) => q['filter[active]'] === 'all')).toBe(true)
     expect(calls.map((q) => q.cursor)).toEqual([undefined, '100'])
@@ -280,9 +281,18 @@ describe('the screens that show the whole roster (lane x)', () => {
     expect(rosterCalls().every((q) => q['filter[active]'] === 'true')).toBe(true)
   })
 
-  it('seats in use is the count of people who work here now, asked for without loading them', async () => {
+  it('seats in use counts everyone who holds one, an invited person included, without loading them', async () => {
+    // Number 3 was invited and has not accepted: no seat is free for them, and the default list hides them.
+    roster[2] = employee(3, { status: 'invited' })
     const { result } = renderHook(() => useActiveEmployeeCount(), { wrapper })
+    // Everyone (150) less the one who left (1).
     await waitFor(() => expect(result.current.data).toBe(149))
-    expect(rosterCalls()).toEqual([expect.objectContaining({ limit: 1, 'filter[active]': 'true' })])
+    expect(rosterCalls()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ limit: 1, 'filter[active]': 'all' }),
+        expect.objectContaining({ limit: 1, 'filter[active]': 'false' }),
+      ]),
+    )
+    expect(rosterCalls().every((q) => q.limit === 1)).toBe(true)
   })
 })

@@ -5,7 +5,7 @@
  *
  * Both lists read it, so they cannot disagree: the consultancy's Employees page and the platform's
  * immiNow Users page. Each has its own source of "has this person accepted?", and each source is
- * ONE function below, so the day the server serves a status of its own there is one line to change.
+ * ONE function below.
  */
 export type PersonStanding = 'invited' | 'active' | 'withdrawn' | 'disabled'
 
@@ -29,24 +29,22 @@ function standingOf(active: boolean, neverJoined: boolean): PersonStanding {
 }
 
 interface RosterRow {
+  /** Said by the server (T1-13): `invited` until the invitation is accepted, then `active`, or `deactivated`. */
+  status?: 'invited' | 'active' | 'deactivated'
   active?: boolean
-  detail?: string
-  user?: { last_login_at?: string | null } | null
 }
 
 /**
- * A consultancy's own roster row (`GET /staff/employees`). The row carries no invitation status,
- * so "has not joined" is read as "has never signed in": accepting an invitation signs the person
- * straight in, and an invitation reserves no account until then.
- *
- * WAITING ON THE SERVER: this is the one line to switch when `Employee` serves its own status
- * (expected `Employee.status: 'invited' | 'active' | 'deactivated'`, as the freelancer and platform
- * team rows already do). A summary row (what a colleague without staff management sees) carries no
- * sign-in time at all, so it says nothing either way.
+ * A consultancy's own roster row (`GET /staff/employees`): the server says where the person stands
+ * (`Employee.status`), and this only gives it words. Nothing is guessed from a sign-in time — an
+ * employee who has not signed in yet is `active`, an invited one is `invited` (and holds a seat).
+ * A row without a status (the frozen mock) falls back to the plain `active` switch.
  */
 export function employeeStanding(employee: RosterRow): PersonStanding {
-  const neverJoined = employee.detail !== 'summary' && !employee.user?.last_login_at
-  return standingOf(employee.active !== false, neverJoined)
+  if (employee.status === 'invited') return 'invited'
+  if (employee.status === 'deactivated') return 'disabled'
+  if (employee.status === 'active') return 'active'
+  return employee.active === false ? 'disabled' : 'active'
 }
 
 interface DirectoryRow {
