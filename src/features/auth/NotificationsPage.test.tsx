@@ -14,7 +14,8 @@ vi.mock('@/features/auth/shellForScope', () => ({
       return <div>{children}</div>
     },
 }))
-vi.mock('@/lib/me', () => ({ useMyScope: () => 'consultancy' }))
+const scope = vi.hoisted(() => ({ value: 'consultancy' }))
+vi.mock('@/lib/me', () => ({ useMyScope: () => scope.value }))
 vi.mock('@/queries/notifications', () => ({
   useNotifications: vi.fn(),
   useMarkNotificationRead: vi.fn(),
@@ -36,6 +37,7 @@ function serve(items: Record<string, unknown>[]) {
 }
 
 beforeEach(() => {
+  scope.value = 'consultancy'
   vi.mocked(useMarkNotificationRead).mockReturnValue(idle as never)
   vi.mocked(useMarkAllNotificationsRead).mockReturnValue(idle as never)
 })
@@ -133,5 +135,21 @@ describe('the notification list', () => {
     // The notice is still listed; it just goes nowhere.
     expect(screen.getByText('Step submitted')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Step submitted/ })).toBeNull()
+  })
+})
+
+// T4-36: a freelancer's notice that carries no address the console serves opens their referrals.
+describe('a freelancer’s notices', () => {
+  it('open the referrals page when the notice carries no usable address', () => {
+    scope.value = 'freelancer'
+    serve([
+      { id: 'n9', type: 'payout', title: 'A payout is on its way', body: '₹450 for Omar.', deep_link: '/payouts/9', read: false, created_at: new Date().toISOString() },
+    ])
+    render(
+      <MemoryRouter>
+        <NotificationsPage />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('link', { name: /A payout is on its way/ })).toHaveAttribute('href', '/freelancer/dashboard')
   })
 })

@@ -51,6 +51,29 @@ const PAYOUT_BADGE_COLOR: Record<PayoutStatus, 'secondary' | 'warning' | 'succes
   paid: 'success',
 }
 
+/**
+ * The payout badge's words for one referral. A closed or moved case that earned nothing will never
+ * become due, so "Not due yet" (which promises money may follow) reads "Nothing due" there (T4-36).
+ */
+function payoutLabel(r: Pick<FreelancerReferral, 'payout_status' | 'stage' | 'earned_inr'>): string {
+  const status = r.payout_status ?? 'not_due'
+  if (status === 'not_due' && (r.stage === 'closed' || r.stage === 'moved') && (r.earned_inr ?? 0) === 0) {
+    return 'Nothing due'
+  }
+  return PAYOUT_LABEL[status]
+}
+
+/** What the panel says under "Payments to you" when there are none yet, by what is true of the referral. */
+export function noPaymentsLine(r: Pick<FreelancerReferral, 'stage' | 'earned_inr' | 'owed_inr'>): string {
+  if ((r.owed_inr ?? 0) > 0) {
+    return `${formatMoney('INR', r.owed_inr ?? 0)} is owed to you. immiNow will record the payment here when it is made.`
+  }
+  if ((r.stage === 'closed' || r.stage === 'moved') && (r.earned_inr ?? 0) === 0) {
+    return 'Nothing will be paid for this student, because the case is closed with no earnings.'
+  }
+  return 'No payments yet — you’re paid once immiNow has been paid for this student.'
+}
+
 // Same "preset resolves to a from date, Custom reveals two date inputs" shape as SentpoUsersPage's
 // JOINED_OPTIONS, applied to referred date instead of signup date.
 const REFERRED_OPTIONS = [
@@ -78,7 +101,7 @@ const REFERRAL_CSV_COLUMNS: CsvColumn<FreelancerReferral>[] = [
   { header: 'Earned', value: (r) => formatMoney('INR', r.earned_inr ?? 0) },
   { header: 'Paid', value: (r) => formatMoney('INR', r.paid_inr ?? 0) },
   { header: 'Owed', value: (r) => formatMoney('INR', r.owed_inr ?? 0) },
-  { header: 'Payout', value: (r) => PAYOUT_LABEL[r.payout_status ?? 'not_due'] },
+  { header: 'Payout', value: (r) => payoutLabel(r) },
 ]
 
 /**
@@ -259,9 +282,7 @@ function ReferralDrawer({ referral, onClose }: { referral: FreelancerReferral | 
             {detail.isLoading && <Skeleton className="h-16 rounded-md" />}
             {detail.isError && <p className="text-body-sm text-error">Could not load payments.</p>}
             {!detail.isLoading && !detail.isError && payouts.length === 0 && (
-              <p className="text-body-sm text-text-secondary">
-                No payments yet — you&rsquo;re paid once immiNow has been paid for this student.
-              </p>
+              <p className="text-body-sm text-text-secondary">{noPaymentsLine(referral)}</p>
             )}
             {!detail.isLoading && !detail.isError && payouts.length > 0 && (
               <ul className="flex flex-col gap-sm">
@@ -376,7 +397,6 @@ export function FreelancerDashboardPage() {
       header: 'Your share',
       sortable: true,
       align: 'right',
-      hideBelow: 'md',
       render: (r) =>
         !r.commission ? (
           <span className="text-text-secondary">—</span>
@@ -397,7 +417,6 @@ export function FreelancerDashboardPage() {
       key: 'paid_inr',
       header: 'Paid',
       align: 'right',
-      hideBelow: 'md',
       render: (r) => <span className="tabular-nums text-text-primary">{formatMoney('INR', r.paid_inr ?? 0)}</span>,
     },
     {
@@ -416,7 +435,7 @@ export function FreelancerDashboardPage() {
       header: 'Payout',
       render: (r) => {
         const p = r.payout_status ?? 'not_due'
-        return <Badge color={PAYOUT_BADGE_COLOR[p]}>{PAYOUT_LABEL[p]}</Badge>
+        return <Badge color={PAYOUT_BADGE_COLOR[p]}>{payoutLabel(r)}</Badge>
       },
     },
   ]

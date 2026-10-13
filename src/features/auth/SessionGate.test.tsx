@@ -174,11 +174,19 @@ describe('each guard opens for its own scope', () => {
     expect(screen.getByText('Consultancy dashboard')).toBeInTheDocument()
   })
 
-  it('sends a freelancer and a student to their own pages', () => {
+  // T4-36: a freelancer who types a staff address is told there is nothing there, not sent home
+  // without a word.
+  it('tells a freelancer who types a staff address that the page is not found', () => {
     mockedMe.mockReturnValue(meAnswered(plainMe('freelancer')))
     const first = renderAt('/dashboard')
-    expect(screen.getByText('Freelancer dashboard')).toBeInTheDocument()
+    expect(screen.getByText('Page not found')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Go to your home page' })).toHaveAttribute('href', '/freelancer/dashboard')
     first.unmount()
+    renderAt('/admin/dashboard')
+    expect(screen.getByText('Page not found')).toBeInTheDocument()
+  })
+
+  it('sends a student to their own page', () => {
 
     mockedMe.mockReturnValue(meAnswered(plainMe('student')))
     renderAt('/admin/dashboard')

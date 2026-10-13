@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { SessionGate } from '@/features/auth/SessionGate'
 import { scopeHomePath } from '@/lib/roleHome'
 import { isStaffScope } from '@/lib/me'
+import { PageNotFound } from '@/components/PageNotFound'
 
 // H4 (frontend review, 1 Sep 2026) — `PlatformRoute` sends non-platform users away and
 // `FreelancerRoute` sends non-freelancers away, but the inverse never existed: any authenticated
@@ -17,7 +18,13 @@ import { isStaffScope } from '@/lib/me'
 export function ConsultancyRoute({ children }: { children: ReactNode }) {
   return (
     <SessionGate>
-      {(me) => (isStaffScope(me.scope) ? children : <Navigate to={scopeHomePath(me.scope)} replace />)}
+      {(me) => {
+        if (isStaffScope(me.scope)) return children
+        // A freelancer typing a staff address is told there is nothing there, not silently sent
+        // home (T4-36).
+        if (me.scope === 'freelancer') return <PageNotFound homePath={scopeHomePath(me.scope)} />
+        return <Navigate to={scopeHomePath(me.scope)} replace />
+      }}
     </SessionGate>
   )
 }
