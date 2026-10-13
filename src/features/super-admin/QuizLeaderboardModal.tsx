@@ -9,6 +9,7 @@ import { useQuizLeaderboard } from '@/queries/eventsAdmin'
 import { formatDateTime, formatDuration } from '@/lib/time'
 import { toCsv, downloadCsv, type CsvColumn } from '@/lib/csv'
 import { type Event, type QuizLeaderboardEntry } from './quizShared'
+import { studentTypeLabel } from './studentTypeLabel'
 
 // Same column style as the Webinar/Physical Meeting registrants export (EventAttendanceCell.tsx)
 // and the Audit Log — one shared toCsv/downloadCsv (lib/csv.ts, 2026-09-12 "New exports" pass).
@@ -105,7 +106,7 @@ export function QuizLeaderboardModal({ event, onClose }: { event: Event; onClose
       render: (r) =>
         r.student_type ? (
           <Badge color={typeBadgeColor[r.student_type]} className="capitalize">
-            {r.student_type}
+            {studentTypeLabel(r.student_type)}
           </Badge>
         ) : (
           '—'

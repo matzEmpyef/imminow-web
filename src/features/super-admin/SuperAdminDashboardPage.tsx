@@ -120,7 +120,7 @@ function JourneyFunnelCard({ stages }: { stages: FunnelStage[] }) {
   const widest = Math.max(1, stages[0]?.count ?? 0)
   return (
     <Card>
-      <h2 className="text-h3 text-text-primary">Student Journey Funnel</h2>
+      <h2 className="text-h3 text-text-primary">Student Case Funnel</h2>
       <p className="text-caption text-text-secondary">
         Sentpo students by the furthest stage they have reached, with the share who got there from the stage before.
       </p>
@@ -335,7 +335,7 @@ export function SuperAdminDashboardPage() {
             <dl className="mt-sm flex flex-col gap-xs text-caption text-text-secondary">
               <div>
                 <dt className="inline font-medium text-text-primary">Channel A · Sentpo direct</dt>
-                <dd className="inline"> — signed up in the Sentpo app on their own; starts as an aspirant.</dd>
+                <dd className="inline"> — signed up in the Sentpo app on their own; starts as a lead.</dd>
               </div>
               <div>
                 <dt className="inline font-medium text-text-primary">Channel B · Consultancy-sourced</dt>
@@ -348,7 +348,7 @@ export function SuperAdminDashboardPage() {
             </dl>
           </Card>
           <Card>
-            <h2 className="text-h3 text-text-primary">Aspirants, Applicants &amp; Enrolled</h2>
+            <h2 className="text-h3 text-text-primary">Leads, Applicants &amp; Enrolled</h2>
             <p className="text-caption text-text-secondary">
               Open now: Stage 1 leads and Stage 2 cases. Enrolled: cases closed successfully, all time.
             </p>

@@ -450,7 +450,7 @@ function DeactivateConfirmModal({
             </li>
             <li>
               <span className="font-medium text-text-primary">{plural(d.shortlisted_students, 'student')}</span>{' '}
-              {d.shortlisted_students === 1 ? 'has' : 'have'} {kind === 'college' ? 'its courses' : 'it'} shortlisted.
+              added {kind === 'college' ? 'its courses' : 'it'} to Dream Courses.
             </li>
             <li>
               <span className="font-medium text-text-primary">{plural(d.live_applications, 'application')}</span>{' '}

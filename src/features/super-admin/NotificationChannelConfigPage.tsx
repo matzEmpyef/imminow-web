@@ -77,7 +77,7 @@ const LABELS: Record<string, string> = {
   payer_method_changed: 'Who pays changed',
   institution_suggested: 'School or college not in the list',
   application_status_changed: 'College application status changed',
-  shortlisted_course_changed: 'Shortlisted course changed (fee, deadline, deactivated)',
+  shortlisted_course_changed: 'Dream Course changed (fee, deadline, deactivated)',
   commission_share_due: 'immiNow share fell due on a case (Finance)',
   commission_payment_declared: 'Consultancy declared a payment to immiNow (Finance)',
   commission_payment_overdue: 'A payment to immiNow is overdue (Finance)',

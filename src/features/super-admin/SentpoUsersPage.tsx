@@ -31,8 +31,8 @@ const SENTPO_USERS_CSV_COLUMNS: CsvColumn<Row>[] = [
   { header: 'Profile %', value: (r) => r.profile_completion_percent ?? 0 },
   { header: 'Platform', value: (r) => (r.platform ? (PLATFORM_LABELS[r.platform] ?? r.platform) : '') },
   { header: 'App version', value: (r) => r.app_version ?? '' },
-  { header: 'Journey stage', value: (r) => STAGE_LABELS[r.journey_stage] ?? r.journey_stage },
-  { header: 'Journey status', value: (r) => r.journey_status },
+  { header: 'Case stage', value: (r) => STAGE_LABELS[r.journey_stage] ?? r.journey_stage },
+  { header: 'Case status', value: (r) => r.journey_status },
   { header: 'Consultancy', value: (r) => r.consultancy_name ?? '' },
   { header: 'Points', value: (r) => r.points_balance },
 ]
@@ -247,7 +247,7 @@ export function SentpoUsersPage() {
     },
     {
       key: 'journey_stage',
-      header: 'Journey',
+      header: 'Case',
       render: (r) => (
         <div>
           <p className="text-text-primary">{STAGE_LABELS[r.journey_stage] ?? r.journey_stage}</p>
@@ -270,7 +270,7 @@ export function SentpoUsersPage() {
           <div>
             <h1 className="text-h1 text-text-primary">Sentpo Users</h1>
             <p className="text-body-sm text-text-secondary">
-              Every student account — signup, activity and journey stage. Select a student to see their sign-in history.
+              Every student account — signup, activity and case stage. Select a student to see their sign-in history.
             </p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-xs">
@@ -337,7 +337,7 @@ export function SentpoUsersPage() {
                   setStage(e.target.value as '' | '1' | '2')
                   resetPaging()
                 }}
-                label="Journey stage"
+                label="Case stage"
               >
                 <option value="">Any stage</option>
                 <option value="1">Stage 1 · Exploring</option>

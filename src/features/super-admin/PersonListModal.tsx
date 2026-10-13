@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { Modal } from '@/components/Modal'
 import { Badge } from '@/components/Badge'
 import { Table, type TableColumn } from '@/components/Table'
+import { studentTypeLabel } from './studentTypeLabel'
 
 export interface PersonListRow {
   name: string
@@ -58,7 +59,7 @@ const typeBadgeColor: Record<'applicant' | 'aspirant', 'success' | 'info'> = {
 // should see the list." Shared by Webinars and Physical Meetings, the two event types that track
 // RSVP and attendance as named lists (Quiz attendance is completion-based, a different shape).
 // Rows reworked (user-requested, 2026-08-16) — "we don't need pill saying rsvped... instead show
-// number n email and type (applicant or aspirant), maybe a filter to see only each type, update
+// number n email and type (applicant or lead), maybe a filter to see only each type, update
 // time." The old per-row "rsvpd" status pill is gone (redundant once you're already looking at
 // the RSVP'd list specifically); each row now shows its position, email, a derived
 // applicant/aspirant type badge, and the recorded time, with a type filter above the list.
@@ -96,7 +97,7 @@ export function PersonListModal({ title, rows, emptyMessage, onClose, intro, loa
       header: 'Type',
       render: (r) => (
         <Badge color={typeBadgeColor[r.studentType]} className="capitalize">
-          {r.studentType}
+          {studentTypeLabel(r.studentType)}
         </Badge>
       ),
     },
@@ -135,7 +136,7 @@ export function PersonListModal({ title, rows, emptyMessage, onClose, intro, loa
                   typeFilter === f ? 'bg-pill-selected text-white' : 'bg-background text-text-secondary hover:bg-border'
                 }`}
               >
-                {f === 'all' ? 'All' : f}
+                {f === 'all' ? 'All' : studentTypeLabel(f)}
               </button>
             ))}
           </div>

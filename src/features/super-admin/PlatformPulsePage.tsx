@@ -312,7 +312,7 @@ export function PlatformPulsePage() {
       ),
     },
     { key: 'views', header: 'Views', align: 'right', render: (r) => r.views },
-    { key: 'shortlists', header: 'Shortlists', align: 'right', render: (r) => r.shortlists },
+    { key: 'shortlists', header: 'Dream Courses', align: 'right', render: (r) => r.shortlists },
   ]
 
   const collegeColumns: TableColumn<CollegeRow>[] = [

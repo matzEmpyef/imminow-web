@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Download } from 'lucide-react'
 import { PersonListModal } from './PersonListModal'
+import { studentTypeLabel } from './studentTypeLabel'
 import { Button } from '@/components/Button'
 import { useEventAttendance } from '@/queries/eventsAdmin'
 import { formatDateTime } from '@/lib/time'
@@ -22,7 +23,7 @@ function registrantsCsv(data: EventAttendanceResponse): string {
   const columns: CsvColumn<Rsvp>[] = [
     { header: 'Name', value: (r) => r.student_name ?? '' },
     { header: 'Email', value: (r) => r.email ?? '' },
-    { header: 'Student Type', value: (r) => r.student_type ?? '' },
+    { header: 'Student Type', value: (r) => studentTypeLabel(r.student_type ?? '') },
     { header: 'Status', value: (r) => r.status ?? '' },
     { header: 'Registered At', value: (r) => r.created_at ?? '' },
     { header: 'Attended', value: (r) => (attendedEmails.has((r.email ?? '').toLowerCase()) ? 'Yes' : 'No') },
