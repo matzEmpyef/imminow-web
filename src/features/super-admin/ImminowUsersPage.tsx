@@ -11,6 +11,7 @@ import { useCursorPagination } from '@/lib/pagination'
 import { toCsv, downloadCsv, type CsvColumn } from '@/lib/csv'
 import { formatDate, localDateISO } from '@/lib/time'
 import { FilterChip } from '@/components/FilterChip'
+import { directoryStanding, STANDING_BADGE, STANDING_LABEL } from '@/lib/employeeStanding'
 import { PersonSignInDrawer, type SignInHistoryPerson } from './PersonSignInDrawer'
 
 type Row = NonNullable<ReturnType<typeof useImminowUserDirectory>['data']>['items'][number]
@@ -22,7 +23,7 @@ const IMMINOW_USERS_CSV_COLUMNS: CsvColumn<Row>[] = [
   { header: 'Email', value: (r) => r.email },
   { header: 'Consultancy', value: (r) => r.consultancy_name ?? '' },
   { header: 'Designation', value: (r) => r.designation ?? '' },
-  { header: 'Status', value: (r) => (r.active ? 'Active' : 'Disabled') },
+  { header: 'Status', value: (r) => STANDING_LABEL[directoryStanding(r)] },
   { header: 'Invited', value: (r) => r.invited_at ?? '' },
   { header: 'Accepted', value: (r) => r.accepted_at ?? '' },
   { header: 'Last login', value: (r) => r.last_login_at ?? '' },
@@ -98,14 +99,19 @@ export function ImminowUsersPage() {
     {
       key: 'active',
       header: 'Status',
-      render: (r) => <Badge color={r.active ? 'success' : 'secondary'}>{r.active ? 'Active' : 'Disabled'}</Badge>,
+      // Invited until they accept (T1-13): an invitation holds a seat but is not yet a colleague.
+      render: (r) => {
+        const standing = directoryStanding(r)
+        return <Badge color={STANDING_BADGE[standing]}>{STANDING_LABEL[standing]}</Badge>
+      },
     },
     {
       key: 'invited_at',
       header: 'Invited / Accepted',
       sortable: true,
       render: (r) => {
-        const neverActivated = (r.invited_at || r.accepted_at) && !r.last_login_at
+        // An invitation nobody has accepted is already said by the Status badge.
+        const neverActivated = (r.invited_at || r.accepted_at) && !r.last_login_at && directoryStanding(r) !== 'invited'
         return (
           <div className="flex items-center gap-xs">
             <span className="text-text-primary">
@@ -196,7 +202,7 @@ export function ImminowUsersPage() {
                 label="Status"
               >
                 <option value="">Any status</option>
-                <option value="true">Active</option>
+                <option value="true">Active or invited</option>
                 <option value="false">Disabled</option>
               </CompactSelect>
             </>

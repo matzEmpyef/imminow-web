@@ -89,3 +89,27 @@ describe('ImminowUsersPage', () => {
     expect(csv).not.toMatch(/Platform Staff|Consultancy Staff/)
   })
 })
+
+// T1-13: an invitation nobody has accepted reads "Invited", not "Active", on the platform's list too.
+describe('ImminowUsersPage status', () => {
+  it('names an unaccepted invitation Invited, and an accepted one Active', () => {
+    vi.mocked(useImminowUserDirectory).mockReturnValue({
+      data: {
+        items: [
+          { ...ROWS[0], id: 'u-new', name: 'Ines Invited', accepted_at: null, last_login_at: null },
+          ROWS[0],
+        ],
+        meta: { total: 2, next_cursor: null },
+      },
+      isLoading: false,
+      isError: false,
+    } as never)
+    renderPage()
+    const invited = screen.getByText('Ines Invited').closest('tr')!
+    expect(invited.textContent).toContain('Invited')
+    expect(invited.textContent).not.toContain('Active')
+    // The Status badge already says it; no second warning for the same fact.
+    expect(invited.textContent).not.toContain('Never active')
+    expect(screen.getByText('Priya Nair').closest('tr')!.textContent).toContain('Active')
+  })
+})

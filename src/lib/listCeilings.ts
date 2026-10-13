@@ -16,6 +16,12 @@ const NOUNS: Record<CeilingKind, { one: string; many: string }> = {
   seats: { one: 'seat', many: 'seats' },
 }
 
+// What to do about a full list, where there is something to do about it. A seat is freed by taking
+// someone off the team (T1-13): the Employees page offers that on every plan.
+const FREE_ONE: Partial<Record<CeilingKind, string>> = {
+  seats: ' Disable someone or withdraw an invitation below to free a seat.',
+}
+
 export interface CeilingState {
   /** "12 of 100 tags" — shown beside the create action. */
   label: string
@@ -36,7 +42,7 @@ export function ceilingState(kind: CeilingKind, count: number | undefined, limit
   return {
     label: `${count} of ${limit} ${limit === 1 ? noun.one : noun.many}`,
     atLimit,
-    reason: atLimit ? `You've reached the ${limit}-${noun.one} limit.` : undefined,
+    reason: atLimit ? `You've reached the ${limit}-${noun.one} limit.${FREE_ONE[kind] ?? ''}` : undefined,
   }
 }
 

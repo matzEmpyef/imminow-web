@@ -16,7 +16,19 @@ type Designation = components['schemas']['Designation']
 // (the job title, picked from the consultancy's designations since console review M6,
 // 2026-09-13), distinct from Manage Access which stays the sensitive-change path (branch(es),
 // Access Rights, permission overrides — reason required). Mirrors InviteEmployeeModal.tsx's shape.
-export function EditEmployeeModal({ employee, designations }: { employee: Employee; designations: Designation[] }) {
+export function EditEmployeeModal({
+  employee,
+  designations,
+  hasDesignations = true,
+  hasAccessControls = true,
+}: {
+  employee: Employee
+  designations: Designation[]
+  /** The plan has access rights (designations). Without them everyone has full access. */
+  hasDesignations?: boolean
+  /** The row has a Manage Access control at all: access rights, or branches to put people in. */
+  hasAccessControls?: boolean
+}) {
   const [open, setOpen] = useState(false)
   return (
     <div className="contents">
@@ -30,7 +42,13 @@ export function EditEmployeeModal({ employee, designations }: { employee: Employ
         <Pencil className="h-4 w-4" />
       </button>
       {open && (
-        <EditEmployeeModalBody employee={employee} designations={designations} onClose={() => setOpen(false)} />
+        <EditEmployeeModalBody
+          employee={employee}
+          designations={designations}
+          hasDesignations={hasDesignations}
+          hasAccessControls={hasAccessControls}
+          onClose={() => setOpen(false)}
+        />
       )}
     </div>
   )
@@ -39,10 +57,14 @@ export function EditEmployeeModal({ employee, designations }: { employee: Employ
 function EditEmployeeModalBody({
   employee,
   designations,
+  hasDesignations,
+  hasAccessControls,
   onClose,
 }: {
   employee: Employee
   designations: Designation[]
+  hasDesignations: boolean
+  hasAccessControls: boolean
   onClose: () => void
 }) {
   const updateEmployee = useUpdateEmployee(employee.id!, employee.version)
@@ -125,8 +147,13 @@ function EditEmployeeModalBody({
             </option>
           ))}
         </SelectField>
+        {/* Points only at what exists on this plan (T1-13): Starter has no Manage Access. */}
         <p className="text-caption text-text-secondary">
-          Access rights are changed under Manage Access, which asks for a reason.
+          {hasDesignations
+            ? 'Access rights are changed under Manage Access, which asks for a reason.'
+            : hasAccessControls
+              ? 'Branches are changed under Manage Access.'
+              : 'Everyone on this plan has full access, so there are no access rights to change.'}
         </p>
       </form>
     </Modal>

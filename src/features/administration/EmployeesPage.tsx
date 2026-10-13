@@ -5,6 +5,9 @@ import { Table, type TableColumn } from '@/components/Table'
 import { InviteEmployeeModal } from './InviteEmployeeModal'
 import { EmployeeAccessModal } from './EmployeeAccessModal'
 import { EditEmployeeModal } from './EditEmployeeModal'
+import { EmployeeRemoveButton } from './EmployeeRemoveButton'
+import { employeeStanding, STANDING_BADGE, STANDING_LABEL } from '@/lib/employeeStanding'
+import { useMeStaff } from '@/lib/me'
 import { useFeature } from '@/lib/features'
 import { useAccountWords } from '@/lib/accountWords'
 import { useActiveEmployeeCount, useAllEmployees, useBranches, useDesignations } from '@/queries/staff'
@@ -28,6 +31,10 @@ export function EmployeesPage() {
   const activeSeats = useActiveEmployeeCount()
   const designations = useDesignations()
   const branches = useBranches()
+  // Whoever is using the console is not offered "Disable" on their own row.
+  const myEmployeeId = useMeStaff()?.employee_id
+  // "Manage Access" (the key icon on each row) exists only where there is something to manage.
+  const hasAccessControls = hasDesignations || (hasMultiBranch && (branches.data?.length ?? 0) > 1)
 
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
@@ -65,7 +72,8 @@ export function EmployeesPage() {
             {employee.user!.first_name} {employee.user!.last_name}
           </span>
           {employee.is_consultancy_admin && <Badge color="primary">Owner/Admin</Badge>}
-          <Badge color={employee.active ? 'success' : 'secondary'}>{employee.active ? 'Active' : 'Disabled'}</Badge>
+          {/* Invited until they accept (T1-13): an invitation holds a seat but is not yet a colleague. */}
+          <Badge color={STANDING_BADGE[employeeStanding(employee)]}>{STANDING_LABEL[employeeStanding(employee)]}</Badge>
         </div>
       ),
     },
@@ -97,7 +105,7 @@ export function EmployeesPage() {
     // The branch half of this column is only worth a column when there is more than one branch to
     // be in — same test the Manage Access trigger below uses, so the column and the control that
     // edits it appear together.
-    ...(hasDesignations || (hasMultiBranch && (branches.data?.length ?? 0) > 1)
+    ...(hasAccessControls
       ? [
           {
             key: 'access',
@@ -146,13 +154,17 @@ export function EmployeesPage() {
       // Nothing to edit on a summary row: its details were not sent, and the server would refuse.
       render: (employee) => employee.detail === 'summary' ? null : (
         <div className="flex justify-end">
-          <EditEmployeeModal employee={employee} designations={designations.data ?? []} />
+          <EditEmployeeModal
+            employee={employee}
+            designations={designations.data ?? []}
+            hasDesignations={hasDesignations}
+            hasAccessControls={hasAccessControls}
+          />
           {/* Branches moved to Starter on 2026-09-21, which left this modal — the ONLY place an
               employee's branches can be changed — behind the `designations` entitlement. An account
               could then have branches, a branch picker on every lead, and no way to put anybody in
               one. It now opens for either half, and each half renders only if its own feature is on. */}
-          {(hasDesignations || (hasMultiBranch && (branches.data?.length ?? 0) > 1)) &&
-            !employee.is_consultancy_admin && (
+          {hasAccessControls && !employee.is_consultancy_admin && (
               <EmployeeAccessModal
                 employee={employee}
                 designations={designations.data ?? []}
@@ -161,6 +173,10 @@ export function EmployeesPage() {
                 hasDesignations={hasDesignations}
               />
             )}
+          {/* On every plan, not only where Manage Access exists (T1-13). */}
+          {!employee.is_consultancy_admin && employee.active && employee.id !== myEmployeeId && (
+            <EmployeeRemoveButton employee={employee} />
+          )}
         </div>
       ),
     },

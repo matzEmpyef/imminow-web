@@ -5,9 +5,9 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { Toggle } from '@/components/Toggle'
-import { useDisableEmployee, useUpdateEmployee } from '@/queries/staff'
-import { ServerSearchSelect } from '@/components/ServerSearchSelect'
-import { activeEmployeeSource } from '@/queries/pickerSources'
+import { useUpdateEmployee } from '@/queries/staff'
+import { DisableEmployeeDialog } from './DisableEmployeeDialog'
+import { employeeStanding } from '@/lib/employeeStanding'
 import { BranchAccessPicker } from './BranchAccessPicker'
 import { branchAccessChanged, primaryBranchError, type BranchAccess } from './branchAccess'
 import { permissionKeys, pickPermissions, useAvailablePermissions, visiblePermissionGroups } from '@/lib/permissions'
@@ -76,7 +76,6 @@ function AccessModalBody({
   onClose: () => void
 }) {
   const updateEmployee = useUpdateEmployee(employee.id!, employee.version)
-  const disableEmployee = useDisableEmployee()
   const [designationId, setDesignationId] = useState(employee.designation_id ?? '')
   // The stored primary, or the fallback the server itself applies when none was ever chosen —
   // `branch_ids[0]`. Starting from the fallback rather than from blank is what keeps a
@@ -89,10 +88,6 @@ function AccessModalBody({
   const [overrides, setOverrides] = useState<Record<string, boolean>>(employee.permission_overrides ?? {})
   const [reason, setReason] = useState('')
   const [confirmingDisable, setConfirmingDisable] = useState(false)
-  // Who inherits this employee's leads and clients. Only asked for when they actually hold some
-  // — the server's own rule, mirrored here so the dialog isn't padded with an irrelevant field.
-  const [successorId, setSuccessorId] = useState('')
-  const assignedWork = employee.assigned_work_count ?? 0
 
   const designation = designations.find((d) => d.id === designationId)
   const baseline = designation?.permissions ?? {}
@@ -160,13 +155,10 @@ function AccessModalBody({
             </Button>
             {!employee.is_consultancy_admin && employee.active && (
               <Button variant="destructive" onClick={() => setConfirmingDisable(true)}>
-                Disable
+                {employeeStanding(employee) === 'invited' ? 'Withdraw invitation' : 'Disable'}
               </Button>
             )}
           </div>
-          {disableEmployee.isError && (
-            <p className="mr-auto self-center text-body-sm text-error">{disableEmployee.error.message}</p>
-          )}
         </>
       }
     >
@@ -247,65 +239,12 @@ function AccessModalBody({
 
       {/* User-requested (2026-08-15) — "wherever there is delete, confirm popup is needed." */}
       {confirmingDisable && (
-        <Modal
-          onClose={() => setConfirmingDisable(false)}
-          title="Disable Employee"
-          widthRem={24}
-          footer={
-            <div className="flex justify-end gap-sm">
-              <Button variant="secondary" onClick={() => setConfirmingDisable(false)}>
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                loading={disableEmployee.isPending}
-                disabled={assignedWork > 0 && !successorId}
-                onClick={() =>
-                  disableEmployee.mutate(
-                    { id: employee.id!, reassign_to_employee_id: successorId || undefined },
-                    { onSuccess: () => setConfirmingDisable(false) },
-                  )
-                }
-              >
-                Disable
-              </Button>
-            </div>
-          }
-        >
-          <div className="flex flex-col gap-md">
-            <p className="text-body-sm text-text-secondary">
-              Disable{' '}
-              <span className="font-medium text-text-primary">
-                {employee.user!.first_name} {employee.user!.last_name}
-              </span>
-              ? They'll lose access immediately — their session stops working and they can't sign back in.
-            </p>
-            {assignedWork > 0 && (
-              <div className="flex flex-col gap-xs">
-                <p className="text-body-sm font-medium text-text-primary">
-                  Reassign their {assignedWork} lead{assignedWork === 1 ? '' : 's'}/client
-                  {assignedWork === 1 ? '' : 's'} to
-                </p>
-                {/* Searched on the server (review F-036, lane x): anyone who works here now, never
-                    the person being disabled. */}
-                <ServerSearchSelect
-                  id={`successor-${employee.id}`}
-                  label="Reassign to"
-                  required
-                  source={activeEmployeeSource}
-                  value={successorId}
-                  onChange={(id) => setSuccessorId(id)}
-                  exclude={(e) => e.id === employee.id}
-                  placeholder="Search by name…"
-                  emptyText="No one matches that name."
-                />
-                <p className="text-caption text-text-secondary">
-                  Work left on a disabled account shows up on nobody's list, so this can't be skipped.
-                </p>
-              </div>
-            )}
-          </div>
-        </Modal>
+        <DisableEmployeeDialog
+          employee={employee}
+          onClose={() => {
+            setConfirmingDisable(false)
+          }}
+        />
       )}
     </Modal>
   )

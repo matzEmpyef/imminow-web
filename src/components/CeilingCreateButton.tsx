@@ -36,7 +36,8 @@ export function CeilingCreateButton({
       {ceiling && (
         <p
           id={captionId}
-          className={`text-caption tabular-nums ${ceiling.atLimit ? 'text-warning' : 'text-text-secondary'}`}
+          style={{ maxWidth: '18rem' }}
+          className={`text-right text-caption tabular-nums ${ceiling.atLimit ? 'text-warning' : 'text-text-secondary'}`}
         >
           {ceiling.reason ?? ceiling.label}
         </p>
