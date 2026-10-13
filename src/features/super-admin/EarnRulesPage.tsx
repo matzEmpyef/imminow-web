@@ -147,9 +147,26 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
   // server refuses it 400; the form refuses first, in the same words.
   const dailyWithoutLimit = capPeriod === 'day' && cap === '' && awardCap === ''
 
+  // The page's own sentences for the limits (T4-33), not the browser's tooltip: each limit is a
+  // whole number of at least 1, or empty for no limit; and a points limit smaller than one award
+  // could never pay, so it is refused.
+  const limitProblem = (value: string): string | undefined => {
+    if (value === '') return undefined
+    const n = Number(value)
+    return Number.isInteger(n) && n >= 1 ? undefined : 'Enter a whole number of at least 1, or leave it empty for no limit.'
+  }
+  const awardCapError = limitProblem(awardCap)
+  const lifetimeCapError = capPeriod === 'day' ? limitProblem(lifetimeCap) : undefined
+  const capError =
+    limitProblem(cap) ??
+    (cap !== '' && pointsValue > 0 && Number(cap) < pointsValue
+      ? `The points limit must be at least one award (${pointsValue} points), or this rule could never pay.`
+      : undefined)
+  const hasLimitError = Boolean(awardCapError || capError || lifetimeCapError)
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (dailyWithoutLimit) return
+    if (dailyWithoutLimit || hasLimitError) return
     updateRule.mutate(
       {
         points_value: pointsValue,
@@ -181,13 +198,13 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
           {updateRule.isError && (
             <p className="mr-auto self-center text-body-sm text-error">{updateRule.error.message}</p>
           )}
-          <Button type="submit" form="rule-form" loading={updateRule.isPending} disabled={dailyWithoutLimit}>
+          <Button type="submit" form="rule-form" loading={updateRule.isPending} disabled={dailyWithoutLimit || hasLimitError}>
             Save Changes
           </Button>
         </>
       }
     >
-      <form id="rule-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
+      <form id="rule-form" onSubmit={handleSubmit} noValidate className="flex flex-col gap-md">
         {caption && <p className="text-body-sm text-text-secondary">{caption}</p>}
         <div className="grid grid-cols-2 gap-sm">
           <TextField
@@ -218,6 +235,7 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
             value={awardCap}
             onChange={(e) => setAwardCap(e.target.value)}
             placeholder="No limit"
+            error={awardCapError}
           />
           <TextField
             label="Points limit"
@@ -226,6 +244,7 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
             value={cap}
             onChange={(e) => setCap(e.target.value)}
             placeholder="No limit"
+            error={capError}
           />
         </div>
         {capPeriod === 'day' && (
@@ -236,6 +255,7 @@ function RuleFormModal({ rule, onClose }: { rule: EarnRule; onClose: () => void 
             value={lifetimeCap}
             onChange={(e) => setLifetimeCap(e.target.value)}
             placeholder="No limit"
+            error={lifetimeCapError}
           />
         )}
         {capPeriod === 'day' && (
