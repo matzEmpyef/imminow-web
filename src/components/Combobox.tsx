@@ -8,6 +8,8 @@ interface ComboboxProps {
   onChange: (value: string) => void
   options: string[]
   required?: boolean
+  /** Pass what is typed up at once, not only on Enter or leaving the field (T4-22). */
+  commitWhileTyping?: boolean
 }
 
 // Looks like a normal select (same pill shape/floating label as TextField, plus a chevron) but
@@ -20,7 +22,7 @@ interface ComboboxProps {
 // ancestor (e.g. Modal.tsx's scrollable body), which cut the panel off mid-row when this field
 // sits low inside a Modal. The click-outside check has to know about both the portaled panel and
 // this field's own container, since they're no longer the same DOM subtree.
-export function Combobox({ label, value, onChange, options, required }: ComboboxProps) {
+export function Combobox({ label, value, onChange, options, required, commitWhileTyping }: ComboboxProps) {
   const fieldId = useId()
   const containerRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -103,6 +105,7 @@ export function Combobox({ label, value, onChange, options, required }: Combobox
           value={draft}
           onChange={(e) => {
             setDraft(e.target.value)
+            if (commitWhileTyping) onChange(e.target.value)
             setOpen(true)
             updateCoords()
           }}

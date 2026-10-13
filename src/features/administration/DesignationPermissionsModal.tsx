@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { StillNeeded } from '@/components/StillNeeded'
 import { Eye } from 'lucide-react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
@@ -89,6 +90,7 @@ function PermissionsModalBody({ designation, onClose }: { designation: Designati
             {updateDesignation.isError && (
               <p className="mr-auto self-center text-body-sm text-error">{updateDesignation.error.message}</p>
             )}
+            <StillNeeded items={!dirty ? ['a permission changed'] : !reason ? ['the reason for the change'] : []} />
             <Button loading={updateDesignation.isPending} disabled={!dirty || !reason} onClick={handleSave}>
               Save Changes
             </Button>

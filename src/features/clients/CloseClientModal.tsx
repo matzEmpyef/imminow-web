@@ -6,6 +6,7 @@ import { Button } from '@/components/Button'
 import { CLOSE_SUB_REASONS, useCloseClient, type CloseSubReason } from '@/queries/clients'
 import { ApiError } from '@/api/errors'
 import { showToast } from '@/lib/toast'
+import { StillNeeded } from '@/components/StillNeeded'
 
 // The sub-reasons that mean the student never actually travelled. An acceptance plus one of these
 // is a FAILURE, not a success — colleges don't pay for a student who doesn't arrive — and the
@@ -73,8 +74,15 @@ export function CloseClientModal({
   // A failure has to say why. A success doesn't need one, and asking for it would invite a
   // consultant to pick something that silently turns their own success into a failure.
   const subReasonRequired = outcome === 'failure'
-  const canSubmit =
-    Boolean(reason.trim()) && (!subReasonRequired || subReason !== '') && (!asksJoined || joined !== null)
+  // Until the question is answered the modal cannot say how the case will end (T4-14): it used to
+  // announce "This closes as a success" before the consultant had said whether the student joined.
+  const answered = !asksJoined || joined !== null
+  const canSubmit = Boolean(reason.trim()) && (!subReasonRequired || subReason !== '') && answered
+  const stillNeeded = [
+    ...(asksJoined && joined === null ? [isPr ? 'whether the PR application went through' : 'whether the student joined'] : []),
+    ...(subReasonRequired && subReason === '' ? ['what happened'] : []),
+    ...(!reason.trim() ? ['the notes'] : []),
+  ]
   // A PR case was never sent to colleges, so "rejected by the colleges" can't be what happened.
   const subReasons = isPr ? CLOSE_SUB_REASONS.filter((r) => r.value !== 'rejected_by_colleges') : CLOSE_SUB_REASONS
   const money = isPr ? 'contribution' : 'commission'
@@ -108,17 +116,18 @@ export function CloseClientModal({
           {closeClient.isError && (
             <p className="mr-auto self-center text-body-sm text-error">{closeClient.error.message}</p>
           )}
+          <StillNeeded items={stillNeeded} />
           <div className="flex gap-sm">
             <Button
               type="submit"
               form="close-client-form"
               // A success is the good ending, not a destructive act (user, 2026-09-10) — only a
               // failure keeps the red button.
-              variant={outcome === 'success' ? 'primary' : 'destructive'}
+              variant={answered && outcome === 'success' ? 'primary' : 'destructive'}
               loading={closeClient.isPending}
               disabled={!canSubmit}
             >
-              {outcome === 'success' ? 'Close as Success' : 'Close Case'}
+              {answered && outcome === 'success' ? 'Close as Success' : 'Close Case'}
             </Button>
             <Button type="button" variant="secondary" onClick={onClose}>
               Cancel
@@ -131,7 +140,12 @@ export function CloseClientModal({
         {/* "Returns to Stage 1, free to start again" read wrong for a student who got in and is
             going (user, 2026-09-10), so the success wording talks about the case being done. */}
         <p className="text-body-sm text-text-secondary">
-          {outcome === 'success' ? (
+          {!answered ? (
+            <>
+              Closing <strong className="text-text-primary">{clientName}</strong>&rsquo;s case takes them out of your
+              Clients List. Nothing is deleted — the full case history stays intact.
+            </>
+          ) : outcome === 'success' ? (
             <>
               <strong className="text-text-primary">{clientName}</strong>&rsquo;s case is complete and moves out of
               your Clients List. Nothing is deleted — the full case history stays intact.
@@ -252,10 +266,15 @@ export function CloseClientModal({
             have to infer which way from a dropdown they just changed. */}
         <p
           className={`rounded-md px-3 py-sm text-body-sm ${
-            outcome === 'success' ? 'bg-success-subtle text-text-primary' : 'bg-surface-muted text-text-secondary'
+            answered && outcome === 'success' ? 'bg-success-subtle text-text-primary' : 'bg-surface-muted text-text-secondary'
           }`}
         >
-          {outcome === 'success' ? (
+          {!answered ? (
+            <>
+              How this case ends depends on your answer to the question above. Answer it and this line will say what
+              happens to the {money}.
+            </>
+          ) : outcome === 'success' ? (
             <>
               This closes as a <strong>success</strong>.{' '}
               {isPr ? 'The recorded contribution becomes due.' : 'The commission on the accepted college becomes due.'}
