@@ -97,3 +97,19 @@ describe('Manage Consultancies: who sees plan data', () => {
     expect(query.status).toBeUndefined()
   })
 })
+
+// T4-32: the server refuses account creation without the consultancy-approval grant, so the
+// button is not offered to a platform account that lacks it (Finance).
+describe('Create Account button', () => {
+  it('is hidden from a platform account without the approval grant, and shown with it', async () => {
+    renderPage({ finance: true })
+    await screen.findByText('Northwind Education')
+    expect(screen.queryByRole('button', { name: 'Create Account' })).not.toBeInTheDocument()
+  })
+
+  it('is shown to one that has it', async () => {
+    renderPage({ consultancy_approval: true })
+    await screen.findByText('Northwind Education')
+    expect(screen.getByRole('button', { name: 'Create Account' })).toBeInTheDocument()
+  })
+})

@@ -25,6 +25,7 @@ vi.mock('@/queries/me', async (importOriginal) => ({
   useMe: vi.fn(),
 }))
 
+import { showToast } from '@/lib/toast'
 import { useCreateConsultancy } from '@/queries/adminConsultancies'
 import { useAdminColleges } from '@/queries/adminColleges'
 import { useUserSearch } from '@/queries/supportTools'
@@ -146,6 +147,23 @@ describe("the head office's place is all or nothing", () => {
     const body = createMutate.mock.calls[0][0]
     expect(body).toMatchObject({ branch_country: 'Canada', branch_state: 'Ontario' })
     expect(body).not.toHaveProperty('branch_district')
+  })
+})
+
+// T4-32
+describe('after the account is created', () => {
+  it('says an invitation was sent to the first admin', () => {
+    openForm()
+    submit()
+    const options = createMutate.mock.calls[0][1] as { onSuccess: () => void }
+    options.onSuccess()
+    expect(vi.mocked(showToast)).toHaveBeenCalledWith('Blue Ocean created. An invitation was sent to laila@example.com.')
+  })
+
+  it('calls the head office city and street address required in its help text', () => {
+    openForm()
+    expect(screen.getByText(/The city and the street address are/)).toBeInTheDocument()
+    expect(screen.queryByText(/Optional: leave it empty/)).not.toBeInTheDocument()
   })
 })
 
