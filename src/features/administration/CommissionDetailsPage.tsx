@@ -8,7 +8,7 @@ import { Table, type TableColumn } from '@/components/Table'
 import { StopPropagation } from '@/components/StopPropagation'
 import { usePermissionChecker } from '@/lib/permissions'
 import { useAccountWords } from '@/lib/accountWords'
-import { useCommission } from '@/queries/commission'
+import { useCommission, type CommissionDue } from '@/queries/commission'
 import { cursorPager, useCursorPagination } from '@/lib/pagination'
 import { creditsByCurrency, paymentSettlesNote } from '@/features/super-admin/finance/money'
 import { ErrorState, Skeleton } from '@/components/QueryState'
@@ -18,7 +18,6 @@ import { RecordPlatformPaymentModal } from './RecordPlatformPaymentModal'
 import { DueScheduleDrawer } from './commission/DueScheduleDrawer'
 import type { components } from '@/api/schema'
 
-type CommissionDue = components['schemas']['CommissionDue']
 type CommissionPayment = components['schemas']['CommissionPayment']
 type Money = components['schemas']['Money']
 
@@ -40,7 +39,7 @@ function InrAmount({ money }: { money: Money }) {
   )
 }
 
-const TABS = ['Active Cases', 'Payment History'] as const
+const TABS = ['Cases', 'Payment History'] as const
 type Tab = (typeof TABS)[number]
 
 // Consultancy-side payment history (user decision 2026-08-28: moved off the main page onto its
@@ -152,7 +151,7 @@ export function CommissionDetailsPage() {
   const duesPaging = useCursorPagination()
   const historyPaging = useCursorPagination()
   const commission = useCommission({ cursor: duesPaging.cursor, historyCursor: historyPaging.cursor })
-  const [activeTab, setActiveTab] = useState<Tab>('Active Cases')
+  const [activeTab, setActiveTab] = useState<Tab>('Cases')
   const [payingDue, setPayingDue] = useState<CommissionDue | null>(null)
   const [viewingSchedule, setViewingSchedule] = useState<CommissionDue | null>(null)
 
@@ -206,6 +205,9 @@ export function CommissionDetailsPage() {
   const canRecordPayment = can('billing.record_payment')
   // No `meta` = the frozen mock (or an unpaged server): everything is already on screen, no pager.
   const duesPager = cursorPager(duesPaging, data.meta)
+  // Open and closed cases read apart (T4-07): the server says which a row is with `case_closed`.
+  const activeDues = data.dues.filter((due) => !due.case_closed)
+  const closedDues = data.dues.filter((due) => due.case_closed)
   const historyPager = cursorPager(historyPaging, data.history_meta)
 
   const dueColumns: TableColumn<CommissionDue>[] = [
@@ -297,7 +299,14 @@ export function CommissionDetailsPage() {
       key: 'platform_expected',
       header: 'Not yet due',
       align: 'right',
-      render: (due) => <InrAmount money={due.platform_expected ?? { amount: 0, currency: 'INR' }} />,
+      // Net of money paid ahead (T4-07): `platform_expected` alone showed the whole share beside the
+      // same amount as "paid".
+      render: (due) =>
+        due.platform_still_to_come ? (
+          <InrAmount money={due.platform_still_to_come} />
+        ) : (
+          <span className="text-text-secondary">—</span>
+        ),
     },
     {
       key: 'platform_payment',
@@ -306,18 +315,16 @@ export function CommissionDetailsPage() {
       render: (due) => {
         const paid = due.platform_paid.amount ?? 0
         const awaiting = due.platform_awaiting.amount ?? 0
-        // A small difference written off by immiNow Finance (2026-10-08): its own figure beside
-        // what was paid, never inside it.
-        const writtenOff = due.platform_written_off?.amount ?? 0
-        if (paid === 0 && awaiting === 0 && writtenOff === 0 && !due.settled) {
+        // A consultancy is told only whether an amount is open or closed (DECISIONS 126(a)): a
+        // small difference immiNow Finance wrote off is never shown here, as a figure or by name.
+        if (paid === 0 && awaiting === 0 && !due.settled) {
           return <span className="text-text-secondary">—</span>
         }
         return (
           <div className="flex flex-col items-end gap-2xs">
             {paid > 0 && <Badge color="success">{inr(due.platform_paid)} paid</Badge>}
             {awaiting > 0 && <Badge color="secondary">{inr(due.platform_awaiting)} awaiting</Badge>}
-            {writtenOff > 0 && <Badge color="secondary">{inr(due.platform_written_off)} written off</Badge>}
-            {due.settled && <Badge color="info">Settled</Badge>}
+            {due.settled && <Badge color="info">Closed</Badge>}
           </div>
         )
       },
@@ -378,10 +385,10 @@ export function CommissionDetailsPage() {
 
         <TabBar ariaLabel="Commission sections" tabs={TABS.map((tab) => ({ key: tab, label: tab }))} active={activeTab} onChange={setActiveTab} />
 
-        {activeTab === 'Active Cases' && (
+        {activeTab === 'Cases' && (
           <Card>
             <div>
-              <h2 className="text-h3 text-text-primary">Active Cases</h2>
+              <h2 className="text-h3 text-text-primary">Cases</h2>
               <p className="text-caption text-text-secondary">
                 One row per accepted case (or PR contribution). Amounts are held in INR, with your own currency
                 beneath where it differs (approximate — rates are set by hand); per-source detail, in the currency
@@ -390,16 +397,32 @@ export function CommissionDetailsPage() {
                 {canRecordPayment && ' Click a case to record a payment against its due.'}
               </p>
             </div>
+            <h3 className="mt-md text-body font-medium text-text-primary">Active</h3>
             <div className="mt-sm">
               <Table
                 columns={dueColumns}
-                rows={data.dues}
+                rows={activeDues}
                 rowKey={(due) => due.id}
                 emptyMessage="Nothing pending — cases appear here when a college is accepted."
                 onRowClick={canRecordPayment ? (due) => setPayingDue(due) : undefined}
-                pagination={duesPager}
+                pagination={closedDues.length === 0 ? duesPager : undefined}
               />
             </div>
+            {closedDues.length > 0 && (
+              <div className="mt-lg">
+                <h3 className="text-body font-medium text-text-primary">Closed</h3>
+                <div className="mt-sm">
+                  <Table
+                    columns={dueColumns}
+                    rows={closedDues}
+                    rowKey={(due) => due.id}
+                    emptyMessage="No closed cases."
+                    onRowClick={canRecordPayment ? (due) => setPayingDue(due) : undefined}
+                    pagination={duesPager}
+                  />
+                </div>
+              </div>
+            )}
           </Card>
         )}
 

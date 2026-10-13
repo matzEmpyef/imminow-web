@@ -108,14 +108,19 @@ export function HistoryTab() {
     {
       key: 'status',
       header: 'Status',
-      render: (p) =>
-        p.status === 'confirmed' ? (
-          <Badge color="success">Confirmed</Badge>
-        ) : (
-          <span title={p.reject_reason ?? undefined}>
-            <Badge color="error">Rejected</Badge>
-          </span>
-        ),
+      render: (p) => (
+        <div className="flex flex-col items-start gap-xs">
+          {p.status === 'confirmed' ? (
+            <Badge color="success">Confirmed</Badge>
+          ) : (
+            <span title={p.reject_reason ?? undefined}>
+              <Badge color="error">Rejected</Badge>
+            </span>
+          )}
+          {/* Everything Finance typed about this payment, on one line, as served (T4-06). */}
+          {p.reason_text && <span style={{ maxWidth: '20rem' }} className="text-caption text-text-secondary">{p.reason_text}</span>}
+        </div>
+      ),
     },
     { key: 'declared', header: 'Declared', hideBelow: 'sm', render: (p) => formatDate(p.recorded_at) },
     {

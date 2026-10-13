@@ -172,6 +172,13 @@ export function EraseForm({ result, onCancel }: { result: UserSearchResult; onCa
             </ul>
           </div>
         )}
+        {/* A freelancer who is still owed earnings: a warning only, in the server's words (the
+            deletion is never refused for it), above the confirm button. */}
+        {preview.data?.freelancer_owed_notice && (
+          <div role="status" className="rounded-md border border-warning bg-warning/10 p-sm">
+            <p className="text-body-sm text-text-primary">{preview.data.freelancer_owed_notice}</p>
+          </div>
+        )}
         <div className="flex items-center justify-end gap-sm">
           <Button size="sm" variant="secondary" disabled={eraseData.isPending} onClick={() => setConfirming(false)}>
             Go back

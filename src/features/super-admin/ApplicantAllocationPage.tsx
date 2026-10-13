@@ -19,6 +19,7 @@ import { formatDate } from '@/lib/time'
 import { cursorPager, useCursorPagination } from '@/lib/pagination'
 import { showToast } from '@/lib/toast'
 import { DEFAULT_CARRY, movedSentence } from '@/lib/caseCarry'
+import { useAsksAboutAdmission } from '@/queries/applicantCase'
 import { guardianHoldLabel } from '@/lib/guardianGate'
 import type { components } from '@/api/schema'
 
@@ -183,6 +184,8 @@ function AllocateAction({ entry }: { entry: QueueEntry }) {
   const isChange = entry.reason === 'consultancy_change'
   const [carry, setCarry] = useState(DEFAULT_CARRY)
   const allocate = useAllocateApplicant(entry.id!)
+  // A college may already have accepted the student: then the admission is a question too.
+  const asksAdmission = useAsksAboutAdmission(open && isChange ? (entry.journey_id ?? undefined) : undefined)
   const candidates = useAllocationCandidates(entry.id!, open)
   const wants = lookingFor(entry)
   // Under 18 and the guardian has not approved: the server refuses the allocation (409
@@ -283,7 +286,9 @@ function AllocateAction({ entry }: { entry: QueueEntry }) {
               Consultancies serving where they want to go are listed first, then those with the fewest active
               applicants. Institutes are never offered.
             </p>
-            {isChange && <CaseCarryFields value={carry} onChange={setCarry} disabled={allocate.isPending} />}
+            {isChange && (
+              <CaseCarryFields value={carry} onChange={setCarry} disabled={allocate.isPending} askAdmission={asksAdmission} />
+            )}
             {blocked.length > 0 && (
               <div className="flex flex-col gap-xs">
                 <p className="text-caption font-medium text-text-secondary">Not offered</p>

@@ -82,70 +82,83 @@ describe('paymentInrNote', () => {
   })
 })
 
-// Review F-158: the payment history export printed each payment's own-currency amount under
-// "Amount INR". Finance reconciles from this file.
+// Review F-158 and Phase 8 T4-04 to T4-06: Finance reconciles from this file, so it is written from
+// the strings the server serves for each payment (`export`), exactly as they come.
 describe('the payment history export', () => {
   const cad = {
     id: 'p1',
+    export: {
+      date: '03-09-2026',
+      status: 'Confirmed',
+      currency: 'CAD',
+      amount: '1240.60',
+      amount_inr: '76123.00',
+      account: 'Alpha Consult',
+      applicant: 'Asha Nair',
+      reference: 'TXN-1',
+      declared_on: '01-09-2026',
+      decided_on: '03-09-2026',
+      decided_by: 'Finance One',
+      reason: 'Declared as CAD 1,241.00: bank fee | Corrected on 04-09-2026 from CAD 1,241.00 to CAD 1,240.60: the bank sent the amount',
+      settled_in: '',
+      rate_used: '61.3',
+      amount_settled: '',
+    },
+    // The screen's own figures are different on purpose: the file does not read them.
+    amount: { amount: 1, currency: 'CAD' },
     status: 'confirmed',
-    amount: { amount: 1241, currency: 'CAD' },
-    amount_minor: 124060,
-    currency_exponent: 2,
-    amount_inr: 76123,
-    consultancy_name: 'Alpha Consult',
-    applicant_name: 'Asha Nair',
-    transaction_id: 'TXN-1',
-    recorded_at: '2026-09-01',
-    confirmed_at: '2026-09-03',
-    confirmed_by_name: 'Finance One',
   } as unknown as CommissionPayment
   const inrPayment = {
     id: 'p2',
-    status: 'rejected',
-    amount: { amount: 5000, currency: 'INR' },
-    amount_inr: null,
-    consultancy_name: 'Beta, Abroad',
-    applicant_name: null,
-    recorded_at: '2026-09-02',
-    rejected_at: '2026-09-04',
-    rejected_by_name: 'Finance Two',
-    reject_reason: 'Not received',
+    export: {
+      date: '04-09-2026',
+      status: 'Rejected',
+      currency: 'INR',
+      amount: '5000.00',
+      amount_inr: '5000.00',
+      account: 'Beta, Abroad',
+      applicant: '',
+      reference: '',
+      declared_on: '02-09-2026',
+      decided_on: '04-09-2026',
+      decided_by: 'Finance Two',
+      reason: 'Not received',
+      settled_in: '',
+      rate_used: '1',
+      amount_settled: '',
+    },
   } as unknown as CommissionPayment
 
   const [header, first, second] = toCsv([cad, inrPayment], PAYMENT_HISTORY_COLUMNS).split('\r\n')
 
-  it('has currency, amount and rupee amount, then what a cross-currency payment settled', () => {
+  it('has the same columns, in the same order, as before', () => {
     expect(header).toBe(
       'Date,Status,Currency,Amount,Amount INR,Consultancy,Student,Reference,Declared,Confirmed/Rejected,By,Reason,Settled in,Rate used,Amount settled',
     )
   })
 
-  it('puts a CAD payment in CAD, exact to the cent, with its rupee value beside it', () => {
+  it('writes each cell as the server wrote it: two decimals, DD-MM-YYYY, the typed reasons', () => {
     expect(first).toBe(
-      '03-09-2026,confirmed,CAD,1240.6,76123,Alpha Consult,Asha Nair,TXN-1,01-09-2026,03-09-2026,Finance One,,,,',
+      '03-09-2026,Confirmed,CAD,1240.60,76123.00,Alpha Consult,Asha Nair,TXN-1,01-09-2026,03-09-2026,Finance One,"Declared as CAD 1,241.00: bank fee | Corrected on 04-09-2026 from CAD 1,241.00 to CAD 1,240.60: the bank sent the amount",,61.3,',
     )
   })
 
-  it('writes what a payment in another currency settled: the currency of the dues, the rate, the amount', () => {
+  it('quotes a cell that has a comma, and leaves an empty cell empty', () => {
+    expect(second).toBe('04-09-2026,Rejected,INR,5000.00,5000.00,"Beta, Abroad",,,02-09-2026,04-09-2026,Finance Two,Not received,,1,')
+  })
+
+  it('writes what a payment in another currency settled, as served', () => {
     const usd = {
-      ...cad,
-      amount: { amount: 1000, currency: 'USD' },
-      amount_minor: 100000,
-      amount_inr: 83000,
-      settles_currency: 'CAD',
-      settles_rate: 1.4,
-      settled: { amount: 1400, currency: 'CAD' },
+      id: 'p3',
+      export: { ...cad.export!, currency: 'USD', amount: '1000.00', settled_in: 'CAD', rate_used: '1.4', amount_settled: '1400.00' },
     } as unknown as CommissionPayment
     const [, row] = toCsv([usd], PAYMENT_HISTORY_COLUMNS).split('\r\n')
-    expect(row).toBe(
-      '03-09-2026,confirmed,USD,1000,83000,Alpha Consult,Asha Nair,TXN-1,01-09-2026,03-09-2026,Finance One,,CAD,1.4,1400',
-    )
+    expect(row.endsWith(',CAD,1.4,1400.00')).toBe(true)
   })
 
-  it('gives a rupee payment the same figure in both amount columns', () => {
-    expect(second).toBe(
-      '04-09-2026,rejected,INR,5000,5000,"Beta, Abroad",General,,02-09-2026,04-09-2026,Finance Two,Not received,,,',
-    )
+  it('leaves every cell empty for a row that carries no export line, rather than guess', () => {
+    const [, row] = toCsv([{ id: 'p4' } as unknown as CommissionPayment], PAYMENT_HISTORY_COLUMNS).split('\r\n')
+    expect(row).toBe(',,,,,,,,,,,,,,')
   })
 
   it('leaves the rupee column empty, rather than guess, when a foreign payment has no stored equivalent', () => {

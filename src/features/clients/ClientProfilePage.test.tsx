@@ -314,3 +314,22 @@ describe('ClientProfilePage — Reopen Plan refused', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('This plan has no completed step to reopen.')
   })
 })
+
+// Phase 8 (DECISIONS 119 C-8): on Starter the "Full access" designation no longer holds
+// `clients.view_commissions`, so an employee there has no Commissions tab. The tab follows the
+// permissions the server sends; the plan's tier is never read.
+describe('ClientProfilePage — the Commissions tab follows the served permission', () => {
+  it('is hidden for an employee without clients.view_commissions', () => {
+    mockedClient.mockReturnValue(query(baseClient()))
+    mockedPermission.mockImplementation(() => false)
+    renderProfile()
+    expect(screen.queryByRole('tab', { name: 'Commissions' })).not.toBeInTheDocument()
+  })
+
+  it('is shown for a holder of clients.view_commissions', () => {
+    mockedClient.mockReturnValue(query(baseClient()))
+    mockedPermission.mockImplementation((key: string) => key === 'clients.view_commissions')
+    renderProfile()
+    expect(screen.getByRole('tab', { name: 'Commissions' })).toBeInTheDocument()
+  })
+})

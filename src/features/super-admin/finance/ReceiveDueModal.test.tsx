@@ -343,3 +343,44 @@ describe('ReceiveDueModal, decimals', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })
+
+// Phase 8 T4-10: the box offers only the currencies that have an exchange rate today, and prints
+// the rate as the server rounded it for showing.
+describe('ReceiveDueModal, currencies with a rate', () => {
+  const optionsOf = (label: string) =>
+    Array.from((screen.getByLabelText(label) as HTMLSelectElement).options).map((o) => o.value)
+
+  it('offers only the currencies the server says have a rate', () => {
+    vi.mocked(useReceivePreview).mockReturnValue(previewAnswer({ currencies_with_rate: ['CAD', 'GBP', 'INR'] }))
+    open(caseRow(['CAD', 'USD']))
+    expect(optionsOf('Currency')).toEqual(['CAD', 'GBP', 'INR'])
+  })
+
+  it('moves the picker off a currency that is not on the list', () => {
+    vi.mocked(useReceivePreview).mockReturnValue(previewAnswer({ currencies_with_rate: ['GBP', 'INR'] }))
+    open(caseRow(['CAD']))
+    expect((screen.getByLabelText('Currency') as HTMLSelectElement).value).toBe('GBP')
+  })
+
+  it('lists the case’s currencies and the common codes until the server has answered', () => {
+    open(caseRow(['CAD']))
+    expect(optionsOf('Currency')).toContain('USD')
+  })
+
+  it('prints rate_display as served, not the full rate', async () => {
+    vi.mocked(useReceivePreview).mockReturnValue(
+      previewAnswer({
+        currency: 'INR',
+        owed_currency: 'CAD',
+        amount: { amount: 1000, currency: 'INR' },
+        settles: { amount: 14.4, currency: 'CAD' },
+        rate: 0.014400921658986175,
+        rate_display: 0.0144,
+      }),
+    )
+    open()
+    tickOtherCurrency()
+    fireEvent.change(screen.getByLabelText(/Amount received/), { target: { value: '1000' } })
+    expect(await screen.findByText(/\(1 INR = 0\.0144 CAD\)/)).toBeInTheDocument()
+  })
+})

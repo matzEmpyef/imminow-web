@@ -289,3 +289,46 @@ describe('CommissionsTab, a closed case', () => {
     expect(screen.getByRole('button', { name: 'Record Payment' })).toBeInTheDocument()
   })
 })
+
+// Phase 8 T2-01 and T4-07: the tab says what immiNow's share on the case is (as served), and a case
+// that closed without success shows its reversed record read-only, with the payments still listed.
+describe('CommissionsTab, immiNow’s share and a reversed record', () => {
+  const SHARE = 'immiNow’s share on this case is 10% of what you earn on it. ₹10,000.00 has fallen due; ₹4,000.00 is paid.'
+  const REVERSED = 'This case closed without success, so its commission record was cancelled. The payments recorded on it are listed below.'
+
+  it('shows the share note as served, and nothing when none is served', () => {
+    const shown = setup({ summary: { platform_share_note: SHARE } })
+    expect(screen.getByText(SHARE)).toBeInTheDocument()
+    shown.unmount()
+    setup({ summary: { platform_share_note: null } })
+    expect(screen.queryByText(/immiNow’s share on this case/)).toBeNull()
+  })
+
+  it('on a reversed record: the note, a Reversed badge, the payments, and no way to add or void', () => {
+    setup({
+      entry: { ...baseEntry, status: 'reversed' },
+      summary: { reversed: true, reversed_note: REVERSED, recording_allowed: true, case_closed: true },
+    })
+    expect(screen.getByText(REVERSED)).toBeInTheDocument()
+    expect(screen.getByText('Reversed')).toBeInTheDocument()
+    // The recorded payment stays listed.
+    expect(screen.getByText('INR 25,000.00')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Record Payment' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Void' })).toBeNull()
+  })
+
+  it('on a live record: no Reversed badge, and the buttons stay', () => {
+    setup({ summary: { reversed: false, reversed_note: null } })
+    expect(screen.queryByText('Reversed')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Record Payment' })).toBeInTheDocument()
+  })
+
+  it('on a reversed PR record: Void contribution is not offered', () => {
+    setup({
+      entry: { ...baseEntry, case_type: 'pr', status: 'reversed' },
+      client: { case_type: 'pr' },
+      summary: { reversed: true, reversed_note: REVERSED },
+    })
+    expect(screen.queryByRole('button', { name: 'Void contribution' })).toBeNull()
+  })
+})

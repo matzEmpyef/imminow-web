@@ -27,6 +27,9 @@ vi.mock('@/queries/freelancerReferrals', () => ({
         paid_inr: 366,
         owed_inr: 634,
         expected_inr: 1000,
+        still_to_come_inr: 250.5,
+        your_rate_text: 'Your rate is 8% of the commission immiNow receives for each student you refer.',
+        payouts_line: 'immiNow pays what it owes you by bank transfer once it has received its commission.',
         by_payout_status: { not_due: 1, owed: 1, paid: 0 },
         by_stage: { waiting: 0, with_consultancy: 0, plan_complete: 0, succeeded: 1, moved: 0, closed: 1 },
       },
@@ -39,6 +42,14 @@ import { FreelancerDashboardPage } from './FreelancerDashboardPage'
 import { noPaymentsLine } from './payoutWords'
 
 describe('Freelancer referrals', () => {
+  // Phase 8 T2-08: what is still to come, their own rate and the payouts line are the server's.
+  it('shows Still to come to two decimals, with the rate and payouts sentences as served', () => {
+    render(<FreelancerDashboardPage />)
+    expect(screen.getByText('Still to come').parentElement).toHaveTextContent('INR 250.50')
+    expect(screen.getByText('Your rate is 8% of the commission immiNow receives for each student you refer.')).toBeInTheDocument()
+    expect(screen.getByText('immiNow pays what it owes you by bank transfer once it has received its commission.')).toBeInTheDocument()
+  })
+
   it('reads "Nothing due" for a closed case that earned nothing, and keeps "Not due yet" for the chip', () => {
     render(<FreelancerDashboardPage />)
     const row = screen.getByText('Chetan').closest('tr')!

@@ -433,7 +433,7 @@ export function FreelancerDashboardPage() {
 
         {summary && (
           <Card>
-            <div className="grid grid-cols-2 gap-lg sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-lg sm:grid-cols-5">
               <SummaryStat label="Earned so far" value={formatMoney('INR', summary.earned_inr)} />
               <SummaryStat label="Paid to you" value={formatMoney('INR', summary.paid_inr)} />
               <SummaryStat
@@ -441,8 +441,19 @@ export function FreelancerDashboardPage() {
                 value={formatMoney('INR', summary.owed_inr)}
                 tone={summary.owed_inr > 0 ? 'warning' : undefined}
               />
+              {/* The part of the share not earned yet (T2-08), as served: whole rupees, two decimals. */}
+              {summary.still_to_come_inr != null && (
+                <SummaryStat label="Still to come" value={formatMoney('INR', summary.still_to_come_inr)} tone="muted" />
+              )}
               <SummaryStat label="Expected once collected" value={formatMoney('INR', summary.expected_inr)} tone="muted" />
             </div>
+            {/* Their rate and how payouts are made, in the server's words (T2-08). */}
+            {(summary.your_rate_text || summary.payouts_line) && (
+              <div className="mt-md flex flex-col gap-xs border-t border-border pt-md text-body-sm text-text-secondary">
+                {summary.your_rate_text && <p>{summary.your_rate_text}</p>}
+                {summary.payouts_line && <p>{summary.payouts_line}</p>}
+              </div>
+            )}
           </Card>
         )}
 

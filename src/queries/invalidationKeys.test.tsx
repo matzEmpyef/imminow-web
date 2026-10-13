@@ -138,7 +138,7 @@ describe('a lead or case changing hands or standing refreshes the screens that s
     'assigning a client': [() => useAssignClient('c1', 2), (w: { mutateAsync: (v: never) => Promise<unknown> }) => w.mutateAsync('e2' as never)],
     "changing a client's branch": [() => useSetClientBranch(), (w: { mutateAsync: (v: never) => Promise<unknown> }) => w.mutateAsync({ id: 'c1', branchId: 'b2', version: 2 } as never)],
     'closing a case': [() => useCloseClient(), (w: { mutateAsync: (v: never) => Promise<unknown> }) => w.mutateAsync({ id: 'c1', reason: 'Lost contact' } as never)],
-    'reopening a case': [() => useReopenClientCase(), (w: { mutateAsync: (v: never) => Promise<unknown> }) => w.mutateAsync('c1' as never)],
+    'reopening a case': [() => useReopenClientCase(), (w: { mutateAsync: (v: never) => Promise<unknown> }) => w.mutateAsync({ id: 'c1', reason: 'The student came back' } as never)],
     'transferring an applicant': [() => useTransferApplicant('c1'), (w: { mutateAsync: (v: never) => Promise<unknown> }) => w.mutateAsync({ newConsultancyId: 'x', reason: 'Moved city', transferCode: 'ABC123' } as never)],
     'assigning a lead': [() => useAllocateLead(), (w: { mutateAsync: (v: never) => Promise<unknown> }) => w.mutateAsync({ id: 'l1', employeeId: 'e2' } as never)],
     'closing a lead': [() => useCloseLead(), (w: { mutateAsync: (v: never) => Promise<unknown> }) => w.mutateAsync({ id: 'l1', reason: 'No reply' } as never)],

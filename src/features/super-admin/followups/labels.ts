@@ -36,6 +36,10 @@ export const CASE_SIGNAL_LABELS: Record<string, string> = {
   accepted_not_closed: 'Accepted, still open',
   failed_despite_acceptance: 'Closed as a failure despite an acceptance',
   payment_overdue: 'Payment overdue',
+  // Phase 8: the filter's wording for the three newer codes (a row's own badge shows the served label).
+  failed_despite_contribution: 'Failed despite a recorded contribution',
+  moved_with_acceptance: 'Moved with an accepted college',
+  deleted_during_dispute: 'Account deleted while a dispute was open',
 }
 
 export const SERVICE_SIGNAL_LABELS: Record<string, string> = {

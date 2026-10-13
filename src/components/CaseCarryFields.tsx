@@ -12,12 +12,20 @@ export function CaseCarryFields({
   value,
   onChange,
   disabled,
+  askAdmission,
 }: {
   value: CaseCarry
   onChange: (next: CaseCarry) => void
   disabled?: boolean
+  /**
+   * True when a college has already accepted the student: the person moving the case must also say
+   * whether the admission goes to the new consultancy (DECISIONS 117 C-9 and 118). Left out
+   * everywhere else (Transfer Applicant refuses a case with an accepted college).
+   */
+  askAdmission?: boolean
 }) {
   const headingId = useId()
+  const admissionId = useId()
   return (
     <fieldset aria-labelledby={headingId} disabled={disabled} className="flex flex-col gap-sm">
       <div className="flex flex-col gap-xs">
@@ -43,6 +51,34 @@ export function CaseCarryFields({
           </label>
         ))}
       </div>
+      {askAdmission && (
+        <div role="radiogroup" aria-labelledby={admissionId} className="flex flex-col gap-xs">
+          <p id={admissionId} className="text-body-sm font-medium text-text-primary">
+            Does the admission go to the new consultancy too?
+          </p>
+          <div className="flex items-center gap-lg">
+            {[
+              { label: 'Yes', checked: true },
+              { label: 'No', checked: false },
+            ].map((option) => (
+              <label key={option.label} className="flex items-center gap-xs text-body-sm text-text-primary">
+                <input
+                  type="radio"
+                  name={admissionId}
+                  required
+                  checked={Boolean(value.admission) === option.checked}
+                  onChange={() => onChange({ ...value, admission: option.checked })}
+                  className="h-4 w-4 shrink-0 border-border"
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+          <p className="text-caption text-text-secondary">
+            {"If not, the accepted college stays with the first consultancy and immiNow's share of that admission becomes due from it now."}
+          </p>
+        </div>
+      )}
       <p className="text-caption text-text-secondary">The plan, internal notes and commission records never move.</p>
     </fieldset>
   )

@@ -41,7 +41,7 @@ export function RevertAcceptanceModal({
   return (
     <Modal
       onClose={onClose}
-      title="Change Acceptance"
+      title="Undo acceptance"
       widthRem={28}
       footer={
         <>
@@ -54,7 +54,7 @@ export function RevertAcceptanceModal({
               loading={revert.isPending}
               disabled={!reason.trim()}
             >
-              Revert Acceptance
+              Undo acceptance
             </Button>
             <Button type="button" variant="secondary" onClick={onClose}>
               Cancel
@@ -66,7 +66,7 @@ export function RevertAcceptanceModal({
       <form id="revert-acceptance-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <p className="text-body-sm text-text-secondary">
           <strong className="text-text-primary">{courseName}</strong> goes back to Offer received and its commission
-          entry is voided — recorded installments stay in the history. The reason lands in the audit log.
+          entry is voided. The reason lands in the audit log.
         </p>
         <TextField label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
       </form>

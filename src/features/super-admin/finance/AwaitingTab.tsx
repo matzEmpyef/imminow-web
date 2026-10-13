@@ -56,7 +56,17 @@ export function AwaitingTab() {
       ),
     },
     { key: 'consultancy', header: 'Consultancy', render: (p) => p.consultancy_name ?? 'Unknown' },
-    { key: 'case', header: 'Case', render: (p) => p.applicant_name ?? 'General' },
+    {
+      key: 'case',
+      header: 'Case',
+      render: (p) => (
+        <div className="flex flex-col">
+          <span>{p.applicant_name ?? 'General'}</span>
+          {/* What Finance typed about this payment, as served (T4-06). */}
+          {p.reason_text && <span style={{ maxWidth: '20rem' }} className="text-caption text-text-secondary">{p.reason_text}</span>}
+        </div>
+      ),
+    },
     {
       key: 'entry_outstanding',
       header: 'Due now',
@@ -72,7 +82,9 @@ export function AwaitingTab() {
         </span>
       ),
     },
-    { key: 'reference', header: 'Reference', hideBelow: 'md', render: (p) => p.transaction_id ?? '—' },
+    // The reference the consultancy gave (T4-06) — what Finance looks for on the bank statement, so
+    // it is on the row at every width.
+    { key: 'reference', header: 'Reference', render: (p) => p.transaction_id ?? '—' },
     {
       key: 'declared',
       header: 'Declared',

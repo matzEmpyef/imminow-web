@@ -17,6 +17,7 @@ import { RevertAcceptanceModal } from './RevertAcceptanceModal'
 import { CASE_MOVED_ACTION_REASON } from '@/lib/clientStatus'
 import { campusLabel } from '@/lib/campus'
 import { useAccountWords } from '@/lib/accountWords'
+import { useCanUndoAcceptance } from '@/lib/undoAcceptance'
 
 type ApplicationRowData = import('@/api/schema').components['schemas']['Application']
 
@@ -64,6 +65,8 @@ export function ApplicationsTab({
   // A college's own student applies to that college alone, so "Add College" has nothing to offer
   // an institute (T2-07).
   const { isInstitute } = useAccountWords()
+  // "Undo acceptance" is for the admin, the assigned consultant and holders of the permission.
+  const canUndo = useCanUndoAcceptance(client.data?.assigned_employee_id)
   if (colleges.isLoading) return <Skeleton className="h-24 rounded-lg" />
   if (!colleges.data) {
     return <ErrorState message="Could not load selected colleges." onRetry={() => colleges.refetch()} error={colleges.error} />
@@ -158,7 +161,7 @@ export function ApplicationsTab({
           </p>
         </Card>
       )}
-      {/* One fieldset for every row's Mark Applied/Offer Received/Accept/Reject/Change acceptance
+      {/* One fieldset for every row's Mark Applied/Offer Received/Accept/Reject/Undo acceptance
           buttons, rather than threading `readOnly` into each (2026-09-24) — same reasoning as the
           Plan tab's builder wrapper. Rows stay visible and readable either way. */}
       <fieldset disabled={readOnly} className={`m-0 min-w-0 border-0 p-0 ${readOnly ? 'opacity-75' : ''}`}>
@@ -170,6 +173,7 @@ export function ApplicationsTab({
               row={sc}
               acceptedElsewhere={selected.find((o) => o.status === 'accepted' && o.id !== sc.id)?.course.name ?? null}
               journeyPayerMethod={client.data?.payer_method ?? null}
+              canUndoAcceptance={canUndo}
               onAdvance={(status) => updateStatus.mutate({ applicationId: sc.id, status })}
               advanceError={
                 updateStatus.variables?.applicationId === sc.id && updateStatus.isError ? updateStatus.error.message : null
@@ -205,6 +209,7 @@ function ApplicationRow({
   row,
   acceptedElsewhere,
   journeyPayerMethod,
+  canUndoAcceptance,
   onAdvance,
   advanceError,
   advancing,
@@ -216,6 +221,8 @@ function ApplicationRow({
   // the UAT sweep (M4, 2026-08-29) caught the queue offering a click that could never work.
   acceptedElsewhere: string | null
   journeyPayerMethod: 'college' | 'applicant' | 'split' | null
+  /** The admin, the assigned consultant or a holder of `clients.revert_acceptance`. */
+  canUndoAcceptance: boolean
   // `suggested` is not an advance target — the map never yields it, and the PATCH enum
   // rightly excludes it.
   onAdvance: (status: Exclude<CollegeStatus, 'suggested'>) => void
@@ -292,9 +299,9 @@ function ApplicationRow({
                 Rejected
               </Button>
             ))}
-          {status === 'accepted' && (
+          {status === 'accepted' && canUndoAcceptance && (
             <Button size="sm" variant="secondary" onClick={() => setShowRevert(true)}>
-              Change acceptance
+              Undo acceptance
             </Button>
           )}
         </div>
