@@ -3,7 +3,8 @@ import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
-import { useCreateDesignation } from '@/queries/staff'
+import { useCreateDesignation, useDesignations } from '@/queries/staff'
+import { DESIGNATION_NAME_TAKEN, designationNameTaken } from '@/lib/designationName'
 import { activeEmployeeSource } from '@/queries/pickerSources'
 import { showToast } from '@/lib/toast'
 
@@ -11,17 +12,21 @@ import { showToast } from '@/lib/toast'
 // made for Create Applicant/Add Lead/Invite Employee/Add Branch.
 export function CreateDesignationModal({ onClose }: { onClose: () => void }) {
   const createDesignation = useCreateDesignation()
+  const existing = useDesignations()
   const [name, setName] = useState('')
   const [duplicateFrom, setDuplicateFrom] = useState('')
 
+  // Checked against the list already loaded for the page; shown as soon as the name is typed.
+  const nameTaken = designationNameTaken(name, existing.data)
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!name) return
+    if (!name.trim() || nameTaken) return
     createDesignation.mutate(
-      { name, duplicate_from_employee_id: duplicateFrom || undefined },
+      { name: name.trim(), duplicate_from_employee_id: duplicateFrom || undefined },
       {
         onSuccess: () => {
-          showToast(`${name} designation created`)
+          showToast(`${name.trim()} designation created`)
           onClose()
         },
       },
@@ -38,14 +43,20 @@ export function CreateDesignationModal({ onClose }: { onClose: () => void }) {
           {createDesignation.isError && (
             <p className="mr-auto self-center text-body-sm text-error">{createDesignation.error.message}</p>
           )}
-          <Button type="submit" form="create-designation-form" loading={createDesignation.isPending} disabled={!name}>
+          <Button type="submit" form="create-designation-form" loading={createDesignation.isPending} disabled={!name.trim() || nameTaken}>
             Create
           </Button>
         </>
       }
     >
       <form id="create-designation-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
-        <TextField label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <TextField
+          label="Name"
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          error={nameTaken ? DESIGNATION_NAME_TAKEN : undefined}
+        />
         {/* Optional. Searched on the server (review F-036, lane x), so any colleague can be the
             starting point, not only the first hundred on the roster. */}
         <div className="flex flex-col gap-xs">
