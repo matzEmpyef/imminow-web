@@ -67,6 +67,8 @@ function employee(n: number, overrides: Partial<Row> = {}): Row {
       designation: 'Counsellor',
       email: `staff${n}@example.test`,
       phone: null,
+      // Someone who has worked here: an unsigned-in row reads "Invited" (T1-13).
+      last_login_at: '2026-10-01T09:00:00Z',
     },
     ...overrides,
   }
