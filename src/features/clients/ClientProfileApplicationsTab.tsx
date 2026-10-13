@@ -1,5 +1,7 @@
 // Split out of ClientProfilePage.tsx (Phase 3 plan, Tier B1, 2026-09-03) — pure movement, no logic change.
-import { useState } from 'react'
+import { NotPartnerNotice } from './NotPartnerNotice'
+import { usePartnerStatus } from './partnerStatus'
+import { Fragment, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { GraduationCap, Search } from 'lucide-react'
 import { Card } from '@/components/Card'
@@ -14,6 +16,7 @@ import { AcceptCollegeModal } from './AcceptCollegeModal'
 import { RevertAcceptanceModal } from './RevertAcceptanceModal'
 import { CASE_MOVED_ACTION_REASON } from '@/lib/clientStatus'
 import { campusLabel } from '@/lib/campus'
+import { useAccountWords } from '@/lib/accountWords'
 
 type ApplicationRowData = import('@/api/schema').components['schemas']['Application']
 
@@ -44,23 +47,35 @@ const COLLEGE_NEXT_STEPS: Record<CollegeStatus, CollegeStatus[]> = {
   rejected: [],
 }
 
-export function ApplicationsTab({ clientId, readOnly = false }: { clientId: string; readOnly?: boolean }) {
+export function ApplicationsTab({
+  clientId,
+  readOnly = false,
+  readOnlyReason = CASE_MOVED_ACTION_REASON,
+}: {
+  clientId: string
+  readOnly?: boolean
+  /** Why the controls are off (T4-11): closed, completed, in dispute or moved. */
+  readOnlyReason?: string
+}) {
   const client = useClient(clientId)
   const colleges = useApplications(clientId)
   const updateStatus = useUpdateApplication(clientId)
   const [showAddCollege, setShowAddCollege] = useState(false)
+  // A college's own student applies to that college alone, so "Add College" has nothing to offer
+  // an institute (T2-07).
+  const { isInstitute } = useAccountWords()
   if (colleges.isLoading) return <Skeleton className="h-24 rounded-lg" />
   if (!colleges.data) {
     return <ErrorState message="Could not load selected colleges." onRetry={() => colleges.refetch()} error={colleges.error} />
   }
 
-  const addCollegeButton = (
+  const addCollegeButton = isInstitute ? null : (
     <div className="flex justify-end">
       <Button
         variant="secondary"
         onClick={() => setShowAddCollege(true)}
         disabled={readOnly}
-        title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
+        title={readOnly ? readOnlyReason : undefined}
       >
         Add College
       </Button>
@@ -169,6 +184,18 @@ export function ApplicationsTab({ clientId, readOnly = false }: { clientId: stri
   )
 }
 
+// The parts of a line with a dot between each pair and none at either end.
+function joinWithDots(parts: { key: string; node: ReactNode }[]): ReactNode {
+  return parts
+    .filter((part) => part.node != null && part.node !== '')
+    .map((part, index) => (
+      <Fragment key={part.key}>
+        {index > 0 && ' · '}
+        {part.node}
+      </Fragment>
+    ))
+}
+
 // One college's row: status pill + only the moves the forward-only lifecycle allows from here.
 // Accepting never fires directly — it opens the Accept popup, which is where the money
 // agreement (and thus the commission entry) is captured. Rejecting is terminal, so it takes a
@@ -196,11 +223,17 @@ function ApplicationRow({
   advancing: boolean
 }) {
   const [showAccept, setShowAccept] = useState(false)
+  const partner = usePartnerStatus(row.course.college_id)
   const [showRevert, setShowRevert] = useState(false)
   const [confirmReject, setConfirmReject] = useState(false)
   const status = row.status as CollegeStatus
   const info = COLLEGE_STATUS_INFO[status] ?? { label: row.status, color: 'secondary' as const }
   const nextSteps = COLLEGE_NEXT_STEPS[status] ?? []
+  const campusName = row.campus ? campusLabel(row.campus) : ''
+  const fee = row.course.fee?.amount == null ? '' : formatMoney(row.course.fee.currency, row.course.fee.amount)
+  const feeText = fee
+    ? `${fee}${formatFeeApprox(row.course.fee_display) ? ` (${formatFeeApprox(row.course.fee_display)})` : ''}`
+    : ''
 
   return (
     <Card className="flex flex-col gap-sm">
@@ -208,27 +241,15 @@ function ApplicationRow({
         <div>
           <p className="text-body font-medium text-text-primary">{row.course.name}</p>
           <p className="text-caption text-text-secondary">
-            {row.course.college_name}
-            {/* Which campus this application is for (2026-09-16) — named here because the offer
-                will name it, and a consultant scanning ten clients should not have to open a row
-                to see where each one is applying. Absent on rows created before the field. */}
-            {row.campus && (
-              <>
-                {' · '}
-                <span className="font-medium text-text-primary">
-                  {campusLabel(row.campus)}
-                </span>
-              </>
-            )}
-            {row.course.country && (
-              <>
-                {' · '}
-                <CountryLabel name={row.course.country} />
-              </>
-            )}{' '}
-            ·{' '}
-            {formatMoney(row.course.fee?.currency, row.course.fee?.amount)}
-            {formatFeeApprox(row.course.fee_display) && ` (${formatFeeApprox(row.course.fee_display)})`}
+            {/* Each part is listed only when it has something to say, and the dots go between the
+                parts that are there, so an empty campus or fee leaves no stray separator (T4-35).
+                The campus (2026-09-16) is named here because the offer will name it. */}
+            {joinWithDots([
+              { key: 'college', node: row.course.college_name },
+              { key: 'campus', node: campusName ? <span className="font-medium text-text-primary">{campusName}</span> : null },
+              { key: 'country', node: row.course.country ? <CountryLabel name={row.course.country} /> : null },
+              { key: 'fee', node: feeText || null },
+            ])}
           </p>
         </div>
         <div className="flex items-center gap-sm">
@@ -278,6 +299,10 @@ function ApplicationRow({
           )}
         </div>
       </div>
+      {/* T4-19: said as soon as the offer is marked, not at the last click of Accept. */}
+      {partner === 'not-partner' && (status === 'offer_received' || status === 'applied') && (
+        <NotPartnerNotice collegeName={row.course.college_name} />
+      )}
       {advanceError && <p className="text-body-sm text-error">{advanceError}</p>}
       {showAccept && (
         <AcceptCollegeModal

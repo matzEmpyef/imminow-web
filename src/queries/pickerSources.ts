@@ -1,4 +1,5 @@
 import { api } from '@/api/client'
+import { collegePlaceLine } from '@/lib/campus'
 import type { components } from '@/api/schema'
 import type { ServerSearchSource } from '@/lib/useServerSearch'
 import { ApiError } from './auth'
@@ -143,7 +144,7 @@ export const collegeSource: ServerSearchSource<College> = {
     if (error) throw new ApiError('Could not load this college.', error)
     return data ?? null
   },
-  toOption: (c) => ({ id: c.id, label: c.name }),
+  toOption: (c) => ({ id: c.id, label: c.name, sublabel: collegePlaceLine(c) || undefined }),
 }
 
 /** Colleges with their course count, for the two pickers that tie an institute to its college. */
@@ -152,7 +153,10 @@ export const collegeWithCoursesSource: ServerSearchSource<College> = {
   toOption: (c) => ({
     id: c.id,
     label: c.name,
-    sublabel: c.course_count != null ? `${c.course_count} course${c.course_count === 1 ? '' : 's'}` : undefined,
+    sublabel:
+      [collegePlaceLine(c), c.course_count != null ? `${c.course_count} course${c.course_count === 1 ? '' : 's'}` : '']
+        .filter(Boolean)
+        .join(' · ') || undefined,
   }),
 }
 

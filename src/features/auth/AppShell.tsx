@@ -204,6 +204,7 @@ const SECTIONS: GatedSection[] = [
         path: '/administration/consultancy-profile',
         icon: Building2,
         permission: 'settings.edit_profile',
+        instituteLabel: 'Institute Management',
       },
       {
         label: 'Reviews',

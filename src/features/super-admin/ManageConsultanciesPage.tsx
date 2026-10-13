@@ -36,7 +36,7 @@ import { formatDate, localDateISO } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 import { formatMoney } from '@/lib/money'
 import { useCurrencyCodes } from '@/lib/currencies'
-import { CONSULTANCY_PLAN_COLUMNS, useCanSeeConsultancyPlans } from '@/lib/me'
+import { CONSULTANCY_PLAN_COLUMNS, useCanSeeConsultancyPlans, useIsSuperAdmin, usePlatformPermission } from '@/lib/me'
 import { KycSection } from './ManageConsultancyKyc'
 import { KYC_BADGE } from './kycBadge'
 import type { components } from '@/api/schema'
@@ -1364,6 +1364,9 @@ export function ManageConsultanciesPage() {
   // Performance League links here with ?manage=<id> to open one account straight away.
   const [managingId, setManagingId] = useState<string | null>(searchParams.get('manage'))
   const [creating, setCreating] = useState(false)
+  const isSuperAdmin = useIsSuperAdmin()
+  const hasApprovalGrant = usePlatformPermission('consultancy_approval')
+  const canCreateAccount = isSuperAdmin || hasApprovalGrant
   const paging = useCursorPagination()
   // Plan data is sent only to accounts holding `consultancy_approval` or `finance` (review
   // F-129/F-130). Without either, the plan columns, the Plan and Status filters and the plan sorts
@@ -1585,7 +1588,9 @@ export function ManageConsultanciesPage() {
           {/* "Account" rather than "Consultancy" since 2026-09-10: the same form now creates
               institute accounts (D6), and a button that names one of the two kinds would hide
               the other. The page keeps its name — an institute IS a consultancy record. */}
-          <Button onClick={() => setCreating(true)}>Create Account</Button>
+          {/* The server needs the consultancy-approval grant to create an account (Finance has not
+              got it), so the button is not offered to anyone it would refuse (T4-32). */}
+          {canCreateAccount && <Button onClick={() => setCreating(true)}>Create Account</Button>}
         </div>
 
         {creating && <CreateConsultancyModal onClose={() => setCreating(false)} />}

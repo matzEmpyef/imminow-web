@@ -103,6 +103,11 @@ export function AssignPlanModal({ clientId, onClose }: { clientId: string; onClo
                 label="Call this plan"
                 required
                 value={name}
+                // The name starts as the template's; selecting it on entry means typing replaces it
+                // instead of running on after it ("Study AbroadIreland Study Plan", T4-16).
+                onFocus={(e) => {
+                  if (!nameEdited) e.currentTarget.select()
+                }}
                 onChange={(e) => {
                   setNameEdited(true)
                   setName(e.target.value)

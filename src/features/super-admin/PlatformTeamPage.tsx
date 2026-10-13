@@ -343,6 +343,7 @@ function ReasonModal({
   title,
   description,
   confirmLabel,
+  closeLabel = 'Cancel',
   variant = 'primary',
   pending,
   error,
@@ -352,6 +353,8 @@ function ReasonModal({
   title: string
   description: string
   confirmLabel: string
+  /** The way out, when "Cancel" would read like part of the question. */
+  closeLabel?: string
   variant?: 'primary' | 'destructive'
   pending: boolean
   error?: string
@@ -379,7 +382,7 @@ function ReasonModal({
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
-            Cancel
+            {closeLabel}
           </Button>
           <Button variant={variant} loading={pending} onClick={handleConfirm}>
             {confirmLabel}
@@ -576,8 +579,9 @@ function StaffDrawerBody({ staff, currentUserId }: { staff: PlatformStaff; curre
             ) : isSelf ? (
               <p className="text-caption text-text-secondary">You can&rsquo;t disable your own account.</p>
             ) : (
+              // T4-20: an invitation that has not been accepted is cancelled, not "disabled".
               <Button variant="destructive" size="sm" onClick={() => setConfirmingDisable(true)}>
-                Disable account
+                {status === 'invited' ? 'Cancel invitation' : 'Disable account'}
               </Button>
             )}
           </div>
@@ -587,9 +591,14 @@ function StaffDrawerBody({ staff, currentUserId }: { staff: PlatformStaff; curre
 
       {confirmingDisable && (
         <ReasonModal
-          title="Disable account"
-          description={`Disable ${staff.name}? They'll lose platform access immediately, and their session ends at once.`}
-          confirmLabel="Disable"
+          title={status === 'invited' ? 'Cancel invitation' : 'Disable account'}
+          description={
+            status === 'invited'
+              ? `Cancel the invitation to ${staff.name}? They have not joined yet and will not get platform access.`
+              : `Disable ${staff.name}? They'll lose platform access immediately, and their session ends at once.`
+          }
+          confirmLabel={status === 'invited' ? 'Cancel invitation' : 'Disable'}
+          closeLabel={status === 'invited' ? 'Keep invitation' : 'Cancel'}
           variant="destructive"
           pending={disableStaff.isPending}
           error={disableStaff.isError ? disableStaff.error.message : undefined}

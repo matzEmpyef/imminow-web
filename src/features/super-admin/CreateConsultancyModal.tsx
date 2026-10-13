@@ -203,7 +203,13 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
         onError: settle,
         onSuccess: () => {
           onClose()
-          showToast(`${name} created`)
+          // Says what happened to the first admin too (T4-32): an invitation went out, or an
+          // existing login was attached and no invitation was needed.
+          showToast(
+            adminMode === 'invite'
+              ? `${name} created. An invitation was sent to ${adminEmail}.`
+              : `${name} created. ${adminUser?.name ?? 'The chosen person'} is now its admin; no invitation was needed.`,
+          )
         },
       },
     )
@@ -393,11 +399,11 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
             caption={
               <>
                 Students find a {kindNoun.toLowerCase()} by how near its office is &mdash; same city first, then
-                district, then state, then country &mdash; so an office with no place here is never offered that way,
-                and never appears in a location filter. Optional: leave it empty to get the account onboarded now, and
-                the head office shows as unfilled on its own Branches page until someone completes it. Fill it in and{' '}
-                <strong>all of it</strong> is needed &mdash; a country needs its state, and an Indian state needs its
-                district.
+                district, then state, then country. The city and the street address are{' '}
+                <strong>required</strong>. The country, state and district are not, but they go together: a country
+                needs its state, and an Indian state needs its district. An office without them is never offered by
+                nearness and does not appear in a location filter, and its Branches page shows it as unfilled until
+                someone completes it.
               </>
             }
           />

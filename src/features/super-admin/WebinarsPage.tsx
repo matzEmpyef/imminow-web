@@ -350,11 +350,15 @@ export function WebinarsPage() {
     {
       key: 'meeting_platform',
       header: 'Type',
-      render: (e) => (
-        <Badge color="info" className="capitalize">
-          {e.meeting_platform?.replace('_', ' ')}
-        </Badge>
-      ),
+      // A webinar with no platform chosen reads "Not chosen", not an empty badge (T4-35).
+      render: (e) =>
+        e.meeting_platform ? (
+          <Badge color="info" className="capitalize">
+            {e.meeting_platform.replace('_', ' ')}
+          </Badge>
+        ) : (
+          <span className="text-text-secondary">Not chosen</span>
+        ),
     },
     { key: 'starts_at', header: 'Starts', sortable: true, render: (e) => formatEventDateTime(e) },
     {

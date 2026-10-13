@@ -193,7 +193,8 @@ export function TrendingCoursesPage() {
             </Button>
           )}
           {save.isError && <p className="text-body-sm text-error">{save.error.message}</p>}
-          {!dirty && !save.isPending && <p className="text-body-sm text-text-secondary">Saved.</p>}
+          {/* Only after a save made on this page; on an untouched page there is nothing to confirm (T4-35). */}
+          {!dirty && save.isSuccess && <p className="text-body-sm text-text-secondary">Saved.</p>}
         </div>
       </div>
     </AdminShell>

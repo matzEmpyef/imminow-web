@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/QueryState'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDate, localDateISO } from '@/lib/time'
 import { formatMoney, formatMoneyAmount } from '@/lib/money'
+import { PAYOUT_LABEL, noPaymentsLine, payoutLabel } from './payoutWords'
 import {
   fetchAllFreelancerReferrals,
   useFreelancerMe,
@@ -44,7 +45,6 @@ const STAGE_BADGE_COLOR: Record<Stage, 'success' | 'secondary' | 'info'> = {
 
 const PAYOUT_ORDER = ['not_due', 'owed', 'paid'] as const
 type PayoutStatus = (typeof PAYOUT_ORDER)[number]
-const PAYOUT_LABEL: Record<PayoutStatus, string> = { not_due: 'Not due yet', owed: 'Owed', paid: 'Paid' }
 const PAYOUT_BADGE_COLOR: Record<PayoutStatus, 'secondary' | 'warning' | 'success'> = {
   not_due: 'secondary',
   owed: 'warning',
@@ -78,7 +78,7 @@ const REFERRAL_CSV_COLUMNS: CsvColumn<FreelancerReferral>[] = [
   { header: 'Earned', value: (r) => formatMoney('INR', r.earned_inr ?? 0) },
   { header: 'Paid', value: (r) => formatMoney('INR', r.paid_inr ?? 0) },
   { header: 'Owed', value: (r) => formatMoney('INR', r.owed_inr ?? 0) },
-  { header: 'Payout', value: (r) => PAYOUT_LABEL[r.payout_status ?? 'not_due'] },
+  { header: 'Payout', value: (r) => payoutLabel(r) },
 ]
 
 /**
@@ -259,9 +259,7 @@ function ReferralDrawer({ referral, onClose }: { referral: FreelancerReferral | 
             {detail.isLoading && <Skeleton className="h-16 rounded-md" />}
             {detail.isError && <p className="text-body-sm text-error">Could not load payments.</p>}
             {!detail.isLoading && !detail.isError && payouts.length === 0 && (
-              <p className="text-body-sm text-text-secondary">
-                No payments yet — you&rsquo;re paid once immiNow has been paid for this student.
-              </p>
+              <p className="text-body-sm text-text-secondary">{noPaymentsLine(referral)}</p>
             )}
             {!detail.isLoading && !detail.isError && payouts.length > 0 && (
               <ul className="flex flex-col gap-sm">
@@ -376,7 +374,6 @@ export function FreelancerDashboardPage() {
       header: 'Your share',
       sortable: true,
       align: 'right',
-      hideBelow: 'md',
       render: (r) =>
         !r.commission ? (
           <span className="text-text-secondary">—</span>
@@ -397,7 +394,6 @@ export function FreelancerDashboardPage() {
       key: 'paid_inr',
       header: 'Paid',
       align: 'right',
-      hideBelow: 'md',
       render: (r) => <span className="tabular-nums text-text-primary">{formatMoney('INR', r.paid_inr ?? 0)}</span>,
     },
     {
@@ -416,7 +412,7 @@ export function FreelancerDashboardPage() {
       header: 'Payout',
       render: (r) => {
         const p = r.payout_status ?? 'not_due'
-        return <Badge color={PAYOUT_BADGE_COLOR[p]}>{PAYOUT_LABEL[p]}</Badge>
+        return <Badge color={PAYOUT_BADGE_COLOR[p]}>{payoutLabel(r)}</Badge>
       },
     },
   ]

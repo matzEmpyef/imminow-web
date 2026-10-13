@@ -8,6 +8,8 @@ import { TextField } from '@/components/TextField'
 import { SelectField } from '@/components/SelectField'
 import { useCommissionSuggestion, useUpdateApplication, type AcceptCommissionBody } from '@/queries/clients'
 import { usePartnerColleges } from '@/queries/partnerColleges'
+import { NotPartnerNotice } from './NotPartnerNotice'
+import { useAccountWords } from '@/lib/accountWords'
 import { MONTHS } from '@/features/super-admin/courseFormShared'
 import { useCurrencyCodes } from '@/lib/currencies'
 import { formatMoney } from '@/lib/money'
@@ -67,6 +69,7 @@ export function AcceptCollegeModal({
   const partnerColleges = usePartnerColleges()
 
   const course = row.course
+  const { isInstitute } = useAccountWords()
   // No INR fallback (assumptions audit C5, approved 2026-09-19). When the course fee carries a
   // currency the college pays in it, read-only as before; when it does not, the field becomes an
   // ordinary required picker instead of silently recording a UK college's commission in rupees.
@@ -76,6 +79,8 @@ export function AcceptCollegeModal({
   // Partner Colleges relation's, resolved the same way the server will at accept time.
   const relation = partnerColleges.data?.find((cc) => cc.college_id === course.college_id && cc.active !== false)
   const payerMethod: PayerMethod | null = journeyPayerMethod ?? relation?.payer_method ?? null
+  // The server refuses an acceptance from a college that is not a Partner College; say so first.
+  const notPartner = !isInstitute && partnerColleges.data !== undefined && !relation
 
   // Nearest intake month, editable. Year: derived from the intake's own application_deadline
   // when there is one (2026-08-29 fix) — the deadline is authoritative about which year's
@@ -147,7 +152,7 @@ export function AcceptCollegeModal({
   const collegeMessage = serverMoneyMessage(updateStatus.error, 'expected_from_college.amount')
   const studentMessage = serverMoneyMessage(updateStatus.error, 'expected_from_student.amount')
   const canSubmit =
-    payerMethod != null && !missingCommissionPercent && collegeOk && studentOk && startMonth !== '' && !updateStatus.isPending
+    payerMethod != null && !notPartner && !missingCommissionPercent && collegeOk && studentOk && startMonth !== '' && !updateStatus.isPending
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -204,7 +209,12 @@ export function AcceptCollegeModal({
           {payerMethod && <Badge color="info">{PAYER_LABELS[payerMethod]}</Badge>}
         </div>
 
-        {payerMethod == null ? (
+        {notPartner ? (
+          <NotPartnerNotice
+            collegeName={course.college_name}
+            className="rounded-lg bg-warning-subtle p-md text-body-sm text-warning"
+          />
+        ) : payerMethod == null ? (
           <p className="rounded-lg bg-warning-subtle p-md text-body-sm text-warning">
             This journey has no payer method yet. Add {course.college_name ?? 'this college'} to Partner Colleges (with
             a payer method) first — the agreement can't be priced without one.

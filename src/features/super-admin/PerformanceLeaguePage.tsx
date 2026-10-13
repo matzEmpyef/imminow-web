@@ -103,8 +103,10 @@ export function PerformanceLeaguePage() {
       header: responseHours != null ? `Replied within ${responseHours}h` : 'Replied on time',
       sortable: true,
       align: 'right',
+      // No leads in the window means there is nothing to judge, whatever percentage came with it
+      // (T4-34): "Below 80%" was shown for accounts that had received none.
       render: (r) =>
-        r.responded_within_percent == null ? (
+        r.responded_within_percent == null || r.leads_received === 0 ? (
           <span className="whitespace-nowrap text-text-secondary">Nothing to judge yet</span>
         ) : (
           <span className="flex flex-col items-end">

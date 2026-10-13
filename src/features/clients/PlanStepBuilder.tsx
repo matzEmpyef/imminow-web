@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { stepStateColor, stepStateLabel } from '@/lib/stepWords'
 import { useQueryClient } from '@tanstack/react-query'
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -165,7 +166,6 @@ function StepApprovalActions({ step, clientId, readOnly }: { step: Step; clientI
   )
 }
 
-const STATUS_COLOR = { locked: 'secondary', active: 'info', done: 'success' } as const
 
 // A live Step edits its date, not a duration count (`Step.expected_end_date`, unlike
 // `StepTemplateInput.expected_duration_days`) — its own small modal rather than reusing the
@@ -345,7 +345,7 @@ function LiveStepRow({
         </p>
         {waiting && <p className="text-caption text-text-secondary">{waitingStepNote(step)}</p>}
       </div>
-      <Badge color={STATUS_COLOR[step.status]}>{step.status}</Badge>
+      <Badge color={stepStateColor(step)}>{stepStateLabel(step)}</Badge>
       {waiting && (
         <StopPropagation>
           <button
@@ -438,7 +438,7 @@ function LiveStepPreviewRow({
         <span className="block truncate text-body-sm font-medium text-text-primary">{step.title}</span>
         {isWaitingStep(step) && <span className="block text-caption text-text-secondary">{waitingStepNote(step)}</span>}
       </span>
-      <Badge color={STATUS_COLOR[step.status]}>{step.status}</Badge>
+      <Badge color={stepStateColor(step)}>{stepStateLabel(step)}</Badge>
     </button>
   )
 }
@@ -654,7 +654,7 @@ export function PlanStepBuilder({
                   {selectedIndex + 1}
                 </span>
                 <p className="flex-1 text-h3 text-text-primary">{selectedStep.title}</p>
-                <Badge color={STATUS_COLOR[selectedStep.status]}>{selectedStep.status}</Badge>
+                <Badge color={stepStateColor(selectedStep)}>{stepStateLabel(selectedStep)}</Badge>
                 {canEditStepDate && (
                   <button
                     type="button"

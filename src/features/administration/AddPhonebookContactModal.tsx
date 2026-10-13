@@ -6,6 +6,7 @@ import { Combobox } from '@/components/Combobox'
 import { useCreatePhonebookContact, useUpdatePhonebookContact } from '@/queries/phonebook'
 import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
 import { showToast } from '@/lib/toast'
+import { StillNeeded } from '@/components/StillNeeded'
 
 // `categories` populates the Category combobox's dropdown — existing categories are pickable
 // like a normal select, but typing something new and pressing Enter (or clicking "+ Add") just
@@ -32,14 +33,15 @@ export function AddPhonebookContactModal({
 
   const phoneError = phone && !isValidPhone(phone) ? PHONE_ERROR : undefined
   const emailError = email && !isValidEmail(email) ? EMAIL_ERROR : undefined
-  const canSubmit = Boolean(name && category && phone) && !phoneError && !emailError
+  const canSubmit = Boolean(name.trim() && category.trim() && phone) && !phoneError && !emailError
+  const stillNeeded = [...(name.trim() ? [] : ['a name']), ...(category.trim() ? [] : ['a category']), ...(phone ? [] : ['a phone number'])]
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
     save.mutate(
       // Editing sends the email as it stands, an empty one included, so a removed email is saved.
-      { name, category, phone, email: contact ? email : email || undefined },
+      { name: name.trim(), category: category.trim(), phone, email: contact ? email : email || undefined },
       {
         onSuccess: () => {
           showToast(contact ? `${name} saved` : `${name} added to phonebook`)
@@ -56,6 +58,7 @@ export function AddPhonebookContactModal({
       footer={
         <>
           {save.isError && <p className="mr-auto self-center text-body-sm text-error">{save.error.message}</p>}
+          <StillNeeded items={stillNeeded} />
           <Button type="submit" form="add-phonebook-contact-form" loading={save.isPending} disabled={!canSubmit}>
             {contact ? 'Save' : 'Add Contact'}
           </Button>
@@ -64,7 +67,7 @@ export function AddPhonebookContactModal({
     >
       <form id="add-phonebook-contact-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
-        <Combobox label="Category" value={category} onChange={setCategory} options={categories} required />
+        <Combobox label="Category" value={category} onChange={setCategory} options={categories} required commitWhileTyping />
         <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} error={phoneError} required />
         <TextField
           label="Email"

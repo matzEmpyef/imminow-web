@@ -1,4 +1,5 @@
 import { auditActionLabel } from '@/lib/auditActions'
+import { entityWord, entryTitle } from '@/lib/auditWords'
 import { useState } from 'react'
 import { AUDIT_SEARCH_HINT, AUDIT_SEARCH_PLACEHOLDER, AuditEntryDetail } from './AuditEntryDetail'
 import { AuditDateRange, AuditWindowNote } from './AuditDateRange'
@@ -8,7 +9,7 @@ import { Card } from '@/components/Card'
 import { ApiError } from '@/api/errors'
 import { Table, type TableColumn } from '@/components/Table'
 import { CompactSelect } from '@/components/CompactSelect'
-import { AUDIT_AREAS, useAuditLog, type AuditLogFilters } from '@/queries/auditLog'
+import { CONSULTANCY_AUDIT_AREAS, useAuditLog, type AuditLogFilters } from '@/queries/auditLog'
 import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { anyEmployeeSource } from '@/queries/pickerSources'
 import { useCursorPagination } from '@/lib/pagination'
@@ -31,6 +32,8 @@ function labelize(value: string): string {
 function actionLabel(action: string): string {
   return auditActionLabel(action) ?? labelize(action)
 }
+
+const AUDIT_PAGE_SIZE = 20
 
 type Entry = NonNullable<ReturnType<typeof useAuditLog>['data']>['items'][number]
 
@@ -60,7 +63,7 @@ export function AuditLogPage() {
     search: search || undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
     cursor: paging.cursor,
-    limit: 20,
+    limit: AUDIT_PAGE_SIZE,
   })
 
   const columns: TableColumn<Entry>[] = [
@@ -70,7 +73,8 @@ export function AuditLogPage() {
       sortable: true,
       render: (e) => (
         <Badge color={ACTION_COLORS[e.action_type as keyof typeof ACTION_COLORS] ?? 'secondary'}>
-          {actionLabel(e.action_type)}
+          {/* A case closing reads "Case closed", not "Update" (T4-24). */}
+          {entryTitle(e as Parameters<typeof entryTitle>[0]) ?? actionLabel(e.action_type)}
         </Badge>
       ),
     },
@@ -85,7 +89,7 @@ export function AuditLogPage() {
       header: 'Entity',
       render: (e) => (
         <span className="text-text-primary">
-          {labelize(e.entity_type)}
+          {entityWord(e.entity_type)}
           {e.entity_label ? ` — ${e.entity_label}` : ''}
         </span>
       ),
@@ -193,7 +197,7 @@ export function AuditLogPage() {
                 label="Area"
               >
                 <option value="">Any area</option>
-                {AUDIT_AREAS.map((a) => (
+                {CONSULTANCY_AUDIT_AREAS.map((a) => (
                   <option key={a} value={a}>
                     {labelize(a)}
                   </option>
@@ -214,7 +218,9 @@ export function AuditLogPage() {
             </>
           }
           pagination={{
-            hasNext: Boolean(entries.data?.meta.next_cursor),
+            // A page shorter than the limit is the last one, whatever cursor came with it (T4-24):
+            // "Next" used to stay on and show the same page again.
+            hasNext: Boolean(entries.data?.meta.next_cursor) && (entries.data?.items.length ?? 0) >= AUDIT_PAGE_SIZE,
             hasPrevious: paging.hasPrevious,
             onNext: () => entries.data?.meta.next_cursor && paging.next(entries.data.meta.next_cursor),
             onPrevious: paging.previous,

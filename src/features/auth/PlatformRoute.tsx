@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { SessionGate } from '@/features/auth/SessionGate'
 import { AdminShell } from '@/features/auth/AdminShell'
 import { NoAccessCard } from '@/components/NoAccessCard'
+import { PageNotFound } from '@/components/PageNotFound'
 import { scopeHomePath } from '@/lib/roleHome'
 import type { components } from '@/api/schema'
 
@@ -32,6 +33,8 @@ export function PlatformRoute({
         // Not a platform account at all — send them to THEIR OWN shell (H4 fix, 1 Sep 2026): this
         // used to hardcode `/dashboard`, which bounced a Freelancer into the consultancy shell
         // they can't use either.
+        // A freelancer typing a platform address is told there is nothing there (T4-36).
+        if (me.scope === 'freelancer') return <PageNotFound homePath={scopeHomePath(me.scope)} />
         if (me.scope !== 'platform') return <Navigate to={scopeHomePath(me.scope)} replace />
         // Read from `GET /me` on every visit (review F-036), not from a copy made at sign-in, so
         // a grant taken away stops opening its pages without a new sign-in.

@@ -141,7 +141,8 @@ export function ClientsListPage() {
   const [destinationFilter, setDestinationFilter] = useState<string[]>([])
   const [showClosed, setShowClosed] = useState(false)
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
-  const [search, setSearch] = useState('')
+  // `?search=` arrives from a converted lead's page, which points here to find the new client.
+  const [search, setSearch] = useState(() => searchParams.get('search') ?? '')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const paging = useCursorPagination()
 
@@ -154,6 +155,8 @@ export function ClientsListPage() {
   const planIncludesReopening = useCanReopen()
   const canAssign = can('clients.reassign')
   const tags = useTags()
+  // Tags are a Business feature: Starter is offered neither the editor nor the filter (fault check 9a).
+  const hasTags = useFeature('tags')
   const createTag = useCreateTag()
   // At the tag ceiling the editor still picks existing tags but won't create one (2026-09-25).
   const tagCeiling = useListCeiling('tags', tags.data?.length)
@@ -307,6 +310,7 @@ export function ClientsListPage() {
               </Badge>
             ))}
           </div>
+          {hasTags && (
           <TagEditorMenu
             tags={client.tags ?? []}
             catalog={tags.data ?? []}
@@ -318,6 +322,7 @@ export function ClientsListPage() {
             disabled={isCaseMoved(client.status)}
             disabledReason={CASE_MOVED_ACTION_REASON}
           />
+          )}
         </div>
       ),
     },
@@ -344,7 +349,12 @@ export function ClientsListPage() {
                 <ReopenTrigger
                   name={clientName}
                   renderModal={(close) => (
-                    <ReopenClientModal clientId={client.id} clientName={clientName} onClose={close} />
+                    <ReopenClientModal
+                      clientId={client.id}
+                      clientName={clientName}
+                      assigned={Boolean(client.assigned_employee_id)}
+                      onClose={close}
+                    />
                   )}
                 />
               ) : null
@@ -413,15 +423,17 @@ export function ClientsListPage() {
           }}
           filters={
             <>
-              <FilterMultiSelect
-                label="Tag"
-                options={tags.data?.map((t) => t.name) ?? []}
-                selected={tagFilter}
-                onChange={(next) => {
-                  setTagFilter(next)
-                  resetPaging()
-                }}
-              />
+              {hasTags && (
+                <FilterMultiSelect
+                  label="Tag"
+                  options={tags.data?.map((t) => t.name) ?? []}
+                  selected={tagFilter}
+                  onChange={(next) => {
+                    setTagFilter(next)
+                    resetPaging()
+                  }}
+                />
+              )}
               {!isInstitute && (
                 <FilterMultiSelect
                   label="Destination"

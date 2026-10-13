@@ -1,5 +1,6 @@
 import { Suspense, useEffect, type ComponentProps, type ReactNode } from 'react'
-import { Link, Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router-dom'
+import { PageNotFound } from '@/components/PageNotFound'
+import { Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { track } from '@/lib/analytics'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
@@ -286,21 +287,7 @@ function NotFound() {
   if (location.pathname === '/') return <DefaultRedirect />
   return (
     <SessionGate>
-      {(me) => (
-        <main className="flex min-h-screen flex-col items-center justify-center gap-md bg-background p-lg text-center">
-          <h1 className="text-h2 font-semibold text-text-primary">Page not found</h1>
-          <p className="max-w-[28rem] text-body text-text-secondary">
-            There is nothing at this address. It may have been mistyped, or the page may have moved.
-          </p>
-          <Link
-            to={scopeHomePath(me.scope)}
-            replace
-            className="rounded-md bg-primary px-lg py-sm text-body-sm font-medium text-white hover:bg-primary/90"
-          >
-            Go to your home page
-          </Link>
-        </main>
-      )}
+      {(me) => <PageNotFound homePath={scopeHomePath(me.scope)} />}
     </SessionGate>
   )
 }

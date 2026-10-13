@@ -1,4 +1,5 @@
 import { formatMoney } from '@/lib/money'
+import { changeSentences, entrySentence, reasonText } from '@/lib/auditWords'
 import type { components } from '@/api/schema'
 
 type AuditLogEntry = components['schemas']['AuditLogEntry']
@@ -58,7 +59,12 @@ const KNOWN_FACTS: { key: string; label: string; format: (v: unknown) => string 
  * A reason reads `[erased]` once the account it was about has been erased (lane w). That text is
  * shown exactly as the server sends it, with one line saying what it means.
  */
-export function AuditEntryDetail({ entry }: { entry: Pick<AuditLogEntry, 'reason' | 'diff'> }) {
+export function AuditEntryDetail({
+  entry,
+}: {
+  entry: Pick<AuditLogEntry, 'reason' | 'diff'> &
+    Partial<Pick<AuditLogEntry, 'actor_name' | 'action_type' | 'entity_type' | 'entity_label' | 'created_at'>>
+}) {
   const diff = entry.diff ?? null
   const facts = diff
     ? KNOWN_FACTS.flatMap((fact) => {
@@ -68,12 +74,17 @@ export function AuditEntryDetail({ entry }: { entry: Pick<AuditLogEntry, 'reason
       })
     : []
 
+  // The rest of the change, in sentences, without the facts read out above and without ids (T4-24).
+  const sentences = changeSentences(diff, new Set(KNOWN_FACTS.map((f) => f.key)))
+  const summary = entrySentence(entry as Parameters<typeof entrySentence>[0])
+
   return (
     <div className="flex flex-col gap-xs">
+      {summary && <p className="text-body-sm text-text-primary">{summary}</p>}
       {entry.reason && (
         <div className="flex flex-col gap-0.5">
           <p className="text-body-sm text-text-primary">
-            <span className="font-medium">Reason:</span> {entry.reason}
+            <span className="font-medium">Reason:</span> {reasonText(entry.reason)}
           </p>
           {entry.reason === ERASED_REASON && (
             <p className="text-caption text-text-secondary">
@@ -94,12 +105,16 @@ export function AuditEntryDetail({ entry }: { entry: Pick<AuditLogEntry, 'reason
           )}
         </div>
       ))}
-      {diff && (
-        <pre className="overflow-x-auto rounded-md bg-surface p-sm text-caption text-text-secondary">
-          {JSON.stringify(diff, null, 2)}
-        </pre>
+      {sentences.length > 0 && (
+        <ul className="ml-md list-disc text-body-sm text-text-primary">
+          {sentences.map((sentence) => (
+            <li key={sentence}>{sentence}</li>
+          ))}
+        </ul>
       )}
-      {!entry.reason && !diff && <p className="text-body-sm text-text-secondary">No further detail recorded.</p>}
+      {!summary && !entry.reason && facts.length === 0 && sentences.length === 0 && (
+        <p className="text-body-sm text-text-secondary">No further detail recorded.</p>
+      )}
     </div>
   )
 }

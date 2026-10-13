@@ -10,7 +10,8 @@ import { DisableEmployeeDialog } from './DisableEmployeeDialog'
 import { employeeStanding } from '@/lib/employeeStanding'
 import { BranchAccessPicker } from './BranchAccessPicker'
 import { branchAccessChanged, primaryBranchError, type BranchAccess } from './branchAccess'
-import { permissionKeys, pickPermissions, useAvailablePermissions, visiblePermissionGroups } from '@/lib/permissions'
+import { permissionKeys, pickPermissions } from '@/lib/permissions'
+import { usePermissionGroups } from '@/lib/usePermissionGroups'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
 
@@ -94,7 +95,7 @@ function AccessModalBody({
   // Only the permissions the plan gives meaning to, in the server's order (2026-09-25). An override
   // on a hidden key is neither shown nor sent — the server keeps it as stored, so it applies again
   // once the plan includes its feature.
-  const groups = visiblePermissionGroups(useAvailablePermissions(), baseline, overrides)
+  const groups = usePermissionGroups(baseline, overrides)
   const visibleKeys = permissionKeys(groups)
   const visibleOverrides = pickPermissions(overrides, visibleKeys)
   // `dirty` means SENSITIVE change — it is what makes the reason mandatory (build reference 1.24),

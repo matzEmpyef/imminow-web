@@ -122,7 +122,7 @@ export function NotificationsPage() {
               <NotificationRow
                 key={n.id}
                 // RT 6 / contract gate 9 K8 — only navigate to a route this console serves.
-                to={safeDeepLink(n.deep_link)}
+                to={scope === 'freelancer' ? safeDeepLink(n.deep_link, '/freelancer/dashboard') : safeDeepLink(n.deep_link)}
                 onOpen={() => !n.read && markRead.mutate(n.id)}
               >
                 <Card

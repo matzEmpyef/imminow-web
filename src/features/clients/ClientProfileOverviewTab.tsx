@@ -61,6 +61,8 @@ export function OverviewTab({
 }) {
   const client = useClient(clientId)
   const tags = useTags()
+  // Tags are a Business feature: Starter has no Tags card (fault check 9a).
+  const hasTags = useFeature('tags')
   const createTag = useCreateTag()
   // At the tag ceiling the editor still picks existing tags but won't create one (2026-09-25).
   const tagCeiling = useListCeiling('tags', tags.data?.length)
@@ -367,6 +369,7 @@ export function OverviewTab({
           </dl>
         </Card>
 
+        {hasTags && (
         <Card className="flex flex-col gap-sm">
           <h2 className="text-h3 text-text-primary">Tags</h2>
           <div className="flex flex-wrap items-center gap-xs">
@@ -389,6 +392,7 @@ export function OverviewTab({
             />
           </div>
         </Card>
+        )}
       </div>
 
       {/* Hidden outright once the case has moved (2026-09-24) — like Raise an Issue/Close Case in
@@ -396,7 +400,7 @@ export function OverviewTab({
           that is still live but can't transfer YET (an accepted college/recorded contribution) —
           that's actionable information, not a dead end. */}
       {canTransferApplicant && !readOnly && (
-        <div className="col-span-3 flex justify-end">
+        <div className="col-span-3 flex flex-col items-end gap-xs">
           <button
             type="button"
             onClick={() => setShowTransfer(true)}
@@ -406,6 +410,10 @@ export function OverviewTab({
           >
             Transfer applicant to another consultancy
           </button>
+          {/* T4-23: the reason is written out, not only a hover tip. */}
+          {transferDisabledReason && (
+            <p className="max-w-[28rem] text-right text-caption text-text-secondary">{transferDisabledReason}</p>
+          )}
         </div>
       )}
 

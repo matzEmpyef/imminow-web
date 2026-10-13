@@ -98,8 +98,8 @@ describe('an audit entry, opened', () => {
   it('reads out a freelancer payout amount from the diff, in rupees', () => {
     render(<AuditEntryDetail entry={{ reason: null, diff: { amount_inr: [null, 5000], referral_id: [null, 'ref-1'] } }} />)
     expect(screen.getByText('Amount:').closest('p')).toHaveTextContent('Amount: INR 5,000')
-    // The whole recorded change is still there underneath.
-    expect(screen.getByText(/"referral_id"/)).toBeInTheDocument()
+    // An id is never shown.
+    expect(screen.queryByText(/referral/i)).not.toBeInTheDocument()
   })
 
   it('reads out the referral code of an invite, and both codes when one replaced another', () => {
@@ -154,10 +154,11 @@ describe('an audit entry, opened', () => {
     expect(screen.getByText('No further detail recorded.')).toBeInTheDocument()
   })
 
-  it('a diff with no fact it knows shows the change alone', () => {
+  it('a diff with no fact it knows reads as a sentence, never as raw data', () => {
     render(<AuditEntryDetail entry={{ reason: null, diff: { status: ['open', 'closed'] } }} />)
     expect(screen.queryByText('Amount:')).not.toBeInTheDocument()
-    expect(screen.getByText(/"status"/)).toBeInTheDocument()
+    expect(screen.getByText('Status changed from open to closed.')).toBeInTheDocument()
+    expect(screen.queryByText(/"status"/)).not.toBeInTheDocument()
   })
 })
 
@@ -236,16 +237,65 @@ describe('the consultancy audit log, actor filter', () => {
   })
 })
 
-// Review F-304: the Area filter lists every area the contract names, not six of them.
+// Review F-304 listed every area the contract names; T4-24 narrowed a consultancy's filter to the
+// areas a consultancy can produce (the others are the platform's own).
 describe('the consultancy audit log, area filter', () => {
-  it('offers every area an entry can carry, and filters by one the old list lacked', async () => {
+  it('offers the areas a consultancy produces, including Consultancy Management, and filters by one', async () => {
     renderPage(<AuditLogPage />)
     await screen.findByText('Asha Nair')
     const area = screen.getByLabelText('Area')
-    for (const label of ['Billing', 'Freelancers', 'Consultancy Management', 'Notifications']) {
+    for (const label of ['Leads', 'Clients', 'Plans', 'Documents', 'Settings', 'Staff', 'Consultancy Management']) {
       expect(within(area).getByRole('option', { name: label })).toBeInTheDocument()
     }
-    fireEvent.change(area, { target: { value: 'billing' } })
-    await waitFor(() => expect(auditCalls('/audit-log').at(-1)?.filter).toMatchObject({ area: 'billing' }))
+    fireEvent.change(area, { target: { value: 'staff' } })
+    await waitFor(() => expect(auditCalls('/audit-log').at(-1)?.filter).toMatchObject({ area: 'staff' }))
+  })
+})
+
+// T4-24
+describe('an audit entry in plain sentences', () => {
+  const closed = {
+    actor_name: 'Esha Mathew',
+    action_type: 'update',
+    entity_type: 'journey',
+    entity_label: 'Zoya Patel',
+    created_at: '2026-10-06T09:00:00Z',
+    reason: 'lost_contact',
+    diff: { status: ['active', 'closed'], closed_reason: [null, 'lost_contact'], assigned_employee_id: ['0b9f3c0e-1111-4222-8333-444455556666', null] },
+  }
+
+  it('says who, what and when, with the old and new values in words and no ids or codes', () => {
+    render(<AuditEntryDetail entry={closed as never} />)
+    expect(screen.getByText(/Esha Mathew closed the case of Zoya Patel on 06-10-2026/)).toBeInTheDocument()
+    expect(screen.getByText('Status changed from active to closed.')).toBeInTheDocument()
+    expect(screen.getByText('Reason for closing set to lost contact.')).toBeInTheDocument()
+    expect(screen.getByText('Reason:').closest('p')).toHaveTextContent('Reason: Lost contact')
+    expect(screen.queryByText(/lost_contact|assigned_employee|0b9f3c0e|\{/)).not.toBeInTheDocument()
+  })
+
+  it('names a close "Case closed", calls a journey a case, and offers a consultancy only its own areas', async () => {
+    entries = [entry({ entity_type: 'journey', entity_label: 'Zoya Patel', diff: { status: ['active', 'closed'] } })]
+    renderPage(<AuditLogPage />)
+    expect(await screen.findByText('Case closed')).toBeInTheDocument()
+    expect(screen.getByText('Case — Zoya Patel')).toBeInTheDocument()
+    const area = screen.getByLabelText('Area') as HTMLSelectElement
+    const offered = Array.from(area.options).map((o) => o.textContent)
+    expect(offered).toContain('Leads')
+    expect(offered).toContain('Consultancy Management')
+    for (const platformOnly of ['Marketing', 'Support', 'Finance', 'App Config', 'Billing', 'Catalog', 'Ads']) {
+      expect(offered).not.toContain(platformOnly)
+    }
+  })
+
+  it('stops Next on a page shorter than the limit', async () => {
+    mockedGet.mockImplementation((async () => ({
+      data: { items: [entry()], meta: { next_cursor: 'again', total: null } },
+      error: undefined,
+      response: { status: 200 },
+    })) as never)
+    renderPage(<AuditLogPage />)
+    await screen.findByText('Asha Nair')
+    const next = screen.queryByRole('button', { name: /next/i })
+    if (next) expect(next).toBeDisabled()
   })
 })

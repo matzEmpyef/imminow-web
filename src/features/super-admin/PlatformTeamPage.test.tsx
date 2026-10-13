@@ -131,6 +131,25 @@ describe('PlatformTeamPage staff drawer', () => {
   })
 })
 
+// T4-20: an invitation not yet accepted is cancelled, not "disabled".
+describe('PlatformTeamPage invited person', () => {
+  it('offers Cancel invitation for an invited person and Disable account for an active one', () => {
+    render(<PlatformTeamPage />)
+    fireEvent.click(screen.getByText('Nikhil New').closest('tr')!)
+    expect(screen.getByRole('button', { name: 'Cancel invitation' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Disable account' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel invitation' }))
+    expect(screen.getByText(/Cancel the invitation to Nikhil New\?/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Keep invitation' })).toBeTruthy()
+  })
+
+  it('keeps Disable account for someone who has joined', () => {
+    render(<PlatformTeamPage />)
+    fireEvent.click(screen.getByText('Devika Rao').closest('tr')!)
+    expect(screen.getByRole('button', { name: 'Disable account' })).toBeTruthy()
+  })
+})
+
 // Review I-074 (owner decision 9): staff grant only what they hold, and team management and
 // support tools are granted only by a Super Admin. The drawer does not offer what would be refused.
 describe('PlatformTeamPage permission switches', () => {

@@ -68,7 +68,13 @@ export function EventDetailsModal({
             <>
               <Row
                 label="Platform"
-                value={<span className="capitalize">{event.meeting_platform?.replace('_', ' ')}</span>}
+                value={
+                  event.meeting_platform ? (
+                    <span className="capitalize">{event.meeting_platform.replace('_', ' ')}</span>
+                  ) : (
+                    <span className="text-text-secondary">Not chosen</span>
+                  )
+                }
               />
               <Row
                 label="Meeting URL"

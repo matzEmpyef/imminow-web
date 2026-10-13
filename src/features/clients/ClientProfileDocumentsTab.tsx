@@ -18,6 +18,7 @@ import { useCursorPagination } from '@/lib/pagination'
 import { scanStatusLabel } from '@/lib/uploads'
 import { formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
+import { useFeature } from '@/lib/features'
 import { ShareFromLibraryModal } from './ShareFromLibraryModal'
 import { UploadStudentDocumentModal } from './UploadStudentDocumentModal'
 import { CASE_MOVED_ACTION_REASON } from '@/lib/clientStatus'
@@ -103,6 +104,9 @@ export function DocumentsTab({ clientId, readOnly = false }: { clientId: string;
   const studentDocs = useStudentDocuments(clientId)
   const uploadFile = useUploadFile(clientId)
   const downloadUrl = useDownloadUrl()
+  // T4-15: the Document Library is a Business feature. Without it the picker can only wait on a
+  // list the server refuses to send, so the button is not offered.
+  const hasLibrary = useFeature('document_library')
   const [showLibraryPicker, setShowLibraryPicker] = useState(false)
   const [showUploadForStudent, setShowUploadForStudent] = useState(false)
   const [openingId, setOpeningId] = useState<string | null>(null)
@@ -234,26 +238,34 @@ export function DocumentsTab({ clientId, readOnly = false }: { clientId: string;
                   <Send className="h-3.5 w-3.5" aria-hidden />
                   Send a document
                 </Button>
-                {/* Send can also be an existing Document Library file (user-requested, 2026-08-15). */}
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowLibraryPicker(true)}
-                  disabled={readOnly}
-                  title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
-                  className="inline-flex items-center gap-xs"
-                >
-                  <Library className="h-3.5 w-3.5" aria-hidden />
-                  From Library
-                </Button>
+                {hasLibrary && (
+                  <>
+                    {/* Send can also be an existing Document Library file (user-requested, 2026-08-15). */}
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setShowLibraryPicker(true)}
+                      disabled={readOnly}
+                      title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
+                      className="inline-flex items-center gap-xs"
+                    >
+                      <Library className="h-3.5 w-3.5" aria-hidden />
+                      From Library
+                    </Button>
+                  </>
+                )}
               </>
             }
           />
           {uploadFile.isError && <p className="text-body-sm text-error">{uploadFile.error.message}</p>}
 
           {sentDocuments.length === 0 ? (
-            <EmptyState>Nothing sent yet. Send a document, or share one from your Document Library.</EmptyState>
+            <EmptyState>
+              {hasLibrary
+                ? 'Nothing sent yet. Send a document, or share one from your Document Library.'
+                : 'Nothing sent yet. Send a document to the student.'}
+            </EmptyState>
           ) : (
             <ul className="flex flex-col divide-y divide-border">
               {sentDocuments.map((doc) => {
@@ -305,7 +317,7 @@ export function DocumentsTab({ clientId, readOnly = false }: { clientId: string;
         </Card>
       </div>
 
-      {showLibraryPicker && <ShareFromLibraryModal clientId={clientId} onClose={() => setShowLibraryPicker(false)} />}
+      {hasLibrary && showLibraryPicker && <ShareFromLibraryModal clientId={clientId} onClose={() => setShowLibraryPicker(false)} />}
       {showUploadForStudent && (
         <UploadStudentDocumentModal clientId={clientId} onClose={() => setShowUploadForStudent(false)} />
       )}

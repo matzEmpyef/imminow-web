@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { StillNeeded } from '@/components/StillNeeded'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { useRaiseIssue } from '@/queries/clients'
@@ -46,6 +47,7 @@ export function RaiseIssueModal({
           {raiseIssue.isError && (
             <p className="mr-auto self-center text-body-sm text-error">{raiseIssue.error.message}</p>
           )}
+          <StillNeeded items={reason.trim() ? [] : ['what has happened']} />
           <div className="flex gap-sm">
             <Button
               type="submit"

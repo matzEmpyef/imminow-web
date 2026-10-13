@@ -16,9 +16,17 @@ vi.mock('@/features/auth/AppShell', () => ({
 vi.mock('./ClientProfileOverviewTab', () => ({
   OverviewTab: (props: { readOnly?: boolean }) => <div data-testid="overview-tab" data-readonly={String(!!props.readOnly)} />,
 }))
-vi.mock('./ClientProfilePlanTab', () => ({ PlanTab: () => null }))
+vi.mock('./ClientProfilePlanTab', () => ({
+  PlanTab: (props: { readOnly?: boolean; readOnlyReason?: string }) => (
+    <div data-testid="plan-tab" data-readonly={String(!!props.readOnly)} data-reason={props.readOnlyReason ?? ''} />
+  ),
+}))
 vi.mock('./ClientProfileCommissionsTab', () => ({ CommissionsTab: () => null }))
-vi.mock('./ClientProfileApplicationsTab', () => ({ ApplicationsTab: () => null }))
+vi.mock('./ClientProfileApplicationsTab', () => ({
+  ApplicationsTab: (props: { readOnly?: boolean; readOnlyReason?: string }) => (
+    <div data-testid="apps-tab" data-readonly={String(!!props.readOnly)} data-reason={props.readOnlyReason ?? ''} />
+  ),
+}))
 vi.mock('./ClientProfileDocumentsTab', () => ({ DocumentsTab: () => null }))
 vi.mock('./ClientProfileInternalNotesTab', () => ({ InternalNotesTab: () => null }))
 vi.mock('./ClientProfileActivityTab', () => ({ ActivityTab: () => null }))
@@ -112,6 +120,38 @@ describe('ClientProfilePage — case moved to another consultancy', () => {
     expect(screen.getByTestId('overview-tab')).toHaveAttribute('data-readonly', 'false')
     // A live case still gets its ordinary header actions.
     expect(screen.getByRole('button', { name: 'Raise an Issue' })).toBeInTheDocument()
+  })
+})
+
+// T4-11: closed, completed and disputed cases switch off the working controls, each with a reason.
+describe('ClientProfilePage — an ended or disputed case switches its working controls off', () => {
+  it.each([
+    ['closed', 'This case is closed, so it can no longer be changed.'],
+    ['closed_completed', 'This case is complete, so it can no longer be changed.'],
+    ['in_dispute', 'immiNow is reviewing this case, so nothing can be changed until the review is finished.'],
+  ])('locks Applications and Plan for %s', (status, reason) => {
+    mockedClient.mockReturnValue(query(baseClient({ status })))
+    render(
+      <MemoryRouter initialEntries={['/clients/c1?tab=Applications']}>
+        <Routes>
+          <Route path="/clients/:id" element={<ClientProfilePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(screen.getByTestId('apps-tab')).toHaveAttribute('data-readonly', 'true')
+    expect(screen.getByTestId('apps-tab')).toHaveAttribute('data-reason', reason)
+  })
+
+  it('leaves them live for a case in its plan', () => {
+    mockedClient.mockReturnValue(query(baseClient({ status: 'in_plan' })))
+    render(
+      <MemoryRouter initialEntries={['/clients/c1?tab=Plan']}>
+        <Routes>
+          <Route path="/clients/:id" element={<ClientProfilePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(screen.getByTestId('plan-tab')).toHaveAttribute('data-readonly', 'false')
   })
 })
 

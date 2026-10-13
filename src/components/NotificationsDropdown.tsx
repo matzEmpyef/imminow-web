@@ -4,6 +4,7 @@ import { Bell } from 'lucide-react'
 import { useMarkNotificationRead, useNotifications, useUnreadCount } from '@/queries/notifications'
 import { relativeTime } from '@/lib/time'
 import { safeDeepLink } from '@/lib/deepLinks'
+import { useMyScope } from '@/lib/me'
 
 const MAX_VISIBLE = 5
 
@@ -20,6 +21,9 @@ export function NotificationsDropdown() {
   const { data: unreadCount } = useUnreadCount()
   const { data, isError, isLoading, refetch } = useNotifications({ limit: MAX_VISIBLE }, { enabled: open })
   const markRead = useMarkNotificationRead()
+  // A freelancer's notices that carry no address this console serves open their referrals page, the
+  // one place those notices are about, instead of the inbox they are already looking at (T4-36).
+  const fallback = useMyScope() === 'freelancer' ? '/freelancer/dashboard' : '/notifications'
   const items = data?.items.slice(0, MAX_VISIBLE) ?? []
 
   useEffect(() => {
@@ -82,7 +86,7 @@ export function NotificationsDropdown() {
                   // RT 6 / contract gate 9 K8 — only ever navigate to a deep_link this console
                   // actually serves; an unrecognised one (a student-app route, a stale pre-
                   // catalogue row) falls back to the full inbox rather than an unroutable path.
-                  to={safeDeepLink(n.deep_link, '/notifications')}
+                  to={safeDeepLink(n.deep_link, fallback)}
                   onClick={() => {
                     if (!n.read) markRead.mutate(n.id)
                     setOpen(false)

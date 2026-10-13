@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { StillNeeded } from '@/components/StillNeeded'
 import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { useNavigate } from 'react-router-dom'
 import { Modal } from '@/components/Modal'
@@ -64,6 +65,18 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
     !phoneError &&
     !emailError &&
     !dobError
+  // T4-14: the button is off until these are filled in, so the footer names what is missing.
+  const stillNeeded = [
+    ...(firstName ? [] : ['first name']),
+    ...(lastName ? [] : ['last name']),
+    ...(email ? [] : ['email']),
+    ...(dateOfBirth ? [] : ['date of birth']),
+    ...(caseType ? [] : ['applicant type']),
+    ...(employeeId ? [] : [words.isInstitute ? 'assigned team member' : 'assigned consultant']),
+    ...(phoneError ? ['a valid phone number'] : []),
+    ...(emailError ? ['a valid email'] : []),
+    ...(dobError ? ['a valid date of birth'] : []),
+  ]
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -124,6 +137,7 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
               {createApplicantErrorMessage(createApplicant.error)}
             </p>
           )}
+          <StillNeeded items={stillNeeded} />
           <Button type="submit" form="create-applicant-form" loading={createApplicant.isPending} disabled={!canSubmit}>
             Create Applicant
           </Button>

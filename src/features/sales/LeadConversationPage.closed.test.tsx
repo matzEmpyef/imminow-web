@@ -115,6 +115,21 @@ describe('the Lead conversation page', () => {
     expect(screen.getByRole('button', { name: 'Reopen Lead' })).toBeInTheDocument()
   })
 
+  // T4-12
+  it('locks a converted lead with one line and a link to the client, and offers no action', () => {
+    serveLead(lead({ status: 'converted' }))
+    render(page())
+
+    expect(screen.getByText('Converted')).toBeInTheDocument()
+    expect(screen.getByText(/Asha Nair is now a client, so this lead can no longer be changed\./)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open them in Clients' })).toHaveAttribute('href', '/clients?search=Asha%20Nair')
+    expect(screen.queryByPlaceholderText('Write a message…')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Suggest a course' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Convert to Client' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Close Lead' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Request Shortlist' })).not.toBeInTheDocument()
+  })
+
   it('says only that an empty closed thread has no messages, never "say hello"', () => {
     vi.mocked(useLeadMessages).mockReturnValue({
       items: [], isLoading: false, isError: false, refetch: vi.fn(), hasEarlier: false, loadingEarlier: false, loadEarlier: vi.fn(),
