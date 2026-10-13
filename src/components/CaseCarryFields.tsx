@@ -13,6 +13,7 @@ export function CaseCarryFields({
   onChange,
   disabled,
   askAdmission,
+  askPayments,
 }: {
   value: CaseCarry
   onChange: (next: CaseCarry) => void
@@ -23,9 +24,15 @@ export function CaseCarryFields({
    * everywhere else (Transfer Applicant refuses a case with an accepted college).
    */
   askAdmission?: boolean
+  /**
+   * True when the admission is asked and the case has money recorded on it (or the server did not
+   * say it has none): the second question, shown only while the first is answered Yes.
+   */
+  askPayments?: boolean
 }) {
   const headingId = useId()
   const admissionId = useId()
+  const paymentsId = useId()
   return (
     <fieldset aria-labelledby={headingId} disabled={disabled} className="flex flex-col gap-sm">
       <div className="flex flex-col gap-xs">
@@ -52,34 +59,73 @@ export function CaseCarryFields({
         ))}
       </div>
       {askAdmission && (
-        <div role="radiogroup" aria-labelledby={admissionId} className="flex flex-col gap-xs">
-          <p id={admissionId} className="text-body-sm font-medium text-text-primary">
-            Does the admission go to the new consultancy too?
-          </p>
-          <div className="flex items-center gap-lg">
-            {[
-              { label: 'Yes', checked: true },
-              { label: 'No', checked: false },
-            ].map((option) => (
-              <label key={option.label} className="flex items-center gap-xs text-body-sm text-text-primary">
-                <input
-                  type="radio"
-                  name={admissionId}
-                  required
-                  checked={Boolean(value.admission) === option.checked}
-                  onChange={() => onChange({ ...value, admission: option.checked })}
-                  className="h-4 w-4 shrink-0 border-border"
-                />
-                {option.label}
-              </label>
-            ))}
-          </div>
-          <p className="text-caption text-text-secondary">
-            {"If not, the accepted college stays with the first consultancy and immiNow's share of that admission becomes due from it now."}
-          </p>
-        </div>
+        <YesNo
+          id={admissionId}
+          question="Does the admission go to the new consultancy too?"
+          answer={Boolean(value.admission)}
+          // Saying No to the admission also takes the money answer back to No.
+          onAnswer={(answer) =>
+            onChange({ ...value, admission: answer, recorded_payments: answer ? Boolean(value.recorded_payments) : false })
+          }
+          helper={
+            value.admission
+              ? 'The new consultancy takes over the accepted college and its commission from now on.'
+              : "The accepted college stays with the first consultancy, and immiNow's share of that admission becomes due from it now."
+          }
+        />
+      )}
+      {askAdmission && askPayments && value.admission && (
+        <YesNo
+          id={paymentsId}
+          question="Does the money already recorded on this admission go too?"
+          answer={Boolean(value.recorded_payments)}
+          onAnswer={(answer) => onChange({ ...value, recorded_payments: answer })}
+          helper="If yes, the payments already recorded move to the new consultancy, and it owes immiNow's share on all of them. If no, the first consultancy still owes the share on what it has already received."
+        />
       )}
       <p className="text-caption text-text-secondary">The plan, internal notes and commission records never move.</p>
     </fieldset>
+  )
+}
+
+/** A required Yes/No question with a line under it that explains the answer chosen. */
+function YesNo({
+  id,
+  question,
+  answer,
+  onAnswer,
+  helper,
+}: {
+  id: string
+  question: string
+  answer: boolean
+  onAnswer: (answer: boolean) => void
+  helper: string
+}) {
+  return (
+    <div role="radiogroup" aria-labelledby={id} className="flex flex-col gap-xs">
+      <p id={id} className="text-body-sm font-medium text-text-primary">
+        {question}
+      </p>
+      <div className="flex items-center gap-lg">
+        {[
+          { label: 'Yes', checked: true },
+          { label: 'No', checked: false },
+        ].map((option) => (
+          <label key={option.label} className="flex items-center gap-xs text-body-sm text-text-primary">
+            <input
+              type="radio"
+              name={id}
+              required
+              checked={answer === option.checked}
+              onChange={() => onAnswer(option.checked)}
+              className="h-4 w-4 shrink-0 border-border"
+            />
+            {option.label}
+          </label>
+        ))}
+      </div>
+      <p className="text-caption text-text-secondary">{helper}</p>
+    </div>
   )
 }
