@@ -5,7 +5,6 @@ import { AppShell } from '@/features/auth/AppShell'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
-import { StopPropagation } from '@/components/StopPropagation'
 import { useActivityFeed, useCompleteActivityTask } from '@/queries/activity'
 import { Skeleton, ErrorState } from '@/components/QueryState'
 import {
@@ -22,7 +21,16 @@ import { AssignTaskModal } from './AssignTaskModal'
 import { CompletedTasksSection } from './CompletedTasksSection'
 import type { components } from '@/api/schema'
 
-type ActivityTask = components['schemas']['ActivityTask']
+// A task on a lead carries the lead's id so the row can open the lead (T4-21). The feed does not
+// serve it yet; until it does, a lead's task simply has nowhere to link to.
+type ActivityTask = components['schemas']['ActivityTask'] & { lead_id?: string | null }
+
+/** Where a task's row leads: its client, else its lead, else nowhere. */
+export function taskTarget(task: ActivityTask): string | null {
+  if (task.journey_id) return `/clients/${task.journey_id}`
+  if (task.lead_id) return `/sales/leads/${task.lead_id}`
+  return null
+}
 
 // The feed is bounded (review F-112): each of its lists carries at most this many rows, and
 // `truncated` says at least one was cut. The contract names the number; it is not sent per list,
@@ -127,18 +135,28 @@ export function ActivityPage() {
   // One merged, date-grouped timeline (user decision, 2026-08-29): future tasks, upcoming step
   // dates, application deadlines, and conversion proposals — everything with a date attached —
   // typed with a small badge and grouped by day via formatDayLabel (Today/Tomorrow/dd-mm-yyyy).
-  type ComingUpRow = { key: string; date: string; kind: 'Task' | 'Step' | 'Deadline' | 'Proposal'; to: string | null; label: ReactNode }
+  type ComingUpRow = {
+    key: string
+    date: string
+    kind: 'Task' | 'Step' | 'Deadline' | 'Proposal'
+    to: string | null
+    label: ReactNode
+    /** A task row can be ticked off from here, like one that is due. */
+    taskId?: string
+  }
 
   const comingUpRows: ComingUpRow[] = [
     ...myTasksFuture.map((t) => ({
       key: `task-${t.id}`,
       date: t.due_date,
       kind: 'Task' as const,
-      to: t.journey_id ? `/clients/${t.journey_id}` : null,
+      to: taskTarget(t),
+      taskId: t.id,
       label: (
         <>
           {t.note}
           {t.client_name ? ` (${t.client_name})` : t.lead_name ? ` (${t.lead_name})` : ''}
+          {t.due_time ? ` · ${t.due_time}` : ''}
         </>
       ),
     })),
@@ -360,23 +378,34 @@ export function ActivityPage() {
                 <p className="text-caption font-semibold uppercase text-text-secondary">{group.label}</p>
                 <div className="mt-xs flex flex-col gap-xs">
                   {group.rows.map((row) => {
-                    const content = (
-                      <>
-                        <p className="min-w-0 flex-1 truncate text-body-sm text-text-primary">{row.label}</p>
-                        <Badge color={kindColor[row.kind]}>{row.kind}</Badge>
-                      </>
+                    // The link covers the words only. The Mark Done button sits beside it, not inside
+                    // it, so pressing it ticks the task off in place instead of opening the page.
+                    const words = (
+                      <p className="min-w-0 flex-1 break-words text-body-sm text-text-primary">{row.label}</p>
                     )
-                    return row.to ? (
-                      <Link
+                    return (
+                      <div
                         key={row.key}
-                        to={row.to}
-                        className="flex items-center gap-md border-b border-border pb-xs last:border-0 last:pb-0 hover:text-primary"
+                        className="flex items-center gap-md border-b border-border pb-xs last:border-0 last:pb-0"
                       >
-                        {content}
-                      </Link>
-                    ) : (
-                      <div key={row.key} className="flex items-center gap-md border-b border-border pb-xs last:border-0 last:pb-0">
-                        {content}
+                        {row.to ? (
+                          <Link to={row.to} className="flex min-w-0 flex-1 hover:text-primary">
+                            {words}
+                          </Link>
+                        ) : (
+                          words
+                        )}
+                        <Badge color={kindColor[row.kind]}>{row.kind}</Badge>
+                        {row.taskId && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            loading={completeTask.isPending && completeTask.variables === row.taskId}
+                            onClick={() => completeTask.mutate(row.taskId!)}
+                          >
+                            Mark Done
+                          </Button>
+                        )}
                       </div>
                     )
                   })}
@@ -416,7 +445,18 @@ export function ActivityPage() {
                         ) : (
                           ` (${task.client_name})`
                         ))}
-                      {task.lead_name ? ` (${task.lead_name})` : ''}
+                      {task.lead_name &&
+                        (task.lead_id ? (
+                          <>
+                            {' ('}
+                            <Link to={`/sales/leads/${task.lead_id}`} className="hover:text-primary hover:underline">
+                              {task.lead_name}
+                            </Link>
+                            {')'}
+                          </>
+                        ) : (
+                          ` (${task.lead_name})`
+                        ))}
                     </p>
                     <p className="text-caption text-text-secondary">
                       {task.assigned_to.user!.first_name} {task.assigned_to.user!.last_name} · Due{' '}
@@ -444,8 +484,7 @@ export function ActivityPage() {
   )
 }
 
-// One "My tasks" row — whole-row Link to the related client (when there is one), with the Mark
-// Done button wrapped in StopPropagation so clicking it doesn't also navigate away.
+// One "My tasks" row — the words link to the related client or lead (when there is one).
 function TaskRow({
   task,
   onComplete,
@@ -458,11 +497,10 @@ function TaskRow({
   // Past its due date and still open (H8) — the row has to look different from one due today.
   overdue: boolean
 }) {
-  const to = task.journey_id ? `/clients/${task.journey_id}` : null
+  const to = taskTarget(task)
   const body = (
-    <>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-body-sm text-text-primary">
+    <div className="min-w-0 flex-1">
+        <p className="break-words text-body-sm text-text-primary">
           {task.note}
           {task.client_name ? ` (${task.client_name})` : task.lead_name ? ` (${task.lead_name})` : ''}
         </p>
@@ -473,19 +511,22 @@ function TaskRow({
             {task.due_time ? `, ${task.due_time}` : ''}
           </span>
         </p>
-      </div>
-      <StopPropagation>
-        <Button variant="secondary" loading={pending} onClick={onComplete}>
-          Mark Done
-        </Button>
-      </StopPropagation>
-    </>
+    </div>
   )
-  return to ? (
-    <Link to={to} className="flex items-center gap-md border-b border-border pb-xs last:border-0 last:pb-0 hover:text-primary">
-      {body}
-    </Link>
-  ) : (
-    <div className="flex items-center gap-md border-b border-border pb-xs last:border-0 last:pb-0">{body}</div>
+  // The link covers the words only; Mark Done is beside it, not inside it, so pressing it ticks the
+  // task off in place instead of also opening the client's page.
+  return (
+    <div className="flex items-center gap-md border-b border-border pb-xs last:border-0 last:pb-0">
+      {to ? (
+        <Link to={to} className="flex min-w-0 flex-1 hover:text-primary">
+          {body}
+        </Link>
+      ) : (
+        body
+      )}
+      <Button variant="secondary" loading={pending} onClick={onComplete}>
+        Mark Done
+      </Button>
+    </div>
   )
 }
