@@ -106,9 +106,33 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
   const data = commissions.data
   const entry = data.entry
   const isPr = client.data?.case_type === 'pr'
+  // A case that ended without success, or moved away, takes no new money: the record buttons are
+  // not offered and nothing invites a new entry (T1-10). A case that closed as a success keeps
+  // working — a payment can still arrive after the close.
+  const status = client.data?.status
+  const closed = status === 'closed' || status === 'closed_switched' || status === 'closed_completed'
+  const noNewMoney = (status === 'closed' || status === 'closed_switched') && client.data?.outcome !== 'success'
   // Own-client bookkeeping: installments work as usual; the tab has no Sentpo figure and no
   // declare-payment control for any channel, so the only difference is the explanatory caption.
   const bookkeeping = isBookkeepingChannel(entry?.channel, client.data?.acquisition_source)
+
+  if (!entry && closed) {
+    // The server stops tracking a case's commission once it closes without success, so there is
+    // nothing to show and nothing to start. Whether the reversed record is shown here is the
+    // owner's open question (T2-01); until then the page says only what is true.
+    return (
+      <Card className="flex flex-col items-start gap-md">
+        <div>
+          <h2 className="text-h3 text-text-primary">No commission entry</h2>
+          <p className="mt-xs text-body-sm text-text-secondary">
+            This case is closed, so no commission is being tracked on it and nothing new can be recorded. If money was
+            recorded on it before it closed, immiNow Finance still has that record.
+          </p>
+          {bookkeeping && <p className="mt-xs text-caption text-text-secondary">{BOOKKEEPING_CAPTION}</p>}
+        </div>
+      </Card>
+    )
+  }
 
   if (!entry) {
     return (
@@ -164,7 +188,7 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
             {/* A PR contribution recorded with the wrong amount or currency is voided here and
                 recorded again (review F-081). Same permission as recording it. A student case's
                 entry is undone by reverting the acceptance on the Applications tab instead. */}
-            {entry.case_type === 'pr' && canRecord && (
+            {entry.case_type === 'pr' && canRecord && !noNewMoney && (
               <Button size="sm" variant="secondary" onClick={() => setVoidingPrEntry(true)}>
                 Void contribution
               </Button>
@@ -189,7 +213,7 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
       <Card className="flex flex-col gap-md">
         <div className="flex items-center justify-between">
           <h2 className="text-h3 text-text-primary">Payments Received</h2>
-          {canRecord && (
+          {canRecord && !noNewMoney && (
             <Button size="sm" onClick={() => setShowRecord(true)}>
               Record Payment
             </Button>
@@ -240,7 +264,8 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
                   ) : voidWaiting ? (
                     <Badge color="warning">Waiting for immiNow Finance</Badge>
                   ) : (
-                    canRecord && (
+                    canRecord &&
+                    !noNewMoney && (
                       <Button size="sm" variant="secondary" onClick={() => setVoiding(inst)}>
                         Void
                       </Button>
