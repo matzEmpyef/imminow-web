@@ -59,7 +59,7 @@ export function AwaitingTab() {
     { key: 'case', header: 'Case', render: (p) => p.applicant_name ?? 'General' },
     {
       key: 'entry_outstanding',
-      header: 'Case still owes',
+      header: 'Due now',
       align: 'right',
       // "More than owed" is the server's call (review F-300, 2026-10-10): confirming this payment as
       // declared would be more than may still be recorded on its case, judged in the payment's own
