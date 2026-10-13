@@ -1,4 +1,4 @@
-import { formatAmountOnly } from '@/lib/money'
+import { inr } from '@/lib/money'
 import { useState } from 'react'
 import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
@@ -155,7 +155,7 @@ export function HistoryTab() {
       <div className="flex items-center justify-between gap-md">
         {totals && (
           <p className="text-body-sm text-text-secondary">
-            {totals.count ?? 0} payments · ₹{formatAmountOnly('INR', totals.amount_inr ?? 0)} for these filters
+            {totals.count ?? 0} payments · {inr(totals.amount_inr ?? 0)} for these filters
           </p>
         )}
         <div className="ml-auto flex items-center gap-sm">

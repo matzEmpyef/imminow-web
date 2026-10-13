@@ -1,4 +1,4 @@
-import { formatAmountOnly } from '@/lib/money'
+import { inr } from '@/lib/money'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AdminShell } from '@/features/auth/AdminShell'
@@ -87,7 +87,7 @@ export function CaseFollowupsPage() {
       align: 'right',
       render: (row) =>
         (row.amount_at_stake_inr ?? 0) > 0 ? (
-          <span className="tabular-nums">₹{formatAmountOnly('INR', row.amount_at_stake_inr ?? 0)}</span>
+          <span className="tabular-nums">{inr(row.amount_at_stake_inr ?? 0)}</span>
         ) : (
           <span className="text-text-secondary">—</span>
         ),
