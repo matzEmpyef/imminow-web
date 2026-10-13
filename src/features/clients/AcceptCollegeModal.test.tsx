@@ -8,6 +8,11 @@ vi.mock('@/queries/clients', () => ({ useUpdateApplication: vi.fn(), useCommissi
 vi.mock('@/queries/partnerColleges', () => ({ usePartnerColleges: vi.fn() }))
 vi.mock('@/lib/currencies', () => ({ useCurrencyCodes: () => ['CAD', 'USD'] }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
+vi.mock('@/lib/accountWords', () => ({ useAccountWords: () => ({ isInstitute: false }) }))
+vi.mock('react-router-dom', async (orig) => ({
+  ...(await orig<typeof import('react-router-dom')>()),
+  Link: ({ to, children }: { to: string; children: React.ReactNode }) => <a href={to}>{children}</a>,
+}))
 
 import { useCommissionSuggestion, useUpdateApplication } from '@/queries/clients'
 import { usePartnerColleges } from '@/queries/partnerColleges'
@@ -115,5 +120,22 @@ describe('AcceptCollegeModal, the suggested commission', () => {
       status: 'accepted',
       commission: { expected_from_college: { amount: 4100.5, currency: 'CAD' } },
     })
+  })
+})
+
+// T4-19: the server refuses an acceptance from a college that is not a Partner College. The box
+// says so at the top, with the way to Partner Colleges, instead of at the last click.
+describe('AcceptCollegeModal, a college that is not a Partner College', () => {
+  it('says so at the top, links to Partner Colleges and does not offer Accept', () => {
+    vi.mocked(usePartnerColleges).mockReturnValue({
+      data: [{ college_id: 'someone-else', active: true, commission_percent: 12, payer_method: 'college' }],
+    } as never)
+    open()
+    expect(screen.getByText(/Northern College is not one of your Partner Colleges/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open Partner Colleges' })).toHaveAttribute(
+      'href',
+      '/administration/consultancy-profile?tab=partner-colleges',
+    )
+    expect(screen.getByRole('button', { name: /Accept/ })).toBeDisabled()
   })
 })

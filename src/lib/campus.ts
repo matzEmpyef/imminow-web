@@ -52,3 +52,20 @@ export interface CourseCampusLike {
 export function courseCampusLabel(course: CourseCampusLike): string {
   return clean(course.campus_label) || clean(course.campus_city)
 }
+
+/**
+ * Where a college is, in a line for a picker: its cities, then its countries ("Dublin, Cork ·
+ * Ireland"). Colleges with near-identical names are told apart by this (T4-19). Empty when the
+ * college has no campus and no country on record.
+ */
+export function collegePlaceLine(college: {
+  campuses?: ReadonlyArray<CampusLike> | null
+  countries?: ReadonlyArray<string> | null
+}): string {
+  const cities = Array.from(new Set((college.campuses ?? []).map((c) => clean(c.city)).filter(Boolean)))
+  const shown = cities.length > 3 ? `${cities.slice(0, 3).join(', ')} and ${cities.length - 3} more` : cities.join(', ')
+  const countries = Array.from(
+    new Set([...(college.countries ?? []), ...(college.campuses ?? []).map((c) => c.country ?? '')].map(clean).filter(Boolean)),
+  ).join(', ')
+  return [shown, countries].filter(Boolean).join(' · ')
+}

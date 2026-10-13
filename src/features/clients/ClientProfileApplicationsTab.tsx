@@ -1,4 +1,5 @@
 // Split out of ClientProfilePage.tsx (Phase 3 plan, Tier B1, 2026-09-03) — pure movement, no logic change.
+import { NotPartnerNotice, usePartnerStatus } from './NotPartnerNotice'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { GraduationCap, Search } from 'lucide-react'
@@ -205,6 +206,7 @@ function ApplicationRow({
   advancing: boolean
 }) {
   const [showAccept, setShowAccept] = useState(false)
+  const partner = usePartnerStatus(row.course.college_id)
   const [showRevert, setShowRevert] = useState(false)
   const [confirmReject, setConfirmReject] = useState(false)
   const status = row.status as CollegeStatus
@@ -287,6 +289,10 @@ function ApplicationRow({
           )}
         </div>
       </div>
+      {/* T4-19: said as soon as the offer is marked, not at the last click of Accept. */}
+      {partner === 'not-partner' && (status === 'offer_received' || status === 'applied') && (
+        <NotPartnerNotice collegeName={row.course.college_name} />
+      )}
       {advanceError && <p className="text-body-sm text-error">{advanceError}</p>}
       {showAccept && (
         <AcceptCollegeModal
