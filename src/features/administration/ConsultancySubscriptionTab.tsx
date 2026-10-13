@@ -190,10 +190,16 @@ function BillingCard({ consultancy }: { consultancy: Consultancy }) {
   // different inline sum on Activity, so the two pages could disagree about "days left".
   const daysLeft = subscription_expires_at ? daysUntil(subscription_expires_at) : undefined
 
+  // A trial is a term with an end and nothing billed for it: no billing cycle and no amount. It is
+  // read from what is already served (T4-37), so a college is told it is on a free trial and when
+  // that ends, rather than "Active" with an amount of 0.00.
+  const onTrial = Boolean(subscription_expires_at) && !billing_cycle && !(subscription_amount && subscription_amount > 0)
+
   const rows: { label: string; value: React.ReactNode }[] = [
-    { label: 'Plan started', value: subscription_started_at ? formatDate(subscription_started_at) : '—' },
+    // A line with nothing to say is left out rather than shown as a dash.
+    ...(subscription_started_at ? [{ label: 'Plan started', value: formatDate(subscription_started_at) }] : []),
     {
-      label: 'Renews / expires',
+      label: onTrial ? 'Free trial ends' : 'Renews / expires',
       value: (
         <>
           {subscription_expires_at ? formatDate(subscription_expires_at) : '—'}
@@ -205,8 +211,10 @@ function BillingCard({ consultancy }: { consultancy: Consultancy }) {
         </>
       ),
     },
-    { label: 'Billing cycle', value: <span className="capitalize">{billing_cycle ?? '—'}</span> },
-    {
+    ...(billing_cycle ? [{ label: 'Billing cycle', value: <span className="capitalize">{billing_cycle}</span> }] : []),
+    ...(onTrial
+      ? [{ label: 'Amount', value: 'Nothing is charged during the free trial.' }]
+      : [{
       label: 'Amount',
       // A Canadian university read "INR 2,40,000" with nothing to compare it against (console
       // review M13, 2026-09-13). The server converts through the exchange table and sends
@@ -222,14 +230,16 @@ function BillingCard({ consultancy }: { consultancy: Consultancy }) {
           <span className="mt-0.5 block text-caption text-text-secondary">All immiNow billing is in INR.</span>
         </>
       ),
-    },
+    }]),
   ]
 
   // The server-derived state (2026-09-10) — the date alone no longer tells the whole story, since
   // what happens after expiry depends on the 14-day grace period.
   const status = consultancy.subscription_status
   const statusBadge =
-    status === 'active' ? (
+    status === 'active' && onTrial ? (
+      <Badge color="info">Free trial</Badge>
+    ) : status === 'active' ? (
       <Badge color="success">Active</Badge>
     ) : status === 'expiring' ? (
       <Badge color="warning">Ends soon</Badge>
