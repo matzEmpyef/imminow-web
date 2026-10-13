@@ -84,7 +84,7 @@ describe('a step waiting for an earlier step to be completed again', () => {
     fireEvent.click(screen.getByRole('button', { name: /Book the interview/ }))
     // The list row and the open step each carry the note; no other step does.
     expect(screen.getAllByText(NOTE)).toHaveLength(2)
-    expect(screen.getAllByText('locked').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Pending').length).toBeGreaterThan(0)
   })
 
   it('keeps its entered work readable, and not editable', () => {
