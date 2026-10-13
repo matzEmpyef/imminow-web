@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { hoursInWords } from '@/lib/duration'
 import { AsOfCaption } from '@/components/AsOfCaption'
 import { Link } from 'react-router-dom'
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
@@ -328,7 +329,7 @@ export function DashboardPage() {
                 <p className="mt-xs text-h2 text-text-primary">
                   {data.analytics.response_time_median_hours == null
                     ? 'No data yet'
-                    : `${Math.round(data.analytics.response_time_median_hours)}h`}
+                    : hoursInWords(data.analytics.response_time_median_hours)}
                 </p>
                 {/* The median only counts leads that GOT a reply (console review M19,
                     2026-09-13), so a lead sitting unanswered for weeks never moved it. This is

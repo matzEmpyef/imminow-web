@@ -107,3 +107,22 @@ describe('Consultancy dashboard — where the cards open', () => {
     )
   })
 })
+
+// T4-34: a response time in hours reads as days and hours in words.
+describe('Usage analytics, response time', () => {
+  it('reads 2862 hours as 119 days 6 hours', () => {
+    show({
+      stat_cards: cards,
+      branch_breakdown: null,
+      analytics: {
+        collecting_since: '2026-01-01',
+        response_time_median_hours: 2862,
+        oldest_unanswered_lead_days: 12,
+        conversion_median_days: null,
+        active_student_engagement: [],
+      },
+    })
+    expect(screen.getByText('119 days 6 hours')).toBeInTheDocument()
+    expect(screen.queryByText('2862h')).not.toBeInTheDocument()
+  })
+})

@@ -190,6 +190,8 @@ function CapacityAssumption({ casesPerStaff, onSaved }: { casesPerStaff: number;
 function CoverageBadge({ row }: { row: CoverageRow }) {
   if (row.coverage === 'none') return <Badge color="error">No coverage</Badge>
   if (row.coverage === 'limited') return <Badge color="warning">Limited</Badge>
+  // "Covered" for a country nobody serves was false (T4-34).
+  if (row.consultancies_serving + row.institutes_serving === 0) return <Badge color="secondary">No one serves this yet</Badge>
   return <Badge color="success">Covered</Badge>
 }
 
