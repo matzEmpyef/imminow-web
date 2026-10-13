@@ -44,7 +44,16 @@ const COLLEGE_NEXT_STEPS: Record<CollegeStatus, CollegeStatus[]> = {
   rejected: [],
 }
 
-export function ApplicationsTab({ clientId, readOnly = false }: { clientId: string; readOnly?: boolean }) {
+export function ApplicationsTab({
+  clientId,
+  readOnly = false,
+  readOnlyReason = CASE_MOVED_ACTION_REASON,
+}: {
+  clientId: string
+  readOnly?: boolean
+  /** Why the controls are off (T4-11): closed, completed, in dispute or moved. */
+  readOnlyReason?: string
+}) {
   const client = useClient(clientId)
   const colleges = useApplications(clientId)
   const updateStatus = useUpdateApplication(clientId)
@@ -60,7 +69,7 @@ export function ApplicationsTab({ clientId, readOnly = false }: { clientId: stri
         variant="secondary"
         onClick={() => setShowAddCollege(true)}
         disabled={readOnly}
-        title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
+        title={readOnly ? readOnlyReason : undefined}
       >
         Add College
       </Button>

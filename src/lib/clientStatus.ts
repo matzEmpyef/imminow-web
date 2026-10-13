@@ -118,6 +118,27 @@ export function accountDeletedBannerMessage(client: { close_sub_reason?: string 
 /** Tooltip/helper text for a disabled action on a moved case — the server's own wording, generic name. */
 export const CASE_MOVED_ACTION_REASON = "This case has moved to another consultancy — it's read-only now."
 
+/**
+ * Why the case's working controls (Add College, Change acceptance, Mark Applied, Add a plan, the
+ * plan's steps) are switched off, or null when they are live (T4-11). A case that has ended or is
+ * under review refuses these on click; the console says so before the click, as it already did
+ * for a moved case.
+ */
+export function caseLockReason(status: string | null | undefined): string | null {
+  switch (status) {
+    case 'closed_switched':
+      return CASE_MOVED_ACTION_REASON
+    case 'closed':
+      return 'This case is closed, so it can no longer be changed.'
+    case 'closed_completed':
+      return 'This case is complete, so it can no longer be changed.'
+    case 'in_dispute':
+      return 'immiNow is reviewing this case, so nothing can be changed until the review is finished.'
+    default:
+      return null
+  }
+}
+
 /** What replaces the chat composer on a moved case (ChatPanel's `composerLocked`, same idiom Lead Pool's unallocated lock uses). */
 export const CASE_MOVED_COMPOSER_NOTE = "This case has moved to another consultancy — you can read the history, but nothing more can be sent."
 

@@ -103,6 +103,7 @@ export function PlanTab({
   initialStepId,
   initialPlanId,
   readOnly = false,
+  readOnlyReason = CASE_MOVED_ACTION_REASON,
   canReopenPlan = false,
 }: {
   clientId: string
@@ -114,6 +115,8 @@ export function PlanTab({
   // action below now 409 `case_moved` server-side, so the builder is wrapped read-only rather than
   // left to fail one click at a time.
   readOnly?: boolean
+  // Why it is read-only (T4-11): moved, closed, completed or in dispute.
+  readOnlyReason?: string
   // Whether the consultant may reopen a step of a plan on this case right now: permission, the
   // `case_reopening` feature and a case that is still open to them, decided by the page. With
   // several plans the Reopen Plan control lives here, in the selected plan's panel (with a single
@@ -177,7 +180,7 @@ export function PlanTab({
             variant="secondary"
             onClick={() => setShowAddPlan(true)}
             disabled={readOnly}
-            title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
+            title={readOnly ? readOnlyReason : undefined}
           >
             Add a plan
           </Button>
@@ -197,7 +200,7 @@ export function PlanTab({
             <Button
               onClick={() => setShowAddPlan(true)}
               disabled={readOnly}
-              title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
+              title={readOnly ? readOnlyReason : undefined}
             >
               Add a plan
             </Button>

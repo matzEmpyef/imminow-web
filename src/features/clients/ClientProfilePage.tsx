@@ -24,7 +24,7 @@ import { DocumentsTab } from './ClientProfileDocumentsTab'
 import { InternalNotesTab } from './ClientProfileInternalNotesTab'
 import { ActivityTab } from './ClientProfileActivityTab'
 import { FormsTab } from './ClientProfileFormsTab'
-import { caseMovedBannerMessage, clientStatusLabel, isCaseMoved, accountDeletedBannerMessage, closeSubReasonLabel } from '@/lib/clientStatus'
+import { caseMovedBannerMessage, clientStatusLabel, isCaseMoved, accountDeletedBannerMessage, closeSubReasonLabel, caseLockReason } from '@/lib/clientStatus'
 
 // The tab names live in `lib/clientTabs.ts`, shared with every screen that links to one of them
 // (review F-164), so a rename here cannot leave a link elsewhere pointing at a tab that is gone.
@@ -102,6 +102,9 @@ export function ClientProfilePage() {
   // Mirrors how `in_dispute` already stops the header actions below, but a moved case is terminal
   // — there is no "wait it out", so the tabs stay gated for good rather than until a mediator acts.
   const caseMoved = isCaseMoved(data.status)
+  // T4-11: closed, completed and disputed cases refuse the working controls on the Applications
+  // and Plan tabs just as a moved one does, so those controls are switched off with the reason.
+  const lockReason = caseLockReason(data.status)
   const movedBanner = caseMovedBannerMessage(data)
   // The case closed because its student deleted their Sentpo account (gate 12f): said once, in
   // the same place and shape as the moved-case banner.
@@ -284,13 +287,14 @@ export function ClientProfilePage() {
             clientId={id}
             initialStepId={initialStepId}
             initialPlanId={initialPlanId}
-            readOnly={caseMoved}
+            readOnly={lockReason !== null}
+            readOnlyReason={lockReason ?? undefined}
             canReopenPlan={reopenPlanAllowed}
           />
         )}
         {activeTab === 'Forms' && hasLinkedForms && <FormsTab clientId={id} readOnly={caseMoved} />}
         {activeTab === 'Commissions' && canSeeCommissions && <CommissionsTab clientId={id} />}
-        {activeTab === 'Applications' && <ApplicationsTab clientId={id} readOnly={caseMoved} />}
+        {activeTab === 'Applications' && <ApplicationsTab clientId={id} readOnly={lockReason !== null} readOnlyReason={lockReason ?? undefined} />}
         {activeTab === 'Documents' && <DocumentsTab clientId={id} readOnly={caseMoved} />}
         {activeTab === 'Internal Notes' && <InternalNotesTab clientId={id} />}
         {activeTab === 'Activity' && <ActivityTab clientId={id} />}
