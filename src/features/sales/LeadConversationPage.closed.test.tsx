@@ -209,7 +209,7 @@ describe('the Lead conversation page', () => {
   it('still offers Reopen on a lead the consultancy closed itself', () => {
     serveLead(lead({ status: 'closed', can_reopen: true, closed_by: 'consultancy', closed_reason_label: 'Lost contact' }))
     render(page())
-    expect(screen.getByText(`Lost contact ${CLOSED_NOTE}`)).toBeInTheDocument()
+    expect(screen.getByText(`Closed: lost contact with the student. ${CLOSED_NOTE}`)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Reopen Lead' })).toBeInTheDocument()
   })
 

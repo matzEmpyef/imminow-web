@@ -5,6 +5,7 @@ import { ApiError } from '@/api/errors'
 import {
   CASE_CLOSED_CHAT_NOTE,
   CLOSED_CONVERSATION_NOTE,
+  closedLeadNote,
   closedThreadRefusal,
   emptyThreadText,
   isCaseChatClosed,
@@ -16,6 +17,17 @@ import {
 // decides which cases are closed for chat, recognises the server's refusal, and holds a screen's
 // read-only state, so the full conversation pages, the floating window and Course Finder agree.
 const refusal = (code: string, message: string) => new ApiError('Could not send this message.', { error: { code, message } }, 409)
+
+describe('the closed lead banner', () => {
+  it('turns a bare close reason into a sentence and leaves a sentence alone', () => {
+    expect(closedLeadNote({ closed_reason_label: 'Lost contact' })).toBe(`Closed: lost contact with the student. ${CLOSED_CONVERSATION_NOTE}`)
+    expect(closedLeadNote({ closed_reason_label: 'Rejected by colleges' })).toBe(`Closed: rejected by the colleges. ${CLOSED_CONVERSATION_NOTE}`)
+    expect(closedLeadNote({ closed_reason_label: 'Other' })).toBe(`Closed: another reason. ${CLOSED_CONVERSATION_NOTE}`)
+    expect(closedLeadNote({ closed_reason_label: 'The student ended this chat.' })).toBe(`The student ended this chat. ${CLOSED_CONVERSATION_NOTE}`)
+    expect(closedLeadNote({ closed_reason_label: 'Something new' })).toBe(`Something new. ${CLOSED_CONVERSATION_NOTE}`)
+    expect(closedLeadNote(null)).toBe(CLOSED_CONVERSATION_NOTE)
+  })
+})
 
 describe('which chats are closed', () => {
   it('a closed or completed case, and nothing else', () => {

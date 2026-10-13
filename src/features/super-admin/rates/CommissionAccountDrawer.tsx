@@ -79,7 +79,7 @@ export function CommissionAccountDrawer({
               <p className="text-body-sm font-medium text-text-primary">Freelancer channel</p>
               <p className="text-caption text-text-secondary">
                 When off, every Freelancer % rate below is not applicable and Applicant Allocation won't offer this
-                consultancy for freelancer-sourced aspirants.
+                consultancy for freelancer-sourced students.
               </p>
             </div>
             <Toggle checked={freelancerEnabled} onChange={(checked) => setPendingFreelancer(checked)} label="Freelancer channel" />

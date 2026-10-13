@@ -117,7 +117,7 @@ export function ConversionApprovalActions({
       <Button
         variant="secondary"
         loading={respond.isPending && respond.variables?.decision === 'declined'}
-        onClick={() => answer('declined', () => showToast('Conversion declined'))}
+        onClick={() => answer('declined', () => showToast('Request declined'))}
       >
         Decline
       </Button>

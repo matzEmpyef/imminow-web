@@ -173,8 +173,8 @@ describe('ConvertToClientModal — sending an offer', () => {
     })) as never)
     renderWithClient(<ConvertToClientModal leadId="l1" leadName="Asha Rao" onClose={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Send Proposal' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send request' }))
     expect(await screen.findByText("This consultancy isn't taking on new clients right now.")).toBeInTheDocument()
-    expect(screen.queryByRole('dialog', { name: 'Proposal sent' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Request sent' })).not.toBeInTheDocument()
   })
 })

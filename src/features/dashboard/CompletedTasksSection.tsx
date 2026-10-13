@@ -98,7 +98,7 @@ function OlderCompleted({ before, onClose }: { before: string; onClose: () => vo
           </Button>
         </div>
       ) : rows.length === 0 ? (
-        <p className="mt-sm text-caption text-text-secondary">Nothing older than {FEED_COMPLETED_DAYS} days.</p>
+        <p className="mt-sm text-caption text-text-secondary">No completed tasks older than {FEED_COMPLETED_DAYS} days.</p>
       ) : (
         <div className="mt-sm flex flex-col gap-xs">
           {rows.map((task) => (

@@ -25,13 +25,13 @@ export function ConvertToClientModal({
     return (
       <Modal
         onClose={onClose}
-        title="Proposal sent"
+        title="Request sent"
         widthRem={30}
         footer={<Button onClick={onClose}>Close</Button>}
         dismissible
       >
         <p className="text-body text-text-secondary">
-          {leadName} has been asked to confirm. This proposal is pending for up to 14 days — you'll be notified once
+          {leadName} has been asked to confirm. The request stays open for up to 14 days — you'll be notified once
           they respond.
         </p>
       </Modal>
@@ -41,7 +41,7 @@ export function ConvertToClientModal({
   return (
     <Modal
       onClose={onClose}
-      title="Propose Conversion"
+      title="Send a request"
       widthRem={30}
       footer={
         <>
@@ -51,7 +51,7 @@ export function ConvertToClientModal({
               onClick={() => !propose.isPending && propose.mutate({ id: leadId, idempotencyKey }, { onError: settle })}
               loading={propose.isPending}
             >
-              Send Proposal
+              Send request
             </Button>
             <Button variant="secondary" onClick={onClose}>
               Cancel
@@ -61,13 +61,13 @@ export function ConvertToClientModal({
       }
     >
       <p className="text-body text-text-secondary">
-        You're about to propose that <strong className="text-text-primary">{leadName}</strong> becomes your client.
+        You're about to ask <strong className="text-text-primary">{leadName}</strong> to become your client.
         Here's what they'll see:
       </p>
       <ul className="mt-md flex flex-col gap-xs text-body-sm text-text-primary">
         <li>• A request to confirm you as their consultancy</li>
-        <li>• Once the aspirant accepts the request, they will be exclusively your client</li>
-        <li>• The proposal expires automatically after 14 days if they don't respond</li>
+        <li>• Once {leadName} accepts, they are your client only, and their chats with other consultancies close.</li>
+        <li>• The request expires after 14 days if they do not answer.</li>
       </ul>
     </Modal>
   )

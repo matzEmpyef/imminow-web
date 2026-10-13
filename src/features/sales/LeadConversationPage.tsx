@@ -504,7 +504,7 @@ export function LeadConversationPage() {
           <div className="col-span-2 flex min-h-0 flex-col">
             <ChatPanel
               name={data.name}
-              typeLabel="Aspirant"
+              typeLabel="Lead"
               typeLabelTone="primary"
               messages={messages.items?.map((m) => ({
                 ...m,
@@ -552,7 +552,7 @@ export function LeadConversationPage() {
               closed={thread.closed}
               composerLocked={
                 converted
-                  ? 'Messages can no longer be sent from this lead. Use the client instead.'
+                  ? 'This lead is now a client. Send messages from the client’s page.'
                   : thread.closed
                   ? thread.note
                   : data.assigned_employee_id

@@ -66,7 +66,7 @@ function LoginHeroPanel() {
     <div className="relative z-10 hidden overflow-hidden md:flex md:w-1/2 md:flex-col md:items-center md:justify-center md:p-xl">
       <div className="relative z-10 w-full max-w-[32rem] text-center">
         <p className="text-display text-text-on-primary" style={{ lineHeight: 'normal', padding: '0 1rem' }}>
-          Guiding aspirants from application to acceptance.
+          Guiding students from application to acceptance.
         </p>
         <p className="mt-md text-body text-white/80">Welcome to immiNow.</p>
         <img src={loginBg} alt="" aria-hidden="true" className="mt-xl w-full" />

@@ -20,12 +20,34 @@ export const CASE_CLOSED_CHAT_NOTE = 'This case is closed, so its chat is read-o
 export const CLOSED_CONVERSATION_NOTE = 'This conversation is closed and read-only.'
 
 /**
- * The sentence for a closed lead's banner: the server's own reason line first ("The student ended
- * this chat."), then the read-only note. The reason is written for the reader and shown as it is.
+ * The consultancy's own close reasons arrive as bare labels ("Lost contact"), which read badly
+ * stuck in front of the next sentence ("Lost contact This conversation is closed…"). Each is
+ * turned into a sentence here; a reason the server already wrote as a sentence is left as it is.
+ */
+const CLOSE_REASON_SENTENCES: Record<string, string> = {
+  'rejected by colleges': 'Closed: rejected by the colleges.',
+  'rejected by the colleges': 'Closed: rejected by the colleges.',
+  'visa refused': 'Closed: visa refused.',
+  'student withdrew': 'Closed: the student withdrew.',
+  'lost contact': 'Closed: lost contact with the student.',
+  'lost contact with the student': 'Closed: lost contact with the student.',
+  other: 'Closed: another reason.',
+  'something else': 'Closed: another reason.',
+}
+
+function reasonSentence(reason: string): string {
+  const known = CLOSE_REASON_SENTENCES[reason.toLowerCase().replace(/\.$/, '')]
+  if (known) return known
+  return /[.!?]$/.test(reason) ? reason : `${reason}.`
+}
+
+/**
+ * The sentence for a closed lead's banner: the reason first ("The student ended this chat." or
+ * "Closed: lost contact with the student."), then the read-only note.
  */
 export function closedLeadNote(lead: { closed_reason_label?: string | null } | null | undefined): string {
   const reason = lead?.closed_reason_label?.trim()
-  return reason ? `${reason} ${CLOSED_CONVERSATION_NOTE}` : CLOSED_CONVERSATION_NOTE
+  return reason ? `${reasonSentence(reason)} ${CLOSED_CONVERSATION_NOTE}` : CLOSED_CONVERSATION_NOTE
 }
 
 /** What an empty thread says. A closed one is read-only, so it does not invite anyone to say hello. */

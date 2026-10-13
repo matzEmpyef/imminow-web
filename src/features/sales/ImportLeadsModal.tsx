@@ -72,7 +72,7 @@ export function ImportLeadsModal({ onClose }: { onClose: () => void }) {
       }
     >
       <p className="text-body-sm text-text-secondary">
-        Columns: name, phone, email. One header row, one contact per row after that.
+        Your file needs three columns: name, phone and email. The first row holds the column headings. Each row after it is one person.
       </p>
 
       <div

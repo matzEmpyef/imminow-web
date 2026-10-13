@@ -112,11 +112,11 @@ describe('Completed tasks older than 30 days', () => {
     expect(requests().at(-1)!['filter[completed_before]']).toBe(requests()[0]['filter[completed_before]'])
   })
 
-  it('says "Nothing older than 30 days." when there is nothing', async () => {
+  it('says "No completed tasks older than 30 days." when there is nothing', async () => {
     mockedGet.mockResolvedValue(answer([]) as never)
     renderSection()
     fireEvent.click(screen.getByRole('button', { name: 'Completed tasks older than 30 days' }))
-    expect(await screen.findByText('Nothing older than 30 days.')).toBeInTheDocument()
+    expect(await screen.findByText('No completed tasks older than 30 days.')).toBeInTheDocument()
   })
 
   it('reads the transition answer (a bare array) as one page', async () => {

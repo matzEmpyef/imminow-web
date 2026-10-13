@@ -131,7 +131,7 @@ export function ActivityPage() {
   type ComingUpRow = {
     key: string
     date: string
-    kind: 'Task' | 'Step' | 'Deadline' | 'Proposal'
+    kind: 'Task' | 'Step' | 'Deadline' | 'Request'
     to: string | null
     label: ReactNode
     /** A task row can be ticked off from here, like one that is due. */
@@ -179,9 +179,9 @@ export function ActivityPage() {
     ...data.pending_proposals.map((p) => ({
       key: `proposal-${p.lead_id}`,
       date: p.expires_at,
-      kind: 'Proposal' as const,
+      kind: 'Request' as const,
       to: `/sales/leads/${p.lead_id}`,
-      label: <>{p.lead_name ?? 'Lead'} — conversion proposal</>,
+      label: <>{p.lead_name ?? 'Lead'} — request to become your client</>,
     })),
   ].sort((a, b) => a.date.localeCompare(b.date))
 
@@ -193,7 +193,7 @@ export function ActivityPage() {
     else comingUpGroups.push({ label, rows: [row] })
   }
 
-  const kindColor = { Task: 'primary', Step: 'info', Deadline: 'warning', Proposal: 'secondary' } as const
+  const kindColor = { Task: 'primary', Step: 'info', Deadline: 'warning', Request: 'secondary' } as const
 
   return (
     <AppShell>
@@ -301,7 +301,7 @@ export function ActivityPage() {
             )}
 
             {data.pending_proposals.length > 0 && (
-              <ActionSection title="Conversion proposals" count={data.pending_proposals.length} cut={cut(data.pending_proposals)}>
+              <ActionSection title="Requests to become a client" count={data.pending_proposals.length} cut={cut(data.pending_proposals)}>
                 {data.pending_proposals.map((item) => {
                   const days = daysUntil(item.expires_at)
                   return (
