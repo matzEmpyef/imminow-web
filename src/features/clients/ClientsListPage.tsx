@@ -141,7 +141,8 @@ export function ClientsListPage() {
   const [destinationFilter, setDestinationFilter] = useState<string[]>([])
   const [showClosed, setShowClosed] = useState(false)
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
-  const [search, setSearch] = useState('')
+  // `?search=` arrives from a converted lead's page, which points here to find the new client.
+  const [search, setSearch] = useState(() => searchParams.get('search') ?? '')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const paging = useCursorPagination()
 

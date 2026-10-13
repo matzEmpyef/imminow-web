@@ -139,6 +139,7 @@ export function ActiveLeadsPage() {
         <div className="flex items-center gap-xs">
           <div className="flex flex-wrap items-center gap-xs">
             {lead.status === 'closed' && <Badge color="secondary">Closed</Badge>}
+            {lead.status === 'converted' && <Badge color="success">Converted</Badge>}
             {/* Why it closed, in the server's own sentence ("The student ended this chat."). */}
             {lead.status === 'closed' && lead.closed_reason_label && (
               <span className="text-caption text-text-secondary">{lead.closed_reason_label}</span>
@@ -166,7 +167,7 @@ export function ActiveLeadsPage() {
       key: 'reassign',
       header: 'Reassign',
       render: (lead) =>
-        lead.status === 'closed' ? (
+        lead.status === 'converted' ? null : lead.status === 'closed' ? (
           canOfferLeadReopen(lead) ? (
             <ReopenTrigger
               name={lead.name}

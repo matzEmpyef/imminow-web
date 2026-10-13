@@ -398,6 +398,17 @@ export function LeadConversationPage() {
   }
 
   const data = lead.data
+  // T4-12: a lead that became a client is finished here. Convert, Close and the message box would
+  // all fail, so the page is locked with one line and a way to the client.
+  const converted = data.status === 'converted'
+  const convertedLine = (
+    <>
+      {data.name} is now a client, so this lead can no longer be changed.{' '}
+      <Link to={`/clients?search=${encodeURIComponent(data.name)}`} className="font-medium text-primary hover:underline">
+        Open them in Clients
+      </Link>
+    </>
+  )
 
   return (
     <AppShell>
@@ -416,7 +427,9 @@ export function LeadConversationPage() {
           </div>
 
           <div className="flex shrink-0 items-center gap-sm">
-            {thread.closed ? (
+            {converted ? (
+              <Badge color="success">Converted</Badge>
+            ) : thread.closed ? (
               <>
                 <span className="rounded-full bg-background px-sm py-1.5 text-caption font-medium text-text-secondary">
                   Closed
@@ -463,6 +476,12 @@ export function LeadConversationPage() {
         </div>
 
         <EarlierConversations ids={data.previous_lead_ids} />
+
+        {converted && (
+          <p role="status" className="shrink-0 rounded-md border border-border bg-surface-muted px-md py-sm text-body-sm text-text-primary">
+            {convertedLine}
+          </p>
+        )}
 
         {showReminderModal && <SetReminderModal leadId={id} onClose={() => setShowReminderModal(false)} />}
         {showRatingModal && (
@@ -516,6 +535,7 @@ export function LeadConversationPage() {
               heightClassName="h-full"
               person={{ id, kind: 'lead' }}
               composerAction={
+                converted ? undefined : (
                 <SuggestCourseInChat
                   person={{
                     id,
@@ -527,10 +547,13 @@ export function LeadConversationPage() {
                     if (!thread.noteRefusal(error)) setComposerError(message)
                   }}
                 />
+                )
               }
               closed={thread.closed}
               composerLocked={
-                thread.closed
+                converted
+                  ? 'Messages can no longer be sent from this lead. Use the client instead.'
+                  : thread.closed
                   ? thread.note
                   : data.assigned_employee_id
                     ? undefined
