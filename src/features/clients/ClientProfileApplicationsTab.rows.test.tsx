@@ -27,6 +27,7 @@ vi.mock('./AddApplicationModal', () => ({ AddApplicationModal: () => null }))
 vi.mock('./AcceptCollegeModal', () => ({ AcceptCollegeModal: () => null }))
 vi.mock('./RevertAcceptanceModal', () => ({ RevertAcceptanceModal: () => null }))
 vi.mock('@/lib/accountWords', () => ({ useAccountWords: () => ({ isInstitute: false }) }))
+vi.mock('@/lib/me', () => ({ useMeStaff: () => null }))
 vi.mock('@/queries/partnerColleges', () => ({ usePartnerColleges: () => ({ data: [] }) }))
 
 import { ApplicationsTab } from './ClientProfileApplicationsTab'

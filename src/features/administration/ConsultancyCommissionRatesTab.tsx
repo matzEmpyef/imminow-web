@@ -6,7 +6,7 @@ import { Card } from '@/components/Card'
 import { CountryLabel } from '@/components/CountryLabel'
 import { Badge } from '@/components/Badge'
 import { useMyConsultancy } from '@/queries/consultancy'
-import { useMyCommissionRates } from '@/queries/commissionRates'
+import { useMyCommissionDefaultInUse, useMyCommissionRates } from '@/queries/commissionRates'
 import type { components } from '@/api/schema'
 
 type CommissionRate = components['schemas']['CommissionRate']
@@ -20,6 +20,10 @@ export function CommissionRatesTab({
   consultancy: NonNullable<ReturnType<typeof useMyConsultancy>['data']>
 }) {
   const rates = useMyCommissionRates()
+  // What applies where no row covers a case, in the server's own words (T4-08). It stands in for
+  // "No rates configured yet" on an empty table, and sits under a filled one.
+  const defaultInUse = useMyCommissionDefaultInUse()
+  const defaultNote = defaultInUse.data?.note
 
   const ratesByCountry = new Map<string, CommissionRate[]>()
   for (const rate of rates.data ?? []) {
@@ -54,7 +58,9 @@ export function CommissionRatesTab({
         <h2 className="text-h3 text-text-primary">Rates by country</h2>
         {rates.isLoading && <p className="mt-sm text-body-sm text-text-secondary">Loading…</p>}
         {rates.isError && <p className="mt-sm text-body-sm text-error">Could not load the rates.</p>}
-        {rates.data?.length === 0 && <p className="mt-sm text-body-sm text-text-secondary">No rates configured yet.</p>}
+        {rates.data?.length === 0 && defaultNote && (
+          <p className="mt-sm text-body-sm text-text-secondary">{defaultNote}</p>
+        )}
         {ratesByCountry.size > 0 && (
           <div className="mt-sm overflow-x-auto rounded-md border border-border">
             <table className="w-full text-left text-body-sm">
@@ -91,6 +97,9 @@ export function CommissionRatesTab({
               </tbody>
             </table>
           </div>
+        )}
+        {ratesByCountry.size > 0 && defaultNote && (
+          <p className="mt-sm text-caption text-text-secondary">{defaultNote}</p>
         )}
       </Card>
     </>

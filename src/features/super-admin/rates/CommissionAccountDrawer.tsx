@@ -7,7 +7,7 @@ import { Button } from '@/components/Button'
 import { Toggle } from '@/components/Toggle'
 import { formatDate, relativeTime } from '@/lib/time'
 import { useUpdateEntitlements } from '@/queries/adminConsultancies'
-import { useCommissionRates, type CommissionRateCoverageRow } from '@/queries/commissionRates'
+import { useCommissionDefaultInUse, useCommissionRates, type CommissionRateCoverageRow } from '@/queries/commissionRates'
 import { RateEditorModal } from './RateEditorModal'
 import type { components } from '@/api/schema'
 
@@ -38,6 +38,8 @@ export function CommissionAccountDrawer({
   const consultancyId = row?.consultancy_id
   const queryClient = useQueryClient()
   const rates = useCommissionRates(consultancyId, { enabled: Boolean(consultancyId) })
+  // What applies where no row covers a case, in the server's own words (T4-08).
+  const defaultInUse = useCommissionDefaultInUse(consultancyId)
   const updateEntitlements = useUpdateEntitlements(consultancyId ?? '')
   const [pendingFreelancer, setPendingFreelancer] = useState<boolean | null>(null)
   const [editingCountry, setEditingCountry] = useState<string | null>(null)
@@ -68,6 +70,12 @@ export function CommissionAccountDrawer({
               Default for gaps: {row.default_percent}%
             </span>
           </div>
+
+          {defaultInUse.data?.note && (
+            <p className="rounded-md bg-background px-md py-sm text-body-sm text-text-primary">
+              {defaultInUse.data.note}
+            </p>
+          )}
 
           <p className="text-caption text-text-secondary">
             Direct % and Freelancer % below are immiNow&rsquo;s share of what this consultancy earns on a case (from

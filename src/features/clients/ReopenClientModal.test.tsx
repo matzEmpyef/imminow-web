@@ -18,6 +18,10 @@ import { api } from '@/api/client'
 import { showToast } from '@/lib/toast'
 import { ReopenClientModal } from './ReopenClientModal'
 
+function typeReason(text = 'The student came back') {
+  fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: text } })
+}
+
 function renderModal(assigned: boolean) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   const onClose = vi.fn()
@@ -41,6 +45,7 @@ beforeEach(() => {
 describe('Reopen Case', () => {
   it('closes with a toast when the case already has a consultant', async () => {
     const onClose = renderModal(true)
+    typeReason()
     fireEvent.click(screen.getByRole('button', { name: 'Reopen Case' }))
     await waitFor(() => expect(onClose).toHaveBeenCalled())
     expect(showToast).toHaveBeenCalledWith('Case reopened for Ishaan Khan')
@@ -49,6 +54,7 @@ describe('Reopen Case', () => {
   it('asks who should take a case that has none, and assigns them', async () => {
     const onClose = renderModal(false)
     expect(screen.getByText(/No consultant holds this case/)).toBeInTheDocument()
+    typeReason()
     fireEvent.click(screen.getByRole('button', { name: 'Reopen Case' }))
     expect(await screen.findByText(/no consultant\s+holds it yet\. Who should take it\?/)).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Consultant'), { target: { value: 'e9' } })
@@ -60,8 +66,41 @@ describe('Reopen Case', () => {
   it('tells someone who cannot assign to ask an admin', async () => {
     access.canAssign = false
     const onClose = renderModal(false)
+    typeReason()
     fireEvent.click(screen.getByRole('button', { name: 'Reopen Case' }))
     await waitFor(() => expect(onClose).toHaveBeenCalled())
     expect(showToast).toHaveBeenCalledWith(expect.stringContaining('ask an admin to assign one'))
+  })
+
+  // Phase 8 T2-04: a typed reason of at least 3 characters is required, and is what is sent.
+  it('will not reopen without a reason of at least 3 characters, and says what is missing', () => {
+    renderModal(true)
+    expect(screen.getByRole('button', { name: 'Reopen Case' })).toBeDisabled()
+    expect(screen.getByText('Still needed: the reason.')).toBeInTheDocument()
+    typeReason('ab')
+    expect(screen.getByRole('button', { name: 'Reopen Case' })).toBeDisabled()
+    typeReason('  abc  ')
+    expect(screen.getByRole('button', { name: 'Reopen Case' })).toBeEnabled()
+    expect(screen.queryByText(/Still needed/)).toBeNull()
+  })
+
+  it('sends the trimmed reason', async () => {
+    const onClose = renderModal(true)
+    typeReason('  The student came back  ')
+    fireEvent.click(screen.getByRole('button', { name: 'Reopen Case' }))
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(vi.mocked(api.POST).mock.calls[0][1]).toMatchObject({ params: { path: { id: 'c1' } }, body: { reason: 'The student came back' } })
+  })
+
+  it('shows the sentence the server refuses with', async () => {
+    vi.mocked(api.POST).mockResolvedValue({
+      data: undefined,
+      error: { error: { code: 'validation_failed', message: 'Say why this case is being reopened.', status: 400 } },
+      response: { status: 400 },
+    } as never)
+    renderModal(true)
+    typeReason()
+    fireEvent.click(screen.getByRole('button', { name: 'Reopen Case' }))
+    expect(await screen.findByText('Say why this case is being reopened.')).toBeInTheDocument()
   })
 })

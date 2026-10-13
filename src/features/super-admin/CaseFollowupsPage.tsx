@@ -86,8 +86,8 @@ export function CaseFollowupsPage() {
       header: '₹ pending',
       align: 'right',
       render: (row) =>
-        (row.amount_at_stake_inr ?? 0) > 0 ? (
-          <span className="tabular-nums">{inr(row.amount_at_stake_inr ?? 0)}</span>
+        (row.pending_inr ?? 0) > 0 ? (
+          <span className="tabular-nums">{inr(row.pending_inr ?? 0)}</span>
         ) : (
           <span className="text-text-secondary">—</span>
         ),

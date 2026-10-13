@@ -334,7 +334,7 @@ export function AcceptCollegeModal({
             )}
             <p className="text-caption text-text-secondary">
               Accepting is final for this case — one accepted college per student. A mistake can be undone with
-              &ldquo;Change acceptance&rdquo;, which records a reason in the audit log.
+              &ldquo;Undo acceptance&rdquo;, which records a reason in the audit log.
             </p>
           </>
         )}

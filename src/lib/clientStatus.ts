@@ -119,7 +119,7 @@ export function accountDeletedBannerMessage(client: { close_sub_reason?: string 
 export const CASE_MOVED_ACTION_REASON = "This case has moved to another consultancy, so this can no longer be changed."
 
 /**
- * Why the case's working controls (Add College, Change acceptance, Mark Applied, Add a plan, the
+ * Why the case's working controls (Add College, Undo acceptance, Mark Applied, Add a plan, the
  * plan's steps) are switched off, or null when they are live (T4-11). A case that has ended or is
  * under review refuses these on click; the console says so before the click, as it already did
  * for a moved case.

@@ -108,16 +108,19 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
   const isPr = client.data?.case_type === 'pr'
   // A case that has ended takes no new money (T1-10): the server says so (`recording_allowed`), and
   // every record button follows it, also on the empty tab. `case_closed` is the sentence's cue.
-  const noNewMoney = data.recording_allowed === false
+  // A reversed record (the case closed without success after an acceptance or a contribution) is
+  // shown read-only: the payments that were recorded stay listed, nothing can be added or voided.
+  const reversed = data.reversed === true
+  const noNewMoney = data.recording_allowed === false || reversed
   const closed = data.case_closed === true
   // Own-client bookkeeping: installments work as usual; the tab has no Sentpo figure and no
   // declare-payment control for any channel, so the only difference is the explanatory caption.
   const bookkeeping = isBookkeepingChannel(entry?.channel, client.data?.acquisition_source)
 
   if (!entry && closed) {
-    // The server stops tracking a case's commission once it closes without success, so there is
-    // nothing to show and nothing to start. Whether the reversed record is shown here is the
-    // owner's open question (T2-01); until then the page says only what is true.
+    // A case that closed with nothing recorded on it has no commission to show and none to start.
+    // One that closed without success after an acceptance or a contribution has its reversed
+    // record (`reversed`), shown below instead.
     return (
       <Card className="flex flex-col items-start gap-md">
         <div>
@@ -160,6 +163,12 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
 
   return (
     <div className="flex flex-col gap-md">
+      {/* Said by the server, as served (T2-01). */}
+      {reversed && data.reversed_note && (
+        <p role="status" className="rounded-md bg-background p-sm text-body-sm text-text-primary">
+          {data.reversed_note}
+        </p>
+      )}
       <Card className="flex flex-col gap-md">
         <div className="flex items-start justify-between gap-md">
           <div>
@@ -178,6 +187,7 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-sm">
+            {reversed && <Badge color="error">Reversed</Badge>}
             <Badge color="info" className="capitalize">
               {entry.payer_method === 'applicant'
                 ? 'Applicant pays'
@@ -196,6 +206,9 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
           </div>
         </div>
         {bookkeeping && <p className="text-caption text-text-secondary">{BOOKKEEPING_CAPTION}</p>}
+        {/* What immiNow's share on this case is, as served (T4-07); absent for a reader who may not
+            see commission details, and on the consultancy's own client. */}
+        {data.platform_share_note && <p className="text-body-sm text-text-secondary">{data.platform_share_note}</p>}
         <PayerProgressLine
           label="From college"
           expected={entry.expected_from_college}

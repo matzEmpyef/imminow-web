@@ -2,15 +2,19 @@ import { useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { ServerSearchSelect } from '@/components/ServerSearchSelect'
+import { StillNeeded } from '@/components/StillNeeded'
+import { TextAreaField } from '@/components/TextAreaField'
 import { useAssignClient, useReopenClientCase } from '@/queries/clients'
 import { activeEmployeeSource } from '@/queries/pickerSources'
 import { usePermission } from '@/lib/permissions'
 import { showToast } from '@/lib/toast'
 import { ApiError } from '@/api/errors'
 
-// Mirrors ReopenLeadModal.tsx exactly — no reason field, reopening is reversible and low-stakes,
-// a confirm just prevents an accidental click on the icon. Named "Reopen Case" throughout the UI
-// to stay distinct from the existing "Reopen Plan" action (different meaning, different button).
+// A typed reason (at least 3 characters) is required to reopen a case (Phase 8 T2-04, owner's ruling
+// 2026-10-13); it is kept in the audit entry. Named "Reopen Case" throughout the UI to stay distinct
+// from the existing "Reopen Plan" action (different meaning, different button).
+const MIN_REASON_LENGTH = 3
+
 //
 // Some closed cases are not the consultancy's to reopen: one a dispute ended, and (gate 12f) one
 // that closed because its student deleted their Sentpo account. The server answers those 409
@@ -36,6 +40,8 @@ export function ReopenClientModal({
   const canAssign = usePermission('clients.reassign')
   const [reopenedVersion, setReopenedVersion] = useState<number | null | undefined>(undefined)
   const [employeeId, setEmployeeId] = useState('')
+  const [reason, setReason] = useState('')
+  const reasonOk = reason.trim().length >= MIN_REASON_LENGTH
   const assign = useAssignClient(clientId, reopenedVersion ?? undefined)
   if (reopenedVersion !== undefined) {
     return (
@@ -99,12 +105,13 @@ export function ReopenClientModal({
               {reopenClient.error.message}
             </p>
           )}
+          <StillNeeded items={reasonOk ? [] : ['the reason']} />
           <div className="flex gap-sm">
             <Button
               loading={reopenClient.isPending}
-              disabled={refusedForGood}
+              disabled={refusedForGood || !reasonOk}
               onClick={() =>
-                reopenClient.mutate(clientId, {
+                reopenClient.mutate({ id: clientId, reason: reason.trim() }, {
                   onSuccess: (result) => {
                     if (!assigned && canAssign) {
                       setReopenedVersion((result as { version?: number } | undefined)?.version ?? null)
@@ -137,6 +144,14 @@ export function ReopenClientModal({
               ? ' No consultant holds this case, so you will be asked to choose one next.'
               : ' No consultant holds this case. Ask an admin to assign one afterwards.')}
         </p>
+        <TextAreaField
+          label="Reason"
+          required
+          rows={3}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          hint="Why is this case being reopened? It is kept in the record."
+        />
       </div>
     </Modal>
   )

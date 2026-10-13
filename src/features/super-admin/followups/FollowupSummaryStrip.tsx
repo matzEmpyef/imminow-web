@@ -42,7 +42,7 @@ interface FollowupSummaryStripProps {
   loading?: boolean
   /** "Cases" for Payment follow-ups, "Students" for Student follow-ups. */
   totalLabel: string
-  /** Payment follow-ups only — pass `summary?.pending_inr` to show the "₹X pending" tile. */
+  /** Payment follow-ups only — shows `summary.pending_total_inr` on the "₹X pending" tile. */
   showPendingInr?: boolean
   notCalledActive: boolean
   onToggleNotCalled: () => void
@@ -78,7 +78,9 @@ export function FollowupSummaryStrip({
 
   return (
     <div className="flex flex-wrap gap-sm">
-      {showPendingInr && <Tile label="Pending" value={inr(summary.pending_inr ?? 0)} />}
+      {/* The served total over every listed row (Phase 8 T4-02): `pending_inr` here counted only
+          shares not yet settled and read 0 for a queue of overdue cases. */}
+      {showPendingInr && <Tile label="Pending" value={inr(summary.pending_total_inr ?? 0)} />}
       <Tile label={totalLabel} value={summary.total} />
       <Tile label="Not called yet" value={summary.not_called} active={notCalledActive} onClick={onToggleNotCalled} />
       <Tile label="Due for a call" value={summary.due_for_call} active={dueActive} onClick={onToggleDue} />

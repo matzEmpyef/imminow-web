@@ -9,6 +9,20 @@ import type { components } from '@/api/schema'
 export type FreelancerReferral = components['schemas']['FreelancerReferral']
 export type FreelancerPayout = components['schemas']['FreelancerPayout']
 
+/**
+ * The money summary over all of a freelancer's referrals. The last three fields (Phase 8 T2-08) are
+ * new in the final contract: replace with generated type after the contract join.
+ *  - `still_to_come_inr`: the part of `expected_inr` not earned yet, in whole rupees.
+ *  - `your_rate_text`: the sentence that states the freelancer's rate (or that none is set yet).
+ *  - `payouts_line`: one plain line on how and when payouts are made.
+ * Shown as served; the console works nothing out.
+ */
+export type FreelancerReferralSummary = components['schemas']['FreelancerReferralSummary'] & {
+  still_to_come_inr?: number
+  your_rate_text?: string
+  payouts_line?: string
+}
+
 export interface FreelancerOwnReferralsFilters {
   search?: string
   /** not_due | owed | paid, comma-joined for "any of". */
@@ -57,7 +71,8 @@ export function useFreelancerReferrals(filters: FreelancerOwnReferralsFilters = 
         },
       })
       if (error) throw new ApiError('Could not load your referrals.', error)
-      return data
+      // The one cast for the summary fields above: replace with generated type after the contract join.
+      return data as typeof data & { summary: FreelancerReferralSummary }
     },
     enabled: isAuthed,
   })

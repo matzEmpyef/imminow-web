@@ -197,7 +197,17 @@ export function useCorrectDateOfBirth() {
 }
 
 export type ErasureRequest = components['schemas']['ErasureRequest']
-export type ErasurePreview = components['schemas']['ErasurePreview']
+/**
+ * `freelancer_owed_inr` and `freelancer_owed_notice` (Phase 8 fault check 3) are new in the final
+ * contract: replace with generated type after the contract join. The notice is the warning to show
+ * before the operator confirms ("This freelancer is still owed ₹21,311 in earnings that have not
+ * been paid. …"); null unless something is owed. A warning only — the deletion is never refused for
+ * it. The console shows it as served and computes nothing.
+ */
+export type ErasurePreview = components['schemas']['ErasurePreview'] & {
+  freelancer_owed_inr?: number | null
+  freelancer_owed_notice?: string | null
+}
 
 /**
  * What Support's deletion of this account will close, read before the operator confirms (owner
@@ -212,7 +222,8 @@ export function useErasurePreview(userId: string) {
     queryFn: async ({ signal }) => {
       const { data, error } = await api.GET('/users/{id}/erase', { signal, params: { path: { id: userId } } })
       if (error) throw new ApiError('Could not check this account for open disputes.', error)
-      return data
+      // The one cast for the fields above: replace with generated type after the contract join.
+      return data as ErasurePreview
     },
     enabled: isAuthed && Boolean(userId),
     // A dispute can be opened or resolved at any moment: every opening of the form asks afresh.

@@ -7,7 +7,49 @@ import { isAlreadyApplied } from '@/lib/useIdempotencyKey'
 import { FINANCE_QUERY_KEY } from './financeDashboard'
 import type { components } from '@/api/schema'
 
-export type CommissionPayment = components['schemas']['CommissionPayment']
+/**
+ * One payment as a line of the Payment history export (Phase 8 T4-04 to T4-06): every cell a
+ * finished string from the server. New in the final contract: replace with generated type after
+ * the contract join.
+ */
+export interface PaymentExport {
+  date: string
+  status: string
+  currency: string
+  amount: string
+  amount_inr: string
+  /** The consultancy's or institute's name. */
+  account: string
+  applicant: string
+  reference: string
+  declared_on: string
+  decided_on: string
+  decided_by: string
+  reason: string
+  settled_in: string
+  rate_used: string
+  amount_settled: string
+}
+
+/**
+ * One case's row on Commission Details. `platform_still_to_come` (Phase 8 T4-07) is new in the
+ * final contract: replace with generated type after the contract join. It is what of immiNow's
+ * share is still to be paid once it falls due, net of money paid ahead — the "not yet due" column;
+ * the older `platform_expected` alone showed the whole share beside the same amount "paid".
+ */
+export type CommissionDue = components['schemas']['CommissionDue'] & {
+  platform_still_to_come?: components['schemas']['Money'] | null
+}
+
+/**
+ * `reason_text` (everything Finance typed about the payment, as one line) and `export` (its line of
+ * the Payment history export) are new in the final contract: replace with generated type after the
+ * contract join.
+ */
+export type CommissionPayment = components['schemas']['CommissionPayment'] & {
+  reason_text?: string | null
+  export?: PaymentExport | null
+}
 
 /**
  * Commission Details (`GET /commission`). Contract gate 11 pages it by TWO independent cursors —

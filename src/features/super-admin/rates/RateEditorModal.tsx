@@ -4,6 +4,8 @@ import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { SelectField } from '@/components/SelectField'
+import { StillNeeded } from '@/components/StillNeeded'
+import { TextAreaField } from '@/components/TextAreaField'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useAdminConsultancy } from '@/queries/adminConsultancies'
 import { useCommissionRates, useSaveCommissionRateRows } from '@/queries/commissionRates'
@@ -11,6 +13,9 @@ import { useCountries } from '@/queries/countries'
 import { ConsultancySearchSelect } from '../finance/ConsultancySearchSelect'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
+
+// A rate change is kept with the reason it was made for (Phase 8 T2-04 / T4-09, DECISIONS 134b).
+const MIN_REASON_LENGTH = 3
 
 type CommissionRate = components['schemas']['CommissionRate']
 type PayerMethod = NonNullable<CommissionRate['payer_method']>
@@ -99,6 +104,8 @@ export function RateEditorModal({
   const [matrix, setMatrix] = useState<MatrixState>(blankMatrix())
   const [existingIds, setExistingIds] = useState<RateIdState>({})
   const [touched, setTouched] = useState(false)
+  const [reason, setReason] = useState('')
+  const reasonOk = reason.trim().length >= MIN_REASON_LENGTH
   // Validation is checked ON SAVE, not while typing (user, 2026-08-28: "do not have display
   // 'Direct % must be between 0 and 100' ... just make sure when saving") — errors render only
   // after a save attempt, and clear per row as the values are fixed.
@@ -185,7 +192,8 @@ export function RateEditorModal({
     !consultancyPending &&
     !consultancy.isError &&
     !ratesPending &&
-    !ratesError
+    !ratesError &&
+    reasonOk
   const noRowsFilledError = attempted && filledKeys.length === 0 ? 'Fill in at least one payer group before saving.' : undefined
 
   function handleSubmit(e: FormEvent) {
@@ -204,7 +212,7 @@ export function RateEditorModal({
       return { id: existingIds[key], payer_method: key, direct_rate: direct, freelancer_sourced_rate: freelancer }
     })
     saveRows.mutate(
-      { consultancy_id: consultancyId, destination_country: country, rows },
+      { consultancy_id: consultancyId, destination_country: country, rows, reason: reason.trim() },
       {
         onSuccess: () => {
           showToast(`Rates saved for ${consultancyName || 'this account'} — ${country}`)
@@ -226,6 +234,7 @@ export function RateEditorModal({
               {noRowsFilledError ?? saveRows.error?.message}
             </p>
           )}
+          <StillNeeded items={reasonOk ? [] : ['the reason']} />
           <Button type="submit" form="rate-editor-form" loading={saveRows.isPending} disabled={!canSubmit}>
             Save
           </Button>
@@ -350,6 +359,15 @@ export function RateEditorModal({
           )}
         </div>
         )}
+
+        <TextAreaField
+          label="Reason"
+          required
+          rows={2}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          hint="Why are these rates being set or changed? It is kept in the record."
+        />
       </form>
     </Modal>
   )

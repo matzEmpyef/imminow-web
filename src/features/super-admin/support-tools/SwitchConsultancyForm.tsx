@@ -5,6 +5,7 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { CaseCarryFields } from '@/components/CaseCarryFields'
 import { DEFAULT_CARRY, movedSentence, type CarriedItem } from '@/lib/caseCarry'
+import { useAsksAboutAdmission } from '@/queries/applicantCase'
 import { useSwitchCandidates, useSwitchConsultancy, type UserSearchResult } from '@/queries/supportTools'
 
 const BLOCKED_REASON_LABELS: Record<string, string> = {
@@ -27,10 +28,12 @@ const BLOCKED_REASON_LABELS: Record<string, string> = {
 export function SwitchConsultancyForm({ result, onCancel }: { result: UserSearchResult; onCancel: () => void }) {
   const candidates = useSwitchCandidates(result.journey_id)
   const switchConsultancy = useSwitchConsultancy()
+  // Read only once the operator reaches the confirmation, where the question belongs.
+  const [confirming, setConfirming] = useState(false)
+  const asksAdmission = useAsksAboutAdmission(confirming ? result.journey_id : undefined)
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState('')
   const [reason, setReason] = useState('')
-  const [confirming, setConfirming] = useState(false)
   // What goes with the case: the operator decides (owner's ruling on review I-014, 2026-10-08).
   const [carry, setCarry] = useState(DEFAULT_CARRY)
   const [moved, setMoved] = useState<{ clientId?: string; carried?: CarriedItem[] } | null>(null)
@@ -98,7 +101,7 @@ export function SwitchConsultancyForm({ result, onCancel }: { result: UserSearch
           {selected.name}. {current?.name ?? 'The current consultancy'} loses access to their shared documents. The
           student and both consultancies are told.
         </p>
-        <CaseCarryFields value={carry} onChange={setCarry} disabled={switchConsultancy.isPending} />
+        <CaseCarryFields value={carry} onChange={setCarry} disabled={switchConsultancy.isPending} askAdmission={asksAdmission} />
         {switchConsultancy.isError && <p className="text-body-sm text-error">{switchConsultancy.error.message}</p>}
         <div className="flex items-center justify-end gap-sm">
           <Button size="sm" variant="secondary" onClick={() => setConfirming(false)} disabled={switchConsultancy.isPending}>

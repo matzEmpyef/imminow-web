@@ -525,6 +525,20 @@ export function useClientActivity(clientId: string | undefined, filters: CursorP
   })
 }
 
+/**
+ * A client's Commissions tab read. The Phase 8 fields are new in the final contract: replace with
+ * generated type after the contract join.
+ *  - `reversed` (T2-01): the case closed without success after a college acceptance or a PR
+ *    contribution and its record was cancelled. `entry` is then that record (status reversed) with
+ *    the payments that were recorded on it; `reversed_note` is the sentence to show.
+ *  - `platform_share_note` (T4-07): one sentence on what immiNow's share on this case is.
+ */
+export type ClientCommissions = components['schemas']['CommissionSummary'] & {
+  reversed?: boolean
+  reversed_note?: string | null
+  platform_share_note?: string | null
+}
+
 /** How often the Commissions tab reads again while the server is still settling a closed case. */
 export const COMMISSION_SETTLING_POLL_MS = 2000
 /**
@@ -550,7 +564,8 @@ export function useCommissions(clientId: string | undefined) {
         params: { path: { id: clientId! } },
       })
       if (error) throw new ApiError('Could not load commission details.', error)
-      return data
+      // The one cast for the fields above: replace with generated type after the contract join.
+      return data as ClientCommissions
     },
     enabled: isAuthed && Boolean(clientId),
     refetchInterval: (query) => {
@@ -705,15 +720,24 @@ export function useRaiseIssue() {
   })
 }
 
+/**
+ * Reopens a closed case. A typed `reason` (at least 3 characters) is required since Phase 8 (T2-04,
+ * DECISIONS 133/134b); without one the server answers 400 with a sentence to show. The refusals
+ * `case_not_closed` and `closed_by_platform` come first.
+ */
 export function useReopenClientCase() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { data, error, response } = await api.POST('/clients/{id}/reopen-case', { params: { path: { id } } })
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const { data, error, response } = await api.POST('/clients/{id}/reopen-case', {
+        params: { path: { id } },
+        // The body is new in the final contract: replace with generated type after the contract join.
+        body: { reason } as never,
+      })
       if (error) throw new ApiError('Could not reopen this client.', error, (response as Response | undefined)?.status)
       return data
     },
-    onSuccess: (_data, id) => {
+    onSuccess: (_data, { id }) => {
       invalidateClients(queryClient)
       queryClient.invalidateQueries({ queryKey: ['clients', id] })
       refreshStanding(queryClient)

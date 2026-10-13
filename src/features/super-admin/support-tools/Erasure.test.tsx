@@ -188,6 +188,32 @@ describe('the erase form', () => {
       expect(mockedPost).not.toHaveBeenCalled()
     })
 
+    // Phase 8 fault check 3: a freelancer still owed earnings is warned about, never blocked.
+    describe('a freelancer who is still owed earnings', () => {
+      const OWED_NOTICE = 'This freelancer is still owed ₹21,311 in earnings that have not been paid. Deleting the account does not cancel them.'
+
+      it('shows the server’s warning as served, above the confirm button, and does not stop the erasure', async () => {
+        mockedGet.mockImplementation((async () => ok({ ...NO_OPEN_DISPUTES, freelancer_owed_inr: 21311, freelancer_owed_notice: OWED_NOTICE })) as never)
+        renderForm()
+        fill()
+        fireEvent.click(continueButton())
+
+        const notice = await screen.findByText(OWED_NOTICE)
+        const confirm = await confirmButton('Schedule erasure')
+        expect(confirm).toBeEnabled()
+        expect(notice.compareDocumentPosition(confirm) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      })
+
+      it('shows nothing when nothing is owed', async () => {
+        mockedGet.mockImplementation((async () => ok({ ...NO_OPEN_DISPUTES, freelancer_owed_inr: 0, freelancer_owed_notice: null })) as never)
+        renderForm()
+        fill()
+        fireEvent.click(continueButton())
+        await confirmButton('Schedule erasure')
+        expect(screen.queryByText(/still owed/)).not.toBeInTheDocument()
+      })
+    })
+
     it('says nothing about disputes when none is open', async () => {
       renderForm()
       fill()

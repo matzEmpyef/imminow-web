@@ -57,6 +57,13 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       // Console review C2 (2026-09-13) — the server now enforces this one key on BOTH
       // POST /clients/{id}/close and POST /leads/{id}/close, so the label says so.
       { key: 'clients.close', label: 'Close leads and cases' },
+      // Phase 8 (DECISIONS 117 C-13): listed after Close, always available (no plan feature hides it).
+      // Label and helper text are the contract's.
+      {
+        key: 'clients.revert_acceptance',
+        label: 'Undo a college acceptance',
+        hint: 'Undo an acceptance on a client this person can open but is not assigned to. The admin and the consultant assigned to the client can always do this.',
+      },
     ],
   },
   {

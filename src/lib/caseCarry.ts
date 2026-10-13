@@ -1,7 +1,11 @@
 import type { components } from '@/api/schema'
 
-export type CaseCarry = components['schemas']['CaseCarry']
 export type CarriedItem = components['schemas']['CarriedItem']
+/**
+ * What goes with a case. `admission` (Phase 8, DECISIONS 117 C-9 and 118) is new in the final
+ * contract: replace with generated type after the contract join.
+ */
+export type CaseCarry = components['schemas']['CaseCarry'] & { admission?: boolean }
 
 /**
  * What goes with a case when it moves to another consultancy (owner's ruling on review I-014,
@@ -17,17 +21,24 @@ export const CARRY_ITEMS: readonly { key: CarriedItem; label: string; helper: st
 ]
 
 /** Doing nothing gives the documents only — the receiving consultancy starts fresh on the rest. */
-export const DEFAULT_CARRY: CaseCarry = { documents: true, applications: false, preferences: false, chat: false }
+export const DEFAULT_CARRY: CaseCarry = {
+  documents: true,
+  applications: false,
+  preferences: false,
+  chat: false,
+  admission: false,
+}
 
 /** "documents, college applications" — the same four names as the tick boxes, in lower case. */
-function carriedNames(carried: readonly CarriedItem[]): string {
-  return CARRY_ITEMS.filter((item) => carried.includes(item.key))
-    .map((item) => item.label.toLowerCase())
-    .join(', ')
+function carriedNames(carried: readonly string[]): string {
+  const names = CARRY_ITEMS.filter((item) => carried.includes(item.key)).map((item) => item.label.toLowerCase())
+  // `admission` is not a fifth thing shared: it says the accepted college went with the case.
+  if (carried.includes('admission')) names.push('accepted college')
+  return names.join(', ')
 }
 
 /** What the person who made the move is told, from the server's own `carried` answer. */
-export function movedSentence(carried: readonly CarriedItem[] | null | undefined): string {
+export function movedSentence(carried: readonly string[] | null | undefined): string {
   const names = carriedNames(carried ?? [])
   return names ? `Moved. Shared: ${names}.` : 'Moved. Nothing was shared.'
 }
@@ -36,7 +47,7 @@ export function movedSentence(carried: readonly CarriedItem[] | null | undefined
  * The receiving consultancy's line, from `Client.carried`: null (the case did not arrive by a
  * move) says nothing, an empty list says "nothing".
  */
-export function carriedOverLine(carried: readonly CarriedItem[] | null | undefined): string | null {
+export function carriedOverLine(carried: readonly string[] | null | undefined): string | null {
   if (carried == null) return null
   return `Carried over: ${carriedNames(carried) || 'nothing'}`
 }

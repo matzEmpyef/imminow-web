@@ -2,6 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
+import { StillNeeded } from '@/components/StillNeeded'
+import { TextAreaField } from '@/components/TextAreaField'
 import { useCommissionDefaults, useUpdateCommissionDefaults } from '@/queries/commissionRates'
 import { showToast } from '@/lib/toast'
 
@@ -49,6 +51,9 @@ function DefaultRow({ label, hint, children }: { label: string; hint: string; ch
     </div>
   )
 }
+
+// A change to the defaults is kept with the reason it was made for (Phase 8 T2-04 / T4-09).
+const MIN_REASON_LENGTH = 3
 
 type DefaultKey = 'consultancy_percent' | 'freelancer_percent' | 'institute_percent' | 'payment_terms_days'
 
@@ -113,6 +118,8 @@ export function CommissionDefaultsCard({ variant = 'page' }: { variant?: 'page' 
   })
   const [initialized, setInitialized] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [reason, setReason] = useState('')
+  const reasonOk = reason.trim().length >= MIN_REASON_LENGTH
 
   const fromServer = (data: typeof defaults.data): Record<DefaultKey, string> => ({
     consultancy_percent: String(data?.consultancy_percent ?? ''),
@@ -139,12 +146,14 @@ export function CommissionDefaultsCard({ variant = 'page' }: { variant?: 'page' 
   const canSave = dirty && FIELDS.every(valid)
 
   function handleConfirm() {
+    if (!reasonOk) return
     const body: Partial<Record<DefaultKey, number>> = {}
     for (const f of changed) body[f.key] = Number(values[f.key])
-    updateDefaults.mutate(body, {
+    updateDefaults.mutate({ ...body, reason: reason.trim() }, {
       onSuccess: () => {
         showToast('Commission defaults updated')
         setConfirming(false)
+        setReason('')
       },
     })
   }
@@ -209,14 +218,23 @@ export function CommissionDefaultsCard({ variant = 'page' }: { variant?: 'page' 
           title="Change the defaults?"
           widthRem={26}
           footer={
-            <div className="flex justify-end gap-sm">
-              <Button variant="secondary" onClick={() => setConfirming(false)}>
-                Cancel
-              </Button>
-              <Button loading={updateDefaults.isPending} onClick={handleConfirm}>
-                Confirm
-              </Button>
-            </div>
+            <>
+              {/* The server's own sentence if it refuses (for example, no reason was sent). */}
+              {updateDefaults.isError && (
+                <p role="alert" className="mr-auto self-center text-body-sm text-error">
+                  {updateDefaults.error.message}
+                </p>
+              )}
+              <StillNeeded items={reasonOk ? [] : ['the reason']} />
+              <div className="flex justify-end gap-sm">
+                <Button variant="secondary" onClick={() => setConfirming(false)}>
+                  Cancel
+                </Button>
+                <Button loading={updateDefaults.isPending} disabled={!reasonOk} onClick={handleConfirm}>
+                  Confirm
+                </Button>
+              </div>
+            </>
           }
         >
           <div className="flex flex-col gap-sm text-body-sm text-text-secondary">
@@ -231,6 +249,14 @@ export function CommissionDefaultsCard({ variant = 'page' }: { variant?: 'page' 
               Rates apply to cases accepted from now on with no rate set — cases already accepted keep their rate.
               Payment terms apply to parts that fall due from now on.
             </p>
+            <TextAreaField
+              label="Reason"
+              required
+              rows={2}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              hint="Why are the defaults being changed? It is kept in the record."
+            />
           </div>
         </Modal>
       )}

@@ -244,6 +244,7 @@ describe('a case that closed because its student deleted their account', () => {
       refused(409, 'closed_by_platform', 'This case was closed when the student deleted their account and cannot be reopened.'),
     )
     renderWithClient(<ReopenClientModal clientId="journey-1" clientName="Meera Pillai" onClose={() => {}} />)
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'The student came back' } })
     const reopen = screen.getByRole('button', { name: 'Reopen Case' })
     fireEvent.click(reopen)
     expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -255,6 +256,7 @@ describe('a case that closed because its student deleted their account', () => {
   it('leaves Reopen usable after any other refusal', async () => {
     mockedPost.mockResolvedValueOnce(refused(409, 'case_not_closed', 'This case is not closed.'))
     renderWithClient(<ReopenClientModal clientId="journey-1" clientName="Meera Pillai" onClose={() => {}} />)
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'The student came back' } })
     fireEvent.click(screen.getByRole('button', { name: 'Reopen Case' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('This case is not closed.')
     expect(screen.getByRole('button', { name: 'Reopen Case' })).toBeEnabled()

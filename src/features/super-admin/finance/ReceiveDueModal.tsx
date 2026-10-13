@@ -122,6 +122,16 @@ export function ReceiveDueModal({
   const settledDraft = useMemo(() => JSON.parse(settledDraftKey) as typeof draft, [settledDraftKey])
   const previewReady = !crossInvalid && !(crossCurrency && !part && owedCurrency === '')
   const preview = useReceivePreview(caseRow.id, settledDraft, previewReady)
+  // Only currencies that have an exchange rate today can be received (T4-10): any other is refused
+  // by the server ("There is no exchange rate for …"). Until the first answer arrives the case's own
+  // currencies and the common codes are listed, as before.
+  const withRate = preview.data?.currencies_with_rate
+  const offeredCurrencies = withRate && withRate.length > 0 ? withRate : currencies
+  const picksCurrency = !part || crossCurrency
+  useEffect(() => {
+    // A held currency that is not on the served list is not offered, so the picker moves to one that is.
+    if (picksCurrency && withRate && withRate.length > 0 && !withRate.includes(currency)) setCurrency(withRate[0])
+  }, [picksCurrency, withRate, currency])
   // The figures belong to the draft they were asked for: not shown while the draft has moved on.
   const previewCurrent = settledDraftKey === draftKey && !preview.isFetching ? preview.data : undefined
   const previewRefusal =
@@ -272,7 +282,7 @@ export function ReceiveDueModal({
               value={currency}
               onChange={(e) => setCurrency(e.target.value)}
             >
-              {currencies.map((c) => (
+              {offeredCurrencies.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
@@ -335,7 +345,9 @@ export function ReceiveDueModal({
             {previewCurrent.rate != null && (
               <>
                 {' '}
-                (1 {previewCurrent.currency} = {formatRate(previewCurrent.rate)} {previewCurrent.owed_currency})
+                {/* The rounded figure the server serves for showing (T4-10), as served. */}
+                (1 {previewCurrent.currency} = {previewCurrent.rate_display ?? formatRate(previewCurrent.rate)}{' '}
+                {previewCurrent.owed_currency})
               </>
             )}
             .

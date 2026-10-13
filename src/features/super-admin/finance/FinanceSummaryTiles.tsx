@@ -46,7 +46,12 @@ export function FinanceSummaryTiles({
       <div className="flex flex-1 basis-56 flex-col gap-xs rounded-md border border-border bg-surface px-md py-sm">
         <span className="text-caption text-text-secondary">Outstanding</span>
         <span className="text-h3 tabular-nums text-text-primary">{inr(summary.outstanding_inr)}</span>
-        <span className="text-caption text-text-secondary">across {summary.cases} cases</span>
+        {/* The cases behind the outstanding figure (T4-03), not every case with a record. */}
+        {summary.cases_owing != null && (
+          <span className="text-caption text-text-secondary">
+            across {summary.cases_owing} {summary.cases_owing === 1 ? 'case' : 'cases'}
+          </span>
+        )}
       </div>
 
       <div className="flex flex-1 basis-56 flex-col gap-xs rounded-md border border-border bg-surface px-md py-sm">

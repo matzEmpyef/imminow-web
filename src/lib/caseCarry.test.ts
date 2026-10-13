@@ -4,12 +4,19 @@ import { carriedOverLine, DEFAULT_CARRY, movedSentence } from './caseCarry'
 // Owner's ruling on review I-014 (2026-10-08): the person moving a case decides what goes with it.
 describe('what moves with a case', () => {
   it('starts with the documents only', () => {
-    expect(DEFAULT_CARRY).toEqual({ documents: true, applications: false, preferences: false, chat: false })
+    expect(DEFAULT_CARRY).toEqual({
+      documents: true,
+      applications: false,
+      preferences: false,
+      chat: false,
+      admission: false,
+    })
   })
 
   it('tells the person who made the move what the server shared', () => {
     expect(movedSentence(['documents', 'applications'])).toBe('Moved. Shared: documents, college applications.')
     expect(movedSentence(['preferences', 'chat'])).toBe('Moved. Shared: case preferences, earlier conversation.')
+    expect(movedSentence(['documents', 'admission'])).toBe('Moved. Shared: documents, accepted college.')
     expect(movedSentence([])).toBe('Moved. Nothing was shared.')
     expect(movedSentence(undefined)).toBe('Moved. Nothing was shared.')
   })

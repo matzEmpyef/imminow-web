@@ -4,16 +4,13 @@ import { Button } from '@/components/Button'
 import { CompactSelect } from '@/components/CompactSelect'
 import { TextField } from '@/components/TextField'
 import { MoneyField } from '@/components/MoneyField'
-import { useRecordCommissionPayment } from '@/queries/commission'
+import { useRecordCommissionPayment, type CommissionDue } from '@/queries/commission'
 import { ApiError } from '@/api/errors'
 import { PAYMENT_REFERENCE_MAX } from '@/lib/validation'
 import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
 import { formatMoneyAmount } from '@/lib/money'
 import { showToast } from '@/lib/toast'
-import type { components } from '@/api/schema'
 import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
-
-type CommissionDue = components['schemas']['CommissionDue']
 
 const money = formatMoneyAmount
 
@@ -129,7 +126,7 @@ export function RecordPlatformPaymentModal({ due, onClose }: { due: CommissionDu
           </p>
           <p className="mt-2xs text-caption text-text-secondary">
             Outstanding {money(due.platform_outstanding ?? due.platform_due)}
-            {(due.platform_expected?.amount ?? 0) > 0 ? ` · ${money(due.platform_expected)} not yet due` : ''}
+            {(due.platform_still_to_come?.amount ?? 0) > 0 ? ` · ${money(due.platform_still_to_come)} not yet due` : ''}
             {(due.platform_paid.amount ?? 0) > 0 ? ` · ${money(due.platform_paid)} paid` : ''}
             {(due.platform_awaiting.amount ?? 0) > 0 ? ` · ${money(due.platform_awaiting)} awaiting confirmation` : ''}
           </p>
