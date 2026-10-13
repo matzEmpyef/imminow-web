@@ -51,7 +51,7 @@ function renderModal() {
 }
 
 function submit() {
-  fireEvent.click(screen.getByRole('button', { name: 'Declare' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Declare payment' }))
 }
 
 beforeEach(() => {
@@ -81,10 +81,10 @@ describe('RecordPlatformPaymentModal — duplicate protection', () => {
 
     submit()
     await waitFor(() => expect(paymentCalls()).toHaveLength(1))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Declare' })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Declare payment' })).toBeEnabled())
     submit()
     await waitFor(() => expect(paymentCalls()).toHaveLength(2))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Declare' })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Declare payment' })).toBeEnabled())
 
     fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '4000' } })
     submit()
@@ -102,7 +102,7 @@ describe('RecordPlatformPaymentModal — duplicate protection', () => {
 
     submit()
     expect(await screen.findByText('This key was already used for a different request.')).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Declare' })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Declare payment' })).toBeEnabled())
     submit()
     await waitFor(() => expect(paymentCalls()).toHaveLength(2))
     const [first, second] = paymentCalls()
@@ -146,7 +146,7 @@ describe('RecordPlatformPaymentModal, amount decimals', () => {
     renderModal()
     fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '100.001' } })
     expect(screen.getByLabelText('Amount')).toHaveAccessibleDescription('Amounts have at most two decimal places.')
-    expect(screen.getByRole('button', { name: 'Declare' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Declare payment' })).toBeDisabled()
     fireEvent.submit(document.getElementById('record-platform-payment-form')!)
     expect(paymentCalls()).toHaveLength(0)
   })
@@ -161,7 +161,7 @@ describe('RecordPlatformPaymentModal, amount decimals', () => {
       },
     ]
     renderModal()
-    fireEvent.click(screen.getByRole('button', { name: 'Declare' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Declare payment' }))
     await waitFor(() =>
       expect(screen.getByLabelText('Amount')).toHaveAccessibleDescription('Amounts have at most two decimal places.'),
     )

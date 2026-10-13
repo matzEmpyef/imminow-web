@@ -161,7 +161,7 @@ export function RecordInstallmentModal({
         <TextField label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
         {receipts.length > 0 && (
           <SelectField label="Link a platform receipt (optional)" value={receiptId} onChange={(e) => setReceiptId(e.target.value)}>
-            <option value="">None — recorded outside the platform</option>
+            <option value="">None — recorded outside immiNow</option>
             {receipts.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.invoice_number} — {formatMoneyAmount(r.amount)}

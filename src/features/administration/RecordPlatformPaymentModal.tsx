@@ -87,7 +87,9 @@ export function RecordPlatformPaymentModal({ due, onClose }: { due: CommissionDu
           }
         },
         onSuccess: () => {
-          showToast(`Payment recorded for ${due.applicant_name}`)
+          showToast(
+            `Payment declared for ${due.applicant_name}. immiNow Finance will confirm it once the money arrives.`,
+          )
           onClose()
         },
       },
@@ -97,7 +99,7 @@ export function RecordPlatformPaymentModal({ due, onClose }: { due: CommissionDu
   return (
     <Modal
       onClose={onClose}
-      title="Record a Payment"
+      title="Declare a payment to immiNow"
       widthRem={28}
       footer={
         <>
@@ -111,7 +113,7 @@ export function RecordPlatformPaymentModal({ due, onClose }: { due: CommissionDu
               loading={recordPayment.isPending}
               disabled={!amount || Number(amount) <= 0 || hasTooManyDecimals(amount)}
             >
-              Declare
+              Declare payment
             </Button>
             <Button type="button" variant="secondary" onClick={onClose}>
               Cancel

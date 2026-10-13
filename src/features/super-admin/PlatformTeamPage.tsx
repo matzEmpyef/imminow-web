@@ -594,7 +594,7 @@ function StaffDrawerBody({ staff, currentUserId }: { staff: PlatformStaff; curre
           title={status === 'invited' ? 'Cancel invitation' : 'Disable account'}
           description={
             status === 'invited'
-              ? `Cancel the invitation to ${staff.name}? They have not joined yet and will not get platform access.`
+              ? `Cancel the invitation to ${staff.name}? They have not joined yet and will not be able to sign in to immiNow.`
               : `Disable ${staff.name}? They'll lose platform access immediately, and their session ends at once.`
           }
           confirmLabel={status === 'invited' ? 'Cancel invitation' : 'Disable'}

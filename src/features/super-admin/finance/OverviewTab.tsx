@@ -98,7 +98,7 @@ export function OverviewTab({
       )}
 
       <div>
-        <h2 className="mb-sm text-h3 text-text-primary">Balances by consultancy</h2>
+        <h2 className="mb-sm text-h3 text-text-primary">Balances by consultancy and institute</h2>
         <Table
           columns={columns}
           rows={balances.data?.items ?? []}

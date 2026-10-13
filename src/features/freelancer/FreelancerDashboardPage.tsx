@@ -78,7 +78,7 @@ const REFERRAL_CSV_COLUMNS: CsvColumn<FreelancerReferral>[] = [
   { header: 'Earned', value: (r) => formatMoney('INR', r.earned_inr ?? 0) },
   { header: 'Paid', value: (r) => formatMoney('INR', r.paid_inr ?? 0) },
   { header: 'Owed', value: (r) => formatMoney('INR', r.owed_inr ?? 0) },
-  { header: 'Payout', value: (r) => payoutLabel(r) },
+  { header: 'Payment', value: (r) => payoutLabel(r) },
 ]
 
 /**

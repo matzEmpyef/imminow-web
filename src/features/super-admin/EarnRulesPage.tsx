@@ -25,17 +25,24 @@ type ProfileMilestone = components['schemas']['PointsBalance']['profile_mileston
  * student ever reads is worth nothing, forever — a much harsher thing to say, and worth being
  * able to tell apart at a glance.
  */
-const periodWord = (period: CapPeriod) => (period === 'day' ? 'a day' : 'lifetime')
-
-function capLines(rule: EarnRule): { text: string; hint: string }[] {
-  const period = periodWord(rule.cap_period)
-  const lines: { text: string; hint: string }[] = []
-  if (rule.award_cap != null) lines.push({ text: `${rule.award_cap} ${period}`, hint: 'times it can pay one student' })
-  if (rule.cap != null) lines.push({ text: `${rule.cap} ${period}`, hint: 'points one student can earn' })
+//
+// Each ceiling is one plain sentence, "Up to 3 times a day per student" or "Up to 50 points per
+// student, ever", rather than a number with a label that only read as English when the two were
+// put together ("365 lifetime times", wording sweep 2026-10-13).
+function capLines(rule: EarnRule): { key: string; text: string }[] {
+  const daily = rule.cap_period === 'day'
+  const lines: { key: string; text: string }[] = []
+  if (rule.award_cap != null)
+    lines.push({ key: 'times', text: `Up to ${rule.award_cap} times ${daily ? 'a day ' : ''}per student` })
+  if (rule.cap != null)
+    lines.push({
+      key: 'points',
+      text: daily ? `Up to ${rule.cap} points a day per student` : `Up to ${rule.cap} points per student, ever`,
+    })
   // A daily rule's ceiling over the student's whole life (product owner, 2026-09-20) — without
   // it "3 a day" grows with nothing but time.
   if (rule.lifetime_cap != null)
-    lines.push({ text: `${rule.lifetime_cap} lifetime`, hint: 'points one student can ever earn from it' })
+    lines.push({ key: 'lifetime', text: `Up to ${rule.lifetime_cap} points per student, ever` })
   return lines
 }
 
@@ -124,7 +131,7 @@ const OVERRIDE_CAPTIONS: Partial<Record<string, string>> = {
   // student self-signup flow in this environment to hook a "welcome" moment onto otherwise
   // (Sentpo Mobile again).
   welcome_signup:
-    'Credited once, automatically, when a new applicant record is created (Create Applicant / Applicant Allocation).',
+    'Credited once, automatically, when a student signs up.',
 }
 
 // User-requested (2026-08-18) — "Earn Rules also edit on popup." Same move as Coupons/Jobs this
@@ -364,10 +371,7 @@ export function EarnRulesPage() {
         return (
           <div className="flex flex-col items-end">
             {lines.map((line) => (
-              <span key={line.hint}>
-                {line.text}
-                <span className="block text-caption text-text-secondary">{line.hint}</span>
-              </span>
+              <span key={line.key}>{line.text}</span>
             ))}
           </div>
         )

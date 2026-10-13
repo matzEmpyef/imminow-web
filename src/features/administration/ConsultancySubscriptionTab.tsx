@@ -16,6 +16,7 @@ import {
 } from '@/queries/consultancy'
 import { useActiveEmployeeCount } from '@/queries/staff'
 import { humaniseCode } from '@/lib/humanise'
+import { isOnTrial } from '@/lib/subscriptionTrial'
 import { daysUntil, formatDate } from '@/lib/time'
 import { FEATURE_REGISTRY, STARTER_CORE_FEATURES, TIER_ORDER, TIER_LABEL } from '@/lib/features'
 import { formatApprox, formatMoney } from '@/lib/money'
@@ -193,7 +194,7 @@ function BillingCard({ consultancy }: { consultancy: Consultancy }) {
   // A trial is a term with an end and nothing billed for it: no billing cycle and no amount. It is
   // read from what is already served (T4-37), so a college is told it is on a free trial and when
   // that ends, rather than "Active" with an amount of 0.00.
-  const onTrial = Boolean(subscription_expires_at) && !billing_cycle && !(subscription_amount && subscription_amount > 0)
+  const onTrial = isOnTrial(consultancy)
 
   const rows: { label: string; value: React.ReactNode }[] = [
     // A line with nothing to say is left out rather than shown as a dash.

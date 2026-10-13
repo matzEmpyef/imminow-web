@@ -429,7 +429,7 @@ export function CreateConsultancyModal({ onClose }: { onClose: () => void }) {
               onChange={setAdminMode}
               options={[
                 { value: 'invite', label: 'Invite a new admin', description: 'Sends them a set-password link' },
-                { value: 'attach', label: 'Attach an existing user', description: 'Someone already on the platform' },
+                { value: 'attach', label: 'Attach an existing user', description: 'Someone who already has an immiNow login' },
               ]}
             />
           ) : (
@@ -529,7 +529,7 @@ function ExistingUserPicker({
       {trimmed.length < 2 ? (
         <p className="flex items-center gap-xs text-caption text-text-secondary">
           <Search className="h-3.5 w-3.5" />
-          Type at least two characters to search every login on the platform.
+          Type at least two characters to search every immiNow login.
         </p>
       ) : results.isLoading ? (
         <p className="text-caption text-text-secondary">Searching…</p>

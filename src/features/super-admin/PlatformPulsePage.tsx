@@ -366,7 +366,7 @@ export function PlatformPulsePage() {
           <div>
             <h1 className="text-h1 text-text-primary">Platform Pulse</h1>
             <p className="text-body-sm text-text-secondary">
-              What's most popular across the platform — collecting since {formatDate(data.collecting_since)}.
+              What's most popular across immiNow — collecting since {formatDate(data.collecting_since)}.
             </p>
             <AsOfCaption asOf={data.as_of} />
           </div>

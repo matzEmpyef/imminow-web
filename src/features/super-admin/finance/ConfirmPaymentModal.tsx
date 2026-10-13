@@ -1,6 +1,6 @@
 import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
 import { MoneyField } from '@/components/MoneyField'
-import { formatRate } from '@/lib/money'
+import { formatMoney, formatRate } from '@/lib/money'
 import { useState } from 'react'
 import { ApiError } from '@/api/errors'
 import { useDebouncedValue } from '@/lib/useDebounce'
@@ -114,7 +114,11 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
                 },
                 {
                   onSuccess: () => {
-                    showToast('Payment confirmed')
+                    showToast(
+                      payment.consultancy_name
+                        ? `Payment of ${formatMoney(currency, parsed)} from ${payment.consultancy_name} confirmed.`
+                        : `Payment of ${formatMoney(currency, parsed)} confirmed.`,
+                    )
                     onClose()
                   },
                 },

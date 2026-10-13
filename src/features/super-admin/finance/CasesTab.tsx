@@ -240,8 +240,8 @@ export function CasesTab() {
       )}
       {totals && (
         <p className="text-body-sm text-text-secondary">
-          Due {inr(totals.due_inr)} · Not yet due {inr(totals.expected_share_inr)} · Paid {inr(totals.paid_inr)} ·
-          Outstanding {inr(totals.outstanding_inr)} · Overdue {inr(totals.overdue_inr)} for these filters
+          Fallen due {inr(totals.due_inr)} · Not yet due {inr(totals.expected_share_inr)} · Paid {inr(totals.paid_inr)} ·
+          Still unpaid {inr(totals.outstanding_inr)} · Overdue {inr(totals.overdue_inr)}, for the cases shown
         </p>
       )}
       <Table
@@ -295,7 +295,7 @@ export function CasesTab() {
                 setPayerMethod(e.target.value as NonNullable<FinanceCasesFilters['payer_method']> | '')
                 resetPaging()
               }}
-              label="Payer method"
+              label="Who pays"
             >
               <option value="">Any payer</option>
               <option value="college">College</option>

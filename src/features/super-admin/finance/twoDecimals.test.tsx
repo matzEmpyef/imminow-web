@@ -95,7 +95,7 @@ describe('Finance cases, rows and totals line', () => {
     )
     expect(
       screen.getByText(
-        'Due ₹60,000.25 · Not yet due ₹10.10 · Paid ₹57,600.75 · Outstanding ₹2,399.50 · Overdue ₹0.12 for these filters',
+        'Fallen due ₹60,000.25 · Not yet due ₹10.10 · Paid ₹57,600.75 · Still unpaid ₹2,399.50 · Overdue ₹0.12, for the cases shown',
       ),
     ).toBeInTheDocument()
     expect(screen.getByText('₹2,399.50')).toBeInTheDocument()

@@ -42,14 +42,14 @@ const CATEGORY_COPY: Record<
   chat: {
     label: 'Chat messages',
     staff: 'A student writes to you, or a colleague messages you.',
-    platform: 'Messages sent to you on the platform.',
-    freelancer: 'Messages sent to you on the platform.',
+    platform: 'Messages sent to you on immiNow.',
+    freelancer: 'Messages sent to you on immiNow.',
   },
   plan: {
     label: 'Case updates',
     staff: 'A student submits a step, replaces a document or reports an offer.',
     platform: 'Payments declared, dues falling due or overdue, cases needing a decision.',
-    freelancer: 'A student you referred moves stage, or a payout is recorded for you.',
+    freelancer: 'A student you referred signs up or moves forward, or immiNow records a payment to you.',
   },
   events: {
     label: 'Events & webinars',
@@ -59,9 +59,9 @@ const CATEGORY_COPY: Record<
   },
   broadcast: {
     label: 'Announcements',
-    staff: 'Notices from immiNow to everyone on the platform.',
-    platform: 'Notices from immiNow to everyone on the platform.',
-    freelancer: 'Notices from immiNow to everyone on the platform.',
+    staff: 'Notices that immiNow sends to all its users.',
+    platform: 'Notices that immiNow sends to all its users.',
+    freelancer: 'Notices that immiNow sends to all its users.',
   },
 }
 
@@ -199,7 +199,11 @@ export function MyAccountPage() {
         <div className="grid gap-lg md:grid-cols-5">
           <Card className="md:col-span-3">
             <h2 className="text-h3 text-text-primary">Profile</h2>
-            <p className="text-caption text-text-secondary">What colleagues and students see as your name.</p>
+            <p className="text-caption text-text-secondary">
+              {isFreelancer
+                ? 'The name immiNow uses for you on your referral and payment records.'
+                : 'What colleagues and students see as your name.'}
+            </p>
             <form
               className="mt-md flex flex-col gap-md"
               onSubmit={(e) => {
@@ -313,7 +317,7 @@ export function MyAccountPage() {
               <p className="text-caption text-text-secondary">Changes save as you switch them.</p>
             </div>
             <p className="text-caption text-text-secondary">
-              Push reaches phones once the mobile notification service is connected.
+              Phone notifications are not available yet.
             </p>
           </div>
           {settings.isLoading && (

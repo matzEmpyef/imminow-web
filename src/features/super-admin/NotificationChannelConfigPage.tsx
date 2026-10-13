@@ -74,7 +74,7 @@ const LABELS: Record<string, string> = {
   subscription_renewed: 'Consultancy subscription renewed',
   renewal_requested: 'Renewal requested',
   consultancy_subscription_expired: 'A consultancy’s subscription expired (immiNow staff)',
-  payer_method_changed: 'Payer method changed',
+  payer_method_changed: 'Who pays changed',
   institution_suggested: 'School or college not in the list',
   application_status_changed: 'College application status changed',
   shortlisted_course_changed: 'Shortlisted course changed (fee, deadline, deactivated)',
@@ -140,7 +140,7 @@ function ChannelToggles({ entry }: { entry: ConfigEntry }) {
         <Modal onClose={() => setConfirmingChannel(null)} title={`Turn off ${confirmingChannel.label}`} widthRem={26}>
           <div className="flex flex-col gap-md">
             <p className="text-body-sm text-text-primary">
-              Turn off {confirmingChannel.label} for {notificationLabel}? Nobody on the platform will get it this way
+              Turn off {confirmingChannel.label} for {notificationLabel}? Nobody will get it this way
               until it&rsquo;s turned back on.
             </p>
             {updateConfig.isError && <p className="text-body-sm text-error">{updateConfig.error.message}</p>}
@@ -255,7 +255,7 @@ export function NotificationChannelConfigPage() {
         <div>
           <h1 className="text-h1 text-text-primary">Notification Channel Config</h1>
           <p className="text-body-sm text-text-secondary">
-            What the platform permits, per notification type. This is the first of two gates: turning a channel off
+            What immiNow permits, per notification type. This is the first of two gates: turning a channel off
             here stops it for everyone, whatever they have chosen in their own notification settings — which can only
             narrow it further, never widen it. &ldquo;Goes to&rdquo; says which product&rsquo;s users are affected.
           </p>

@@ -61,7 +61,7 @@ export function CommissionRatesTab({
               <thead className="bg-background text-caption text-text-secondary">
                 <tr>
                   <th className="px-md py-sm font-medium">Destination country</th>
-                  <th className="px-md py-sm font-medium">Payer method</th>
+                  <th className="px-md py-sm font-medium">Who pays</th>
                   <th className="px-md py-sm text-right font-medium">Direct</th>
                   <th className="px-md py-sm text-right font-medium">Freelancer-sourced</th>
                 </tr>

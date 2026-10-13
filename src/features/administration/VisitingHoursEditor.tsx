@@ -96,7 +96,7 @@ export function VisitingHoursEditor({
 
       {noneOpen && (
         <p className="text-caption text-text-secondary">
-          No days set, so the platform default applies — Monday to Saturday, 10:00 to 17:00, in your own timezone.
+          No days set, so the immiNow default applies — Monday to Saturday, 10:00 to 17:00, in your own timezone.
         </p>
       )}
       {error && <p className="text-body-sm text-error">{error}</p>}

@@ -193,7 +193,7 @@ describe('CorrectPaymentModal, the preview', () => {
   it('does not tell a zero correction that rupees bounced, whatever the currency', async () => {
     vi.mocked(useCorrectPreview).mockReturnValue(previewAnswer())
     open()
-    expect(screen.getByText('Entering 0 records that the money bounced.')).toBeInTheDocument()
+    expect(screen.getByText('Enter 0 if no money arrived, for example when a cheque bounced.')).toBeInTheDocument()
     expect(screen.queryByText(/₹0/)).not.toBeInTheDocument()
   })
 

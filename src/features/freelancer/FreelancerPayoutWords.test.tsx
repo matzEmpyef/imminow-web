@@ -58,7 +58,7 @@ describe('Freelancer referrals', () => {
   it('says what is owed under an owed referral instead of "No payments yet"', () => {
     render(<FreelancerDashboardPage />)
     fireEvent.click(screen.getByText('Rahul'))
-    expect(screen.getByText('INR 634.00 is owed to you. immiNow will record the payment here when it is made.')).toBeInTheDocument()
+    expect(screen.getByText('immiNow owes you INR 634.00 for this student. The payment will appear here once it is made.')).toBeInTheDocument()
     expect(screen.queryByText(/No payments yet/)).not.toBeInTheDocument()
   })
 

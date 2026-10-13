@@ -18,11 +18,11 @@ export function payoutLabel(r: Pick<FreelancerReferral, 'payout_status' | 'stage
 /** What the panel says under "Payments to you" when there are none yet, by what is true of the referral. */
 export function noPaymentsLine(r: Pick<FreelancerReferral, 'stage' | 'earned_inr' | 'owed_inr'>): string {
   if ((r.owed_inr ?? 0) > 0) {
-    return `${formatMoney('INR', r.owed_inr ?? 0)} is owed to you. immiNow will record the payment here when it is made.`
+    return `immiNow owes you ${formatMoney('INR', r.owed_inr ?? 0)} for this student. The payment will appear here once it is made.`
   }
   if ((r.stage === 'closed' || r.stage === 'moved') && (r.earned_inr ?? 0) === 0) {
     return 'Nothing will be paid for this student, because the case is closed with no earnings.'
   }
-  return 'No payments yet — you’re paid once immiNow has been paid for this student.'
+  return 'No payments yet. You are paid after immiNow receives its commission for this student.'
 }
 

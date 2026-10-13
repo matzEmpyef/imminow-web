@@ -105,7 +105,7 @@ export function PartnerCollegesPanel({
     },
     {
       key: 'payer',
-      header: 'Payer method',
+      header: 'Who pays',
       render: (r) => {
         const options = ALL_PAYERS
         if (readOnly) {
@@ -122,7 +122,7 @@ export function PartnerCollegesPanel({
           <div className="flex flex-col gap-xs">
             <CompactSelect
               dense
-              label="Payer method"
+              label="Who pays"
               value={r.payer_method}
               onChange={(e) => {
                 const nextPayer = e.target.value as PayerMethod
@@ -206,7 +206,7 @@ export function PartnerCollegesPanel({
       <div className="flex flex-wrap items-start justify-between gap-md">
         <p className="min-w-0 flex-1 text-body-sm text-text-secondary">
           {readOnly
-            ? 'An institute works with one college — itself. The relation below is created with the account and cannot be added to, edited or removed; its commercial terms are set by the platform. Every course of this college is included, and this account sees no other college’s catalogue.'
+            ? 'An institute works with one college — itself. The relation below is created with the account and cannot be added to, edited or removed; its commercial terms are set by immiNow. Every course of this college is included, and this account sees no other college’s catalogue.'
             : 'Colleges this consultancy works with. New courses of a partner college are included automatically — exclude specific ones from Manage courses. Payer-method changes are applied immediately, audited, and visible to the platform team.'}
         </p>
         {/* Adding a college happens in a popup (user, 2026-09-10: "use popup to add not inline").
@@ -277,7 +277,7 @@ export function PartnerCollegesPanel({
               placeholder="Search colleges…"
             />
             <SelectField
-              label="Payer method"
+              label="Who pays"
               id="pc-payer"
               required
               value={addPayer}
@@ -432,7 +432,7 @@ function CommissionPercentModal({
     <Modal title={`Commission % — ${relation.college_name}`} onClose={onClose}>
       <p className="text-body-sm text-text-secondary">
         The % of the tuition fee this consultancy receives from {relation.college_name}
-        {payerLabel ? ` as its payer method changes to ${payerLabel}` : ''}. immiNow&rsquo;s own cut is a % of this
+        {payerLabel ? ` as who pays changes to ${payerLabel}` : ''}. immiNow&rsquo;s own cut is a % of this
         commission, not of the raw tuition.
       </p>
       <div className="mt-md">

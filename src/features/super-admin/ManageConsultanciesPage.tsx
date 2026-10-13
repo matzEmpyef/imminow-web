@@ -33,6 +33,7 @@ import {
 } from '@/queries/adminConsultancies'
 import { isStaleCursor, useCursorPagination, useRestartOnStaleCursor } from '@/lib/pagination'
 import { formatDate, localDateISO } from '@/lib/time'
+import { isOnTrial } from '@/lib/subscriptionTrial'
 import { showToast } from '@/lib/toast'
 import { formatMoney } from '@/lib/money'
 import { useCurrencyCodes } from '@/lib/currencies'
@@ -219,7 +220,7 @@ function MfaSection({ consultancy }: { consultancy: Consultancy }) {
           <p className="text-caption text-text-secondary">
             {everyone
               ? `Required for everyone · set by ${consultancy.mfa_policy_set_by === 'consultancy' ? 'their admin' : 'immiNow'}`
-              : 'Required for admins only (the platform floor)'}
+              : 'Required for admins only (immiNow’s minimum)'}
           </p>
         </div>
         {!editing && (
@@ -1206,7 +1207,7 @@ export function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consu
               <p className="text-body-sm font-medium text-text-primary">Freelancer channel</p>
               <p className="text-caption text-text-secondary">
                 Enables this account&rsquo;s freelancer commission rate and lets Applicant Allocation offer it for
-                freelancer-referred aspirants.
+                freelancer-referred students.
               </p>
             </div>
             <Toggle checked={freelancerEnabled} onChange={setFreelancerEnabled} label="Freelancer channel" />
@@ -1310,8 +1311,9 @@ function SubscriptionCell({ consultancy: c }: { consultancy: Consultancy }) {
     case 'expiring':
       return (
         <span className="flex items-center gap-xs">
-          <Badge color="warning">Ending soon</Badge>
-          <span className="text-caption text-text-secondary">{formatDate(expires)}</span>
+          <Badge color="warning">
+            {isOnTrial(c) ? 'Trial until' : 'Ends on'} {formatDate(expires)}
+          </Badge>
         </span>
       )
     case 'active':

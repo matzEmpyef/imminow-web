@@ -220,7 +220,7 @@ export function AllocationTab({ enabled }: { enabled: boolean }) {
                 The most a consultant can be given automatically. Leads waiting for a reply and
                 open cases both count towards it, so someone carrying 40 cases and no leads is no
                 longer first in line. Anyone at capacity is skipped; when nobody has room the lead
-                waits in Lead Pool. Leave it blank to use the platform figure.
+                waits in Lead Pool. Leave it blank to use immiNow’s figure.
               </p>
             </div>
           </div>

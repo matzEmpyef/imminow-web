@@ -200,10 +200,10 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
           rows={3}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          hint="The consultancy is shown this reason."
+          hint="The consultancy or institute is shown this reason."
           error={reasonError}
         />
-        <p className="text-caption text-text-secondary">Entering 0 records that the money bounced.</p>
+        <p className="text-caption text-text-secondary">Enter 0 if no money arrived, for example when a cheque bounced.</p>
 
         {corrections.length > 0 && (
           <div>
