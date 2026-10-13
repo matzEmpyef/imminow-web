@@ -41,12 +41,16 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
   // person chooses; the form does not submit until they have.
   const [caseType, setCaseType] = useState<'student' | 'pr' | ''>('')
   const [employeeId, setEmployeeId] = useState('')
+  // Required tick (owner ruling): the consultant confirms the person is 16 or older. No date of
+  // birth is asked here; the applicant gives their own when they first sign in to the app.
+  const [ageConfirmed, setAgeConfirmed] = useState(false)
 
   const phoneError = phone && !isValidPhone(phone) ? PHONE_ERROR : undefined
   const emailError = email && !isValidEmail(email) ? EMAIL_ERROR : undefined
   // No date of birth here (Phase 8, D-129 C-2): the student gives their own the first time they
   // sign in to the app.
-  const canSubmit = Boolean(firstName && lastName && email && employeeId && caseType) && !phoneError && !emailError
+  const canSubmit =
+    Boolean(firstName && lastName && email && employeeId && caseType && ageConfirmed) && !phoneError && !emailError
   // T4-14: the button is off until these are filled in, so the footer names what is missing.
   const stillNeeded = [
     ...(firstName ? [] : ['first name']),
@@ -54,6 +58,7 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
     ...(email ? [] : ['email']),
     ...(caseType ? [] : ['applicant type']),
     ...(employeeId ? [] : [words.isInstitute ? 'assigned team member' : 'assigned consultant']),
+    ...(ageConfirmed ? [] : ['confirmation that the applicant is 16 or older']),
     ...(phoneError ? ['a valid phone number'] : []),
     ...(emailError ? ['a valid email'] : []),
   ]
@@ -69,6 +74,7 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
       address: address || null,
       case_type: caseType as 'student' | 'pr',
       assigned_employee_id: employeeId,
+      age_confirmed: true as const,
     }
     createApplicant.mutate(
       { ...payload, idempotencyKey: keyFor(payload) },
@@ -181,6 +187,23 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
           emptyText="No one matches that name."
         />
         <p className="text-caption text-text-secondary">Branch auto-fills from the assigned {words.person}.</p>
+
+        <div className="flex flex-col gap-xs">
+          <label className="flex items-center gap-xs text-body-sm text-text-primary">
+            <input
+              type="checkbox"
+              checked={ageConfirmed}
+              onChange={(e) => setAgeConfirmed(e.target.checked)}
+              aria-describedby="age-confirmed-help"
+              className="h-4 w-4"
+            />
+            I confirm this applicant is 16 or older.
+          </label>
+          <p id="age-confirmed-help" className="text-caption text-text-secondary">
+            Sentpo is for students aged 16 and over. The applicant gives their date of birth when they first sign in to
+            the Sentpo app.
+          </p>
+        </div>
       </form>
     </Modal>
   )

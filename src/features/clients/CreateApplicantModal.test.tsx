@@ -84,6 +84,7 @@ function fill() {
   fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'asha@example.com' } })
   fireEvent.click(screen.getByLabelText('Student'))
   fireEvent.change(screen.getByLabelText('Assigned Consultant'), { target: { value: 'e1' } })
+  fireEvent.click(screen.getByLabelText('I confirm this applicant is 16 or older.'))
 }
 
 function submit() {
@@ -125,6 +126,7 @@ describe('CreateApplicantModal — a new person (201)', () => {
       address: null,
       case_type: 'student',
       assigned_employee_id: 'e1',
+      age_confirmed: true,
     })
     expect(sentKey(clientCalls()[0])).toMatch(/^[0-9a-f-]{36}$/)
     const keys = invalidate.mock.calls.map((c) => (c[0] as { queryKey: unknown[] }).queryKey)
@@ -141,6 +143,48 @@ describe('CreateApplicantModal — the form', () => {
     fill()
     expect(screen.getByRole('button', { name: 'Create Applicant' })).toBeEnabled()
     expect(screen.queryByText(/Still needed/)).not.toBeInTheDocument()
+  })
+
+  it('has a labelled tick box with its helper line, off to begin with', () => {
+    renderModal()
+    const box = screen.getByRole('checkbox', { name: 'I confirm this applicant is 16 or older.' })
+    expect(box).not.toBeChecked()
+    expect(box).toHaveAccessibleDescription(
+      'Sentpo is for students aged 16 and over. The applicant gives their date of birth when they first sign in to the Sentpo app.',
+    )
+  })
+
+  it('keeps the button off until the tick is given, and names it in the Still needed line', () => {
+    renderModal()
+    fill()
+    const box = screen.getByLabelText('I confirm this applicant is 16 or older.')
+    fireEvent.click(box)
+    expect(box).not.toBeChecked()
+    expect(screen.getByRole('button', { name: 'Create Applicant' })).toBeDisabled()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Still needed: confirmation that the applicant is 16 or older',
+    )
+
+    fireEvent.click(box)
+    expect(screen.getByRole('button', { name: 'Create Applicant' })).toBeEnabled()
+    expect(screen.queryByText(/Still needed/)).not.toBeInTheDocument()
+  })
+
+  it('does not send anything while the tick is missing', () => {
+    renderModal()
+    fill()
+    fireEvent.click(screen.getByLabelText('I confirm this applicant is 16 or older.'))
+    fireEvent.submit(document.getElementById('create-applicant-form') as HTMLFormElement)
+    expect(clientCalls()).toHaveLength(0)
+  })
+
+  it('sends age_confirmed: true in the request body', async () => {
+    renderModal()
+    fill()
+    submit()
+    await waitFor(() => expect(clientCalls()).toHaveLength(1))
+    const body = (clientCalls()[0][1] as { body: Record<string, unknown> }).body
+    expect(body.age_confirmed).toBe(true)
   })
 })
 

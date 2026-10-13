@@ -110,12 +110,15 @@ export function useCreateApplicant() {
       address?: string | null
       case_type: 'student' | 'pr'
       assigned_employee_id: string
+      // The consultant's tick that the applicant is 16 or older (owner ruling); always true.
+      age_confirmed: true
       idempotencyKey: string
     }): Promise<CreateApplicantResult> => {
       const { data, error, response } = await api.POST('/clients', {
         params: { header: { 'Idempotency-Key': idempotencyKey } },
         // replace with generated type after the contract join: the generated body still lists
-        // `date_of_birth` as required; the contract now takes none (Phase 8, D-129 C-2).
+        // `date_of_birth` as required and lacks `age_confirmed`; the contract now takes no date of
+        // birth (Phase 8, D-129 C-2) and requires `age_confirmed: true`.
         body: body as never,
       })
       if (error) throw new ApiError('Could not create this applicant.', error, response?.status)
