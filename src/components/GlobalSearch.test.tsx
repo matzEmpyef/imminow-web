@@ -98,3 +98,38 @@ describe('GlobalSearch keyboard navigation', () => {
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 })
+
+// T1-11: a lead closed from the Lead Pool is in no list, so the search has to find it.
+describe('GlobalSearch and closed leads', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    navigate.mockReset()
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('asks for closed leads too, marks them, and leaves converted ones to their applicant result', async () => {
+    vi.mocked(useLeads).mockReturnValue({
+      data: {
+        items: [
+          { id: 'l-closed', name: 'Meera Walkin', status: 'closed' },
+          { id: 'l-conv', name: 'Meera Converted', status: 'converted' },
+          { id: 'l-open', name: 'Meera Open', status: 'active' },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    } as never)
+    vi.mocked(useClients).mockReturnValue({ data: { items: [] }, isLoading: false, isError: false } as never)
+    render(<GlobalSearch />)
+    await typeQuery('meera')
+
+    expect(vi.mocked(useLeads).mock.calls.at(-1)?.[0]).toMatchObject({ search: 'meera', showClosed: true })
+    const options = screen.getAllByRole('option')
+    expect(options).toHaveLength(2)
+    // The open lead comes first; the closed one says so.
+    expect(options[0]).toHaveTextContent('Meera Open')
+    expect(options[1]).toHaveTextContent('Meera Walkin')
+    expect(options[1]).toHaveTextContent('Closed lead')
+    expect(screen.queryByText('Meera Converted')).not.toBeInTheDocument()
+  })
+})

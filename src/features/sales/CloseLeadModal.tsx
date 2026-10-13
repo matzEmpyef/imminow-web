@@ -71,8 +71,9 @@ export function CloseLeadModal({
     >
       <form id="close-lead-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <p className="text-body-sm text-text-secondary">
-          <strong className="text-text-primary">{leadName}</strong> will drop out of your lead lists until reopened. This
-          doesn't delete anything — the full conversation and history stay intact.
+          <strong className="text-text-primary">{leadName}</strong> will leave your lead lists. This doesn't delete anything:
+          the full conversation and history stay intact, and you can find the lead again by switching on “Include
+          closed” on the list.
         </p>
         <div className="flex flex-col gap-xs">
           <label className="text-body-sm font-medium text-text-primary" htmlFor="close-lead-reason">

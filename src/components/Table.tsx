@@ -40,6 +40,8 @@ interface TableSelection {
   selectedIds: Set<string>
   onToggle: (id: string) => void
   onToggleAll?: (ids: string[]) => void
+  /** A row that cannot be picked (its checkbox is shown greyed out and "Select all" skips it). */
+  isDisabled?: (id: string) => boolean
 }
 
 interface TableExpandable<T> {
@@ -136,7 +138,10 @@ export function Table<T>({
   }
 
   const allRowIds = rows.map(rowKey)
-  const allSelected = selection ? allRowIds.length > 0 && allRowIds.every((id) => selection.selectedIds.has(id)) : false
+  const pickableIds = selection?.isDisabled ? allRowIds.filter((id) => !selection.isDisabled?.(id)) : allRowIds
+  const allSelected = selection
+    ? pickableIds.length > 0 && pickableIds.every((id) => selection.selectedIds.has(id))
+    : false
   const hasMultiplePages = Boolean(pagination?.hasNext || pagination?.hasPrevious)
 
   return (
@@ -185,7 +190,8 @@ export function Table<T>({
                   <input
                     type="checkbox"
                     checked={allSelected}
-                    onChange={() => selection.onToggleAll?.(allSelected ? [] : allRowIds)}
+                    onChange={() => selection.onToggleAll?.(allSelected ? [] : pickableIds)}
+                    disabled={pickableIds.length === 0}
                     aria-label="Select all"
                     className="h-4 w-4"
                   />
@@ -292,8 +298,9 @@ export function Table<T>({
                             type="checkbox"
                             checked={selection.selectedIds.has(id)}
                             onChange={() => selection.onToggle(id)}
+                            disabled={selection.isDisabled?.(id)}
                             aria-label={`Select row ${id}`}
-                            className="h-4 w-4"
+                            className="h-4 w-4 disabled:opacity-40"
                           />
                         </td>
                       )}

@@ -77,3 +77,13 @@ describe('Close Lead — reason picker', () => {
     expect(screen.getByText('Please add a note when the reason is Other.')).toBeInTheDocument()
   })
 })
+
+// T1-11: the box promised "until reopened" while a lead closed from the pool was in no list at all.
+describe('Close Lead — what it promises', () => {
+  it('says where the lead can still be found', () => {
+    open()
+    expect(screen.getByText(/will leave your lead lists/)).toBeInTheDocument()
+    expect(screen.getByText(/switching on “Include\s+closed” on the list/)).toBeInTheDocument()
+    expect(screen.queryByText(/until reopened/)).not.toBeInTheDocument()
+  })
+})

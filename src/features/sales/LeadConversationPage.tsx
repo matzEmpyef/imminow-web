@@ -473,7 +473,12 @@ export function LeadConversationPage() {
         )}
         {showCloseModal && <CloseLeadModal leadId={id} leadName={data.name} onClose={() => setShowCloseModal(false)} />}
         {showReopenModal && (
-          <ReopenLeadModal leadId={id} leadName={data.name} onClose={() => setShowReopenModal(false)} />
+          <ReopenLeadModal
+            leadId={id}
+            leadName={data.name}
+            assigned={Boolean(data.assigned_employee_id)}
+            onClose={() => setShowReopenModal(false)}
+          />
         )}
 
         <div className="grid min-h-0 flex-1 grid-cols-3 gap-lg">

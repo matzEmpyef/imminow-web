@@ -12,6 +12,11 @@ import { useCursorPagination } from '@/lib/pagination'
 import { usePermissionChecker } from '@/lib/permissions'
 import { useAccountWords } from '@/lib/accountWords'
 import { Eye, XCircle } from 'lucide-react'
+import { Badge } from '@/components/Badge'
+import { Toggle } from '@/components/Toggle'
+import { ReopenTrigger } from '@/components/ReopenTrigger'
+import { canOfferLeadReopen } from '@/lib/reopenRules'
+import { ReopenLeadModal } from './ReopenLeadModal'
 import { formatDate, relativeTime } from '@/lib/time'
 import { LeadDetailModal } from '@/features/clients/LeadDetailModal'
 import { CloseLeadModal } from './CloseLeadModal'
@@ -39,10 +44,13 @@ export function LeadPoolPage() {
   const words = useAccountWords()
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
+  // A lead closed from the pool is still unassigned, so this is the only list it can appear in.
+  const [showClosed, setShowClosed] = useState(false)
   const paging = useCursorPagination()
 
   const leads = useLeads({
     unallocated: true,
+    showClosed,
     search: search || undefined,
     sort: sort ? (sort.direction === 'desc' ? `-${sort.field}` : sort.field) : undefined,
     cursor: paging.cursor,
@@ -116,7 +124,18 @@ export function LeadPoolPage() {
       render: (lead) => (
         <div className="flex items-center gap-sm">
           <SourceIcon origin={lead.origin} />
-          <span className="font-medium text-text-primary">{lead.name}</span>
+          <div className="flex flex-col">
+            <span className="font-medium text-text-primary">{lead.name}</span>
+            {/* Why it closed, in the server's own sentence ("The student ended this chat."). */}
+            {lead.status === 'closed' && (
+              <span className="flex flex-wrap items-center gap-xs">
+                <Badge color="secondary">Closed</Badge>
+                {lead.closed_reason_label && (
+                  <span className="text-caption text-text-secondary">{lead.closed_reason_label}</span>
+                )}
+              </span>
+            )}
+          </div>
         </div>
       ),
     },
@@ -185,23 +204,24 @@ export function LeadPoolPage() {
           {
             key: 'allocate',
             header: 'Allocate',
-            render: (lead) => (
-              <AssignConsultantMenu
-                onSelect={(employeeId, consultantName) => {
-                  allocate.mutate(
-                    { id: lead.id, employeeId },
-                    {
-                      onSuccess: () =>
-                        showToast(
-                          consultantName ? `${lead.name} allocated to ${consultantName}` : `${lead.name} allocated`,
-                        ),
-                    },
-                  )
-                }}
-                label={`Allocate ${lead.name}`}
-                variant="icon"
-              />
-            ),
+            render: (lead) =>
+              lead.status === 'closed' ? null : (
+                <AssignConsultantMenu
+                  onSelect={(employeeId, consultantName) => {
+                    allocate.mutate(
+                      { id: lead.id, employeeId },
+                      {
+                        onSuccess: () =>
+                          showToast(
+                            consultantName ? `${lead.name} allocated to ${consultantName}` : `${lead.name} allocated`,
+                          ),
+                      },
+                    )
+                  }}
+                  label={`Allocate ${lead.name}`}
+                  variant="icon"
+                />
+              ),
           } satisfies TableColumn<Lead>,
         ]
       : []),
@@ -210,17 +230,41 @@ export function LeadPoolPage() {
           {
             key: 'close',
             header: 'Close',
-            render: (lead) => (
-              <button
-                type="button"
-                onClick={() => setClosingLead(lead)}
-                aria-label={`Close ${lead.name}`}
-                title="Close lead"
-                className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-error/10 hover:text-error"
-              >
-                <XCircle className="h-4 w-4" aria-hidden />
-              </button>
-            ),
+            render: (lead) =>
+              lead.status === 'closed' ? null : (
+                <button
+                  type="button"
+                  onClick={() => setClosingLead(lead)}
+                  aria-label={`Close ${lead.name}`}
+                  title="Close lead"
+                  className="flex h-9 w-9 items-center justify-center rounded-md text-text-secondary hover:bg-error/10 hover:text-error"
+                >
+                  <XCircle className="h-4 w-4" aria-hidden />
+                </button>
+              ),
+          } satisfies TableColumn<Lead>,
+        ]
+      : []),
+    // Reopen is not a permission of its own: the server says whether this lead may be reopened now.
+    ...(showClosed
+      ? [
+          {
+            key: 'reopen',
+            header: 'Reopen',
+            render: (lead) =>
+              lead.status === 'closed' && canOfferLeadReopen(lead) ? (
+                <ReopenTrigger
+                  name={lead.name}
+                  renderModal={(close) => (
+                    <ReopenLeadModal
+                      leadId={lead.id}
+                      leadName={lead.name}
+                      assigned={Boolean(lead.assigned_employee_id)}
+                      onClose={close}
+                    />
+                  )}
+                />
+              ) : null,
           } satisfies TableColumn<Lead>,
         ]
       : []),
@@ -260,8 +304,12 @@ export function LeadPoolPage() {
           error={leads.isError ? 'Could not load the lead pool.' : undefined} errorSource={leads.error}
           emptyMessage={
             search
-              ? 'No leads in the pool match your search.'
-              : `No unallocated leads right now. New Sentpo leads land here until a ${words.person} is allocated.`
+              ? showClosed
+                ? 'No leads in the pool, open or closed, match your search.'
+                : 'No open leads in the pool match your search. If the lead was closed, switch on “Include closed”.'
+              : showClosed
+                ? 'No unallocated leads, open or closed, right now.'
+                : `No unallocated leads right now. New Sentpo leads land here until a ${words.person} is allocated.`
           }
           sort={sort}
           onSortChange={(field, direction) => {
@@ -276,6 +324,21 @@ export function LeadPoolPage() {
             },
             placeholder: 'Search leads…',
           }}
+          filterActions={
+            <label htmlFor="pool-include-closed" className="flex items-center gap-sm text-body-sm text-text-secondary">
+              <Toggle
+                id="pool-include-closed"
+                checked={showClosed}
+                onChange={(v) => {
+                  setShowClosed(v)
+                  setSelected(new Set())
+                  paging.reset()
+                }}
+                label="Include closed"
+              />
+              Include closed
+            </label>
+          }
           filters={
             canAllocate &&
             selected.size > 0 && (
@@ -312,6 +375,8 @@ export function LeadPoolPage() {
             canAllocate
               ? {
                   selectedIds: selected,
+                  // A closed lead cannot be allocated: it has to be reopened first.
+                  isDisabled: (id) => leads.data?.items.find((l) => l.id === id)?.status === 'closed',
                   onToggle: (id) =>
                     setSelected((prev) => {
                       const next = new Set(prev)

@@ -10,10 +10,13 @@ import { showToast } from '@/lib/toast'
 export function ReopenLeadModal({
   leadId,
   leadName,
+  assigned,
   onClose,
 }: {
   leadId: string
   leadName: string
+  /** Whether a consultant holds the lead: it decides which list the lead returns to. */
+  assigned: boolean
   onClose: () => void
 }) {
   const reopenLead = useReopenLead()
@@ -51,7 +54,9 @@ export function ReopenLeadModal({
     >
       <div className="flex flex-col gap-md">
         <p className="text-body-sm text-text-secondary">
-          <strong className="text-text-primary">{leadName}</strong> will move back into Active Leads.
+          <strong className="text-text-primary">{leadName}</strong> {assigned
+            ? 'will move back into Active Leads.'
+            : 'will go back to the Lead Pool, where it can be allocated again.'}
         </p>
       </div>
     </Modal>

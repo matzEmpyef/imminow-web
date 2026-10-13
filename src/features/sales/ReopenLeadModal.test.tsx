@@ -25,9 +25,27 @@ describe('Reopen Lead dialog', () => {
       isError: true,
       error: new ApiError('Could not reopen this lead.', { error: { code: 'conflict', message: sentence } }, 409),
     } as never)
-    render(<ReopenLeadModal leadId="l1" leadName="Asha Nair" onClose={vi.fn()} />)
+    render(<ReopenLeadModal leadId="l1" leadName="Asha Nair" assigned onClose={vi.fn()} />)
     expect(screen.getByText(sentence)).toBeInTheDocument()
     fireEvent.click(screen.getAllByRole('button', { name: 'Reopen Lead' })[0])
     expect(mutate).toHaveBeenCalledWith('l1', expect.anything())
+  })
+
+  // T1-11: the box names the list the lead actually returns to.
+  function open(assigned: boolean) {
+    vi.mocked(useReopenLead).mockReturnValue({ mutate, isPending: false, isError: false } as never)
+    render(<ReopenLeadModal leadId="l1" leadName="Asha Nair" assigned={assigned} onClose={vi.fn()} />)
+  }
+
+  it('says an assigned lead goes back to Active Leads', () => {
+    open(true)
+    expect(screen.getByText(/will move back into Active Leads\./)).toBeInTheDocument()
+    expect(screen.queryByText(/Lead Pool/)).not.toBeInTheDocument()
+  })
+
+  it('says an unassigned lead goes back to the Lead Pool', () => {
+    open(false)
+    expect(screen.getByText(/will go back to the Lead Pool, where it can be allocated again\./)).toBeInTheDocument()
+    expect(screen.queryByText(/Active Leads/)).not.toBeInTheDocument()
   })
 })

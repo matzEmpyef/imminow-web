@@ -165,7 +165,14 @@ export function ActiveLeadsPage() {
           canOfferLeadReopen(lead) ? (
             <ReopenTrigger
               name={lead.name}
-              renderModal={(close) => <ReopenLeadModal leadId={lead.id} leadName={lead.name} onClose={close} />}
+              renderModal={(close) => (
+                <ReopenLeadModal
+                  leadId={lead.id}
+                  leadName={lead.name}
+                  assigned={Boolean(lead.assigned_employee_id)}
+                  onClose={close}
+                />
+              )}
             />
           ) : null
         ) : !canReassign ? null : (

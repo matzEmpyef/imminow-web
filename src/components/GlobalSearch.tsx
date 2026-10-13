@@ -35,10 +35,16 @@ export function GlobalSearch() {
   }, [])
 
   const searchActive = debouncedQuery.length >= MIN_QUERY_LENGTH
-  const leads = useLeads({ search: debouncedQuery }, { enabled: searchActive })
+  // Closed leads are searched too (they leave every list by default, so a name typed here is the one
+  // way back to a lead closed from the Lead Pool). A lead that became a client is left out: the
+  // applicant result beside it is the same person.
+  const leads = useLeads({ search: debouncedQuery, showClosed: true }, { enabled: searchActive })
   const clients = useClients({ search: debouncedQuery }, { enabled: searchActive })
 
-  const leadResults = leads.data?.items.slice(0, MAX_RESULTS_PER_GROUP) ?? []
+  const leadResults = (leads.data?.items ?? [])
+    .filter((lead) => lead.status !== 'converted')
+    .sort((a, b) => Number(a.status === 'closed') - Number(b.status === 'closed'))
+    .slice(0, MAX_RESULTS_PER_GROUP)
   const clientResults = clients.data?.items.slice(0, MAX_RESULTS_PER_GROUP) ?? []
   const isLoading = searchActive && (leads.isLoading || clients.isLoading)
   // H10 fix (frontend review, 1 Sep 2026) — a failed fetch used to fall straight into "No
@@ -51,7 +57,7 @@ export function GlobalSearch() {
       path: `/sales/leads/${lead.id}`,
       name: lead.name,
       subtitle: lead.email ?? lead.phone ?? '—',
-      tag: 'Lead' as const,
+      tag: (lead.status === 'closed' ? 'Closed lead' : 'Lead') as 'Lead' | 'Closed lead',
     })),
     ...clientResults.map((client) => ({
       key: client.id,
