@@ -446,10 +446,10 @@ export function ActivityPage() {
                           ` (${task.client_name})`
                         ))}
                       {task.lead_name &&
-                        (task.lead_id ? (
+                        ((task as ActivityTask).lead_id ? (
                           <>
                             {' ('}
-                            <Link to={`/sales/leads/${task.lead_id}`} className="hover:text-primary hover:underline">
+                            <Link to={`/sales/leads/${(task as ActivityTask).lead_id}`} className="hover:text-primary hover:underline">
                               {task.lead_name}
                             </Link>
                             {')'}

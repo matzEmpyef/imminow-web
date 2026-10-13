@@ -1,6 +1,6 @@
 // Split out of ClientProfilePage.tsx (Phase 3 plan, Tier B1, 2026-09-03) — pure movement, no logic change.
 import { NotPartnerNotice, usePartnerStatus } from './NotPartnerNotice'
-import { useState } from 'react'
+import { Fragment, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { GraduationCap, Search } from 'lucide-react'
 import { Card } from '@/components/Card'
@@ -179,6 +179,16 @@ export function ApplicationsTab({
   )
 }
 
+// The parts of a line with a dot between each pair and none at either end.
+function joinWithDots(parts: ReactNode[]): ReactNode {
+  return parts.map((part, index) => (
+    <Fragment key={index}>
+      {index > 0 && ' · '}
+      {part}
+    </Fragment>
+  ))
+}
+
 // One college's row: status pill + only the moves the forward-only lifecycle allows from here.
 // Accepting never fires directly — it opens the Accept popup, which is where the money
 // agreement (and thus the commission entry) is captured. Rejecting is terminal, so it takes a
@@ -212,6 +222,11 @@ function ApplicationRow({
   const status = row.status as CollegeStatus
   const info = COLLEGE_STATUS_INFO[status] ?? { label: row.status, color: 'secondary' as const }
   const nextSteps = COLLEGE_NEXT_STEPS[status] ?? []
+  const campusName = row.campus ? campusLabel(row.campus) : ''
+  const fee = row.course.fee?.amount == null ? '' : formatMoney(row.course.fee.currency, row.course.fee.amount)
+  const feeText = fee
+    ? `${fee}${formatFeeApprox(row.course.fee_display) ? ` (${formatFeeApprox(row.course.fee_display)})` : ''}`
+    : ''
 
   return (
     <Card className="flex flex-col gap-sm">
@@ -219,27 +234,17 @@ function ApplicationRow({
         <div>
           <p className="text-body font-medium text-text-primary">{row.course.name}</p>
           <p className="text-caption text-text-secondary">
-            {row.course.college_name}
-            {/* Which campus this application is for (2026-09-16) — named here because the offer
-                will name it, and a consultant scanning ten clients should not have to open a row
-                to see where each one is applying. Absent on rows created before the field. */}
-            {row.campus && (
-              <>
-                {' · '}
-                <span className="font-medium text-text-primary">
-                  {campusLabel(row.campus)}
-                </span>
-              </>
+            {/* Each part is listed only when it has something to say, and the dots go between the
+                parts that are there, so an empty campus or fee leaves no stray separator (T4-35).
+                The campus (2026-09-16) is named here because the offer will name it. */}
+            {joinWithDots(
+              [
+                row.course.college_name,
+                campusName ? <span className="font-medium text-text-primary">{campusName}</span> : null,
+                row.course.country ? <CountryLabel name={row.course.country} /> : null,
+                feeText ? <>{feeText}</> : null,
+              ].filter((part) => part != null && part !== ''),
             )}
-            {row.course.country && (
-              <>
-                {' · '}
-                <CountryLabel name={row.course.country} />
-              </>
-            )}{' '}
-            ·{' '}
-            {formatMoney(row.course.fee?.currency, row.course.fee?.amount)}
-            {formatFeeApprox(row.course.fee_display) && ` (${formatFeeApprox(row.course.fee_display)})`}
           </p>
         </div>
         <div className="flex items-center gap-sm">
