@@ -396,7 +396,7 @@ export function OverviewTab({
           that is still live but can't transfer YET (an accepted college/recorded contribution) —
           that's actionable information, not a dead end. */}
       {canTransferApplicant && !readOnly && (
-        <div className="col-span-3 flex justify-end">
+        <div className="col-span-3 flex flex-col items-end gap-xs">
           <button
             type="button"
             onClick={() => setShowTransfer(true)}
@@ -406,6 +406,10 @@ export function OverviewTab({
           >
             Transfer applicant to another consultancy
           </button>
+          {/* T4-23: the reason is written out, not only a hover tip. */}
+          {transferDisabledReason && (
+            <p className="max-w-md text-right text-caption text-text-secondary">{transferDisabledReason}</p>
+          )}
         </div>
       )}
 

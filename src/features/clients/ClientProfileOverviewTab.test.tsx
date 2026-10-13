@@ -107,6 +107,15 @@ describe('OverviewTab — Transfer disabled when the case has an accepted colleg
     )
   })
 
+  // T4-23: the reason is written on the page as well, not only in a hover tip.
+  it('writes the reason out under the button', () => {
+    mockedClient.mockReturnValue(query(baseClient({ case_summary: { accepted: 1, contribution_recorded: false } })))
+    renderOverview()
+    expect(
+      screen.getByText("This case has an accepted college, so it can't be transferred. Close the case or raise a dispute instead."),
+    ).toBeInTheDocument()
+  })
+
   it('disables Transfer for a PR case once its contribution is recorded', () => {
     mockedClient.mockReturnValue(
       query(baseClient({ case_type: 'pr', case_summary: { accepted: 0, contribution_recorded: true } })),
