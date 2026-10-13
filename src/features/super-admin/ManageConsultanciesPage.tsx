@@ -39,6 +39,7 @@ import { formatMoney } from '@/lib/money'
 import { useCurrencyCodes } from '@/lib/currencies'
 import { CONSULTANCY_PLAN_COLUMNS, useCanSeeConsultancyPlans, useIsSuperAdmin, usePlatformPermission } from '@/lib/me'
 import { KycSection } from './ManageConsultancyKyc'
+import { ChangeAdministratorSection } from './ChangeAdministrator'
 import { KYC_BADGE } from './kycBadge'
 import type { components } from '@/api/schema'
 import { BUSINESS_FEATURES, ULTIMATE_FEATURES, STARTER_FEATURES, STARTER_CORE_FEATURES, TIER_ORDER, FEATURE_KEYS, type FeatureDef } from '@/lib/features'
@@ -981,6 +982,11 @@ export function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consu
             <CountrySection consultancy={consultancy} />
             <AddressHoursSection consultancy={consultancy} />
             <MfaSection consultancy={consultancy} />
+            <ChangeAdministratorSection
+              consultancyId={consultancy.id!}
+              consultancyName={consultancy.name}
+              consultancy={consultancy}
+            />
             <div className="flex items-center justify-between gap-md p-md">
               <div className="min-w-0">
                 <p className="text-body-sm font-medium text-text-primary">Partner colleges</p>

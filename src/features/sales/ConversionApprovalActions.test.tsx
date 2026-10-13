@@ -178,3 +178,40 @@ describe('ConvertToClientModal — sending an offer', () => {
     expect(screen.queryByRole('dialog', { name: 'Request sent' })).not.toBeInTheDocument()
   })
 })
+
+// Phase 8, D-119 C-7(2): converting an imported lead whose email or phone is held by an account
+// that cannot be asked answers 409 `identifier_in_use` with one neutral sentence. The console
+// shows it exactly as served.
+describe('converting an imported lead whose email or phone is held', () => {
+  const SENTENCE = 'This address cannot be used. Please ask the applicant to provide a different email address.'
+  const refuse = () =>
+    mockedPost.mockImplementation((async () => ({
+      data: undefined,
+      error: { error: { code: 'identifier_in_use', message: SENTENCE } },
+      response: { status: 409 },
+    })) as never)
+
+  it('shows the sentence when the offer is sent', async () => {
+    refuse()
+    renderWithClient(<ConvertToClientModal leadId="l1" leadName="Asha Rao" onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send request' }))
+    expect(await screen.findByText(SENTENCE)).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Request sent' })).not.toBeInTheDocument()
+  })
+
+  it('shows the sentence when a request is approved', async () => {
+    refuse()
+    renderWithClient(
+      <ConversionApprovalActions
+        canConvert
+        leadId="l1"
+        leadName="Asha Rao"
+        proposal={proposal({ initiated_by: 'student' })}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    expect(await screen.findByText(SENTENCE)).toBeInTheDocument()
+  })
+})

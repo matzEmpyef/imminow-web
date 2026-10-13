@@ -212,6 +212,77 @@ export function useSuspendConsultancy(id: string) {
 }
 
 /**
+ * What Support's "Change administrator" answers (`POST /consultancies/{id}/admin-handover`, 200).
+ * Narrow local type: the route is not in the generated client yet (replace with the generated type
+ * after the contract join).
+ */
+export interface AdminHandoverResult {
+  consultancy_id: string
+  consultancy_name: string
+  admin_employee_id: string
+  /** Null when the consultancy had no administrator on record. */
+  former_admin_employee_id: string | null
+}
+
+/**
+ * One member of a consultancy's staff as Support sees them on `GET /consultancies/{id}`
+ * (`employees`). Narrow local type, read through {@link staffOf}: the generated `Consultancy` does
+ * not carry the list yet (replace with the generated type after the contract join).
+ */
+export interface ConsultancyStaffMember {
+  id: string
+  name?: string | null
+  email?: string | null
+  user?: { first_name?: string | null; last_name?: string | null; email?: string | null } | null
+  is_consultancy_admin?: boolean
+  active?: boolean
+  /** `invited` until the invitation is accepted, then `active`; `deactivated` once switched off. */
+  status?: 'invited' | 'active' | 'deactivated'
+}
+
+/**
+ * The staff list on a consultancy record, or null when the record carries none.
+ * The ONE cast for the field the generated client does not know yet.
+ */
+export function staffOf(consultancy: object): ConsultancyStaffMember[] | null {
+  // replace with generated type after the contract join
+  const employees = (consultancy as { employees?: ConsultancyStaffMember[] | null }).employees
+  return Array.isArray(employees) ? employees : null
+}
+
+/**
+ * Support makes another active member of a consultancy's staff its administrator (support_tools).
+ * Needs a reason (at least 3 characters, kept on the audit entry) and the operator's own password.
+ * The former administrator stays on the staff; both people are told.
+ *
+ * Refusals carry the server's own sentence: 400 `validation_failed`, `step_up_required`,
+ * `invalid_current_password`; 403; 404; 409 `conflict` (already the administrator, switched off,
+ * not accepted yet); 429 `rate_limited`.
+ */
+export function useHandOverAdmin(id: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { employee_id: string; reason: string; password: string }) => {
+      // replace with generated type after the contract join: the route is not in `paths` yet.
+      const client = api as unknown as {
+        POST: (
+          path: string,
+          init: { params: { path: { id: string } }; body: typeof body },
+        ) => Promise<{ data?: AdminHandoverResult; error?: unknown; response?: Response }>
+      }
+      const { data, error, response } = await client.POST('/consultancies/{id}/admin-handover', {
+        params: { path: { id } },
+        body,
+      })
+      if (error) throw new ApiError('Could not change the administrator.', error, response?.status)
+      return data as AdminHandoverResult
+    },
+    // The admin flag, the roster and the seat counts all read from the consultancy record.
+    onSuccess: () => invalidateConsultancy(queryClient),
+  })
+}
+
+/**
  * Sets or clears the Super Admin rating override.
  *
  * Passing `null` CLEARS the override and returns the consultancy to its computed rating — it does

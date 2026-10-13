@@ -25,6 +25,14 @@ describe('the lost-invite notice', () => {
   })
 })
 
+// `admin_role_handed_over` (owner, DECISIONS 122(a)): the new and the former administrator are both
+// sent to the staff page, which is on the allowed list.
+describe('the administrator notice', () => {
+  it('opens the staff page, not the fallback', () => {
+    expect(safeDeepLink('/administration/employees', '/notifications')).toBe('/administration/employees')
+  })
+})
+
 // T1-07: a case notice arrives as `/clients/{journey_id}`, filled in by the server.
 describe('the case notices', () => {
   it('opens a client by its id', () => {

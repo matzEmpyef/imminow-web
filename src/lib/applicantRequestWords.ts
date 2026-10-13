@@ -49,19 +49,18 @@ export function dailyLimitLine(dailyLimit: ApplicantRequest['daily_limit']): str
   return `${remaining} ${remaining === 1 ? 'request' : 'requests'} to existing students left today. The limit resets tomorrow.`
 }
 
-export const IDENTIFIER_IN_USE_MESSAGE = "This email or phone is already in use on Sentpo and can't be added here."
 export const TOO_MANY_ATTEMPTS_MESSAGE = 'Too many attempts. Please try again later.'
 
 /**
- * What Create Applicant shows for a refusal. Two answers get the console's own words: a held
- * email or phone (the server's text must never be a hint about whose it is) and the rate limit.
- * Everything else — today's limit reached, asked too recently, the person has already asked on
- * the chat, the consultancy is suspended — is the server's own message, which says what to do.
+ * What Create Applicant shows for a refusal. Only the rate limit gets the console's own words.
+ * Everything else — a held email or phone (since Phase 8, D-119 C-7(2), the server's one neutral
+ * sentence, the same whoever holds it), today's limit reached, asked too recently, the person has
+ * already asked on the chat, the consultancy is suspended — is the server's own message, shown
+ * exactly as served, which says what to do.
  */
 export function createApplicantErrorMessage(err: Error): string {
   if (err instanceof ApiError) {
     if (err.status === 429 || err.code === 'rate_limited') return TOO_MANY_ATTEMPTS_MESSAGE
-    if (err.code === 'identifier_in_use') return IDENTIFIER_IN_USE_MESSAGE
   }
   return err.message
 }

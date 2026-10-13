@@ -16,6 +16,14 @@ import { PersonSignInDrawer, type SignInHistoryPerson } from './PersonSignInDraw
 
 type Row = NonNullable<ReturnType<typeof useImminowUserDirectory>['data']>['items'][number]
 
+/**
+ * What a row is called. Someone invited and not yet joined may have no name on record (T4-20): the
+ * address they were invited at stands in for it, and is then not repeated under it.
+ */
+function displayName(row: Pick<Row, 'name' | 'email'>): string {
+  return row.name?.trim() || row.email
+}
+
 // Columns match the visible table, in order (review M9 export) — Name/Email split from their
 // combined cell, everything else one column per rendered fact.
 const IMMINOW_USERS_CSV_COLUMNS: CsvColumn<Row>[] = [
@@ -85,8 +93,8 @@ export function ImminowUsersPage() {
       sortable: true,
       render: (r) => (
         <div>
-          <p className="font-medium text-text-primary">{r.name}</p>
-          <p className="text-caption text-text-secondary">{r.email}</p>
+          <p className="font-medium text-text-primary">{displayName(r)}</p>
+          {r.name?.trim() && <p className="text-caption text-text-secondary">{r.email}</p>}
         </div>
       ),
     },
@@ -156,7 +164,7 @@ export function ImminowUsersPage() {
           onRowClick={(r) =>
             setHistoryFor({
               id: r.id,
-              name: r.name,
+              name: displayName(r),
               email: r.email,
               kind: r.kind,
               consultancyName: r.consultancy_name,

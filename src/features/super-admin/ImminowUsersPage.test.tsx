@@ -113,3 +113,43 @@ describe('ImminowUsersPage status', () => {
     expect(screen.getByText('Priya Nair').closest('tr')!.textContent).toContain('Active')
   })
 })
+
+// T4-20: someone invited and not yet joined arrives with their address and the invited date, and
+// may have no name on record. The address stands in for the name, the row reads Invited, and
+// nothing on the page offers to "Disable account" a person who has not joined.
+describe('ImminowUsersPage — an invited person with no name', () => {
+  const INVITED = {
+    ...ROWS[0],
+    id: 'u-invited',
+    name: '',
+    email: 'ines.invited@example.com',
+    designation: null,
+    accepted_at: null,
+    last_login_at: null,
+    invited_at: '2026-10-11T09:30:00Z',
+  }
+
+  beforeEach(() => {
+    vi.mocked(useImminowUserDirectory).mockReturnValue({
+      data: { items: [INVITED], meta: { total: 1, next_cursor: null } },
+      isLoading: false,
+      isError: false,
+    } as never)
+  })
+
+  it('shows the address once in place of the name, reads Invited, and shows the invited date', () => {
+    renderPage()
+    expect(screen.getAllByText('ines.invited@example.com')).toHaveLength(1)
+    const row = screen.getByText('ines.invited@example.com').closest('tr')!
+    expect(row.textContent).toContain('Invited')
+    expect(row.textContent).not.toContain('Active')
+    expect(row.textContent).toContain('11-10-2026 / —')
+  })
+
+  it('offers no Disable account, and the sign-in history opens under the address', () => {
+    renderPage()
+    expect(screen.queryByRole('button', { name: /Disable account/ })).toBeNull()
+    fireEvent.click(screen.getByText('ines.invited@example.com'))
+    expect(screen.getByRole('dialog').textContent).toBe('history:u-invited:consultancy_staff')
+  })
+})

@@ -63,10 +63,9 @@ describe('createApplicantErrorMessage', () => {
     }
   })
 
-  it('never repeats the server text for a held email or phone', () => {
-    expect(createApplicantErrorMessage(refusal(409, 'identifier_in_use', 'This person already has an account.'))).toBe(
-      "This email or phone is already in use on Sentpo and can't be added here.",
-    )
+  it('shows the server sentence for a held email or phone exactly as served', () => {
+    const sentence = 'This address cannot be used. Please ask the applicant to provide a different email address.'
+    expect(createApplicantErrorMessage(refusal(409, 'identifier_in_use', sentence))).toBe(sentence)
   })
 
   it('words a rate limit by status or by code', () => {

@@ -97,9 +97,8 @@ export function useCreateApplicant() {
     invalidateApplicantRequests(queryClient)
   }
   return useMutation({
-    // `date_of_birth` is required (assumptions audit C9, approved 2026-09-19) — this was the one
-    // door a student record came through with no date of birth, and an account without one was
-    // treated as an adult by every age decision on the platform.
+    // No date of birth is sent (Phase 8, D-129 C-2): the student gives their own the first time
+    // they sign in, and until then the account counts as under 18 by every age rule.
     mutationFn: async ({
       idempotencyKey,
       ...body
@@ -107,7 +106,6 @@ export function useCreateApplicant() {
       first_name: string
       last_name: string
       email: string
-      date_of_birth: string
       phone?: string | null
       address?: string | null
       case_type: 'student' | 'pr'
@@ -116,7 +114,9 @@ export function useCreateApplicant() {
     }): Promise<CreateApplicantResult> => {
       const { data, error, response } = await api.POST('/clients', {
         params: { header: { 'Idempotency-Key': idempotencyKey } },
-        body,
+        // replace with generated type after the contract join: the generated body still lists
+        // `date_of_birth` as required; the contract now takes none (Phase 8, D-129 C-2).
+        body: body as never,
       })
       if (error) throw new ApiError('Could not create this applicant.', error, response?.status)
       // The status says which of the two documented bodies this is; the types cannot.

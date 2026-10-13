@@ -82,7 +82,6 @@ function fill() {
   fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Asha' } })
   fireEvent.change(screen.getByLabelText('Last name'), { target: { value: 'Rao' } })
   fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'asha@example.com' } })
-  fireEvent.change(screen.getByLabelText(/^Date of birth/), { target: { value: '2000-01-15' } })
   fireEvent.click(screen.getByLabelText('Student'))
   fireEvent.change(screen.getByLabelText('Assigned Consultant'), { target: { value: 'e1' } })
 }
@@ -122,7 +121,6 @@ describe('CreateApplicantModal — a new person (201)', () => {
       first_name: 'Asha',
       last_name: 'Rao',
       email: 'asha@example.com',
-      date_of_birth: '2000-01-15',
       phone: null,
       address: null,
       case_type: 'student',
@@ -131,6 +129,18 @@ describe('CreateApplicantModal — a new person (201)', () => {
     expect(sentKey(clientCalls()[0])).toMatch(/^[0-9a-f-]{36}$/)
     const keys = invalidate.mock.calls.map((c) => (c[0] as { queryKey: unknown[] }).queryKey)
     expect(keys).toContainEqual(['clients'])
+  })
+})
+
+describe('CreateApplicantModal — the form', () => {
+  // Phase 8, D-129 C-2: the student gives their own date of birth in the app.
+  it('has no date of birth field, and the button needs nothing for one', () => {
+    renderModal()
+    expect(screen.queryByLabelText(/Date of birth/)).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).not.toHaveTextContent(/date of birth/i)
+    fill()
+    expect(screen.getByRole('button', { name: 'Create Applicant' })).toBeEnabled()
+    expect(screen.queryByText(/Still needed/)).not.toBeInTheDocument()
   })
 })
 
@@ -188,16 +198,16 @@ describe('CreateApplicantModal — refusals', () => {
     expect(navigate).not.toHaveBeenCalled()
   })
 
-  it('409 identifier_in_use shows the console wording, never the server text', async () => {
-    await refusedWith({
-      status: 409,
-      code: 'identifier_in_use',
-      message: 'This person already has a Sentpo account. Ask them to start a chat with you from the app instead.',
-    })
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      "This email or phone is already in use on Sentpo and can't be added here.",
-    )
-    expect(screen.queryByText(/already has a Sentpo account/)).not.toBeInTheDocument()
+  // Phase 8, D-119 C-7(2): the server's one neutral sentence, shown exactly as served, for the
+  // email and for the phone alike. The console no longer words it.
+  it.each([
+    'This address cannot be used. Please ask the applicant to provide a different email address.',
+    'This phone number cannot be used. Please ask the applicant to provide a different phone number.',
+  ])('409 identifier_in_use shows the server sentence exactly as served: %s', async (message) => {
+    await refusedWith({ status: 409, code: 'identifier_in_use', message })
+    expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    expect(screen.queryByText(/already in use on Sentpo/)).not.toBeInTheDocument()
+    expect(navigate).not.toHaveBeenCalled()
   })
 
   it('429 shows "Too many attempts"', async () => {

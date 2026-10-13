@@ -52,6 +52,9 @@ const STUDY_MODE_LABELS: Record<string, string> = {
 
 type Lines = ReactNode[] | null
 
+/** Said where a student's date of birth is null. */
+const DOB_NOT_GIVEN = 'Not provided yet'
+
 function educationLines(prefs: StudentPreferences | null | undefined, ladder: LevelLadder): Lines {
   const entries = prefs?.education
   if (entries && entries.length > 0) {
@@ -247,7 +250,11 @@ function profileFacts(
         label: 'Date of birth',
         icon: <Cake className="h-5 w-5" />,
         color: 'secondary' as IconColor,
+        // A student a consultancy set up gives their own date of birth at first sign-in (Phase 8,
+        // D-129 C-2); until then there is none, no age is worked out from it, and the row says
+        // so in its own words. It stays empty for the completeness count: nothing has been added.
         lines: one(prefs?.date_of_birth ? formatDate(prefs.date_of_birth) : null),
+        emptyText: DOB_NOT_GIVEN,
       },
       {
         label: 'Gender',
@@ -268,7 +275,7 @@ function profileFacts(
 
 // ---- the plain list (Client Profile Overview, the lead page) -----------------------------------
 
-function ProfileRow({ label, lines }: { label: string; lines: Lines }) {
+function ProfileRow({ label, lines, emptyText = 'Not added yet' }: { label: string; lines: Lines; emptyText?: string }) {
   return (
     <div className="flex items-start justify-between gap-md">
       <dt className="shrink-0 text-text-secondary">{label}</dt>
@@ -276,7 +283,7 @@ function ProfileRow({ label, lines }: { label: string; lines: Lines }) {
         {lines ? (
           <div className="flex flex-col items-end gap-0.5">{lines}</div>
         ) : (
-          <span className="text-text-secondary">Not added yet</span>
+          <span className="text-text-secondary">{emptyText}</span>
         )}
       </dd>
     </div>
@@ -306,7 +313,7 @@ export function StudentProfileFields({ prefs }: { prefs: StudentPreferences | nu
   return (
     <dl className="flex flex-col gap-xs text-body-sm">
       {[...facts.studyPlan, ...facts.background, ...facts.about].map((f) => (
-        <ProfileRow key={f.label} label={f.label} lines={f.lines} />
+        <ProfileRow key={f.label} label={f.label} lines={f.lines} emptyText={(f as { emptyText?: string }).emptyText} />
       ))}
     </dl>
   )
@@ -314,7 +321,19 @@ export function StudentProfileFields({ prefs }: { prefs: StudentPreferences | nu
 
 // ---- the panels (lead and client detail popups) ------------------------------------------------
 
-function Fact({ icon, color, label, lines }: { icon: ReactNode; color: IconColor; label: string; lines: Lines }) {
+function Fact({
+  icon,
+  color,
+  label,
+  lines,
+  emptyText = 'Not added yet',
+}: {
+  icon: ReactNode
+  color: IconColor
+  label: string
+  lines: Lines
+  emptyText?: string
+}) {
   return (
     <div className="flex min-w-0 items-start gap-sm">
       <IconBadge color={color}>{icon}</IconBadge>
@@ -324,7 +343,7 @@ function Fact({ icon, color, label, lines }: { icon: ReactNode; color: IconColor
           {lines ? (
             <div className="flex flex-col items-start gap-0.5">{lines}</div>
           ) : (
-            <span className="font-normal italic text-text-secondary">Not added yet</span>
+            <span className="font-normal italic text-text-secondary">{emptyText}</span>
           )}
         </dd>
       </div>

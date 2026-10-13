@@ -94,6 +94,7 @@ const LABELS: Record<string, string> = {
   institute_course_switched: 'A college published one of its own courses, or switched one off or on (catalogue staff)',
   date_of_birth_corrected: 'Date of birth corrected by Support (to the student)',
   account_set_up_for_you: 'First sign-in to an account a consultancy set up (to the student)',
+  admin_role_handed_over: 'Support made someone else the administrator of a consultancy (to the new administrator and the former one)',
 }
 
 // Row-level component so useUpdateNotificationChannelConfig() can be called at its own render top

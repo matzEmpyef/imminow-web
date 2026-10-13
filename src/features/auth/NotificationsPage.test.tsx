@@ -90,6 +90,40 @@ describe('the notification list', () => {
     expect(screen.getByRole('link')).toHaveAttribute('href', '/administration/employees')
   })
 
+  // Support handed the admin role to another member of staff (owner, DECISIONS 122(a)): one notice
+  // for each person, in their own words, both opening the staff page.
+  it.each([
+    [
+      'You are now the administrator',
+      'immiNow support has made you the administrator of Northstar Overseas. You can now manage its staff, its settings and its subscription.',
+    ],
+    [
+      'The administrator has changed',
+      'immiNow support has made another member of staff the administrator of Northstar Overseas. You are still a member of staff and keep your access to its work.',
+    ],
+  ])('shows the administrator notice "%s" and opens the staff page', (title, body) => {
+    serve([
+      {
+        id: 'n5',
+        type: 'admin_role_handed_over',
+        title,
+        body,
+        deep_link: '/administration/employees',
+        read: false,
+        created_at: new Date().toISOString(),
+      },
+    ])
+    render(
+      <MemoryRouter>
+        <NotificationsPage />
+      </MemoryRouter>,
+    )
+    expect(screen.getByText(title)).toBeInTheDocument()
+    expect(screen.getByText(body)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: new RegExp(title) })).toHaveAttribute('href', '/administration/employees')
+    expect(screen.queryByText(/unknown|admin_role_handed_over/i)).not.toBeInTheDocument()
+  })
+
   // T1-07: the server fills the case id into the link; the bell opens that client, and a link left
   // as a template is not followed.
   it('opens the client named in a step notice', () => {
