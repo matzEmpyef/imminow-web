@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isAllowedDeepLink } from './deepLinks'
+import { isAllowedDeepLink, safeDeepLink } from './deepLinks'
 
 // The notices about a lead nobody answered or nobody was given (owner's ruling 2026-10-09):
 // `new_lead` and `lead_reply_overdue` open the lead's page, `lead_unanswered` the service
@@ -22,5 +22,21 @@ describe('the lead notices', () => {
 describe('the lost-invite notice', () => {
   it('lets through the team page', () => {
     expect(isAllowedDeepLink('/administration/employees')).toBe(true)
+  })
+})
+
+// T1-07: a case notice arrives as `/clients/{journey_id}`, filled in by the server.
+describe('the case notices', () => {
+  it('opens a client by its id', () => {
+    expect(isAllowedDeepLink('/clients/0192f3a4-7b6c-7d00-9a11-3f5e8c2b1d44')).toBe(true)
+    expect(safeDeepLink('/clients/0192f3a4-7b6c-7d00-9a11-3f5e8c2b1d44', '/notifications')).toBe(
+      '/clients/0192f3a4-7b6c-7d00-9a11-3f5e8c2b1d44',
+    )
+  })
+
+  it('does not follow a link the server left as a template', () => {
+    expect(isAllowedDeepLink('/clients/{client_id}')).toBe(false)
+    expect(isAllowedDeepLink('/clients/{journey_id}')).toBe(false)
+    expect(safeDeepLink('/clients/{client_id}', '/notifications')).toBe('/notifications')
   })
 })

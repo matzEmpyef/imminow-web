@@ -89,6 +89,9 @@ export function isInAppPath(link: string | null | undefined): link is string {
  */
 export function isAllowedDeepLink(link: string | null | undefined): link is string {
   if (!isInAppPath(link)) return false
+  // A link the server left as a template ("/clients/{client_id}") opens a page that cannot load
+  // (T1-07). The server fills them in now; this keeps a stray one from being followed.
+  if (link.includes('{') || link.includes('}')) return false
   if (ALLOWED_EXACT.includes(link) || ALLOWED_EXACT.includes(pathOnly(link))) return true
   return ALLOWED_PREFIXES.some((prefix) => link.startsWith(prefix) && link.length > prefix.length)
 }

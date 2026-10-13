@@ -87,4 +87,51 @@ describe('the notification list', () => {
     expect(screen.getByText(/need a new owner/)).toBeInTheDocument()
     expect(screen.getByRole('link')).toHaveAttribute('href', '/administration/employees')
   })
+
+  // T1-07: the server fills the case id into the link; the bell opens that client, and a link left
+  // as a template is not followed.
+  it('opens the client named in a step notice', () => {
+    serve([
+      {
+        id: 'n3',
+        type: 'step_submitted',
+        title: 'Step submitted',
+        body: 'Asha Nair submitted a step for review.',
+        deep_link: '/clients/0192f3a4-7b6c-7d00-9a11-3f5e8c2b1d44',
+        read: false,
+        created_at: new Date().toISOString(),
+      },
+    ])
+    render(
+      <MemoryRouter>
+        <NotificationsPage />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('link', { name: /Step submitted/ })).toHaveAttribute(
+      'href',
+      '/clients/0192f3a4-7b6c-7d00-9a11-3f5e8c2b1d44',
+    )
+  })
+
+  it('does not follow a link the server left as a template', () => {
+    serve([
+      {
+        id: 'n4',
+        type: 'step_submitted',
+        title: 'Step submitted',
+        body: 'A step was submitted for review.',
+        deep_link: '/clients/{client_id}',
+        read: false,
+        created_at: new Date().toISOString(),
+      },
+    ])
+    render(
+      <MemoryRouter>
+        <NotificationsPage />
+      </MemoryRouter>,
+    )
+    // The notice is still listed; it just goes nowhere.
+    expect(screen.getByText('Step submitted')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Step submitted/ })).toBeNull()
+  })
 })
