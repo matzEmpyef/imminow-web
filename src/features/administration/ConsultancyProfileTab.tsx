@@ -15,6 +15,7 @@ import { useCountries } from '@/queries/countries'
 import type { components } from '@/api/schema'
 import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
 import { showToast } from '@/lib/toast'
+import { useAccountWords } from '@/lib/accountWords'
 import { ApiError } from '@/api/errors'
 import { KycCard } from './KycCard'
 import { VisitingHoursEditor } from './VisitingHoursEditor'
@@ -33,6 +34,7 @@ export function ProfileTab({ consultancy }: { consultancy: ConsultancyRecord }) 
   // The version of the record as last read goes back with the save (review F-075). When someone
   // else saved first, the record reloads behind this form and what was typed here stays.
   const updateProfile = useUpdateConsultancyProfile(consultancy.version)
+  const { isInstitute } = useAccountWords()
 
   const [logoUrl, setLogoUrl] = useState('')
   const [description, setDescription] = useState('')
@@ -192,14 +194,18 @@ export function ProfileTab({ consultancy }: { consultancy: ConsultancyRecord }) 
               className="rounded-md border border-border bg-surface px-3 py-sm text-body"
             />
           </div>
-          <div className="lg:col-span-2">
-            <MultiSelect
-              label="Countries served"
-              options={countryOptions.data ?? []}
-              selected={countries}
-              onChange={setCountries}
-            />
-          </div>
+          {/* A college is in one country and serves its own students, so "countries served" is a
+              consultancy's question only (T2-07). */}
+          {!isInstitute && (
+            <div className="lg:col-span-2">
+              <MultiSelect
+                label="Countries served"
+                options={countryOptions.data ?? []}
+                selected={countries}
+                onChange={setCountries}
+              />
+            </div>
+          )}
           <TextField
             label="Public email"
             type="email"

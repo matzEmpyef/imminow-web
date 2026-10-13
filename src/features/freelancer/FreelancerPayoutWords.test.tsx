@@ -35,7 +35,8 @@ vi.mock('@/queries/freelancerReferrals', () => ({
 }))
 
 import { fireEvent } from '@testing-library/react'
-import { FreelancerDashboardPage, noPaymentsLine } from './FreelancerDashboardPage'
+import { FreelancerDashboardPage } from './FreelancerDashboardPage'
+import { noPaymentsLine } from './payoutWords'
 
 describe('Freelancer referrals', () => {
   it('reads "Nothing due" for a closed case that earned nothing, and keeps "Not due yet" for the chip', () => {

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useFeature } from '@/lib/features'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowRightLeft } from 'lucide-react'
 import { AppShell } from '@/features/auth/AppShell'
@@ -69,6 +70,8 @@ export function ActiveLeadsPage() {
     : (branches.data ?? []).filter((b) => me.branch_ids.includes(b.id!)).map((b) => b.name)
   const multiBranch = (branches.data?.length ?? 0) > 1
   const tags = useTags()
+  // Tags are a Business feature: Starter is offered neither the editor nor the filter (fault check 9a).
+  const hasTags = useFeature('tags')
   const createTag = useCreateTag()
   // At the tag ceiling the editor still picks existing tags but won't create one (2026-09-25).
   const tagCeiling = useListCeiling('tags', tags.data?.length)
@@ -151,6 +154,7 @@ export function ActiveLeadsPage() {
               </Badge>
             ))}
           </div>
+          {hasTags && (
           <TagEditorMenu
             tags={lead.tags ?? []}
             catalog={tags.data ?? []}
@@ -160,6 +164,7 @@ export function ActiveLeadsPage() {
             saving={setLeadTags.isPending}
             label={`Edit tags for ${lead.name}`}
           />
+          )}
         </div>
       ),
     },

@@ -155,6 +155,8 @@ export function ClientsListPage() {
   const planIncludesReopening = useCanReopen()
   const canAssign = can('clients.reassign')
   const tags = useTags()
+  // Tags are a Business feature: Starter is offered neither the editor nor the filter (fault check 9a).
+  const hasTags = useFeature('tags')
   const createTag = useCreateTag()
   // At the tag ceiling the editor still picks existing tags but won't create one (2026-09-25).
   const tagCeiling = useListCeiling('tags', tags.data?.length)
@@ -308,6 +310,7 @@ export function ClientsListPage() {
               </Badge>
             ))}
           </div>
+          {hasTags && (
           <TagEditorMenu
             tags={client.tags ?? []}
             catalog={tags.data ?? []}
@@ -319,6 +322,7 @@ export function ClientsListPage() {
             disabled={isCaseMoved(client.status)}
             disabledReason={CASE_MOVED_ACTION_REASON}
           />
+          )}
         </div>
       ),
     },
@@ -419,15 +423,17 @@ export function ClientsListPage() {
           }}
           filters={
             <>
-              <FilterMultiSelect
-                label="Tag"
-                options={tags.data?.map((t) => t.name) ?? []}
-                selected={tagFilter}
-                onChange={(next) => {
-                  setTagFilter(next)
-                  resetPaging()
-                }}
-              />
+              {hasTags && (
+                <FilterMultiSelect
+                  label="Tag"
+                  options={tags.data?.map((t) => t.name) ?? []}
+                  selected={tagFilter}
+                  onChange={(next) => {
+                    setTagFilter(next)
+                    resetPaging()
+                  }}
+                />
+              )}
               {!isInstitute && (
                 <FilterMultiSelect
                   label="Destination"

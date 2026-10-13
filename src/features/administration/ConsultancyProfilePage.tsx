@@ -5,6 +5,7 @@ import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useMyConsultancy } from '@/queries/consultancy'
 import { useAccountWords } from '@/lib/accountWords'
 import { usePermission, usePermissionChecker } from '@/lib/permissions'
+import { useFeature } from '@/lib/features'
 import { PartnerCollegesPanel } from './PartnerCollegesPanel'
 import { ProfileTab } from './ConsultancyProfileTab'
 import { SubscriptionTab } from './ConsultancySubscriptionTab'
@@ -47,12 +48,23 @@ export function ConsultancyProfilePage() {
   // H3 (2026-09-13): an institute is paid by its own applicants, so immiNow charges it no
   // per-case commission — there are no platform rates for it to read.
   const { isInstitute } = useAccountWords()
+  // Tags are a Business feature (fault check 9a): Starter has no Tag Management tab.
+  const hasTags = useFeature('tags')
+  // What only a consultancy does is not offered to a college (T2-07, owner's ruling 133): it has no
+  // allocation rule to set, its one Partner College is itself, and nobody transfers cases to it.
+  const consultancyOnly: Tab[] = ['Allocation Rule', 'Partner Colleges', 'Incoming Transfers']
   const visibleTabs = TABS.filter(
     (tab) =>
       (tab !== 'Incoming Transfers' || canAcceptTransfers) &&
       (tab !== 'Security' || isConsultancyAdmin) &&
-      (tab !== 'Platform Commission Rates' || !isInstitute),
+      (tab !== 'Platform Commission Rates' || !isInstitute) &&
+      (tab !== 'Tag Management' || hasTags) &&
+      !(isInstitute && consultancyOnly.includes(tab)),
   )
+
+  // An address that names a tab this account does not have (an institute opening Partner Colleges)
+  // lands on Profile instead of an empty page.
+  const shownTab: Tab = visibleTabs.includes(activeTab) ? activeTab : 'Profile'
 
   if (consultancy.isLoading) {
     return (
@@ -84,7 +96,7 @@ export function ConsultancyProfilePage() {
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`shrink-0 border-b-2 px-md py-sm text-body-sm ${
-                activeTab === tab ? 'border-primary font-medium text-primary' : 'border-transparent text-text-secondary'
+                shownTab === tab ? 'border-primary font-medium text-primary' : 'border-transparent text-text-secondary'
               }`}
             >
               {tab}
@@ -92,23 +104,23 @@ export function ConsultancyProfilePage() {
           ))}
         </div>
 
-        {activeTab === 'Profile' && <ProfileTab consultancy={consultancy.data} />}
-        {activeTab === 'Subscription' && <SubscriptionTab consultancy={consultancy.data} />}
-        {activeTab === 'Security' && isConsultancyAdmin && <SecurityTab consultancy={consultancy.data} />}
+        {shownTab === 'Profile' && <ProfileTab consultancy={consultancy.data} />}
+        {shownTab === 'Subscription' && <SubscriptionTab consultancy={consultancy.data} />}
+        {shownTab === 'Security' && isConsultancyAdmin && <SecurityTab consultancy={consultancy.data} />}
         {/* `kind`, not a feature flag (INSTITUTE_ACCOUNT_PLAN D13): an institute's partner
             colleges are itself and only itself, so the panel renders read-only. A
             `partner_colleges` entitlement key was deliberately NOT registered — it would have
             handed a Super Admin a switch to turn this screen off for an ordinary consultancy,
             where their commission terms live. */}
-        {activeTab === 'Partner Colleges' && <PartnerCollegesPanel kind={consultancy.data.kind} />}
-        {activeTab === 'Platform Commission Rates' && !isInstitute && (
+        {shownTab === 'Partner Colleges' && <PartnerCollegesPanel kind={consultancy.data.kind} />}
+        {shownTab === 'Platform Commission Rates' && !isInstitute && (
           <CommissionRatesTab consultancy={consultancy.data} />
         )}
-        {activeTab === 'Allocation Rule' && (
+        {shownTab === 'Allocation Rule' && (
           <AllocationTab enabled={Boolean(consultancy.data.features?.allocation_rule)} />
         )}
-        {activeTab === 'Tag Management' && <TagManagementTab />}
-        {activeTab === 'Incoming Transfers' && canAcceptTransfers && (
+        {shownTab === 'Tag Management' && <TagManagementTab />}
+        {shownTab === 'Incoming Transfers' && canAcceptTransfers && (
           <IncomingTransfersTab isInstitute={isInstitute} />
         )}
       </div>
