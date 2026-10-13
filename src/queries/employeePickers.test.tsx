@@ -44,7 +44,7 @@ type Row = {
   branch_ids: string[]
   designation_id?: string | null
   is_consultancy_admin?: boolean
-  user: { id: string; first_name: string; last_name: string; role: string; designation: string | null; email: string | null; phone: string | null }
+  user: { id: string; first_name: string; last_name: string; role: string; designation: string | null; email: string | null; phone: string | null; last_login_at?: string | null }
 }
 
 /** 150 employees, oldest first. Number 7 has left. */
