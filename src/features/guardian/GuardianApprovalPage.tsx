@@ -4,6 +4,7 @@ import { PublicPageShell } from '@/components/PublicPageShell'
 import { TextField } from '@/components/TextField'
 import { ApiError } from '@/api/errors'
 import { useLinkToken } from '@/lib/linkToken'
+import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import {
   useGuardianDecision,
   useGuardianFreshLink,
@@ -23,6 +24,8 @@ import {
 // age; anyone holding a forwarded link learns nothing more than the message already told them.
 
 export function GuardianApprovalPage() {
+  // The tab says Sentpo, not immiNow: a parent has never heard of immiNow (wording sweep W-10).
+  useDocumentTitle('Sentpo: guardian approval')
   // From the fragment, else the path of a link mailed earlier; then out of the address (F-123).
   const token = useLinkToken('/guardian')
   const prompt = useGuardianPrompt(token)
