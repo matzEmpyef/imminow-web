@@ -442,10 +442,11 @@ export function FreelancerDashboardPage() {
                 tone={summary.owed_inr > 0 ? 'warning' : undefined}
               />
               {/* The part of the share not earned yet (T2-08), as served: whole rupees, two decimals. */}
-              {summary.still_to_come_inr != null && (
+              {summary.still_to_come_inr != null ? (
                 <SummaryStat label="Still to come" value={formatMoney('INR', summary.still_to_come_inr)} tone="muted" />
+              ) : (
+                <SummaryStat label="Expected once collected" value={formatMoney('INR', summary.expected_inr)} tone="muted" />
               )}
-              <SummaryStat label="Expected once collected" value={formatMoney('INR', summary.expected_inr)} tone="muted" />
             </div>
             {/* Their rate and how payouts are made, in the server's words (T2-08). */}
             {(summary.your_rate_text || summary.payouts_line) && (
