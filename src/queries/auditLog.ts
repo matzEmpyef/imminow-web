@@ -33,6 +33,22 @@ const AUDIT_AREA_SET: Record<AuditArea, true> = {
 }
 export const AUDIT_AREAS = Object.keys(AUDIT_AREA_SET) as AuditArea[]
 
+/**
+ * The areas a consultancy or an institute can produce (T4-24). The rest belong to the platform's
+ * own staff (marketing, support, finance, the catalogue, app settings, billing, moderation,
+ * freelancers, analytics, ads, jobs, notifications), so a consultancy's Area filter does not
+ * offer them: choosing one could only ever show an empty page.
+ */
+export const CONSULTANCY_AUDIT_AREAS: AuditArea[] = [
+  'leads',
+  'clients',
+  'plans',
+  'documents',
+  'settings',
+  'staff',
+  'consultancy_management',
+]
+
 export interface AuditLogFilters {
   entity_id?: string
   actor_id?: string
