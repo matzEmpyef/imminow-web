@@ -1335,6 +1335,9 @@ function initialStatusFilter(params: URLSearchParams): string {
   const status = params.get('status')
   if (status) return status
   if (params.get('kyc') === 'pending') return 'kyc_pending'
+  // `?upgrade=open` is the link the server sends on Needs attention's "Upgrade requests" card
+  // (T1-12): the accounts with an open request for a bigger plan.
+  if (params.get('upgrade') === 'open') return 'upgrade_requested'
   const subscription = params.get('subscription')
   return subscription && SUBSCRIPTION_LINK_STATUSES.includes(subscription) ? subscription : ''
 }
@@ -1388,6 +1391,7 @@ export function ManageConsultanciesPage() {
         }
         next.delete('kyc')
         next.delete('subscription')
+        next.delete('upgrade')
         return next.toString() === prev.toString() ? prev : next
       },
       { replace: true },
@@ -1677,6 +1681,7 @@ export function ManageConsultanciesPage() {
                     <option value="grace">In grace period</option>
                     <option value="lapsed">Subscription lapsed</option>
                     <option value="never_billed">Never billed</option>
+                    <option value="upgrade_requested">Upgrade requested</option>
                   </CompactSelect>
                 </>
               )}

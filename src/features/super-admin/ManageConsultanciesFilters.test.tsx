@@ -95,6 +95,30 @@ describe('Manage Consultancies filters in the address', () => {
     },
   )
 
+  it('turns the Needs attention ?upgrade=open link into the Upgrade requested filter, and asks the server for it', async () => {
+    renderPage('/admin/consultancies?upgrade=open')
+    expect(await screen.findByText('Northwind Education')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('upgrade_requested')
+    await waitFor(() => expect(screen.getByTestId('address')).toHaveTextContent('?status=upgrade_requested'))
+    expect(screen.getByTestId('address')).not.toHaveTextContent('upgrade=open')
+    await waitFor(() =>
+      expect(
+        (mockedGet.mock.calls as unknown[][]).some(
+          ([path, init]) =>
+            path === '/consultancies' &&
+            (init as { params: { query: { status?: string } } }).params.query.status === 'upgrade_requested',
+        ),
+      ).toBe(true),
+    )
+  })
+
+  it('offers Upgrade requested in the Status filter', async () => {
+    renderPage('/admin/consultancies')
+    expect(await screen.findByText('Northwind Education')).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('combobox', { name: 'Status' }), { target: { value: 'upgrade_requested' } })
+    await waitFor(() => expect(screen.getByTestId('address')).toHaveTextContent('status=upgrade_requested'))
+  })
+
   it('names the pending filter for what it holds, apart from KYC rejected (review 2.115)', async () => {
     renderPage('/admin/consultancies')
     expect(await screen.findByText('Northwind Education')).toBeInTheDocument()
