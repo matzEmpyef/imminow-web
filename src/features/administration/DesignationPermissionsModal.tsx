@@ -11,9 +11,8 @@ import {
   isOwnDesignation,
   permissionKeys,
   protectedDesignationReason,
-  useAvailablePermissions,
-  visiblePermissionGroups,
 } from '@/lib/permissions'
+import { usePermissionGroups } from '@/lib/usePermissionGroups'
 import { useMeStaff } from '@/lib/me'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
@@ -52,7 +51,7 @@ function PermissionsModalBody({ designation, onClose }: { designation: Designati
   const stored = designation.permissions ?? {}
   // Only what the plan gives meaning to, in the server's order (2026-09-25). Includes any key the
   // server already holds that this build's registry lacks (M34) when the record predates the field.
-  const groups = visiblePermissionGroups(useAvailablePermissions(), stored)
+  const groups = usePermissionGroups(stored)
   const visibleKeys = permissionKeys(groups)
   // The FULL visible map — every shown key, ticked or not. A hidden key is never sent, and the
   // server keeps its stored tick, so it still applies once the plan includes its feature.

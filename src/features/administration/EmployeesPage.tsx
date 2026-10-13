@@ -100,7 +100,19 @@ export function EmployeesPage() {
     {
       key: 'designation',
       header: 'Designation',
-      render: (employee) => <span className="text-text-secondary">{employee.user!.designation ?? '—'}</span>,
+      // The access designation the person holds (T4-22). It was the free-text job title, blank for
+      // anyone who was not invited with one, while the next column named the real one.
+      render: (employee) => {
+        if (employee.detail === 'summary') return <span className="text-text-secondary">Not shown to you</span>
+        const held = designations.data?.find((d) => d.id === employee.designation_id)?.name
+        return (
+          <span className="text-text-secondary">
+            {employee.is_consultancy_admin && hasDesignations
+              ? 'Full access (owner)'
+              : (held ?? employee.user!.designation ?? (hasDesignations ? 'No access rights' : '—'))}
+          </span>
+        )
+      },
     },
     // The branch half of this column is only worth a column when there is more than one branch to
     // be in — same test the Manage Access trigger below uses, so the column and the control that
@@ -109,9 +121,8 @@ export function EmployeesPage() {
       ? [
           {
             key: 'access',
-            header: hasDesignations ? 'Access Rights / Branch' : 'Branch',
+            header: 'Branch',
             render: (employee: Employee) => {
-              const designation = designations.data?.find((d) => d.id === employee.designation_id)
               // The primary is named as such (2026-09-21) — it is a chosen fact now, not a
               // position in a list, and it decides which branch this person's cases are filed
               // under. Falls back the way the server does when none was ever picked.
@@ -131,17 +142,11 @@ export function EmployeesPage() {
                       its owner as having "No access rights" (console review M3, 2026-09-13), and
                       a consultancy showed the protected "Owner/Admin" designation, repeating the
                       badge already on the Name cell. One honest answer for both. */}
-                  {hasDesignations
-                    ? employee.is_consultancy_admin
-                      ? 'Full access (owner)'
-                      : (designation?.name ?? 'No access rights')
-                    : ''}
-                  {branchNames.length > 0 ? `${hasDesignations ? ' · ' : ''}${branchNames.join(', ')}` : ''}
-                  {!hasDesignations && branchNames.length === 0
-                    ? employee.is_consultancy_admin
+                  {branchNames.length > 0
+                    ? branchNames.join(', ')
+                    : employee.is_consultancy_admin
                       ? 'Every branch (owner)'
-                      : '—'
-                    : ''}
+                      : '—'}
                 </span>
               )
             },

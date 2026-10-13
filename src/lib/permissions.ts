@@ -161,6 +161,30 @@ export function visiblePermissionGroups(
   return result
 }
 
+/**
+ * A permission whose every action needs a plan feature, by the feature it needs. The server's
+ * `available_permissions` should already leave these out for a plan without the feature; this is
+ * the console's own guard, so a checklist never offers a switch for something the plan cannot do
+ * (T4-22: "Transfer applicant to another consultancy" showed on Business, where sending a transfer
+ * is Ultimate).
+ */
+export const PERMISSION_NEEDS_FEATURE: Record<string, string> = {
+  'clients.transfer_applicant': 'applicant_transfer',
+}
+
+/** `groups` without the permissions this plan cannot use, and without a group left empty by that. */
+export function withoutUnusablePermissions(groups: PermissionGroup[], hasFeature: (key: string) => boolean): PermissionGroup[] {
+  return groups
+    .map((g) => ({
+      ...g,
+      permissions: g.permissions.filter((p) => {
+        const needs = PERMISSION_NEEDS_FEATURE[p.key]
+        return !needs || hasFeature(needs)
+      }),
+    }))
+    .filter((g) => g.permissions.length > 0)
+}
+
 /** Every key a checklist shows, flattened — what an editor's save is limited to. */
 export function permissionKeys(groups: PermissionGroup[]): string[] {
   return groups.flatMap((g) => g.permissions.map((p) => p.key))
