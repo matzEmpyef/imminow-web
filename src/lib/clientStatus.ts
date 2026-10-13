@@ -66,7 +66,7 @@ interface MovedCaseFields {
 export function caseMovedBannerMessage(client: MovedCaseFields): string | null {
   if (!isCaseMoved(client.status)) return null
   const date = client.closed_at ? formatDate(client.closed_at) : null
-  return `This case moved to another consultancy${date ? ` on ${date}` : ''} — you can read its history, but it's read-only now.`
+  return `This case moved to another consultancy${date ? ` on ${date}` : ''}. You can still read its history and add internal notes. Nothing else can be changed.`
 }
 
 /**
@@ -116,7 +116,7 @@ export function accountDeletedBannerMessage(client: { close_sub_reason?: string 
 }
 
 /** Tooltip/helper text for a disabled action on a moved case — the server's own wording, generic name. */
-export const CASE_MOVED_ACTION_REASON = "This case has moved to another consultancy — it's read-only now."
+export const CASE_MOVED_ACTION_REASON = "This case has moved to another consultancy, so this can no longer be changed."
 
 /**
  * Why the case's working controls (Add College, Change acceptance, Mark Applied, Add a plan, the
@@ -140,7 +140,7 @@ export function caseLockReason(status: string | null | undefined): string | null
 }
 
 /** What replaces the chat composer on a moved case (ChatPanel's `composerLocked`, same idiom Lead Pool's unallocated lock uses). */
-export const CASE_MOVED_COMPOSER_NOTE = "This case has moved to another consultancy — you can read the history, but nothing more can be sent."
+export const CASE_MOVED_COMPOSER_NOTE = "This case has moved to another consultancy. You can read the history, but no more messages can be sent."
 
 /** Transfer's own 409 when the case has an accepted college (or, for a PR case, a recorded contribution) — mirrored here so Transfer can be disabled before the click, not just after the 409. */
 export const CASE_HAS_ACCEPTED_COLLEGE_REASON =

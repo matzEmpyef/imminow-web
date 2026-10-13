@@ -6,6 +6,7 @@ import { Button } from '@/components/Button'
 import { CLOSE_SUB_REASONS, useCloseClient, type CloseSubReason } from '@/queries/clients'
 import { ApiError } from '@/api/errors'
 import { showToast } from '@/lib/toast'
+import { useAccountWords } from '@/lib/accountWords'
 import { StillNeeded } from '@/components/StillNeeded'
 
 // The sub-reasons that mean the student never actually travelled. An acceptance plus one of these
@@ -60,6 +61,7 @@ export function CloseClientModal({
   // means unanswered — never `false`, which would pre-load a reversal nobody asked for.
   const [joined, setJoined] = useState<boolean | null>(null)
 
+  const { isInstitute } = useAccountWords()
   const isPr = caseType === 'pr'
   const earned = isPr ? contributionRecorded : hasAcceptedCollege
   // The modal already knows whether there is something to join, from the case summary the profile
@@ -152,9 +154,8 @@ export function CloseClientModal({
             </>
           ) : (
             <>
-              <strong className="text-text-primary">{clientName}</strong> drops out of Clients List and returns to
-              Stage 1, free to start again with any consultancy. Nothing is deleted — the full case history stays
-              intact.
+              <strong className="text-text-primary">{clientName}</strong> leaves your Clients List and is free to
+              start again with any consultancy. Nothing is deleted — the full case history stays intact.
             </>
           )}
         </p>
@@ -256,7 +257,7 @@ export function CloseClientModal({
           {earned && (
             <p className="text-caption text-text-secondary">
               {joined === false
-                ? `Say what happened — the ${money} is reversed either way, this is for the record.`
+                ? `Say what happened — the ${money} is cancelled either way, this is for the record.`
                 : 'For the record only. The answer above is what decides the outcome.'}
             </p>
           )}
@@ -277,19 +278,23 @@ export function CloseClientModal({
           ) : outcome === 'success' ? (
             <>
               This closes as a <strong>success</strong>.{' '}
-              {isPr ? 'The recorded contribution becomes due.' : 'The commission on the accepted college becomes due.'}
+              {isPr
+                ? 'The recorded contribution becomes due.'
+                : isInstitute
+                  ? 'immiNow’s share of the tuition becomes due.'
+                  : 'The commission on the accepted college becomes due.'}
             </>
           ) : earned ? (
             <>
               This closes as a <strong>failure</strong>.{' '}
               {isPr
-                ? 'The contribution was recorded but the case didn’t go through, so it is reversed.'
-                : 'The student was accepted but didn’t join, so the commission is reversed.'}
+                ? 'The contribution was recorded, but the case did not succeed, so the commission on it is cancelled.'
+                : 'The student was accepted but didn’t join, so the commission is cancelled.'}
             </>
           ) : (
             <>
               This closes as a <strong>failure</strong>.{' '}
-              {isPr ? 'No contribution was recorded, so no commission arises.' : 'No college was accepted, so no commission arises.'}
+              {isPr ? 'No contribution was recorded, so no commission is due.' : 'No college was accepted, so no commission is due.'}
             </>
           )}
         </p>

@@ -76,7 +76,7 @@ describe('ClientConversationPage — case moved to another consultancy', () => {
 
     expect(
       screen.getByText(
-        'This case has moved to another consultancy — you can read the history, but nothing more can be sent.',
+        'This case has moved to another consultancy. You can read the history, but no more messages can be sent.',
       ),
     ).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Write a message…')).not.toBeInTheDocument()
@@ -89,7 +89,7 @@ describe('ClientConversationPage — case moved to another consultancy', () => {
 
     expect(screen.getByPlaceholderText('Write a message…')).toBeInTheDocument()
     expect(
-      screen.queryByText('This case has moved to another consultancy — you can read the history, but nothing more can be sent.'),
+      screen.queryByText('This case has moved to another consultancy. You can read the history, but no more messages can be sent.'),
     ).not.toBeInTheDocument()
   })
 })

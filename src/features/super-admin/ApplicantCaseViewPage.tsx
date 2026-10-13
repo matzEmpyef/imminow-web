@@ -158,7 +158,7 @@ export function ApplicantCaseViewPage() {
                 {statusLine && <p className="text-body-sm text-text-secondary">{statusLine}</p>}
               </>
             ) : (
-              <p className="text-body-sm text-text-secondary">No commission entry — no college accepted yet.</p>
+              <p className="text-body-sm text-text-secondary">No commission on this case — no college has accepted yet.</p>
             )}
           </Card>
         </div>

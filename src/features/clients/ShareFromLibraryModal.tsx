@@ -56,7 +56,11 @@ export function ShareFromLibraryModal({ clientId, onClose }: { clientId: string;
             </div>
           )}
           {!documents.isError && documents.data?.items.length === 0 && (
-            <p className="text-body-sm text-text-secondary">No documents match.</p>
+            <p className="text-body-sm text-text-secondary">
+              {search.trim()
+                ? 'No documents match your search.'
+                : 'Your Document Library is empty. Add documents there first.'}
+            </p>
           )}
           {!documents.isError &&
             documents.data?.items.map((doc) => {

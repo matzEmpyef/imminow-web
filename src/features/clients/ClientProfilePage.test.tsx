@@ -91,7 +91,7 @@ describe('ClientProfilePage — case moved to another consultancy', () => {
 
     expect(
       screen.getByText(
-        "This case moved to another consultancy on 20-09-2026 — you can read its history, but it's read-only now.",
+        "This case moved to another consultancy on 20-09-2026. You can still read its history and add internal notes. Nothing else can be changed.",
       ),
     ).toBeInTheDocument()
   })
@@ -116,7 +116,7 @@ describe('ClientProfilePage — case moved to another consultancy', () => {
     mockedClient.mockReturnValue(query(baseClient({ status: 'in_plan' })))
     renderProfile()
 
-    expect(screen.queryByText(/read-only now/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/add internal notes/)).not.toBeInTheDocument()
     expect(screen.getByTestId('overview-tab')).toHaveAttribute('data-readonly', 'false')
     // A live case still gets its ordinary header actions.
     expect(screen.getByRole('button', { name: 'Raise an Issue' })).toBeInTheDocument()

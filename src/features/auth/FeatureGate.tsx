@@ -25,7 +25,7 @@ export function FeatureGate({ feature, children }: { feature: FeatureDef; childr
   // H14 (2026-09-13): telling the admin to go and ask the admin is a dead end. They hold the
   // upgrade, so they get the route to it instead.
   const { can } = usePermissionChecker()
-  const { org } = useAccountWords()
+  const { org, managementLabel } = useAccountWords()
   const isAccountAdmin = can('settings.edit_profile')
 
   if (isLoading) {
@@ -76,12 +76,12 @@ export function FeatureGate({ feature, children }: { feature: FeatureDef; childr
                   to="/administration/consultancy-profile"
                   className="font-medium text-primary hover:underline"
                 >
-                  Consultancy Management &rarr; Subscription
+                  {managementLabel} &rarr; Subscription
                 </Link>
                 .
               </>
             ) : (
-              <>Ask your {org} admin to upgrade from Consultancy Management&rsquo;s Subscription tab.</>
+              <>Ask your {org} admin to upgrade from {managementLabel}&rsquo;s Subscription tab.</>
             )}
           </p>
         </Card>

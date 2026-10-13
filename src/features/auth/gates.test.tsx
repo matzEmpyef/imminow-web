@@ -23,6 +23,7 @@ vi.mock('@/lib/accountWords', () => ({
     Person: 'Consultant',
     wholeLabel: 'Whole Consultancy',
     adminLabel: 'Consultancy Admin',
+    managementLabel: 'Consultancy Management',
   }),
 }))
 

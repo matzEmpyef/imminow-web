@@ -99,7 +99,7 @@ const HELP_TOPICS: HelpTopic[] = [
     matches: (p) => p === '/activity',
     title: 'Activity',
     body: [
-      "Step Approvals lists every submitted step awaiting review — clicking one opens that client's Plan tab with the step already selected, where you review the submission and Confirm Complete or Send Back.",
+      "Step Approvals lists every submitted step awaiting review — clicking one opens that client's Plan tab with the step already selected, where you review the submission and Approve step or Send Back.",
       '"Send Back" requires a reason — it’s shown to the applicant, so make it specific enough for them to act on.',
       'The counter next to Activity in the sidebar totals everything here that needs action today: pending step approvals, overdue steps, and open tasks due today or earlier.',
     ],
@@ -129,7 +129,7 @@ const HELP_TOPICS: HelpTopic[] = [
     matches: (p) => /^\/clients\/[^/]+$/.test(p) && !['/clients/invoices', '/clients/receipts'].includes(p),
     title: 'Client Profile',
     body: [
-      'Transfer Consultant (on the Clients List) moves a client between consultants inside your own consultancy — use it for everyday reassignment.',
+      'Change consultant (on the Clients List) moves a client from one consultant to another inside your own consultancy — use it for everyday reassignment.',
       "Transferring an applicant to ANOTHER consultancy is different and deliberate: ask the RECEIVING consultancy to issue a one-time transfer code from their own console (Consultancy Management → Incoming Transfers), bound to this student's registered email. Their code is their consent to accept the case; codes expire after 72 hours.",
       'Then open the Overview tab and use the "Transfer applicant to another consultancy" link at the bottom of the page — pick the receiving consultancy, give a reason, choose what moves with the case, enter their code, and type TRANSFER to confirm.',
       'You choose what the receiving consultancy gets: the documents the student has shared (ticked to begin with), college applications, case preferences and the earlier conversation (read-only). The student is told what was shared. The plan, internal notes and commission records never move.',

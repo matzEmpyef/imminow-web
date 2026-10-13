@@ -24,7 +24,7 @@ export const DISPUTE_ACTIONS = [
   {
     value: 'close',
     label: 'Close the case',
-    detail: 'Ends as a failure and reverses any commission. The student returns to Stage 1.',
+    detail: 'Ends as a failure and cancels any commission. The student is free to start again with any consultancy.',
   },
 ] as const
 

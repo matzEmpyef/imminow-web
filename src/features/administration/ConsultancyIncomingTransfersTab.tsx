@@ -188,12 +188,12 @@ export function IncomingTransfersTab({ isInstitute = false }: { isInstitute?: bo
         <div className="min-w-0 flex-1">
           {isInstitute ? (
             <>
-              {/* Receiving is open to every plan, but not to a university account: the server
+              {/* Receiving is open to every plan, but not to an institute account: the server
                   refuses it a code ("A university account cannot receive transferred students."),
                   so there is no Issue action here. */}
               <h2 className="text-h3 text-text-primary">Incoming transfers</h2>
               <p className="mt-xs text-body-sm text-text-secondary">
-                A university account cannot receive transferred students, so there is no code to issue.
+                An institute cannot receive students transferred from a consultancy, so there is no code to issue here.
               </p>
             </>
           ) : (

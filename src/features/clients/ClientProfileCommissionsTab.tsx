@@ -121,7 +121,7 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
     return (
       <Card className="flex flex-col items-start gap-md">
         <div>
-          <h2 className="text-h3 text-text-primary">No commission entry</h2>
+          <h2 className="text-h3 text-text-primary">No commission on this case</h2>
           <p className="mt-xs text-body-sm text-text-secondary">
             This case is closed, so no commission is being tracked on it and nothing new can be recorded. If money was
             recorded on it before it closed, immiNow Finance still has that record.
@@ -136,11 +136,11 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
     return (
       <Card className="flex flex-col items-start gap-md">
         <div>
-          <h2 className="text-h3 text-text-primary">No commission entry yet</h2>
+          <h2 className="text-h3 text-text-primary">No commission on this case yet</h2>
           <p className="mt-xs text-body-sm text-text-secondary">
             {isPr
               ? 'Record the applicant’s agreed contribution to start tracking payments for this PR case.'
-              : 'The entry is created when a college is accepted on the Applications tab — the Accept popup captures the agreed amounts.'}
+              : 'Tracking starts when a college is accepted on the Applications tab — the Accept popup captures the agreed amounts.'}
           </p>
           {bookkeeping && <p className="mt-xs text-caption text-text-secondary">{BOOKKEEPING_CAPTION}</p>}
         </div>

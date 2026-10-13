@@ -62,7 +62,8 @@ function AssignClientTrigger({
   const [open, setOpen] = useState(false)
   const [employeeId, setEmployeeId] = useState('')
   const assign = useAssignClient(clientId, version)
-  const label = isAssigned ? 'Transfer Consultant' : 'Assign to consultant'
+  const { person } = useAccountWords()
+  const label = isAssigned ? `Change ${person}` : 'Assign to consultant'
 
   return (
     <StopPropagation>
@@ -78,7 +79,7 @@ function AssignClientTrigger({
       {open && (
         <Modal
           onClose={() => setOpen(false)}
-          title={isAssigned ? 'Transfer Consultant' : 'Assign Consultant'}
+          title={isAssigned ? `Change ${person}` : 'Assign Consultant'}
           widthRem={26}
           footer={
             <>
@@ -89,21 +90,28 @@ function AssignClientTrigger({
                 onClick={() =>
                   assign.mutate(employeeId, {
                     onSuccess: () => {
-                      showToast(isAssigned ? `${clientName} transferred` : `${clientName} assigned`)
+                      showToast(isAssigned ? `${clientName} now has a new ${person}` : `${clientName} assigned`)
                       setOpen(false)
                     },
                   })
                 }
               >
-                {isAssigned ? 'Transfer' : 'Assign'}
+                {isAssigned ? 'Change' : 'Assign'}
               </Button>
             </>
           }
         >
           <div className="flex flex-col gap-md">
             <p className="text-body-sm text-text-secondary">
-              {isAssigned ? 'Transfer' : 'Assign'} <span className="font-medium text-text-primary">{clientName}</span>{' '}
-              to which consultant?
+              {isAssigned ? (
+                <>
+                  Who should take over <span className="font-medium text-text-primary">{clientName}</span>?
+                </>
+              ) : (
+                <>
+                  Assign <span className="font-medium text-text-primary">{clientName}</span> to which consultant?
+                </>
+              )}
             </p>
             <div className="flex flex-col gap-xs">
               <ServerSearchSelect
@@ -404,7 +412,7 @@ export function ClientsListPage() {
           emptyMessage={
             search || tagFilter.length > 0 || destinationFilter.length > 0 || assignedToMe || unattendedOnly || unassignedOnly
               ? 'No clients match your search or filters.'
-              : 'No clients yet. A lead becomes a client when they accept your conversion proposal; applicants you create appear here too.'
+              : 'No clients yet. A lead becomes a client when they accept your request; applicants you create appear here too.'
           }
           onRowClick={(client) => navigate(`/clients/${client.id}`)}
           rowClassName={(client) => (!client.assigned_employee_id ? 'bg-warning-subtle' : undefined)}

@@ -10,7 +10,8 @@ import { useMyScope } from '@/lib/me'
  * new screen picks up the right nouns instead of hard-coding a third variant of the same rename.
  *
  * Deliberately not a translation layer: only the handful of nouns that actually read wrong for a
- * college live here. Proper names (the sidebar's "Consultancy Management") stay as they are.
+ * college live here. The sidebar's management area is one of them: "Consultancy Management" for a
+ * consultancy, "Institute Management" for a college (wording sweep, 2026-10-13).
  *
  * The account type comes from `GET /me` (`scope === 'institute'`, review F-036), which every role
  * may call, so this is safe on the pages that serve every role (My Account).
@@ -29,6 +30,8 @@ export interface AccountWords {
   wholeLabel: 'Whole Consultancy' | 'Whole Institute'
   /** The `consultancy_admin` role, as this account reads it. */
   adminLabel: 'Consultancy Admin' | 'Institute Admin'
+  /** The sidebar area (and its tabs) where the account's own profile and plan are managed. */
+  managementLabel: 'Consultancy Management' | 'Institute Management'
 }
 
 export function useAccountWords(): AccountWords {
@@ -41,5 +44,6 @@ export function useAccountWords(): AccountWords {
     Person: isInstitute ? 'Team member' : 'Consultant',
     wholeLabel: isInstitute ? 'Whole Institute' : 'Whole Consultancy',
     adminLabel: isInstitute ? 'Institute Admin' : 'Consultancy Admin',
+    managementLabel: isInstitute ? 'Institute Management' : 'Consultancy Management',
   }
 }

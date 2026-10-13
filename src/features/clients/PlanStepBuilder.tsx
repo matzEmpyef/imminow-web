@@ -152,7 +152,7 @@ function StepApprovalActions({ step, clientId, readOnly }: { step: Step; clientI
               loading={approve.isPending}
               onClick={() => approve.mutate(step.id, { onSuccess: () => showToast(`${step.title} approved`) })}
             >
-              Confirm Complete
+              Approve step
             </Button>
             <Button variant="secondary" onClick={() => setRejecting(true)}>
               Send Back

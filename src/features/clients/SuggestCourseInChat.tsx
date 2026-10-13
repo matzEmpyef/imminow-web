@@ -168,7 +168,7 @@ function SuggestCourseModal({
         ) : courses.isLoading ? (
           <p className="text-body-sm text-text-secondary">Searching…</p>
         ) : courses.isError ? (
-          <p className="text-body-sm text-error">Could not search courses.</p>
+          <p className="text-body-sm text-error">The course search did not work. Try again.</p>
         ) : rows.length === 0 ? (
           <p className="text-body-sm text-text-secondary">No courses match “{term}”.</p>
         ) : (

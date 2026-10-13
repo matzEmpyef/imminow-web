@@ -190,7 +190,7 @@ export function AddApplicationModal({
           ariaLabel="Course"
           disabled={addCollege.isPending}
           emptyText={
-            takenCourseIds.length > 0 ? 'No matches, or every matching course is already on this journey.' : 'No matches.'
+            takenCourseIds.length > 0 ? 'No matches, or every matching course is already on this case.' : 'No matches.'
           }
         />
         {addCollege.isError && <p className="text-body-sm text-error">{addCollege.error.message}</p>}

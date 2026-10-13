@@ -216,8 +216,9 @@ export function AcceptCollegeModal({
           />
         ) : payerMethod == null ? (
           <p className="rounded-lg bg-warning-subtle p-md text-body-sm text-warning">
-            This journey has no payer method yet. Add {course.college_name ?? 'this college'} to Partner Colleges (with
-            a payer method) first — the agreement can't be priced without one.
+            {course.college_name ?? 'This college'} has no setting for who pays yet. Open Partner Colleges, choose who
+            pays for {course.college_name ?? 'this college'} (the college, the applicant, or both), then come back and
+            accept.
           </p>
         ) : missingCommissionPercent ? (
           <p className="rounded-lg bg-warning-subtle p-md text-body-sm text-warning">

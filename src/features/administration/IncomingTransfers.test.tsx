@@ -76,10 +76,10 @@ describe('issuing a transfer code', () => {
     expect(await screen.findByRole('button', { name: /Issue a code/ })).toBeInTheDocument()
   })
 
-  it('hides the Issue action for a university account and says why', async () => {
+  it('hides the Issue action for an institute account and says why', async () => {
     mockedGet.mockResolvedValue(EMPTY)
     renderTab(true)
-    expect(await screen.findByText(/A university account cannot receive transferred students/)).toBeInTheDocument()
+    expect(await screen.findByText(/An institute cannot receive students transferred from a consultancy/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Issue a code/ })).not.toBeInTheDocument()
   })
 

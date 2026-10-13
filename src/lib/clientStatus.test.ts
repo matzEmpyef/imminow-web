@@ -25,13 +25,13 @@ describe('caseMovedBannerMessage', () => {
 
   it('names the destination "another consultancy" — the Client schema has no transferred_to', () => {
     const message = caseMovedBannerMessage({ status: 'closed_switched', closed_at: null })
-    expect(message).toBe("This case moved to another consultancy — you can read its history, but it's read-only now.")
+    expect(message).toBe("This case moved to another consultancy. You can still read its history and add internal notes. Nothing else can be changed.")
   })
 
   it('adds the date from closed_at when the server sent one', () => {
     const message = caseMovedBannerMessage({ status: 'closed_switched', closed_at: '2026-09-20' })
     expect(message).toBe(
-      "This case moved to another consultancy on 20-09-2026 — you can read its history, but it's read-only now.",
+      "This case moved to another consultancy on 20-09-2026. You can still read its history and add internal notes. Nothing else can be changed.",
     )
   })
 })
