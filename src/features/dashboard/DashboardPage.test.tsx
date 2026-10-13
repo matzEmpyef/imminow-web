@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -25,7 +25,7 @@ const cards = [
   { key: 'unallocated_leads', label: 'Unallocated Leads', value: 4 },
   { key: 'active_leads', label: 'Active Leads', value: 9 },
   { key: 'unattended', label: 'Unattended Leads', value: 2 },
-  { key: 'clients', label: 'My Clients', value: 3 },
+  { key: 'clients', label: 'Clients', value: 3 },
 ]
 
 const base = {
@@ -73,12 +73,37 @@ describe('Consultancy dashboard — what the server leaves out', () => {
     expect(first.closest('a')).toHaveAttribute('href', '/sales/active-leads?assigned_to_me=true')
     expect(first.closest('.grid')).toHaveClass('grid-cols-3')
     expect(screen.getByText('Unattended Leads')).toBeInTheDocument()
-    expect(screen.getByText('My Clients')).toBeInTheDocument()
+    expect(screen.getByText('Clients')).toBeInTheDocument()
   })
 
   it('shows no branch card for a null breakdown, nor for one that is absent', () => {
     show({ stat_cards: cards, branch_breakdown: null })
     expect(screen.queryByText('Branch Breakdown')).not.toBeInTheDocument()
     expect(screen.queryByText(/branches:/)).not.toBeInTheDocument()
+  })
+})
+
+// T1-12: on Whole Consultancy the cards open the whole account's lists, not "mine".
+describe('Consultancy dashboard — where the cards open', () => {
+  it('opens the pool-inclusive and unfiltered lists on Whole Consultancy', () => {
+    show({
+      available_scopes: ['personal', 'consultancy'],
+      stat_cards: [...cards, { key: 'pending_allocation', label: 'Pending Consultant Allocation', value: 1 }],
+      branch_breakdown: null,
+    })
+    expect(screen.getByText('Clients').closest('a')).toHaveAttribute('href', '/clients?assigned_to_me=true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Whole Consultancy' }))
+    expect(screen.getByText('Unattended Leads').closest('a')).toHaveAttribute(
+      'href',
+      '/sales/active-leads?unattended=true&with_pool=true',
+    )
+    expect(screen.getByText('Active Leads').closest('a')).toHaveAttribute('href', '/sales/active-leads')
+    expect(screen.getByText('Clients').closest('a')).toHaveAttribute('href', '/clients')
+    expect(screen.getByText('Unallocated Leads').closest('a')).toHaveAttribute('href', '/sales/lead-pool')
+    expect(screen.getByText('Pending Consultant Allocation').closest('a')).toHaveAttribute(
+      'href',
+      '/clients?unassigned=true',
+    )
   })
 })

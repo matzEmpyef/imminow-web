@@ -15,6 +15,7 @@ import { useDashboard } from '@/queries/dashboard'
 import { usePermission } from '@/lib/permissions'
 import { useAccountWords } from '@/lib/accountWords'
 import { formatDate } from '@/lib/time'
+import { statLinkFor } from './statLinks'
 
 const SCOPE_LABELS = {
   personal: 'Personal',
@@ -57,30 +58,7 @@ const STAT_GRID_COLS: Record<number, string> = {
   5: 'grid-cols-5',
 }
 
-// User-requested (2026-08-19) — "If any of KPIs should be redirected to another page, let us do
-// that." Each stat card links to the list it's actually counting from, deep-linking a filter where
-// one already exists (unattended -> Active Leads' own checkbox, via a query param it now reads).
-const STAT_LINKS: Record<string, string> = {
-  unallocated_leads: '/sales/lead-pool',
-  active_leads: '/sales/active-leads',
-  unattended: '/sales/active-leads?unattended=true',
-  converted: '/clients',
-  // Filtered, unlike `converted`: this card counts only the viewer's own clients, so the page it
-  // opens has to agree with the number they just read.
-  clients: '/clients?assigned_to_me=true',
-  pending_allocation: '/clients?unassigned=true',
-}
-
-// The link a card opens, for the scope the viewer is looking at (user, 2026-09-10). At Personal
-// scope the Active Leads and Unattended Leads cards count only the viewer's OWN leads, so the page
-// they open has to be narrowed the same way — otherwise the card says 1 and the page shows the
-// whole team's list. The Active Leads page reads `assigned_to_me` for exactly this.
-function statLinkFor(key: string, scope: Scope): string | undefined {
-  const base = STAT_LINKS[key]
-  if (!base || scope !== 'personal') return base
-  if (key !== 'active_leads' && key !== 'unattended') return base
-  return `${base}${base.includes('?') ? '&' : '?'}assigned_to_me=true`
-}
+// Where each card opens is decided in `statLinks.ts`, one rule for every scope.
 
 // Renders as a plain Card (or bare div, for the hero card which already supplies its own full
 // background/shadow classes) when no link is registered for this stat's key (STAT_LINKS above),

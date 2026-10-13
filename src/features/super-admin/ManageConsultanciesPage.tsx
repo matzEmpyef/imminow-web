@@ -1329,6 +1329,16 @@ function SubscriptionCell({ consultancy: c }: { consultancy: Consultancy }) {
   }
 }
 
+const SUBSCRIPTION_LINK_STATUSES = ['lapsed', 'grace', 'expiring']
+
+function initialStatusFilter(params: URLSearchParams): string {
+  const status = params.get('status')
+  if (status) return status
+  if (params.get('kyc') === 'pending') return 'kyc_pending'
+  const subscription = params.get('subscription')
+  return subscription && SUBSCRIPTION_LINK_STATUSES.includes(subscription) ? subscription : ''
+}
+
 export function ManageConsultanciesPage() {
   // `?kind=consultancy|institute` pre-filters the list — the Overview's Consultancies and
   // Institutes cards link here that way (2026-09-10).
@@ -1343,9 +1353,10 @@ export function ManageConsultanciesPage() {
   // follow above.
   // `?kyc=pending` is the link the server sends on Needs attention's "KYC to verify" card (gate
   // 12d): it opens this list on the same `kyc_pending` filter the card counted.
-  const [statusFilter, setStatusFilter] = useState(
-    searchParams.get('status') ?? (searchParams.get('kyc') === 'pending' ? 'kyc_pending' : ''),
-  )
+  // `?subscription=lapsed|grace|expiring` is the link Needs attention's three subscription cards
+  // send (T1-12): the same three values the Status filter offers, so each card opens the list it
+  // counted instead of the whole directory.
+  const [statusFilter, setStatusFilter] = useState(() => initialStatusFilter(searchParams))
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   // Performance League links here with ?manage=<id> to open one account straight away.
   const [managingId, setManagingId] = useState<string | null>(searchParams.get('manage'))
@@ -1376,6 +1387,7 @@ export function ManageConsultanciesPage() {
           else next.delete(key)
         }
         next.delete('kyc')
+        next.delete('subscription')
         return next.toString() === prev.toString() ? prev : next
       },
       { replace: true },

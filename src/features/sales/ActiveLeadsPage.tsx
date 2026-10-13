@@ -37,12 +37,15 @@ export function ActiveLeadsPage() {
   const [assignedToMe, setAssignedToMe] = useState(() => searchParams.get('assigned_to_me') === 'true')
   const [unattendedOnly, setUnattendedOnly] = useState(() => searchParams.get('unattended') === 'true')
   const [showClosed, setShowClosed] = useState(false)
+  // The Whole Consultancy "Unattended Leads" card counts the pool's unanswered students too, so it
+  // opens this list with the pool added (T1-12). Off, this page lists leads a consultant holds.
+  const [includePool, setIncludePool] = useState(() => searchParams.get('with_pool') === 'true')
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
   const paging = useCursorPagination()
 
   const leads = useLeads({
-    unallocated: false,
+    unallocated: includePool ? undefined : false,
     assignedToMe,
     unattended: unattendedOnly,
     showClosed,
@@ -75,6 +78,8 @@ export function ActiveLeadsPage() {
   // the server checks (review F-147; `lib/reopenRules.ts`). It used to be shown on every closed
   // row on every plan.
   const canReassign = usePermission('leads.reassign')
+  // A lead in the pool is allocated, not reassigned: it is the pool's own permission.
+  const canAllocateFromPool = usePermission('leads.allocate_from_pool')
 
   function resetPaging() {
     paging.reset()
@@ -175,6 +180,14 @@ export function ActiveLeadsPage() {
               )}
             />
           ) : null
+        ) : !lead.assigned_employee_id ? (
+          canAllocateFromPool ? (
+            <AssignConsultantMenu
+              onSelect={(employeeId) => reassign.mutate({ id: lead.id, employeeId })}
+              label={`Allocate ${lead.name}`}
+              variant="icon"
+            />
+          ) : null
         ) : !canReassign ? null : (
           <AssignConsultantMenu
             excludeEmployeeId={lead.assigned_employee_id}
@@ -208,7 +221,7 @@ export function ActiveLeadsPage() {
           loading={leads.isLoading}
           error={leads.isError ? 'Could not load active leads.' : undefined} errorSource={leads.error}
           emptyMessage={
-            search || assignedToMe || unattendedOnly
+            search || assignedToMe || unattendedOnly || includePool
               ? 'No leads match your search or filters.'
               : `No active leads yet. A lead arrives when a student starts a chat with your ${words.org}, or when you allocate one from the Lead Pool.`
           }
@@ -260,13 +273,26 @@ export function ActiveLeadsPage() {
                 />
                 Include closed & converted
               </label>
-              {(assignedToMe || unattendedOnly || showClosed) && (
+              <label htmlFor="leads-include-pool" className="flex items-center gap-sm text-body-sm text-text-secondary">
+                <Toggle
+                  id="leads-include-pool"
+                  checked={includePool}
+                  onChange={(v) => {
+                    setIncludePool(v)
+                    resetPaging()
+                  }}
+                  label="Include Lead Pool"
+                />
+                Include Lead Pool
+              </label>
+              {(assignedToMe || unattendedOnly || showClosed || includePool) && (
                 <button
                   type="button"
                   onClick={() => {
                     setAssignedToMe(false)
                     setUnattendedOnly(false)
                     setShowClosed(false)
+                    setIncludePool(false)
                     resetPaging()
                   }}
                   className="text-body-sm font-medium text-primary hover:underline"

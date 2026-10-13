@@ -84,6 +84,17 @@ describe('Manage Consultancies filters in the address', () => {
     expect(screen.getByTestId('address')).not.toHaveTextContent('kyc=pending')
   })
 
+  it.each(['lapsed', 'grace', 'expiring'])(
+    'turns the Needs attention ?subscription=%s link into the Status filter',
+    async (value) => {
+      renderPage(`/admin/consultancies?subscription=${value}`)
+      expect(await screen.findByText('Northwind Education')).toBeInTheDocument()
+      expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue(value)
+      await waitFor(() => expect(screen.getByTestId('address')).toHaveTextContent(`?status=${value}`))
+      expect(screen.getByTestId('address')).not.toHaveTextContent('subscription=')
+    },
+  )
+
   it('names the pending filter for what it holds, apart from KYC rejected (review 2.115)', async () => {
     renderPage('/admin/consultancies')
     expect(await screen.findByText('Northwind Education')).toBeInTheDocument()
