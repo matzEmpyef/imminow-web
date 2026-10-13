@@ -18,6 +18,7 @@ import {
   localDateISO,
 } from '@/lib/time'
 import { taskTarget } from './taskTarget'
+import { collegeItemKey } from './collegeItemKey'
 import { AssignTaskModal } from './AssignTaskModal'
 import { CompletedTasksSection } from './CompletedTasksSection'
 import type { components } from '@/api/schema'
@@ -273,8 +274,8 @@ export function ActivityPage() {
 
             {data.offers_awaiting_decision.length > 0 && (
               <ActionSection title="Offers awaiting decision" count={data.offers_awaiting_decision.length} cut={cut(data.offers_awaiting_decision)}>
-                {data.offers_awaiting_decision.map((item) => (
-                  <ActionRow key={item.journey_id + item.since} to={clientTabPath(item.journey_id, 'Applications')}>
+                {data.offers_awaiting_decision.map((item, index) => (
+                  <ActionRow key={collegeItemKey(item, index)} to={clientTabPath(item.journey_id, 'Applications')}>
                     <p className="text-body-sm text-text-primary">
                       {item.client_name} — {item.course_name}
                       {item.college_name ? ` @ ${item.college_name}` : ''}
@@ -287,8 +288,8 @@ export function ActivityPage() {
 
             {data.ready_to_apply.length > 0 && (
               <ActionSection title="Ready to apply" count={data.ready_to_apply.length} cut={cut(data.ready_to_apply)}>
-                {data.ready_to_apply.map((item) => (
-                  <ActionRow key={item.journey_id + item.since} to={clientTabPath(item.journey_id, 'Applications')}>
+                {data.ready_to_apply.map((item, index) => (
+                  <ActionRow key={collegeItemKey(item, index)} to={clientTabPath(item.journey_id, 'Applications')}>
                     <p className="text-body-sm text-text-primary">
                       {item.client_name} — {item.course_name}
                       {item.college_name ? ` @ ${item.college_name}` : ''}
