@@ -4360,7 +4360,7 @@ export interface paths {
                     limit?: components["parameters"]["LimitParam"];
                     /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
                     search?: components["parameters"]["SearchParam"];
-                    /** @description `true` (the default when omitted) active employees only; `false` deactivated ones only; `all` both. */
+                    /** @description `true` (the default when omitted) the people who work here now: active employees who have accepted their invitation (since 2026-10-13, Phase 8 T1-13, someone invited who has not accepted yet is left out, so no picker offers them); `false` deactivated ones only; `all` everyone, invited people included (the Employees page; read `Employee.status` to tell them apart). */
                     "filter[active]"?: "true" | "false" | "all";
                 };
                 header?: never;
@@ -9143,8 +9143,8 @@ export interface paths {
                     tier?: "starter" | "business" | "ultimate";
                     /** @description Narrows to one kind of account (INSTITUTE_ACCOUNT_PLAN D10, 2026-09-10). Institutes are already rows in this list under D6, so discovery needs a tag and a filter rather than a new screen. Discovery's institute "view all" is this plus the endpoint's own default `sort=name` ascending — alphabetical, deliberately NOT `-rating` or `match`, because D15 removes the ranking problem by not ranking institutes against consultancies at all. */
                     kind?: "consultancy" | "institute";
-                    /** @description Manage Consultancies' status filter (2026-09-11). `active` and `suspended` are the account switch, `kyc_pending` is KYC uploaded and awaiting verification (gate 12d, owner 2026-10-04: the account has submitted a certificate that nobody has reviewed yet — exactly the accounts Needs Attention's `kyc_pending` card counts, so the card and the list it opens always agree; an unverified account that has uploaded nothing is NOT listed, and since 2026-10-10 neither is one whose certificate was REJECTED: that is `kyc_rejected`, and the list is exactly the rows whose `kyc_status` reads `pending`. The frozen mock still lists every account whose KYC is not verified), and `expiring`, `grace` and `lapsed` match `subscription_status`. An unknown value is a 400. `kyc_rejected` (2026-10-08) lists the accounts whose latest certificate a reviewer turned down and that have not uploaded another — the rows whose `kyc_status` reads `rejected`. Like `tier`, this filter is the platform's commercial readers' and is ignored for anyone else. */
-                    status?: "active" | "suspended" | "kyc_pending" | "kyc_rejected" | "expiring" | "grace" | "lapsed";
+                    /** @description Manage Consultancies' status filter (2026-09-11). `active` and `suspended` are the account switch, `kyc_pending` is KYC uploaded and awaiting verification (gate 12d, owner 2026-10-04: the account has submitted a certificate that nobody has reviewed yet — exactly the accounts Needs Attention's `kyc_pending` card counts, so the card and the list it opens always agree; an unverified account that has uploaded nothing is NOT listed, and since 2026-10-10 neither is one whose certificate was REJECTED: that is `kyc_rejected`, and the list is exactly the rows whose `kyc_status` reads `pending`. The frozen mock still lists every account whose KYC is not verified), and `expiring`, `grace` and `lapsed` match `subscription_status`. An unknown value is a 400. `kyc_rejected` (2026-10-08) lists the accounts whose latest certificate a reviewer turned down and that have not uploaded another — the rows whose `kyc_status` reads `rejected`. `upgrade_requested` (2026-10-13, Phase 8 T1-12) lists the accounts with an open request for a bigger plan: what Needs Attention's "Upgrade requests" card opens. Like `tier`, this filter is the platform's commercial readers' and is ignored for anyone else. */
+                    status?: "active" | "suspended" | "kyc_pending" | "kyc_rejected" | "expiring" | "grace" | "lapsed" | "upgrade_requested";
                     active?: boolean;
                     /** @description Discovery List's DESTINATION filter — matches against countries_served, i.e. the country a student wants to study in. Unchanged by 2026-09-21's branch filters below, deliberately: one key cannot also mean "has an office there", and re-pointing this one would have silently changed every caller already sending it. */
                     "filter[country]"?: string;
@@ -29095,6 +29095,11 @@ export interface components {
             lapsed: boolean;
         };
         Employee: {
+            /**
+             * @description Added 2026-10-13 (Phase 8 T1-13). Where the person stands, said by the server: `invited` until they accept their invitation (they hold a seat, cannot sign in and cannot be given a lead or a client; `DELETE /staff/employees/{id}` withdraws the invitation and frees the seat), then `active`; `deactivated` once switched off. Show this, never a guess from `last_login_at` (an employee who has not signed in yet is `active`). `active` stays true for an invited person.
+             * @enum {string}
+             */
+            readonly status?: "invited" | "active" | "deactivated";
             /** @description Optimistic-locking version of the employee row (F-075, 2026-10-08), on the full row only (those who manage staff). Send it back as `version` on `PATCH /staff/employees/{id}` so two admins changing one member's designation or permission overrides cannot silently overwrite each other. */
             readonly version?: number;
             id: components["schemas"]["UUID"];
@@ -31663,6 +31668,11 @@ export interface components {
             active_step_submitted_at?: string | null;
             /** @description How many steps the assigned plan has. Paired with `active_step_position` for the "Step 3 of 4" line; `progress` remains the pre-formatted string the older card used. */
             total_steps?: number | null;
+            /**
+             * @description Added 2026-10-13 (Phase 8 T1-09). True when the student's plan has steps and every one of them has been approved. The case is still open at that moment (a finished plan does not finish the case), `status` stays `in_plan` and there is no active step: Home shows "Plan complete, N of N steps" from this, never "Your plan is being prepared". False with no plan yet, with an empty plan, and on Stage 1.
+             * @default false
+             */
+            all_steps_approved: boolean;
         };
         /** @description The Stage-2 view of a Journey (FR-101). Every field here is what Clients List and Client Profile's Overview tab need directly — Plan/Commissions/Selected Colleges/Documents/Internal Notes/Activity are their own endpoints (build reference 2.2), not nested here, matching how the Lead Wave 2 detail/sub-resource split already works. */
         Client: {
@@ -31786,6 +31796,21 @@ export interface components {
             invoices: components["schemas"]["Invoice"][];
             /** @description This journey's platform receipts, linkable from an installment. */
             receipts: components["schemas"]["Receipt"][];
+            /**
+             * @description Added 2026-10-13 (Phase 8 T1-10). The case has ended: closed, completed, or moved to another consultancy.
+             * @default false
+             */
+            case_closed: boolean;
+            /**
+             * @description Added 2026-10-13 (Phase 8 T1-10). Whether a contribution, an entry or an instalment can still be recorded on this case. False once the case has ended: hide "Record Applicant Contribution" and every other record button, also when `entry` is null (a case closed as a failure has no active entry any more). The server refuses the write either way.
+             * @default true
+             */
+            recording_allowed: boolean;
+            /**
+             * @description Added 2026-10-13. True for a short while after a case closes, while its commission is being settled (recognised on a success, reversed on a failure) in a step that runs just after the close. The figures here may be a step behind: read the tab again until this is false. Never true for more than five minutes.
+             * @default false
+             */
+            settling: boolean;
         };
         /** @description The figure the Accept College dialog offers for what the college will pay the consultancy (`GET /clients/{id}/commission-suggestion`; 2026-10-10): fee × percent ÷ 100 at two decimals. Each part is null when it is not known. */
         CommissionSuggestion: {
@@ -34558,8 +34583,16 @@ export interface components {
             difference_direction: "more" | "less" | "same";
             /** @description True when the confirmation needs its `note` (the amounts differ). */
             needs_note: boolean;
-            /** @description The most that can be confirmed without `allow_overpayment` — the confirmation's own ceiling. */
+            /** @description The most that can be confirmed without `allow_overpayment` — the confirmation's own ceiling, and what `is_overpayment` is measured against. It is EXACTLY `due_now` plus `still_to_come` (build reference 1.23a "Money": a payment above everything the case still owes, fallen due or not, is the over-payment). Kept for older clients; it is NOT the "outstanding" of the case's row, which is `due_now` alone. Show the two figures, not this one. */
             outstanding: components["schemas"]["Money"];
+            /** @description Added 2026-10-13 (Phase 8 T1-04). What has FALLEN DUE on the case and is unpaid, in the payment's currency: the same figure the case's row and drawer call outstanding. 0 on a case that is paid up to date. Show it as "Due now". */
+            due_now: components["schemas"]["Money"];
+            /** @description `due_now` in rupees at today's rate, to two decimals. Null when there is no rate. */
+            due_now_inr: components["schemas"]["Money"] | null;
+            /** @description Added 2026-10-13 (Phase 8 T1-04). What has NOT fallen due yet, in the payment's currency: the share of money the college or the student has still to pay or, before the case closes, the share the case is expected to earn. Show it as "Still to come when the college pays". Never add it to a rupee figure of `due_now`. */
+            still_to_come: components["schemas"]["Money"];
+            /** @description `still_to_come` in rupees at today's rate, to two decimals. Null when there is no rate. */
+            still_to_come_inr: components["schemas"]["Money"] | null;
             is_overpayment: boolean;
             /** @description `received_amount` less `outstanding` when `is_overpayment`; else null. */
             overpaid_by: components["schemas"]["Money"] | null;
@@ -34579,8 +34612,16 @@ export interface components {
             change: components["schemas"]["Money"];
             /** @enum {string} */
             change_direction: "more" | "less";
-            /** @description The most the amount may go UP by without `allow_overpayment`. */
+            /** @description The most the amount may go UP by without `allow_overpayment`, and what `is_overpayment` is measured against. EXACTLY `due_now` plus `still_to_come`; kept for older clients. It is NOT the "outstanding" of the case's row, which is `due_now` alone. */
             outstanding: components["schemas"]["Money"];
+            /** @description Added 2026-10-13 (Phase 8 T1-04). What has FALLEN DUE on the case and is unpaid, in the payment's currency: the same figure the case's row and drawer call outstanding. 0 on a case that is paid up to date. Show it as "Due now". */
+            due_now: components["schemas"]["Money"];
+            /** @description `due_now` in rupees at today's rate, to two decimals. Null when there is no rate. */
+            due_now_inr: components["schemas"]["Money"] | null;
+            /** @description Added 2026-10-13 (Phase 8 T1-04). What has NOT fallen due yet, in the payment's currency: the share of money the college or the student has still to pay or, before the case closes, the share the case is expected to earn. Show it as "Still to come when the college pays". Never add it to a rupee figure of `due_now`. */
+            still_to_come: components["schemas"]["Money"];
+            /** @description `still_to_come` in rupees at today's rate, to two decimals. Null when there is no rate. */
+            still_to_come_inr: components["schemas"]["Money"] | null;
             /** @description True when the increase is more than `outstanding`. */
             is_overpayment: boolean;
             /** @description The increase beyond `outstanding`, in `currency`, when `is_overpayment`; else null. */
@@ -34596,8 +34637,16 @@ export interface components {
             currency: string;
             /** @description The currency of the dues it settles: `currency` itself, or the owed one when the money arrived in another currency. */
             owed_currency: string;
-            /** @description The most that can be recorded without `allow_overpayment`, in `owed_currency`: all that is still unpaid in it on the case, less credit already held. The receipt's own ceiling. */
+            /** @description The most that can be recorded without `allow_overpayment`, in `owed_currency`: all that is still unpaid in it on the case, less credit already held. The receipt's own ceiling, and what `is_overpayment` is measured against. EXACTLY `due_now` plus `still_to_come`; kept for older clients. It is NOT the "outstanding" of the case's row, which is `due_now` alone. */
             outstanding: components["schemas"]["Money"];
+            /** @description Added 2026-10-13 (Phase 8 T1-04). What has FALLEN DUE on the case and is unpaid, in `owed_currency`: the same figure the case's row and drawer call outstanding. 0 on a case that is paid up to date. Show it as "Due now". */
+            due_now: components["schemas"]["Money"];
+            /** @description `due_now` in rupees at today's rate, to two decimals. Null when there is no rate. */
+            due_now_inr: components["schemas"]["Money"] | null;
+            /** @description Added 2026-10-13 (Phase 8 T1-04). What has NOT fallen due yet, in `owed_currency`: the share of money the college or the student has still to pay or, before the case closes, the share the case is expected to earn. Show it as "Still to come when the college pays". Never add it to a rupee figure of `due_now`. */
+            still_to_come: components["schemas"]["Money"];
+            /** @description `still_to_come` in rupees at today's rate, to two decimals. Null when there is no rate. */
+            still_to_come_inr: components["schemas"]["Money"] | null;
             /** @description The named part's own unpaid amount — the figure to offer in the amount box. Null without `part_key`. */
             part_outstanding: components["schemas"]["Money"] | null;
             /** @description The amount as entered, in `currency`. Null when none was sent. */
