@@ -345,7 +345,12 @@ export function ClientsListPage() {
                 <ReopenTrigger
                   name={clientName}
                   renderModal={(close) => (
-                    <ReopenClientModal clientId={client.id} clientName={clientName} onClose={close} />
+                    <ReopenClientModal
+                      clientId={client.id}
+                      clientName={clientName}
+                      assigned={Boolean(client.assigned_employee_id)}
+                      onClose={close}
+                    />
                   )}
                 />
               ) : null

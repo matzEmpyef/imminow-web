@@ -247,6 +247,7 @@ export function ClientProfilePage() {
           <ReopenClientModal
             clientId={id}
             clientName={`${data.student.first_name} ${data.student.last_name}`}
+            assigned={Boolean(data.assigned_employee_id)}
             onClose={() => setShowReopenCase(false)}
           />
         )}
