@@ -54,14 +54,34 @@ export function formatAmountOnly(currency: string | null | undefined, amount: nu
  * replace fourteen local copies — twelve of this one, two of the dash variant.
  */
 export function inr(n: number | null | undefined): string {
-  const value = n ?? 0
-  // A negative reads "-₹500", not "₹-500" (gate 12: a freelancer's `owed` can go negative — overpaid).
-  return value < 0 ? `-₹${formatMoneyDigits(Math.abs(value), 'INR')}` : `₹${formatMoneyDigits(value, 'INR')}`
+  return rupeeSymbol(n ?? 0)
 }
 
 /** {@link inr}, but a missing value reads as "—" rather than ₹0. */
 export function inrOrDash(n: number | null | undefined): string {
-  return n == null ? '—' : `₹${formatMoneyDigits(n, 'INR')}`
+  return n == null ? '—' : rupeeSymbol(n)
+}
+
+/**
+ * THE ONE PLACE A RUPEE FIGURE GETS ITS SYMBOL AND ITS SIGN. A negative reads "-₹500.00", never
+ * "₹-500.00" (gate 12: a freelancer's `owed` can go negative — overpaid; Phase 8 T1-04: the minus
+ * sign used to land after the symbol on a small negative balance). A figure that rounds to nothing
+ * ("-0.004") reads "₹0.00" rather than "-₹0.00".
+ */
+export function rupeeSymbol(value: number): string {
+  const digits = formatMoneyDigits(Math.abs(value), 'INR')
+  return value < 0 && digits !== '0.00' ? `-₹${digits}` : `₹${digits}`
+}
+
+/**
+ * An exchange rate as it is read on a screen: at most six decimals, no trailing zeros ("83.2",
+ * "1.4", "0.012346"). The server stores a rate to many more places and a division can leave
+ * eighteen digits ("1.4000000000000001"); nobody can read, check or quote that. Phase 8 T1-04:
+ * every rate shown in the Finance boxes and notes goes through here.
+ */
+export function formatRate(rate: number | null | undefined): string {
+  if (rate == null || !Number.isFinite(rate)) return '—'
+  return rate.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 6, useGrouping: false })
 }
 
 /** Same as {@link formatMoney}, taking the `{ amount, currency }` shape the API returns directly. */

@@ -22,6 +22,10 @@ function previewAnswer(over: Record<string, unknown> = {}, error: Error | null =
         currency: 'CAD',
         owed_currency: 'CAD',
         outstanding: { amount: 1400, currency: 'CAD' },
+        due_now: { amount: 1000, currency: 'CAD' },
+        due_now_inr: { amount: 61500, currency: 'INR' },
+        still_to_come: { amount: 400, currency: 'CAD' },
+        still_to_come_inr: { amount: 24600, currency: 'INR' },
         part_outstanding: null,
         amount: null,
         settles: null,
@@ -233,7 +237,7 @@ describe('ReceiveDueModal, the preview', () => {
     open()
     fireEvent.change(screen.getByLabelText(/Amount/), { target: { value: '2000' } })
     // The hint speaks of the whole case, not of one part.
-    expect(await screen.findByText(/more than is outstanding on this case/)).toHaveTextContent('CAD 600.00')
+    expect(await screen.findByText(/more than this case can still receive/)).toHaveTextContent('That’s CAD 600.00 more than this case can still receive (CAD 1,400.00).')
     expect(submit()).toBeDisabled()
     fireEvent.click(screen.getByLabelText(/Record it anyway/))
     fireEvent.click(submit())
@@ -244,7 +248,7 @@ describe('ReceiveDueModal, the preview', () => {
     open(caseRow(['CAD']), { key: 'p1', currency: 'CAD', amount: 10, outstanding: 10 })
     vi.mocked(useReceivePreview).mockReturnValue(previewAnswer({ is_overpayment: false }))
     fireEvent.change(screen.getByLabelText(/Amount/), { target: { value: '5000' } })
-    expect(await screen.findByText(/Outstanding on this case/)).toBeInTheDocument()
+    expect(await screen.findByText('Due now')).toBeInTheDocument()
     expect(screen.queryByLabelText(/Record it anyway/)).not.toBeInTheDocument()
     expect(submit()).toBeEnabled()
     fireEvent.click(submit())
@@ -267,7 +271,7 @@ describe('ReceiveDueModal, the preview', () => {
         currency: 'USD',
         amount: { amount: 1000, currency: 'USD' },
         settles: { amount: 1400, currency: 'CAD' },
-        rate: 1.4,
+        rate: 1.4000000000000001,
       }),
     )
     open()
@@ -275,6 +279,36 @@ describe('ReceiveDueModal, the preview', () => {
     fireEvent.change(screen.getByLabelText(/Amount received/), { target: { value: '1000' } })
     fireEvent.change(screen.getByLabelText('Currency received'), { target: { value: 'USD' } })
     expect(await screen.findByText(/That settles CAD 1,400\.00 of the CAD dues \(1 USD = 1\.4 CAD\)/)).toBeInTheDocument()
+  })
+
+  it('says what is due now and what is still to come, each with its rupee value, and nothing is added', async () => {
+    vi.mocked(useReceivePreview).mockReturnValue(previewAnswer())
+    open()
+    fireEvent.change(screen.getByLabelText(/Amount/), { target: { value: '500' } })
+    expect(await screen.findByText('Due now')).toBeInTheDocument()
+    expect(screen.getByText('CAD 1,000.00')).toBeInTheDocument()
+    expect(screen.getByText('≈ ₹61,500.00')).toBeInTheDocument()
+    expect(screen.getByText('Still to come when the college pays')).toBeInTheDocument()
+    expect(screen.getByText('CAD 400.00')).toBeInTheDocument()
+    expect(screen.getByText('≈ ₹24,600.00')).toBeInTheDocument()
+    expect(screen.queryByText(/Outstanding on this case/)).not.toBeInTheDocument()
+  })
+
+  it('leaves the second line out on a paid-up case, and shows no rupee value that was not served', async () => {
+    vi.mocked(useReceivePreview).mockReturnValue(
+      previewAnswer({
+        due_now: { amount: 0, currency: 'CAD' },
+        due_now_inr: null,
+        still_to_come: { amount: 0, currency: 'CAD' },
+        still_to_come_inr: null,
+      }),
+    )
+    open()
+    fireEvent.change(screen.getByLabelText(/Amount/), { target: { value: '500' } })
+    expect(await screen.findByText('Due now')).toBeInTheDocument()
+    expect(screen.getByText('CAD 0.00')).toBeInTheDocument()
+    expect(screen.queryByText('Still to come when the college pays')).not.toBeInTheDocument()
+    expect(screen.queryByText(/≈ ₹/)).not.toBeInTheDocument()
   })
 })
 

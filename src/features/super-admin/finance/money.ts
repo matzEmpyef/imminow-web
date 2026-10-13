@@ -1,4 +1,4 @@
-import { formatMoneyAmount, formatMoneyDigits } from '@/lib/money'
+import { formatMoneyAmount, formatRate, rupeeSymbol } from '@/lib/money'
 
 type Money = Parameters<typeof formatMoneyAmount>[0]
 
@@ -63,7 +63,7 @@ export function paymentsTotalLabel(payments: readonly PaymentMoney[]): string {
     return money({ amount: total, currency: [...currencies][0] ?? 'INR' })
   }
   const totalInr = payments.reduce((sum, p) => sum + (paymentInrAmount(p) ?? 0), 0)
-  return `≈ ₹${formatMoneyDigits(totalInr, 'INR')} (mixed currencies)`
+  return `≈ ${rupeeSymbol(totalInr)} (mixed currencies)`
 }
 
 /** The payment's own amount, formatted — minor units where they exist (M15). */
@@ -109,10 +109,10 @@ function shortDate(iso: string): string {
 export function paymentInrNote(p: PaymentMoney | null | undefined): string | null {
   const currency = p?.amount?.currency
   if (!p || !currency || currency === 'INR' || p.amount_inr == null) return null
-  const approx = `≈ ₹${formatMoneyDigits(p.amount_inr, 'INR')}`
+  const approx = `≈ ${rupeeSymbol(p.amount_inr)}`
   if (p.rate_used == null) return approx
   const asOf = p.rate_as_of ? shortDate(p.rate_as_of) : ''
-  return `${approx} at ${p.rate_used}${asOf ? `, rate of ${asOf}` : ''}`
+  return `${approx} at ${formatRate(p.rate_used)}${asOf ? `, rate of ${asOf}` : ''}`
 }
 
 /**
@@ -135,7 +135,7 @@ export function paymentSettlesNote(
   if (!p?.settles_currency) return null
   const settled = p.settled ? `Settled ${money(p.settled)} of the ${p.settles_currency} dues` : `Settles the ${p.settles_currency} dues`
   const received = p.amount?.currency
-  return p.settles_rate != null && received ? `${settled} · 1 ${received} = ${p.settles_rate} ${p.settles_currency}` : settled
+  return p.settles_rate != null && received ? `${settled} · 1 ${received} = ${formatRate(p.settles_rate)} ${p.settles_currency}` : settled
 }
 
 /**
@@ -145,7 +145,7 @@ export function paymentSettlesNote(
  */
 export function money(m: Money): string {
   if (!m || m.amount == null) return '—'
-  return m.currency === 'INR' ? `₹${formatMoneyDigits(m.amount, 'INR')}` : formatMoneyAmount(m)
+  return m.currency === 'INR' ? rupeeSymbol(m.amount) : formatMoneyAmount(m)
 }
 
 /**

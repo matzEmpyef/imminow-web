@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { toCsv } from '@/lib/csv'
 import type { CommissionPayment } from '@/queries/commission'
 import {
+  money,
   paymentAmount,
   paymentInrAmount,
   paymentInrNote,
@@ -205,5 +206,33 @@ describe('paymentSettlesNote', () => {
     expect(paymentSettlesNote({ amount: { amount: 1000, currency: 'CAD' }, settles_currency: null })).toBeNull()
     expect(paymentSettlesNote({ amount: { amount: 1000, currency: 'CAD' } })).toBeNull()
     expect(paymentSettlesNote(undefined)).toBeNull()
+  })
+})
+
+describe('rates read at most six decimals (Phase 8 T1-04)', () => {
+  it('shortens a long stored rate in the payment note', () => {
+    expect(
+      paymentInrNote({
+        amount: { amount: 1240, currency: 'CAD' },
+        amount_inr: 103168,
+        rate_used: 83.19999999999999,
+        rate_as_of: '2026-09-12T10:00:00Z',
+      }),
+    ).toBe('≈ ₹1,03,168.00 at 83.2, rate of 12 Sep')
+  })
+
+  it('shortens a long settlement rate', () => {
+    expect(
+      paymentSettlesNote({
+        amount: { amount: 1000, currency: 'USD' },
+        settles_currency: 'CAD',
+        settles_rate: 1.4000000000000001,
+        settled: { amount: 1400, currency: 'CAD' },
+      }),
+    ).toBe('Settled CAD 1,400.00 of the CAD dues · 1 USD = 1.4 CAD')
+  })
+
+  it('writes a small negative rupee amount with the sign first', () => {
+    expect(money({ amount: -0.12, currency: 'INR' })).toBe('-₹0.12')
   })
 })

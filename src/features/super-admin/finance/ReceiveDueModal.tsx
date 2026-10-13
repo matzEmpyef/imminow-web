@@ -7,6 +7,8 @@ import { MoneyField } from '@/components/MoneyField'
 import { TextAreaField } from '@/components/TextAreaField'
 import { ApiError, fieldMessages } from '@/api/errors'
 import { currencyOptions, money } from './money'
+import { CaseOwesRows } from './CaseOwesRows'
+import { formatRate } from '@/lib/money'
 import {
   useReceiveCommissionDue,
   useReceivePreview,
@@ -333,14 +335,21 @@ export function ReceiveDueModal({
             {previewCurrent.rate != null && (
               <>
                 {' '}
-                (1 {previewCurrent.currency} = {previewCurrent.rate} {previewCurrent.owed_currency})
+                (1 {previewCurrent.currency} = {formatRate(previewCurrent.rate)} {previewCurrent.owed_currency})
               </>
             )}
             .
           </p>
         )}
-        {previewCurrent && !isOverpayment && !serverSaysOverpayment && (
-          <p className="text-caption text-text-secondary">Outstanding on this case: {money(previewCurrent.outstanding)}</p>
+        {previewCurrent && (
+          <div className="flex flex-col gap-xs rounded-md border border-border bg-background px-sm py-xs">
+            <CaseOwesRows
+              dueNow={previewCurrent.due_now}
+              dueNowInr={previewCurrent.due_now_inr}
+              stillToCome={previewCurrent.still_to_come}
+              stillToComeInr={previewCurrent.still_to_come_inr}
+            />
+          </div>
         )}
         {previewRefusal && !isOverpayment && !serverSaysOverpayment && (
           <p role="status" className="text-caption text-text-secondary">
@@ -354,7 +363,7 @@ export function ReceiveDueModal({
                 refusal?.message
               ) : (
                 <>
-                  That&rsquo;s {money(previewCurrent?.overpaid_by)} more than is outstanding on this case (
+                  That&rsquo;s {money(previewCurrent?.overpaid_by)} more than this case can still receive (
                   {money(previewCurrent?.outstanding)}).
                 </>
               )}

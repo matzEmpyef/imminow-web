@@ -16,7 +16,7 @@ const MIN_REASON_LENGTH = 3
 /**
  * Corrects the amount received on an already-confirmed payment (2026-09-11) — money that bounced,
  * a bank reversal, a figure caught wrong after the fact. The old figure moves onto the payment's
- * `corrections` with who and why; the consultancy is shown the reason. Entering ₹0 records that
+ * `corrections` with who and why; the consultancy is shown the reason. Entering 0 records that
  * nothing actually arrived — Confirm itself now requires a positive amount, so this is the only
  * way a confirmed payment ends up recording zero.
  *
@@ -162,8 +162,7 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
         />
         {previewCurrent && !overpaymentShown && (
           <p className="text-caption text-text-secondary">
-            Change: {money(previewCurrent.change)} ({previewCurrent.change_direction} than now). Still unpaid on this
-            case: {money(previewCurrent.outstanding)}.
+            Change: {money(previewCurrent.change)} ({previewCurrent.change_direction} than now).
           </p>
         )}
         {previewRefusal && !overpaymentShown && (
@@ -178,8 +177,9 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
                 refusal?.message
               ) : (
                 <>
-                  That&rsquo;s {money(previewCurrent?.overpaid_by)} more than this case still owes
-                  {previewCurrent?.overpaid_by_inr && currency !== 'INR' ? ` (≈ ${money(previewCurrent.overpaid_by_inr)})` : ''}.
+                  That&rsquo;s {money(previewCurrent?.overpaid_by)}
+                  {previewCurrent?.overpaid_by_inr && currency !== 'INR' ? ` (≈ ${money(previewCurrent.overpaid_by_inr)})` : ''} more than
+                  this case can still receive ({money(previewCurrent?.outstanding)}).
                 </>
               )}
             </p>
@@ -203,7 +203,7 @@ export function CorrectPaymentModal({ payment, onClose }: { payment: CommissionP
           hint="The consultancy is shown this reason."
           error={reasonError}
         />
-        <p className="text-caption text-text-secondary">Entering ₹0 records that the money bounced.</p>
+        <p className="text-caption text-text-secondary">Entering 0 records that the money bounced.</p>
 
         {corrections.length > 0 && (
           <div>

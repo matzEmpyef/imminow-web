@@ -29,6 +29,10 @@ function previewAnswer(over: Record<string, unknown> = {}, error: Error | null =
         change: { amount: 1000, currency: 'CAD' },
         change_direction: 'more',
         outstanding: { amount: 400, currency: 'CAD' },
+        due_now: { amount: 300, currency: 'CAD' },
+        due_now_inr: { amount: 18450, currency: 'INR' },
+        still_to_come: { amount: 100, currency: 'CAD' },
+        still_to_come_inr: { amount: 6150, currency: 'INR' },
         is_overpayment: false,
         overpaid_by: null,
         rate: 61.5,
@@ -142,11 +146,12 @@ describe('CorrectPaymentModal, the preview', () => {
     await waitFor(() => expect(lastCall()[1]).toBeUndefined())
   })
 
-  it('shows the server’s change and what is still unpaid', async () => {
+  it('shows the server’s change, and no figure for what is unpaid (the preview’s are from before the change)', async () => {
     vi.mocked(useCorrectPreview).mockReturnValue(previewAnswer())
     open()
     expect(await screen.findByText(/Change: CAD 1,000\.00 \(more than now\)/)).toBeInTheDocument()
-    expect(screen.getByText(/Still unpaid on this case: CAD 400\.00/)).toBeInTheDocument()
+    expect(screen.queryByText(/Still unpaid/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/CAD 400\.00/)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/It is an over-payment/)).not.toBeInTheDocument()
     expect(save()).toBeEnabled()
   })
@@ -160,7 +165,7 @@ describe('CorrectPaymentModal, the preview', () => {
       }),
     )
     open()
-    expect(await screen.findByRole('alert')).toHaveTextContent('That’s CAD 600.00 more than this case still owes (≈ ₹36,900.00).')
+    expect(await screen.findByRole('alert')).toHaveTextContent('That’s CAD 600.00 (≈ ₹36,900.00) more than this case can still receive (CAD 400.00).')
     expect(save()).toBeDisabled()
     fireEvent.click(screen.getByLabelText('It is an over-payment — record it anyway'))
     fireEvent.click(save())
@@ -183,6 +188,13 @@ describe('CorrectPaymentModal, the preview', () => {
     open()
     expect(await screen.findByText('This payment is not confirmed.')).toBeInTheDocument()
     expect(save()).toBeEnabled()
+  })
+
+  it('does not tell a zero correction that rupees bounced, whatever the currency', async () => {
+    vi.mocked(useCorrectPreview).mockReturnValue(previewAnswer())
+    open()
+    expect(screen.getByText('Entering 0 records that the money bounced.')).toBeInTheDocument()
+    expect(screen.queryByText(/₹0/)).not.toBeInTheDocument()
   })
 
   it('does no arithmetic of its own: a mixed-up preview is shown as it came', async () => {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Review F-300: the confirm dialog works nothing out. It asks the server's preview as the amount
@@ -31,6 +31,10 @@ function previewAnswer(over: Record<string, unknown> = {}, error: Error | null =
         difference_direction: 'same',
         needs_note: false,
         outstanding: { amount: 800, currency: 'CAD' },
+        due_now: { amount: 600, currency: 'CAD' },
+        due_now_inr: { amount: 36900, currency: 'INR' },
+        still_to_come: { amount: 200, currency: 'CAD' },
+        still_to_come_inr: { amount: 12300, currency: 'INR' },
         is_overpayment: false,
         overpaid_by: null,
         rate: 61.5,
@@ -131,6 +135,51 @@ describe('ConfirmPaymentModal, the preview', () => {
     expect(screen.getByText('≈ ₹30,750.00 at 61.5')).toBeInTheDocument()
   })
 
+  it('shows at most six decimals of a long rate', () => {
+    vi.mocked(useConfirmPreview).mockReturnValue(previewAnswer({ rate: 61.50000000000001 }))
+    open()
+    expect(screen.getByText('≈ ₹30,750.00 at 61.5')).toBeInTheDocument()
+    vi.mocked(useConfirmPreview).mockReturnValue(previewAnswer({ rate: 1.1234567891234568 }))
+    cleanup()
+    open()
+    expect(screen.getByText('≈ ₹30,750.00 at 1.123457')).toBeInTheDocument()
+  })
+
+  it('says what is due now and what is still to come, each with its own rupee value, as the server gave them', () => {
+    open()
+    expect(screen.getByText('Due now')).toBeInTheDocument()
+    expect(screen.getByText('CAD 600.00')).toBeInTheDocument()
+    expect(screen.getByText('≈ ₹36,900.00')).toBeInTheDocument()
+    expect(screen.getByText('Still to come when the college pays')).toBeInTheDocument()
+    expect(screen.getByText('CAD 200.00')).toBeInTheDocument()
+    expect(screen.getByText('≈ ₹12,300.00')).toBeInTheDocument()
+    expect(screen.queryByText(/Case still owes|Outstanding on this case/)).not.toBeInTheDocument()
+  })
+
+  it('leaves the second line out when nothing is still to come, and a rupee value that was not served', () => {
+    vi.mocked(useConfirmPreview).mockReturnValue(
+      previewAnswer({
+        due_now: { amount: 0, currency: 'CAD' },
+        due_now_inr: null,
+        still_to_come: { amount: 0, currency: 'CAD' },
+        still_to_come_inr: null,
+      }),
+    )
+    open()
+    expect(screen.getByText('Due now')).toBeInTheDocument()
+    expect(screen.getByText('CAD 0.00')).toBeInTheDocument()
+    expect(screen.queryByText('Still to come when the college pays')).not.toBeInTheDocument()
+    expect(screen.queryByText('≈ ₹36,900.00')).not.toBeInTheDocument()
+  })
+
+  it('shows the list’s due-now figure until the preview answers', () => {
+    vi.mocked(useConfirmPreview).mockReturnValue({ data: undefined, error: null, isFetching: true } as never)
+    open()
+    expect(screen.getByText('Due now')).toBeInTheDocument()
+    expect(screen.getByText('CAD 800.00')).toBeInTheDocument()
+    expect(screen.queryByText('Still to come when the college pays')).not.toBeInTheDocument()
+  })
+
   it('shows the server’s over-payment figures and sends allow_overpayment only once it is ticked', async () => {
     vi.mocked(useConfirmPreview).mockReturnValue(
       previewAnswer({
@@ -146,7 +195,7 @@ describe('ConfirmPaymentModal, the preview', () => {
     open()
     fireEvent.change(amountBox(), { target: { value: '2000' } })
     fireEvent.change(await screen.findByLabelText(/Why is it different/), { target: { value: 'Paid in advance' } })
-    expect(screen.getByRole('alert')).toHaveTextContent('That’s CAD 1,200.00 more than this case still owes (CAD 800.00).')
+    expect(screen.getByRole('alert')).toHaveTextContent('That’s CAD 1,200.00 more than this case can still receive (CAD 800.00).')
     expect(confirmButton()).toBeDisabled()
     fireEvent.click(screen.getByLabelText('It is an over-payment — record it anyway'))
     fireEvent.click(confirmButton())

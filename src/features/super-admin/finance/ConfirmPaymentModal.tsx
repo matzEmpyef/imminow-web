@@ -1,6 +1,6 @@
 import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
 import { MoneyField } from '@/components/MoneyField'
-import { formatAmountOnly } from '@/lib/money'
+import { formatRate } from '@/lib/money'
 import { useState } from 'react'
 import { ApiError } from '@/api/errors'
 import { useDebouncedValue } from '@/lib/useDebounce'
@@ -8,20 +8,11 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextAreaField } from '@/components/TextAreaField'
 import { money, paymentInrNote, paymentMoney } from './money'
+import { CaseOwesRows } from './CaseOwesRows'
 import { useConfirmCommissionPayment, useConfirmPreview, type CommissionPayment } from '@/queries/commission'
 import { showToast } from '@/lib/toast'
 
 const MIN_REASON_LENGTH = 3
-
-/**
- * The ≈ ₹ figure for a due's OUTSTANDING balance — a running total, not a settled payment, so it
- * carries no frozen rate of its own. A payment's own ≈ figure comes from `paymentInrNote`, which
- * shows the rate it was valued at (assumptions audit M15, product owner 2026-09-19).
- */
-function approxInr(amountInr: number | undefined, currency: string | undefined): string | null {
-  if (!currency || currency === 'INR' || amountInr == null) return null
-  return `≈ ₹${formatAmountOnly('INR', amountInr)}`
-}
 
 /**
  * The declared → confirmed step (2026-09-11 rebuild, single-payment path — see BulkConfirmModal
@@ -81,14 +72,14 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
     (needsNote && trimmedNote.length < MIN_REASON_LENGTH) ||
     (overpaymentShown && !allowOverpayment)
 
-  // What the case still owes: the server's figure for this confirmation, else the one the list holds
-  // (in this payment's own currency, assumptions audit H14).
-  const outstanding = payment.entry_outstanding
-  const listedOwes =
-    outstanding?.amount != null && (outstanding.currency ?? currency) === currency
-      ? { amount: outstanding.amount, currency }
-      : null
-  const owes = previewCurrent?.outstanding ?? listedOwes
+  // What the case owes NOW (fallen due), before the preview has answered: the list's figure for this
+  // payment, in its own currency (assumptions audit H14) and in rupees. The preview's two figures
+  // (`due_now`, `still_to_come`) replace it once they arrive; nothing is added or subtracted here.
+  const listed = payment.entry_outstanding
+  const listedDueNow =
+    listed?.amount != null && (listed.currency ?? currency) === currency ? { amount: listed.amount, currency } : null
+  const listedDueNowInr =
+    payment.entry_outstanding_inr != null ? { amount: payment.entry_outstanding_inr, currency: 'INR' } : null
 
   function changeAmount(value: string) {
     setReceivedAmount(value)
@@ -147,19 +138,12 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
               )}
             </span>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-caption text-text-secondary">Case still owes</span>
-            <span className="flex flex-col items-end">
-              <span className="text-body-sm text-text-primary">
-                {owes ? money(owes) : 'Not known'}
-              </span>
-              {approxInr(payment.entry_outstanding_inr ?? undefined, currency) && (
-                <span className="text-caption text-text-secondary">
-                  {approxInr(payment.entry_outstanding_inr ?? undefined, currency)}
-                </span>
-              )}
-            </span>
-          </div>
+          <CaseOwesRows
+            dueNow={previewCurrent?.due_now ?? listedDueNow}
+            dueNowInr={previewCurrent ? previewCurrent.due_now_inr : listedDueNowInr}
+            stillToCome={previewCurrent?.still_to_come}
+            stillToComeInr={previewCurrent?.still_to_come_inr}
+          />
           <div className="flex items-center justify-between">
             <span className="text-caption text-text-secondary">Consultancy</span>
             <span className="text-body-sm text-text-primary">{payment.consultancy_name ?? 'Unknown'}</span>
@@ -182,7 +166,7 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
         {previewCurrent?.received_amount_inr && previewCurrent.currency !== 'INR' && (
           <p className="text-caption text-text-secondary">
             ≈ {money(previewCurrent.received_amount_inr)}
-            {previewCurrent.rate != null && <> at {previewCurrent.rate}</>}
+            {previewCurrent.rate != null && <> at {formatRate(previewCurrent.rate)}</>}
           </p>
         )}
         {previewRefusal && !overpaymentShown && (
@@ -197,7 +181,7 @@ export function ConfirmPaymentModal({ payment, onClose }: { payment: CommissionP
                 refusal?.message
               ) : (
                 <>
-                  That&rsquo;s {money(previewCurrent?.overpaid_by)} more than this case still owes (
+                  That&rsquo;s {money(previewCurrent?.overpaid_by)} more than this case can still receive (
                   {money(previewCurrent?.outstanding)}).
                 </>
               )}
