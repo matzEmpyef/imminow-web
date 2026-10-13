@@ -51,6 +51,8 @@ function setup(opts: {
   entry?: Record<string, unknown> | null
   client?: Record<string, unknown>
   installments?: Record<string, unknown>[]
+  /** What the server says about the case itself: `case_closed`, `recording_allowed`. */
+  summary?: Record<string, unknown>
 }) {
   vi.mocked(useClient).mockReturnValue({ data: { case_type: 'student', ...opts.client } } as never)
   vi.mocked(useCommissions).mockReturnValue({
@@ -62,6 +64,10 @@ function setup(opts: {
       installments: opts.installments ?? [installment],
       invoices: [],
       receipts: [],
+      case_closed: false,
+      recording_allowed: true,
+      settling: false,
+      ...opts.summary,
     },
   } as never)
   return render(<CommissionsTab clientId="c1" />)
@@ -248,33 +254,38 @@ describe('CommissionsTab, a PR case’s contribution', () => {
   })
 })
 
-// T1-10: a closed case offers no way to record new money, and says why instead of inviting an entry.
+// T1-10: a case that has ended offers no way to record new money, and says why instead of inviting
+// an entry. The server decides (`case_closed`, `recording_allowed`); nothing is read from the status.
+const ended = { case_closed: true, recording_allowed: false }
+
 describe('CommissionsTab, a closed case', () => {
   it('offers nothing to record on an empty tab, and says the case is closed', () => {
-    setup({ entry: null, client: { case_type: 'pr', status: 'closed', outcome: 'failure' } })
+    setup({ entry: null, client: { case_type: 'pr' }, summary: ended })
     expect(screen.getByText(/This case is closed, so no commission is being tracked on it/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Record Applicant Contribution' })).toBeNull()
     expect(screen.queryByText(/Record the applicant.s agreed contribution/)).toBeNull()
   })
 
   it('still invites a first entry on an open PR case', () => {
-    setup({ entry: null, client: { case_type: 'pr', status: 'in_plan' } })
+    setup({ entry: null, client: { case_type: 'pr' } })
     expect(screen.getByRole('button', { name: 'Record Applicant Contribution' })).toBeInTheDocument()
   })
 
+  it('hides the contribution button when the server does not allow recording, even with no entry and no closed flag', () => {
+    setup({ entry: null, client: { case_type: 'pr' }, summary: { recording_allowed: false } })
+    expect(screen.queryByRole('button', { name: 'Record Applicant Contribution' })).toBeNull()
+  })
+
   it('takes the record, void and contribution buttons away while the old figures are still on screen', () => {
-    setup({
-      entry: { ...baseEntry, case_type: 'pr' },
-      client: { case_type: 'pr', status: 'closed', outcome: 'failure' },
-    })
+    setup({ entry: { ...baseEntry, case_type: 'pr' }, client: { case_type: 'pr' }, summary: ended })
     expect(screen.getByText('PR case —', { exact: false })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Record Payment' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Void' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Void contribution' })).toBeNull()
   })
 
-  it('keeps Record Payment on a case that closed as a success: money can still arrive', () => {
-    setup({ client: { status: 'closed', outcome: 'success' } })
+  it('follows the server, not the client’s status: recording allowed means the buttons stay', () => {
+    setup({ client: { status: 'closed', outcome: 'success' }, summary: { recording_allowed: true } })
     expect(screen.getByRole('button', { name: 'Record Payment' })).toBeInTheDocument()
   })
 })

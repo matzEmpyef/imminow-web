@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMutation } from '@/lib/useSave'
 import { api } from '@/api/client'
@@ -521,8 +522,23 @@ export function useClientActivity(clientId: string | undefined, filters: CursorP
   })
 }
 
+/** How often the Commissions tab reads again while the server is still settling a closed case. */
+export const COMMISSION_SETTLING_POLL_MS = 2000
+/**
+ * The most the tab keeps reading for. The server says `settling` for five minutes at most; the tab
+ * gives up sooner (a person does not sit watching it), and the next visit reads it afresh.
+ */
+export const COMMISSION_SETTLING_CAP_MS = 90_000
+
+/**
+ * A case's commission summary. Closing a case settles its commission in a step of its own, just
+ * after the close commits (recognised on a success, reversed otherwise), and the server says so
+ * with `settling`: the figures may be a step behind. While it is true the tab reads again every few
+ * seconds, and stops the moment it is false (T1-10). Reading pauses in a background tab.
+ */
 export function useCommissions(clientId: string | undefined) {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  const settlingSince = useRef<number | null>(null)
   return useQuery({
     queryKey: ['clients', clientId, 'commissions'],
     queryFn: async ({ signal }) => {
@@ -534,6 +550,14 @@ export function useCommissions(clientId: string | undefined) {
       return data
     },
     enabled: isAuthed && Boolean(clientId),
+    refetchInterval: (query) => {
+      if (!query.state.data?.settling) {
+        settlingSince.current = null
+        return false
+      }
+      settlingSince.current ??= Date.now()
+      return Date.now() - settlingSince.current < COMMISSION_SETTLING_CAP_MS ? COMMISSION_SETTLING_POLL_MS : false
+    },
   })
 }
 
@@ -651,26 +675,8 @@ export function useCloseClient() {
       invalidateClients(queryClient)
       queryClient.invalidateQueries({ queryKey: ['clients', id] })
       refreshStanding(queryClient)
-      refreshCommissionsAfterClose(queryClient, id)
     },
   })
-}
-
-/**
- * The commission side of a close happens just after it: the server settles the case's entry (kept
- * on a success, reversed otherwise) in its own step once the close has committed, so the read made
- * the moment the close is answered can still show the old figures (T1-10 / T4-13: the Commissions
- * tab kept them until a reload). Read the tab's data again a little later, twice, so it catches up
- * on its own.
- */
-export const COMMISSION_REFRESH_DELAYS_MS = [2000, 6000]
-
-function refreshCommissionsAfterClose(queryClient: ReturnType<typeof useQueryClient>, id: string) {
-  for (const delay of COMMISSION_REFRESH_DELAYS_MS) {
-    setTimeout(() => {
-      void queryClient.invalidateQueries({ queryKey: ['clients', id, 'commissions'] })
-    }, delay)
-  }
 }
 
 /**

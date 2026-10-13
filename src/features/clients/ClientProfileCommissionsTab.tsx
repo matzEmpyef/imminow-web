@@ -106,12 +106,10 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
   const data = commissions.data
   const entry = data.entry
   const isPr = client.data?.case_type === 'pr'
-  // A case that ended without success, or moved away, takes no new money: the record buttons are
-  // not offered and nothing invites a new entry (T1-10). A case that closed as a success keeps
-  // working — a payment can still arrive after the close.
-  const status = client.data?.status
-  const closed = status === 'closed' || status === 'closed_switched' || status === 'closed_completed'
-  const noNewMoney = (status === 'closed' || status === 'closed_switched') && client.data?.outcome !== 'success'
+  // A case that has ended takes no new money (T1-10): the server says so (`recording_allowed`), and
+  // every record button follows it, also on the empty tab. `case_closed` is the sentence's cue.
+  const noNewMoney = data.recording_allowed === false
+  const closed = data.case_closed === true
   // Own-client bookkeeping: installments work as usual; the tab has no Sentpo figure and no
   // declare-payment control for any channel, so the only difference is the explanatory caption.
   const bookkeeping = isBookkeepingChannel(entry?.channel, client.data?.acquisition_source)
@@ -146,7 +144,9 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
           </p>
           {bookkeeping && <p className="mt-xs text-caption text-text-secondary">{BOOKKEEPING_CAPTION}</p>}
         </div>
-        {isPr && canRecord && <Button onClick={() => setShowPrEntry(true)}>Record Applicant Contribution</Button>}
+        {isPr && canRecord && !noNewMoney && (
+          <Button onClick={() => setShowPrEntry(true)}>Record Applicant Contribution</Button>
+        )}
         {showPrEntry && (
           <RecordPrContributionModal
             clientId={clientId}
