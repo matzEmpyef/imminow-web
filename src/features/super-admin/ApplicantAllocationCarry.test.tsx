@@ -14,7 +14,7 @@ vi.mock('@/queries/applicantAllocation', () => ({
   useAllocationCandidates: vi.fn(),
   useResolveAllocationRequest: vi.fn(),
 }))
-vi.mock('@/queries/applicantCase', () => ({ useCarryQuestions: vi.fn() }))
+vi.mock('@/queries/applicantCase', () => ({ useAsksAboutAdmission: vi.fn() }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
 vi.mock('@/components/SearchSelect', () => ({
   SearchSelect: ({ onChange }: { onChange: (id: string) => void }) => (
@@ -31,7 +31,7 @@ import {
   useApplicantAllocationQueue,
   useResolveAllocationRequest,
 } from '@/queries/applicantAllocation'
-import { useCarryQuestions } from '@/queries/applicantCase'
+import { useAsksAboutAdmission } from '@/queries/applicantCase'
 import { showToast } from '@/lib/toast'
 import { ApplicantAllocationPage } from './ApplicantAllocationPage'
 
@@ -68,7 +68,7 @@ function openAllocate(row: Record<string, unknown>) {
 beforeEach(() => {
   mutate.mockReset()
   vi.mocked(showToast).mockClear()
-  vi.mocked(useCarryQuestions).mockReturnValue({ admission: false, payments: false })
+  vi.mocked(useAsksAboutAdmission).mockReturnValue(false)
   vi.mocked(useAllocateApplicant).mockReturnValue({ mutate, isPending: false, isError: false, error: null } as never)
   vi.mocked(useAllocationCandidates).mockReturnValue({ data: [], isLoading: false, isError: false } as never)
   vi.mocked(useResolveAllocationRequest).mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false } as never)
@@ -83,14 +83,14 @@ describe('Applicant Allocation — what moves with the case', () => {
 
     expect(mutate.mock.calls[0][0]).toEqual({
       consultancyId: 'acc-2',
-      carry: { documents: true, applications: true, preferences: false, chat: false, admission: false, recorded_payments: false },
+      carry: { documents: true, applications: true, preferences: false, chat: false, admission: false },
     })
     mutate.mock.calls[0][1].onSuccess({ ok: true, client_id: 'n1', carried: ['documents', 'applications'] })
     expect(showToast).toHaveBeenCalledWith('Moved. Shared: documents, college applications.')
   })
 
   it('asks whether the admission goes too when a college has accepted the student, and sends the answer', () => {
-    vi.mocked(useCarryQuestions).mockReturnValue({ admission: true, payments: false })
+    vi.mocked(useAsksAboutAdmission).mockReturnValue(true)
     openAllocate({ ...changeRow, journey_id: 'j1' })
     expect(screen.getByText('Does the admission go to the new consultancy too?')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'No' })).toBeChecked()
@@ -99,16 +99,13 @@ describe('Applicant Allocation — what moves with the case', () => {
     expect(mutate.mock.calls[0][0].carry.admission).toBe(true)
   })
 
-  it('asks about the recorded money after Yes, sends it, and names it in the confirmation', () => {
-    vi.mocked(useCarryQuestions).mockReturnValue({ admission: true, payments: true })
+  it('names the accepted college in the confirmation when the server says it went', () => {
+    vi.mocked(useAsksAboutAdmission).mockReturnValue(true)
     openAllocate({ ...changeRow, journey_id: 'j1' })
-    expect(screen.queryByText('Does the money already recorded on this admission go too?')).not.toBeInTheDocument()
-    fireEvent.click(screen.getAllByRole('radio', { name: 'Yes' })[0])
-    fireEvent.click(screen.getAllByRole('radio', { name: 'Yes' })[1])
+    fireEvent.click(screen.getByRole('radio', { name: 'Yes' }))
     fireEvent.click(screen.getByRole('button', { name: 'Allocate' }))
-    expect(mutate.mock.calls[0][0].carry).toMatchObject({ admission: true, recorded_payments: true })
-    mutate.mock.calls[0][1].onSuccess({ ok: true, client_id: 'n1', carried: ['documents', 'admission', 'recorded_payments'] })
-    expect(showToast).toHaveBeenCalledWith('Moved. Shared: documents, accepted college, recorded payments.')
+    mutate.mock.calls[0][1].onSuccess({ ok: true, client_id: 'n1', carried: ['documents', 'admission'] })
+    expect(showToast).toHaveBeenCalledWith('Moved. Shared: documents, accepted college.')
   })
 
   it('shows a served refusal exactly as served', () => {
