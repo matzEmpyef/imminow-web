@@ -116,10 +116,7 @@ export function useCreateApplicant() {
     }): Promise<CreateApplicantResult> => {
       const { data, error, response } = await api.POST('/clients', {
         params: { header: { 'Idempotency-Key': idempotencyKey } },
-        // replace with generated type after the contract join: the generated body still lists
-        // `date_of_birth` as required and lacks `age_confirmed`; the contract now takes no date of
-        // birth (Phase 8, D-129 C-2) and requires `age_confirmed: true`.
-        body: body as never,
+        body,
       })
       if (error) throw new ApiError('Could not create this applicant.', error, response?.status)
       // The status says which of the two documented bodies this is; the types cannot.
@@ -525,20 +522,6 @@ export function useClientActivity(clientId: string | undefined, filters: CursorP
   })
 }
 
-/**
- * A client's Commissions tab read. The Phase 8 fields are new in the final contract: replace with
- * generated type after the contract join.
- *  - `reversed` (T2-01): the case closed without success after a college acceptance or a PR
- *    contribution and its record was cancelled. `entry` is then that record (status reversed) with
- *    the payments that were recorded on it; `reversed_note` is the sentence to show.
- *  - `platform_share_note` (T4-07): one sentence on what immiNow's share on this case is.
- */
-export type ClientCommissions = components['schemas']['CommissionSummary'] & {
-  reversed?: boolean
-  reversed_note?: string | null
-  platform_share_note?: string | null
-}
-
 /** How often the Commissions tab reads again while the server is still settling a closed case. */
 export const COMMISSION_SETTLING_POLL_MS = 2000
 /**
@@ -564,8 +547,7 @@ export function useCommissions(clientId: string | undefined) {
         params: { path: { id: clientId! } },
       })
       if (error) throw new ApiError('Could not load commission details.', error)
-      // The one cast for the fields above: replace with generated type after the contract join.
-      return data as ClientCommissions
+      return data
     },
     enabled: isAuthed && Boolean(clientId),
     refetchInterval: (query) => {
@@ -731,10 +713,9 @@ export function useReopenClientCase() {
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
       const { data, error, response } = await api.POST('/clients/{id}/reopen-case', {
         params: { path: { id } },
-        // The body is new in the final contract: replace with generated type after the contract join.
-        body: { reason } as never,
+        body: { reason },
       })
-      if (error) throw new ApiError('Could not reopen this client.', error, (response as Response | undefined)?.status)
+      if (error) throw new ApiError('Could not reopen this client.', error, response?.status)
       return data
     },
     onSuccess: (_data, { id }) => {

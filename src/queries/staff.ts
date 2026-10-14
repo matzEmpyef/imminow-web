@@ -139,14 +139,7 @@ export function useReactivateEmployee() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      // replace with generated type after the contract join: the route is not in `paths` yet.
-      const client = api as unknown as {
-        POST: (
-          path: string,
-          init: { params: { path: { id: string } } },
-        ) => Promise<{ data?: unknown; error?: unknown; response?: Response }>
-      }
-      const { error, response } = await client.POST('/staff/employees/{id}/reactivate', { params: { path: { id } } })
+      const { error, response } = await api.POST('/staff/employees/{id}/reactivate', { params: { path: { id } } })
       if (error) throw new ApiError('Could not switch this employee back on.', error, response?.status)
     },
     onSuccess: () => invalidateEmployees(queryClient),

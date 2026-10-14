@@ -7,6 +7,8 @@
  * immiNow Users page. Each has its own source of "has this person accepted?", and each source is
  * ONE function below.
  */
+import type { components } from '@/api/schema'
+
 export type PersonStanding = 'invited' | 'expired' | 'active' | 'withdrawn' | 'disabled'
 
 export const STANDING_LABEL: Record<PersonStanding, string> = {
@@ -34,10 +36,9 @@ interface RosterRow {
   /**
    * Said by the server (T1-13): `invited` until the invitation is accepted, then `active`, or
    * `deactivated`. `invitation_expired` (fault check 9e) is an invitation left unanswered for
-   * 7 days; the generated type does not list it yet (replace with generated type after the
-   * contract join).
+   * 7 days.
    */
-  status?: 'invited' | 'invitation_expired' | 'active' | 'deactivated'
+  status?: components['schemas']['Employee']['status']
   active?: boolean
 }
 

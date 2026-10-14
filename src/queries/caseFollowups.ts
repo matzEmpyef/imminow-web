@@ -5,11 +5,10 @@ import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 import type { components } from '@/api/schema'
 
-// Phase 8 T4-02 fields, served by the final contract: replace with generated type after the
-// contract join. `pending_inr` is what immiNow still waits for on the case; `pending_total_inr` is
-// the sum of every listed row's `pending_inr`. The new signal codes arrive as plain strings.
-export type CaseFollowupRow = components['schemas']['CaseFollowupRow'] & { pending_inr?: number }
-export type FollowupSummary = components['schemas']['FollowupSummary'] & { pending_total_inr?: number }
+// Phase 8 T4-02 fields: `pending_inr` is what immiNow still waits for on the case; `pending_total_inr`
+// is the sum of every listed row's `pending_inr`. The new signal codes arrive as plain strings.
+export type CaseFollowupRow = components['schemas']['CaseFollowupRow']
+export type FollowupSummary = components['schemas']['FollowupSummary']
 export type FollowupNote = components['schemas']['FollowupNote']
 
 /** Finance's own outcome codes for a logged call (mock-server FOLLOWUP_OUTCOMES.finance). */

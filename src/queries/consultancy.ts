@@ -96,14 +96,7 @@ export function useWithdrawTransferCode() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (code: string) => {
-      // replace with generated type after the contract join: the route is not in `paths` yet.
-      const client = api as unknown as {
-        POST: (
-          path: string,
-          init: { params: { path: { code: string } } },
-        ) => Promise<{ data?: unknown; error?: unknown; response?: Response }>
-      }
-      const { error, response } = await client.POST('/transfer-codes/{code}/withdraw', { params: { path: { code } } })
+      const { error, response } = await api.POST('/transfer-codes/{code}/withdraw', { params: { path: { code } } })
       if (error) throw new ApiError('Could not withdraw this transfer code.', error, response?.status)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['transfer-codes'] }),

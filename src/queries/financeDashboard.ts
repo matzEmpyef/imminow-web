@@ -17,9 +17,8 @@ import type { CommissionPayment } from './commission'
 // as they stood (review F-156).
 export const FINANCE_QUERY_KEY = 'finance'
 
-// `cases_owing` (Phase 8 T4-03) is new in the final contract: replace with generated type after the
-// contract join. It is how many cases are behind `outstanding_inr`; `cases` counts every case.
-export type FinanceSummary = components['schemas']['FinanceSummary'] & { cases_owing?: number }
+// `cases_owing` (Phase 8 T4-03) is how many cases are behind `outstanding_inr`; `cases` counts every case.
+export type FinanceSummary = components['schemas']['FinanceSummary']
 export type ConsultancyBalanceRow = components['schemas']['ConsultancyBalanceRow']
 export type FinanceCaseRow = components['schemas']['FinanceCaseRow']
 export type CommissionDuePart = components['schemas']['CommissionDuePart']
@@ -392,16 +391,12 @@ export function useReceiveCommissionDue() {
 }
 
 /**
- * `rate_display` and `currencies_with_rate` (Phase 8 T4-10) are new in the final contract: replace
- * with generated type after the contract join. `rate_display` is `rate` rounded for showing (at most
- * four decimals) — show that one; the receipt converts at, and stores, `rate` itself.
- * `currencies_with_rate` is every currency that has an exchange rate today (INR always), A to Z —
- * the receipt box offers only these.
+ * `rate_display` and `currencies_with_rate` (Phase 8 T4-10): `rate_display` is `rate` rounded for
+ * showing (at most four decimals) — show that one; the receipt converts at, and stores, `rate`
+ * itself. `currencies_with_rate` is every currency that has an exchange rate today (INR always),
+ * A to Z — the receipt box offers only these.
  */
-export type ReceivePreview = components['schemas']['ReceivePreview'] & {
-  rate_display?: number | null
-  currencies_with_rate?: string[]
-}
+export type ReceivePreview = components['schemas']['ReceivePreview']
 
 /** The receive dialog's draft, as the receipt itself would be sent (without its date, note or reference). */
 export interface ReceivePreviewDraft {
@@ -432,8 +427,7 @@ export function useReceivePreview(entryId: string, draft: ReceivePreviewDraft, e
         body: draft,
       })
       if (error) throw new ApiError('Could not check this payment.', error, response?.status)
-      // The one cast for the fields above: replace with generated type after the contract join.
-      return data as ReceivePreview
+      return data
     },
     enabled: isAuthed && enabled,
     // Always the figures of this draft; the answer to an older draft is never shown for it.
