@@ -13,7 +13,6 @@ const BLOCKED_REASON_LABELS: Record<string, string> = {
   no_active_staff: 'No active staff',
   subscription_lapsed: 'Subscription lapsed',
   freelancer_disabled: 'Freelancer disabled',
-  seat_limit_reached: 'No seat left to staff the case',
 }
 
 /**

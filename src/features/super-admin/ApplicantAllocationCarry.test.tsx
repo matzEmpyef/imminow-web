@@ -201,3 +201,23 @@ describe('Applicant Allocation — declining a change request', () => {
     expect(screen.getByText('0/1,971')).toBeInTheDocument()
   })
 })
+
+// DECISIONS 128(a): a consultancy at its seat limit can be given a student, so only the four
+// reasons the server still sends are named. "No active staff" is kept.
+describe('Applicant Allocation — consultancies that are not offered', () => {
+  it('names the reasons the server still sends, in plain words', () => {
+    vi.mocked(useAllocationCandidates).mockReturnValue({
+      data: [
+        { consultancy_id: 'c1', name: 'Gamma Consult', blocked_reason: 'no_active_staff', serves_countries: [], active_applicants: 0, seats_used: 0, seat_limit: 5 },
+        { consultancy_id: 'c2', name: 'Delta Consult', blocked_reason: 'subscription_lapsed', serves_countries: [], active_applicants: 0, seats_used: 1, seat_limit: 5 },
+      ],
+      isLoading: false,
+      isError: false,
+    } as never)
+    openAllocate(changeRow)
+    expect(screen.getByText(/No active staff \(1\): Gamma Consult/)).toBeInTheDocument()
+    expect(screen.getByText(/Subscription lapsed \(1\): Delta Consult/)).toBeInTheDocument()
+    expect(screen.queryByText(/No seat left/)).not.toBeInTheDocument()
+  })
+})
+

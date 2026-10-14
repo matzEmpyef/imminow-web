@@ -37,11 +37,6 @@ const BLOCKED_LABELS: Record<string, string> = {
   no_active_staff: 'No active staff',
   subscription_lapsed: 'Subscription lapsed',
   freelancer_disabled: 'Freelancer channel off',
-  // Assumptions audit M12 (product owner, 2026-09-19): an account at its seat limit cannot hire
-  // the consultant who would serve this student — the invite endpoint already refuses that hire —
-  // so allocating to them was allocating into a queue nobody could ever be assigned to. Said in
-  // plain words, because "seat_limit_reached" is not a reason anyone can act on.
-  seat_limit_reached: 'No seat left to staff the case',
 }
 
 // Past this, a row gets an Overdue badge — somebody has been waiting on us for most of a working week.
