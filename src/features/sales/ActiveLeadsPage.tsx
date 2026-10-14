@@ -10,6 +10,7 @@ import { AssignConsultantMenu } from '@/features/sales/AssignConsultantMenu'
 import { StopPropagation } from '@/components/StopPropagation'
 import { RequestedBranchBadge, RequestedBranchNote } from '@/components/RequestedBranch'
 import { ReopenLeadModal } from './ReopenLeadModal'
+import { closingNoteOf } from '@/lib/servedCaseFields'
 import { ReopenTrigger } from '@/components/ReopenTrigger'
 import { canOfferLeadReopen } from '@/lib/reopenRules'
 import { useBranches } from '@/queries/staff'
@@ -181,6 +182,7 @@ export function ActiveLeadsPage() {
                   leadId={lead.id}
                   leadName={lead.name}
                   assigned={Boolean(lead.assigned_employee_id)}
+                  closingNote={closingNoteOf(lead)}
                   onClose={close}
                 />
               )}

@@ -17,6 +17,7 @@ import { Toggle } from '@/components/Toggle'
 import { ReopenTrigger } from '@/components/ReopenTrigger'
 import { canOfferLeadReopen } from '@/lib/reopenRules'
 import { ReopenLeadModal } from './ReopenLeadModal'
+import { closingNoteOf } from '@/lib/servedCaseFields'
 import { formatDate, relativeTime } from '@/lib/time'
 import { LeadDetailModal } from '@/features/clients/LeadDetailModal'
 import { CloseLeadModal } from './CloseLeadModal'
@@ -260,6 +261,7 @@ export function LeadPoolPage() {
                       leadId={lead.id}
                       leadName={lead.name}
                       assigned={Boolean(lead.assigned_employee_id)}
+                      closingNote={closingNoteOf(lead)}
                       onClose={close}
                     />
                   )}

@@ -16,6 +16,7 @@ import { StopPropagation } from '@/components/StopPropagation'
 import { CreateApplicantModal } from './CreateApplicantModal'
 import { ApplicantRequestsPanel } from './ApplicantRequestsPanel'
 import { ReopenClientModal } from './ReopenClientModal'
+import { closingNoteOf } from '@/lib/servedCaseFields'
 import { ReopenTrigger } from '@/components/ReopenTrigger'
 import { canOfferCaseReopen, useCanReopen } from '@/lib/reopenRules'
 import { useAssignClient, useClients, useSetClientTags } from '@/queries/clients'
@@ -361,6 +362,7 @@ export function ClientsListPage() {
                       clientId={client.id}
                       clientName={clientName}
                       assigned={Boolean(client.assigned_employee_id)}
+                      closingNote={closingNoteOf(client)}
                       onClose={close}
                     />
                   )}

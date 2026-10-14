@@ -22,12 +22,12 @@ function typeReason(text = 'The student came back') {
   fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: text } })
 }
 
-function renderModal(assigned: boolean) {
+function renderModal(assigned: boolean, closingNote: string | null = null) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   const onClose = vi.fn()
   render(
     <QueryClientProvider client={client}>
-      <ReopenClientModal clientId="c1" clientName="Ishaan Khan" assigned={assigned} onClose={onClose} />
+      <ReopenClientModal clientId="c1" clientName="Ishaan Khan" assigned={assigned} closingNote={closingNote} onClose={onClose} />
     </QueryClientProvider>,
   )
   return onClose
@@ -102,5 +102,41 @@ describe('Reopen Case', () => {
     typeReason()
     fireEvent.click(screen.getByRole('button', { name: 'Reopen Case' }))
     expect(await screen.findByText('Say why this case is being reopened.')).toBeInTheDocument()
+  })
+})
+
+// T4-17: the answer's own `needs_assigning` decides whether to ask who takes the case, and the
+// note typed at close is shown beside the reason box.
+describe('Reopen Case: the served needs_assigning and the closing note', () => {
+  it('asks who takes the case when the answer says nobody holds it, even if a consultant was on it before', async () => {
+    vi.mocked(api.POST).mockResolvedValue({
+      data: { id: 'c1', version: 5, needs_assigning: true },
+      error: undefined,
+      response: { status: 200 },
+    } as never)
+    renderModal(true)
+    typeReason()
+    fireEvent.click(screen.getByRole('button', { name: 'Reopen Case' }))
+    expect(await screen.findByText(/Who should take it\?/)).toBeInTheDocument()
+  })
+
+  it('does not ask when the answer says the case is held, even if the page thought nobody held it', async () => {
+    vi.mocked(api.POST).mockResolvedValue({
+      data: { id: 'c1', version: 5, needs_assigning: false },
+      error: undefined,
+      response: { status: 200 },
+    } as never)
+    const onClose = renderModal(false)
+    typeReason()
+    fireEvent.click(screen.getByRole('button', { name: 'Reopen Case' }))
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(showToast).toHaveBeenCalledWith('Case reopened for Ishaan Khan')
+    expect(screen.queryByText(/Who should take it/)).toBeNull()
+  })
+
+  it('shows the closing note, exactly as typed, beside the reason box', () => {
+    renderModal(true, 'Student chose another city.')
+    expect(screen.getByText('Closing note')).toBeInTheDocument()
+    expect(screen.getByText('Student chose another city.')).toBeInTheDocument()
   })
 })

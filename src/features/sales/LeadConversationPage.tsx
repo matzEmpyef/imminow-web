@@ -21,6 +21,8 @@ import { ConvertToClientModal } from './ConvertToClientModal'
 import { ConversionApprovalActions } from './ConversionApprovalActions'
 import { CloseLeadModal } from './CloseLeadModal'
 import { ReopenLeadModal } from './ReopenLeadModal'
+import { ClosingNote } from '@/components/ClosingNote'
+import { closingNoteOf } from '@/lib/servedCaseFields'
 import { SuggestCourseInChat } from '@/features/clients/SuggestCourseInChat'
 import { duplicateShareMessage } from '@/features/clients/shareGuards'
 import {
@@ -401,6 +403,8 @@ export function LeadConversationPage() {
   // T4-12: a lead that became a client is finished here. Convert, Close and the message box would
   // all fail, so the page is locked with one line and a way to the client.
   const converted = data.status === 'converted'
+  // What the consultancy typed when it closed this lead (served to staff only).
+  const closingNote = data.status === 'closed' ? closingNoteOf(data) : null
   const convertedLine = (
     <>
       {data.name} is now a client, so this lead can no longer be changed.{' '}
@@ -477,6 +481,8 @@ export function LeadConversationPage() {
 
         <EarlierConversations ids={data.previous_lead_ids} />
 
+        <ClosingNote note={closingNote} />
+
         {converted && (
           <p role="status" className="shrink-0 rounded-md border border-border bg-surface-muted px-md py-sm text-body-sm text-text-primary">
             {convertedLine}
@@ -496,6 +502,7 @@ export function LeadConversationPage() {
             leadId={id}
             leadName={data.name}
             assigned={Boolean(data.assigned_employee_id)}
+            closingNote={closingNote}
             onClose={() => setShowReopenModal(false)}
           />
         )}

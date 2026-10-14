@@ -2,6 +2,7 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { useReopenLead } from '@/queries/leads'
 import { showToast } from '@/lib/toast'
+import { ClosingNote } from '@/components/ClosingNote'
 
 // User-requested — deliberately no permission gate beyond the Ultimate-tier check that already
 // covers Close (LeadConversationPage.tsx): "let everyone have access to reopen a closed lead."
@@ -11,12 +12,15 @@ export function ReopenLeadModal({
   leadId,
   leadName,
   assigned,
+  closingNote = null,
   onClose,
 }: {
   leadId: string
   leadName: string
   /** Whether a consultant holds the lead: it decides which list the lead returns to. */
   assigned: boolean
+  /** The note typed when the lead was closed (`Lead.closing_note`, staff only). */
+  closingNote?: string | null
   onClose: () => void
 }) {
   const reopenLead = useReopenLead()
@@ -58,6 +62,7 @@ export function ReopenLeadModal({
             ? 'will move back into Active Leads.'
             : 'will go back to the Lead Pool, where it can be allocated again.'}
         </p>
+        <ClosingNote note={closingNote} />
       </div>
     </Modal>
   )

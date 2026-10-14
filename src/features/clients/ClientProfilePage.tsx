@@ -15,6 +15,8 @@ import { CLIENT_TABS, isClientTab, type ClientTab } from '@/lib/clientTabs'
 import { TabBar } from '@/components/TabBar'
 import { canOfferCaseReopen, canOfferPlanReopen, caseAllowsPlanReopen } from '@/lib/reopenRules'
 import { ReopenClientModal } from './ReopenClientModal'
+import { ClosingNote } from '@/components/ClosingNote'
+import { closingNoteOf } from '@/lib/servedCaseFields'
 import { ReopenPlanCard } from './ReopenPlanCard'
 import { OverviewTab } from './ClientProfileOverviewTab'
 import { PlanTab } from './ClientProfilePlanTab'
@@ -111,6 +113,8 @@ export function ClientProfilePage() {
   const accountDeletedBanner = accountDeletedBannerMessage(data)
   const closeReason = closeSubReasonLabel(data.close_sub_reason)
   const carriedOver = carriedOverLine(data.carried)
+  // What the consultancy typed when it closed this case (staff only), shown on a closed case.
+  const closingNote = data.status === 'closed' ? closingNoteOf(data) : null
   // Was a raw role === 'consultancy_admin' check — swapped to the permission key so an employee
   // whose designation grants clients.view_commissions actually gets the tab (admins still pass
   // via the is_consultancy_admin bypass inside the checker).
@@ -248,6 +252,7 @@ export function ClientProfilePage() {
             clientId={id}
             clientName={`${data.student.first_name} ${data.student.last_name}`}
             assigned={Boolean(data.assigned_employee_id)}
+            closingNote={closingNote}
             onClose={() => setShowReopenCase(false)}
           />
         )}
@@ -277,6 +282,8 @@ export function ClientProfilePage() {
             <p>{accountDeletedBanner}</p>
           </div>
         )}
+
+        <ClosingNote note={closingNote} />
 
         <TabBar ariaLabel="Client sections" tabs={visibleTabs.map((tab) => ({ key: tab, label: tab }))} active={activeTab} onChange={setActiveTab} />
 

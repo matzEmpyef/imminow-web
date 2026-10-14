@@ -115,6 +115,18 @@ describe('the Lead conversation page', () => {
     expect(screen.getByRole('button', { name: 'Reopen Lead' })).toBeInTheDocument()
   })
 
+  // T4-17
+  it('shows the closing note on a closed lead only', () => {
+    serveLead(lead({ status: 'closed', can_reopen: true, closing_note: 'Lost contact after two calls.' }))
+    const { unmount } = render(page())
+    expect(screen.getByText('Closing note')).toBeInTheDocument()
+    expect(screen.getByText('Lost contact after two calls.')).toBeInTheDocument()
+    unmount()
+    serveLead(lead({ closing_note: 'Left over.' }))
+    render(page())
+    expect(screen.queryByText('Closing note')).not.toBeInTheDocument()
+  })
+
   // T4-12
   it('locks a converted lead with one line and a link to the client, and offers no action', () => {
     serveLead(lead({ status: 'converted' }))

@@ -68,7 +68,7 @@ function baseClient(overrides: Record<string, unknown> = {}) {
 }
 
 function renderProfile() {
-  render(
+  return render(
     <MemoryRouter initialEntries={['/clients/c1']}>
       <Routes>
         <Route path="/clients/:id" element={<ClientProfilePage />} />
@@ -183,6 +183,19 @@ describe('ClientProfilePage — Reopen Case', () => {
     mockedClient.mockReturnValue(query(baseClient({ status: 'closed', close_sub_reason: 'lost_contact' })))
     renderProfile()
     expect(screen.getByRole('button', { name: 'Reopen Case' })).toBeInTheDocument()
+  })
+
+  // T4-17: the note typed at close is shown on a closed case, exactly as served, and nowhere else.
+  it('shows the closing note on a closed case, and not on a live one', () => {
+    mockedFeature.mockReturnValue(true)
+    mockedClient.mockReturnValue(query(baseClient({ status: 'closed', closing_note: 'Student chose another city.' })))
+    const { unmount } = renderProfile()
+    expect(screen.getByText('Closing note')).toBeInTheDocument()
+    expect(screen.getByText('Student chose another city.')).toBeInTheDocument()
+    unmount()
+    mockedClient.mockReturnValue(query(baseClient({ status: 'in_plan', closing_note: 'Left over.' })))
+    renderProfile()
+    expect(screen.queryByText('Closing note')).not.toBeInTheDocument()
   })
 
   it('is hidden on a case that closed because the student deleted their account', () => {

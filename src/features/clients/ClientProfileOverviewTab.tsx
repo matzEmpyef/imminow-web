@@ -23,6 +23,7 @@ import { usePermission } from '@/lib/permissions'
 import { usePlans, useLinkedFormResponses } from '@/queries/plans'
 import { Skeleton } from '@/components/QueryState'
 import { TransferApplicantModal } from './TransferApplicantModal'
+import { transferBlockedReasonOf } from '@/lib/servedCaseFields'
 import {
   CASE_HAS_ACCEPTED_COLLEGE_REASON,
   CASE_MOVED_ACTION_REASON,
@@ -131,7 +132,11 @@ export function OverviewTab({
   // moving. Same `case_summary` fields CloseClientModal already reads for `hasAcceptedCollege`.
   const hasAcceptedCollegeOrCommission =
     data.case_type === 'pr' ? (data.case_summary?.contribution_recorded ?? false) : (data.case_summary?.accepted ?? 0) > 0
-  const transferDisabledReason = hasAcceptedCollegeOrCommission ? CASE_HAS_ACCEPTED_COLLEGE_REASON : null
+  // The server's own sentence when it sends one (`transfer_blocked_reason`, T4-23); the page's own
+  // reading of the case is only the fallback for an answer that does not carry it.
+  const servedTransferBlock = transferBlockedReasonOf(data)
+  const transferDisabledReason =
+    servedTransferBlock ?? (hasAcceptedCollegeOrCommission ? CASE_HAS_ACCEPTED_COLLEGE_REASON : null)
 
   return (
     <div className="grid grid-cols-3 gap-md">
@@ -422,6 +427,7 @@ export function OverviewTab({
         <TransferApplicantModal
           clientId={clientId}
           clientName={`${data.student.first_name} ${data.student.last_name}`}
+          blockedReason={transferDisabledReason}
           onClose={() => setShowTransfer(false)}
           onTransferred={() => navigate('/clients')}
         />

@@ -132,6 +132,16 @@ describe('OverviewTab — Transfer disabled when the case has an accepted colleg
     expect(screen.getByRole('button', { name: 'Transfer applicant to another consultancy' })).not.toBeDisabled()
   })
 
+  // T4-23: the server's own sentence is the one shown, whatever the page would have worked out.
+  it('shows the sentence the server sends in plain view and keeps Transfer off', () => {
+    mockedClient.mockReturnValue(
+      query(baseClient({ transfer_blocked_reason: 'The server says this case cannot be transferred.' })),
+    )
+    renderOverview()
+    expect(screen.getByText('The server says this case cannot be transferred.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Transfer applicant to another consultancy' })).toBeDisabled()
+  })
+
   it('hides Transfer outright once the case has already moved — nothing left to press', () => {
     mockedClient.mockReturnValue(query(baseClient({ status: 'closed_switched' })))
     renderOverview({ readOnly: true })

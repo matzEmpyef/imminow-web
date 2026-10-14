@@ -4,6 +4,8 @@ import { Button } from '@/components/Button'
 import { ServerSearchSelect } from '@/components/ServerSearchSelect'
 import { StillNeeded } from '@/components/StillNeeded'
 import { TextAreaField } from '@/components/TextAreaField'
+import { ClosingNote } from '@/components/ClosingNote'
+import { needsAssigningOf } from '@/lib/servedCaseFields'
 import { useAssignClient, useReopenClientCase } from '@/queries/clients'
 import { activeEmployeeSource } from '@/queries/pickerSources'
 import { usePermission } from '@/lib/permissions'
@@ -28,12 +30,15 @@ export function ReopenClientModal({
   clientId,
   clientName,
   assigned = true,
+  closingNote = null,
   onClose,
 }: {
   clientId: string
   clientName: string
   /** Whether a consultant holds the case now. Without one, reopening goes on to ask who takes it. */
   assigned?: boolean
+  /** The note typed when the case was closed (`Client.closing_note`), shown beside the reason box. */
+  closingNote?: string | null
   onClose: () => void
 }) {
   const reopenClient = useReopenClientCase()
@@ -113,14 +118,17 @@ export function ReopenClientModal({
               onClick={() =>
                 reopenClient.mutate({ id: clientId, reason: reason.trim() }, {
                   onSuccess: (result) => {
-                    if (!assigned && canAssign) {
+                    // The answer says whether nobody holds the case (`needs_assigning`); only an
+                    // answer that does not say falls back to what the page knew before.
+                    const needsAssigning = needsAssigningOf(result) ?? !assigned
+                    if (needsAssigning && canAssign) {
                       setReopenedVersion((result as { version?: number } | undefined)?.version ?? null)
                       return
                     }
                     showToast(
-                      assigned
-                        ? `Case reopened for ${clientName}`
-                        : `Case reopened for ${clientName}. No consultant holds it yet, so ask an admin to assign one.`,
+                      needsAssigning
+                        ? `Case reopened for ${clientName}. No consultant holds it yet, so ask an admin to assign one.`
+                        : `Case reopened for ${clientName}`,
                     )
                     onClose()
                   },
@@ -144,6 +152,7 @@ export function ReopenClientModal({
               ? ' No consultant holds this case, so you will be asked to choose one next.'
               : ' No consultant holds this case. Ask an admin to assign one afterwards.')}
         </p>
+        <ClosingNote note={closingNote} />
         <TextAreaField
           label="Reason"
           required

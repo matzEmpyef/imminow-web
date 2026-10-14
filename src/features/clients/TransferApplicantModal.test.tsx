@@ -6,15 +6,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/queries/clients', () => ({ useTransferApplicant: vi.fn() }))
 vi.mock('@/queries/consultancy', () => ({ useMyConsultancy: () => ({ data: { id: 'mine' } }) }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
+const picker = vi.hoisted(() => ({ source: undefined as undefined | { fetchPage: (a: object) => Promise<unknown> } }))
 vi.mock('@/components/ServerSearchSelect', () => ({
-  ServerSearchSelect: ({ onChange }: { onChange: (id: string) => void }) => (
-    <button type="button" onClick={() => onChange('acc-2')}>
-      Pick consultancy
-    </button>
-  ),
+  ServerSearchSelect: ({
+    onChange,
+    source,
+  }: {
+    onChange: (id: string) => void
+    source: { fetchPage: (a: object) => Promise<unknown> }
+  }) => {
+    picker.source = source
+    return (
+      <button type="button" onClick={() => onChange('acc-2')}>
+        Pick consultancy
+      </button>
+    )
+  },
 }))
+vi.mock('@/api/client', () => ({ api: { GET: vi.fn() } }))
 
 import { ApiError } from '@/api/errors'
+import { api } from '@/api/client'
 import { useTransferApplicant } from '@/queries/clients'
 import { showToast } from '@/lib/toast'
 import { TransferApplicantModal } from './TransferApplicantModal'
@@ -83,5 +95,34 @@ describe('Transfer Applicant — what moves with the case', () => {
     )
     open()
     expect(screen.getByText('Each carry value must be true or false.')).toBeInTheDocument()
+  })
+})
+
+// T4-23: a college or university never receives a transfer, and a case the server says cannot be
+// transferred shows why above the form and keeps Transfer off.
+describe('Transfer Applicant — who can receive, and when it is blocked', () => {
+  it('asks only for consultancies as receivers', async () => {
+    vi.mocked(api.GET).mockResolvedValue({ data: { items: [], meta: { next_cursor: null } }, error: undefined } as never)
+    open()
+    await picker.source!.fetchPage({ search: 'north' })
+    const call = vi.mocked(api.GET).mock.calls[0] as unknown as [string, { params: { query: Record<string, unknown> } }]
+    expect(call[0]).toBe('/consultancies')
+    expect(call[1].params.query).toMatchObject({ kind: 'consultancy', active: true })
+  })
+
+  it('shows the reason above the form and keeps Transfer off', () => {
+    render(
+      <TransferApplicantModal
+        clientId="c1"
+        clientName="Asha Nair"
+        blockedReason="This case has an accepted college, so it can't be transferred. Close the case or raise a dispute instead."
+        onClose={() => {}}
+        onTransferred={() => {}}
+      />,
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent("This case has an accepted college, so it can't be transferred.")
+    fillAndSubmit()
+    expect(screen.getByRole('button', { name: 'Transfer Applicant' })).toBeDisabled()
+    expect(mutate).not.toHaveBeenCalled()
   })
 })

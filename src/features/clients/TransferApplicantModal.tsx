@@ -18,16 +18,20 @@ import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } fr
 // client Overview, gated by its own permission, and requires typing TRANSFER to confirm.
 // GET /consultancies is plain-auth (the student Discovery list) — active ones only, searched on
 // the server (F-038); our own consultancy, where the case already lives, is left out of the list.
-const TRANSFER_TARGETS = consultancySource({ active: true })
+// Only consultancies are offered: a college or university never receives a transfer (T4-23).
+const TRANSFER_TARGETS = consultancySource({ active: true, kind: 'consultancy' })
 
 export function TransferApplicantModal({
   clientId,
   clientName,
+  blockedReason = null,
   onClose,
   onTransferred,
 }: {
   clientId: string
   clientName: string
+  /** Why this case cannot be transferred (`Client.transfer_blocked_reason`), when the server says. */
+  blockedReason?: string | null
   onClose: () => void
   onTransferred: () => void
 }) {
@@ -47,7 +51,8 @@ export function TransferApplicantModal({
     Boolean(newConsultancyId) &&
     reason.trim().length > 0 &&
     transferCode.trim().length > 0 &&
-    confirmText === 'TRANSFER'
+    confirmText === 'TRANSFER' &&
+    !blockedReason
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -99,6 +104,11 @@ export function TransferApplicantModal({
       }
     >
       <form id="transfer-applicant-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
+        {blockedReason && (
+          <p role="alert" className="rounded-md border border-warning bg-warning/10 px-md py-sm text-body-sm text-text-primary">
+            {blockedReason}
+          </p>
+        )}
         <p className="text-body-sm text-text-secondary">
           <strong className="text-text-primary">{clientName}</strong> will be moved to another consultancy. Their case
           here closes as switched and drops out of your Clients List — this cannot be undone from your side. The
