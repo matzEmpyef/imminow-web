@@ -107,3 +107,55 @@ describe('issuing a transfer code', () => {
     )
   })
 })
+
+// Phase 8 T2-03: the consultancy that issued a code can take it back before it is used.
+describe('withdrawing a transfer code', () => {
+  const TWO = {
+    data: {
+      items: [
+        code({ code: 'TC-0001', student_email: 'meera@example.test', status: 'active' }),
+        code({ code: 'TC-0002', student_email: 'ravi@example.test', status: 'used' }),
+        code({ code: 'TC-0003', student_email: 'anu@example.test', status: 'withdrawn' }),
+      ],
+      meta: { next_cursor: null, total: 3 },
+    },
+    error: undefined,
+  } as never
+
+  it('offers Withdraw on an unused code only, and shows a withdrawn code as Withdrawn', async () => {
+    mockedGet.mockResolvedValue(TWO)
+    renderTab()
+    await screen.findByText('TC-0001')
+    expect(screen.getAllByRole('button', { name: 'Withdraw' })).toHaveLength(1)
+    expect(within(screen.getByText('TC-0003').closest('tr')!).getByText('Withdrawn')).toBeInTheDocument()
+  })
+
+  it('asks first, then withdraws the code', async () => {
+    mockedGet.mockResolvedValue(TWO)
+    vi.mocked(api.POST).mockReset()
+    vi.mocked(api.POST).mockResolvedValue({ data: {}, error: undefined } as never)
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw' }))
+    expect(api.POST).not.toHaveBeenCalled()
+    const dialog = screen.getByRole('dialog', { name: 'Withdraw transfer code' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw' }))
+    await waitFor(() => expect(api.POST).toHaveBeenCalled())
+    const call = vi.mocked(api.POST).mock.calls[0] as unknown as [string, { params: { path: { code: string } } }]
+    expect(call[0]).toBe('/transfer-codes/{code}/withdraw')
+    expect(call[1].params.path.code).toBe('TC-0001')
+  })
+
+  it('shows the server’s sentence when the code was already used', async () => {
+    mockedGet.mockResolvedValue(TWO)
+    vi.mocked(api.POST).mockReset()
+    vi.mocked(api.POST).mockResolvedValue({
+      data: undefined,
+      error: { error: { code: 'conflict', message: 'This code has already been used, so it cannot be withdrawn.', status: 409 } },
+    } as never)
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw' }))
+    const dialog = screen.getByRole('dialog', { name: 'Withdraw transfer code' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw' }))
+    expect(await within(dialog).findByText('This code has already been used, so it cannot be withdrawn.')).toBeInTheDocument()
+  })
+})

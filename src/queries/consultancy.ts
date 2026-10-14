@@ -87,6 +87,29 @@ export function useIssueTransferCode() {
   })
 }
 
+/**
+ * The consultancy that issued an incoming-transfer code takes it back before it is used
+ * (`POST /transfer-codes/{code}/withdraw`). The code then reads `withdrawn`. Refusals carry the
+ * server's own sentence: 404 `not_found`, 409 `conflict` (already used), 403.
+ */
+export function useWithdrawTransferCode() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (code: string) => {
+      // replace with generated type after the contract join: the route is not in `paths` yet.
+      const client = api as unknown as {
+        POST: (
+          path: string,
+          init: { params: { path: { code: string } } },
+        ) => Promise<{ data?: unknown; error?: unknown; response?: Response }>
+      }
+      const { error, response } = await client.POST('/transfer-codes/{code}/withdraw', { params: { path: { code } } })
+      if (error) throw new ApiError('Could not withdraw this transfer code.', error, response?.status)
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['transfer-codes'] }),
+  })
+}
+
 export type MfaPolicy = components['schemas']['MfaPolicyChange']['mfa_policy']
 
 // The consultancy's own admin raising (or lowering) who must use 2FA (review L15, 2026-09-12).

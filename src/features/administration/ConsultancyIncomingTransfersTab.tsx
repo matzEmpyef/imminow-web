@@ -7,11 +7,12 @@ import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { TextField } from '@/components/TextField'
 import { SegmentedControl } from '@/components/SegmentedControl'
-import { useIssueTransferCode, useTransferCodes } from '@/queries/consultancy'
+import { useIssueTransferCode, useTransferCodes, useWithdrawTransferCode } from '@/queries/consultancy'
 import { Table, type TableColumn } from '@/components/Table'
 import { useCursorPagination } from '@/lib/pagination'
 import { formatDateTime } from '@/lib/time'
 import type { components } from '@/api/schema'
+import { showToast } from '@/lib/toast'
 import { E164_PHONE_ERROR, EMAIL_ERROR, isValidE164Phone, isValidEmail } from '@/lib/validation'
 
 type TransferCode = components['schemas']['TransferCode']
@@ -20,6 +21,7 @@ const CODE_STATUS_META: Record<string, { label: string; color: 'success' | 'seco
   active: { label: 'Active', color: 'success' },
   used: { label: 'Used', color: 'secondary' },
   expired: { label: 'Expired', color: 'warning' },
+  withdrawn: { label: 'Withdrawn', color: 'secondary' },
 }
 
 // Incoming Transfers (build reference 1.18, reworked 2026-08-20 — "Transfer code should come
@@ -150,10 +152,54 @@ function IssueCodeModal({ onClose }: { onClose: () => void }) {
   )
 }
 
+// Taking back a code nobody has used yet. Asks first: the sending consultancy that tries it
+// afterwards is told it was withdrawn. A refusal (for example, the code was used in the meantime)
+// shows the sentence the server gave.
+function WithdrawCodeModal({ code, onClose }: { code: string; onClose: () => void }) {
+  const withdraw = useWithdrawTransferCode()
+  return (
+    <Modal
+      onClose={onClose}
+      title="Withdraw transfer code"
+      widthRem={24}
+      footer={
+        <>
+          {withdraw.isError && <p className="mr-auto self-center text-body-sm text-error">{withdraw.error.message}</p>}
+          <div className="flex justify-end gap-sm">
+            <Button variant="secondary" onClick={onClose}>
+              Keep code
+            </Button>
+            <Button
+              variant="destructive"
+              loading={withdraw.isPending}
+              onClick={() =>
+                withdraw.mutate(code, {
+                  onSuccess: () => {
+                    showToast(`Code ${code} withdrawn`)
+                    onClose()
+                  },
+                })
+              }
+            >
+              Withdraw
+            </Button>
+          </div>
+        </>
+      }
+    >
+      <p className="text-body-sm text-text-secondary">
+        Withdraw code <span className="font-mono font-semibold text-text-primary">{code}</span>? It can no longer bring
+        a student in. The consultancy you gave it to will be told to ask you for a new one.
+      </p>
+    </Modal>
+  )
+}
+
 export function IncomingTransfersTab({ isInstitute = false }: { isInstitute?: boolean }) {
   const paging = useCursorPagination()
   const codes = useTransferCodes(true, { cursor: paging.cursor, limit: 20 })
   const [issuing, setIssuing] = useState(false)
+  const [withdrawing, setWithdrawing] = useState<string | null>(null)
 
   const columns: TableColumn<TransferCode>[] = [
     {
@@ -180,6 +226,19 @@ export function IncomingTransfersTab({ isInstitute = false }: { isInstitute?: bo
     },
     { key: 'expires_at', header: 'Expires', render: (c) => formatDateTime(c.expires_at) },
     { key: 'created_at', header: 'Issued', render: (c) => formatDateTime(c.created_at) },
+    {
+      key: 'actions',
+      header: '',
+      // Only a code nobody has used and that is still open can be taken back.
+      render: (c) =>
+        c.status === 'active' ? (
+          <div className="flex justify-end">
+            <Button variant="secondary" size="sm" onClick={() => setWithdrawing(c.code)}>
+              Withdraw
+            </Button>
+          </div>
+        ) : null,
+    },
   ]
 
   return (
@@ -215,6 +274,7 @@ export function IncomingTransfersTab({ isInstitute = false }: { isInstitute?: bo
         )}
       </Card>
       {issuing && !isInstitute && <IssueCodeModal onClose={() => setIssuing(false)} />}
+      {withdrawing && <WithdrawCodeModal code={withdrawing} onClose={() => setWithdrawing(null)} />}
 
       <Table
         columns={columns}
