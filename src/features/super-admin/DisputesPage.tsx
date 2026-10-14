@@ -140,7 +140,13 @@ export function DisputesPage() {
     {
       key: 'status',
       header: 'Status',
-      render: (d) => <Badge color={d.status === 'open' ? 'warning' : 'success'}>{d.status === 'open' ? 'Open' : 'Resolved'}</Badge>,
+      render: (d) => (
+        <div className="flex flex-wrap items-center gap-xs">
+          <Badge color={d.status === 'open' ? 'warning' : 'success'}>{d.status === 'open' ? 'Open' : 'Resolved'}</Badge>
+          {/* Past the service target (seven days open). A marker only: nothing happens to the dispute by itself. */}
+          {d.status === 'open' && d.over_target && <Badge color="error">Over 7 days</Badge>}
+        </div>
+      ),
     },
     {
       key: 'actions',

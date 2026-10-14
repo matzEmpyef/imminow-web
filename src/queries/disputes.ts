@@ -5,7 +5,9 @@ import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from '@/api/errors'
 import type { components } from '@/api/schema'
 
-export type CaseDispute = components['schemas']['CaseDispute']
+// `over_target` is new: true for an open dispute seven days old or more (replace with generated type
+// after the contract join).
+export type CaseDispute = components['schemas']['CaseDispute'] & { over_target?: boolean }
 export type SupportCaseNote = components['schemas']['SupportCaseNote']
 export type DisputeNoteOutcome = NonNullable<SupportCaseNote['outcome']>
 
