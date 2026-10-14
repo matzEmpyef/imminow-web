@@ -56,6 +56,13 @@ describe('notificationLink', () => {
     expect(isAllowedDeepLink('/admin/support/disputes')).toBe(true)
   })
 
+  it('opens the complaints queue for a complaint notice, whichever id the server writes', () => {
+    const link = '/admin/support/complaints/0192f3a4-7b6c-7d00-9a11-3f5e8c2b1d44'
+    expect(isAllowedDeepLink(link)).toBe(true)
+    expect(notificationLink({ type: 'complaint_received', deep_link: link }, '/n')).toBe('/admin/complaints')
+    expect(isAllowedDeepLink('/admin/support/complaints/')).toBe(false)
+  })
+
   it('opens the client’s plan for a step waiting for review', () => {
     for (const type of ['step_review_waiting', 'step_review_unanswered']) {
       expect(notificationLink({ type, deep_link: '/clients/j1' }, '/n')).toBe('/clients/j1?tab=Plan')

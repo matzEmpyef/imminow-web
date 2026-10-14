@@ -68,10 +68,17 @@ const LINK_ALIASES: Record<string, string> = {
   '/admin/support/disputes': '/admin/disputes',
 }
 
+// The same for a family of links that end in an id: the complaint notices carry
+// `/admin/support/complaints/{complaint_id}`; the queue lives at `/admin/complaints`.
+const PREFIX_ALIASES: { prefix: string; to: string }[] = [
+  { prefix: '/admin/support/complaints/', to: '/admin/complaints' },
+]
+
 function aliased(link: string): string {
   const i = link.indexOf('?')
   const path = i === -1 ? link : link.slice(0, i)
-  const to = LINK_ALIASES[path]
+  const to =
+    LINK_ALIASES[path] ?? PREFIX_ALIASES.find((a) => path.startsWith(a.prefix) && path.length > a.prefix.length)?.to
   return to ? to + (i === -1 ? '' : link.slice(i)) : link
 }
 
