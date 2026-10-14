@@ -45,7 +45,14 @@ export function ConvertToClientModal({
       widthRem={30}
       footer={
         <>
-          {propose.isError && <p className="mr-auto self-center text-body-sm text-error">{propose.error.message}</p>}
+          {/* The server's own sentence, as it arrives: the cooldown after a recent offer to this person
+              (`request_cooldown`) and the day's allowance of offers (`limit_reached`) both say when
+              asking is possible again. */}
+          {propose.isError && (
+            <p role="alert" className="mr-auto self-center text-body-sm text-error">
+              {propose.error.message}
+            </p>
+          )}
           <div className="flex gap-sm">
             <Button
               onClick={() => !propose.isPending && propose.mutate({ id: leadId, idempotencyKey }, { onError: settle })}
