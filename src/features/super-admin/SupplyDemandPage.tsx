@@ -11,7 +11,8 @@ import { Modal } from '@/components/Modal'
 import { Table, type TableColumn } from '@/components/Table'
 import { MonthlyBarChart } from '@/components/MonthlyBarChart'
 import { ErrorState, Skeleton } from '@/components/QueryState'
-import { useSupplyDemand } from '@/queries/supplyDemand'
+import { noMatchSearchesOf, useSupplyDemand } from '@/queries/supplyDemand'
+import { NoMatchSearchesCard } from './NoMatchSearchesCard'
 import { formatDate } from '@/lib/time'
 import { showToast } from '@/lib/toast'
 
@@ -186,9 +187,10 @@ function CapacityAssumption({ casesPerStaff, onSaved }: { casesPerStaff: number;
   )
 }
 
-// Same two flags the old Mismatch table used, now from the server's `coverage` field.
+// Same two flags the old Mismatch table used, now from the server's `coverage` field. `none` means
+// students want the country and no organisation that can take new students serves it.
 function CoverageBadge({ row }: { row: CoverageRow }) {
-  if (row.coverage === 'none') return <Badge color="error">No coverage</Badge>
+  if (row.coverage === 'none') return <Badge color="error">No one serves this yet</Badge>
   if (row.coverage === 'limited') return <Badge color="warning">Limited</Badge>
   // "Covered" for a country nobody serves was false (T4-34).
   if (row.consultancies_serving + row.institutes_serving === 0) return <Badge color="secondary">No one serves this yet</Badge>
@@ -226,6 +228,7 @@ export function SupplyDemandPage() {
     { key: 'coverage', header: 'Coverage', render: (r) => <CoverageBadge row={r} /> },
   ]
   const coverageOthers = data.coverage_by_country.others
+  const noMatchSearches = noMatchSearchesOf(data)
 
   const destinations = data.applicant_destinations
   const destinationRows: DestinationTableRow[] = [
@@ -464,6 +467,8 @@ export function SupplyDemandPage() {
             </p>
           )}
         </Card>
+
+        {noMatchSearches && <NoMatchSearchesCard block={noMatchSearches} />}
       </div>
     </AdminShell>
   )

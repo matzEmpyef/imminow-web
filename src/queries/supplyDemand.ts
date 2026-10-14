@@ -17,3 +17,28 @@ export function useSupplyDemand() {
     enabled: isAuthed,
   })
 }
+
+/**
+ * Student course searches that found nothing (`SupplyDemandResponse.no_match_searches`): how many in
+ * the last `days` days and the commonest filter combinations. A count of searches, never of people;
+ * the words a student typed are not kept (`typed_words` only says that some were). Narrow local
+ * type: the generated client does not carry it yet (replace with generated type after the contract
+ * join).
+ */
+export interface NoMatchSearches {
+  days: number
+  total: number
+  top: {
+    filters: Record<string, string>
+    typed_words: boolean
+    searches: number
+    last_searched_at: string
+  }[]
+}
+
+/** The block off a Supply & Demand answer, or null when the answer does not carry it. */
+export function noMatchSearchesOf(data: object): NoMatchSearches | null {
+  // replace with generated type after the contract join
+  const block = (data as { no_match_searches?: NoMatchSearches | null }).no_match_searches
+  return block && Array.isArray(block.top) ? block : null
+}
