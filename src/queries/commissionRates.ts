@@ -9,31 +9,10 @@ export type CommissionRateCoverageRow = components['schemas']['CommissionRateCov
 
 /**
  * The default rate behind one account's Commission Table, and whether the table is empty (Phase 8
- * T4-08). New in the final contract: replace with generated type after the contract join. `note` is
- * one or two plain sentences worded for the reader, to be shown as served. A percentage is the
- * number it is (25, 12.5) — it is not money and is not padded to two decimals.
+ * T4-08). `note` is one or two plain sentences worded for the reader, to be shown as served. A
+ * percentage is the number it is (25, 12.5) — it is not money and is not padded to two decimals.
  */
-export interface CommissionDefaultInUse {
-  consultancy_id: string
-  kind: 'consultancy' | 'institute'
-  /** How many rows the account's Commission Table holds. */
-  rate_rows: number
-  /** True when the table holds no row at all — every case is priced at the default. */
-  default_in_use: boolean
-  default_percent: number
-  freelancer_default_percent: number | null
-  note: string
-}
-
-/**
- * Every commission rate write now carries a typed `reason` of at least 3 characters (Phase 8 T2-04 /
- * T4-09, DECISIONS 134b), kept as the audit entry's reason. Without one the server answers 400 with a
- * sentence to show. The field is new in the final contract: replace with generated type after the
- * contract join.
- */
-function withReason<T extends object>(body: T, reason: string): T {
-  return { ...body, reason }
-}
+export type CommissionDefaultInUse = components['schemas']['CommissionDefaultInUse']
 
 // `options.enabled` (2026-09-11 addition, default true — every existing call site keeps fetching
 // exactly as before) lets a caller skip the request entirely rather than it falling through to
@@ -72,12 +51,6 @@ export function useMyCommissionRates() {
   })
 }
 
-// The two default-in-use routes are not in the generated types yet. This is the one cast for both:
-// replace with generated type after the contract join.
-const looseApi = api as unknown as {
-  GET: (path: string, init: object) => Promise<{ data?: CommissionDefaultInUse; error?: unknown }>
-}
-
 // The default behind the signed-in consultancy's (or university's) own Commission Table: what
 // applies where no row covers a case, and whether the table is empty (T4-08). Read beside
 // `useMyCommissionRates`.
@@ -86,9 +59,9 @@ export function useMyCommissionDefaultInUse() {
   return useQuery({
     queryKey: ['commission-rates', 'me', 'default-in-use'],
     queryFn: async ({ signal }) => {
-      const { data, error } = await looseApi.GET('/commission-rates/me/default-in-use', { signal })
+      const { data, error } = await api.GET('/commission-rates/me/default-in-use', { signal })
       if (error) throw new ApiError('Could not load your default commission rate.', error)
-      return data as CommissionDefaultInUse
+      return data
     },
     enabled: isAuthed,
   })
@@ -100,12 +73,12 @@ export function useCommissionDefaultInUse(consultancyId: string | undefined) {
   return useQuery({
     queryKey: ['commission-rates', 'default-in-use', consultancyId],
     queryFn: async ({ signal }) => {
-      const { data, error } = await looseApi.GET('/commission-rates/default-in-use', {
+      const { data, error } = await api.GET('/commission-rates/default-in-use', {
         signal,
-        params: { query: { consultancy_id: consultancyId } },
+        params: { query: { consultancy_id: consultancyId! } },
       })
       if (error) throw new ApiError('Could not load the default commission rate for this account.', error)
-      return data as CommissionDefaultInUse
+      return data
     },
     enabled: isAuthed && Boolean(consultancyId),
   })
@@ -141,21 +114,19 @@ export function useSaveCommissionRateRows() {
         if (row.id) {
           const { error } = await api.PATCH('/commission-rates/{id}', {
             params: { path: { id: row.id } },
-            body: withReason({ direct_rate: row.direct_rate, freelancer_sourced_rate: row.freelancer_sourced_rate }, reason),
+            body: { direct_rate: row.direct_rate, freelancer_sourced_rate: row.freelancer_sourced_rate, reason },
           })
           if (error) throw new ApiError('Could not save this rate.', error)
         } else {
           const { error } = await api.POST('/commission-rates', {
-            body: withReason(
-              {
-                consultancy_id,
-                destination_country,
-                payer_method: row.payer_method,
-                direct_rate: row.direct_rate,
-                freelancer_sourced_rate: row.freelancer_sourced_rate,
-              },
+            body: {
+              consultancy_id,
+              destination_country,
+              payer_method: row.payer_method,
+              direct_rate: row.direct_rate,
+              freelancer_sourced_rate: row.freelancer_sourced_rate,
               reason,
-            ),
+            },
           })
           if (error) throw new ApiError('Could not save this rate.', error)
         }

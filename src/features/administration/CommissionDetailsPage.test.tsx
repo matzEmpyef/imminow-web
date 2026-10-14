@@ -34,8 +34,7 @@ const due = (id: string, name: string, over: Record<string, unknown>) => ({
   platform_still_to_come: inr(4000.5),
   platform_paid: inr(0),
   platform_awaiting: inr(0),
-  platform_written_off: inr(0),
-  settled: false,
+  amount_state: 'open',
   by_currency: [],
   rate_percent: 10,
   rate_source: 'configured',
@@ -86,14 +85,19 @@ describe('Commission Details, the consultancy view', () => {
     expect(screen.queryByRole('heading', { name: 'Closed' })).not.toBeInTheDocument()
   })
 
-  it('never shows a write-off: a case settled that way reads "Closed", with no figure', () => {
+  it('reads Open or Closed from amount_state, case by case', () => {
     show([
-      due('a', 'Asha Nair', {
-        platform_paid: inr(960),
-        platform_written_off: inr(40),
-        settled: true,
-      }),
+      due('a', 'Asha Nair', { amount_state: 'open' }),
+      due('b', 'Ravi Kumar', { amount_state: 'closed', platform_paid: inr(960) }),
     ])
+    expect(within(rowOf('Asha Nair')).getByText('Open')).toBeInTheDocument()
+    expect(within(rowOf('Asha Nair')).queryByText('Closed')).not.toBeInTheDocument()
+    expect(within(rowOf('Ravi Kumar')).getByText('Closed')).toBeInTheDocument()
+    expect(within(rowOf('Ravi Kumar')).queryByText('Open')).not.toBeInTheDocument()
+  })
+
+  it('never shows a write-off: a case closed that way reads "Closed", with no figure', () => {
+    show([due('a', 'Asha Nair', { platform_paid: inr(960), amount_state: 'closed' })])
     const row = rowOf('Asha Nair')
     expect(within(row).getByText('Closed')).toBeInTheDocument()
     expect(within(row).queryByText(/written off/i)).not.toBeInTheDocument()

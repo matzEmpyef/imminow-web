@@ -9,47 +9,22 @@ import type { components } from '@/api/schema'
 
 /**
  * One payment as a line of the Payment history export (Phase 8 T4-04 to T4-06): every cell a
- * finished string from the server. New in the final contract: replace with generated type after
- * the contract join.
+ * finished string from the server.
  */
-export interface PaymentExport {
-  date: string
-  status: string
-  currency: string
-  amount: string
-  amount_inr: string
-  /** The consultancy's or institute's name. */
-  account: string
-  applicant: string
-  reference: string
-  declared_on: string
-  decided_on: string
-  decided_by: string
-  reason: string
-  settled_in: string
-  rate_used: string
-  amount_settled: string
-}
+export type PaymentExport = components['schemas']['PaymentExport']
 
 /**
- * One case's row on Commission Details. `platform_still_to_come` (Phase 8 T4-07) is new in the
- * final contract: replace with generated type after the contract join. It is what of immiNow's
- * share is still to be paid once it falls due, net of money paid ahead — the "not yet due" column;
- * the older `platform_expected` alone showed the whole share beside the same amount "paid".
+ * One case's row on Commission Details. `platform_still_to_come` (Phase 8 T4-07) is what of
+ * immiNow's share is still to be paid once it falls due, net of money paid ahead — the "not yet
+ * due" column. `amount_state` says whether the amount is open or closed (and carries no write-off).
  */
-export type CommissionDue = components['schemas']['CommissionDue'] & {
-  platform_still_to_come?: components['schemas']['Money'] | null
-}
+export type CommissionDue = components['schemas']['CommissionDue']
 
 /**
- * `reason_text` (everything Finance typed about the payment, as one line) and `export` (its line of
- * the Payment history export) are new in the final contract: replace with generated type after the
- * contract join.
+ * A payment on Commission Details or in the Finance queues. `reason_text` (everything Finance typed
+ * about the payment, as one line) and `export` (its line of the Payment history export) are on it.
  */
-export type CommissionPayment = components['schemas']['CommissionPayment'] & {
-  reason_text?: string | null
-  export?: PaymentExport | null
-}
+export type CommissionPayment = components['schemas']['CommissionPayment']
 
 /**
  * Commission Details (`GET /commission`). Contract gate 11 pages it by TWO independent cursors —

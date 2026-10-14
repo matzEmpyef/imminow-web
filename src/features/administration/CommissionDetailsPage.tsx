@@ -315,16 +315,15 @@ export function CommissionDetailsPage() {
       render: (due) => {
         const paid = due.platform_paid.amount ?? 0
         const awaiting = due.platform_awaiting.amount ?? 0
-        // A consultancy is told only whether an amount is open or closed (DECISIONS 126(a)): a
-        // small difference immiNow Finance wrote off is never shown here, as a figure or by name.
-        if (paid === 0 && awaiting === 0 && !due.settled) {
-          return <span className="text-text-secondary">—</span>
-        }
+        // A consultancy is told only whether an amount is open or closed (DECISIONS 126(a)), from
+        // the server's `amount_state`; no write-off figure or mark is ever sent or shown here.
         return (
           <div className="flex flex-col items-end gap-2xs">
             {paid > 0 && <Badge color="success">{inr(due.platform_paid)} paid</Badge>}
             {awaiting > 0 && <Badge color="secondary">{inr(due.platform_awaiting)} awaiting</Badge>}
-            {due.settled && <Badge color="info">Closed</Badge>}
+            <Badge color={due.amount_state === 'closed' ? 'info' : 'secondary'}>
+              {due.amount_state === 'closed' ? 'Closed' : 'Open'}
+            </Badge>
           </div>
         )
       },

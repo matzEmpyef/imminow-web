@@ -28,9 +28,9 @@ const STATUS_LABEL: Record<string, string> = {
  * schedule" popover. Same due_schedule Finance sees on their side, minus who at immiNow added a
  * part — that detail is internal (CommissionDue's doc comment).
  *
- * A consultancy is told only whether an amount is open or closed (DECISIONS 126(a)): a part that
- * immiNow Finance settled by writing off a small shortfall reads "Closed", and the write-off
- * figure, who did it and why are never shown here — the platform's Finance views keep them.
+ * A consultancy is told only whether an amount is open or closed (DECISIONS 126(a)), from the
+ * part's `amount_state`: a part immiNow Finance settled by writing off a small shortfall reads
+ * "Closed", and the server sends no write-off figure, who did it or why — so none is shown.
  */
 export function DueScheduleDrawer({ due, onClose }: { due: CommissionDue | null; onClose: () => void }) {
   const schedule = due?.due_schedule ?? []
@@ -43,10 +43,13 @@ export function DueScheduleDrawer({ due, onClose }: { due: CommissionDue | null;
             <div className="flex items-start justify-between gap-sm">
               <span className="text-body-sm text-text-primary">{duePartLabel(part, due?.rate_percent, due?.tuition_fee, money)}</span>
               <span className="flex shrink-0 items-center gap-xs">
-                {part.settled ? (
+                {part.amount_state === 'closed' ? (
                   <Badge color="info">Closed</Badge>
                 ) : (
-                  part.status && <Badge color={STATUS_COLOR[part.status]}>{STATUS_LABEL[part.status]}</Badge>
+                  <>
+                    {part.status && <Badge color={STATUS_COLOR[part.status]}>{STATUS_LABEL[part.status]}</Badge>}
+                    <Badge color="secondary">Open</Badge>
+                  </>
                 )}
               </span>
             </div>
