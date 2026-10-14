@@ -217,7 +217,7 @@ export interface paths {
         put?: never;
         /**
          * Finish a staff sign-in with an authenticator code (Phase 6 — not served by the mock server)
-         * @description Phase 6 — not served by the mock server. Second step of a console sign-in that answered 403 `mfa_required`: sends that error's `details.mfa_session` with the current 6-digit TOTP code and receives the same TokenPair a password-only sign-in returns. 401 `invalid_mfa_code` for a wrong code (the session stays usable for a few more tries); 401 `mfa_session_expired` when the mfa_session is unknown, used or older than a few minutes — the client starts the sign-in again. 429 `rate_limited` after repeated wrong codes.
+         * @description Phase 6 — not served by the mock server. Second step of a console sign-in that answered 403 `mfa_required`: sends that error's `details.mfa_session` with the current 6-digit TOTP code and receives the same TokenPair a password-only sign-in returns. 401 `invalid_mfa_code` for a wrong code (the session stays usable for a few more tries); 401 `mfa_session_expired` when the mfa_session is unknown, used or older than a few minutes — the client starts the sign-in again. 429 `rate_limited` after repeated wrong codes. THE STAFF APP ON THE PHONE uses this route too (Phase 8, D-120 C-23): a staff sign-in sent with `platform` `android` or `ios` that answers 403 `mfa_required` is finished here in exactly the same way, and the session it opens is the phone's (30 days). The step is asked only of a person who has two-step sign-in switched on; setting it up stays in the console. With `MFA_ENFORCEMENT` on, a person who must use two-step and has not set it up is answered 403 `mfa_enrollment_required` on the phone as in the console — the app tells them to set it up in immiNow on a computer.
          */
         post: {
             parameters: {
@@ -1194,6 +1194,7 @@ export interface paths {
          * Passwordless door, step 3 (new accounts only) — details screen submit
          * @description Consumes a `signup_token` and creates the account with the verified identifier it proves. `email`/`phone` here is the OTHER identifier, and it is optional. If it already signs another account in, NOTHING is created — 409 `identifier_in_use` tells the client to offer "log into that account instead" (the §1.1 dedup interception).
          *     CHANGED (review F-122, owner ruling 2026-10-06): the real backend no longer checks the second identifier against other accounts here — it was typed, not proven, and is never saved by this call, so a taken one is NOT refused: the account is created (201) exactly as for a free one. The "log into that account instead" interception MOVES to where the second contact's code is entered, signed in: `POST /auth/otp/verify` answers 409 `identifier_in_use`, and `POST /profile/email/confirm` answers 409 `email_taken`, each with `details: {field, login_identifier_mask}` — the same details this 409 carried. THE APP shows its existing "That phone/email already has a Sentpo account — log into it instead" sheet on those two answers (offering to sign out and continue at the door with that contact), and no longer expects it from this call for the second identifier. This call still answers 409 `identifier_in_use` when the DOOR identifier itself (the one the signup token proves) became an account meanwhile. Requests are counted per caller address (30 an hour, shared with `POST /auth/signup`): 429 `rate_limited`.
+         *     **A lost reply (Phase 8, 2026-10-13).** When the app never received the answer to this call and sends the SAME `signup_token` again, the account already exists: the answer is a success — the same `TokenPair`, signing the person in to the account that token created (recorded as a sign-in; the retry's body is ignored and nothing is created or changed) — and no longer 400 `invalid_signup_token` "That verification has expired — start again." That refusal remains for a token that is unreadable, older than 15 minutes, or spent WITHOUT creating an account (the address turned out to be registered: 409 `identifier_in_use` the first time). THE APP may therefore retry this call safely after a timeout.
          *     **The second identifier is checked, never stored (owner, 2026-10-06):** an email or phone is saved on a student's account only once its one-time code is entered. The real backend creates the account with the proven identifier alone — the returned `user` does not carry the second one — and the client, now signed in, asks for its code straight away: POST /auth/otp/request + POST /auth/otp/verify for a phone, POST /profile/email/change + POST /profile/email/confirm for an email. The step is skippable ("Skip for now"); skipped or failed means not saved. (The mock still stores it unverified.)
          *     `referral_code` behaves exactly as /auth/signup documents. Consent event 1 is NOT part of this call — the client records it via POST /consent/accept immediately after, same as the checkbox flow this replaces.
          */
@@ -1223,6 +1224,8 @@ export interface paths {
                         /** @description Optional second contact when signing up by email, in E.164 (e.g. +919876543210) — the client adds the country code (the app's dial-code chip) before sending. A bare national number (9876543210) is refused 400 `validation_failed` by the real backend; the mock was more lenient. Checked, never stored — see the operation's description. */
                         phone?: string | null;
                         referral_code?: string | null;
+                        /** @description Added 2026-10-13 (DECISIONS 121 C-26). The referral code the app read from the store's install referrer (Play Install Referrer) or from the link that first opened it, sent as it was found; the student never typed it. Used when no typed `referral_code` is recognised. An unknown one is ignored without a word (only a TYPED code is ever reported: `TokenPair.referral_code_notice`). */
+                        install_referral_code?: string | null;
                     };
                 };
             };
@@ -1733,7 +1736,7 @@ export interface paths {
         put?: never;
         /**
          * Accept a consent event (build reference 1.4). Event `1` (blocking at signup, forced on policy-version change) needs no body — the default when `event` is omitted, matching Sign Up's own call site. Event `2` (Sentpo Mobile Wave 3's Per-Consultancy Consent Sheet — "Share your name and study preferences with [Consultancy Name]?", a one-time per-consultancy check, never re-asked) and event `3` (Commit-to-Consultancy Confirm's full-PII grant) both require `consultancy_id`, are a student's to give (any other account is refused 403 `forbidden`), and are recorded once per consultancy and policy version - a repeat answers the record already held. A student may add at most 10 new event-2/3 records an hour (review F-202); the next one answers 429 `rate_limited` with `Retry-After`. A repeat of a record already held is not counted.
-         * @description EVENTS 2 AND 3 ARE DEPRECATED ON THIS ROUTE (owner's ruling 2026-10-09; review F-202). The server writes them itself, with the action they belong to: `POST /consultancies/{id}/leads` writes event 2 and the commit (`POST /journeys/commit`, an approved `POST /conversion-proposals/{id}/respond`) writes event 3, each on the `consent_version` in its own body. The apps call this route for the platform-policy events only (`1`, `1b`). For ONE release it still accepts `2` and `3` exactly as before (a student's only, one record per consultancy and policy version, 10 new ones an hour), so an app build from before the ruling — which calls it for event 2 and then starts the chat — keeps working: the chat finds the consent already held and asks for nothing more. A record made here counts as the consent already held (it is never asked for twice). After that release, `2` and `3` will be refused here.
+         * @description EVENTS 2 AND 3 ARE DEPRECATED ON THIS ROUTE (owner's ruling 2026-10-09; review F-202). The server writes them itself, with the action they belong to: `POST /consultancies/{id}/leads` writes event 2 and the commit (`POST /journeys/commit`, an approved `POST /conversion-proposals/{id}/respond`) writes event 3, each on the `consent_version` in its own body. The apps call this route for the platform-policy events only (`1`, `1b`). For ONE release it still accepts `2` and `3` exactly as before (a student's only, one record per consultancy and policy version, 10 new ones an hour), so an app build from before the ruling — which calls it for event 2 and then starts the chat — keeps working: the chat finds the consent already held and asks for nothing more. A record made here counts as the consent already held (it is never asked for twice). After that release, `2` and `3` will be refused here. REFUSED ONCE THE SERVER REQUIRES THE APP'S VERSION (Phase 8, T2-09): with `APP_VERSION_REQUIRED` on, `2` and `3` answer 400 `validation_failed` ("event must be 1 or 1b."). Only a build from before 2026-10-09 ever sent them here, and such a build is no longer served at all (`components/responses/AppUpdateRequired`). ACCEPTING A NEW POLICY: after a policy change (`User.privacy_policy_accepted` false) the app calls this route with no body; the record is written under the version in force (`AppConfig.privacy_policy_version`) and the flag turns true. It also ends the server's hold (`components/responses/PolicyAcceptanceRequired`): the student's next call is served. This route is never answered 403 `policy_acceptance_required` itself.
          */
         post: {
             parameters: {
@@ -1763,6 +1766,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["ConsentRecord"];
+                    };
+                };
+                /** @description `validation_failed` - an unknown `event`; event `2` or `3` without a usable `consultancy_id`; or event `2` or `3` once the server requires the app's version ("event must be 1 or 1b.", Phase 8 T2-09). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
                 /** @description `rate_limited` - more than 10 new consultancy consents (event `2` or `3`) from this student in an hour (review F-202). */
@@ -2657,7 +2669,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description `guardian_retries_exhausted` — a guardian has already declined twice. Support has to step in. */
+                /** @description `guardian_retries_exhausted` — a guardian has already declined twice, OR a guardian who had approved has WITHDRAWN (Phase 8, D-129 C-3): after a withdrawal only Support can reopen the request (`POST /users/{id}/guardian-consent/resend`); the student cannot name someone else. The message says which: "A guardian has already declined twice. Please contact Sentpo support." / "Your parent or guardian has withdrawn their approval. To ask again, please contact Sentpo support." `retries_remaining` is 0 in both, so THE APP offers no "Ask again" and shows the sentence. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -3583,6 +3595,186 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/consultancies/{id}/employees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A consultancy's staff, for the "Change administrator" picker (support_tools permission; Phase 8, 2026-10-13).
+         * @description Fills the picker of `POST /consultancies/{id}/admin-handover`. Until now no route let a
+         *     Support Tools holder list another consultancy's staff. PLATFORM ONLY: 403 without the
+         *     `support_tools` permission (a consultancy's own staff, a student or an anonymous caller
+         *     never read this; a consultancy reads its own people at `GET /staff/employees`).
+         *
+         *     `employees` is the WHOLE staff — the admin first, then by name — so the console can show
+         *     who the admin is now and why somebody cannot be chosen. Each row: `id` (the employee id
+         *     the hand-over takes as `employee_id`), `name` (first and last name), `first_name`,
+         *     `last_name`, `email` (for someone still invited, the address the invitation went to),
+         *     `is_consultancy_admin`, `active`, and `status` as `Employee.status` defines it
+         *     (`invited` / `active` / `deactivated`). Only a row with `status: active` and
+         *     `is_consultancy_admin: false` can be handed the role; the hand-over refuses the others
+         *     (409). Not paginated: a consultancy's staff is bounded by its plan's seats.
+         *
+         *     404 `not_found` "This consultancy could not be found." for an unknown id. Not served by
+         *     the frozen mock.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The consultancy's staff. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            consultancy_id: string;
+                            consultancy_name: string;
+                            employees: {
+                                /**
+                                 * Format: uuid
+                                 * @description The employee id `admin-handover` takes as `employee_id`.
+                                 */
+                                id: string;
+                                name: string;
+                                first_name: string;
+                                last_name: string;
+                                email: string | null;
+                                is_consultancy_admin: boolean;
+                                active: boolean;
+                                /** @enum {string} */
+                                status: "invited" | "active" | "deactivated";
+                            }[];
+                        };
+                    };
+                };
+                403: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/consultancies/{id}/admin-handover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make another active member of a consultancy's staff its admin (support_tools permission; owner's ruling D-122(a), Phase 8).
+         * @description A consultancy has exactly ONE admin and nothing in the console can change who it is:
+         *     invitations always make ordinary staff, and the admin cannot be switched off or erased
+         *     while they hold the role. When the owner must be replaced, Support does it here, case by
+         *     case.
+         *
+         *     `employee_id` names the person who becomes the admin: an employee of THIS consultancy
+         *     who is active and has accepted their invitation. In one transaction that person becomes
+         *     the admin (`Employee.is_consultancy_admin`, role `consultancy_admin`, the protected
+         *     Owner/Admin designation, personal permission switches cleared) and the former admin
+         *     becomes an ordinary employee with the system's "Full access" designation. There is
+         *     still exactly one admin afterwards. Nobody is signed out; each person's next request
+         *     reads the new role.
+         *
+         *     Body: `employee_id`, `reason` (at least 3 characters, kept on the audit entry — area
+         *     `support`, shown in the platform's log and the consultancy's own) and `password`, the
+         *     operator's OWN current password (400 `step_up_required` without it, 400
+         *     `invalid_current_password` for a wrong one, 429 `rate_limited` after repeated
+         *     failures).
+         *
+         *     Both people are told on the bell. The new admin: "You are now the administrator —
+         *     immiNow support has made you the administrator of {consultancy}. You can now manage its
+         *     staff, its settings and its subscription." The former admin: "The administrator has
+         *     changed — immiNow support has made another member of staff the administrator of
+         *     {consultancy}. You are still a member of staff and keep your access to its work."
+         *
+         *     Refusals: 400 `validation_failed` (no reason: "Say why the administrator is being
+         *     changed. The reason is kept on the record."; no `employee_id`: "Choose the member of
+         *     staff who will become the administrator."); 404 `not_found` (unknown consultancy; or
+         *     "This person is not a member of this consultancy's staff."); 409 `conflict` — "This
+         *     person is already the administrator.", "This person's access is switched off. Only an
+         *     active member of staff can become the administrator.", "This person has not accepted
+         *     their invitation yet. They can become the administrator once they have signed in."
+         *
+         *     Console: an action on the consultancy's page in Manage Consultancies, shown to Support
+         *     only — a picker of the consultancy's staff from `GET /consultancies/{id}/employees`
+         *     (added 2026-10-13; offer the rows whose `status` is `active` and `is_consultancy_admin`
+         *     is false), a reason box and the operator's password; after a 200, reload the
+         *     consultancy.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        employee_id: string;
+                        reason: string;
+                        password: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description The admin role was handed over. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            consultancy_id: string;
+                            consultancy_name: string;
+                            /** Format: uuid */
+                            admin_employee_id: string;
+                            /**
+                             * Format: uuid
+                             * @description Null when the consultancy had no admin on record.
+                             */
+                            former_admin_employee_id: string | null;
+                        };
+                    };
+                };
+                400: components["responses"]["ErrorResponse"];
+                403: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
+                429: components["responses"]["ErrorResponse"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/{id}/phone": {
         parameters: {
             query?: never;
@@ -4420,6 +4612,50 @@ export interface paths {
                     };
                     content?: never;
                 };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/staff/employees/{id}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Switch a disabled employee back on
+         * @description Added 2026-10-13 (Phase 8 T2-03, owner's ruling DECISIONS 133): the undo of `DELETE /staff/employees/{id}`. Needs `staff.manage_employees`, and the caller must hold every permission the person will hold again (as for an invitation). The person signs in again with the designation and permissions they had; the leads, clients and tasks handed over when they were disabled stay with whoever took them. The seat rules apply: with every seat in use the answer is 409 `seat_limit_reached` ("Your team already uses all 5 of its seats, so nobody can be switched back on. Disable someone else first, or ask immiNow for more seats."). Someone who never accepted their invitation cannot be switched back on: 409 `conflict` ("This person never accepted their invitation, so there is no account to switch back on. Send them a new invitation instead."). An employee who is already active answers 200 unchanged.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["schemas"]["UUID"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The employee, active again */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Employee"];
+                    };
+                };
+                403: components["responses"]["ErrorResponse"];
+                404: components["responses"]["ErrorResponse"];
+                409: components["responses"]["ErrorResponse"];
             };
         };
         delete?: never;
@@ -9456,6 +9692,8 @@ export interface paths {
                     "application/json": {
                         /** @enum {string} */
                         tier: "starter" | "business" | "ultimate";
+                        /** @description REQUIRED since 2026-10-13 (Phase 8 T2-04 and T4-09, owner's ruling DECISIONS 133): why the plan is changed, typed by the platform user and kept in the audit log. A missing or blank reason is refused 400 `validation_failed` ("Type the reason for this plan change.", `details.fields.reason`). After a DOWNGRADE the consultancy's admin gets one bell notice (`plan_downgraded`) with what changed: the new plan, the seats, and how many people and branches were switched off. */
+                        reason: string;
                     };
                 };
             };
@@ -11208,7 +11446,7 @@ export interface paths {
                         "application/json": components["schemas"]["ConversionProposal"];
                     };
                 };
-                /** @description `consultancy_unavailable` (contract gate 12f) — the consultancy is suspended, so it cannot offer to take on a client. */
+                /** @description `consultancy_unavailable` (contract gate 12f) — the consultancy is suspended, so it cannot offer to take on a client. Since 2026-10-13 (owner's ruling 2026-10-12, DECISIONS 121 C-34) the offer also keeps Create Applicant's limits, with the same two answers `POST /clients` gives: `request_cooldown` — this person declined an offer from the consultancy in the last 30 days, let one expire in the last 7, or had one withdrawn in the last 24 hours ("You asked this person recently. You can ask again after <date>.", `details.retry_after`); `limit_reached` — the consultancy has sent its day's allowance of offers and requests, 15 per active member of staff ("Your consultancy has reached today's limit for offers to become a client. You can send more tomorrow.", `details.resets_at`). Show the sentence as it arrives. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -11340,6 +11578,8 @@ export interface paths {
                     "application/json": {
                         /** @enum {string} */
                         decision: "approved" | "declined";
+                        /** @description Decision 145 B (2026-10-14). Read only when STAFF approve a proposal on a consultancy's own contact (an imported lead) — the approval that creates the applicant's account: "I confirm this applicant is 16 or older", recorded on the new case's audit entry. Optional for one release; the console always sends `true` there. `false` → 400 `validation_failed` "Confirm that this applicant is 16 or older. Sentpo is for students aged 16 and over."; not a true/false → 400 "age_confirmed is true or false." Ignored on every other answer (a student's, a decline, an app lead). */
+                        age_confirmed?: boolean | null;
                         /** @description Required when a STUDENT sends `approved` and holds no event-3 consent with this consultancy yet: the policy version of the confirmation they agreed to — the app's bundled policy version, `1.0` today. Not read from staff, nor on `declined`. */
                         consent_version?: string;
                     };
@@ -13798,7 +14038,7 @@ export interface paths {
         };
         /**
          * App-lifecycle configuration (version gate + rating prompt thresholds)
-         * @description PUBLIC — no auth required, unlike almost every other route in this contract — because the version gate must work BEFORE login: a below-minimum app has to be blocked on launch, before the student ever reaches the sign-in screen. Session 37, 2026-08-30.
+         * @description PUBLIC — no auth required, unlike almost every other route in this contract — because the version gate must work BEFORE login: a below-minimum app has to be blocked on launch, before the student ever reaches the sign-in screen. Session 37, 2026-08-30. Never answered 426 `app_update_required`: a refused build reads its store links here. The server holds every other route to `minimum_version` too (`AppUpdateRequired`).
          */
         get: {
             parameters: {
@@ -13953,6 +14193,13 @@ export interface paths {
                                 courses_unlockable: number;
                                 points_on_offer: number;
                             } | null;
+                            /** @description Added 2026-10-13 (owner's ruling 2026-10-12, DECISIONS 120 C-19). Present ONLY when the caller is a student and the search found no course at all (first page, `meta.total` 0); left out otherwise. The app shows `sentence` on the empty page with one button, "Talk to a consultancy": it opens the student's own consultancy chat when they have a consultancy, else the list of consultancies. The server also counts the search for the platform team (the filters used and when — never who searched): see `SupplyDemandResponse.no_match_searches`. */
+                            readonly no_match?: {
+                                /** @example No course matches your search yet. Talk to a consultancy and they can help you find one. */
+                                sentence: string;
+                                /** @enum {string} */
+                                action: "talk_to_a_consultancy";
+                            };
                         };
                     };
                 };
@@ -15282,11 +15529,11 @@ export interface paths {
          * Manually create an applicant (Student or PR) — Business/Ultimate. No commission generated (FR-092, FR-099)
          * @description Contract gate 12f. What happens depends on whose the email or phone is.
          *
-         *     **Nobody's** — the account and the case are created at once and the person is invited (`201`, a `Client`), as before.
+         *     **Nobody's** — the account and the case are created at once and the person is invited (`201`, a `Client`), as before. The new account has NO date of birth (Phase 8, D-129 C-2): the student gives it at first sign-in, and until then the account counts as under 18 by every age rule (the student's own chat, commit, uploads and meetings wait; the consultancy can still prepare the case).
          *
          *     **A Sentpo student's, verified on their account** — no case is created and nothing about the account is returned. The student is asked to accept in the app (`202`, an `ApplicantRequest`), and the case opens only if they accept, through the same commit as `POST /journeys/commit`. The request expires after 14 days. Sending the same request again while it is waiting returns the waiting one and sends nothing.
          *
-         *     **Held by an account in any other way** — `409 identifier_in_use`, with no detail. That covers an account that is not a student's (a consultant, platform staff), a student account that entered the email or phone but never verified it, and an applicant another consultancy created who has not signed in yet. Nothing is sent to any of them.
+         *     **Held by an account in any other way** — `409 identifier_in_use`, with no detail. That covers an account that is not a student's (a consultant, platform staff), a student account that entered the email or phone but never verified it, and an applicant another consultancy created who has not signed in yet. Nothing is sent to any of them. The message is one neutral sentence, the same whoever holds it (Phase 8, D-119 C-7(2)): "This address cannot be used. Please ask the applicant to provide a different email address." — or, when it is the phone that is held, "This phone number cannot be used. Please ask the applicant to provide a different phone number." It never says that an account exists or whose it is. Converting an imported lead whose email or phone is held (`POST /conversion-proposals/{id}/respond`) answers the same `409` in the same words.
          *
          *     Limits on requests to existing students. Each consultancy has a daily allowance, shared by its staff: 15 for each active member of staff, per calendar day in India. A brand-new applicant does not use it. At the limit the answer is `409 limit_reached`, with the reset time in `details.resets_at`. The same consultancy must wait before asking the same person again: 30 days after they declined (lifted as soon as the student starts a chat with the consultancy or asks it to take them on), 7 days after a request expired unanswered, and 24 hours after the consultancy cancelled its own. Asking sooner is `409 request_cooldown`, with the date in `details.retry_after`.
          *
@@ -15317,9 +15564,12 @@ export interface paths {
                         email: string;
                         /**
                          * Format: date
-                         * @description Required (2026-09-19, assumptions audit C9): this was the one way a student account came into being without a date of birth, and an account without one was treated as an adult by every age rule. Same 16+ floor as signup (422 `below_minimum_age`) when a new account is created. For an existing student it is only kept with the request: the account's own date of birth stands.
+                         * @deprecated
+                         * @description NO LONGER TAKEN (Phase 8, owner's ruling D-129 C-2). The consultancy does not give the applicant's date of birth: the STUDENT gives their own the first time they sign in (`User.date_of_birth_owed`). A value an older console still sends is accepted and IGNORED for one release — never stored, on the account or on a request — and will be refused after that. THE CONSOLE removes the field from Create Applicant and shows "Not provided yet" wherever a client's `student.date_of_birth` is null.
                          */
-                        date_of_birth: string;
+                        date_of_birth?: string | null;
+                        /** @description Owner's ruling, decision 145 B (2026-10-14). The staff member's tick on "I confirm this applicant is 16 or older", recorded on the audit entry of the applicant (or of the request sent to an existing student). OPTIONAL FOR ONE RELEASE (the same reasoning as `date_of_birth` above: refusing its absence would stop Create Applicant in a console that has not been updated); it will be required after that. THE CONSOLE always sends `true` and does not let the form be sent unticked. `false` is refused: 400 `validation_failed`, "Confirm that this applicant is 16 or older. Sentpo is for students aged 16 and over." (also under `details.fields.age_confirmed`); anything that is not true/false: 400 "age_confirmed is true or false." */
+                        age_confirmed?: boolean | null;
                         phone?: string | null;
                         address?: string | null;
                         /** @enum {string} */
@@ -15916,6 +16166,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/transfer-codes/{code}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Withdraw a transfer code this consultancy issued, before it is used
+         * @description Added 2026-10-13 (Phase 8 T2-03, owner's ruling DECISIONS 133). The consultancy that issued an incoming-transfer code takes it back: a code sent for the wrong person, or no longer wanted, can no longer bring a student in. Same permission as issuing (`clients.transfer_applicant`). The code then reads `withdrawn`, and the sending consultancy that tries it is told "This transfer code was withdrawn by the consultancy that issued it. Ask them for a new one." (403 `invalid_transfer_code`). Withdrawing a code that is already withdrawn or expired answers 200 with the code as it stands. Written to the issuing consultancy's audit log.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    code: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The code as it now stands */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TransferCode"];
+                    };
+                };
+                403: components["responses"]["ErrorResponse"];
+                /** @description `not_found` — no such code among this consultancy's own ("We could not find that transfer code."). */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `conflict` — the code was already used ("This code has already been used, so it cannot be withdrawn."). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/clients/{id}/assign": {
         parameters: {
             query?: never;
@@ -16113,6 +16423,12 @@ export interface paths {
         /**
          * The audited mistake-fix for a wrong acceptance (user decision, 2026-08-28) — voids the journey's active commission entry (reason recorded) and returns the college to offer_received, after which a different college can be accepted. The voided entry keeps its installment history; it is excluded from dues and dashboards.
          * @description Since 2026-10-08 (F-080): when the application is a copy carried over from another consultancy's case (a support switch or a dispute move), its commission entry lives on the SUBMITTING consultancy's own case; the revert voids that entry. A later acceptance creates a new entry for the college accepted then, and is refused (409 `conflict`) while the submitter's case still holds an active entry of a different application.
+         *
+         *     WHO (owner, DECISIONS 117 C-13; Phase 8): the consultancy admin, the consultant the client is assigned to, or staff holding `clients.revert_acceptance` — anyone else who can open the client gets 403 `permission_denied` with a plain sentence to show. Offer the button only to those three.
+         *
+         *     REFUSED WHILE INSTALMENTS ARE RECORDED (owner, DECISIONS 134(a); Phase 8 T2-05): 409 `part_settled` with the sentence "Payments have been recorded on this acceptance. Void each recorded instalment first, then undo the acceptance." Nothing changes. Once every recorded instalment is voided the revert goes through.
+         *
+         *     The student is told (notice "Acceptance undone").
          */
         post: {
             parameters: {
@@ -17847,8 +18163,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Reopen a client closed via POST /clients/{id}/close (user-requested, 2026-08-15) — same shape as POST /leads/{id}/reopen, no reason required (reversible, low-stakes). Named distinctly from POST /clients/{id}/reopen (Reopen Plan) since the two mean different things.
-         * @description Reopenable from `closed` OR `closed_completed` (Wave 3 correction, 2026-09-27 — backend-confirmed; this text previously implied `closed` only). 409 `case_not_closed` otherwise; 409 `closed_by_platform` (gate 12, F31) when a dispute closed it — a consultancy does not get to reopen a case the platform decided to end.
+         * Reopen a client closed via POST /clients/{id}/close (user-requested, 2026-08-15). A typed `reason` is REQUIRED since Phase 8 (T2-04, owner's ruling 2026-10-13, DECISIONS 133/134b) — it was not before. Named distinctly from POST /clients/{id}/reopen (Reopen Plan) since the two mean different things.
+         * @description Reopenable from `closed` OR `closed_completed` (Wave 3 correction, 2026-09-27 — backend-confirmed; this text previously implied `closed` only). 409 `case_not_closed` otherwise; 409 `closed_by_platform` (gate 12, F31) when a dispute closed it — a consultancy does not get to reopen a case the platform decided to end. Those refusals come first; a case that can be reopened then needs its `reason`.
          */
         post: {
             parameters: {
@@ -17859,7 +18175,14 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description Why the case is being reopened, at least 3 characters after trimming. Kept as the audit entry's reason. */
+                        reason: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Updated */
                 200: {
@@ -17868,6 +18191,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Client"];
+                    };
+                };
+                /** @description `validation_failed` — no `reason` was typed ("Say why this case is being reopened.", also in `details.fields.reason`). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
                 /** @description `case_not_closed` — the case is neither `closed` nor `closed_completed` — or `closed_by_platform` (gate 12, F31) when a dispute resolved as `close` ended it. */
@@ -25449,6 +25781,98 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/commission-rates/me/default-in-use": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The default rate behind the logged-in consultancy's (or university's) own Commission Table (Phase 8 T4-08, 2026-10-13) — what applies where no row covers a case, and whether the table is empty. Read beside `GET /commission-rates/me`. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommissionDefaultInUse"];
+                    };
+                };
+                /** @description The caller is not on a consultancy's or university's staff. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/commission-rates/default-in-use": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The default rate behind one consultancy's or university's Commission Table (finance permission; Phase 8 T4-08, 2026-10-13). Read beside `GET /commission-rates?consultancy_id=`. */
+        get: {
+            parameters: {
+                query: {
+                    consultancy_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommissionDefaultInUse"];
+                    };
+                };
+                /** @description No such consultancy or university. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/commission-rates": {
         parameters: {
             query?: never;
@@ -25488,7 +25912,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": components["schemas"]["CommissionRateInput"];
                 };
@@ -25503,7 +25927,7 @@ export interface paths {
                         "application/json": components["schemas"]["CommissionRate"];
                     };
                 };
-                /** @description `validation_failed` — a required field is missing. */
+                /** @description `validation_failed` — a required field is missing, or no `reason` was typed ("Say why this rate is being added.", also in `details.fields.reason`). */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -25561,13 +25985,15 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** Format: double */
                         direct_rate?: number;
                         /** Format: double */
                         freelancer_sourced_rate?: number;
+                        /** @description REQUIRED since Phase 8 (T2-04 / T4-09, DECISIONS 134b): why the rate is being changed, at least 3 characters after trimming. Kept as the audit entry's reason. */
+                        reason: string;
                     };
                 };
             };
@@ -25579,6 +26005,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["CommissionRate"];
+                    };
+                };
+                /** @description `validation_failed` — no `reason` was typed ("Say why this rate is being changed.", also in `details.fields.reason`). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -25629,6 +26064,8 @@ export interface paths {
                         freelancer_percent?: number;
                         /** @description Days to pay a part of the share after it falls due. */
                         payment_terms_days?: number;
+                        /** @description REQUIRED since Phase 8 (T2-04 / T4-09, DECISIONS 134b): why the defaults are being changed, at least 3 characters after trimming. Kept as the audit entry's reason. */
+                        reason: string;
                     };
                 };
             };
@@ -25640,6 +26077,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["CommissionDefaults"];
+                    };
+                };
+                /** @description `validation_failed` — no `reason` was typed ("Say why the default rates are being changed.", also in `details.fields.reason`). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
                 /** @description Not a percentage between 0 and 100 */
@@ -25747,6 +26193,8 @@ export interface paths {
                     "application/json": {
                         consultancy_id: components["schemas"]["UUID"];
                         destination_country: string;
+                        /** @description REQUIRED since Phase 8 (T2-04 / T4-09, DECISIONS 134b): why these rates are being set, at least 3 characters after trimming. Kept as the audit entry's reason. Without it: 400 "Say why these rates are being changed.", also in `details.fields.reason`. */
+                        reason: string;
                         /** @description All four payer groups are required — this endpoint exists specifically so none can be left unset. */
                         rates: {
                             applicant: components["schemas"]["CommissionRateBulkGroup"];
@@ -27898,7 +28346,7 @@ export interface paths {
                     };
                 };
                 /**
-                 * @description No active staff (`no_active_staff`), a lapsed subscription (`subscription_lapsed`), the target at its seat limit (`seat_limit_reached`, gate 12, F44 — the mock answered 500 here, a missing-key bug this corrects), the student already has a live case (`already_a_case`, gate 12, F43), or this row was already allocated by a concurrent call (`already_allocated`, gate 12, W9). The row stays on the queue.
+                 * @description No active staff (`no_active_staff`), a lapsed subscription (`subscription_lapsed`), the student already has a live case (`already_a_case`, gate 12, F43), or this row was already allocated by a concurrent call (`already_allocated`, gate 12, W9). The row stays on the queue. A target at its seat limit is NOT refused any more (DECISIONS 128(a), built 2026-10-13; it used to answer `seat_limit_reached`), here and on `POST /journeys/{id}/switch-consultancy`.
                  *     `guardian_consent_required` (owner's ruling 2026-10-09): the student is under 18 and their guardian has not approved — "This student is under 18 and their guardian has not approved yet. They can be assigned once the guardian approves." Checked before everything else, for a freelancer row and a consultancy-change row alike; nothing is written. The same call succeeds as soon as the guardian approves (or the student turns 18), with no other step. Adults and approved minors are allocated as before.
                  */
                 409: {
@@ -28529,7 +28977,7 @@ export interface components {
         /** @description Uniform error envelope, every error response, every endpoint (TRD Section 7). */
         Error: {
             error: {
-                /** @description Stable machine-readable code, e.g. permission_denied, validation_failed, insufficient_balance. Clients branch on this, never on message text. CODES ADDED BY THE 2026-10-06 FIX ROUND, each described where it is answered: `payload_too_large` (413, any route; `components/responses/PayloadTooLarge`); `idempotency_key_reused` (422) and `request_in_progress` / `conflict` with `details.idempotency = "already_applied"` (409), any write sent with an `Idempotency-Key` (`IdempotencyKeyReused`, `IdempotencyConflict`); `dob_change_needs_support` (422, `PATCH /preferences`: a recorded date of birth is corrected only by Support, `POST /users/{id}/date-of-birth`); `step_up_required` and `invalid_current_password` (400, the routes that ask for the operator's own password); `below_minimum_age` (422). `feature_locked` (build reference 1.16 made real, 2026-08-29) is returned 403 by every endpoint gated on a consultancy feature-entitlement flag — own_leads, create_applicant, designations, tags, allocation_rule, phonebook, document_library, case_reopening, audit_log, activity_queue, internal_messaging, multi_branch, applicant_transfer — when the caller's consultancy lacks that flag (see `Consultancy.features`). `message` names the plan that includes it. Distinct from `permission_denied`, which is about what an individual employee within an already-entitled consultancy may do. Institute accounts (INSTITUTE_ACCOUNT_PLAN, 2026-09-10) add three codes: `college_already_linked` (409) when a college already has an institute account or an institute already has a college — see `Consultancy.college_id`; `not_applicable_for_institute` (403) when an institute tries to add or remove a partner college, deliberately NOT `feature_locked`, since nothing is behind a plan and telling an institute to upgrade would be a lie; and `institute_scoped` (409) when a student committed to an institute tries to save a course at another college (D14). Staff 2FA (Phase 6, owner-approved 2026-09-24; the mock server sends neither): `mfa_required` (403, POST /auth/login only) — see that operation; and `mfa_enrollment_required` (403, any operation for a signed-in console user whose role requires two-factor and who has no authenticator yet, except the allowlist that lets them enroll or leave: GET /profile, POST /auth/mfa/setup, POST /auth/mfa/setup/verify, POST /auth/logout, POST /auth/refresh). The console answers it by opening the enrollment screen. Enforcement is behind a server flag, off until that screen ships. Casework (contract gate 7): `version_conflict` (409) — a PATCH carried a `version` that is no longer the record's current one (optimistic locking, BR §3.6; re-read and re-apply); `file_not_ready` (409) — a file whose antivirus scan has not finished, or a presigned upload not yet completed; `file_quarantined` (409) — a file the scan found malware in, never served. Consent (owner's ruling 2026-10-09, review F-202): `consent_required` (400 when the body carries no `consent_version`, 409 when it names a policy no longer in force) — Start Chat, `POST /journeys/commit`, a student's `approved` on `POST /conversion-proposals/{id}/respond` and `POST /leads/{id}/request-conversion`; `details.event` (`2` or `3`), `details.policy_version` (the one in force), `details.reason` (`missing` | `outdated`). Realtime (contract gate 8): `realtime_disabled` (503, POST /realtime/tickets) — the socket is switched off (server flag, Redis down, or the mock server); keep polling and ask again later. */
+                /** @description Stable machine-readable code, e.g. permission_denied, validation_failed, insufficient_balance. Clients branch on this, never on message text. CODES ADDED BY THE 2026-10-06 FIX ROUND, each described where it is answered: `payload_too_large` (413, any route; `components/responses/PayloadTooLarge`); `app_update_required` (426, any app call; `components/responses/AppUpdateRequired`, Phase 8); `policy_acceptance_required` (403, any call a student makes before accepting the privacy policy in force; `components/responses/PolicyAcceptanceRequired`, Phase 8); `idempotency_key_reused` (422) and `request_in_progress` / `conflict` with `details.idempotency = "already_applied"` (409), any write sent with an `Idempotency-Key` (`IdempotencyKeyReused`, `IdempotencyConflict`); `dob_change_needs_support` (422, `PATCH /preferences`: a recorded date of birth is corrected only by Support, `POST /users/{id}/date-of-birth`); `step_up_required` and `invalid_current_password` (400, the routes that ask for the operator's own password); `below_minimum_age` (422). `feature_locked` (build reference 1.16 made real, 2026-08-29) is returned 403 by every endpoint gated on a consultancy feature-entitlement flag — own_leads, create_applicant, designations, tags, allocation_rule, phonebook, document_library, case_reopening, audit_log, activity_queue, internal_messaging, multi_branch, applicant_transfer — when the caller's consultancy lacks that flag (see `Consultancy.features`). `message` names the plan that includes it. Distinct from `permission_denied`, which is about what an individual employee within an already-entitled consultancy may do. Institute accounts (INSTITUTE_ACCOUNT_PLAN, 2026-09-10) add three codes: `college_already_linked` (409) when a college already has an institute account or an institute already has a college — see `Consultancy.college_id`; `not_applicable_for_institute` (403) when an institute tries to add or remove a partner college, deliberately NOT `feature_locked`, since nothing is behind a plan and telling an institute to upgrade would be a lie; and `institute_scoped` (409) when a student committed to an institute tries to save a course at another college (D14). Staff 2FA (Phase 6, owner-approved 2026-09-24; the mock server sends neither): `mfa_required` (403, POST /auth/login only) — see that operation; and `mfa_enrollment_required` (403, any operation for a signed-in console user whose role requires two-factor and who has no authenticator yet, except the allowlist that lets them enroll or leave: GET /profile, POST /auth/mfa/setup, POST /auth/mfa/setup/verify, POST /auth/logout, POST /auth/refresh). The console answers it by opening the enrollment screen. Enforcement is behind a server flag, off until that screen ships. Casework (contract gate 7): `version_conflict` (409) — a PATCH carried a `version` that is no longer the record's current one (optimistic locking, BR §3.6; re-read and re-apply); `file_not_ready` (409) — a file whose antivirus scan has not finished, or a presigned upload not yet completed; `file_quarantined` (409) — a file the scan found malware in, never served. Consent (owner's ruling 2026-10-09, review F-202): `consent_required` (400 when the body carries no `consent_version`, 409 when it names a policy no longer in force) — Start Chat, `POST /journeys/commit`, a student's `approved` on `POST /conversion-proposals/{id}/respond` and `POST /leads/{id}/request-conversion`; `details.event` (`2` or `3`), `details.policy_version` (the one in force), `details.reason` (`missing` | `outdated`). Realtime (contract gate 8): `realtime_disabled` (503, POST /realtime/tickets) — the socket is switched off (server flag, Redis down, or the mock server); keep polling and ask again later. */
                 code: string;
                 message: string;
                 /** @description Field-level validation details where applicable. */
@@ -28671,6 +29119,12 @@ export interface components {
             readonly platform_permissions?: components["schemas"]["PlatformPermissions"] | null;
             /** @description Students only, and only on the student's OWN account (`GET /profile`, `GET /me`'s `user`, the sign-in answers) — left out for every other role and never part of what anyone else is shown of a student (review F-324, 2026-10-08). Whether the server counts this account as a minor's, by its own age rule: under 18 on the UTC calendar, and an account with NO date of birth counts as a minor (the rule the guardian gate uses, which fails closed). The app reads this instead of working an age out from `date_of_birth` itself; it is recomputed on every read, so it turns false on the eighteenth birthday without anything having to run. */
             readonly is_minor?: boolean;
+            /** @description Students only, on the student's OWN account, wherever the server has looked: every sign-in answer, the sign-up answer and `GET /profile` (Phase 8, DECISIONS 120 C-18). True while the first-run questions have still to be shown: the student has not finished or left them (`POST /preferences/prompt-seen`), has no study level or destination on record and has no case. THE APP reads this each time it opens (`GET /profile`) and shows the questions when it is true, so a student whose app was closed after the account was created and before the questions appeared is asked them on the next open. It is the same fact as the sign-in answer's `preferences_prompt_pending`, which a sign-up answer and a restored session never carried. "Onboarded" in the console's counts is this turned false. */
+            readonly onboarding_questions_owed?: boolean;
+            /** @description Students only, on the student's OWN account, wherever the server has looked (every sign-in answer, the sign-up answer, `GET /profile`): the student has accepted the privacy policy IN FORCE — a consent record of event `1` or `1b` under `AppConfig.privacy_policy_version` (Phase 8, D-123). False after a policy change until the student accepts again, and for an account on which nobody has accepted a policy yet (one a consultancy created). THE APP holds the student at the policy screen while this is false: it shows the text at `AppConfig.privacy_policy_url` (its bundled copy when the page cannot be loaded), "I Agree & Continue" calls `POST /consent/accept` with no body (event `1` under the version in force), and a link goes to the delete-account page for a student who does not want to continue. There is no "I do not agree" call. THE SERVER HOLDS THE STUDENT TOO (2026-10-13, owner's ruling 144(b)): while this is false every other call answers 403 `policy_acceptance_required` (`components/responses/PolicyAcceptanceRequired`). */
+            readonly privacy_policy_accepted?: boolean;
+            /** @description Students only, on the student's OWN account, wherever the server has looked (every sign-in answer, `GET /profile`): the account has no date of birth yet (Phase 8, D-129 C-2). That is an account a consultancy made — Create Applicant, or an imported lead that became a client — which the consultancy no longer gives a date for. THE APP asks for the date BEFORE ANYTHING ELSE at the first sign-in while this is true, and records it with `PATCH /preferences {date_of_birth}`: once, under the sign-up rules — under 16 is refused (422 `below_minimum_age`, "Sentpo is for students aged 16 and over."; the date is not recorded and stays owed), and under 18 the guardian rule applies from that moment (`is_minor`, `guardian_consent`). Once recorded only Support can correct it. Until it is given the account counts as under 18. */
+            readonly date_of_birth_owed?: boolean;
             /** @description Students only, on the student's own account (review F-324, 2026-10-08): usage analytics are OFF for this account. Default `false` (analytics on). Set with `PATCH /profile` from Privacy & Data Controls; it belongs to the account, so it is still there on a new phone. While it is true, `POST /analytics/events` accepts the account's batches with the usual empty 202 and stores nothing. ALWAYS `true` for a minor (`is_minor`), whatever was set: a minor's events are never stored. What a minor sets is kept and applies from the day they are no longer one. */
             analytics_opt_out?: boolean;
             /** @description The caller's OWN shareable code (students and freelancers; null for staff roles) — server-generated at account creation, never user-chosen. Distinct from the `referral_code` a signup ARRIVES with: that one names someone else's code and is consumed by POST /auth/signup's resolution (see that route). Shared as https://sentpo.com/app?ref={code} — the marketing site redirects to the store; in-app prefill of the code from that link is deferred with the rest of App Links. */
@@ -28707,7 +29161,7 @@ export interface components {
             responded_at?: string | null;
             /** Format: date-time */
             expires_at?: string | null;
-            /** @description How many more times the student may name a different guardian. One retry after a decline (user, 2026-09-05): enough for a mistyped address or the wrong relative, not enough to shop around for a permissive adult. A second decline needs Support. */
+            /** @description How many more times the student may name a different guardian. One retry after a decline (user, 2026-09-05): enough for a mistyped address or the wrong relative, not enough to shop around for a permissive adult. A second decline needs Support. Always 0 while `status` is `withdrawn` (Phase 8, D-129 C-3): only Support reopens a request a guardian withdrew from. THE STUDENT IS TOLD of every decision on the bell and by push (D-129 C-4): `guardian_consent_decided` — "Your guardian approved your account" / "Your guardian did not approve your account" (with "You can ask one more time from your profile." or, when no retry is left, "To ask again, please contact Sentpo support.") — and `guardian_consent_withdrawn`; each opens the profile, where the app re-reads `GET /profile`. */
             retries_remaining: number;
             /** @description True when the request was accepted but the channel cannot deliver yet — today only SMS, which waits on the provider and DLT registration still open for one-time codes. The app tells the student to add an email address instead. */
             delivery_pending?: boolean;
@@ -28729,6 +29183,8 @@ export interface components {
             user: components["schemas"]["User"];
             /** @description Students only, login responses only. True when the optional-preferences prompt has never been shown to this account AND no preferences are on record — the app routes the student to the Preferences screen instead of Home, once ever (the screen reports itself shown via POST /preferences/prompt-seen). Deliberately absent from signup's token issuance: preferences are asked on first login, never during signup. */
             preferences_prompt_pending?: boolean;
+            /** @description Added 2026-10-13 (owner's ruling 2026-10-12, DECISIONS 121 C-26). Present ONLY on the 201 of `POST /auth/passwordless/complete-signup` when the student TYPED a referral code that nobody holds; left out otherwise. The account was created without a referral. The app shows the sentence once, as it arrives: "That referral code was not recognised. Your account has been created without it." */
+            referral_code_notice?: string;
         };
         /** @description Body of POST /auth/refresh. */
         RefreshRequest: {
@@ -29096,10 +29552,10 @@ export interface components {
         };
         Employee: {
             /**
-             * @description Added 2026-10-13 (Phase 8 T1-13). Where the person stands, said by the server: `invited` until they accept their invitation (they hold a seat, cannot sign in and cannot be given a lead or a client; `DELETE /staff/employees/{id}` withdraws the invitation and frees the seat), then `active`; `deactivated` once switched off. Show this, never a guess from `last_login_at` (an employee who has not signed in yet is `active`). `active` stays true for an invited person.
+             * @description `invitation_expired` (added 2026-10-13, Phase 8 fault check 9e): the invitation was not accepted within 7 days. The person was switched off by the server, holds no seat any more and cannot use the old link; show "Invitation expired" on their row. Added 2026-10-13 (Phase 8 T1-13). Where the person stands, said by the server: `invited` until they accept their invitation (they hold a seat, cannot sign in and cannot be given a lead or a client; `DELETE /staff/employees/{id}` withdraws the invitation and frees the seat), then `active`; `deactivated` once switched off. Show this, never a guess from `last_login_at` (an employee who has not signed in yet is `active`). `active` stays true for an invited person.
              * @enum {string}
              */
-            readonly status?: "invited" | "active" | "deactivated";
+            readonly status?: "invited" | "invitation_expired" | "active" | "deactivated";
             /** @description Optimistic-locking version of the employee row (F-075, 2026-10-08), on the full row only (those who manage staff). Send it back as `version` on `PATCH /staff/employees/{id}` so two admins changing one member's designation or permission overrides cannot silently overwrite each other. */
             readonly version?: number;
             id: components["schemas"]["UUID"];
@@ -29274,6 +29730,11 @@ export interface components {
             id: components["schemas"]["UUID"];
             journey_id?: components["schemas"]["UUID"];
             readonly client_name?: string | null;
+            /**
+             * Format: uuid
+             * @description Added 2026-10-13 (Phase 8 T4-21). The lead a lead's task belongs to (an app lead or one the consultancy added or imported), so the console links the task to the lead (`/sales/active-leads/{lead_id}`). Null for a client's task and for a task that belongs to neither.
+             */
+            readonly lead_id?: string | null;
             /** @description Set when this task is a lead follow-up reminder rather than a journey-linked task — see POST /leads/{id}/reminders. Mutually exclusive with client_name. */
             readonly lead_name?: string | null;
             assigned_to: components["schemas"]["Employee"];
@@ -29742,6 +30203,10 @@ export interface components {
              * @description The staff permission keys this consultancy's plan gives any meaning to (product owner, 2026-09-25) — what the designation editor and the per-person access editor show. A permission is left out when EVERY action it controls needs a plan feature this consultancy's `features` has off; one that controls at least one action with no plan feature, or with all of its features on, is included. Computed by the server from its own route declarations (each route's permission and plan features), so it cannot drift from what the routes actually allow. Keys left out keep whatever tick is stored on a designation or an override: an edit leaves them as they were, and they apply again as soon as the plan includes their feature. In the order of the 27 keys. Full record only.
              *
              *     NEW KEY `leads.convert` (owner decision 6; review F-055, 2026-10-07), listed after `leads.delete` and always available (no plan feature hides it). Label "Convert leads to clients"; helper text "Send a lead the offer to become a client, and approve or decline a student's own request. Applies only to leads this person can see." The designation editor and the per-person override editor must show it with the other Leads keys. A designation saved before the key existed is served (`Designation.permissions`) with `leads.convert` already filled in as it applies: true when the designation has `leads.view_own` or `leads.view_all`, false otherwise; once saved either way the saved value stands.
+             *
+             *     NEW KEY `clients.revert_acceptance` (owner, DECISIONS 117 C-13; Phase 8), listed after `clients.close` and always available (no plan feature hides it). Label "Undo a college acceptance"; helper text "Undo an acceptance on a client this person can open but is not assigned to. The admin and the consultant assigned to the client can always do this." The designation editor and the per-person override editor show it with the other Clients keys. A designation saved before the key existed does not have it (off).
+             *
+             *     STARTER (owner, DECISIONS 119 C-8): the "Full access" designation every Starter employee gets no longer includes `billing.view_commission_details`, `clients.view_commissions` or `clients.revert_acceptance`. Only the admin sees the Commission Details page and a client's Commissions tab there: hide both for a Starter employee (`StaffMe.permissions` no longer has the keys; the routes answer 403).
              */
             readonly available_permissions?: string[];
             /** @description Seats the plan allows. Full record only (own staff and platform staff) — omitted from the public projection (contract gate 4, see the schema description), which is why it is no longer required. */
@@ -29911,7 +30376,7 @@ export interface components {
             seats_used: number;
             seat_limit: number;
             /**
-             * @description Why this consultancy cannot take the applicant; null when it can. `seat_limit_reached` (assumptions audit M12, 2026-09-19) is an account with no seat left to hire the consultant who would serve this student — `POST /consultancies/{id}/invites` already refuses that hire, so allocating to them was allocating into a queue nobody could be assigned to.
+             * @description Why this consultancy cannot take the applicant; null when it can. `seat_limit_reached` IS NO LONGER SENT (owner's ruling 2026-10-12, DECISIONS 128(a); built 2026-10-13): seats count a consultancy's staff, not its students, so a fully staffed consultancy can be given a student. Only `no_active_staff`, `subscription_lapsed`, `freelancer_disabled` and `current_consultancy` block; a suspended account is not listed at all. The value stays in the enum so that clients generated earlier still compile.
              * @enum {string|null}
              */
             blocked_reason: "current_consultancy" | "no_active_staff" | "subscription_lapsed" | "freelancer_disabled" | "seat_limit_reached" | null;
@@ -30186,6 +30651,8 @@ export interface components {
              * @enum {string|null}
              */
             readonly closed_by?: "consultancy" | "student" | "committed_elsewhere" | "account_deleted" | null;
+            /** @description Added 2026-10-13 (Phase 8 T4-17). The note the consultancy typed when it closed the lead. Served to the consultancy's own staff only; null for the student, and while the lead is not closed. Show it on the closed lead and in the Reopen Lead box. */
+            readonly closing_note?: string | null;
             /** @description Why a `closed` lead is closed, as ONE SENTENCE FOR THE READER, shown as it is (null while it is not closed). STAFF read their own reason's label ("Lost contact", "Visa refused", …), or "The student ended this chat.", "The student committed to another consultancy.", "The student deleted their Sentpo account.". The STUDENT reads "You ended this chat.", "This chat closed when you chose another consultancy." or "The consultancy closed this chat." — never the consultancy's own reason, which is its record. */
             readonly closed_reason_label?: string | null;
             /** @description THE EARLIER CONVERSATION (owner's ruling 2026-10-10). When a student starts a new chat with a consultancy they had a closed chat with, the new lead lists the ids of those earlier CLOSED chats between the same two, newest first (empty when there is none, and always for an imported lead). The threads are never merged: each id opens read-only with the existing routes — `GET /leads/{id}` and `GET /leads/{id}/messages` — for the student, and for staff who may see THIS lead (they may read its earlier chats even where their own visibility would not show them a colleague's closed lead; every write on such a lead still answers 404 for them). A chat that became a case is not listed: it went on as the case's conversation. */
@@ -30433,6 +30900,8 @@ export interface components {
             proposed_date: string;
             proposed_time: string;
             note: string | null;
+            /** @description Added 2026-10-13 (Phase 8 T2-10 (4)). True once the day the student asked for has gone by (judged in India time). Such a request no longer counts as "Pending Response": it is left out of `filter[responded]=false`, of `summary.pending` and of `summary.pending_over_24h`, whether or not anyone replied. It still appears in the unfiltered list; show it as "Date passed", with no nudge button. */
+            readonly date_passed: boolean;
             /** @description Server-computed from the conversation's own unattended state, not a stored status — "the rest happens over chat" means the consultant replying IS the response, so this reuses the exact same unattended computation every other unread/unattended badge in the app already relies on, rather than inventing a parallel status the two could drift out of sync with. True once the consultant (or anyone on the consultancy side) has sent a message in that thread at or after this request. */
             readonly responded: boolean;
             /** Format: date-time */
@@ -31161,6 +31630,10 @@ export interface components {
              * @example Faster course search, a redesigned Points dashboard, and a handful of bug fixes.
              */
             release_notes: string;
+            /** @description The version of the privacy policy in force (Phase 8, D-123). A constant of the server's build at launch: a release publishes a new one. A student has accepted it when `User.privacy_policy_accepted` is true; when the version changes every student who accepted an earlier one is told once, on the bell and by email ("Our privacy policy has changed"), and the app holds them at the policy screen on the next open. Also the value the consent sheets send as `consent_version`. */
+            readonly privacy_policy_version?: string;
+            /** @description Where the policy's text is published (Phase 8, D-134(c)): `https://sentpo.com/privacy-policy/` unless the server is set otherwise. THE APP shows this page on the policy screen, so a change of wording needs no app release, and falls back to its bundled copy when the page cannot be loaded. Both policy properties are always served by the real backend; the frozen mock has neither, so the app treats a missing one as "use the bundled text and the bundled version". */
+            readonly privacy_policy_url?: string;
             /** @description Thresholds for the in-app store-rating prompt (Session 37). Every guard is evaluated locally on the device; the server only supplies the numbers. */
             rating: {
                 /**
@@ -31673,6 +32146,18 @@ export interface components {
              * @default false
              */
             all_steps_approved: boolean;
+            /** @description Added 2026-10-13 (owner's ruling 2026-10-12, DECISIONS 121 C-27). Present ONLY while `status` is `in_dispute`; left out otherwise. The app shows this sentence INSTEAD of the chat box (and of the share, visit and call controls) in the student's consultancy chat: "Your consultancy chat is paused while Sentpo reviews a problem with this case. We will tell you when it is settled." The thread itself stays readable. A send attempted anyway is still refused with 409 `case_in_dispute`. */
+            chat_paused_sentence?: string;
+            /** @description Added 2026-10-13 (owner's ruling 2026-10-12, DECISIONS 120 C-19). Present ONLY while `status` is `awaiting_match` (a student waiting for Sentpo to choose their consultancy); left out otherwise. The student is promised an answer "within 3 working days" (owner's ruling 140a, which replaced "72 working hours"): `promised_by` is three working days of the platform's default office hours (Monday to Saturday, 10:00 to 17:00, India time) after `waiting_since`. While `overdue` is false the waiting card shows `sentence`; once it is true the card shows `sentence` with a "Contact us" button instead. */
+            awaiting_match?: {
+                /** Format: date-time */
+                waiting_since: string;
+                /** Format: date-time */
+                promised_by: string;
+                overdue: boolean;
+                /** @example Sentpo is choosing a consultancy for you. You will hear from us within 3 working days. */
+                sentence: string;
+            };
         };
         /** @description The Stage-2 view of a Journey (FR-101). Every field here is what Clients List and Client Profile's Overview tab need directly — Plan/Commissions/Selected Colleges/Documents/Internal Notes/Activity are their own endpoints (build reference 2.2), not nested here, matching how the Lead Wave 2 detail/sub-resource split already works. */
         Client: {
@@ -31732,6 +32217,12 @@ export interface components {
              * @enum {string|null}
              */
             readonly outcome?: "success" | "failure" | null;
+            /** @description Added 2026-10-13 (Phase 8 T4-17). The reason the consultancy typed when it closed the case (`POST /clients/{id}/close`'s `reason`). Null while the case is live, for a case closed before 2026-10-13, and once the student's account is erased. Show it on the closed case and in the Reopen Case box. It is cleared when the case is reopened. */
+            readonly closing_note?: string | null;
+            /** @description Added 2026-10-13 (Phase 8 T4-23). Set on a LIVE case that has an accepted college: the sentence to show beside the switched-off "Transfer applicant" link, in plain view (it was only a hover tip): "This case has an accepted college, so it can't be transferred. Close the case or raise a dispute instead." Null when a transfer may be tried, and on an ended case. For the receiver, list consultancies with `GET /consultancies?kind=consultancy`: a college or university never receives a transfer and must not be offered. */
+            readonly transfer_blocked_reason?: string | null;
+            /** @description Added 2026-10-13 (Phase 8 T4-17). True for a LIVE case that nobody is assigned to. Reopen Case always leaves the case like this (its answer carries `needs_assigning: true` and the case's `version`): the console asks at once for a consultant to be chosen (`POST /clients/{id}/assign`). False for an ended case. */
+            readonly needs_assigning?: boolean;
             /** @description The neutral fact recorded at close. See POST /clients/{id}/close. `account_deleted` (gate 12f) is never chosen by a consultancy: the case closed, at once, when its student asked for their Sentpo account to be deleted. Such a case is read-only and cannot be reopened (409 `closed_by_platform`), whether or not the student later keeps the account. */
             readonly close_sub_reason?: string | null;
             /** Format: date-time */
@@ -31811,6 +32302,17 @@ export interface components {
              * @default false
              */
             settling: boolean;
+            /**
+             * @description Phase 8 T2-01 (owner, DECISIONS 133). True when the case closed without success after a college acceptance or a PR contribution: its commission record was cancelled. `entry` is then that record (`status: reversed`, with `reversal_reason` and `reversed_at`) and `installments` the money that was recorded on it. Show the tab read-only with a "Reversed" mark and `reversed_note` above it; the tab used to read "No commission entry yet". Not set on a reopened case (a new acceptance can be recorded there).
+             * @default false
+             */
+            reversed: boolean;
+            /** @description One plain sentence to show when `reversed` is true; null otherwise. */
+            reversed_note?: string | null;
+            /** @description Phase 8 T4-07. immiNow's share on this case — the same object as the case's row on Commission Details (`rate_percent`, `platform_due`, `platform_paid`, `platform_still_to_come`, `platform_outstanding`, …). Null with no commission record, with a reversed one, for the consultancy's own client (no share is owed) and for a reader who may not see commission details. */
+            platform_share?: components["schemas"]["CommissionDue"] | null;
+            /** @description One plain sentence saying what immiNow's share on this case is (the rate, what it is a share of, what has fallen due, what is paid, what is still to come), or that none is owed on the consultancy's own client. Show it as served. Null with no record or for a reader who may not see commission details. */
+            platform_share_note?: string | null;
         };
         /** @description The figure the Accept College dialog offers for what the college will pay the consultancy (`GET /clients/{id}/commission-suggestion`; 2026-10-10): fee × percent ÷ 100 at two decimals. Each part is null when it is not known. */
         CommissionSuggestion: {
@@ -32134,6 +32636,8 @@ export interface components {
             };
             /** @description Payment follow-ups only — commission pending across the queue. */
             pending_inr?: number;
+            /** @description Payment follow-ups only (Phase 8 T4-02). The money the listed cases are still waiting on, in rupees to two decimals: the sum of every listed row's `pending_inr`, whatever page is shown and whatever filter is set. Show this on the Pending tile; `pending_inr` above counts only shares not yet settled, in whole rupees, and read 0 for a queue of overdue cases. */
+            pending_total_inr?: number;
         };
         /** @description A student Support should reach out to (2026-09-11) — stuck before or during their case. Unlike CaseFollowupRow this is per STUDENT: several signals fire before any consultancy exists, so there may be no case at all. */
         ServiceFollowupRow: {
@@ -32203,11 +32707,14 @@ export interface components {
             status: string;
             outcome: string | null;
             signals: {
-                /** @enum {string} */
-                code?: "closed_without_acceptance" | "accepted_not_closed" | "failed_despite_acceptance" | "payment_overdue";
+                /**
+                 * @description `failed_despite_contribution` (Phase 8 fault check 4) — a PR case closed as a failure after the applicant's contribution was recorded; it used to read `closed_without_acceptance`. `moved_with_acceptance` (owner, DECISIONS 117 C-9 and 118) — immiNow moved the student after a college accepted them and the admission stayed with the first consultancy, whose share is still due; listed until that share is paid or closed. `deleted_during_dispute` (DECISIONS 117 C-10) — the account was deleted while a dispute was open, so the commission was not settled. Show `label` and `detail` as served.
+                 * @enum {string}
+                 */
+                code?: "closed_without_acceptance" | "accepted_not_closed" | "failed_despite_acceptance" | "payment_overdue" | "failed_despite_contribution" | "moved_with_acceptance" | "deleted_during_dispute";
                 label?: string;
                 detail?: string;
-                /** @description Whether this signal escalates straight to the student rather than through the consultancy first. True only for the two that mean a case ended owing nothing, where the student is the other witness. */
+                /** @description Whether this signal escalates straight to the student rather than through the consultancy first. True only for the ones that mean a case ended owing nothing, where the student is the other witness. */
                 ask_student?: boolean;
             }[];
             days_since_started: number | null;
@@ -32215,6 +32722,11 @@ export interface components {
             case_progress: components["schemas"]["CaseSummary"];
             /** @description The platform's cut on an entry that exists but is not yet recognised — earned on paper, not yet due. The queue sorts on it, because a case with money on it and no movement outranks a merely old one. */
             amount_at_stake_inr: number;
+            /**
+             * @description What immiNow is still waiting for on this case, in rupees to two decimals (Phase 8 T4-02) — its share while the case has not settled, and after that what has fallen due and is not paid. This is the figure for the "pending" column: an overdue case used to show nothing there. 0 when nothing is pending.
+             * @default 0
+             */
+            pending_inr: number;
         };
         /** @description What one progress fraction can no longer say, now that a case runs several plans at once (2026-09-09). `Client.progress` carries the same summed fraction as `plan_progress` below; everything else here is what that number cannot say. */
         CaseSummary: {
@@ -32248,6 +32760,8 @@ export interface components {
             } | null;
             /** @description Whole days the case has been frozen (to resolution, or to now while open). */
             readonly paused_days: number;
+            /** @description Added 2026-10-13 (owner's ruling 2026-10-12, DECISIONS 121 C-27). True for an OPEN dispute that is seven days old or more: past the service target. A marker for the queue only ("Over 7 days"); nothing happens to a dispute automatically. Support is also sent one bell notice when a dispute has been open three days. */
+            readonly over_target: boolean;
             readonly assigned_to_id: components["schemas"]["UUID"] | null;
             readonly assigned_to_name: string | null;
             /** Format: date-time */
@@ -32729,10 +33243,10 @@ export interface components {
             /** @description E.164. Null when the code was issued for an email, or once the contact has been removed (see the schema's description). */
             student_phone: string | null;
             /**
-             * @description Computed at read time — `used` wins over `expired`.
+             * @description Computed at read time — `used` wins over everything, then `withdrawn` (added 2026-10-13, Phase 8 T2-03: the issuing consultancy took the code back with `POST /transfer-codes/{code}/withdraw`), then `expired`.
              * @enum {string}
              */
-            status: "active" | "used" | "expired";
+            status: "active" | "used" | "expired" | "withdrawn";
             /** Format: date-time */
             expires_at: string;
             /** Format: date-time */
@@ -33309,6 +33823,7 @@ export interface components {
         /** @description One row per RANKED attempt — an attempt that arrived in time. A late attempt (`late`, see `QuizSubmitResponse`) is never a row here, for any caller, before or after settlement. `rank` is a provisional standing until the response's `results_final` is true, and only then a final position. A row carries no questions and no answers. Backed by quiz_attempts (erd.md) — one per student ever, per that table UNIQUE(event_id, student_id). `rank` is computed from the sort (score desc, completion_time_ms asc, ties broken by speed per build reference 1.13), never stored. ROLE-SCOPED — a Platform Admin receives `email`/`phone`/`student_type`; a student receives none of them, because the student app renders a public scoreboard and must not be shipped classmates contact details. The projection is applied server-side, never by the client. `is_me` flags the caller own row for highlighting — a boolean rather than a `student_id`, since finding your own row does not require identifying anyone else. */
         QuizLeaderboardEntry: {
             rank: number;
+            /** @description On a student's view, a participant under 18 (or with no date of birth) is shown as first name and initial — "Asha M." — and everyone else in full (Phase 8, D-129 C-5). The platform's own view always carries the full name. The same rule signs a published review (`Review.student_name`, taken when the review is written). */
             student_name: string;
             /** @description Present and true only on the caller's own row. Never sent to admins, who have no "own row" on someone else's leaderboard. */
             is_me?: boolean;
@@ -34198,6 +34713,8 @@ export interface components {
              * @description Must be strictly greater than `direct_rate` — see `CommissionRate. freelancer_sourced_rate`. Waived, and auto-filled equal to `direct_rate`, when the consultancy's freelancer channel is disabled.
              */
             freelancer_sourced_rate: number;
+            /** @description REQUIRED since Phase 8 (T2-04 / T4-09, owner's ruling 2026-10-13, DECISIONS 134b): why the rate is being added, at least 3 characters after trimming. Kept as the audit entry's reason. Without it: 400 `validation_failed`, the sentence also against `reason` in `details.fields`. (Exchange-rate changes take no reason.) */
+            reason: string;
         };
         /** @description One payer group's two columns within a `PUT /commission-rates/bulk` request — see `CommissionRateInput` for the direct_rate / freelancer_sourced_rate ordering rule, which applies here identically per group. */
         CommissionRateBulkGroup: {
@@ -34247,10 +34764,10 @@ export interface components {
             rate: number;
         };
         /**
-         * @description One of the four things a case can take with it when it moves (`CaseCarry`).
+         * @description One of the things a case can take with it when it moves (`CaseCarry`).
          * @enum {string}
          */
-        CarriedItem: "documents" | "applications" | "preferences" | "chat";
+        CarriedItem: "documents" | "applications" | "preferences" | "chat" | "admission";
         /** @description What goes with a case when it moves to another consultancy — chosen by the person making the move (owner's ruling on review I-014, 2026-10-08), the same on `/clients/{id}/transfer`, `/journeys/{id}/switch-consultancy` and a change row's `/applicant-allocation-queue/{id}/allocate`. Left out entirely, or for any key left out: `documents` true, the rest false ("the receiving consultancy starts fresh, documents only"). Always carried, never a choice: the student, the case type, the acquisition channel and the link to the previous case. Never carried: the plan, internal notes, the commission entry and its payments. */
         CaseCarry: {
             /**
@@ -34273,6 +34790,11 @@ export interface components {
              * @default false
              */
             chat: boolean;
+            /**
+             * @description Only matters when a college has already ACCEPTED the student (owner, DECISIONS 117 C-9 and 118) — "does the admission go to the new consultancy too?". Ask it on a support switch, a dispute's move and a change row's allocation whenever the case has an accepted college. False (the default) — the accepted application stays with the consultancy the student is leaving, whatever `applications` says, and that consultancy's share of the admission falls due to immiNow at the move, as on a successful close; Finance finds the case in its lists and under "Moved with an accepted college" in Payment follow-ups. True — the accepted application is carried to the new case like any other, still naming the consultancy that submitted it, and its commission is settled when the new case closes. `/clients/{id}/transfer` still refuses a case with an accepted college, so the key changes nothing there.
+             * @default false
+             */
+            admission: boolean;
         };
         /** @description One consultancy's KYC state, derived from kyc_records (erd.md) — status is not_submitted (no document ever), pending (submitted, unreviewed), verified, or rejected (a reviewer turned the latest certificate down; review I-010 — the consultancy submits again and the state returns to pending). REJECTED IS ITS OWN STATE (owner's ruling 2026-10-10) — a review decides one certificate once. Offer Verify and Reject only while `status` is `pending`; on `rejected` show the reason and that the consultancy must upload a new certificate — Verify is refused on a rejected certificate (409 `already_reviewed`) until a new one is uploaded, and a rejected certificate is not counted or listed as "to verify" (`status=kyc_pending`). */
         KycStatus: {
@@ -34321,6 +34843,14 @@ export interface components {
             owed_inr: number;
             /** @description Their share once every case is fully collected. */
             expected_inr: number;
+            /** @description Phase 8 T2-08 (owner, 2026-10-13). The part of `expected_inr` that has not been earned yet — what may still come — summed student by student and never negative. `expected_inr` keeps its meaning (the whole share, earned part included). Whole rupees, as every freelancer figure. Not served by the frozen mock. */
+            still_to_come_inr: number;
+            /** @description T2-08. The freelancer's own rate in force, as a percentage (8 for 8%). Null while immiNow has not set one. A student whose rate is already frozen may carry a different one (`FreelancerReferral.your_rate`). */
+            your_rate: number | null;
+            /** @description T2-08. The sentence that states the rate, shown as served ("Your rate is 8% of the commission immiNow receives for each student you refer. ..."), or the sentence saying that no rate has been set yet. */
+            your_rate_text: string;
+            /** @description T2-08. One plain line on how and when payouts are made, shown as served. The build reference names no payout day, so the line promises none. */
+            payouts_line: string;
             by_payout_status: {
                 not_due: number;
                 owed: number;
@@ -34390,9 +34920,15 @@ export interface components {
                 college_name: string | null;
                 /** @description Null when no FreelancerRate row exists yet (rate_missing true). */
                 your_cut: components["schemas"]["Money"] | null;
+                /** @description Phase 8 T2-08 (owner, 2026-10-13). The part of `your_cut` not earned yet: `your_cut` less `earned_inr`, never negative. Null whenever `your_cut` is. Whole rupees. Not served by the frozen mock. */
+                still_to_come: components["schemas"]["Money"] | null;
                 /** @description True when immiNow has not configured this freelancer's rate — surfaced on the payouts page rather than silently showing zero. */
                 rate_missing: boolean;
             } | null;
+            /** @description Phase 8 T2-08 (owner, 2026-10-13). On the freelancer's own reads only (/freelancer/referrals*): their own rate on this student, as a percentage — the rate frozen for the student once there is one, else their rate in force. Null while no rate is set. Never the consultancy's or the platform's rate. Not served by the frozen mock. */
+            readonly your_rate?: number | null;
+            /** @description The same rate ready to print ("8%", "9.5%"). Null with `your_rate`. */
+            readonly your_rate_text?: string | null;
             /** Format: date-time */
             created_at: string;
         };
@@ -34442,12 +34978,15 @@ export interface components {
             readonly tuition_fee: components["schemas"]["Money"] | null;
             /** @description immiNow's share not due yet, in INR (with approx). */
             readonly platform_expected: components["schemas"]["Money"];
+            /** @description Phase 8 T4-07. What of `platform_expected` is still to be paid once it falls due — the share not yet due less money already paid ahead of it, never negative, in INR. This is the "not yet due" column. `platform_expected` alone showed the whole share beside the same amount "paid" on a case that was paid in advance. `case_closed` says whether the row belongs under open or closed cases. */
+            readonly platform_still_to_come?: components["schemas"]["Money"] | null;
             /** @description What has fallen due and is not yet paid, in INR (with approx). */
             readonly platform_outstanding: components["schemas"]["Money"];
-            /** @description Small-difference settlement (2026-10-08). What immiNow Finance wrote off on this case, in INR — beside `platform_paid`, never inside it. */
-            readonly platform_written_off: components["schemas"]["Money"];
-            /** @description Nothing that has fallen due is outstanding, and part of it was settled by a write-off. */
-            readonly settled: boolean;
+            /**
+             * @description Owner's ruling 2026-10-13 (write-off): a consultancy is told only whether an amount is open or closed. `closed` when every part of `due_schedule` is closed (nothing of the platform's share on this case is still asked for), else `open`. It never says how an amount closed. REMOVED from this schema the same day: `platform_written_off` and `settled` (the "settled by write-off" mark) — Commission Details carries no write-off figure; the platform's Finance reads keep theirs (`FinanceCaseRow.written_off_inr`, `settled`). In `by_currency` the `written_off` figure is absent, and each part of `due_schedule` carries `amount_state` in place of its write-off fields. THE CONSOLE shows "Open" / "Closed" from this value and nothing about a write-off.
+             * @enum {string}
+             */
+            readonly amount_state: "open" | "closed";
             /** @description What is outstanding as a percent of what has fallen due, compared by the server in INR. Two places; 0 when nothing is outstanding. */
             readonly shortfall_percent: number;
             readonly by_currency: components["schemas"]["CommissionCurrencyTotals"][];
@@ -34505,6 +35044,22 @@ export interface components {
             /** @description Default rate for a university account: a % of the tuition fee (the course's listed fee — one year's when listed per year). 10. */
             institute_percent: number;
         };
+        /** @description Phase 8 T4-08 (2026-10-13): the default rate that prices one account's cases wherever no row of its Commission Table covers them — the values the pricing engine itself falls back to — and whether that default is the only rate the account has. Shown in place of "No rates configured yet" (and under a filled table). A percentage is the number it is (25, 12.5): it is not money and is not padded to two decimals. */
+        CommissionDefaultInUse: {
+            consultancy_id: components["schemas"]["UUID"];
+            /** @enum {string} */
+            kind: "consultancy" | "institute";
+            /** @description How many rows the account's Commission Table holds. */
+            rate_rows: number;
+            /** @description True when the table holds no row at all — every case is priced at the default. */
+            default_in_use: boolean;
+            /** @description The default for a case the account brought in itself: `CommissionDefaults. consultancy_percent`, or `institute_percent` for a university account. */
+            default_percent: number;
+            /** @description The default when a freelancer brought the student (`CommissionDefaults. freelancer_percent`). Null for a university and for a consultancy whose freelancer channel is off — no such case can exist there. */
+            freelancer_default_percent: number | null;
+            /** @description The same in one or two plain sentences, worded for the reader (the account's own staff on `/commission-rates/me/default-in-use`, immiNow's staff on `/commission-rates/default-in-use`), ready to show as written. For example: "immiNow has not set a rate for your consultancy yet, so its standard rate applies: 25% of what you earn on each case. When a freelancer brought the student, it is 40%." */
+            note: string;
+        };
         CommissionRateCoverageRow: {
             consultancy_id: components["schemas"]["UUID"];
             consultancy_name: string;
@@ -34528,6 +35083,10 @@ export interface components {
             default_rate_cases: number;
             /** @description The default that applies to this account's gaps. */
             default_percent: number;
+            /** @description Phase 8 T4-08: the default when a freelancer brought the student. Null for a university and for a consultancy whose freelancer channel is off. Always sent by the backend. */
+            freelancer_default_percent?: number | null;
+            /** @description Phase 8 T4-08: the account has no rate row at all, so every case is priced at the default. Always sent by the backend. */
+            default_in_use?: boolean;
             /** Format: date-time */
             last_changed_at?: string | null;
             last_changed_by_name?: string | null;
@@ -34548,6 +35107,11 @@ export interface components {
             collected_inr: number;
             expected_inr: number;
             cases: number;
+            /**
+             * @description Phase 8 T4-03. The cases behind `outstanding_inr` — those with an amount fallen due and not paid. "Outstanding … across N cases" shows this; `cases` is every case with a commission record.
+             * @default 0
+             */
+            cases_owing: number;
             consultancies_owing: number;
             payment_followups: number;
             /** @description What the open payment follow-ups are worth (review H5, 2026-09-12). */
@@ -34655,10 +35219,14 @@ export interface components {
             settles: components["schemas"]["Money"] | null;
             /** @description Units of `owed_currency` that one unit of `currency` settles — the stated `rate`, else the day's two exchange rates. Null when nothing is converted. */
             rate: number | null;
+            /** @description Phase 8 T4-10 (2026-10-13): `rate` rounded for showing — at most four decimals, half away from zero (0.014400921658986175 is served as 0.0144); a rate under 0.01 keeps four significant digits so it never reads as nothing. SHOW THIS ONE ("1 INR = 0.0144 CAD"). The receipt converts at, and stores, `rate` itself. Null when nothing is converted. Always sent by the backend. */
+            rate_display?: number | null;
             /** @description True when `settles` is more than `outstanding`; the receipt then needs `allow_overpayment`. */
             is_overpayment: boolean;
             /** @description `settles` less `outstanding`, in `owed_currency`, when `is_overpayment`; else null. */
             overpaid_by: components["schemas"]["Money"] | null;
+            /** @description Phase 8 T4-10 (2026-10-13): every currency that has an exchange rate today (INR always), A to Z. The receipt box offers ONLY these — a currency outside the list is refused with "There is no exchange rate for …". Always sent by the backend. (The same set, with the rates, is `GET /exchange-rates` plus INR.) */
+            currencies_with_rate?: string[];
         };
         FinanceCaseRow: {
             /** @description Parts Finance closed without payment, in INR. */
@@ -34727,8 +35295,8 @@ export interface components {
         CommissionCurrencyTotals: {
             /** @description Closed by Finance without payment. */
             waived: number;
-            /** @description Small-difference settlement (2026-10-08). Shortfalls Finance wrote off to mark parts fully paid, in this currency — a figure of its own, in neither `due` nor `paid` (`paid` is the money received). */
-            written_off: number;
+            /** @description Small-difference settlement (2026-10-08). Shortfalls Finance wrote off to mark parts fully paid, in this currency — a figure of its own, in neither `due` nor `paid` (`paid` is the money received). PLATFORM FINANCE READS ONLY (owner's ruling 2026-10-13): always present on `FinanceCaseRow.by_currency`, never served on a consultancy's `CommissionDue.by_currency`. */
+            written_off?: number;
             currency: string;
             /** @description Parts that have fallen due (the case closed as a success; college money as it arrived). */
             due: number;
@@ -34762,24 +35330,29 @@ export interface components {
             waived_at: string | null;
             /** @description Pass to /commission-entries/{id}/dues/{changeId}/void to reopen the part. */
             waive_change_id: components["schemas"]["UUID"] | null;
-            /** @description Small-difference settlement (2026-10-08). The shortfall Finance wrote off on this part to mark it fully paid, in the part's currency; 0 when none. `amount` no longer includes it and `paid` is the money received, so `amount + written_off` is what was originally due. */
-            written_off: number;
-            /** @description The part was closed by writing off a shortfall (`written_off` > 0). */
-            settled: boolean;
-            settled_reason: string | null;
-            /** @description Who wrote it off — "immiNow Finance" to a consultancy. */
-            settled_by_name: string | null;
-            /** Format: date-time */
-            settled_at: string | null;
-            /** @description Pass to /commission-entries/{id}/dues/{changeId}/void to undo the settlement. */
-            settle_change_id: components["schemas"]["UUID"] | null;
-            /** @description What is unpaid on this part now, together with anything already written off on it, as a percent of what was originally due (two places). 0 when there is nothing to settle. Computed by the server in the part's own currency. */
-            shortfall_percent: number;
             /**
-             * @description Who may settle this part with `POST /commission-entries/{id}/settle`: `finance` when the shortfall is within the limit (5%), `super_admin` above it, null when there is nothing to settle (not due yet, paid, closed) — and always null to a consultancy.
+             * @description Owner's ruling 2026-10-13 (write-off). Whether anything of this part is still asked for: `open` while some of it is unpaid, `closed` once nothing is — paid in full or closed by immiNow Finance; it never says which. Always sent. It is ALL a consultancy is told about a part Finance settled: on a consultancy's read (`CommissionDue`) the write-off fields of this schema — `written_off`, `written_off_minor`, `settled`, `settled_reason`, `settled_by_name`, `settled_at`, `settle_change_id`, `shortfall_percent`, `settle_needs` — are ABSENT. The platform's Finance reads (`FinanceCaseRow`) always carry all of them, as before.
+             * @enum {string}
+             */
+            amount_state?: "open" | "closed";
+            /** @description Small-difference settlement (2026-10-08). The shortfall Finance wrote off on this part to mark it fully paid, in the part's currency; 0 when none. `amount` no longer includes it and `paid` is the money received, so `amount + written_off` is what was originally due. Platform Finance reads only (2026-10-13) — see `amount_state`. */
+            written_off?: number;
+            /** @description The part was closed by writing off a shortfall (`written_off` > 0). Platform Finance reads only (2026-10-13) — see `amount_state`. */
+            settled?: boolean;
+            settled_reason?: string | null;
+            /** @description Who wrote it off. Platform Finance reads only (2026-10-13). */
+            settled_by_name?: string | null;
+            /** Format: date-time */
+            settled_at?: string | null;
+            /** @description Pass to /commission-entries/{id}/dues/{changeId}/void to undo the settlement. */
+            settle_change_id?: components["schemas"]["UUID"] | null;
+            /** @description What is unpaid on this part now, together with anything already written off on it, as a percent of what was originally due (two places). 0 when there is nothing to settle. Computed by the server in the part's own currency. */
+            shortfall_percent?: number;
+            /**
+             * @description Who may settle this part with `POST /commission-entries/{id}/settle`: `finance` when the shortfall is within the limit (5%), `super_admin` above it, null when there is nothing to settle (not due yet, paid, closed). Platform Finance reads only (2026-10-13): absent on a consultancy's read.
              * @enum {string|null}
              */
-            settle_needs: "finance" | "super_admin" | null;
+            settle_needs?: "finance" | "super_admin" | null;
             /** @description A durable id for this due part (gate 11, F9 — every part is its own `commission_dues` row once the dues engine lands, never recomputed from scratch). The instalment, override or added row this part comes from. Still null on the frozen mock for a purely-calculated part with nothing triggering it (a share worked out fresh on every read, with no row of its own to point at) — the production backend gives every part an id, calculated ones included. */
             id: components["schemas"]["UUID"] | null;
             /** @enum {string} */
@@ -34863,6 +35436,31 @@ export interface components {
             void_reason: string | null;
             voided_by_name: string | null;
         };
+        /** @description One payment as a line of the Payment history export (Phase 8 T4-04 to T4-06) — every cell a finished string from the server. Money has two decimals and no grouping ("537.50", "30100.00"); dates read DD-MM-YYYY on India's calendar; a cell with nothing to say is an empty string. */
+        PaymentExport: {
+            /** @description The day the money was received, else the day it was decided, else declared. */
+            date: string;
+            /** @description "Awaiting confirmation", "Confirmed" or "Rejected". */
+            status: string;
+            currency: string;
+            amount: string;
+            amount_inr: string;
+            /** @description The consultancy's or institute's name. */
+            account: string;
+            applicant: string;
+            reference: string;
+            /** @description Empty for money immiNow Finance recorded itself. */
+            declared_on: string;
+            /** @description The day it was confirmed or rejected. */
+            decided_on: string;
+            decided_by: string;
+            /** @description The row's `reason_text`. */
+            reason: string;
+            settled_in: string;
+            /** @description Rupees per unit of `currency` as frozen on the payment, at most four decimals. */
+            rate_used: string;
+            amount_settled: string;
+        };
         /** @description A platform payment declared against ONE commission entry's due (reworked 2026-08-28 — "consultant click on the due transaction and enter the amount"). Legacy pooled payments recorded before this change carry a null commission_entry_id and show as "General" rather than against any one case. No proof upload is required or accepted; the optional transaction_id is the consultant's own bank/UPI reference, for their own bookkeeping — confirmation by immiNow finance is what actually settles the due. */
         CommissionPayment: {
             /** @description F-079. Set on a payment Finance recorded in another currency than the one owed (`allow_cross_currency`): the currency of the dues it settles. Null on every same-currency payment. `amount` stays what arrived, in its own currency. */
@@ -34871,6 +35469,10 @@ export interface components {
             readonly settles_rate: number | null;
             /** @description F-079. What the payment has settled so far, in `settles_currency` (the sum of its allocations). Null on a same-currency payment. */
             readonly settled: components["schemas"]["Money"] | null;
+            /** @description Phase 8 T4-06. Everything Finance typed about this payment as one line — why it was confirmed at another amount, why it was rejected, and each correction with its reason, oldest first (parts separated by " | "). Show it on the Payment history row. Null when nothing was typed. */
+            readonly reason_text?: string | null;
+            /** @description Phase 8 T4-04, T4-05, T4-06. This row as the Payment history export writes it. Write the file's cells from these strings as they are; compute and format nothing. */
+            readonly export?: components["schemas"]["PaymentExport"] | null;
             /** @description Recorded directly by immiNow Finance (money that arrived without a declaration). */
             readonly recorded_by_finance: boolean;
             /** Format: date */
@@ -35075,6 +35677,12 @@ export interface components {
             }[];
             /** @description The sentence to show with the list ("This account has an open dispute. Deleting the account closes it automatically, ..."). Null when no dispute is open. */
             open_disputes_notice: string | null;
+            /** @description Phase 8 fault check 3 (owner, 2026-10-13). What the account is still owed as a freelancer and has not been paid, in whole rupees (every freelancer figure is a whole number of rupees). Counts only what can be paid out: a student on whom the freelancer was overpaid does not reduce it. Null when the account is not a freelancer's; 0 when nothing is owed. A warning only — the deletion is never refused for it. Not served by the frozen mock. */
+            freelancer_owed_inr?: number | null;
+            /** @description Owner's ruling 2026-10-13 (two decimals in every money sentence). The same amount as `freelancer_owed_inr`, written as a money sentence writes it: `₹4,750.00` (Indian grouping, always two decimals). It is the figure `freelancer_owed_notice` uses; a client that shows the amount on its own shows this and formats nothing. Null when `freelancer_owed_inr` is null. Not served by the frozen mock. */
+            freelancer_owed_text?: string | null;
+            /** @description The warning to show before the operator confirms ("This freelancer is still owed ₹21,311.00 in earnings that have not been paid. ..."). The amount is written with two decimals (owner's ruling 2026-10-13; it read "₹21,311" before). Null unless something is owed. The console shows it as served and computes nothing. */
+            freelancer_owed_notice?: string | null;
         };
         /** @description The answer to an erasure request (gate 12f). `erasure_pending`: the account is locked now and its personal data is erased at `due_at`, 30 days later, unless the erasure is cancelled before then (`cancel_until` is the same instant, named for the client's copy). `erasure_queued`: there is no window — Support asked for an immediate erasure, or the erasure was already under way — and both dates are null. */
         ErasureQueuedOut: {
@@ -35496,6 +36104,21 @@ export interface components {
                     };
                 }[];
             };
+            /** @description Added 2026-10-13 (owner's ruling 2026-10-12, DECISIONS 120 C-19). Student course searches that found no course over the last `days` days: how many, and the 20 commonest filter combinations, most searched first. A count of searches, not of students: nothing here says who searched, and the words a student typed are not kept (`typed_words` only says that some were). */
+            no_match_searches: {
+                days: number;
+                total: number;
+                top: {
+                    /** @description The search's filters by name (`country`, `level`, `field` …). */
+                    filters: {
+                        [key: string]: string;
+                    };
+                    typed_words: boolean;
+                    searches: number;
+                    /** Format: date-time */
+                    last_searched_at: string;
+                }[];
+            };
             /** @description Supply beside demand per country (2026-09-11 — merged `supply_by_country` and `mismatch`). Supply counts only organisations that can take a NEW student now (active, subscription not lapsed), consultancies and institutes apart; the old per-country seat usage was dropped (it added each consultancy's whole team to every country it listed). Least-covered first: `none`, then `limited`, then `ok`; within that, most students wanting first. Top 10, the rest summarised in `others`. Capacity (2026-09-11): each organisation holds active staff × `cases_per_staff`; its spare capacity (that minus its open cases) is split evenly across the countries it serves. */
             coverage_by_country: {
                 /** @description The platform setting the capacity figures were computed with. */
@@ -35749,6 +36372,24 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description 403 `policy_acceptance_required`, FROM ANY `/v1` ROUTE A STUDENT CALLS (Phase 8, 2026-10-13; owner's ruling 144(b)). It is not repeated under each operation. The server's own half of the privacy-policy hold: until now only the app's screen held a student who had not accepted the policy in force, so a build that skipped the screen went on being served. Answered whenever the request carries the access token of a STUDENT who holds no consent record of event `1` or `1b` under `AppConfig.privacy_policy_version` — after a policy change, and equally for a student who has never been shown any policy (an account a consultancy created; a sign-up that closed the app before "I Agree & Continue"). Public routes answer it too when such a token is sent. NEVER answered by the routes that end the hold: everything under `/auth/` (sign-in, refresh, sign-out, verification codes, cancelling a deletion), `GET /profile`, `GET /app-config`, `POST /consent/accept`, `GET /profile/erase` and `POST /profile/erase` (deleting the account instead of accepting), `POST /profile/guardian` and `/guardian-consent/*`. Never answered to staff, a freelancer or a console session, and never to a call that carries no token. Nothing was read or written. THE APP treats this answer from any call as `User.privacy_policy_accepted: false`: it opens the policy screen (it does not retry and does not sign the student out); after `POST /consent/accept` answers 200 the very next call is served. An app update check (`AppUpdateRequired`, 426) is answered first when both apply. Message: "Please read and accept the updated privacy policy to continue." */
+        PolicyAcceptanceRequired: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description 426 `app_update_required`, FROM ANY `/v1` ROUTE EXCEPT `GET /app-config` (Phase 8, 2026-10-13; D-121 C-29(1)). It is not repeated under each operation. The server's own half of the version gate: until now only the app compared itself with `AppConfig.minimum_version`, so a build that skipped or predated that check went on being served. Answered (1) ALWAYS when the request's `X-App-Version` header is below `minimum_version`; (2) once the server is set to require the header (`APP_VERSION_REQUIRED`), when a request that can only have come from the app names no readable version — it carries an access token of the student app or the staff phone shell, or it is a call to the student door (`/auth/passwordless/*`, `/auth/federated`). A browser (the console, the guardian page, public pages) sends no such header and is never refused. `details` carries what the update screen shows, the same values as `GET /app-config`: `minimum_version`, `latest_version`, `update_url`, and where set `update_url_android`, `update_url_ios` and `release_notes`. THE APP treats this answer from any call as its launch check failing: it opens the blocking update screen (this platform's store link, else `update_url`) and does not retry; nothing was read or written. A header that is not a version (`dev`) counts as no header, never as an old version, and when the server cannot read its own minimum it serves the request rather than block. Message: "This version of the app is no longer supported. Please update the app to continue." */
+        AppUpdateRequired: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description 400 `validation_failed`, from any route that reads a JSON body: the body is not valid JSON, is not a JSON object where one is expected, or is nested more deeply than any real request (review F-006). Nothing was read or written. */
         MalformedBody: {
             headers: {
@@ -35792,6 +36433,8 @@ export interface components {
         };
     };
     parameters: {
+        /** @description The installed app's version, `MAJOR.MINOR.PATCH` with an optional build suffix (`2.1.0`, `2.1.0+37`). THE APP sends it on EVERY request, signed in or not (Phase 8, D-121 C-29(1)); it is not listed under each operation. The console and public pages do not send it. Below `AppConfig.minimum_version` the answer is 426 `app_update_required` (`components/responses/AppUpdateRequired`). */
+        AppVersion: string;
         /**
          * @description The app's own install identifier (owner ruling 2026-10-06, review F-024), sent on the two requests that can make the platform send a text: `POST /auth/passwordless/request` and `POST /auth/otp/request` — AND (second sign-in review, 2026-10-07) on every request that submits a sign-in code: `POST /auth/passwordless/verify` and the student's `POST /profile/erase`. A sign-in code asked for with this header belongs to that install: it is accepted only from a request carrying the SAME value, so the app must send the header on both steps or its own code is answered as incorrect. (This is what stops a stranger from using up the five tries of someone else's code: without the install's identifier their submissions are never checked against it.) WHAT TO SEND: a random UUID (v4) the app generates the first time it starts and keeps in its own storage, the same value on every later request from that install until the app is uninstalled or its data cleared. Never a hardware identifier, an advertising id, a phone number or anything that identifies the person. 16 to 64 characters of letters, digits, `-` and `_`.
          *
