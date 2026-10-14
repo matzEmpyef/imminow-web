@@ -17,13 +17,13 @@ import {
   formatDayLabel,
   localDateISO,
 } from '@/lib/time'
-import { taskTarget } from './taskTarget'
+import { taskLeadTarget, taskTarget } from './taskTarget'
 import { collegeItemKey } from './collegeItemKey'
 import { AssignTaskModal } from './AssignTaskModal'
 import { CompletedTasksSection } from './CompletedTasksSection'
 import type { components } from '@/api/schema'
 
-type ActivityTask = components['schemas']['ActivityTask'] & { lead_id?: string | null }
+type ActivityTask = components['schemas']['ActivityTask']
 
 // The feed is bounded (review F-112): each of its lists carries at most this many rows, and
 // `truncated` says at least one was cut. The contract names the number; it is not sent per list,
@@ -439,10 +439,10 @@ export function ActivityPage() {
                           ` (${task.client_name})`
                         ))}
                       {task.lead_name &&
-                        ((task as ActivityTask).lead_id ? (
+                        (taskLeadTarget(task) ? (
                           <>
                             {' ('}
-                            <Link to={`/sales/leads/${(task as ActivityTask).lead_id}`} className="hover:text-primary hover:underline">
+                            <Link to={taskLeadTarget(task)!} className="hover:text-primary hover:underline">
                               {task.lead_name}
                             </Link>
                             {')'}
