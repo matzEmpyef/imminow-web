@@ -90,10 +90,12 @@ describe('Commission Details, the consultancy view', () => {
       due('a', 'Asha Nair', { amount_state: 'open' }),
       due('b', 'Ravi Kumar', { amount_state: 'closed', platform_paid: inr(960) }),
     ])
-    expect(within(rowOf('Asha Nair')).getByText('Open')).toBeInTheDocument()
-    expect(within(rowOf('Asha Nair')).queryByText('Closed')).not.toBeInTheDocument()
-    expect(within(rowOf('Ravi Kumar')).getByText('Closed')).toBeInTheDocument()
-    expect(within(rowOf('Ravi Kumar')).queryByText('Open')).not.toBeInTheDocument()
+    // The mark is a badge (the case's own state, in another column, is plain text).
+    const badge = { selector: 'span.rounded-full' }
+    expect(within(rowOf('Asha Nair')).getByText('Open', badge)).toBeInTheDocument()
+    expect(within(rowOf('Asha Nair')).queryByText('Closed', badge)).not.toBeInTheDocument()
+    expect(within(rowOf('Ravi Kumar')).getByText('Closed', badge)).toBeInTheDocument()
+    expect(within(rowOf('Ravi Kumar')).queryByText('Open', badge)).not.toBeInTheDocument()
   })
 
   it('never shows a write-off: a case closed that way reads "Closed", with no figure', () => {
