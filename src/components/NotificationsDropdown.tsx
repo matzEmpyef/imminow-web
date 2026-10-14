@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Bell } from 'lucide-react'
 import { useMarkNotificationRead, useNotifications, useUnreadCount } from '@/queries/notifications'
 import { relativeTime } from '@/lib/time'
-import { safeDeepLink } from '@/lib/deepLinks'
+import { notificationLink } from '@/lib/deepLinks'
 import { useMyScope } from '@/lib/me'
 
 const MAX_VISIBLE = 5
@@ -86,7 +86,7 @@ export function NotificationsDropdown() {
                   // RT 6 / contract gate 9 K8 — only ever navigate to a deep_link this console
                   // actually serves; an unrecognised one (a student-app route, a stale pre-
                   // catalogue row) falls back to the full inbox rather than an unroutable path.
-                  to={safeDeepLink(n.deep_link, fallback)}
+                  to={notificationLink(n, fallback)}
                   onClick={() => {
                     if (!n.read) markRead.mutate(n.id)
                     setOpen(false)

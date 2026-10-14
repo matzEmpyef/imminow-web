@@ -37,3 +37,33 @@ describe('Notification Channel Config', () => {
     expect(screen.queryByText('admin_role_handed_over')).not.toBeInTheDocument()
   })
 })
+
+// Phase 8: the new bell types read with a plain name, not their raw type.
+describe('Notification Channel Config: the newer types', () => {
+  it('gives each a plain name', () => {
+    const types = [
+      'case_dispute_open_3_days',
+      'step_review_waiting',
+      'step_review_unanswered',
+      'client_committed',
+      'plan_downgraded',
+      'consultancy_unavailable',
+    ]
+    vi.mocked(useNotificationChannelConfig).mockReturnValue({
+      data: types.map((notification_type) => ({
+        notification_type,
+        audience: 'imminow',
+        in_app_enabled: true,
+        push_enabled: true,
+        email_enabled: true,
+      })),
+      isLoading: false,
+      isError: false,
+    } as never)
+    render(<NotificationChannelConfigPage />)
+    expect(screen.getByText('A dispute has been open for 3 days (immiNow staff)')).toBeInTheDocument()
+    expect(screen.getByText('A student became the consultancy’s client')).toBeInTheDocument()
+    expect(screen.getByText('immiNow moved the consultancy to a smaller plan (to its admin)')).toBeInTheDocument()
+    for (const type of types) expect(screen.queryByText(type)).not.toBeInTheDocument()
+  })
+})

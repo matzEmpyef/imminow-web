@@ -95,6 +95,12 @@ const LABELS: Record<string, string> = {
   date_of_birth_corrected: 'Date of birth corrected by Support (to the student)',
   account_set_up_for_you: 'First sign-in to an account a consultancy set up (to the student)',
   admin_role_handed_over: 'Support made someone else the administrator of a consultancy (to the new administrator and the former one)',
+  case_dispute_open_3_days: 'A dispute has been open for 3 days (immiNow staff)',
+  step_review_waiting: 'A submitted step has waited 24 hours for review (to the assigned consultant)',
+  step_review_unanswered: 'A submitted step has waited 3 days for review (to the consultancy admin)',
+  client_committed: 'A student became the consultancy’s client',
+  plan_downgraded: 'immiNow moved the consultancy to a smaller plan (to its admin)',
+  consultancy_unavailable: 'Consultancy suspended (to its students with a live chat or case)',
 }
 
 // Row-level component so useUpdateNotificationChannelConfig() can be called at its own render top

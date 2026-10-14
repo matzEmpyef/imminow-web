@@ -187,3 +187,29 @@ describe('a freelancer’s notices', () => {
     expect(screen.getByRole('link', { name: /A payout is on its way/ })).toHaveAttribute('href', '/freelancer/dashboard')
   })
 })
+
+// Phase 8: a step waiting for review opens the client's plan.
+describe('the step-review notice', () => {
+  it('opens the client’s plan tab', () => {
+    serve([
+      {
+        id: 'n2',
+        type: 'step_review_waiting',
+        title: 'A step is still waiting for your review',
+        body: 'Asha Nair submitted Passport copy more than 24 hours ago. Please review it.',
+        deep_link: '/clients/j1',
+        read: false,
+        created_at: new Date().toISOString(),
+      },
+    ])
+    render(
+      <MemoryRouter>
+        <NotificationsPage />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('link', { name: /A step is still waiting for your review/ })).toHaveAttribute(
+      'href',
+      '/clients/j1?tab=Plan',
+    )
+  })
+})

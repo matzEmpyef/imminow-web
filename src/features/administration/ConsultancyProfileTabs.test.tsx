@@ -19,7 +19,7 @@ vi.mock('@/lib/permissions', () => ({
 
 vi.mock('./PartnerCollegesPanel', () => ({ PartnerCollegesPanel: () => <p>Partner panel</p> }))
 vi.mock('./ConsultancyProfileTab', () => ({ ProfileTab: () => <p>Profile panel</p> }))
-vi.mock('./ConsultancySubscriptionTab', () => ({ SubscriptionTab: () => null }))
+vi.mock('./ConsultancySubscriptionTab', () => ({ SubscriptionTab: () => <p>Subscription panel</p> }))
 vi.mock('./ConsultancySecurityTab', () => ({ SecurityTab: () => null }))
 vi.mock('./ConsultancyCommissionRatesTab', () => ({ CommissionRatesTab: () => null }))
 vi.mock('./ConsultancyAllocationTab', () => ({ AllocationTab: () => null }))
@@ -66,5 +66,12 @@ describe('Consultancy Management tabs', () => {
     }
     expect(screen.getByText('Profile panel')).toBeInTheDocument()
     expect(screen.queryByText('Partner panel')).not.toBeInTheDocument()
+  })
+
+  // `plan_downgraded` opens the subscription, where the new plan is shown.
+  it('opens on the subscription when the address asks for it', () => {
+    show('/administration/consultancy-profile?tab=subscription')
+    expect(screen.getByText('Subscription panel')).toBeInTheDocument()
+    expect(screen.queryByText('Profile panel')).not.toBeInTheDocument()
   })
 })

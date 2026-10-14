@@ -62,6 +62,19 @@ const ALLOWED_PREFIXES = [
   '/staff/conversations/',
 ]
 
+// Addresses the server writes that the console serves under another path. `case_dispute_raised` and
+// `case_dispute_open_3_days` carry `/admin/support/disputes`; the queue lives at `/admin/disputes`.
+const LINK_ALIASES: Record<string, string> = {
+  '/admin/support/disputes': '/admin/disputes',
+}
+
+function aliased(link: string): string {
+  const i = link.indexOf('?')
+  const path = i === -1 ? link : link.slice(0, i)
+  const to = LINK_ALIASES[path]
+  return to ? to + (i === -1 ? '' : link.slice(i)) : link
+}
+
 /** Strips a query string for the exact-match check; prefix entries that want to allow one
  * (`/admin/consultancies?...`) list themselves separately with the `?` included. */
 function pathOnly(link: string): string {
@@ -89,6 +102,7 @@ export function isInAppPath(link: string | null | undefined): link is string {
  */
 export function isAllowedDeepLink(link: string | null | undefined): link is string {
   if (!isInAppPath(link)) return false
+  link = aliased(link)
   // A link the server left as a template ("/clients/{client_id}") opens a page that cannot load
   // (T1-07). The server fills them in now; this keeps a stray one from being followed.
   if (link.includes('{') || link.includes('}')) return false
@@ -103,5 +117,32 @@ export function isAllowedDeepLink(link: string | null | undefined): link is stri
 export function safeDeepLink(link: string | null | undefined, fallback: string): string
 export function safeDeepLink(link: string | null | undefined, fallback?: null): string | null
 export function safeDeepLink(link: string | null | undefined, fallback: string | null = null): string | null {
-  return isAllowedDeepLink(link) ? link : fallback
+  return isAllowedDeepLink(link) ? aliased(link) : fallback
+}
+
+/**
+ * Where a bell notice opens. The notice's own `deep_link` (checked by {@link safeDeepLink}), taken to
+ * the part of the page the notice is about when the link alone would land on the wrong one:
+ *   - `step_review_waiting` and `step_review_unanswered` open the client's plan, not their overview;
+ *   - `plan_downgraded` opens the consultancy's subscription, not its profile.
+ * Everything else opens exactly where it says.
+ */
+export function notificationLink(
+  notice: { type?: string | null; deep_link?: string | null },
+  fallback: string,
+): string
+export function notificationLink(notice: { type?: string | null; deep_link?: string | null }, fallback?: null): string | null
+export function notificationLink(
+  notice: { type?: string | null; deep_link?: string | null },
+  fallback: string | null = null,
+): string | null {
+  const link = safeDeepLink(notice.deep_link, null)
+  if (!link) return fallback
+  if ((notice.type === 'step_review_waiting' || notice.type === 'step_review_unanswered') && !link.includes('?')) {
+    return `${link}?tab=Plan`
+  }
+  if (notice.type === 'plan_downgraded' && link === '/administration/consultancy-profile') {
+    return `${link}?tab=subscription`
+  }
+  return link
 }

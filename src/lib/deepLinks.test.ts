@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isAllowedDeepLink, safeDeepLink } from './deepLinks'
+import { isAllowedDeepLink, notificationLink, safeDeepLink } from './deepLinks'
 
 // The notices about a lead nobody answered or nobody was given (owner's ruling 2026-10-09):
 // `new_lead` and `lead_reply_overdue` open the lead's page, `lead_unanswered` the service
@@ -46,5 +46,34 @@ describe('the case notices', () => {
     expect(isAllowedDeepLink('/clients/{client_id}')).toBe(false)
     expect(isAllowedDeepLink('/clients/{journey_id}')).toBe(false)
     expect(safeDeepLink('/clients/{client_id}', '/notifications')).toBe('/notifications')
+  })
+})
+
+// Phase 8 bell notices: where each opens.
+describe('notificationLink', () => {
+  it('opens the dispute queue for a dispute notice, whichever path the server writes', () => {
+    expect(notificationLink({ type: 'case_dispute_open_3_days', deep_link: '/admin/support/disputes' }, '/n')).toBe('/admin/disputes')
+    expect(isAllowedDeepLink('/admin/support/disputes')).toBe(true)
+  })
+
+  it('opens the client’s plan for a step waiting for review', () => {
+    for (const type of ['step_review_waiting', 'step_review_unanswered']) {
+      expect(notificationLink({ type, deep_link: '/clients/j1' }, '/n')).toBe('/clients/j1?tab=Plan')
+    }
+  })
+
+  it('opens the client for a student who has committed', () => {
+    expect(notificationLink({ type: 'client_committed', deep_link: '/clients/j1' }, '/n')).toBe('/clients/j1')
+  })
+
+  it('opens the subscription for a plan downgrade', () => {
+    expect(notificationLink({ type: 'plan_downgraded', deep_link: '/administration/consultancy-profile' }, '/n')).toBe(
+      '/administration/consultancy-profile?tab=subscription',
+    )
+  })
+
+  it('falls back when the link is not one this console serves', () => {
+    expect(notificationLink({ type: 'step_review_waiting', deep_link: '/clients/{journey_id}' }, '/n')).toBe('/n')
+    expect(notificationLink({ type: 'x', deep_link: null })).toBeNull()
   })
 })

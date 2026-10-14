@@ -16,7 +16,7 @@ import {
 import { useMyScope } from '@/lib/me'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { timeAgo } from '@/lib/time'
-import { safeDeepLink } from '@/lib/deepLinks'
+import { notificationLink } from '@/lib/deepLinks'
 import { useCursorPagination } from '@/lib/pagination'
 import { useDebouncedValue } from '@/lib/useDebounce'
 import { showToast } from '@/lib/toast'
@@ -122,7 +122,7 @@ export function NotificationsPage() {
               <NotificationRow
                 key={n.id}
                 // RT 6 / contract gate 9 K8 — only navigate to a route this console serves.
-                to={scope === 'freelancer' ? safeDeepLink(n.deep_link, '/freelancer/dashboard') : safeDeepLink(n.deep_link)}
+                to={scope === 'freelancer' ? notificationLink(n, '/freelancer/dashboard') : notificationLink(n)}
                 onOpen={() => !n.read && markRead.mutate(n.id)}
               >
                 <Card

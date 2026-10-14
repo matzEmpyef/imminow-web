@@ -39,7 +39,12 @@ export function ConsultancyProfilePage() {
   // ?tab=partner-colleges — where the "New college" notification lands (2026-09-11).
   const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState<Tab>(
-    searchParams.get('tab') === 'partner-colleges' ? 'Partner Colleges' : 'Profile',
+    searchParams.get('tab') === 'partner-colleges'
+      ? 'Partner Colleges'
+      : // `plan_downgraded` lands on the subscription, where the new plan is shown.
+        searchParams.get('tab') === 'subscription'
+        ? 'Subscription'
+        : 'Profile',
   )
   // Incoming Transfers is about accepting cases, not settings — its own permission gate.
   const canAcceptTransfers = usePermission('clients.transfer_applicant')
