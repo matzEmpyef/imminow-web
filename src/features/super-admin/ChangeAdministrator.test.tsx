@@ -31,11 +31,11 @@ const mockedGet = vi.mocked(api.GET)
 const mockedPost = vi.mocked(api.POST)
 
 const STAFF = [
-  { id: 'e-priya', is_consultancy_admin: true, active: true, status: 'active', name: 'Priya Nair', email: 'priya@example.com' },
-  { id: 'e-arjun', is_consultancy_admin: false, active: true, status: 'active', name: 'Arjun Rao', email: 'arjun@example.com' },
-  { id: 'e-fatima', is_consultancy_admin: false, active: true, status: 'invited', name: 'Fatima Khan', email: 'fatima@example.com' },
-  { id: 'e-omar', is_consultancy_admin: false, active: false, status: 'deactivated', name: 'Omar Sheikh', email: 'omar@example.com' },
-  { id: 'e-lena', is_consultancy_admin: false, active: true, status: 'active', user: { first_name: 'Lena', last_name: 'Park', email: 'lena@example.com' } },
+  { id: 'e-priya', is_consultancy_admin: true, active: true, status: 'active', name: 'Priya Nair', first_name: 'Priya', last_name: 'Nair', email: 'priya@example.com' },
+  { id: 'e-arjun', is_consultancy_admin: false, active: true, status: 'active', name: 'Arjun Rao', first_name: 'Arjun', last_name: 'Rao', email: 'arjun@example.com' },
+  { id: 'e-fatima', is_consultancy_admin: false, active: true, status: 'invited', name: 'Fatima Khan', first_name: 'Fatima', last_name: 'Khan', email: 'fatima@example.com' },
+  { id: 'e-omar', is_consultancy_admin: false, active: false, status: 'deactivated', name: 'Omar Sheikh', first_name: 'Omar', last_name: 'Sheikh', email: 'omar@example.com' },
+  { id: 'e-lena', is_consultancy_admin: false, active: true, status: 'active', name: 'Lena Park', first_name: 'Lena', last_name: 'Park', email: 'lena@example.com' },
 ]
 
 const CONSULTANCY = {
@@ -48,8 +48,17 @@ const CONSULTANCY = {
   tier: 'business',
   seat_limit: 10,
   seats_used: 4,
-  employees: STAFF,
 } as unknown as Consultancy
+
+/** What `GET /consultancies/{id}/employees` answers. */
+function serveStaff(employees: unknown = STAFF) {
+  mockedGet.mockImplementation((async (path: string) => {
+    if (path === '/consultancies/{id}/employees') {
+      return { data: { consultancy_id: 'c1', consultancy_name: 'Northwind Education', employees }, error: undefined }
+    }
+    return { data: { items: [], meta: { next_cursor: null } }, error: undefined }
+  }) as never)
+}
 
 function renderDetail(consultancy: Consultancy = CONSULTANCY) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
@@ -76,9 +85,12 @@ function refuse(status: number, code: string, message: string, details?: Record<
   } as never)
 }
 
-function openDialog() {
+async function openDialog() {
   fireEvent.click(screen.getByRole('button', { name: 'Change administrator' }))
-  return screen.getByRole('dialog', { name: 'Change administrator' })
+  const dialog = screen.getByRole('dialog', { name: 'Change administrator' })
+  // The staff list is read when the dialog opens.
+  await waitFor(() => expect(within(dialog).queryByText(/Loading the staff/)).not.toBeInTheDocument())
+  return dialog
 }
 
 function submitButton(dialog: HTMLElement) {
@@ -97,7 +109,7 @@ beforeEach(() => {
   vi.mocked(showToast).mockClear()
   useAuthStore.setState({ accessToken: 'test-token' })
   vi.mocked(useMe).mockReturnValue(meAnswered(platformMe({ support_tools: true })))
-  mockedGet.mockResolvedValue({ data: { items: [], meta: { next_cursor: null } }, error: undefined } as never)
+  serveStaff()
 })
 
 describe('who is offered Change administrator', () => {
@@ -114,9 +126,9 @@ describe('who is offered Change administrator', () => {
 })
 
 describe('the Change administrator dialog', () => {
-  it('lists active staff who have accepted, without the current administrator, and says what happens', () => {
+  it('lists active staff who have accepted, without the current administrator, and says what happens', async () => {
     renderDetail()
-    const dialog = openDialog()
+    const dialog = await openDialog()
     const options = within(dialog)
       .getAllByRole('option')
       .map((o) => o.textContent)
@@ -126,9 +138,15 @@ describe('the Change administrator dialog', () => {
     ).toBeInTheDocument()
   })
 
-  it('keeps the button off and names what is still needed', () => {
+  it('reads the consultancy’s staff from its own route when the dialog opens', async () => {
     renderDetail()
-    const dialog = openDialog()
+    await openDialog()
+    expect(mockedGet.mock.calls.some((call) => call[0] === '/consultancies/{id}/employees')).toBe(true)
+  })
+
+  it('keeps the button off and names what is still needed', async () => {
+    renderDetail()
+    const dialog = await openDialog()
     const submit = submitButton(dialog)
     expect(submit).toBeDisabled()
     expect(
@@ -158,7 +176,7 @@ describe('the Change administrator dialog', () => {
       response: { status: 200 },
     } as never)
     const { invalidate } = renderDetail()
-    const dialog = openDialog()
+    const dialog = await openDialog()
     fillAll(dialog)
     fireEvent.click(submitButton(dialog))
 
@@ -193,7 +211,7 @@ describe('the Change administrator dialog', () => {
   ])('shows the server sentence beside the form: %s %s', async (status, code, message) => {
     refuse(status, code, message)
     renderDetail()
-    const dialog = openDialog()
+    const dialog = await openDialog()
     fillAll(dialog)
     fireEvent.click(submitButton(dialog))
 
@@ -205,7 +223,7 @@ describe('the Change administrator dialog', () => {
   it('puts a refused password beside the password field, in the server’s words', async () => {
     refuse(400, 'invalid_current_password', 'That password is not correct.')
     renderDetail()
-    const dialog = openDialog()
+    const dialog = await openDialog()
     fillAll(dialog)
     fireEvent.click(submitButton(dialog))
 
@@ -216,7 +234,7 @@ describe('the Change administrator dialog', () => {
   it('says how long to wait after too many wrong passwords', async () => {
     refuse(429, 'rate_limited', 'Too many attempts. Please wait before trying again.', { retry_after_seconds: 600 })
     renderDetail()
-    const dialog = openDialog()
+    const dialog = await openDialog()
     fillAll(dialog)
     fireEvent.click(submitButton(dialog))
 
@@ -224,9 +242,10 @@ describe('the Change administrator dialog', () => {
     expect(within(dialog).getByText('You can try again in about 10 minutes.')).toBeInTheDocument()
   })
 
-  it('says so when nobody else can be chosen', () => {
-    renderDetail({ ...CONSULTANCY, employees: [STAFF[0], STAFF[2]] } as unknown as Consultancy)
-    const dialog = openDialog()
+  it('says so when nobody else can be chosen', async () => {
+    serveStaff([STAFF[0], STAFF[2]])
+    renderDetail()
+    const dialog = await openDialog()
     expect(
       within(dialog).getByText(
         'There is no one to choose yet. The new administrator must be an active member of staff who has accepted their invitation.',
@@ -235,9 +254,13 @@ describe('the Change administrator dialog', () => {
     expect(within(dialog).queryByLabelText(/New administrator/)).not.toBeInTheDocument()
   })
 
-  it('says so when the record carries no staff list', () => {
-    renderDetail({ ...CONSULTANCY, employees: undefined } as unknown as Consultancy)
-    const dialog = openDialog()
-    expect(within(dialog).getByText(/staff list could not be shown/)).toBeInTheDocument()
+  it('says so when the staff list could not be read', async () => {
+    mockedGet.mockResolvedValue({
+      data: undefined,
+      error: { error: { code: 'forbidden', message: 'You do not have permission to do this.' } },
+    } as never)
+    renderDetail()
+    const dialog = await openDialog()
+    expect(within(dialog).getByText(/You do not have permission to do this\. No one can be chosen/)).toBeInTheDocument()
   })
 })

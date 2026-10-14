@@ -142,13 +142,11 @@ export function useLinkCollege(id: string) {
 export function useChangeTier(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    // The plan change now needs a reason (kept in the audit log). The generated body type does not
-    // carry it yet.
+    // The plan change needs a reason (kept in the audit log).
     mutationFn: async ({ tier, reason }: { tier: 'starter' | 'business' | 'ultimate'; reason: string }) => {
       const { data, error } = await api.PATCH('/consultancies/{id}/tier', {
         params: { path: { id } },
-        // replace with generated type after the contract join
-        body: { tier, reason } as { tier: typeof tier },
+        body: { tier, reason },
       })
       if (error) throw new ApiError("Could not change this consultancy's plan.", error)
       return data
@@ -218,42 +216,21 @@ export function useSuspendConsultancy(id: string) {
 }
 
 /**
- * What Support's "Change administrator" answers (`POST /consultancies/{id}/admin-handover`, 200).
- * Narrow local type: the route is not in the generated client yet (replace with the generated type
- * after the contract join).
+ * A consultancy's whole staff for Support's "Change administrator" picker
+ * (`GET /consultancies/{id}/employees`, support_tools): the admin first, then by name. Fetched only
+ * when `enabled` (the picker is open).
  */
-export interface AdminHandoverResult {
-  consultancy_id: string
-  consultancy_name: string
-  admin_employee_id: string
-  /** Null when the consultancy had no administrator on record. */
-  former_admin_employee_id: string | null
-}
-
-/**
- * One member of a consultancy's staff as Support sees them on `GET /consultancies/{id}`
- * (`employees`). Narrow local type, read through {@link staffOf}: the generated `Consultancy` does
- * not carry the list yet (replace with the generated type after the contract join).
- */
-export interface ConsultancyStaffMember {
-  id: string
-  name?: string | null
-  email?: string | null
-  user?: { first_name?: string | null; last_name?: string | null; email?: string | null } | null
-  is_consultancy_admin?: boolean
-  active?: boolean
-  /** `invited` until the invitation is accepted, then `active`; `deactivated` once switched off. */
-  status?: 'invited' | 'active' | 'deactivated'
-}
-
-/**
- * The staff list on a consultancy record, or null when the record carries none.
- * The ONE cast for the field the generated client does not know yet.
- */
-export function staffOf(consultancy: object): ConsultancyStaffMember[] | null {
-  // replace with generated type after the contract join
-  const employees = (consultancy as { employees?: ConsultancyStaffMember[] | null }).employees
-  return Array.isArray(employees) ? employees : null
+export function useConsultancyStaff(id: string, enabled = true) {
+  const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  return useQuery({
+    queryKey: ['admin-consultancies', 'staff', id],
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api.GET('/consultancies/{id}/employees', { signal, params: { path: { id } } })
+      if (error) throw new ApiError("Could not load this consultancy's staff.", error)
+      return data.employees
+    },
+    enabled: isAuthed && enabled && Boolean(id),
+  })
 }
 
 /**
@@ -269,19 +246,12 @@ export function useHandOverAdmin(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (body: { employee_id: string; reason: string; password: string }) => {
-      // replace with generated type after the contract join: the route is not in `paths` yet.
-      const client = api as unknown as {
-        POST: (
-          path: string,
-          init: { params: { path: { id: string } }; body: typeof body },
-        ) => Promise<{ data?: AdminHandoverResult; error?: unknown; response?: Response }>
-      }
-      const { data, error, response } = await client.POST('/consultancies/{id}/admin-handover', {
+      const { data, error, response } = await api.POST('/consultancies/{id}/admin-handover', {
         params: { path: { id } },
         body,
       })
       if (error) throw new ApiError('Could not change the administrator.', error, response?.status)
-      return data as AdminHandoverResult
+      return data
     },
     // The admin flag, the roster and the seat counts all read from the consultancy record.
     onSuccess: () => invalidateConsultancy(queryClient),

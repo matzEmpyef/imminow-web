@@ -9,36 +9,24 @@ import { ApiError } from '@/api/errors'
 import { usePlatformPermission } from '@/lib/me'
 import { aboutHowLong, retryAfterSeconds } from '@/lib/retryAfter'
 import { showToast } from '@/lib/toast'
-import { staffOf, useHandOverAdmin, type ConsultancyStaffMember } from '@/queries/adminConsultancies'
+import { useConsultancyStaff, useHandOverAdmin } from '@/queries/adminConsultancies'
 
 /** The Support Tools permission: the server checks the same key on the hand-over route. */
 const SUPPORT_TOOLS = 'support_tools'
 
-function plainName(member: ConsultancyStaffMember): string {
-  return (member.name ?? [member.user?.first_name, member.user?.last_name].filter(Boolean).join(' ')).trim()
-}
-
-function plainEmail(member: ConsultancyStaffMember): string {
-  return (member.email ?? member.user?.email ?? '').trim()
-}
+type StaffMember = NonNullable<ReturnType<typeof useConsultancyStaff>['data']>[number]
 
 /** What a person is called in the picker: their name and address, or the address alone when there is no name. */
-function staffLabel(member: ConsultancyStaffMember): string {
-  const name = plainName(member)
-  const email = plainEmail(member)
+function staffLabel(member: StaffMember): string {
+  const name = member.name.trim()
+  const email = (member.email ?? '').trim()
   if (name && email) return `${name} (${email})`
   return name || email || 'Unnamed member of staff'
 }
 
 /** Who can be chosen: active staff who have accepted their invitation, not the current admin. */
-function eligibleStaff(staff: ConsultancyStaffMember[]): ConsultancyStaffMember[] {
-  return staff.filter(
-    (member) =>
-      !member.is_consultancy_admin &&
-      member.active !== false &&
-      member.status !== 'invited' &&
-      member.status !== 'deactivated',
-  )
+function eligibleStaff(staff: StaffMember[]): StaffMember[] {
+  return staff.filter((member) => member.status === 'active' && !member.is_consultancy_admin)
 }
 
 /**
@@ -48,11 +36,9 @@ function eligibleStaff(staff: ConsultancyStaffMember[]): ConsultancyStaffMember[
 export function ChangeAdministratorSection({
   consultancyId,
   consultancyName,
-  consultancy,
 }: {
   consultancyId: string
   consultancyName: string
-  consultancy: object
 }) {
   const allowed = usePlatformPermission(SUPPORT_TOOLS)
   const [open, setOpen] = useState(false)
@@ -72,7 +58,6 @@ export function ChangeAdministratorSection({
         <ChangeAdministratorModal
           consultancyId={consultancyId}
           consultancyName={consultancyName}
-          staff={staffOf(consultancy)}
           onClose={() => setOpen(false)}
         />
       )}
@@ -88,16 +73,15 @@ export function ChangeAdministratorSection({
 export function ChangeAdministratorModal({
   consultancyId,
   consultancyName,
-  staff,
   onClose,
 }: {
   consultancyId: string
   consultancyName: string
-  /** The consultancy's staff, or null when the record did not carry the list. */
-  staff: ConsultancyStaffMember[] | null
   onClose: () => void
 }) {
   const handOver = useHandOverAdmin(consultancyId)
+  const staffQuery = useConsultancyStaff(consultancyId)
+  const staff = staffQuery.data ?? null
   const [employeeId, setEmployeeId] = useState('')
   const [reason, setReason] = useState('')
   const [password, setPassword] = useState('')
@@ -161,7 +145,11 @@ export function ChangeAdministratorModal({
           The current administrator stays on the staff with full access to its work. Both people are told.
         </p>
 
-        {staff && candidates.length === 0 ? (
+        {staffQuery.isPending ? (
+          <p role="status" className="text-body-sm text-text-secondary">
+            Loading the staff&hellip;
+          </p>
+        ) : staff && candidates.length === 0 ? (
           <p role="status" className="text-body-sm text-text-secondary">
             There is no one to choose yet. The new administrator must be an active member of staff who has accepted
             their invitation.
@@ -182,8 +170,8 @@ export function ChangeAdministratorModal({
           </SelectField>
         ) : (
           <p role="status" className="text-body-sm text-text-secondary">
-            This consultancy&rsquo;s staff list could not be shown, so no one can be chosen. Reload the page and try
-            again.
+            {staffQuery.error?.message ?? 'This consultancy’s staff list could not be shown.'} No one can be chosen.
+            Reload the page and try again.
           </p>
         )}
 
@@ -210,6 +198,6 @@ export function ChangeAdministratorModal({
 }
 
 /** The name alone, for the confirmation toast. */
-function staffName(member: ConsultancyStaffMember): string {
-  return plainName(member) || plainEmail(member) || 'The new administrator'
+function staffName(member: StaffMember): string {
+  return member.name.trim() || (member.email ?? '').trim() || 'The new administrator'
 }

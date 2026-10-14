@@ -994,7 +994,6 @@ export function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consu
             <ChangeAdministratorSection
               consultancyId={consultancy.id!}
               consultancyName={consultancy.name}
-              consultancy={consultancy}
             />
             <div className="flex items-center justify-between gap-md p-md">
               <div className="min-w-0">
