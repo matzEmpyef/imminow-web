@@ -7,10 +7,11 @@
  * immiNow Users page. Each has its own source of "has this person accepted?", and each source is
  * ONE function below.
  */
-export type PersonStanding = 'invited' | 'active' | 'withdrawn' | 'disabled'
+export type PersonStanding = 'invited' | 'expired' | 'active' | 'withdrawn' | 'disabled'
 
 export const STANDING_LABEL: Record<PersonStanding, string> = {
   invited: 'Invited',
+  expired: 'Invitation expired',
   active: 'Active',
   withdrawn: 'Invitation withdrawn',
   disabled: 'Disabled',
@@ -18,6 +19,7 @@ export const STANDING_LABEL: Record<PersonStanding, string> = {
 
 export const STANDING_BADGE: Record<PersonStanding, 'warning' | 'success' | 'secondary'> = {
   invited: 'warning',
+  expired: 'secondary',
   active: 'success',
   withdrawn: 'secondary',
   disabled: 'secondary',
@@ -29,8 +31,13 @@ function standingOf(active: boolean, neverJoined: boolean): PersonStanding {
 }
 
 interface RosterRow {
-  /** Said by the server (T1-13): `invited` until the invitation is accepted, then `active`, or `deactivated`. */
-  status?: 'invited' | 'active' | 'deactivated'
+  /**
+   * Said by the server (T1-13): `invited` until the invitation is accepted, then `active`, or
+   * `deactivated`. `invitation_expired` (fault check 9e) is an invitation left unanswered for
+   * 7 days; the generated type does not list it yet (replace with generated type after the
+   * contract join).
+   */
+  status?: 'invited' | 'invitation_expired' | 'active' | 'deactivated'
   active?: boolean
 }
 
@@ -42,6 +49,7 @@ interface RosterRow {
  */
 export function employeeStanding(employee: RosterRow): PersonStanding {
   if (employee.status === 'invited') return 'invited'
+  if (employee.status === 'invitation_expired') return 'expired'
   if (employee.status === 'deactivated') return 'disabled'
   if (employee.status === 'active') return 'active'
   return employee.active === false ? 'disabled' : 'active'

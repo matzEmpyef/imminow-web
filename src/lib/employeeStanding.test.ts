@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { directoryStanding, employeeStanding } from './employeeStanding'
+import { directoryStanding, employeeStanding, STANDING_LABEL } from './employeeStanding'
 
 // T1-13: "Invited" until the person accepts; the two lists read the same words.
 describe('employeeStanding (a consultancy roster row)', () => {
@@ -32,5 +32,12 @@ describe('directoryStanding (the platform directory)', () => {
   })
   it('reads a withdrawn invitation as withdrawn', () => {
     expect(directoryStanding({ ...row, active: false })).toBe('withdrawn')
+  })
+})
+
+describe('employeeStanding: an invitation that ran out', () => {
+  it('reads as expired, with its own words', () => {
+    expect(employeeStanding({ status: 'invitation_expired', active: false })).toBe('expired')
+    expect(STANDING_LABEL.expired).toBe('Invitation expired')
   })
 })

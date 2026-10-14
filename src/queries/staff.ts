@@ -129,6 +129,30 @@ export function useDisableEmployee() {
   })
 }
 
+/**
+ * Switch a disabled employee back on (`POST /staff/employees/{id}/reactivate`). They sign in again
+ * with the designation and permissions they had; the work handed over when they were disabled
+ * stays where it went. Refusals carry the server's own sentence: 409 `seat_limit_reached` (every
+ * seat in use), 409 `conflict` (never accepted the invitation), 403, 404.
+ */
+export function useReactivateEmployee() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // replace with generated type after the contract join: the route is not in `paths` yet.
+      const client = api as unknown as {
+        POST: (
+          path: string,
+          init: { params: { path: { id: string } } },
+        ) => Promise<{ data?: unknown; error?: unknown; response?: Response }>
+      }
+      const { error, response } = await client.POST('/staff/employees/{id}/reactivate', { params: { path: { id } } })
+      if (error) throw new ApiError('Could not switch this employee back on.', error, response?.status)
+    },
+    onSuccess: () => invalidateEmployees(queryClient),
+  })
+}
+
 export function useDesignations() {
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
   return useQuery({

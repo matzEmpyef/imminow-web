@@ -6,6 +6,7 @@ import { InviteEmployeeModal } from './InviteEmployeeModal'
 import { EmployeeAccessModal } from './EmployeeAccessModal'
 import { EditEmployeeModal } from './EditEmployeeModal'
 import { EmployeeRemoveButton } from './EmployeeRemoveButton'
+import { EmployeeSwitchOnButton } from './EmployeeSwitchOnButton'
 import { employeeStanding, STANDING_BADGE, STANDING_LABEL } from '@/lib/employeeStanding'
 import { useMeStaff } from '@/lib/me'
 import { useFeature } from '@/lib/features'
@@ -67,13 +68,19 @@ export function EmployeesPage() {
       header: 'Name',
       sortable: true,
       render: (employee) => (
-        <div className="flex items-center gap-sm">
+        <div className="flex flex-wrap items-center gap-sm">
           <span className="font-medium text-text-primary">
             {employee.user!.first_name} {employee.user!.last_name}
           </span>
           {employee.is_consultancy_admin && <Badge color="primary">Owner/Admin</Badge>}
           {/* Invited until they accept (T1-13): an invitation holds a seat but is not yet a colleague. */}
           <Badge color={STANDING_BADGE[employeeStanding(employee)]}>{STANDING_LABEL[employeeStanding(employee)]}</Badge>
+          {/* The server switched them off when the invitation ran out, and the old link is dead. */}
+          {employeeStanding(employee) === 'expired' && (
+            <span className="text-caption text-text-secondary">
+              An expired invitation cannot be switched back on. Send a new invitation instead.
+            </span>
+          )}
         </div>
       ),
     },
@@ -181,6 +188,20 @@ export function EmployeesPage() {
           {/* On every plan, not only where Manage Access exists (T1-13). */}
           {!employee.is_consultancy_admin && employee.active && employee.id !== myEmployeeId && (
             <EmployeeRemoveButton employee={employee} />
+          )}
+          {/* Someone who worked here and was disabled. An expired invitation has no account to switch
+              back on, so it offers the normal invitation instead. */}
+          {!employee.is_consultancy_admin && employeeStanding(employee) === 'disabled' && (
+            <EmployeeSwitchOnButton employee={employee} />
+          )}
+          {employeeStanding(employee) === 'expired' && (
+            <button
+              type="button"
+              onClick={() => setShowInviteModal(true)}
+              className="rounded-md px-sm text-body-sm font-medium text-primary hover:bg-primary/10"
+            >
+              Invite again
+            </button>
           )}
         </div>
       ),
