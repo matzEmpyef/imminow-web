@@ -142,8 +142,14 @@ export function useLinkCollege(id: string) {
 export function useChangeTier(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (tier: 'starter' | 'business' | 'ultimate') => {
-      const { data, error } = await api.PATCH('/consultancies/{id}/tier', { params: { path: { id } }, body: { tier } })
+    // The plan change now needs a reason (kept in the audit log). The generated body type does not
+    // carry it yet.
+    mutationFn: async ({ tier, reason }: { tier: 'starter' | 'business' | 'ultimate'; reason: string }) => {
+      const { data, error } = await api.PATCH('/consultancies/{id}/tier', {
+        params: { path: { id } },
+        // replace with generated type after the contract join
+        body: { tier, reason } as { tier: typeof tier },
+      })
       if (error) throw new ApiError("Could not change this consultancy's plan.", error)
       return data
     },

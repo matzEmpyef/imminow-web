@@ -38,6 +38,8 @@ import { showToast } from '@/lib/toast'
 import { formatMoney } from '@/lib/money'
 import { useCurrencyCodes } from '@/lib/currencies'
 import { CONSULTANCY_PLAN_COLUMNS, useCanSeeConsultancyPlans, useIsSuperAdmin, usePlatformPermission } from '@/lib/me'
+import { StillNeeded } from '@/components/StillNeeded'
+import { TextAreaField } from '@/components/TextAreaField'
 import { KycSection } from './ManageConsultancyKyc'
 import { ChangeAdministratorSection } from './ChangeAdministrator'
 import { KYC_BADGE } from './kycBadge'
@@ -774,6 +776,7 @@ export function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consu
   const [confirmingSuspend, setConfirmingSuspend] = useState(false)
   const [confirmingReactivate, setConfirmingReactivate] = useState(false)
   const [showPartnerColleges, setShowPartnerColleges] = useState(false)
+  const [planReason, setPlanReason] = useState('')
   const [tab, setTab] = useState<DetailTab>('account')
   const isInstitute = consultancy.kind === 'institute'
 
@@ -783,6 +786,7 @@ export function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consu
     setOverrides(record.entitlement_overrides ?? {})
     setFilePrefix(record.file_number_prefix ?? '')
     setFreelancerEnabled(Boolean(record.freelancer_enabled))
+    setPlanReason('')
   }
 
   // Phase 5 cleanup (2026-09-24): seed once per account, then again only from this form's own save
@@ -831,6 +835,9 @@ export function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consu
     filePrefix !== (consultancy.file_number_prefix ?? '') ||
     freelancerEnabled !== Boolean(consultancy.freelancer_enabled) ||
     JSON.stringify(overrides) !== JSON.stringify(consultancy.entitlement_overrides ?? {})
+  // A plan change is kept in the audit log with the reason typed here; the save stays off until
+  // there is one.
+  const needsPlanReason = tier !== consultancy.tier && !planReason.trim()
   const saving = changeTier.isPending || updateEntitlements.isPending
   const saveError = changeTier.error ?? updateEntitlements.error
 
@@ -841,7 +848,7 @@ export function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consu
         // Re-baseline from the re-tiered record straight away (what the refetch used to do), so a
         // failed second PATCH below still leaves the form on the NEW plan's seat limit/overrides
         // and a retry can't re-send the old ones. entitlementsBody reads this render's values.
-        seedFrom(await changeTier.mutateAsync(tier!))
+        seedFrom(await changeTier.mutateAsync({ tier: tier!, reason: planReason.trim() }))
       }
       // Double-PATCH fix (UAT sweep M5, 2026-08-29): PATCH /tier already performs the clean
       // preset re-baseline (seat limit + overrides reset). Re-sending the modal's PRE-change
@@ -926,6 +933,8 @@ export function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consu
           <>
             {saveError ? (
               <p className="mr-auto self-center text-body-sm text-error">{saveError.message}</p>
+            ) : needsPlanReason ? (
+              <StillNeeded items={['the reason for the plan change']} />
             ) : hasChanges ? (
               <p className="mr-auto self-center text-caption text-text-secondary">Unsaved changes to plan and features</p>
             ) : null}
@@ -934,7 +943,7 @@ export function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consu
                 Discard
               </Button>
             )}
-            <Button loading={saving} disabled={!hasChanges} onClick={handleSave}>
+            <Button loading={saving} disabled={!hasChanges || needsPlanReason} onClick={handleSave}>
               Save changes
             </Button>
           </>
@@ -1078,6 +1087,15 @@ export function ConsultancyDetail({ consultancy, onClose }: { consultancy: Consu
                 className="uppercase"
               />
             </div>
+            {tierChanged && (
+              <TextAreaField
+                label="Reason for the plan change"
+                value={planReason}
+                onChange={(e) => setPlanReason(e.target.value)}
+                maxLength={500}
+                hint="Kept in the audit log with this change."
+              />
+            )}
             {tierChanged && (
               <p className="text-caption text-text-secondary">
                 Saving moves this account to the <span className="capitalize">{tier}</span> plan and resets its seats and
