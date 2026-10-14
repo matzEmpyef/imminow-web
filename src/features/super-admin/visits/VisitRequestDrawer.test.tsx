@@ -39,3 +39,27 @@ describe('VisitRequestDrawer copy controls', () => {
     expect(within(studentPhone.parentElement!).getByRole('button', { name: 'Copy phone number' })).toBeTruthy()
   })
 })
+
+// Phase 8 T2-10: once the day the student asked for has gone by, the request reads "Date passed" and
+// there is no reminder to send.
+describe('VisitRequestDrawer when the date has passed', () => {
+  it('shows Date passed and no Remind button, and keeps the button for a request still to come', () => {
+    const { unmount } = render(
+      <MemoryRouter>
+        <VisitRequestDrawer request={{ ...(REQUEST as object), date_passed: true } as never} onClose={vi.fn()} onUpdated={vi.fn()} />
+      </MemoryRouter>,
+    )
+    expect(screen.getByText('Date passed')).toBeInTheDocument()
+    expect(screen.queryByText('Pending')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remind the consultancy' })).not.toBeInTheDocument()
+    expect(screen.getByText('The date the student asked for has passed, so no reminder is needed.')).toBeInTheDocument()
+    unmount()
+
+    render(
+      <MemoryRouter>
+        <VisitRequestDrawer request={{ ...(REQUEST as object), date_passed: false } as never} onClose={vi.fn()} onUpdated={vi.fn()} />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('button', { name: 'Remind the consultancy' })).toBeEnabled()
+  })
+})

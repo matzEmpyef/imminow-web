@@ -120,7 +120,16 @@ export function VisitRequestsPage() {
     {
       key: 'status',
       header: 'Status',
-      render: (v) => <Badge color={v.responded ? 'success' : 'warning'}>{v.responded ? 'Replied' : 'Pending'}</Badge>,
+      render: (v) =>
+        // A request whose day has gone by is no longer pending, replied to or not (T2-10).
+        v.date_passed ? (
+          <div className="flex flex-wrap items-center gap-xs">
+            <Badge color="secondary">Date passed</Badge>
+            {v.responded && <Badge color="success">Replied</Badge>}
+          </div>
+        ) : (
+          <Badge color={v.responded ? 'success' : 'warning'}>{v.responded ? 'Replied' : 'Pending'}</Badge>
+        ),
     },
   ]
 

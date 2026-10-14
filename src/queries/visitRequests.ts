@@ -5,7 +5,9 @@ import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from '@/api/errors'
 import type { components } from '@/api/schema'
 
-export type VisitRequest = components['schemas']['VisitRequest']
+// `date_passed` is new: true once the day the student asked for has gone by (replace with generated
+// type after the contract join).
+export type VisitRequest = components['schemas']['VisitRequest'] & { date_passed?: boolean }
 
 /**
  * Support Tools' cross-consultancy list of in-person office visit requests (2026-08-24, "for

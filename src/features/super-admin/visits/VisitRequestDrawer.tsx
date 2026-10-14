@@ -32,7 +32,9 @@ export function VisitRequestDrawer({
   const cooldownUntil = request.last_nudged_at ? new Date(request.last_nudged_at).getTime() + NUDGE_COOLDOWN_MS : null
   const inCooldown = cooldownUntil != null && Date.now() < cooldownUntil
 
-  const disabledReason = request.responded
+  const disabledReason = request.date_passed
+    ? 'The date the student asked for has passed, so no reminder is needed.'
+    : request.responded
     ? 'The consultancy already replied in this chat — no reminder needed.'
     : inCooldown
       ? `Already reminded — can send another after ${formatDateTime(new Date(cooldownUntil!))}.`
@@ -46,7 +48,14 @@ export function VisitRequestDrawer({
           <Badge color="secondary" className="capitalize">
             {request.context.kind}
           </Badge>
-          <Badge color={request.responded ? 'success' : 'warning'}>{request.responded ? 'Replied' : 'Pending'}</Badge>
+          {request.date_passed ? (
+            <>
+              <Badge color="secondary">Date passed</Badge>
+              {request.responded && <Badge color="success">Replied</Badge>}
+            </>
+          ) : (
+            <Badge color={request.responded ? 'success' : 'warning'}>{request.responded ? 'Replied' : 'Pending'}</Badge>
+          )}
         </div>
 
         {/* Visit request */}
@@ -150,17 +159,19 @@ export function VisitRequestDrawer({
           in the chat between the student and the consultancy.
         </p>
 
-        {/* Action */}
+        {/* Action. No reminder button at all once the day has passed (T2-10). */}
         <div className="flex flex-col gap-xs border-t border-border pt-md">
-          <Button
-            disabled={Boolean(disabledReason)}
-            loading={nudge.isPending}
-            onClick={() =>
-              nudge.mutate(request.id, { onSuccess: (updated) => updated && onUpdated(updated) })
-            }
-          >
-            Remind the consultancy
-          </Button>
+          {request.date_passed ? null : (
+            <Button
+              disabled={Boolean(disabledReason)}
+              loading={nudge.isPending}
+              onClick={() =>
+                nudge.mutate(request.id, { onSuccess: (updated) => updated && onUpdated(updated) })
+              }
+            >
+              Remind the consultancy
+            </Button>
+          )}
           {disabledReason && <p className="text-caption text-text-secondary">{disabledReason}</p>}
           {nudge.isError && <p className="text-caption text-error">{nudge.error.message}</p>}
         </div>
