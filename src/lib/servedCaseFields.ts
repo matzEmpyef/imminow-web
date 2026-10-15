@@ -12,27 +12,23 @@ function textOf(value: string | null | undefined): string | null {
 /**
  * T4-12 (Phase 8 Tier 4): a lead that became a client. The staff read of such a lead carries
  * `converted_client_id` (the client it became) and `converted_notice` (the server's sentence about
- * it); both are left out for every other lead. Until the generated types carry the two fields this
- * reads them here, and falls back to the lead's own `status` for a read that has neither.
- * Null for a lead that is not converted.
+ * it); both are left out for every other lead. Falls back to the lead's own `status` for a read that
+ * has neither. Null for a lead that is not converted.
  */
-// replace with generated type after the contract join
 export function convertedLeadOf(
-  lead: { status?: string | null } | null | undefined,
+  lead: Pick<components['schemas']['Lead'], 'status' | 'converted_client_id' | 'converted_notice'> | null | undefined,
 ): { clientId: string | null; notice: string | null } | null {
-  const served = lead as { converted_client_id?: string | null; converted_notice?: string | null } | null | undefined
-  const clientId = textOf(served?.converted_client_id)
+  const clientId = textOf(lead?.converted_client_id)
   if (lead?.status !== 'converted' && clientId === null) return null
-  return { clientId, notice: textOf(served?.converted_notice) }
+  return { clientId, notice: textOf(lead?.converted_notice) }
 }
 
 /**
  * T4-18: the answer to Add Lead carries `warning` when another lead of the consultancy already has
  * the same phone number or email ("…so this may be a repeat."). The lead is added either way.
  */
-// replace with generated type after the contract join
-export function repeatWarningOf(lead: object | null | undefined): string | null {
-  return textOf((lead as { warning?: string | null } | null | undefined)?.warning)
+export function repeatWarningOf(lead: Pick<components['schemas']['Lead'], 'warning'> | null | undefined): string | null {
+  return textOf(lead?.warning)
 }
 
 /**

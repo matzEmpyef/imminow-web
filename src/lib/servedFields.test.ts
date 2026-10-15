@@ -5,18 +5,18 @@ import { responseTimeTextOf } from './servedTier4Fields'
 // The Tier 4 fields the generated types do not carry yet, each read through one function.
 describe('convertedLeadOf', () => {
   it('reads the served client and notice', () => {
-    expect(convertedLeadOf({ status: 'converted', converted_client_id: 'c1', converted_notice: 'Now a client.' } as never)).toEqual({
+    expect(convertedLeadOf({ status: 'converted', converted_client_id: 'c1', converted_notice: 'Now a client.' })).toEqual({
       clientId: 'c1',
       notice: 'Now a client.',
     })
   })
   it('falls back to the status alone, and to the client alone', () => {
     expect(convertedLeadOf({ status: 'converted' })).toEqual({ clientId: null, notice: null })
-    expect(convertedLeadOf({ status: 'active', converted_client_id: 'c1' } as never)).toEqual({ clientId: 'c1', notice: null })
+    expect(convertedLeadOf({ status: 'active', converted_client_id: 'c1' })).toEqual({ clientId: 'c1', notice: null })
   })
   it('is null for any other lead', () => {
     expect(convertedLeadOf({ status: 'active' })).toBeNull()
-    expect(convertedLeadOf({ status: 'closed', converted_client_id: '' } as never)).toBeNull()
+    expect(convertedLeadOf({ status: 'closed', converted_client_id: '' })).toBeNull()
     expect(convertedLeadOf(undefined)).toBeNull()
   })
 })
@@ -32,7 +32,7 @@ describe('repeatWarningOf', () => {
 
 describe('responseTimeTextOf', () => {
   it('prefers the served text, then the console’s own wording, then nothing', () => {
-    expect(responseTimeTextOf({ response_time_median_hours: 2862, response_time_median_text: '119 days 6 hours' } as never)).toBe(
+    expect(responseTimeTextOf({ response_time_median_hours: 2862, response_time_median_text: '119 days 6 hours' })).toBe(
       '119 days 6 hours',
     )
     expect(responseTimeTextOf({ response_time_median_hours: 2862 })).toBe('119 days 6 hours')
