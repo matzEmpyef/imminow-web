@@ -65,7 +65,7 @@ describe('paymentInrNote', () => {
         rate_used: 83.2,
         rate_as_of: '2026-09-12T10:00:00Z',
       }),
-    ).toBe('≈ ₹1,03,218.00 at 83.2, rate of 12 Sep')
+    ).toBe('≈ ₹1,03,218.00 at 83.2, rate of 12-09-2026')
   })
 
   it('shows the ≈ figure alone on a row written before the rate was stored, never inventing one', () => {
@@ -231,7 +231,7 @@ describe('rates read at most six decimals (Phase 8 T1-04)', () => {
         rate_used: 83.19999999999999,
         rate_as_of: '2026-09-12T10:00:00Z',
       }),
-    ).toBe('≈ ₹1,03,168.00 at 83.2, rate of 12 Sep')
+    ).toBe('≈ ₹1,03,168.00 at 83.2, rate of 12-09-2026')
   })
 
   it('shortens a long settlement rate', () => {

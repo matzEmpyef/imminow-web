@@ -1,4 +1,5 @@
 import { formatMoneyAmount, formatRate, rupeeSymbol } from '@/lib/money'
+import { formatDate } from '@/lib/time'
 
 type Money = Parameters<typeof formatMoneyAmount>[0]
 
@@ -87,21 +88,13 @@ export function creditsByCurrency(
     .map((c) => ({ currency: c.currency, credit: c.credit }))
 }
 
-/** "12 Sep" — short enough to sit inside a rate note without crowding the amount beside it. */
-const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-function shortDate(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  return `${d.getDate()} ${SHORT_MONTHS[d.getMonth()]}`
-}
-
 /**
  * THE STORED RATE, NOT A LIVE ONE (assumptions audit M15, product owner 2026-09-19).
  *
  * A cross-currency settlement used to be converted at today's rate on every read, so which part
  * of a due a payment settled changed retroactively whenever an admin edited the rate table. The
  * rate is frozen onto the row when the payment is declared, and shown — "≈ ₹1,03,168 at 83.20,
- * rate of 12 Sep" — so a disputed ₹ figure can be explained rather than argued about.
+ * rate of 12-09-2026" — so a disputed ₹ figure can be explained rather than argued about.
  *
  * Null for an INR payment (there is nothing to convert) and for a row written before the rate
  * was stored, where the ≈ figure stands alone rather than claiming a rate nobody recorded.
@@ -111,7 +104,7 @@ export function paymentInrNote(p: PaymentMoney | null | undefined): string | nul
   if (!p || !currency || currency === 'INR' || p.amount_inr == null) return null
   const approx = `≈ ${rupeeSymbol(p.amount_inr)}`
   if (p.rate_used == null) return approx
-  const asOf = p.rate_as_of ? shortDate(p.rate_as_of) : ''
+  const asOf = p.rate_as_of ? formatDate(p.rate_as_of) : ''
   return `${approx} at ${formatRate(p.rate_used)}${asOf ? `, rate of ${asOf}` : ''}`
 }
 

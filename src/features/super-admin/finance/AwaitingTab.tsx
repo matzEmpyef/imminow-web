@@ -43,7 +43,7 @@ export function AwaitingTab() {
       key: 'amount',
       header: 'Amount',
       // Minor units, and the STORED rate beside the ₹ figure (assumptions audit M15, product
-      // owner 2026-09-19) — "≈ ₹1,03,168 at 83.20, rate of 12 Sep". The rupee figure used to be
+      // owner 2026-09-19) — "≈ ₹1,03,168 at 83.20, rate of 12-09-2026". The rupee figure used to be
       // a live conversion, so which part of a due a payment settled moved whenever an admin
       // edited the rate table.
       render: (p) => (
