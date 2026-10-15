@@ -15384,6 +15384,7 @@ export interface paths {
                         new_consultancy_id: components["schemas"]["UUID"];
                         reason: string;
                         carry?: components["schemas"]["CaseCarry"];
+                        admission_commission?: components["schemas"]["AdmissionCommission"];
                     };
                 };
             };
@@ -15469,6 +15470,16 @@ export interface paths {
                                 code?: string;
                                 message?: string;
                             } | null;
+                            /**
+                             * @description A college has accepted the student on this case (a student case): the move form asks whether the admission goes too (`carry.admission`) and, if so, takes `admission_commission` (DECISIONS 117 C-9, 145e, 147a).
+                             * @default false
+                             */
+                            has_accepted_college: boolean;
+                            /**
+                             * @description Money is already recorded on that admission: the form asks, too, whether it goes with it (`carry.recorded_payments`, DECISIONS 146). Always false when `has_accepted_college` is false.
+                             * @default false
+                             */
+                            has_recorded_payments: boolean;
                         };
                     };
                 };
@@ -28308,6 +28319,7 @@ export interface paths {
                     "application/json": {
                         consultancy_id: components["schemas"]["UUID"];
                         carry?: components["schemas"]["CaseCarry"];
+                        admission_commission?: components["schemas"]["AdmissionCommission"];
                     };
                 };
             };
@@ -29123,7 +29135,7 @@ export interface components {
             readonly onboarding_questions_owed?: boolean;
             /** @description Students only, on the student's OWN account, wherever the server has looked (every sign-in answer, the sign-up answer, `GET /profile`): the student has accepted the privacy policy IN FORCE — a consent record of event `1` or `1b` under `AppConfig.privacy_policy_version` (Phase 8, D-123). False after a policy change until the student accepts again, and for an account on which nobody has accepted a policy yet (one a consultancy created). THE APP holds the student at the policy screen while this is false: it shows the text at `AppConfig.privacy_policy_url` (its bundled copy when the page cannot be loaded), "I Agree & Continue" calls `POST /consent/accept` with no body (event `1` under the version in force), and a link goes to the delete-account page for a student who does not want to continue. There is no "I do not agree" call. THE SERVER HOLDS THE STUDENT TOO (2026-10-13, owner's ruling 144(b)): while this is false every other call answers 403 `policy_acceptance_required` (`components/responses/PolicyAcceptanceRequired`). */
             readonly privacy_policy_accepted?: boolean;
-            /** @description Students only, on the student's OWN account, wherever the server has looked (every sign-in answer, `GET /profile`): the account has no date of birth yet (Phase 8, D-129 C-2). That is an account a consultancy made — Create Applicant, or an imported lead that became a client — which the consultancy no longer gives a date for. THE APP asks for the date BEFORE ANYTHING ELSE at the first sign-in while this is true, and records it with `PATCH /preferences {date_of_birth}`: once, under the sign-up rules — under 16 is refused (422 `below_minimum_age`, "Sentpo is for students aged 16 and over."; the date is not recorded and stays owed), and under 18 the guardian rule applies from that moment (`is_minor`, `guardian_consent`). Once recorded only Support can correct it. Until it is given the account counts as under 18. */
+            /** @description Students only, on the student's OWN account, wherever the server has looked (every sign-in answer, `GET /profile`): the account has no date of birth yet (Phase 8, D-129 C-2). That is an account a consultancy made — Create Applicant, or an imported lead that became a client — which the consultancy no longer gives a date for. THE APP asks for the date BEFORE ANYTHING ELSE at the first sign-in while this is true, and records it with `PATCH /preferences {date_of_birth}`: once, under the sign-up rules — under 16 is refused (422 `below_minimum_age`, "Sentpo is for students aged 16 and over."; the date is not recorded), and under 18 the guardian rule applies from that moment (`is_minor`, `guardian_consent`). Once recorded only Support can correct it. Until it is given the account counts as under 18. Owner, DECISIONS 145d: the under-16 refusal also CLOSES the account (the consultancy confirmed the applicant was 16 or older): its case closes as not successful with no commission, the consultancy is told ("Applicant is under 16"), every sign-in of the account ends, and every later request, refresh or sign-in is refused with 403 `account_disabled`, "This account cannot be used because Sentpo is for students aged 16 and over." The app shows that sentence and signs out. A direct sign-up under 16 is refused at the door as before; nothing is closed. */
             readonly date_of_birth_owed?: boolean;
             /** @description Students only, on the student's own account (review F-324, 2026-10-08): usage analytics are OFF for this account. Default `false` (analytics on). Set with `PATCH /profile` from Privacy & Data Controls; it belongs to the account, so it is still there on a new phone. While it is true, `POST /analytics/events` accepts the account's batches with the usual empty 202 and stores nothing. ALWAYS `true` for a minor (`is_minor`), whatever was set: a minor's events are never stored. What a minor sets is kept and applies from the day they are no longer one. */
             analytics_opt_out?: boolean;
@@ -30435,6 +30447,16 @@ export interface components {
              * @default false
              */
             readonly awaiting_guardian_approval: boolean;
+            /**
+             * @description A consultancy-change row only (false on every other row): a college has accepted the student on the case it moves (a student case), so Allocate asks whether the admission goes too (`carry.admission`, with `admission_commission`; DECISIONS 145e, 147a).
+             * @default false
+             */
+            readonly has_accepted_college: boolean;
+            /**
+             * @description ...and money is already recorded on that admission: Allocate asks, too, whether it goes with it (`carry.recorded_payments`; DECISIONS 146).
+             * @default false
+             */
+            readonly has_recorded_payments: boolean;
         };
         /**
          * @description One work queue that needs the platform team (2026-09-10, user: "anything that needs platform team attention will be alerted — they should be able to identify").
@@ -30510,7 +30532,7 @@ export interface components {
                 failed: number;
                 failure_reasons: {
                     /** @enum {string} */
-                    reason: "rejected_by_colleges" | "visa_refused" | "student_withdrew" | "lost_contact" | "other" | "account_deleted";
+                    reason: "rejected_by_colleges" | "visa_refused" | "student_withdrew" | "lost_contact" | "other" | "account_deleted" | "under_age";
                     label: string;
                     count: number;
                 }[];
@@ -32223,7 +32245,7 @@ export interface components {
             readonly transfer_blocked_reason?: string | null;
             /** @description Added 2026-10-13 (Phase 8 T4-17). True for a LIVE case that nobody is assigned to. Reopen Case always leaves the case like this (its answer carries `needs_assigning: true` and the case's `version`): the console asks at once for a consultant to be chosen (`POST /clients/{id}/assign`). False for an ended case. */
             readonly needs_assigning?: boolean;
-            /** @description The neutral fact recorded at close. See POST /clients/{id}/close. `account_deleted` (gate 12f) is never chosen by a consultancy: the case closed, at once, when its student asked for their Sentpo account to be deleted. Such a case is read-only and cannot be reopened (409 `closed_by_platform`), whether or not the student later keeps the account. */
+            /** @description The neutral fact recorded at close. See POST /clients/{id}/close. `account_deleted` (gate 12f) is never chosen by a consultancy: the case closed, at once, when its student asked for their Sentpo account to be deleted. Such a case is read-only and cannot be reopened (409 `closed_by_platform`), whether or not the student later keeps the account. `under_age` (owner, DECISIONS 145d) is never chosen either: the student, added by the consultancy, entered a date of birth that shows they are under 16, so their account was closed and the case with it, as not successful, with no commission and nothing owed; it cannot be reopened. */
             readonly close_sub_reason?: string | null;
             /** Format: date-time */
             readonly closed_at?: string | null;
@@ -32313,6 +32335,8 @@ export interface components {
             platform_share?: components["schemas"]["CommissionDue"] | null;
             /** @description One plain sentence saying what immiNow's share on this case is (the rate, what it is a share of, what has fallen due, what is paid, what is still to come), or that none is owed on the consultancy's own client. Show it as served. Null with no record or for a reader who may not see commission details. */
             platform_share_note?: string | null;
+            /** @description Owner, DECISIONS 145e, 146, 147b. Set only on the case the student LEFT when Support moved them and the accepted college went with them: one plain sentence for the top of the tab saying where the admission went and what, if anything, is still owed here. `entry` is that record as it stands — active, for immiNow's share of the money recorded before the move (nothing more can be recorded on it), or voided when that money moved too (its instalments then carry `moved_to_consultancy_name`; show the tab read-only, without the share block). Show it as served. Null on every other case. */
+            admission_moved_note?: string | null;
         };
         /** @description The figure the Accept College dialog offers for what the college will pay the consultancy (`GET /clients/{id}/commission-suggestion`; 2026-10-10): fee × percent ÷ 100 at two decimals. Each part is null when it is not known. */
         CommissionSuggestion: {
@@ -32439,6 +32463,10 @@ export interface components {
             void_requested_at?: string | null;
             /** @description The consultancy's reason for the void that is waiting. Null to the applicant. */
             void_request_reason?: string | null;
+            /** @description Owner, DECISIONS 147b: Support moved the admission and its recorded money to another consultancy. On the first consultancy's instalment — voided there, no longer counted in its balances, statements or totals — the consultancy it went to: show "Moved to {name}" instead of "Voided". Null otherwise. */
+            moved_to_consultancy_name?: string | null;
+            /** @description On the copy in the new consultancy's record: the consultancy it came from — show "Moved from {name}". It counts like any instalment recorded here. Null otherwise. */
+            moved_from_consultancy_name?: string | null;
         };
         CommissionInstallmentInput: {
             /** @enum {string} */
@@ -32602,6 +32630,16 @@ export interface components {
                 ask_student: boolean;
             }[];
             amount_at_stake_inr: number;
+            /**
+             * @description An open student case a college has accepted: a move asks whether the admission goes too (`carry.admission`, with `admission_commission`; DECISIONS 117 C-9, 145e, 147a). False for a closed case and a PR case.
+             * @default false
+             */
+            readonly has_accepted_college: boolean;
+            /**
+             * @description ...and money is already recorded on that admission: the move asks whether it goes too (`carry.recorded_payments`; DECISIONS 146).
+             * @default false
+             */
+            readonly has_recorded_payments: boolean;
         };
         /** @description A call logged on a follow-up, or a push nudge sent to a student (2026-09-11). Finance notes hang off a case (journey_id); student follow-up notes hang off the student (student_id). */
         FollowupNote: {
@@ -34767,8 +34805,8 @@ export interface components {
          * @description One of the things a case can take with it when it moves (`CaseCarry`).
          * @enum {string}
          */
-        CarriedItem: "documents" | "applications" | "preferences" | "chat" | "admission";
-        /** @description What goes with a case when it moves to another consultancy — chosen by the person making the move (owner's ruling on review I-014, 2026-10-08), the same on `/clients/{id}/transfer`, `/journeys/{id}/switch-consultancy` and a change row's `/applicant-allocation-queue/{id}/allocate`. Left out entirely, or for any key left out: `documents` true, the rest false ("the receiving consultancy starts fresh, documents only"). Always carried, never a choice: the student, the case type, the acquisition channel and the link to the previous case. Never carried: the plan, internal notes, the commission entry and its payments. */
+        CarriedItem: "documents" | "applications" | "preferences" | "chat" | "admission" | "recorded_payments";
+        /** @description What goes with a case when it moves to another consultancy — chosen by the person making the move (owner's ruling on review I-014, 2026-10-08), the same on `/clients/{id}/transfer`, `/journeys/{id}/switch-consultancy` and a change row's `/applicant-allocation-queue/{id}/allocate`. Left out entirely, or for any key left out: `documents` true, the rest false ("the receiving consultancy starts fresh, documents only"). Always carried, never a choice: the student, the case type, the acquisition channel and the link to the previous case. Never carried: the plan, internal notes and the commission entry itself (an admission that moves gives the new consultancy a record of its own; `recorded_payments` copies the money onto it). 400 `validation_failed` (on `carry`) for `recorded_payments` true without `admission` true: "The recorded payments can move only together with the admission. Choose to move the admission too, or leave the payments with the first consultancy." */
         CaseCarry: {
             /**
              * @description The documents the student had shared with the consultancy they are leaving are shared with the new one on the new case.
@@ -34791,10 +34829,26 @@ export interface components {
              */
             chat: boolean;
             /**
-             * @description Only matters when a college has already ACCEPTED the student (owner, DECISIONS 117 C-9 and 118) — "does the admission go to the new consultancy too?". Ask it on a support switch, a dispute's move and a change row's allocation whenever the case has an accepted college. False (the default) — the accepted application stays with the consultancy the student is leaving, whatever `applications` says, and that consultancy's share of the admission falls due to immiNow at the move, as on a successful close; Finance finds the case in its lists and under "Moved with an accepted college" in Payment follow-ups. True — the accepted application is carried to the new case like any other, still naming the consultancy that submitted it, and its commission is settled when the new case closes. `/clients/{id}/transfer` still refuses a case with an accepted college, so the key changes nothing there.
+             * @description Only matters when a college has already ACCEPTED the student (owner, DECISIONS 117 C-9 and 118) — "does the admission go to the new consultancy too?". Ask it on a support switch, a dispute's move and a change row's allocation whenever the case has an accepted college. False (the default) — the accepted application stays with the consultancy the student is leaving, whatever `applications` says, and that consultancy's share of the admission falls due to immiNow at the move, as on a successful close; Finance finds the case in its lists and under "Moved with an accepted college" in Payment follow-ups. True (owner, DECISIONS 145e, 147a) — the new consultancy fully owns the admission and its commission from the move: the accepted application is copied to the new case as the new consultancy's own, and the move MUST carry `admission_commission` (the Accept popup's `commission` body: what the student pays, what the college pays, the course start) — the new consultancy's record is priced from it at the new consultancy's own rates, exactly as its own acceptance would be. Refused before anything moves: 422 `validation_failed` (on `admission_commission`) when the amounts are missing ("Enter the amounts agreed with {consultancy} for this admission (what the student pays and what the college pays), as when accepting a college, or move the student without the admission.") or invalid (the Accept popup's own sentences); 409 `not_a_partner_college` — "{college} is not one of {consultancy}'s Partner Colleges, so the admission cannot move with the student. Add it to their Partner Colleges first, or move the student without the admission."; 409 `admission_cannot_move` — "immiNow Finance has changed what is owed on this admission, so it cannot move with the student. Ask Finance to undo the change first, or move the student without the admission." / "The commission on this admission is worked out on the tuition fee, so it cannot move with the student. Move the student without the admission." A PR case and a case with no accepted college ignore the key (it is then absent from `carried`). `/clients/{id}/transfer` still refuses a case with an accepted college, so the key changes nothing there.
              * @default false
              */
             admission: boolean;
+            /**
+             * @description Only with `admission` true (owner, DECISIONS 146, 147b) — "does the money already recorded on that admission go too?". Ask it when the read says `has_recorded_payments`. False (the default) — the first consultancy owes immiNow's share on the money it had recorded before the move (it falls due at the move) and its record is closed for anything after it; everything after the move is the new consultancy's. True — the recorded payments move to the new consultancy's record, which owes immiNow's share on all of it; the first consultancy owes nothing on that admission. Neither history is rewritten: the first consultancy's instalments read `moved_to_consultancy_name` (voided there), the new one's `moved_from_consultancy_name`. 409 `admission_cannot_move` when immiNow's share on any of that money was already paid, confirmed or written off for the first consultancy: "Payments to immiNow have already been made on this admission, so the recorded money cannot move. Move the admission without the money." With nothing recorded, true changes nothing and is absent from `carried`.
+             * @default false
+             */
+            recorded_payments: boolean;
+        };
+        /** @description What Support enters for the NEW consultancy when an admission moves with a student (owner, DECISIONS 147a) — the Accept popup's `commission` body, the same fields and the same rules: which amounts are required follows the payer method (the new case's, else the new consultancy's Partner College relation): college → expected_from_college (in the course's fee currency); applicant → expected_from_student; split → both. College/split also requires the relation to carry a commission_percent. */
+        AdmissionCommission: {
+            expected_from_college?: components["schemas"]["Money"];
+            expected_from_student?: components["schemas"]["Money"];
+            course_start: {
+                /** @example September */
+                month: string;
+                /** @example 2027 */
+                year: number;
+            };
         };
         /** @description One consultancy's KYC state, derived from kyc_records (erd.md) — status is not_submitted (no document ever), pending (submitted, unreviewed), verified, or rejected (a reviewer turned the latest certificate down; review I-010 — the consultancy submits again and the state returns to pending). REJECTED IS ITS OWN STATE (owner's ruling 2026-10-10) — a review decides one certificate once. Offer Verify and Reject only while `status` is `pending`; on `rejected` show the reason and that the consultancy must upload a new certificate — Verify is refused on a rejected certificate (409 `already_reviewed`) until a new one is uploaded, and a rejected certificate is not counted or listed as "to verify" (`status=kyc_pending`). */
         KycStatus: {
@@ -35570,7 +35624,7 @@ export interface components {
              *     Gate 12c (2026-10-02) adds the named actions Waves 6 and 7 record (plan §4, §5). A plain create/update of a row stays `create`/`update` (an invoice, receipt, installment, dues row, complaint, freelancer rate or app-config edit); a name below is for an act that is more than that. Settlement (area `billing` for the consultancy's writes, `finance` for platform ones): `installment_voided`, `installment_void_requested` (the consultancy asks to void an installment whose share is due), `installment_void_declined` (Finance says no; an approval is `installment_voided` under `finance`), `due_added`, `due_overridden` (the original due), `due_settled` (a small shortfall written off), `due_waived`, `due_change_voided`, `payment_declared`, `payment_confirmed`, `payment_rejected`, `payment_corrected`, `payment_received` (Finance's receive). Invoicing (`billing`): `invoice_voided`, `receipt_voided`. Moderation: `applicant_allocated`, `applicant_declined`. Support (`support`): `case_switched`, `email_changed`, `data_exported`, `note_added` (case notes, complaint and dispute notes, follow-up notes), `nudge_sent` (student and visit-request nudges), `complaint_assigned`, `complaint_resolved`, `dispute_raised`, `dispute_escalated`, `dispute_picked_up`, `dispute_resolved`. Freelancers: `freelancer_invited`, `freelancer_invite_resent`, `freelancer_rate_set`, `freelancer_payout_recorded`, `freelancer_payout_voided`. Platform: `app_config_changed`, `analytics_archived`, `analytics_restored` (Q8's archive and restore jobs). Also listed because the backend already writes them and the contract never did: `merchant_code_rejected` (a wrong redemption-partner code, K17) and `freelancer_referral_payment_updated` (legacy; F55 retired the field, so no new rows). Every value is a superset addition — none renamed or removed. The mock writes none of the new ones.
              * @enum {string}
              */
-            action_type: "create" | "update" | "delete" | "view" | "kyc_verified" | "link_college" | "rating_requested" | "renewal_requested" | "upgrade_requested" | "upgrade_request_withdrawn" | "rating_override_set" | "rating_override_cleared" | "rating_excluded" | "rating_restored" | "hide" | "publish" | "country_content.updated" | "installment_voided" | "installment_void_requested" | "installment_void_declined" | "due_added" | "due_overridden" | "due_waived" | "due_change_voided" | "due_settled" | "payment_declared" | "payment_confirmed" | "payment_rejected" | "payment_corrected" | "payment_received" | "invoice_voided" | "receipt_voided" | "applicant_allocated" | "applicant_declined" | "case_switched" | "email_changed" | "data_exported" | "note_added" | "nudge_sent" | "complaint_assigned" | "complaint_resolved" | "dispute_raised" | "dispute_escalated" | "dispute_picked_up" | "dispute_resolved" | "freelancer_invited" | "freelancer_invite_resent" | "freelancer_rate_set" | "freelancer_payout_recorded" | "freelancer_payout_voided" | "app_config_changed" | "analytics_archived" | "analytics_restored" | "merchant_code_rejected" | "freelancer_referral_payment_updated" | "catalog_imported" | "catalog_import_undone";
+            action_type: "create" | "update" | "delete" | "view" | "kyc_verified" | "link_college" | "rating_requested" | "renewal_requested" | "upgrade_requested" | "upgrade_request_withdrawn" | "rating_override_set" | "rating_override_cleared" | "rating_excluded" | "rating_restored" | "hide" | "publish" | "country_content.updated" | "installment_voided" | "installment_void_requested" | "installment_void_declined" | "due_added" | "due_overridden" | "due_waived" | "due_change_voided" | "due_settled" | "payment_declared" | "payment_confirmed" | "payment_rejected" | "payment_corrected" | "payment_received" | "invoice_voided" | "receipt_voided" | "applicant_allocated" | "applicant_declined" | "case_switched" | "admission_moved" | "email_changed" | "data_exported" | "note_added" | "nudge_sent" | "complaint_assigned" | "complaint_resolved" | "dispute_raised" | "dispute_escalated" | "dispute_picked_up" | "dispute_resolved" | "freelancer_invited" | "freelancer_invite_resent" | "freelancer_rate_set" | "freelancer_payout_recorded" | "freelancer_payout_voided" | "app_config_changed" | "analytics_archived" | "analytics_restored" | "merchant_code_rejected" | "freelancer_referral_payment_updated" | "catalog_imported" | "catalog_import_undone";
             /** @description e.g. lead, client, plan, step, employee, designation, branch, tag. */
             entity_type: string;
             /** @description The audited entity's key. A UUID for most entities; some are keyed by something else the mock already writes here — a country by name (`country_content.updated`), a currency code, a coupon/referral code, or the literal `defaults`, `platform_settings`, `app_config` or `trending` for singleton configuration rows (gate 2, 2026-09-24). */
