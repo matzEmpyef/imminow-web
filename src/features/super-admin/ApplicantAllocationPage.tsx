@@ -18,8 +18,8 @@ import {
 import { formatDate } from '@/lib/time'
 import { cursorPager, useCursorPagination } from '@/lib/pagination'
 import { showToast } from '@/lib/toast'
-import { DEFAULT_CARRY, movedSentence } from '@/lib/caseCarry'
-import { useCarryQuestions } from '@/queries/applicantCase'
+import { carryForSend, carryQuestions, DEFAULT_CARRY, movedSentence } from '@/lib/caseCarry'
+import { admissionCommissionBody, admissionRefusal, emptyAmounts, stillNeeded } from '@/lib/commissionAmounts'
 import { guardianHoldLabel } from '@/lib/guardianGate'
 import type { components } from '@/api/schema'
 
@@ -179,8 +179,13 @@ function AllocateAction({ entry }: { entry: QueueEntry }) {
   const isChange = entry.reason === 'consultancy_change'
   const [carry, setCarry] = useState(DEFAULT_CARRY)
   const allocate = useAllocateApplicant(entry.id!)
-  // A college may already have accepted the student: then the admission is a question too.
-  const asks = useCarryQuestions(open && isChange ? (entry.journey_id ?? undefined) : undefined, entry)
+  // A college may already have accepted the student: then the admission is a question too. The row
+  // itself says so (`has_accepted_college`, `has_recorded_payments`); nothing more is read.
+  const asks = isChange ? carryQuestions(entry) : { admission: false, payments: false }
+  // The amounts for the new consultancy, needed only while the admission goes with the case.
+  const [amounts, setAmounts] = useState(() => emptyAmounts())
+  const sendsAdmission = isChange && asks.admission && carry.admission
+  const amountsMissing = sendsAdmission && stillNeeded(amounts).length > 0
   const candidates = useAllocationCandidates(entry.id!, open)
   const wants = lookingFor(entry)
   // Under 18 and the guardian has not approved: the server refuses the allocation (409
@@ -227,7 +232,7 @@ function AllocateAction({ entry }: { entry: QueueEntry }) {
           widthRem={32}
           footer={
             <>
-              {allocate.isError && (
+              {allocate.isError && !(sendsAdmission && admissionRefusal(allocate.error)) && (
                 <p className="mr-auto self-center text-body-sm text-error">{allocate.error.message}</p>
               )}
               <Button variant="secondary" onClick={() => setOpen(false)}>
@@ -235,10 +240,14 @@ function AllocateAction({ entry }: { entry: QueueEntry }) {
               </Button>
               <Button
                 loading={allocate.isPending}
-                disabled={!consultancyId}
+                disabled={!consultancyId || amountsMissing}
                 onClick={() =>
                   allocate.mutate(
-                    { consultancyId, carry: isChange ? carry : undefined },
+                    {
+                      consultancyId,
+                      carry: isChange ? carryForSend(carry) : undefined,
+                      admission_commission: sendsAdmission ? admissionCommissionBody(amounts) : undefined,
+                    },
                     {
                       onSuccess: (data) => {
                         // A change row: what the server says went with the case.
@@ -282,7 +291,14 @@ function AllocateAction({ entry }: { entry: QueueEntry }) {
               applicants. Institutes are never offered.
             </p>
             {isChange && (
-              <CaseCarryFields value={carry} onChange={setCarry} disabled={allocate.isPending} askAdmission={asks.admission} askPayments={asks.payments} />
+              <CaseCarryFields
+                value={carry}
+                onChange={setCarry}
+                disabled={allocate.isPending}
+                askAdmission={asks.admission}
+                askPayments={asks.payments}
+                admissionAmounts={{ value: amounts, onChange: setAmounts, error: allocate.error }}
+              />
             )}
             {blocked.length > 0 && (
               <div className="flex flex-col gap-xs">

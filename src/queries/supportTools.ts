@@ -356,16 +356,19 @@ export function useSwitchConsultancy() {
       new_consultancy_id,
       reason,
       carry,
+      admission_commission,
     }: {
       journeyId: string
       new_consultancy_id: string
       reason: string
       /** What goes with the case, all four keys (owner's ruling on review I-014, 2026-10-08). */
       carry: components['schemas']['CaseCarry']
+      /** The amounts for the new consultancy; sent only while `carry.admission` is true. */
+      admission_commission?: components['schemas']['AdmissionCommission']
     }) => {
       const { data, error } = await api.POST('/journeys/{id}/switch-consultancy', {
         params: { path: { id: journeyId } },
-        body: { new_consultancy_id, reason, carry },
+        body: { new_consultancy_id, reason, carry, ...(admission_commission ? { admission_commission } : {}) },
       })
       if (error) throw new ApiError('Could not switch this student to a new consultancy.', error)
       return data

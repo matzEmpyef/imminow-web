@@ -1,5 +1,12 @@
 import { useId } from 'react'
+import { CommissionAmountFields } from '@/components/CommissionAmountFields'
 import { CARRY_ITEMS, type CaseCarry } from '@/lib/caseCarry'
+import {
+  admissionAmountMessage,
+  admissionRefusal,
+  stillNeededLine,
+  type CommissionAmounts,
+} from '@/lib/commissionAmounts'
 
 /**
  * "What moves with the case" — the four tick boxes shown wherever a case is moved to another
@@ -14,6 +21,7 @@ export function CaseCarryFields({
   disabled,
   askAdmission,
   askPayments,
+  admissionAmounts,
 }: {
   value: CaseCarry
   onChange: (next: CaseCarry) => void
@@ -25,14 +33,22 @@ export function CaseCarryFields({
    */
   askAdmission?: boolean
   /**
-   * True when the admission is asked and the case has money recorded on it (or the server did not
-   * say it has none): the second question, shown only while the first is answered Yes.
+   * True when the admission is asked and the server says money is recorded on it
+   * (`has_recorded_payments`): the second question, shown only while the first is answered Yes.
    */
   askPayments?: boolean
+  /**
+   * The amounts Support enters for the new consultancy while the admission goes (the Accept
+   * popup's fields): the caller holds them and sends them as `admission_commission`. `error` is
+   * the failed move, so the server's refusals show beside the fields exactly as served.
+   */
+  admissionAmounts?: { value: CommissionAmounts; onChange: (next: CommissionAmounts) => void; error?: unknown }
 }) {
   const headingId = useId()
   const admissionId = useId()
   const paymentsId = useId()
+  // The server's refusal of the admission or its amounts, exactly as served, while the admission goes.
+  const refusal = askAdmission && value.admission && admissionAmounts ? admissionRefusal(admissionAmounts.error) : undefined
   return (
     <fieldset aria-labelledby={headingId} disabled={disabled} className="flex flex-col gap-sm">
       <div className="flex flex-col gap-xs">
@@ -74,6 +90,9 @@ export function CaseCarryFields({
           }
         />
       )}
+      {askAdmission && value.admission && admissionAmounts && (
+        <AdmissionAmounts {...admissionAmounts} />
+      )}
       {askAdmission && askPayments && value.admission && (
         <YesNo
           id={paymentsId}
@@ -83,8 +102,52 @@ export function CaseCarryFields({
           helper="If yes, the payments already recorded move to the new consultancy, and it owes immiNow's share on all of them. If no, the first consultancy still owes the share on what it has already received."
         />
       )}
-      <p className="text-caption text-text-secondary">The plan, internal notes and commission records never move.</p>
+      {refusal && (
+        <p role="alert" className="text-body-sm text-error">
+          {refusal}
+        </p>
+      )}
+      <p className="text-caption text-text-secondary">
+        {askAdmission && value.admission
+          ? 'The plan and internal notes never move. The new consultancy gets a commission record of its own.'
+          : 'The plan, internal notes and commission records never move.'}
+      </p>
     </fieldset>
+  )
+}
+
+/** The Accept popup's money fields for a moved admission, with the line that says what is missing. */
+function AdmissionAmounts({
+  value,
+  onChange,
+  error,
+}: {
+  value: CommissionAmounts
+  onChange: (next: CommissionAmounts) => void
+  error?: unknown
+}) {
+  const missing = stillNeededLine(value)
+  return (
+    <div className="flex flex-col gap-sm rounded-md border border-border p-sm">
+      <p className="text-body-sm font-medium text-text-primary">Amounts for the new consultancy</p>
+      <p className="text-caption text-text-secondary">
+        Enter the amounts as when accepting a college: the college amount when the college pays, and the student
+        amount when the student pays.
+      </p>
+      <CommissionAmountFields
+        value={value}
+        onChange={onChange}
+        needsCollege
+        needsStudent
+        amountsRequired={false}
+        collegeLabel="From college (new consultancy's commission)"
+        studentLabel="From student"
+        collegeCurrencyNote="Choose the currency the college pays in."
+        collegeMessage={admissionAmountMessage(error, 'college')}
+        studentMessage={admissionAmountMessage(error, 'student')}
+      />
+      {missing && <p className="text-caption text-text-secondary">{missing}</p>}
+    </div>
   )
 }
 

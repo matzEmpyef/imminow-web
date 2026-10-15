@@ -4,8 +4,8 @@ import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { CaseCarryFields } from '@/components/CaseCarryFields'
-import { DEFAULT_CARRY, movedSentence, type CarriedItem } from '@/lib/caseCarry'
-import { useCarryQuestions } from '@/queries/applicantCase'
+import { carryForSend, carryQuestions, DEFAULT_CARRY, movedSentence, type CarriedItem } from '@/lib/caseCarry'
+import { admissionCommissionBody, admissionRefusal, emptyAmounts, stillNeeded } from '@/lib/commissionAmounts'
 import { useSwitchCandidates, useSwitchConsultancy, type UserSearchResult } from '@/queries/supportTools'
 
 const BLOCKED_REASON_LABELS: Record<string, string> = {
@@ -27,14 +27,16 @@ const BLOCKED_REASON_LABELS: Record<string, string> = {
 export function SwitchConsultancyForm({ result, onCancel }: { result: UserSearchResult; onCancel: () => void }) {
   const candidates = useSwitchCandidates(result.journey_id)
   const switchConsultancy = useSwitchConsultancy()
-  // Read only once the operator reaches the confirmation, where the question belongs.
   const [confirming, setConfirming] = useState(false)
-  const asks = useCarryQuestions(confirming ? result.journey_id : undefined, result)
+  // Whether the case has an accepted college, and money recorded on it, is served on the candidates read.
+  const asks = carryQuestions(candidates.data)
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState('')
   const [reason, setReason] = useState('')
   // What goes with the case: the operator decides (owner's ruling on review I-014, 2026-10-08).
   const [carry, setCarry] = useState(DEFAULT_CARRY)
+  // The amounts for the new consultancy, needed only while the admission goes with the case.
+  const [amounts, setAmounts] = useState(() => emptyAmounts())
   const [moved, setMoved] = useState<{ clientId?: string; carried?: CarriedItem[] } | null>(null)
 
   if (moved) {
@@ -91,6 +93,11 @@ export function SwitchConsultancyForm({ result, onCancel }: { result: UserSearch
       )
     : items
 
+  const sendsAdmission = asks.admission && carry.admission
+  const amountsMissing = sendsAdmission && stillNeeded(amounts).length > 0
+  // The server's refusal of the admission is shown beside its fields, so not twice.
+  const showFooterError = switchConsultancy.isError && !(sendsAdmission && admissionRefusal(switchConsultancy.error))
+
   if (confirming && selected) {
     return (
       <div className="flex flex-col gap-sm">
@@ -100,8 +107,15 @@ export function SwitchConsultancyForm({ result, onCancel }: { result: UserSearch
           {selected.name}. {current?.name ?? 'The current consultancy'} loses access to their shared documents. The
           student and both consultancies are told.
         </p>
-        <CaseCarryFields value={carry} onChange={setCarry} disabled={switchConsultancy.isPending} askAdmission={asks.admission} askPayments={asks.payments} />
-        {switchConsultancy.isError && <p className="text-body-sm text-error">{switchConsultancy.error.message}</p>}
+        <CaseCarryFields
+          value={carry}
+          onChange={setCarry}
+          disabled={switchConsultancy.isPending}
+          askAdmission={asks.admission}
+          askPayments={asks.payments}
+          admissionAmounts={{ value: amounts, onChange: setAmounts, error: switchConsultancy.error }}
+        />
+        {showFooterError && <p className="text-body-sm text-error">{switchConsultancy.error?.message}</p>}
         <div className="flex items-center justify-end gap-sm">
           <Button size="sm" variant="secondary" onClick={() => setConfirming(false)} disabled={switchConsultancy.isPending}>
             Back
@@ -109,13 +123,15 @@ export function SwitchConsultancyForm({ result, onCancel }: { result: UserSearch
           <Button
             size="sm"
             loading={switchConsultancy.isPending}
+            disabled={amountsMissing}
             onClick={() =>
               switchConsultancy.mutate(
                 {
                   journeyId: result.journey_id!,
                   new_consultancy_id: selected.consultancy_id,
                   reason: reason.trim(),
-                  carry,
+                  carry: carryForSend(carry),
+                  admission_commission: sendsAdmission ? admissionCommissionBody(amounts) : undefined,
                 },
                 { onSuccess: (data) => setMoved({ clientId: data?.client_id, carried: data?.carried }) },
               )

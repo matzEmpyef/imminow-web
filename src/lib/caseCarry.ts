@@ -1,12 +1,8 @@
 import type { components } from '@/api/schema'
 
 export type CarriedItem = components['schemas']['CarriedItem']
-/**
- * What goes with a case. `admission` (Phase 8, DECISIONS 117 C-9 and 118) and `recorded_payments`
- * (the money already recorded on that admission; sent false whenever `admission` is false) are new
- * in the final contract: replace with generated type after the contract join.
- */
-export type CaseCarry = components['schemas']['CaseCarry'] & { admission?: boolean; recorded_payments?: boolean }
+/** What goes with a case: the contract's own `CaseCarry`, all six keys. */
+export type CaseCarry = components['schemas']['CaseCarry']
 
 /**
  * What goes with a case when it moves to another consultancy (owner's ruling on review I-014,
@@ -29,6 +25,14 @@ export const DEFAULT_CARRY: CaseCarry = {
   chat: false,
   admission: false,
   recorded_payments: false,
+}
+
+/**
+ * What is sent: the recorded money moves only together with the admission (the server refuses
+ * `recorded_payments` without `admission`), so it goes as false unless the admission goes too.
+ */
+export function carryForSend(carry: CaseCarry): CaseCarry {
+  return { ...carry, recorded_payments: carry.admission && carry.recorded_payments }
 }
 
 /** "documents, college applications" — the same four names as the tick boxes, in lower case. */
@@ -54,4 +58,16 @@ export function movedSentence(carried: readonly string[] | null | undefined): st
 export function carriedOverLine(carried: readonly string[] | null | undefined): string | null {
   if (carried == null) return null
   return `Carried over: ${carriedNames(carried) || 'nothing'}`
+}
+
+/**
+ * Which of the two extra questions a move form asks, from the flags the server serves on the
+ * form's own read (`has_accepted_college`, `has_recorded_payments`): whether the admission goes
+ * too, and — only when it is asked and money is recorded on it — whether that money goes too.
+ */
+export function carryQuestions(
+  served: { has_accepted_college?: boolean; has_recorded_payments?: boolean } | null | undefined,
+): { admission: boolean; payments: boolean } {
+  const admission = served?.has_accepted_college === true
+  return { admission, payments: admission && served?.has_recorded_payments === true }
 }

@@ -1,17 +1,14 @@
 import { hasTooManyDecimals, serverMoneyMessage } from '@/lib/moneyInput'
-import { MoneyField } from '@/components/MoneyField'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { Badge } from '@/components/Badge'
-import { TextField } from '@/components/TextField'
-import { SelectField } from '@/components/SelectField'
-import { useCommissionSuggestion, useUpdateApplication, type AcceptCommissionBody } from '@/queries/clients'
+import { CommissionAmountFields } from '@/components/CommissionAmountFields'
+import { commissionBody, emptyAmounts } from '@/lib/commissionAmounts'
+import { useCommissionSuggestion, useUpdateApplication } from '@/queries/clients'
 import { usePartnerColleges } from '@/queries/partnerColleges'
 import { NotPartnerNotice } from './NotPartnerNotice'
 import { useAccountWords } from '@/lib/accountWords'
-import { MONTHS } from '@/features/super-admin/courseFormShared'
-import { useCurrencyCodes } from '@/lib/currencies'
 import { formatMoney } from '@/lib/money'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/schema'
@@ -82,38 +79,8 @@ export function AcceptCollegeModal({
   // The server refuses an acceptance from a college that is not a Partner College; say so first.
   const notPartner = !isInstitute && partnerColleges.data !== undefined && !relation
 
-  // Nearest intake month, editable. Year: derived from the intake's own application_deadline
-  // when there is one (2026-08-29 fix) — the deadline is authoritative about which year's
-  // intake is actually still open, whereas "today vs. now" can land on the WRONG year's
-  // instance of that month (e.g. defaulting Sept 2026 when the only open intake, with deadline
-  // 2027-01-31, is Sept 2027). Rule: the intake year is the deadline's year, bumped one further
-  // if the intake month falls before the deadline's month (an intake that opens earlier in the
-  // calendar than its own deadline must be the FOLLOWING year's occurrence — e.g. a May intake
-  // with a January deadline is May of deadline-year + 1, while a September intake with that same
-  // January deadline is September of deadline-year itself). Falls back to the old now-based
-  // heuristic when the course has no deadline data at all.
-  //
-  // With NO intake data at all the field starts empty and must be answered (assumptions audit
-  // H18, approved 2026-09-19): the old 'September' fallback recorded a January starter as a
-  // September one, and every due date on the case was then eight months out.
-  const defaultMonth = course.next_intake?.month ?? course.intakes?.[0] ?? ''
-  const now = new Date()
-  const nextIntakeDeadline = course.next_intake?.application_deadline
-  let defaultYear: number
-  if (nextIntakeDeadline) {
-    // UTC getters: "YYYY-MM-DD" parses as UTC midnight, and reading it back with local getters
-    // can roll it back a calendar day (and occasionally a month/year) west of UTC.
-    const deadlineDate = new Date(nextIntakeDeadline)
-    const deadlineYear = deadlineDate.getUTCFullYear()
-    const deadlineMonthIndex = deadlineDate.getUTCMonth()
-    const intakeMonthIndex = MONTHS.indexOf(defaultMonth)
-    defaultYear = deadlineYear + (intakeMonthIndex < deadlineMonthIndex ? 1 : 0)
-  } else if (defaultMonth === '') {
-    // Nothing to reason from — this year, alongside the empty month the consultant has to pick.
-    defaultYear = now.getFullYear()
-  } else {
-    defaultYear = MONTHS.indexOf(defaultMonth) < now.getMonth() ? now.getFullYear() + 1 : now.getFullYear()
-  }
+  // Nearest intake month and its year, editable: see `defaultCourseStart` for the rule.
+  const defaultMonth = emptyAmounts(course).startMonth
 
   const needsCollege = payerMethod === 'college' || payerMethod === 'split'
   const needsStudent = payerMethod === 'applicant' || payerMethod === 'split'
@@ -122,20 +89,11 @@ export function AcceptCollegeModal({
   const commissionPercent = relation?.commission_percent ?? null
   const missingCommissionPercent = needsCollege && commissionPercent == null
 
-  const [collegeAmount, setCollegeAmount] = useState('')
+  const [amounts, setAmounts] = useState(() => emptyAmounts(course))
   const [collegeAmountTouched, setCollegeAmountTouched] = useState(false)
-  const [studentAmount, setStudentAmount] = useState('')
   // The college side: locked to the course's own fee currency when it has one, editable and
   // required when it does not (C5).
-  const [collegeCurrency, setCollegeCurrency] = useState(courseFeeCurrency)
-  const feeCurrency = courseFeeCurrency || collegeCurrency
-  // The student side has NO default at all (C5) — the consultancy's display currency is what the
-  // consultant reads figures in, not what this particular student agreed to pay in, and a Dubai
-  // agreement recorded in INR is wrong money on an invoice.
-  const [studentCurrency, setStudentCurrency] = useState('')
-  const currencyCodes = useCurrencyCodes(studentCurrency, courseFeeCurrency)
-  const [startMonth, setStartMonth] = useState(defaultMonth)
-  const [startYear, setStartYear] = useState(defaultYear)
+  const feeCurrency = courseFeeCurrency || amounts.collegeCurrency
 
   // The server's suggestion for this course. It is only an offer: it fills the box while the
   // consultant has not typed a figure of their own, so one that arrives late never overwrites it.
@@ -143,23 +101,21 @@ export function AcceptCollegeModal({
   const suggested = suggestion.data?.expected_from_college?.amount
   useEffect(() => {
     if (collegeAmountTouched || !needsCollege || suggested == null) return
-    setCollegeAmount(suggested.toFixed(2))
+    setAmounts((current) => ({ ...current, collegeAmount: suggested.toFixed(2) }))
   }, [collegeAmountTouched, needsCollege, suggested])
 
-  const collegeOk = !needsCollege || (Number(collegeAmount) > 0 && !hasTooManyDecimals(collegeAmount) && feeCurrency !== '')
-  const studentOk = !needsStudent || (Number(studentAmount) > 0 && !hasTooManyDecimals(studentAmount) && studentCurrency !== '')
+  const collegeOk = !needsCollege || (Number(amounts.collegeAmount) > 0 && !hasTooManyDecimals(amounts.collegeAmount) && feeCurrency !== '')
+  const studentOk = !needsStudent || (Number(amounts.studentAmount) > 0 && !hasTooManyDecimals(amounts.studentAmount) && amounts.studentCurrency !== '')
   // The server's own sentences for the amounts, when it refused one (`details.fields`).
   const collegeMessage = serverMoneyMessage(updateStatus.error, 'expected_from_college.amount')
   const studentMessage = serverMoneyMessage(updateStatus.error, 'expected_from_student.amount')
   const canSubmit =
-    payerMethod != null && !notPartner && !missingCommissionPercent && collegeOk && studentOk && startMonth !== '' && !updateStatus.isPending
+    payerMethod != null && !notPartner && !missingCommissionPercent && collegeOk && studentOk && amounts.startMonth !== '' && !updateStatus.isPending
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
-    const commission: AcceptCommissionBody = { course_start: { month: startMonth, year: startYear } }
-    if (needsCollege) commission.expected_from_college = { amount: Number(collegeAmount), currency: feeCurrency }
-    if (needsStudent) commission.expected_from_student = { amount: Number(studentAmount), currency: studentCurrency }
+    const commission = commissionBody(amounts, { college: needsCollege, student: needsStudent }, courseFeeCurrency)
     updateStatus.mutate(
       { applicationId: row.id, status: 'accepted', commission },
       {
@@ -170,11 +126,6 @@ export function AcceptCollegeModal({
       },
     )
   }
-
-  // Five years out, not three (assumptions audit M39, product owner 2026-09-19). A deferred
-  // offer or a long programme start four years away could not be recorded at all — the picker
-  // simply had no such year, so the consultant had to enter a start date they knew was wrong.
-  const yearOptions = Array.from({ length: 6 }, (_, i) => now.getFullYear() + i)
 
   return (
     <Modal
@@ -227,111 +178,29 @@ export function AcceptCollegeModal({
           </p>
         ) : (
           <>
-            {needsCollege && (
-              <div className="grid grid-cols-3 gap-sm">
-                <MoneyField
-                  label="From college (your commission)"
-                  required
-                  className="col-span-2"
-                  value={collegeAmount}
-                  onChange={(e) => {
-                    setCollegeAmountTouched(true)
-                    setCollegeAmount(e.target.value)
-                  }}
-                  error={collegeMessage}
-                />
-                {/* Locked on purpose when the course has a fee currency — the college pays in
-                    it. With no course currency there is nothing to lock to, so this is an
-                    ordinary required picker rather than a read-only INR (C5). */}
-                {courseFeeCurrency ? (
-                  <TextField label="Currency" value={courseFeeCurrency} disabled readOnly />
-                ) : (
-                  <SelectField
-                    label="Currency"
-                    required
-                    value={collegeCurrency}
-                    onChange={(e) => setCollegeCurrency(e.target.value)}
-                  >
-                    <option value="">Select…</option>
-                    {currencyCodes.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </SelectField>
-                )}
-                {!courseFeeCurrency && (
-                  <p className="col-span-3 -mt-xs text-caption text-text-secondary">
-                    This course has no fee currency on record, so say which currency the college
-                    agreed to pay in.
-                  </p>
-                )}
-                {suggestion.data?.fee?.amount != null && suggestion.data.commission_percent != null && (
+            <CommissionAmountFields
+              value={amounts}
+              onChange={(next) => {
+                if (next.collegeAmount !== amounts.collegeAmount) setCollegeAmountTouched(true)
+                setAmounts(next)
+              }}
+              needsCollege={needsCollege}
+              needsStudent={needsStudent}
+              courseFeeCurrency={courseFeeCurrency}
+              collegeMessage={collegeMessage}
+              studentMessage={studentMessage}
+              collegeCurrencyNote="This course has no fee currency on record, so say which currency the college agreed to pay in."
+              collegeNote={
+                suggestion.data?.fee?.amount != null && suggestion.data.commission_percent != null ? (
                   <p className="col-span-3 -mt-xs text-caption text-text-secondary">
                     {suggestion.data.commission_percent}% of the{' '}
                     {formatMoney(suggestion.data.fee.currency, suggestion.data.fee.amount)} tuition — edit if the agreed
                     figure differs.
                   </p>
-                )}
-              </div>
-            )}
-            {needsStudent && (
-              <div className="grid grid-cols-3 gap-sm">
-                <MoneyField
-                  label="From applicant"
-                  required
-                  className="col-span-2"
-                  value={studentAmount}
-                  onChange={(e) => setStudentAmount(e.target.value)}
-                  error={studentMessage}
-                />
-                {/* Blank until chosen (C5) — what the applicant agreed to pay in is a fact about
-                    this agreement, not a property of the consultancy's own display currency. */}
-                <SelectField
-                  label="Currency"
-                  required
-                  value={studentCurrency}
-                  onChange={(e) => setStudentCurrency(e.target.value)}
-                >
-                  <option value="">Select…</option>
-                  {currencyCodes.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </SelectField>
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-sm">
-              {/* Empty and required when the course lists no intakes (assumptions audit H18,
-                  approved 2026-09-19) — see `defaultMonth` above. */}
-              <SelectField
-                label="Course starts"
-                required
-                value={startMonth}
-                onChange={(e) => setStartMonth(e.target.value)}
-              >
-                <option value="">Select…</option>
-                {MONTHS.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField label="Year" value={startYear} onChange={(e) => setStartYear(Number(e.target.value))}>
-                {yearOptions.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </SelectField>
-            </div>
-            {defaultMonth === '' && (
-              <p className="-mt-xs text-caption text-text-secondary">
-                This course lists no intake months, so say when this student actually starts — the case&rsquo;s due
-                dates are counted from it.
-              </p>
-            )}
+                ) : null
+              }
+              noIntakeNote={defaultMonth === ''}
+            />
             <p className="text-caption text-text-secondary">
               Accepting is final for this case — one accepted college per student. A mistake can be undone with
               &ldquo;Undo acceptance&rdquo;, which records a reason in the audit log.

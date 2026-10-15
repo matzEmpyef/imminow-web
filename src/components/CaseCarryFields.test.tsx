@@ -1,8 +1,11 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_CARRY, type CaseCarry } from '@/lib/caseCarry'
+import { emptyAmounts } from '@/lib/commissionAmounts'
 import { CaseCarryFields } from './CaseCarryFields'
+
+vi.mock('@/lib/currencies', () => ({ useCurrencyCodes: () => ['GBP', 'INR'] }))
 
 // The same four tick boxes in Transfer Applicant, Switch consultancy and Applicant Allocation
 // (owner's ruling on review I-014, 2026-10-08).
@@ -10,14 +13,25 @@ function Harness({
   onValue,
   askAdmission,
   askPayments,
+  withAmounts,
 }: {
   onValue: (value: CaseCarry) => void
   askAdmission?: boolean
   askPayments?: boolean
+  withAmounts?: boolean
 }) {
   const [value, setValue] = useState(DEFAULT_CARRY)
+  const [amounts, setAmounts] = useState(() => emptyAmounts())
   onValue(value)
-  return <CaseCarryFields value={value} onChange={setValue} askAdmission={askAdmission} askPayments={askPayments} />
+  return (
+    <CaseCarryFields
+      value={value}
+      onChange={setValue}
+      askAdmission={askAdmission}
+      askPayments={askPayments}
+      admissionAmounts={withAmounts ? { value: amounts, onChange: setAmounts } : undefined}
+    />
+  )
 }
 
 describe('CaseCarryFields', () => {
@@ -96,5 +110,29 @@ describe('CaseCarryFields', () => {
     render(<Harness onValue={() => {}} askAdmission />)
     fireEvent.click(screen.getByRole('radio', { name: 'Yes' }))
     expect(screen.queryByText('Does the money already recorded on this admission go too?')).not.toBeInTheDocument()
+  })
+
+  it('shows the Accept popup amounts only while the admission goes, and says what the new consultancy gets', () => {
+    render(<Harness onValue={() => {}} askAdmission withAmounts />)
+    expect(screen.queryByLabelText(/From college/)).not.toBeInTheDocument()
+    expect(screen.getByText('The plan, internal notes and commission records never move.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: 'Yes' }))
+    expect(screen.getByText('Amounts for the new consultancy')).toBeInTheDocument()
+    expect(screen.getByLabelText(/From college/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/From student/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Course starts/)).toBeInTheDocument()
+    expect(screen.getByText('The plan and internal notes never move. The new consultancy gets a commission record of its own.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: 'No' }))
+    expect(screen.queryByLabelText(/From college/)).not.toBeInTheDocument()
+  })
+
+  it('lists what is still needed and stops listing it once the amounts are entered', () => {
+    render(<Harness onValue={() => {}} askAdmission withAmounts />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Yes' }))
+    expect(screen.getByText('Still needed: an amount from the college or the student, the month the course starts.')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText(/From student/), { target: { value: '250' } })
+    fireEvent.change(screen.getAllByLabelText(/^Currency/)[1], { target: { value: 'INR' } })
+    fireEvent.change(screen.getByLabelText(/Course starts/), { target: { value: 'May' } })
+    expect(screen.queryByText(/Still needed/)).not.toBeInTheDocument()
   })
 })

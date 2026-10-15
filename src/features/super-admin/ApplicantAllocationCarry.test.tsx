@@ -14,7 +14,7 @@ vi.mock('@/queries/applicantAllocation', () => ({
   useAllocationCandidates: vi.fn(),
   useResolveAllocationRequest: vi.fn(),
 }))
-vi.mock('@/queries/applicantCase', () => ({ useCarryQuestions: vi.fn() }))
+vi.mock('@/lib/currencies', () => ({ useCurrencyCodes: () => ['GBP', 'INR'] }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
 vi.mock('@/components/SearchSelect', () => ({
   SearchSelect: ({ onChange }: { onChange: (id: string) => void }) => (
@@ -31,7 +31,6 @@ import {
   useApplicantAllocationQueue,
   useResolveAllocationRequest,
 } from '@/queries/applicantAllocation'
-import { useCarryQuestions } from '@/queries/applicantCase'
 import { showToast } from '@/lib/toast'
 import { ApplicantAllocationPage } from './ApplicantAllocationPage'
 
@@ -68,7 +67,6 @@ function openAllocate(row: Record<string, unknown>) {
 beforeEach(() => {
   mutate.mockReset()
   vi.mocked(showToast).mockClear()
-  vi.mocked(useCarryQuestions).mockReturnValue({ admission: false, payments: false })
   vi.mocked(useAllocateApplicant).mockReturnValue({ mutate, isPending: false, isError: false, error: null } as never)
   vi.mocked(useAllocationCandidates).mockReturnValue({ data: [], isLoading: false, isError: false } as never)
   vi.mocked(useResolveAllocationRequest).mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false } as never)
@@ -89,37 +87,80 @@ describe('Applicant Allocation — what moves with the case', () => {
     expect(showToast).toHaveBeenCalledWith('Moved. Shared: documents, college applications.')
   })
 
-  it('asks whether the admission goes too when a college has accepted the student, and sends the answer', () => {
-    vi.mocked(useCarryQuestions).mockReturnValue({ admission: true, payments: false })
-    openAllocate({ ...changeRow, journey_id: 'j1' })
+  // The row says whether a college has accepted the student and whether money is recorded on the
+  // admission (`has_accepted_college`, `has_recorded_payments`); nothing more is read.
+  const acceptedRow = { ...changeRow, journey_id: 'j1', has_accepted_college: true, has_recorded_payments: false }
+
+  function fillAmounts() {
+    fireEvent.change(screen.getByLabelText(/From student/), { target: { value: '800' } })
+    fireEvent.change(screen.getAllByLabelText(/^Currency/)[1], { target: { value: 'GBP' } })
+    fireEvent.change(screen.getByLabelText(/Course starts/), { target: { value: 'January' } })
+  }
+
+  it('asks whether the admission goes too when a college has accepted the student, and sends the answer with the amounts', () => {
+    openAllocate(acceptedRow)
     expect(screen.getByText('Does the admission go to the new consultancy too?')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'No' })).toBeChecked()
     fireEvent.click(screen.getByRole('radio', { name: 'Yes' }))
+    expect(screen.getByRole('button', { name: 'Allocate' })).toBeDisabled()
+    expect(screen.getByText('Still needed: an amount from the college or the student, the month the course starts.')).toBeInTheDocument()
+    fillAmounts()
     fireEvent.click(screen.getByRole('button', { name: 'Allocate' }))
     expect(mutate.mock.calls[0][0].carry.admission).toBe(true)
+    expect(mutate.mock.calls[0][0].admission_commission).toEqual({
+      expected_from_student: { amount: 800, currency: 'GBP' },
+      course_start: { month: 'January', year: new Date().getFullYear() },
+    })
+  })
+
+  it('sends no amounts when the admission stays', () => {
+    openAllocate(acceptedRow)
+    fireEvent.click(screen.getByRole('button', { name: 'Allocate' }))
+    expect(mutate.mock.calls[0][0].carry.admission).toBe(false)
+    expect(mutate.mock.calls[0][0].admission_commission).toBeUndefined()
   })
 
   it('asks about the recorded money after Yes, sends it, and names it in the confirmation', () => {
-    vi.mocked(useCarryQuestions).mockReturnValue({ admission: true, payments: true })
-    openAllocate({ ...changeRow, journey_id: 'j1' })
+    openAllocate({ ...acceptedRow, has_recorded_payments: true })
     expect(screen.queryByText('Does the money already recorded on this admission go too?')).not.toBeInTheDocument()
     fireEvent.click(screen.getAllByRole('radio', { name: 'Yes' })[0])
     fireEvent.click(screen.getAllByRole('radio', { name: 'Yes' })[1])
+    fillAmounts()
     fireEvent.click(screen.getByRole('button', { name: 'Allocate' }))
     expect(mutate.mock.calls[0][0].carry).toMatchObject({ admission: true, recorded_payments: true })
     mutate.mock.calls[0][1].onSuccess({ ok: true, client_id: 'n1', carried: ['documents', 'admission', 'recorded_payments'] })
     expect(showToast).toHaveBeenCalledWith('Moved. Shared: documents, accepted college, recorded payments.')
   })
 
-  it('shows a served refusal exactly as served', () => {
-    const refusal = 'The admission cannot go: this college is not a Partner College of Beta Consult.'
+  it('does not ask about the money when nothing is recorded on the admission', () => {
+    openAllocate(acceptedRow)
+    fireEvent.click(screen.getByRole('radio', { name: 'Yes' }))
+    expect(screen.queryByText('Does the money already recorded on this admission go too?')).not.toBeInTheDocument()
+  })
+
+  it('shows a served refusal of the admission exactly as served, beside the amounts and only once', () => {
+    const refusal =
+      "Aston College is not one of Beta Consult's Partner Colleges, so the admission cannot move with the student. Add it to their Partner Colleges first, or move the student without the admission."
     vi.mocked(useAllocateApplicant).mockReturnValue({
       mutate,
       isPending: false,
       isError: true,
-      error: new ApiError('x', { error: { code: 'conflict', message: refusal } }, 409),
+      error: new ApiError('x', { error: { code: 'not_a_partner_college', message: refusal, details: { fields: { admission_commission: refusal } } } }, 409),
     } as never)
-    openAllocate({ ...changeRow, journey_id: 'j1' })
+    openAllocate(acceptedRow)
+    fireEvent.click(screen.getByRole('radio', { name: 'Yes' }))
+    expect(screen.getAllByText(refusal)).toHaveLength(1)
+  })
+
+  it('shows any other refusal in the footer, exactly as served', () => {
+    const refusal = 'That consultancy has no active staff.'
+    vi.mocked(useAllocateApplicant).mockReturnValue({
+      mutate,
+      isPending: false,
+      isError: true,
+      error: new ApiError('x', { error: { code: 'no_active_staff', message: refusal } }, 409),
+    } as never)
+    openAllocate(changeRow)
     expect(screen.getByText(refusal)).toBeInTheDocument()
   })
 

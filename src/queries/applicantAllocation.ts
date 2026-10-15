@@ -66,10 +66,19 @@ export function useAllocateApplicant(id: string) {
   return useMutation({
     // `carry` is for a consultancy-change row only (owner's ruling on review I-014, 2026-10-08):
     // a freelancer row opens a first case, so there is nothing to carry and it is left out.
-    mutationFn: async ({ consultancyId, carry }: { consultancyId: string; carry?: components['schemas']['CaseCarry'] }) => {
+    // `admission_commission` is sent only while the admission goes with the case (`carry.admission`).
+    mutationFn: async ({
+      consultancyId,
+      carry,
+      admission_commission,
+    }: {
+      consultancyId: string
+      carry?: components['schemas']['CaseCarry']
+      admission_commission?: components['schemas']['AdmissionCommission']
+    }) => {
       const { data, error } = await api.POST('/applicant-allocation-queue/{id}/allocate', {
         params: { path: { id } },
-        body: { consultancy_id: consultancyId, ...(carry ? { carry } : {}) },
+        body: { consultancy_id: consultancyId, ...(carry ? { carry } : {}), ...(admission_commission ? { admission_commission } : {}) },
       })
       if (error) throw new ApiError('Could not allocate this applicant.', error)
       return data

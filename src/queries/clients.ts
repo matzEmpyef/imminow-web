@@ -334,11 +334,8 @@ export function useAddApplication(clientId: string) {
 
 type Money = { amount: number; currency: string }
 
-export interface AcceptCommissionBody {
-  expected_from_college?: Money
-  expected_from_student?: Money
-  course_start: { month: string; year: number }
-}
+/** The Accept popup's money agreement — the contract's own shape, also sent for a moved admission. */
+export type AcceptCommissionBody = components['schemas']['AdmissionCommission']
 
 export function useUpdateApplication(clientId: string) {
   const queryClient = useQueryClient()
