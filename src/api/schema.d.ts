@@ -4718,7 +4718,7 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        /** @description Who takes over this employee's leads and clients. Required when assigned_work_count is above zero, ignored when it is zero. */
+                        /** @description Who takes over this employee's leads, clients and open tasks. Required when assigned_work_count is above zero, ignored when it is zero. */
                         reassign_to_employee_id?: components["schemas"]["UUID"];
                     };
                 };
@@ -4731,7 +4731,7 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description Work is still assigned and no valid successor was named. The error detail carries assigned_work_count. */
+                /** @description Work is still assigned and no valid successor was named ("This employee still has N open item(s) (leads, clients or tasks). Choose who takes them over."). The error detail carries assigned_work_count. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -5025,6 +5025,15 @@ export interface paths {
                         "application/json": components["schemas"]["Designation"];
                     };
                 };
+                /** @description `validation_failed`: the name is taken - a designation's name is its own in the organisation whatever its letter case or the spaces around it ("A designation with this name already exists. Choose a different name.", on `details.fields.name`). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -5072,6 +5081,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Designation"];
+                    };
+                };
+                /** @description `validation_failed`: the new name is taken by another designation (the same rule as `POST /staff/designations`: "A designation with this name already exists. Choose a different name.", on `details.fields.name`). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
                 409: components["responses"]["ErrorResponse"];
@@ -5270,7 +5288,7 @@ export interface paths {
         put?: never;
         /**
          * Add a phonebook contact
-         * @description `name`/`category`/`phone` trimmed and non-empty (400 `validation_failed`, contract gate 9, K13); `phone` accepts digits, spaces, `+`, `(`, `)` and `-`, 5–20 characters.
+         * @description `name`/`category`/`phone` trimmed and non-empty (400 `validation_failed`, contract gate 9, K13). `phone` is held to the one staff phone rule (Phase 8 T4-18): a number with its country code, or one of the consultancy's own country, stored as E.164; anything else is 400 `validation_failed` with "Enter the phone number with the country code, for example +919876543210." A category typed in any letter case joins the one the book already has ("courier" joins "Courier").
          */
         post: {
             parameters: {
@@ -5348,7 +5366,7 @@ export interface paths {
         head?: never;
         /**
          * Edit a phonebook contact
-         * @description Partial update; any field sent is validated exactly as `POST /phonebook` validates it (contract gate 9, K13) — a blank name/category/phone, or a malformed phone, is 400 `validation_failed` rather than silently stored. Audited as before/after pairs, not the raw request body.
+         * @description Partial update; any field sent is validated exactly as `POST /phonebook` validates it (contract gate 9, K13) — a blank name/category/phone, or a malformed phone (the one staff phone rule and sentence, see `POST /phonebook`), is 400 `validation_failed` rather than silently stored. Audited as before/after pairs, not the raw request body.
          */
         patch: {
             parameters: {
@@ -10480,7 +10498,7 @@ export interface paths {
         put?: never;
         /**
          * Manually add a self-sourced lead (Business & Ultimate, build reference 2.2 Import Leads). Creates an imported_leads row, lands unallocated in the Lead Pool.
-         * @description THE CONTACT IS CHECKED AS AN IMPORT ROW IS (review F-208, 2026-10-08) — the same rules and messages as `POST /leads/import/validate`, each a 400 `validation_failed` naming the field in `details.fields`: `name` at most 200 characters; `email` an address, stored lower-cased; `phone` a real number, stored in E.164, and one written without a country code read in the consultancy's own country (kept as its digits only where the consultancy has no country on file). Unlike an import row, a single add needs neither a phone nor an email. The answer's `phone` and `email` are the values stored.
+         * @description THE CONTACT IS CHECKED AS AN IMPORT ROW IS (review F-208, 2026-10-08) — the same rules and messages as `POST /leads/import/validate`, each a 400 `validation_failed` naming the field in `details.fields`: `name` at most 200 characters; `email` an address, stored lower-cased; `phone` a real number, stored in E.164, and one written without a country code read in the consultancy's own country (kept as its digits only where the consultancy has no country on file). A single add needs AT LEAST ONE of phone or email (Phase 8 T4-18): with neither the answer is 400 `validation_failed` ("Give an email address or a phone number. At least one of the two is needed."). A phone that is not a number is 400 `validation_failed` on `phone` with the one sentence every staff screen uses: "Enter the phone number with the country code, for example +919876543210." The answer's `phone` and `email` are the values stored. If the phone number or email is already on another lead the consultancy added or imported, the lead is still created and the answer carries `warning` (a sentence saying this may be a repeat).
          */
         post: {
             parameters: {
@@ -10511,6 +10529,15 @@ export interface paths {
                         "application/json": components["schemas"]["Lead"];
                     };
                 };
+                /** @description `validation_failed`: a field is not valid, or neither a phone nor an email was given ("Give an email address or a phone number. At least one of the two is needed."). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -10530,9 +10557,9 @@ export interface paths {
         put?: never;
         /**
          * CSV bulk import, step 1 — validate → preview (build reference 2.2, same validate/preview/commit pipeline as /colleges/import, TRD Section 6)
-         * @description Synchronous, like the college import (owner Q7, 2026-09-25): at most 1 MB and 2,000 data rows — 400 `validation_failed` above either, before any row is read. Columns are name, phone, email (a header row is recognised and skipped); quoted fields may contain commas. A row needs a name and at least one of phone or email. The batch is held for an hour for the caller who validated it. Needs `leads.import` and, like the commit, the `own_leads` plan feature (review F-208, 2026-10-08): without it the answer is 403 `feature_locked` and no file is stored.
+         * @description Synchronous, like the college import (owner Q7, 2026-09-25): at most 1 MB and 2,000 data rows — 400 `validation_failed` above either, before any row is read. Columns are name, phone, email (a header row is recognised and skipped); quoted fields may contain commas. A row needs a name and at least one of phone or email (a row with neither reads "Give an email address or a phone number. At least one of the two is needed."). The batch is held for an hour for the caller who validated it. Needs `leads.import` and, like the commit, the `own_leads` plan feature (review F-208, 2026-10-08): without it the answer is 403 `feature_locked` and no file is stored.
          *
-         *     Each row's contacts are checked here, so a problem is seen in the preview and not at conversion (review F-208). A name is at most 200 characters ("Name is at most 200 characters."). An email must be an address ("Email is not a valid address.") and is returned and stored lower-cased. A phone must be 6 to 15 digits once spaces, dashes, dots and brackets are removed ("Phone is not a valid number."); one written with its country code (`+91 …`) must be a real number and is returned and stored in E.164. ONE WRITTEN WITHOUT A COUNTRY CODE IS READ IN THE CONSULTANCY'S OWN COUNTRY (owner, 2026-10-08; `Consultancy.country`): for a consultancy in India `98765 43210` is returned and stored as `+919876543210`, and a number that is not a real number of that country is a row error ("Phone is not a valid number."). Only where the consultancy has no country on file is such a number still kept as its digits. A valid row's `phone` and `email` in the answer are the values that will be stored. A file the CSV reader cannot read (for example a single cell over 131,072 characters) is 400 `validation_failed` ("The file could not be read as CSV. …"). A batch that is not committed is deleted once its hour is over.
+         *     Each row's contacts are checked here, so a problem is seen in the preview and not at conversion (review F-208). A name is at most 200 characters ("Name is at most 200 characters."). An email must be an address ("Email is not a valid address.") and is returned and stored lower-cased. A phone must be 6 to 15 digits once spaces, dashes, dots and brackets are removed (otherwise "Enter the phone number with the country code, for example +919876543210.", the one sentence every staff screen gives); one written with its country code (`+91 …`) must be a real number and is returned and stored in E.164. ONE WRITTEN WITHOUT A COUNTRY CODE IS READ IN THE CONSULTANCY'S OWN COUNTRY (owner, 2026-10-08; `Consultancy.country`): for a consultancy in India `98765 43210` is returned and stored as `+919876543210`, and a number that is not a real number of that country is a row error (the same sentence). Only where the consultancy has no country on file is such a number still kept as its digits. A valid row's `phone` and `email` in the answer are the values that will be stored. A file the CSV reader cannot read (for example a single cell over 131,072 characters) is 400 `validation_failed` ("The file could not be read as CSV. …"). A batch that is not committed is deleted once its hour is over.
          */
         post: {
             parameters: {
@@ -10779,7 +10806,7 @@ export interface paths {
          *
          *     `Lead.status = closed` — whoever closed it (the consultancy, the student committing to another consultancy, an account deletion): 409 `lead_closed` ("This conversation is closed, so no new messages can be sent."). Both clients hide the composer and every send / share / card control on a closed lead and show the thread read-only; if a send is refused anyway, show the message as it is.
          *
-         *     `Lead.status = converted` — the conversation goes on under the case and follows the case's own write rules: 409 `case_in_dispute` for both sides while the case is frozen in a dispute, 409 `case_moved` for the consultancy the student has left (its message names the new consultancy); otherwise the write is accepted. Clients that still post to a converted lead's thread must handle those two codes exactly as on `POST /clients/{id}/messages`.
+         *     `Lead.status = converted`, STAFF SIDE (Phase 8 T4-12): the lead is read-only; every write is refused 409 `lead_closed` with the sentence "This lead is now a client, so it can no longer be changed. Open the client instead." - the same sentence as `Lead.converted_notice`; the thread goes on under the client (`POST /clients/{id}/messages`, see `Lead.converted_client_id`). This holds whatever the case is doing (a dispute, a move away). The student's side is unchanged: the conversation goes on under the case and follows the case's own write rules: 409 `case_in_dispute` while the case is frozen in a dispute; otherwise the write is accepted. A client that still posts to a converted lead's thread as the student must handle that code exactly as on `POST /clients/{id}/messages`.
          */
         post: {
             parameters: {
@@ -10976,7 +11003,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Close a lead — user-requested. Consultancy staff holding the `clients.close` permission (console review C2, 2026-09-13; owner Q3, 2026-09-25 — the same key that closes a case, on every plan; there is no `leads.close` key and no tier gate). 400 `validation_failed` without a reason; 409 `already_closed` when it is closed already; 403 `permission_denied` for staff lacking `clients.close`; 404 `not_found` for a student caller, checked before the permission check even runs (Wave 3 correction, 2026-09-27 — previously undocumented, though already the backend's behaviour; same convention as `POST /clients/{id}/close`). Audit-logged with the required reason, which is stored on the lead.
+         * Close a lead — user-requested. Consultancy staff holding the `clients.close` permission (console review C2, 2026-09-13; owner Q3, 2026-09-25 — the same key that closes a case, on every plan; there is no `leads.close` key and no tier gate). 400 `validation_failed` without a reason; 409 `already_closed` when it is closed already; 403 `permission_denied` for staff lacking `clients.close`; 409 `lead_closed` on a lead that has become a client ("This lead is now a client, so it can no longer be changed. Open the client instead.", Phase 8 T4-12 - close the client instead); 404 `not_found` for a student caller, checked before the permission check even runs (Wave 3 correction, 2026-09-27 — previously undocumented, though already the backend's behaviour; same convention as `POST /clients/{id}/close`). Audit-logged with the required reason, which is stored on the lead.
          * @description THE REASON IS FROM A FIXED LIST (review F-292, owner decision 69b, 2026-10-08): the same five a case's closing offers as its `sub_reason` — `rejected_by_colleges`, `visa_refused`, `student_withdrew`, `lost_contact`, `other` — with an optional free-text `note` kept beside it. The note is required when the reason is `other` (400 `validation_failed`). The two reasons the server writes itself (the student committed to another consultancy; the student's account was deleted) are never offered and never accepted here.
          *
          *     OLDER CLIENTS, FOR NOW: a `reason` that is not one of the five, sent WITHOUT a `note`, is taken as the free text an older console sent — it is stored as `other` with that text as the note. This is a bridge while the console moves to the picker and will be removed; a new client always sends a listed reason. An unlisted `reason` sent WITH a `note` is 400 `validation_failed`. Reasons typed before the list existed were kept the same way (`other`, with the text as the note).
@@ -11371,7 +11398,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Set a follow-up reminder for this lead (build reference 1.22 Activity extension, Ultimate only, user-requested) — creates an activity_tasks row, always self-assigned, surfaced in the Activity page's existing Assigned Tasks list */
+        /**
+         * Set a follow-up reminder for this lead (build reference 1.22 Activity extension, Ultimate only, user-requested) — creates an activity_tasks row, always self-assigned, surfaced in the Activity page's existing Assigned Tasks list
+         * @description A lead that has become a client is read-only (Phase 8 T4-12): the answer is 409 `lead_closed` ("This lead is now a client, so it can no longer be changed. Open the client instead.").
+         */
         post: {
             parameters: {
                 query?: never;
@@ -11394,6 +11424,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["ActivityTask"];
+                    };
+                };
+                /** @description `lead_closed`: the lead has become a client and can no longer be changed. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -11446,7 +11485,7 @@ export interface paths {
                         "application/json": components["schemas"]["ConversionProposal"];
                     };
                 };
-                /** @description `consultancy_unavailable` (contract gate 12f) — the consultancy is suspended, so it cannot offer to take on a client. Since 2026-10-13 (owner's ruling 2026-10-12, DECISIONS 121 C-34) the offer also keeps Create Applicant's limits, with the same two answers `POST /clients` gives: `request_cooldown` — this person declined an offer from the consultancy in the last 30 days, let one expire in the last 7, or had one withdrawn in the last 24 hours ("You asked this person recently. You can ask again after <date>.", `details.retry_after`); `limit_reached` — the consultancy has sent its day's allowance of offers and requests, 15 per active member of staff ("Your consultancy has reached today's limit for offers to become a client. You can send more tomorrow.", `details.resets_at`). Show the sentence as it arrives. */
+                /** @description `consultancy_unavailable` (contract gate 12f) — the consultancy is suspended, so it cannot offer to take on a client. Since 2026-10-13 (owner's ruling 2026-10-12, DECISIONS 121 C-34) the offer also keeps Create Applicant's limits, with the same two answers `POST /clients` gives: `request_cooldown` — this person declined an offer from the consultancy in the last 7 days, let one expire in the last 7, or had one withdrawn in the last 24 hours ("You asked this person recently. You can ask again after <date>.", `details.retry_after`); `limit_reached` — the consultancy has sent its day's allowance of offers and requests, 15 per active member of staff ("Your consultancy has reached today's limit for offers to become a client. You can send more tomorrow.", `details.resets_at`). Show the sentence as it arrives. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -12883,7 +12922,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Search catalog — country, campus province/state, level, field, course (FR-057). Paginated for 10K+ scale (build reference 1.23) — list rows return campus_count/ course_count instead of embedding full campus/course objects; fetch GET /colleges/{id} for the full detail (unfiltered — Sentpo Mobile's Study Abroad/Study in [Home Country] never call this list endpoint directly, only GET /courses, whose own filter[visible]=true note above is what actually keeps inactive colleges from ever surfacing as a tappable Search Result in the first place). filter[country] takes one or more comma-separated countries (2026-09-10) and matches a college with a campus in ANY of them; filter[active] is "true"/"false"; filter[health] is "needs_details" (has courses, at least one failing a capture check) or "complete". sort accepts name (default asc), campus_count, course_count, catalog_health (share of complete courses — ascending puts the worst-covered first, colleges with no courses last) and partner_consultancy_count. The response's `summary` covers every college the caller can see, not the filtered page. SCOPED FOR INSTITUTES (INSTITUTE_ACCOUNT_PLAN D7, 2026-09-10) — staff of a `kind=institute` account see only their own college, one row, and an institute not yet linked to a college sees none. Applied server-side to the source set before any query filter runs, so no parameter can widen it.
+         * Search catalog — country, campus province/state, level, field, course (FR-057). Paginated for 10K+ scale (build reference 1.23) — list rows return campus_count/ course_count instead of embedding full campus/course objects; fetch GET /colleges/{id} for the full detail (unfiltered — Sentpo Mobile's Study Abroad/Study in [Home Country] never call this list endpoint directly, only GET /courses, whose own filter[visible]=true note above is what actually keeps inactive colleges from ever surfacing as a tappable Search Result in the first place). filter[country] takes one or more comma-separated countries (2026-09-10) and matches a college with a campus in ANY of them; filter[active] is "true"/"false"; filter[health] is "needs_details" (has courses, at least one failing a capture check), "complete", or "rolled_deadlines" (Phase 8 T4-30 - has an active course with an intake deadline the system rolled forward and nobody has confirmed - the list the Needs attention queue "Colleges with rolled deadlines" opens, and counted in colleges to match). sort accepts name (default asc), campus_count, course_count, catalog_health (share of complete courses — ascending puts the worst-covered first, colleges with no courses last) and partner_consultancy_count. The response's `summary` covers every college the caller can see, not the filtered page. SCOPED FOR INSTITUTES (INSTITUTE_ACCOUNT_PLAN D7, 2026-09-10) — staff of a `kind=institute` account see only their own college, one row, and an institute not yet linked to a college sees none. Applied server-side to the source set before any query filter runs, so no parameter can widen it.
          * @description WHO GETS WHICH LIST (review F-028 and owner decision 19, 2026-10-06). The catalogue-health figures are the platform catalogue staff's work queue and are computed over the whole course table, so only they are given them. PLATFORM CATALOGUE STAFF get everything the summary above describes. EVERY OTHER CALLER (students and the app, consultancy staff, institutes, freelancers) gets the PLAIN list: the same rows, filters (`filter[country]`, `filter[active]`, `search`) and cursor paging, with `campus_count`, `course_count`, the countries and regions and `partner_consultancy_count`, but WITHOUT `complete_course_count`, `missing_checks`, the response's `summary` and `meta.total` (all optional in the schema). For them `filter[health]`, and a `sort` by `course_count` or `catalog_health`, are IGNORED, never refused: the request answers 200 as if they had not been sent (sorted by name). There is no 403 on this route for a signed-in caller. They also never see a college that is not live (it is left out of the list and its id is 404), and their counts cover live campuses and published courses only. A client must therefore not read a missing `summary` or `total` as zero.
          */
         get: {
@@ -15538,7 +15577,7 @@ export interface paths {
         put?: never;
         /**
          * Manually create an applicant (Student or PR) — Business/Ultimate. No commission generated (FR-092, FR-099)
-         * @description Contract gate 12f. What happens depends on whose the email or phone is.
+         * @description Contract gate 12f. What happens depends on whose the email or phone is. A `phone` that is not a number is 400 `validation_failed` with the one staff phone sentence (Phase 8 T4-18): "Enter the phone number with the country code, for example +919876543210."
          *
          *     **Nobody's** — the account and the case are created at once and the person is invited (`201`, a `Client`), as before. The new account has NO date of birth (Phase 8, D-129 C-2): the student gives it at first sign-in, and until then the account counts as under 18 by every age rule (the student's own chat, commit, uploads and meetings wait; the consultancy can still prepare the case).
          *
@@ -15546,7 +15585,7 @@ export interface paths {
          *
          *     **Held by an account in any other way** — `409 identifier_in_use`, with no detail. That covers an account that is not a student's (a consultant, platform staff), a student account that entered the email or phone but never verified it, and an applicant another consultancy created who has not signed in yet. Nothing is sent to any of them. The message is one neutral sentence, the same whoever holds it (Phase 8, D-119 C-7(2)): "This address cannot be used. Please ask the applicant to provide a different email address." — or, when it is the phone that is held, "This phone number cannot be used. Please ask the applicant to provide a different phone number." It never says that an account exists or whose it is. Converting an imported lead whose email or phone is held (`POST /conversion-proposals/{id}/respond`) answers the same `409` in the same words.
          *
-         *     Limits on requests to existing students. Each consultancy has a daily allowance, shared by its staff: 15 for each active member of staff, per calendar day in India. A brand-new applicant does not use it. At the limit the answer is `409 limit_reached`, with the reset time in `details.resets_at`. The same consultancy must wait before asking the same person again: 30 days after they declined (lifted as soon as the student starts a chat with the consultancy or asks it to take them on), 7 days after a request expired unanswered, and 24 hours after the consultancy cancelled its own. Asking sooner is `409 request_cooldown`, with the date in `details.retry_after`.
+         *     Limits on requests to existing students. Each consultancy has a daily allowance, shared by its staff: 15 for each active member of staff, per calendar day in India. A brand-new applicant does not use it. At the limit the answer is `409 limit_reached`, with the reset time in `details.resets_at`. The same consultancy must wait before asking the same person again: 7 days after they declined (lifted as soon as the student starts a chat with the consultancy or asks it to take them on), 7 days after a request expired unanswered (owner decision 149), and 24 hours after the consultancy cancelled its own request (an ordinary offer on a chat that the consultancy takes back itself starts no wait). Asking sooner is `409 request_cooldown`, with the date in `details.retry_after` and in the sentence, written DD-MM-YYYY.
          *
          *     If the student is already chatting with the consultancy, the request is the offer on that chat (`lead_id` set). If an offer made from the lead's page is already waiting there, nothing new is sent to the student; what was typed here is added to that offer and it is returned.
          *
@@ -15753,7 +15792,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Edit Overview details (user-requested, 2026-08-15) — address and phone, from a popup on Client Profile's Overview tab. Neither touches the student's login/account, only the case record (`address`) and their contact `phone`. */
+        /**
+         * Edit Overview details (user-requested, 2026-08-15) — address and phone, from a popup on Client Profile's Overview tab. Neither touches the student's login/account, only the case record (`address`) and their contact `phone`.
+         * @description `phone` is held to the one staff phone rule (Phase 8 T4-18): a number with its country code, or one of the consultancy's own country, stored as E.164; anything else is 400 `validation_failed` with "Enter the phone number with the country code, for example +919876543210."
+         */
         patch: {
             parameters: {
                 query?: never;
@@ -16122,7 +16164,10 @@ export interface paths {
             };
         };
         put?: never;
-        /** RECEIVING consultancy issues a one-time incoming-transfer code (permission `clients.transfer_applicant` on the issuing side too — accepting an incoming case is as consequential as sending one away). The issuer types the student's registered email OR their registered phone number (contract gate 7, erd Open 35 — phone-only students exist); the code is bound to (issuing consultancy, that email or phone), single-use, 72-hour expiry, and matched against the student's account when the sender uses it. It is never resolved to an account at issue — that would tell the issuing consultancy whether the person has a Sentpo account. Audit-logged on the issuing consultancy's own log with the mandatory reason. Replaces the retired Platform-Admin issuing route (2026-08-20, "do not involve immiNow admin"). */
+        /**
+         * RECEIVING consultancy issues a one-time incoming-transfer code (permission `clients.transfer_applicant` on the issuing side too — accepting an incoming case is as consequential as sending one away). The issuer types the student's registered email OR their registered phone number (contract gate 7, erd Open 35 — phone-only students exist); the code is bound to (issuing consultancy, that email or phone), single-use, 72-hour expiry, and matched against the student's account when the sender uses it. It is never resolved to an account at issue — that would tell the issuing consultancy whether the person has a Sentpo account. Audit-logged on the issuing consultancy's own log with the mandatory reason. Replaces the retired Platform-Admin issuing route (2026-08-20, "do not involve immiNow admin").
+         * @description `student_phone` is held to the one staff phone rule (Phase 8 T4-18): a number with its country code, or one of the consultancy's own country, bound to the code as E.164; anything else is 400 `validation_failed` with "Enter the phone number with the country code, for example +919876543210."
+         */
         post: {
             parameters: {
                 query?: never;
@@ -29589,7 +29634,7 @@ export interface components {
             } | null;
             is_consultancy_admin?: boolean;
             active?: boolean;
-            /** @description Leads and clients currently assigned to this employee. Drives the Deactivate dialog — deactivation requires a successor when this is above zero, so the UI only asks when there is actually something to hand over. */
+            /** @description Leads, clients and OPEN TASKS currently assigned to this employee (Phase 8 T4-21: a task is handed over with the rest). Drives the Deactivate dialog — deactivation requires a successor when this is above zero, so the UI only asks when there is actually something to hand over. Tasks are counted here and in the 400 below, but not in the plan-change preview's per-employee counts, which weigh leads and clients only. */
             readonly assigned_work_count?: number;
         };
         /** @description The answer to `POST /users/{id}/date-of-birth` (owner decision 3 / review F-004): what Support's correction recorded and what it did to the guardian requirement. */
@@ -30615,6 +30660,15 @@ export interface components {
             notes?: string | null;
             /** @enum {string} */
             status: "active" | "converted" | "closed";
+            /**
+             * Format: uuid
+             * @description STAFF VIEW ONLY, and only on a `converted` lead (Phase 8 T4-12): the client (case) the lead became, so the page can say so and link to it. OMITTED, not null, on every other lead and on the student's view. A lead that has become more than one case names the newest.
+             */
+            readonly converted_client_id?: string;
+            /** @description STAFF VIEW ONLY, and only on a `converted` lead: the sentence that says why the lead can no longer be changed ("This lead is now a client, so it can no longer be changed. Open the client instead."), to show beside the link to `converted_client_id`. OMITTED, not null, on every other lead and on the student's view. It is the same sentence a write on the lead is refused with (409 `lead_closed`). */
+            readonly converted_notice?: string;
+            /** @description Set on the answer to `POST /leads` ONLY, and only when the phone number or email just added is already on another lead the consultancy added or imported ("Another lead in your consultancy already has this phone number, so this may be a repeat."; "email address", or "phone number and email address", as it applies). A warning, never a refusal: the lead is created either way. OMITTED, not null, on every other answer and on every read. */
+            readonly warning?: string;
             /** Format: date-time */
             last_message_at?: string | null;
             /** @description The most recent message's content, truncated server-side (build reference 2.2, Active Leads — "last-message preview"). Null when there's no message yet. */
@@ -31619,6 +31673,10 @@ export interface components {
             featured_jobs?: components["schemas"]["UUID"][];
             /** @description The ordered, hand-picked institutes on Sentpo Home's Top Institutes rail (INSTITUTE_ACCOUNT_PLAN D15, 2026-09-10) — a merchandising decision about the student app rather than a property of any one account, which is why it lives here beside the other platform-wide levers. Order is the ranking; up to three, matching the sibling Top Consultancies section. Validated on write, not filtered on read: an id that is not a `kind: institute` account, a duplicate, or a fourth entry is refused 400, so a Super Admin is never left looking at a saved selection the app quietly declines to show. Empty by default — read it with `GET /consultancies?filter[featured]=true`, and hide the section when that is empty. */
             featured_institutes?: components["schemas"]["UUID"][];
+            /** @description PLATFORM STAFF'S READ ONLY (Phase 8 T4-31), on `GET` and on the answer to `PATCH`: each id in `featured_consultancies`, `featured_jobs` and `featured_institutes` mapped to the name to show beside it, so App Config never shows a bare id. A pick whose record is gone reads "No longer available". OMITTED, not null, for a student or any caller who holds no platform permission, and ignored if sent in a save. */
+            readonly featured_labels?: {
+                [key: string]: string;
+            };
         };
         /** @description Server-driven app-lifecycle configuration for Sentpo Mobile (Session 37, 2026-08-30): the version gate (force-update vs. dismissible what's-new) and the in-app store-rating prompt's thresholds. GET is PUBLIC — no auth — because the version gate has to work BEFORE login: a below-minimum install must be blocked on launch, before the student ever reaches sign-in. */
         AppConfig: {
@@ -31634,12 +31692,12 @@ export interface components {
             minimum_version: string;
             /**
              * @description Opened by the blocking update screen's one button (url_launcher) — the app/play store listing. Since gate 12c (F64) this is the FALLBACK: a client opens its own platform's `update_url_android` / `update_url_ios` when that one is set, and this otherwise, so installs from before the split keep working and the field stays required.
-             * @example https://play.google.com/store/apps/details?id=com.sentpo.app
+             * @example https://play.google.com/store/apps/details?id=com.sentpo.www
              */
             update_url: string;
             /**
              * @description Gate 12c (F64): the Play Store listing the Android app opens. https only, and only a Play host (`play.google.com`) — a PATCH naming anything else is 400. Null/absent means the Android app uses `update_url`. Dormant on the frozen mock, which sends neither this nor `update_url_ios`.
-             * @example https://play.google.com/store/apps/details?id=com.sentpo.app
+             * @example https://play.google.com/store/apps/details?id=com.sentpo.www
              */
             update_url_android?: string | null;
             /**
@@ -36036,6 +36094,8 @@ export interface components {
             collecting_since: string;
             /** @description Median hours from a lead's created_at to the first sender=consultant message on that lead's conversation, within the current scope. Null when nothing in scope has a consultant reply yet. */
             response_time_median_hours: number | null;
+            /** @description The same figure as a sentence to show instead of a count of hours (Phase 8 T4-34): "Under an hour", "5 hours", "1 day 3 hours", "119 days 6 hours". Null when `response_time_median_hours` is null. */
+            response_time_median_text?: string | null;
             /** @description Age in whole days of the oldest open lead whose last message is the student's (console review M19, 2026-09-13); null when every lead has been answered. The median above counts only leads that got a reply. */
             oldest_unanswered_lead_days: number | null;
             /** @description Median days from lead created_at to its lead->converted status_transitions row. Null with no conversions yet in scope. */
@@ -36360,10 +36420,12 @@ export interface components {
             kind: "consultancy" | "institute";
             /** @description Leads Sentpo sent this account inside the window. Leads the account added or imported itself are not counted (2026-09-11). */
             leads_received: number;
-            /** @description Of the window's Sentpo leads that can be judged, the percent whose first staff reply came within `thresholds.slow_response_hours`. An active lead with no reply after that long is a miss; a lead with no reply that was converted or closed anyway is left out, as is one still inside its first 48 hours. Null when nothing can be judged yet. */
+            /** @description Of the window's Sentpo leads that can be judged, the percent whose first staff reply came within `thresholds.slow_response_hours`. An active lead with no reply after that long is a miss; a lead with no reply that was converted or closed anyway is left out, as is one still inside its first 48 hours. Null when nothing can be judged yet, and null for an account that received no lead and sent no reply in the window (Phase 8 T4-34), so it is never flagged "Below 80%" for leads it never had. */
             responded_within_percent: number | null;
             /** @description Median hours to the first staff reply, over the window's Sentpo leads that got one. */
             response_time_median_hours: number | null;
+            /** @description The same figure as a sentence to show instead of a count of hours (Phase 8 T4-34), as on `DashboardAnalytics.response_time_median_text`: "Under an hour", "5 hours", "119 days 6 hours". Null when `response_time_median_hours` is null. */
+            response_time_median_text?: string | null;
             /** @description The window's Sentpo leads that are converted or closed. */
             leads_decided: number;
             /** @description Converted over decided leads (`leads_decided`), so leads still being worked do not drag it down. Null when none are decided. */
