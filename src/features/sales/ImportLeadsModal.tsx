@@ -242,7 +242,7 @@ export function AddLeadModal({ onClose }: { onClose: () => void }) {
     !sent.phone &&
     !sent.email &&
     Object.keys(refused).length === 0
-  const noContactError = refusedForNoContact && !phone && !email ? createLead.error.message : undefined
+  const noContactError = refusedForNoContact && !phone && !email ? createLead.error?.message : undefined
   // A refusal that named a field, or that said a contact was missing, is never repeated in the footer
   // once its field has been edited.
   const refusedBesideAField = Object.keys(refused).length > 0 || refusedForNoContact
