@@ -1696,7 +1696,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** My consent history */
+        /**
+         * My consent history
+         * @description Served while the student is held for the privacy policy (never answered 403 `policy_acceptance_required`): the policy screen reads it to tell a changed policy (an event-`1` record under an older `policy_version`) from a first acceptance (none), and words itself accordingly. Everything else a held student might read — the bell, the ways to sign in, any list — stays refused until the policy in force is accepted.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -16849,7 +16852,7 @@ export interface paths {
                     "application/json": {
                         /** @description Free text for the audit trail. Always required. */
                         reason: string;
-                        /** @description "Did the student join the college?" (2026-09-19, assumptions audit C6). Required — 422 `student_joined_required` — whenever the case has an accepted application (or, for a PR case, a recorded contribution). `true` closes as a success and recognises the commission; `false` closes as a failure and reverses it, whatever the sub_reason says. Before this the outcome was inferred from the sub_reason list, and "other" — the catch-all — was billed as a success. */
+                        /** @description "Did the student join the college?" (2026-09-19, assumptions audit C6); for a PR case, "Did the PR application go through?" (the refusal says so in those words). Required — 422 `student_joined_required` — whenever the case has an accepted application (or, for a PR case, a recorded contribution). Kept on the case only where it was asked. `true` closes as a success and recognises the commission; `false` closes as a failure and reverses it, whatever the sub_reason says. Before this the outcome was inferred from the sub_reason list, and "other" — the catch-all — was billed as a success. */
                         student_joined?: boolean | null;
                         /**
                          * @description Required (422 `sub_reason_required`) whenever the derived outcome is a failure. Every value is a FACT about the case, never a verdict on the student: "the consultancy says the student would not cooperate" is an accusation and does not close a case — it opens a dispute through POST /clients/{id}/raise-issue. The three marked below say the student never actually went, so an acceptance plus one of them is a failure and reverses the commission; colleges do not pay for a student who does not arrive.
@@ -16896,7 +16899,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description `sub_reason_required` — a case closing without an accepted college needs one; `student_joined_required` — a case with an acceptance must say whether the student joined. */
+                /** @description `sub_reason_required` — a case closing as a failure needs one (a close that says the student joined, on a case with nothing accepted or no PR contribution recorded, is told what is missing); `student_joined_required` — a case with an acceptance (a PR case: a recorded contribution) must say whether the student joined (a PR case: whether the PR application went through). */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -29871,7 +29874,7 @@ export interface components {
                 /** Format: date-time */
                 since: string;
             }[];
-            /** @description 2026-08-29 addition — the caller's own journeys still carrying the LEGACY `plan_complete` status (contract gate 7). Since 2026-09-09 a finished plan does not finish the case and nothing sets that status, so this is empty on the real backend; a case whose every step is done shows as `waiting_on_colleges` in its case summary instead. Kept so clients that read the array keep working. */
+            /** @description 2026-08-29 addition — the caller's own live cases whose plan is finished. Since 2026-09-09 a finished plan does not finish the case and nothing sets the `plan_complete` status, so a row here is a case still `in_plan` with every step approved — the rule `GET /journeys/me` serves as `all_steps_approved` (Phase 8, 2026-10-15; until then this array waited for the status and was always empty) — or a legacy `plan_complete` row. `since` is when its last step was approved. The case stays open until the consultancy closes it. */
             plan_complete_cases: {
                 journey_id: components["schemas"]["UUID"];
                 client_name: string;
@@ -30502,6 +30505,11 @@ export interface components {
              * @default false
              */
             readonly has_recorded_payments: boolean;
+            /**
+             * @description Whole days the row has waited, by India's calendar and the server's clock: 0 on the day it joined the queue (`created_at`). The page shows this as its "Waiting" figure and never works it out from the browser's own clock (Phase 8 scan, 2026-10-15: a row from 28-10-2026 read "Waiting: Today").
+             * @default 0
+             */
+            readonly days_waiting: number;
         };
         /**
          * @description One work queue that needs the platform team (2026-09-10, user: "anything that needs platform team attention will be alerted — they should be able to identify").
@@ -32286,6 +32294,11 @@ export interface components {
              * @example 3/10
              */
             progress: string;
+            /**
+             * @description Added 2026-10-15 (Phase 8). True when the case's plan has steps and every one of them has been approved — the same rule, from the same function, as `Journey.all_steps_approved` on `GET /journeys/me`. The case is still open (`status` stays `in_plan`): the console shows "Plan complete" from this and never works it out from `progress` or the step counts. False with no plan yet and with an empty plan.
+             * @default false
+             */
+            readonly all_steps_approved: boolean;
             readonly case_summary?: components["schemas"]["CaseSummary"];
             /** @description The case this one continues, when the student has been with this consultancy before (2026-09-09). A returning student used to arrive as a stranger: blank address, no branch, no consultant and a fresh file number, with nothing linking the two records — so the consultant who worked the first case had no way to know it was the same person coming back. Only the SAME consultancy's history is carried; handing another one the address this one collected would leak a tenant's data. */
             readonly previous_journey_id?: components["schemas"]["UUID"];
@@ -35092,6 +35105,8 @@ export interface components {
             readonly platform_expected: components["schemas"]["Money"];
             /** @description Phase 8 T4-07. What of `platform_expected` is still to be paid once it falls due — the share not yet due less money already paid ahead of it, never negative, in INR. This is the "not yet due" column. `platform_expected` alone showed the whole share beside the same amount "paid" on a case that was paid in advance. `case_closed` says whether the row belongs under open or closed cases. */
             readonly platform_still_to_come?: components["schemas"]["Money"] | null;
+            /** @description Phase 8 scan (2026-10-15). What `platform_still_to_come` is waiting for, as a sentence to show beside it; null when nothing is still to come. On a closed case it is immiNow's share of what the payer agreed and has not paid yet ("The case is closed, but the college has not yet paid all of what was agreed: ₹3,004.82 more will fall due when the college pays the rest. Nothing of it is due before then."); on an open case, the share that falls due once the case closes successfully and the payer pays. Such a case's `amount_state` is `open` because that share is still expected, not because anything is due now (`platform_outstanding`). */
+            readonly platform_still_to_come_text?: string | null;
             /** @description What has fallen due and is not yet paid, in INR (with approx). */
             readonly platform_outstanding: components["schemas"]["Money"];
             /**
@@ -35135,7 +35150,7 @@ export interface components {
             /** Format: double */
             rate_percent: number;
             /**
-             * @description fallback_default flags that no Commission Rates row existed for this country + payer method at acceptance, so the 10% default was applied.
+             * @description fallback_default flags that no Commission Rates row existed for this country + payer method at acceptance, so the default in force was applied (`GET /commission-rates/defaults`: the consultancy one, the freelancer one when a freelancer brought the student, the institute one for an institute).
              * @enum {string}
              */
             rate_source: "configured" | "fallback_default";
@@ -35244,6 +35259,26 @@ export interface components {
             awaiting_inr: number;
             outstanding_inr: number;
             oldest_unpaid_days: number | null;
+            /**
+             * @description Phase 8 scan (2026-10-15). Parts immiNow closed without payment, in INR at today's rates — inside `due_inr`, never paid. With the next two, what makes the row add up to the paisa: `due_inr` = `paid_inr` − `credit_inr` + `waived_inr` + `outstanding_inr` + `exchange_difference_inr`.
+             * @default 0
+             */
+            waived_inr: number;
+            /**
+             * @description Money paid beyond what has fallen due (held as credit for the next part), in INR at today's rates — inside `paid_inr`, not inside `due_inr`.
+             * @default 0
+             */
+            credit_inr: number;
+            /**
+             * @description Exchange movement: `due_inr` values foreign-currency parts at today's rate, while `paid_inr` is the rupees each payment was confirmed at. Positive when those currencies are worth more rupees today than on the day they were paid. Show it as "Exchange difference" (the scan's Harbourline row: CAD paid at ₹62, today ₹69.44 — ₹15,751.00).
+             * @default 0
+             */
+            exchange_difference_inr: number;
+            /**
+             * @description Shortfalls written off to settle parts, in INR at today's rates — beside `due_inr`, not inside it (a write-off lowers the part to what was paid), as on a case's row.
+             * @default 0
+             */
+            written_off_inr: number;
         };
         /** @description What confirming a declared payment would do (`POST /commission/payments/{id}/confirm/preview`; 2026-10-10). Every figure is the server's, in the payment's own currency; the console compares and subtracts nothing. */
         ConfirmPreview: {
@@ -36092,7 +36127,7 @@ export interface components {
         DashboardAnalytics: {
             /** Format: date-time */
             collecting_since: string;
-            /** @description Median hours from a lead's created_at to the first sender=consultant message on that lead's conversation, within the current scope. Null when nothing in scope has a consultant reply yet. */
+            /** @description Median hours from a lead's created_at to the first sender=consultant message on that lead's conversation, within the current scope, over the replies of the last 12 months (Phase 8 scan, 2026-10-15 — it silently covered only 90 days, so a consultancy whose leads were answered four months ago read "No data yet"). Null when nothing in scope had a consultant reply in that time. */
             response_time_median_hours: number | null;
             /** @description The same figure as a sentence to show instead of a count of hours (Phase 8 T4-34): "Under an hour", "5 hours", "1 day 3 hours", "119 days 6 hours". Null when `response_time_median_hours` is null. */
             response_time_median_text?: string | null;
@@ -36488,7 +36523,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description 403 `policy_acceptance_required`, FROM ANY `/v1` ROUTE A STUDENT CALLS (Phase 8, 2026-10-13; owner's ruling 144(b)). It is not repeated under each operation. The server's own half of the privacy-policy hold: until now only the app's screen held a student who had not accepted the policy in force, so a build that skipped the screen went on being served. Answered whenever the request carries the access token of a STUDENT who holds no consent record of event `1` or `1b` under `AppConfig.privacy_policy_version` — after a policy change, and equally for a student who has never been shown any policy (an account a consultancy created; a sign-up that closed the app before "I Agree & Continue"). Public routes answer it too when such a token is sent. NEVER answered by the routes that end the hold: everything under `/auth/` (sign-in, refresh, sign-out, verification codes, cancelling a deletion), `GET /profile`, `GET /app-config`, `POST /consent/accept`, `GET /profile/erase` and `POST /profile/erase` (deleting the account instead of accepting), `POST /profile/guardian` and `/guardian-consent/*`. Never answered to staff, a freelancer or a console session, and never to a call that carries no token. Nothing was read or written. THE APP treats this answer from any call as `User.privacy_policy_accepted: false`: it opens the policy screen (it does not retry and does not sign the student out); after `POST /consent/accept` answers 200 the very next call is served. An app update check (`AppUpdateRequired`, 426) is answered first when both apply. Message: "Please read and accept the updated privacy policy to continue." */
+        /** @description 403 `policy_acceptance_required`, FROM ANY `/v1` ROUTE A STUDENT CALLS (Phase 8, 2026-10-13; owner's ruling 144(b)). It is not repeated under each operation. The server's own half of the privacy-policy hold: until now only the app's screen held a student who had not accepted the policy in force, so a build that skipped the screen went on being served. Answered whenever the request carries the access token of a STUDENT who holds no consent record of event `1` or `1b` under `AppConfig.privacy_policy_version` — after a policy change, and equally for a student who has never been shown any policy (an account a consultancy created; a sign-up that closed the app before "I Agree & Continue"). Public routes answer it too when such a token is sent. NEVER answered by the routes that end the hold: everything under `/auth/` (sign-in, refresh, sign-out, verification codes, cancelling a deletion), `GET /profile`, `GET /app-config`, `GET /consent` (read by the policy screen: an event-`1` record of an older version means the policy CHANGED, none means a first acceptance — Phase 8 case A2-06), `POST /consent/accept`, `GET /profile/erase` and `POST /profile/erase` (deleting the account instead of accepting), `POST /profile/guardian` and `/guardian-consent/*`. Never answered to staff, a freelancer or a console session, and never to a call that carries no token. Nothing was read or written. THE APP treats this answer from any call as `User.privacy_policy_accepted: false`: it opens the policy screen (it does not retry and does not sign the student out); after `POST /consent/accept` answers 200 the very next call is served. An app update check (`AppUpdateRequired`, 426) is answered first when both apply. Message: "Please read and accept the updated privacy policy to continue." */
         PolicyAcceptanceRequired: {
             headers: {
                 [name: string]: unknown;
