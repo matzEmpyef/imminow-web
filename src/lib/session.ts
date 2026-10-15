@@ -15,7 +15,8 @@ import { useChatWindowStore } from '@/stores/chatWindowStore'
  * Callers that want an immediate redirect (the button) navigate themselves.
  *
  * `reason` is given when the person did not choose to leave (review F-165): the login page then
- * says why, and the same person signing in again is taken back to the page they were on. Log out
+ * says why, and the same person signing in again is taken back to the page they were on (kept with
+ * their id for 12 hours; see `lib/sessionNotice.ts`). Log out
  * passes none, which also forgets any earlier reason.
  *
  * Review F-294: the previous person's open chat window and their Course Finder choices (saved per
@@ -26,11 +27,18 @@ import { useChatWindowStore } from '@/stores/chatWindowStore'
 export function endSession(reason?: SessionEndReason) {
   // Read before the cache is emptied: `GET /me`'s answer is the only place the user id lives.
   const me = queryClient.getQueryData<{ user?: { id?: string } }>(['me'])
-  noteSessionEnded(reason, me?.user?.id ?? null)
+  noteSessionEnded(reason, me?.user?.id ?? null, currentPage())
   useAuthStore.getState().clear()
   queryClient.clear()
   useChatWindowStore.getState().close()
   clearCourseFinderCache()
+}
+
+/** The page the person is on, as the router sees it. */
+function currentPage(): string | null {
+  if (typeof window === 'undefined') return null
+  const { pathname, search, hash } = window.location
+  return `${pathname}${search}${hash}`
 }
 
 /** The keys `features/clients/courseFinderState.ts` writes, one family per applicant. */

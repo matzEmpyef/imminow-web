@@ -33,7 +33,7 @@ export function SessionGate({ children }: { children: (me: Me) => ReactNode }) {
   const location = useLocation()
 
   if (!isAuthed) {
-    const state: LoginLocationState = { from: `${location.pathname}${location.search}${location.hash}` }
+    const state: LoginLocationState = { from: `${location.pathname}${location.search}${location.hash}`, at: Date.now() }
     return <Navigate to="/login" replace state={state} />
   }
 

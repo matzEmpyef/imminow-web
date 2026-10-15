@@ -30,7 +30,7 @@ async function beginSession(
   if (accessToken) clear()
   queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== KEPT_ACROSS_SESSIONS })
   await primeMe(queryClient, tokens.access_token)
-  noteSessionBegan()
+  noteSessionBegan(tokens.user?.id)
   setSession(tokens)
 }
 

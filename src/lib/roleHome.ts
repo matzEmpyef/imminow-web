@@ -33,3 +33,19 @@ export function scopeHomePath(scope: Scope | undefined): string {
   if (scope === 'student') return '/account'
   return '/dashboard'
 }
+
+/**
+ * Whether a role has any page at this address, so a person is never sent somewhere their shell
+ * cannot open (owner's decision 151). The console's areas are split by their first path segment:
+ * `/admin` is platform staff, `/freelancer` is freelancers, `/account` and `/notifications` are
+ * for everyone signed in, and the rest belongs to consultancy and institute staff. A page the
+ * person may open but lacks the permission for still shows its own "not allowed" notice.
+ */
+export function canRoleOpenPath(role: Role | undefined, path: string): boolean {
+  const pathname = path.split(/[?#]/)[0]
+  const first = pathname.split('/')[1] ?? ''
+  if (first === 'account' || first === 'notifications') return true
+  if (first === 'admin') return role === 'super_admin' || role === 'platform_staff'
+  if (first === 'freelancer') return role === 'freelancer'
+  return role === 'consultancy_admin' || role === 'consultant'
+}

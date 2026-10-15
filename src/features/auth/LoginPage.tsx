@@ -1,14 +1,19 @@
 import { useState, type FormEvent } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { BRAND_LOGO } from '@/lib/brand'
 import loginBg from '@/assets/brand/login-bg.png'
 import { TextField } from '@/components/TextField'
 import { Button } from '@/components/Button'
 import { ApiError, useLogin } from '@/queries/auth'
 import { useAuthStore } from '@/stores/authStore'
-import { roleHomePath, scopeHomePath } from '@/lib/roleHome'
+import { scopeHomePath } from '@/lib/roleHome'
 import { SessionGate } from '@/features/auth/SessionGate'
-import { SESSION_END_MESSAGES, useSessionNoticeStore } from '@/lib/sessionNotice'
+import {
+  SESSION_END_MESSAGES,
+  landingPathAfterSignIn,
+  useSessionNoticeStore,
+  type LoginLocationState,
+} from '@/lib/sessionNotice'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -72,10 +77,12 @@ function LoginHeroPanel() {
 
 export function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   // Why the last session here ended, when the person did not end it (review F-165).
   const notice = useSessionNoticeStore((s) => s.notice)
   const login = useLogin()
   const isAuthed = useAuthStore((s) => Boolean(s.accessToken))
+  const link = location.state as LoginLocationState | null
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [touched, setTouched] = useState<{ email?: boolean; password?: boolean }>({})
@@ -84,8 +91,9 @@ export function LoginPage() {
   // login form showing anyway — bounce straight to that role's own landing page instead.
   // Which landing page is `GET /me`'s answer (review F-036); SessionGate waits for it.
   //
-  // Everyone who signs in lands on their own role's dashboard (owner's decision 151), whichever
-  // page sent them here: the page a last session ended on may have belonged to someone else.
+  // After signing in a person goes to the page they opened while signed out, or back to the page
+  // their own session ended on, or else to their role's dashboard (owner's decision 151, as
+  // amended; see `landingPathAfterSignIn`). This bounce, for someone already signed in, is the dashboard.
   if (isAuthed) {
     return <SessionGate>{(me) => <Navigate to={scopeHomePath(me.scope)} replace />}</SessionGate>
   }
@@ -100,7 +108,7 @@ export function LoginPage() {
     login.mutate(
       { email, password },
       {
-        onSuccess: (data) => navigate(roleHomePath(data.user.role), { replace: true }),
+        onSuccess: (data) => navigate(landingPathAfterSignIn({ role: data.user.role, from: link?.from, at: link?.at }), { replace: true }),
       },
     )
   }
