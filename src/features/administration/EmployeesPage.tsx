@@ -114,7 +114,7 @@ export function EmployeesPage() {
         const held = designations.data?.find((d) => d.id === employee.designation_id)?.name
         return (
           <span className="text-text-secondary">
-            {employee.is_consultancy_admin && hasDesignations
+            {employee.is_consultancy_admin
               ? 'Full access (owner)'
               : (held ?? employee.user!.designation ?? (hasDesignations ? 'No access rights' : '—'))}
           </span>
@@ -216,8 +216,10 @@ export function EmployeesPage() {
             <h1 className="text-h1 text-text-primary">Employees</h1>
             <p className="text-body-sm text-text-secondary">
               {hasDesignations
-                ? 'Each employee has a designation baseline plus optional individual overrides.'
-                : 'Every employee has identical, full access on this plan.'}
+                ? 'Each person’s access comes from their designation. You can also change an individual person’s access.'
+                : words.isInstitute
+                  ? 'Everyone on this plan has the same access.'
+                  : 'Everyone on this plan has the same access. Commission details are visible only to the administrator.'}
             </p>
           </div>
           {/* The seat count against the plan's limit, and off with the reason at the limit, so the
