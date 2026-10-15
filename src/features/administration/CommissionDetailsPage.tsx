@@ -372,7 +372,7 @@ export function CommissionDetailsPage() {
         <div>
           <h1 className="text-h1 text-text-primary">{isInstitute ? 'immiNow’s Share' : 'Commission Details'}</h1>
           <p className="mt-xs text-h2 text-text-primary">
-            {formatMoney(data.currency, data.running_total)} {isInstitute ? 'owed to immiNow' : 'running total'}
+            Due to immiNow now: {formatMoney(data.currency, data.running_total)}
           </p>
           {formatApprox(data.running_total_approx) && (
             <p className="text-body-sm text-text-secondary">{formatApprox(data.running_total_approx)}</p>
@@ -389,11 +389,11 @@ export function CommissionDetailsPage() {
             <div>
               <h2 className="text-h3 text-text-primary">Cases</h2>
               <p className="text-caption text-text-secondary">
-                One row per accepted case (or PR contribution). Amounts are held in INR, with your own currency
-                beneath where it differs (approximate — rates are set by hand); per-source detail, in the currency
-                each was agreed in, lives on each applicant&rsquo;s Commissions tab. This page is the one place{' '}
-                {isInstitute ? 'immiNow’s share' : 'the platform’s cut'} is visible.
-                {canRecordPayment && ' Click a case to record a payment against its due.'}
+                One row for each accepted case (or PR contribution). Amounts are kept in INR. Where your own
+                currency is different, it is shown underneath as an approximate figure, because the exchange rates
+                are set by hand. The amounts in the currency agreed with each payer are on that applicant&rsquo;s
+                Commissions tab. This is the only page that shows immiNow&rsquo;s share.
+                {canRecordPayment && ' Click a case to record a payment towards what is due.'}
               </p>
             </div>
             <h3 className="mt-md text-body font-medium text-text-primary">Active</h3>

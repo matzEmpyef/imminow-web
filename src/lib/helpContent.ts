@@ -108,7 +108,7 @@ const HELP_TOPICS: HelpTopic[] = [
     matches: (p) => p === '/administration/commission-details',
     title: 'Commission & Payments',
     body: [
-      'The running total is what your consultancy currently owes immiNow.',
+      '“Due to immiNow now”, under the page title, is what your consultancy currently owes immiNow.',
       'A due marked "Reopened after recognition" was corrected after it was already counted — worth double-checking before you pay it off.',
       '"Declare Payment" records that you’ve paid — it doesn’t confirm instantly. immiNow finance reviews it before a receipt is issued.',
     ],

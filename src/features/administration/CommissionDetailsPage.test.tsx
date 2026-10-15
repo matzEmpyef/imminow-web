@@ -107,3 +107,18 @@ describe('Commission Details, the consultancy view', () => {
     expect(within(row).queryByText('INR 40.00')).not.toBeInTheDocument()
   })
 })
+
+describe('Commission Details, the heading and the intro', () => {
+  it('says what the total is: what is due to immiNow now', () => {
+    show([due('a', 'Asha Nair', {})])
+    expect(screen.getByText('Due to immiNow now: INR 0.00')).toBeInTheDocument()
+    expect(screen.queryByText(/running total/i)).not.toBeInTheDocument()
+  })
+
+  it('says immiNow’s share is shown only here, never "the platform’s cut"', () => {
+    show([due('a', 'Asha Nair', {})])
+    expect(screen.getByText(/This is the only page that shows immiNow’s share\./)).toBeInTheDocument()
+    expect(screen.queryByText(/platform’s cut/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/the platform/i)).not.toBeInTheDocument()
+  })
+})
