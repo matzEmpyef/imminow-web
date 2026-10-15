@@ -83,6 +83,20 @@ describe('issuing a transfer code', () => {
     expect(screen.queryByRole('button', { name: /Issue a code/ })).not.toBeInTheDocument()
   })
 
+  // T4-18: the phone help text and the console's own check say the one sentence the server says.
+  it('gives the phone field the one phone sentence as its help, and as its message for a bad number', async () => {
+    const sentence = 'Enter the phone number with the country code, for example +919876543210.'
+    mockedGet.mockResolvedValue(EMPTY)
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /Issue a code/ }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Phone' }))
+    expect(within(dialog).getByText(sentence)).toBeInTheDocument()
+    fireEvent.change(within(dialog).getByLabelText(/registered phone/), { target: { value: '98' } })
+    expect(within(dialog).getAllByText(sentence)).toHaveLength(1)
+    expect(within(dialog).getByLabelText(/registered phone/)).toHaveAttribute('aria-invalid', 'true')
+  })
+
   it('shows the server’s sentence when the code is refused', async () => {
     mockedGet.mockResolvedValue(EMPTY)
     vi.mocked(api.POST).mockResolvedValue({

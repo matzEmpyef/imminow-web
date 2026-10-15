@@ -4,9 +4,10 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { useCommitLeadImport, useCreateLead, useValidateLeadImport } from '@/queries/leads'
-import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
+import { EMAIL_ERROR, STAFF_PHONE_SENTENCE, isValidEmail, isValidPhone } from '@/lib/validation'
+import { repeatWarningOf } from '@/lib/servedCaseFields'
 import { showToast } from '@/lib/toast'
-import { fieldMessages } from '@/api/errors'
+import { ApiError, fieldMessages } from '@/api/errors'
 
 // Contract gate 7, owner Q7 (2026-09-25): duplicates — repeated within the file, or matching an
 // existing active imported lead — are skipped rather than failing the whole import, and listed
@@ -227,25 +228,43 @@ export function AddLeadModal({ onClose }: { onClose: () => void }) {
   // What the server stored for the last lead added: the phone comes back in international form
   // (a number typed without a country code is read in the consultancy's own country).
   const [stored, setStored] = useState<{ name: string; phone: string } | null>(null)
+  // The server's "this may be a repeat" (T4-18): the lead WAS added, so it is a note, never a stop.
+  const [warning, setWarning] = useState<string | null>(null)
   const refused = fieldMessages(createLead.error)
   const serverError = (field: 'name' | 'phone' | 'email', value: string) =>
     sent && sent[field] === value ? refused[field] : undefined
+  // "Give an email address or a phone number…" names no field: it is the answer to a form sent with
+  // neither, so it stands beside the contact fields until one of them is filled in.
+  const refusedForNoContact =
+    createLead.error instanceof ApiError &&
+    createLead.error.code === 'validation_failed' &&
+    sent !== null &&
+    !sent.phone &&
+    !sent.email &&
+    Object.keys(refused).length === 0
+  const noContactError = refusedForNoContact && !phone && !email ? createLead.error.message : undefined
+  // A refusal that named a field, or that said a contact was missing, is never repeated in the footer
+  // once its field has been edited.
+  const refusedBesideAField = Object.keys(refused).length > 0 || refusedForNoContact
 
   const nameError = serverError('name', name)
-  const phoneError = (phone && !isValidPhone(phone) ? PHONE_ERROR : undefined) ?? serverError('phone', phone)
-  const emailError = (email && !isValidEmail(email) ? EMAIL_ERROR : undefined) ?? serverError('email', email)
+  const phoneError = (phone && !isValidPhone(phone) ? STAFF_PHONE_SENTENCE : undefined) ?? serverError('phone', phone)
+  const emailError =
+    (email && !isValidEmail(email) ? EMAIL_ERROR : undefined) ?? serverError('email', email) ?? noContactError
   const shownBesideAField = Boolean(nameError || phoneError || emailError)
   const canSubmit = Boolean(name) && !phoneError && !emailError && !nameError
 
   // The "added" line belongs to the lead just added: it goes as soon as the next one is begun.
   const edits = (set: (value: string) => void) => (e: { target: { value: string } }) => {
     setStored(null)
+    setWarning(null)
     set(e.target.value)
   }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setStored(null)
+    setWarning(null)
     if (!canSubmit) return
     setSent({ name, phone, email })
     createLead.mutate(
@@ -254,6 +273,7 @@ export function AddLeadModal({ onClose }: { onClose: () => void }) {
         onSuccess: (lead) => {
           showToast('Lead added to the pool')
           if (lead?.phone) setStored({ name: lead.name ?? name, phone: lead.phone })
+          setWarning(repeatWarningOf(lead))
           setSent(null)
           setName('')
           setPhone('')
@@ -271,7 +291,7 @@ export function AddLeadModal({ onClose }: { onClose: () => void }) {
       widthRem={26}
       footer={
         <>
-          {createLead.isError && !shownBesideAField && (
+          {createLead.isError && !shownBesideAField && !refusedBesideAField && (
             <p className="mr-auto self-center text-body-sm text-error">{createLead.error.message}</p>
           )}
           <Button type="submit" form="add-lead-form" loading={createLead.isPending} disabled={!canSubmit}>
@@ -281,13 +301,20 @@ export function AddLeadModal({ onClose }: { onClose: () => void }) {
       }
     >
       <form id="add-lead-form" className="flex flex-col gap-md" onSubmit={handleSubmit}>
-        {stored && (
-          <p role="status" className="rounded-md bg-success-subtle px-3 py-sm text-body-sm text-text-primary">
-            {stored.name} added. Phone saved as <span className="font-medium tabular-nums">{stored.phone}</span>.
-          </p>
+        {(stored || warning) && (
+          <div role="status" className="flex flex-col gap-xs">
+            {stored && (
+              <p className="rounded-md bg-success-subtle px-3 py-sm text-body-sm text-text-primary">
+                {stored.name} added. Phone saved as <span className="font-medium tabular-nums">{stored.phone}</span>.
+              </p>
+            )}
+            {warning && (
+              <p className="rounded-md bg-warning-subtle px-3 py-sm text-body-sm text-text-primary">{warning}</p>
+            )}
+          </div>
         )}
         <TextField label="Name" value={name} onChange={edits(setName)} required error={nameError} />
-        <TextField label="Phone" value={phone} onChange={edits(setPhone)} error={phoneError} />
+        <TextField label="Phone" value={phone} onChange={edits(setPhone)} error={phoneError} hint={STAFF_PHONE_SENTENCE} />
         <TextField
           label="Email"
           type="email"

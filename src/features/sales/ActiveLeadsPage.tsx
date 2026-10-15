@@ -10,7 +10,7 @@ import { AssignConsultantMenu } from '@/features/sales/AssignConsultantMenu'
 import { StopPropagation } from '@/components/StopPropagation'
 import { RequestedBranchBadge, RequestedBranchNote } from '@/components/RequestedBranch'
 import { ReopenLeadModal } from './ReopenLeadModal'
-import { closingNoteOf } from '@/lib/servedCaseFields'
+import { closingNoteOf, convertedLeadOf } from '@/lib/servedCaseFields'
 import { ReopenTrigger } from '@/components/ReopenTrigger'
 import { canOfferLeadReopen } from '@/lib/reopenRules'
 import { useBranches } from '@/queries/staff'
@@ -143,7 +143,7 @@ export function ActiveLeadsPage() {
         <div className="flex items-center gap-xs">
           <div className="flex flex-wrap items-center gap-xs">
             {lead.status === 'closed' && <Badge color="secondary">Closed</Badge>}
-            {lead.status === 'converted' && <Badge color="success">Converted</Badge>}
+            {convertedLeadOf(lead) && <Badge color="success">Converted</Badge>}
             {/* Why it closed, in the server's own sentence ("The student ended this chat."). */}
             {lead.status === 'closed' && lead.closed_reason_label && (
               <span className="text-caption text-text-secondary">{lead.closed_reason_label}</span>
@@ -173,7 +173,7 @@ export function ActiveLeadsPage() {
       key: 'reassign',
       header: 'Reassign',
       render: (lead) =>
-        lead.status === 'converted' ? null : lead.status === 'closed' ? (
+        convertedLeadOf(lead) ? null : lead.status === 'closed' ? (
           canOfferLeadReopen(lead) ? (
             <ReopenTrigger
               name={lead.name}

@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLeads } from '@/queries/leads'
+import { convertedLeadOf } from '@/lib/servedCaseFields'
 import { useClients } from '@/queries/clients'
 import { useDebouncedValue } from '@/lib/useDebounce'
 
@@ -42,7 +43,7 @@ export function GlobalSearch() {
   const clients = useClients({ search: debouncedQuery }, { enabled: searchActive })
 
   const leadResults = (leads.data?.items ?? [])
-    .filter((lead) => lead.status !== 'converted')
+    .filter((lead) => convertedLeadOf(lead) === null)
     .sort((a, b) => Number(a.status === 'closed') - Number(b.status === 'closed'))
     .slice(0, MAX_RESULTS_PER_GROUP)
   const clientResults = clients.data?.items.slice(0, MAX_RESULTS_PER_GROUP) ?? []

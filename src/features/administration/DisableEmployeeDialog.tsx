@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { servedHandoverCount } from '@/lib/servedHandoverCount'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 import { ServerSearchSelect } from '@/components/ServerSearchSelect'
@@ -23,7 +24,10 @@ export function DisableEmployeeDialog({ employee, onClose }: { employee: Employe
   const invited = employeeStanding(employee) === 'invited'
   // Only asked for when they actually hold some — the server's own rule, mirrored here so the
   // dialog isn't padded with an irrelevant field.
-  const assignedWork = employee.assigned_work_count ?? 0
+  // `assigned_work_count` counts leads, clients and tasks. If the server still asks for a successor
+  // (something was given to them since this list was read), its own count is used and its sentence
+  // stays in the footer.
+  const assignedWork = Math.max(employee.assigned_work_count ?? 0, servedHandoverCount(disableEmployee.error))
   const name = `${employee.user!.first_name} ${employee.user!.last_name}`
   const action = invited ? 'Withdraw invitation' : 'Disable'
 
@@ -78,8 +82,7 @@ export function DisableEmployeeDialog({ employee, onClose }: { employee: Employe
         {assignedWork > 0 && (
           <div className="flex flex-col gap-xs">
             <p className="text-body-sm font-medium text-text-primary">
-              Reassign their {assignedWork} lead{assignedWork === 1 ? '' : 's'}/client
-              {assignedWork === 1 ? '' : 's'} to
+              Hand over their {assignedWork} open item{assignedWork === 1 ? '' : 's'} (leads, clients and tasks) to
             </p>
             {/* Searched on the server (review F-036, lane x): anyone who works here now, never
                 the person being disabled. */}

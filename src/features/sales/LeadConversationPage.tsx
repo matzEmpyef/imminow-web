@@ -22,7 +22,7 @@ import { ConversionApprovalActions } from './ConversionApprovalActions'
 import { CloseLeadModal } from './CloseLeadModal'
 import { ReopenLeadModal } from './ReopenLeadModal'
 import { ClosingNote } from '@/components/ClosingNote'
-import { closingNoteOf } from '@/lib/servedCaseFields'
+import { closingNoteOf, convertedLeadOf } from '@/lib/servedCaseFields'
 import { SuggestCourseInChat } from '@/features/clients/SuggestCourseInChat'
 import { duplicateShareMessage } from '@/features/clients/shareGuards'
 import {
@@ -402,14 +402,18 @@ export function LeadConversationPage() {
   const data = lead.data
   // T4-12: a lead that became a client is finished here. Convert, Close and the message box would
   // all fail, so the page is locked with one line and a way to the client.
-  const converted = data.status === 'converted'
+  // The server says which client it became and the sentence for it (`converted_client_id`,
+  // `converted_notice`); a read without them still locks the page on `status`.
+  const convertedLead = convertedLeadOf(data)
+  const converted = convertedLead !== null
   // What the consultancy typed when it closed this lead (served to staff only).
   const closingNote = data.status === 'closed' ? closingNoteOf(data) : null
+  const convertedLink = convertedLead?.clientId ? `/clients/${convertedLead.clientId}` : `/clients?search=${encodeURIComponent(data.name)}`
   const convertedLine = (
     <>
-      {data.name} is now a client, so this lead can no longer be changed.{' '}
-      <Link to={`/clients?search=${encodeURIComponent(data.name)}`} className="font-medium text-primary hover:underline">
-        Open them in Clients
+      {convertedLead?.notice ?? `${data.name} is now a client, so this lead can no longer be changed.`}{' '}
+      <Link to={convertedLink} className="font-medium text-primary hover:underline">
+        {convertedLead?.notice ? 'Go to the client' : 'Open them in Clients'}
       </Link>
     </>
   )

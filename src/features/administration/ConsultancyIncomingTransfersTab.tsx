@@ -13,7 +13,7 @@ import { useCursorPagination } from '@/lib/pagination'
 import { formatDateTime } from '@/lib/time'
 import type { components } from '@/api/schema'
 import { showToast } from '@/lib/toast'
-import { E164_PHONE_ERROR, EMAIL_ERROR, isValidE164Phone, isValidEmail } from '@/lib/validation'
+import { EMAIL_ERROR, STAFF_PHONE_SENTENCE, isValidE164Phone, isValidEmail } from '@/lib/validation'
 
 type TransferCode = components['schemas']['TransferCode']
 
@@ -45,7 +45,7 @@ function IssueCodeModal({ onClose }: { onClose: () => void }) {
   const [reason, setReason] = useState('')
   const [copied, setCopied] = useState(false)
   const emailError = studentEmail && !isValidEmail(studentEmail) ? EMAIL_ERROR : undefined
-  const phoneError = studentPhone && !isValidE164Phone(studentPhone) ? E164_PHONE_ERROR : undefined
+  const phoneError = studentPhone && !isValidE164Phone(studentPhone) ? STAFF_PHONE_SENTENCE : undefined
   const canIssue =
     identifierKind === 'email'
       ? Boolean(studentEmail.trim()) && !emailError && Boolean(reason.trim())
@@ -139,6 +139,7 @@ function IssueCodeModal({ onClose }: { onClose: () => void }) {
               value={studentPhone}
               onChange={(e) => setStudentPhone(e.target.value)}
               error={phoneError}
+              hint={STAFF_PHONE_SENTENCE}
             />
           )}
           <TextField label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />

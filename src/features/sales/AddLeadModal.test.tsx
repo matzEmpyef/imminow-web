@@ -119,3 +119,71 @@ describe('Add Lead — what the server says about the contact', () => {
     expect(screen.getByText('Own leads are part of the Business plan.')).toBeInTheDocument()
   })
 })
+
+const PHONE_SENTENCE = 'Enter the phone number with the country code, for example +919876543210.'
+const NO_CONTACT = 'Give an email address or a phone number. At least one of the two is needed.'
+const REPEAT = 'Another lead in your consultancy already has this email address, so this may be a repeat.'
+
+function refusal(message: string, fields?: Record<string, string>) {
+  return new ApiError(
+    'Could not add this lead.',
+    { error: { code: 'validation_failed', message, details: fields ? { fields } : undefined, status: 400 } },
+    400,
+  )
+}
+
+describe('Add Lead — the served warning and sentences (T4-18)', () => {
+  it('shows the served "may be a repeat" note after the save, and drops it when the next lead is begun', () => {
+    render(<AddLeadModal onClose={() => {}} />)
+    fill('Asha Nair', '', 'asha@example.com')
+    fireEvent.click(screen.getByRole('button', { name: 'Add Lead' }))
+    act(() => mutate.mock.calls[0][1].onSuccess({ id: 'l1', name: 'Asha Nair', email: 'asha@example.com', warning: REPEAT }))
+
+    // Not a refusal: the form is emptied and the button is on, the note is only a note.
+    expect(screen.getByRole('status')).toHaveTextContent(REPEAT)
+    expect(screen.getByLabelText(/^Name/)).toHaveValue('')
+    fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'B' } })
+    expect(screen.queryByText(REPEAT)).not.toBeInTheDocument()
+  })
+
+  it('shows no note when the server sent no warning', () => {
+    render(<AddLeadModal onClose={() => {}} />)
+    fill('Asha Nair', '', 'asha@example.com')
+    fireEvent.click(screen.getByRole('button', { name: 'Add Lead' }))
+    act(() => mutate.mock.calls[0][1].onSuccess({ id: 'l1', name: 'Asha Nair', email: 'asha@example.com' }))
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('puts the served phone sentence beside the phone, and the phone hint says the same', () => {
+    render(<AddLeadModal onClose={() => {}} />)
+    expect(screen.getByText(PHONE_SENTENCE)).toBeInTheDocument() // the hint, while there is no error
+    fill('Bad Phone', '12345')
+    // The console's own check says the same sentence before any request is made.
+    expect(screen.getAllByText(PHONE_SENTENCE)).toHaveLength(1)
+    expect(screen.getByLabelText(/^Phone/)).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('puts the served phone sentence beside the phone when only the server refuses it', () => {
+    render(<AddLeadModal onClose={() => {}} />)
+    fill('Asha Nair', '98765 43210')
+    fireEvent.click(screen.getByRole('button', { name: 'Add Lead' }))
+    vi.mocked(useCreateLead).mockReturnValue(mutation(refusal(PHONE_SENTENCE, { phone: PHONE_SENTENCE })))
+    fireEvent.change(screen.getByLabelText(/^Notes/), { target: { value: 'x' } })
+    expect(screen.getByLabelText(/^Phone/)).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getAllByText(PHONE_SENTENCE)).toHaveLength(1)
+  })
+
+  it('puts the served "give an email or a phone" sentence beside the contact fields, once, until one is filled in', () => {
+    render(<AddLeadModal onClose={() => {}} />)
+    fill('No Contact', '')
+    fireEvent.click(screen.getByRole('button', { name: 'Add Lead' }))
+    vi.mocked(useCreateLead).mockReturnValue(mutation(refusal(NO_CONTACT)))
+    fireEvent.change(screen.getByLabelText(/^Notes/), { target: { value: 'x' } })
+
+    expect(screen.getAllByText(NO_CONTACT)).toHaveLength(1)
+    expect(screen.getByLabelText(/^Email/)).toHaveAttribute('aria-invalid', 'true')
+
+    fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: 'a@b.com' } })
+    expect(screen.queryByText(NO_CONTACT)).not.toBeInTheDocument()
+  })
+})

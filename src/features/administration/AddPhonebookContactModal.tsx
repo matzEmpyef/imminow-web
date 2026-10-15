@@ -4,7 +4,7 @@ import { Button } from '@/components/Button'
 import { TextField } from '@/components/TextField'
 import { Combobox } from '@/components/Combobox'
 import { useCreatePhonebookContact, useUpdatePhonebookContact } from '@/queries/phonebook'
-import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
+import { EMAIL_ERROR, STAFF_PHONE_SENTENCE, isValidEmail, isValidPhone } from '@/lib/validation'
 import { showToast } from '@/lib/toast'
 import { StillNeeded } from '@/components/StillNeeded'
 
@@ -31,7 +31,7 @@ export function AddPhonebookContactModal({
   const [phone, setPhone] = useState(contact?.phone ?? '')
   const [email, setEmail] = useState(contact?.email ?? '')
 
-  const phoneError = phone && !isValidPhone(phone) ? PHONE_ERROR : undefined
+  const phoneError = phone && !isValidPhone(phone) ? STAFF_PHONE_SENTENCE : undefined
   const emailError = email && !isValidEmail(email) ? EMAIL_ERROR : undefined
   const canSubmit = Boolean(name.trim() && category.trim() && phone) && !phoneError && !emailError
   const stillNeeded = [...(name.trim() ? [] : ['a name']), ...(category.trim() ? [] : ['a category']), ...(phone ? [] : ['a phone number'])]
@@ -68,7 +68,7 @@ export function AddPhonebookContactModal({
       <form id="add-phonebook-contact-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
         <Combobox label="Category" value={category} onChange={setCategory} options={categories} required commitWhileTyping />
-        <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} error={phoneError} required />
+        <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} error={phoneError} hint={STAFF_PHONE_SENTENCE} required />
         <TextField
           label="Email"
           type="email"

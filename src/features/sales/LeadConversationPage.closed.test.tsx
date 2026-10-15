@@ -142,6 +142,43 @@ describe('the Lead conversation page', () => {
     expect(screen.queryByRole('button', { name: 'Request Shortlist' })).not.toBeInTheDocument()
   })
 
+  // T4-12, served fields: the server's own sentence and the client it points to.
+  it('shows the served notice with a link to the client, and offers no action', () => {
+    const notice = 'This lead is now a client, so it can no longer be changed. Open the client instead.'
+    serveLead(lead({ status: 'converted', converted_client_id: 'c9', converted_notice: notice }))
+    render(page())
+
+    expect(screen.getByText('Converted')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(notice)
+    expect(screen.getByRole('link', { name: 'Go to the client' })).toHaveAttribute('href', '/clients/c9')
+    expect(screen.queryByText(/Open them in Clients/)).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Write a message…')).not.toBeInTheDocument()
+    for (const name of ['Suggest a course', 'Convert to Client', 'Close Lead', 'Request Shortlist', 'Set Reminder']) {
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+    }
+  })
+
+  it('locks the page from the served client alone, even when the status is not yet "converted"', () => {
+    serveLead(lead({ converted_client_id: 'c9' }))
+    render(page())
+    expect(screen.getByText('Converted')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open them in Clients' })).toHaveAttribute('href', '/clients/c9')
+    expect(screen.queryByPlaceholderText('Write a message…')).not.toBeInTheDocument()
+  })
+
+  it('shows the served 409 lead_closed sentence when a colleague converted the lead a moment ago', () => {
+    const sentence = 'This lead is now a client, so it can no longer be changed. Open the client instead.'
+    send.mockImplementation((_content: string, options: { onError: (error: unknown) => void }) =>
+      options.onError(new ApiError('Could not send this message.', { error: { code: 'lead_closed', message: sentence } }, 409)),
+    )
+    serveLead(lead())
+    render(page())
+    fireEvent.change(screen.getByPlaceholderText('Write a message…'), { target: { value: 'Hello' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    expect(screen.getByText(sentence)).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Write a message…')).not.toBeInTheDocument()
+  })
+
   it('says only that an empty closed thread has no messages, never "say hello"', () => {
     vi.mocked(useLeadMessages).mockReturnValue({
       items: [], isLoading: false, isError: false, refetch: vi.fn(), hasEarlier: false, loadingEarlier: false, loadEarlier: vi.fn(),

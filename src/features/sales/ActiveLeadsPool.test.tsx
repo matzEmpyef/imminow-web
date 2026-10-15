@@ -73,3 +73,30 @@ describe('Active Leads from the Unattended Leads card', () => {
     expect(vi.mocked(useLeads).mock.calls.at(-1)?.[0]?.unallocated).toBeUndefined()
   })
 })
+
+// T4-12: a lead that became a client is badged "Converted" from the served client, and offers no
+// reassign or allocate control.
+describe('Active Leads: a converted lead', () => {
+  it('shows the Converted badge from converted_client_id and no reassign control', () => {
+    const converted = {
+      ...POOL_LEAD,
+      id: 'c1',
+      name: 'Asha Nair',
+      status: 'active' as const,
+      assigned_employee_id: 'e1',
+      assigned_employee_name: 'Nadia',
+      converted_client_id: 'k1',
+    }
+    vi.mocked(useLeads).mockReturnValue({ data: { items: [converted], meta: { total: 1 } }, isLoading: false, isError: false } as never)
+    show('/sales/active-leads')
+    expect(screen.getByText('Converted')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Reassign Asha Nair/ })).not.toBeInTheDocument()
+  })
+
+  it('still badges a lead whose status says converted, with no served client', () => {
+    const converted = { ...POOL_LEAD, id: 'c2', name: 'Ravi Kumar', status: 'converted' as const, assigned_employee_id: 'e1' }
+    vi.mocked(useLeads).mockReturnValue({ data: { items: [converted], meta: { total: 1 } }, isLoading: false, isError: false } as never)
+    show('/sales/active-leads')
+    expect(screen.getByText('Converted')).toBeInTheDocument()
+  })
+})

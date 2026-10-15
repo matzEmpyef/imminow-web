@@ -11,7 +11,7 @@ import type { ApplicantRequest } from '@/queries/applicantRequests'
 import { createApplicantErrorMessage, dailyLimitLine } from '@/lib/applicantRequestWords'
 import { ALREADY_APPLIED_NOTICE, isAlreadyApplied, usePayloadIdempotencyKey } from '@/lib/useIdempotencyKey'
 import { showToast } from '@/lib/toast'
-import { EMAIL_ERROR, PHONE_ERROR, isValidEmail, isValidPhone } from '@/lib/validation'
+import { EMAIL_ERROR, STAFF_PHONE_SENTENCE, isValidEmail, isValidPhone } from '@/lib/validation'
 import { useAccountWords } from '@/lib/accountWords'
 
 // Was its own page (`/clients/new`) — folded into Clients List as a popup (user-requested),
@@ -45,7 +45,7 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
   // birth is asked here; the applicant gives their own when they first sign in to the app.
   const [ageConfirmed, setAgeConfirmed] = useState(false)
 
-  const phoneError = phone && !isValidPhone(phone) ? PHONE_ERROR : undefined
+  const phoneError = phone && !isValidPhone(phone) ? STAFF_PHONE_SENTENCE : undefined
   const emailError = email && !isValidEmail(email) ? EMAIL_ERROR : undefined
   // No date of birth here (Phase 8, D-129 C-2): the student gives their own the first time they
   // sign in to the app.
@@ -141,7 +141,7 @@ export function CreateApplicantModal({ onClose }: { onClose: () => void }) {
           onChange={(e) => setEmail(e.target.value)}
           error={emailError}
         />
-        <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} error={phoneError} />
+        <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} error={phoneError} hint={STAFF_PHONE_SENTENCE} />
         <TextField label="Address" value={address} onChange={(e) => setAddress(e.target.value)} />
 
         {/* fieldset/legend is the correct grouping for a radio set — a bare <label> can't

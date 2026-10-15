@@ -193,6 +193,9 @@ export function useCloseLead() {
       if (error) throw new ApiError('Could not close this lead.', error)
       return data
     },
+    // 409 `lead_closed`: the lead is already closed or became a client (a colleague got there first).
+    // The modal shows the server's sentence; the lead is read again so the page locks.
+    onError: (error, { id }) => refreshIfThreadClosed(queryClient, 'lead', id, error),
     onSuccess: (_data, { id }) => {
       invalidateLeadStanding(queryClient)
       queryClient.invalidateQueries({ queryKey: ['leads', id] })
@@ -367,6 +370,7 @@ export function useSetLeadReminder(id: string) {
       if (error) throw new ApiError('Could not set this reminder.', error)
       return data
     },
+    onError: (error) => refreshIfThreadClosed(queryClient, 'lead', id, error),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['activity-feed'] }),
   })
 }

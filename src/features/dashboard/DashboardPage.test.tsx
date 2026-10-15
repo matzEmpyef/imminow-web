@@ -125,4 +125,21 @@ describe('Usage analytics, response time', () => {
     expect(screen.getByText('119 days 6 hours')).toBeInTheDocument()
     expect(screen.queryByText('2862h')).not.toBeInTheDocument()
   })
+
+  it('shows the server’s own wording when it sends one', () => {
+    show({
+      stat_cards: cards,
+      branch_breakdown: null,
+      analytics: {
+        collecting_since: '2026-01-01',
+        response_time_median_hours: 2862,
+        response_time_median_text: 'About 119 days (as served)',
+        oldest_unanswered_lead_days: 12,
+        conversion_median_days: null,
+        active_student_engagement: [],
+      },
+    })
+    expect(screen.getByText('About 119 days (as served)')).toBeInTheDocument()
+    expect(screen.queryByText('119 days 6 hours')).not.toBeInTheDocument()
+  })
 })

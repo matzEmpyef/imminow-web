@@ -15,8 +15,11 @@ type CampusInput = components['schemas']['CampusInput']
  * "Needs details" means the college has courses and at least one fails a capture check;
  * "complete" means every course passes. A college with NO COURSES AT ALL matched neither, so the
  * college most in need of capture was the one college invisible to both filters.
+ *
+ * `rolled_deadlines` (Phase 8 T4-30): colleges with an intake deadline the system moved forward a
+ * year. Needs Attention's "Colleges with rolled deadlines" opens the list with it.
  */
-export type CollegeHealthFilter = 'needs_details' | 'complete' | 'no_courses'
+export type CollegeHealthFilter = 'needs_details' | 'complete' | 'no_courses' | 'rolled_deadlines'
 
 interface CollegeListFilters {
   health?: CollegeHealthFilter

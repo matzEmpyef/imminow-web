@@ -12,6 +12,7 @@ import {
 } from '@/queries/performanceLeague'
 import { useAdminConsultancies } from '@/queries/adminConsultancies'
 import { formatMoney } from '@/lib/money'
+import { responseTimeTextOf } from '@/lib/servedTier4Fields'
 
 type Row = NonNullable<ReturnType<typeof usePerformanceLeague>['data']>['items'][number]
 
@@ -32,12 +33,6 @@ function compareRows(a: Row, b: Row, field: string): number {
   return 0
 }
 
-// Hours under two days read as hours; anything longer reads better in days ("13d", not "300h").
-function formatHours(hours: number): string {
-  if (hours < 1) return '<1h'
-  if (hours < 48) return `${Math.round(hours)}h`
-  return `${Math.round(hours / 24)}d`
-}
 
 // Deliberately no single composite score (recorded judgement, docs/PROGRESS.md §4) — a composite
 // hides which thing is wrong and starts an argument about weighting. Sortable columns plus
@@ -119,10 +114,9 @@ export function PerformanceLeaguePage() {
               )}
               <span className="font-medium text-text-primary">{Math.round(r.responded_within_percent)}%</span>
             </span>
-            {r.response_time_median_hours != null && (
-              <span className="text-caption text-text-secondary">
-                median {formatHours(r.response_time_median_hours)}
-              </span>
+            {/* The server's own wording ("119 days 6 hours"); the console's `lib/duration.ts` if absent. */}
+            {responseTimeTextOf(r) && (
+              <span className="text-caption text-text-secondary">median {responseTimeTextOf(r)}</span>
             )}
           </span>
         ),

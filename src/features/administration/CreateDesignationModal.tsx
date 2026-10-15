@@ -6,6 +6,7 @@ import { TextField } from '@/components/TextField'
 import { useCreateDesignation, useDesignations } from '@/queries/staff'
 import { DESIGNATION_NAME_TAKEN, designationNameTaken } from '@/lib/designationName'
 import { activeEmployeeSource } from '@/queries/pickerSources'
+import { fieldMessages } from '@/api/errors'
 import { showToast } from '@/lib/toast'
 
 // User-requested — was an inline Card+form toggled below the page header, same move already
@@ -18,10 +19,16 @@ export function CreateDesignationModal({ onClose }: { onClose: () => void }) {
 
   // Checked against the list already loaded for the page; shown as soon as the name is typed.
   const nameTaken = designationNameTaken(name, existing.data)
+  // The server checks the name too (a colleague may have just made the same one) and names the
+  // field. Its sentence stays beside the field until the name is changed; both checks stay.
+  const [refusedName, setRefusedName] = useState<string | null>(null)
+  const servedNameError = refusedName === name ? fieldMessages(createDesignation.error).name : undefined
+  const nameError = nameTaken ? DESIGNATION_NAME_TAKEN : servedNameError
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!name.trim() || nameTaken) return
+    if (!name.trim() || nameTaken || servedNameError) return
+    setRefusedName(name)
     createDesignation.mutate(
       { name: name.trim(), duplicate_from_employee_id: duplicateFrom || undefined },
       {
@@ -40,10 +47,10 @@ export function CreateDesignationModal({ onClose }: { onClose: () => void }) {
       widthRem={28}
       footer={
         <>
-          {createDesignation.isError && (
+          {createDesignation.isError && !fieldMessages(createDesignation.error).name && (
             <p className="mr-auto self-center text-body-sm text-error">{createDesignation.error.message}</p>
           )}
-          <Button type="submit" form="create-designation-form" loading={createDesignation.isPending} disabled={!name.trim() || nameTaken}>
+          <Button type="submit" form="create-designation-form" loading={createDesignation.isPending} disabled={!name.trim() || Boolean(nameError)}>
             Create
           </Button>
         </>
@@ -55,7 +62,7 @@ export function CreateDesignationModal({ onClose }: { onClose: () => void }) {
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
-          error={nameTaken ? DESIGNATION_NAME_TAKEN : undefined}
+          error={nameError}
         />
         {/* Optional. Searched on the server (review F-036, lane x), so any colleague can be the
             starting point, not only the first hundred on the roster. */}

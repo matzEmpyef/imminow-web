@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -85,5 +85,15 @@ describe('Tags', () => {
     access.isAdmin = true
     renderIn(<TagManagementTab />)
     expect(screen.getByRole('button', { name: 'Delete Scholarship' })).toBeInTheDocument()
+  })
+
+  it('says a deleted tag comes off every lead and client that has it', () => {
+    access.isAdmin = true
+    renderIn(<TagManagementTab />)
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Scholarship' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent(
+      'Delete the tag Scholarship? It will be removed from every lead and client that has it.',
+    )
+    expect(screen.queryByText(/keep it/)).not.toBeInTheDocument()
   })
 })

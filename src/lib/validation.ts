@@ -15,6 +15,13 @@ export function isValidPhone(value: string): boolean {
 export const EMAIL_ERROR = 'Enter a valid email address.'
 export const PHONE_ERROR = 'Enter a valid phone number.'
 
+/**
+ * The one sentence for a phone number staff typed that is not one (Phase 8 T4-18). The server says
+ * exactly this on every screen where staff enter a phone (Add Lead, Create Applicant, a transfer
+ * code, the Phonebook), so those forms use it as their help text and as their own check's message.
+ */
+export const STAFF_PHONE_SENTENCE = 'Enter the phone number with the country code, for example +919876543210.'
+
 // Strict E.164 (contract gate 7's `POST /transfer-codes` `student_phone`, and any other field the
 // contract pins to E.164): a leading `+`, no spaces/hyphens/parens, 8 to 15 digits total — unlike
 // `isValidPhone` above, which stays lenient for free-typed contact fields that never leave the

@@ -10,7 +10,7 @@ type Employee = components['schemas']['Employee']
 
 /**
  * The row control that switches a disabled person back on (Phase 8 T2-03). They sign in again with
- * the designation and permissions they had; the leads and clients handed over when they were
+ * the designation and permissions they had; the leads, clients and tasks handed over when they were
  * disabled stay with whoever took them. A person who never accepted their invitation cannot be
  * switched back on: the server refuses with its own sentence (shown as it is served), which says to
  * send a new invitation instead.
@@ -67,7 +67,7 @@ function SwitchOnDialog({ employee, name, onClose }: { employee: Employee; name:
     >
       <p className="text-body-sm text-text-secondary">
         Switch <span className="font-medium text-text-primary">{name}</span> back on? They can sign in again with the
-        access they had. The leads and clients handed over when they were disabled stay with the people who took them.
+        access they had. The leads, clients and tasks handed over when they were disabled stay with the people who took them.
       </p>
     </Modal>
   )

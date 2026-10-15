@@ -136,6 +136,15 @@ describe('CreateApplicantModal — a new person (201)', () => {
 
 describe('CreateApplicantModal — the form', () => {
   // Phase 8, D-129 C-2: the student gives their own date of birth in the app.
+  it('gives the phone field the one phone sentence as its help, and as its message for a bad number', () => {
+    const sentence = 'Enter the phone number with the country code, for example +919876543210.'
+    renderModal()
+    expect(screen.getByText(sentence)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Phone'), { target: { value: '12' } })
+    expect(screen.getAllByText(sentence)).toHaveLength(1)
+    expect(screen.getByLabelText('Phone')).toHaveAttribute('aria-invalid', 'true')
+  })
+
   it('has no date of birth field, and the button needs nothing for one', () => {
     renderModal()
     expect(screen.queryByLabelText(/Date of birth/)).not.toBeInTheDocument()

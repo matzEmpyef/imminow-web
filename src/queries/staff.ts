@@ -107,7 +107,7 @@ export function useUpdateEmployee(id: string, version?: number) {
 }
 
 // Disabling now revokes access AND hands the work over in one call — the server refuses to
-// disable anyone still holding leads or clients without a named successor, so the two can never
+// disable anyone still holding leads, clients or tasks without a named successor, so the two can never
 // drift apart (user, 2026-08-23: "ask on deactivation whom to assign everything to").
 export function useDisableEmployee() {
   const queryClient = useQueryClient()

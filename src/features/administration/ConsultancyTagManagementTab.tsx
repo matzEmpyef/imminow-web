@@ -48,8 +48,8 @@ function DeleteTagTrigger({ tagId, tagName }: { tagId: string; tagName: string }
           }
         >
           <p className="text-body-sm text-text-secondary">
-            Delete <span className="font-medium text-text-primary">{tagName}</span>? It won't be offered for new
-            tagging, but leads and clients already tagged with it keep it.
+            Delete the tag <span className="font-medium text-text-primary">{tagName}</span>? It will be removed from
+            every lead and client that has it.
           </p>
         </Modal>
       )}

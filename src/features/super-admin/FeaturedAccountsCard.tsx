@@ -10,6 +10,7 @@ import type { ServerSearchSource } from '@/lib/useServerSearch'
 import { useAdminJobs } from '@/queries/jobsAdmin'
 import { usePlatformSettings, useUpdatePlatformSettings } from '@/queries/catalogSettings'
 import { showToast } from '@/lib/toast'
+import { featuredLabelOf } from '@/lib/servedTier4Fields'
 
 // Matches the server's own `MAX_FEATURED_INSTITUTES` / `MAX_FEATURED_CONSULTANCIES`, and the
 // three cards each rail shows on Home. There is no shared-package boundary between the mock
@@ -102,7 +103,11 @@ function FeaturedPickerCard({
   // With a `source`: what was added here is remembered, and anything else featured (at most
   // three) is read by id — neither depends on which page of the list happens to be loaded.
   const [added, setAdded] = useState<FeaturedOption[]>([])
-  const unnamed = source ? current.filter((id) => !added.some((o) => o.id === id)) : []
+  // The server names every saved pick (`featured_labels`, T4-31), so only an id it does not name is
+  // looked up here.
+  const unnamed = source
+    ? current.filter((id) => !added.some((o) => o.id === id) && featuredLabelOf(settings.data, id) === null)
+    : []
   const fetched = useQueries({
     queries: unnamed.map((id) => ({
       queryKey: [...(source?.queryKey ?? []), 'selected', id],
@@ -134,8 +139,10 @@ function FeaturedPickerCard({
     setSelected(next)
   }
 
+  // A saved pick reads as the server names it, "No longer available" included; a pick just added
+  // (not saved yet, so not in the server's map) reads as the option it was chosen from.
   function label(id: string) {
-    return byId.get(id)?.label ?? id
+    return featuredLabelOf(settings.data, id) ?? byId.get(id)?.label ?? id
   }
 
   return (

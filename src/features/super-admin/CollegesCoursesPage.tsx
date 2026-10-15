@@ -222,7 +222,14 @@ export function CollegesCoursesPage() {
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('')
   const [healthFilter, setHealthFilter] = useState<'' | CollegeHealthFilter>(() => {
     const fromUrl = searchParams.get('health')
-    return fromUrl === 'needs_details' || fromUrl === 'complete' || fromUrl === 'no_courses' ? fromUrl : ''
+    // `rolled_deadlines` is Needs Attention's "Colleges with rolled deadlines" link (T4-30); it
+    // counts colleges, so it opens this list. On the Courses tab it means nothing and is ignored.
+    return fromUrl === 'needs_details' ||
+      fromUrl === 'complete' ||
+      fromUrl === 'no_courses' ||
+      fromUrl === 'rolled_deadlines'
+      ? fromUrl
+      : ''
   })
   // The Courses tab reads its OWN health value from the link: `missing_requirements` is a course
   // state the college filter above has no meaning for, so routing it through that parser dropped
@@ -563,6 +570,7 @@ export function CollegesCoursesPage() {
                 <option value="no_courses">
                   No courses yet{noCourseColleges != null ? ` (${noCourseColleges})` : ''}
                 </option>
+                <option value="rolled_deadlines">Rolled deadlines</option>
               </CompactSelect>
             </>
           }
