@@ -10,6 +10,7 @@ describe('what moves with a case', () => {
       preferences: false,
       chat: false,
       admission: false,
+      recorded_payments: false,
     })
   })
 
@@ -17,6 +18,9 @@ describe('what moves with a case', () => {
     expect(movedSentence(['documents', 'applications'])).toBe('Moved. Shared: documents, college applications.')
     expect(movedSentence(['preferences', 'chat'])).toBe('Moved. Shared: case preferences, earlier conversation.')
     expect(movedSentence(['documents', 'admission'])).toBe('Moved. Shared: documents, accepted college.')
+    expect(movedSentence(['documents', 'admission', 'recorded_payments'])).toBe(
+      'Moved. Shared: documents, accepted college, recorded payments.',
+    )
     expect(movedSentence([])).toBe('Moved. Nothing was shared.')
     expect(movedSentence(undefined)).toBe('Moved. Nothing was shared.')
   })

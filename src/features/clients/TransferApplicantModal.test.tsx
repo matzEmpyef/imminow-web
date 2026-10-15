@@ -64,7 +64,7 @@ describe('Transfer Applicant — what moves with the case', () => {
     expect(mutate.mock.calls[0][0]).toMatchObject({
       newConsultancyId: 'acc-2',
       transferCode: '7F2K9C1A',
-      carry: { documents: true, applications: false, preferences: false, chat: false, admission: false },
+      carry: { documents: true, applications: false, preferences: false, chat: false, admission: false, recorded_payments: false },
     })
   })
 
@@ -73,7 +73,7 @@ describe('Transfer Applicant — what moves with the case', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /College applications/ }))
     fireEvent.click(screen.getByRole('checkbox', { name: /Earlier conversation/ }))
     fillAndSubmit()
-    expect(mutate.mock.calls[0][0].carry).toEqual({ documents: true, applications: true, preferences: false, chat: true, admission: false })
+    expect(mutate.mock.calls[0][0].carry).toEqual({ documents: true, applications: true, preferences: false, chat: true, admission: false, recorded_payments: false })
 
     mutate.mock.calls[0][1].onSuccess({ status: 'transferred', carried: ['documents', 'applications'] })
     expect(showToast).toHaveBeenCalledWith('Moved. Shared: documents, college applications.')
@@ -84,7 +84,7 @@ describe('Transfer Applicant — what moves with the case', () => {
     open()
     fireEvent.click(screen.getByRole('checkbox', { name: /Documents/ }))
     fillAndSubmit()
-    expect(mutate.mock.calls[0][0].carry).toEqual({ documents: false, applications: false, preferences: false, chat: false, admission: false })
+    expect(mutate.mock.calls[0][0].carry).toEqual({ documents: false, applications: false, preferences: false, chat: false, admission: false, recorded_payments: false })
     mutate.mock.calls[0][1].onSuccess({ status: 'transferred', carried: [] })
     expect(showToast).toHaveBeenCalledWith('Moved. Nothing was shared.')
   })

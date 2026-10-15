@@ -5,10 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // The operator decides what goes with a moved case (owner's ruling on review I-014, 2026-10-08):
 // the same four tick boxes as a consultancy's own transfer, and the answer says what was shared.
 vi.mock('@/queries/supportTools', () => ({ useSwitchCandidates: vi.fn(), useSwitchConsultancy: vi.fn() }))
-vi.mock('@/queries/applicantCase', () => ({ useAsksAboutAdmission: vi.fn() }))
+vi.mock('@/queries/applicantCase', () => ({ useCarryQuestions: vi.fn() }))
 
 import { ApiError } from '@/api/errors'
-import { useAsksAboutAdmission } from '@/queries/applicantCase'
+import { useCarryQuestions } from '@/queries/applicantCase'
 import { useSwitchCandidates, useSwitchConsultancy } from '@/queries/supportTools'
 import { SwitchConsultancyForm } from './SwitchConsultancyForm'
 
@@ -43,7 +43,7 @@ function openConfirm() {
 beforeEach(() => {
   mutate.mockReset()
   vi.mocked(useSwitchConsultancy).mockReturnValue(mutation())
-  vi.mocked(useAsksAboutAdmission).mockReturnValue(false)
+  vi.mocked(useCarryQuestions).mockReturnValue({ admission: false, payments: false })
   vi.mocked(useSwitchCandidates).mockReturnValue({
     data: { items: [candidate('a', 'Alpha Consult', 'current_consultancy'), candidate('b', 'Beta Consult')] },
     isLoading: false,
@@ -59,7 +59,7 @@ describe('Switch consultancy — what moves with the case', () => {
       journeyId: 'j1',
       new_consultancy_id: 'b',
       reason: 'Asked to move',
-      carry: { documents: true, applications: false, preferences: false, chat: false, admission: false },
+      carry: { documents: true, applications: false, preferences: false, chat: false, admission: false, recorded_payments: false },
     })
   })
 
@@ -73,6 +73,7 @@ describe('Switch consultancy — what moves with the case', () => {
       preferences: true,
       chat: false,
       admission: false,
+      recorded_payments: false,
     })
 
     act(() => mutate.mock.calls[0][1].onSuccess({ ok: true, client_id: 'new-1', carried: ['documents', 'preferences'] }))
@@ -105,7 +106,7 @@ describe('Switch consultancy — the admission question', () => {
   })
 
   it('is asked with No chosen, explains No, and sends admission false unless Yes is chosen', () => {
-    vi.mocked(useAsksAboutAdmission).mockReturnValue(true)
+    vi.mocked(useCarryQuestions).mockReturnValue({ admission: true, payments: false })
     openConfirm()
     expect(screen.getByText('Does the admission go to the new consultancy too?')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'No' })).toBeChecked()
@@ -116,7 +117,7 @@ describe('Switch consultancy — the admission question', () => {
   })
 
   it('sends admission true when Yes is chosen', () => {
-    vi.mocked(useAsksAboutAdmission).mockReturnValue(true)
+    vi.mocked(useCarryQuestions).mockReturnValue({ admission: true, payments: false })
     openConfirm()
     fireEvent.click(screen.getByRole('radio', { name: 'Yes' }))
     fireEvent.click(screen.getByRole('button', { name: 'Confirm switch' }))
@@ -124,22 +125,48 @@ describe('Switch consultancy — the admission question', () => {
   })
 })
 
-describe('Switch consultancy — the confirmation and refusals', () => {
-  it('names the accepted college in the confirmation when the server says it went', () => {
-    vi.mocked(useAsksAboutAdmission).mockReturnValue(true)
+// The money already recorded on the admission is a second question, asked only after Yes.
+describe('Switch consultancy — the recorded money question', () => {
+  it('asks it after Yes, sends recorded_payments true when Yes is chosen, and names both in the confirmation', () => {
+    vi.mocked(useCarryQuestions).mockReturnValue({ admission: true, payments: true })
+    openConfirm()
+    expect(screen.queryByText('Does the money already recorded on this admission go too?')).not.toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('radio', { name: 'Yes' })[0])
+    fireEvent.click(screen.getAllByRole('radio', { name: 'Yes' })[1])
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm switch' }))
+    expect(mutate.mock.calls[0][0].carry).toMatchObject({ admission: true, recorded_payments: true })
+    act(() => {
+      mutate.mock.calls[0][1].onSuccess({ client_id: 'n1', carried: ['documents', 'admission', 'recorded_payments'] })
+    })
+    expect(screen.getByText('Moved. Shared: documents, accepted college, recorded payments.')).toBeInTheDocument()
+  })
+
+  it('sends recorded_payments false when the admission stays', () => {
+    vi.mocked(useCarryQuestions).mockReturnValue({ admission: true, payments: true })
+    openConfirm()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm switch' }))
+    expect(mutate.mock.calls[0][0].carry).toMatchObject({ admission: false, recorded_payments: false })
+  })
+
+  it('does not ask it when the server says no payments are recorded', () => {
+    vi.mocked(useCarryQuestions).mockReturnValue({ admission: true, payments: false })
     openConfirm()
     fireEvent.click(screen.getByRole('radio', { name: 'Yes' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm switch' }))
-    expect(mutate.mock.calls[0][0].carry).toMatchObject({ admission: true })
-    act(() => {
-      mutate.mock.calls[0][1].onSuccess({ client_id: 'n1', carried: ['documents', 'admission'] })
-    })
-    expect(screen.getByText('Moved. Shared: documents, accepted college.')).toBeInTheDocument()
+    expect(screen.queryByText('Does the money already recorded on this admission go too?')).not.toBeInTheDocument()
+  })
+
+  it('shows a served refusal exactly as served, beside the form', () => {
+    const refusal = 'The money cannot go: payments to immiNow were already made on this admission.'
+    vi.mocked(useCarryQuestions).mockReturnValue({ admission: true, payments: true })
+    vi.mocked(useSwitchConsultancy).mockReturnValue(mutation(new ApiError('x', { error: { code: 'conflict', message: refusal } }, 409)))
+    openConfirm()
+    expect(screen.getByText(refusal)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Confirm switch' })).toBeInTheDocument()
   })
 
   it('shows the refusal for a college that is not a Partner College of the new consultancy', () => {
     const refusal = 'The admission cannot go: this college is not a Partner College of Beta Consult.'
-    vi.mocked(useAsksAboutAdmission).mockReturnValue(true)
+    vi.mocked(useCarryQuestions).mockReturnValue({ admission: true, payments: false })
     vi.mocked(useSwitchConsultancy).mockReturnValue(mutation(new ApiError('x', { error: { code: 'conflict', message: refusal } }, 409)))
     openConfirm()
     expect(screen.getByText(refusal)).toBeInTheDocument()

@@ -13,6 +13,7 @@ export function CaseCarryFields({
   onChange,
   disabled,
   askAdmission,
+  askPayments,
 }: {
   value: CaseCarry
   onChange: (next: CaseCarry) => void
@@ -23,9 +24,15 @@ export function CaseCarryFields({
    * everywhere else (Transfer Applicant refuses a case with an accepted college).
    */
   askAdmission?: boolean
+  /**
+   * True when the admission is asked and the case has money recorded on it (or the server did not
+   * say it has none): the second question, shown only while the first is answered Yes.
+   */
+  askPayments?: boolean
 }) {
   const headingId = useId()
   const admissionId = useId()
+  const paymentsId = useId()
   return (
     <fieldset aria-labelledby={headingId} disabled={disabled} className="flex flex-col gap-sm">
       <div className="flex flex-col gap-xs">
@@ -56,12 +63,24 @@ export function CaseCarryFields({
           id={admissionId}
           question="Does the admission go to the new consultancy too?"
           answer={Boolean(value.admission)}
-          onAnswer={(answer) => onChange({ ...value, admission: answer })}
+          // Saying No to the admission also takes the money answer back to No.
+          onAnswer={(answer) =>
+            onChange({ ...value, admission: answer, recorded_payments: answer ? Boolean(value.recorded_payments) : false })
+          }
           helper={
             value.admission
               ? 'The new consultancy takes over the accepted college and its commission from now on.'
               : "The accepted college stays with the first consultancy, and immiNow's share of that admission becomes due from it now."
           }
+        />
+      )}
+      {askAdmission && askPayments && value.admission && (
+        <YesNo
+          id={paymentsId}
+          question="Does the money already recorded on this admission go too?"
+          answer={Boolean(value.recorded_payments)}
+          onAnswer={(answer) => onChange({ ...value, recorded_payments: answer })}
+          helper="If yes, the payments already recorded move to the new consultancy, and it owes immiNow's share on all of them. If no, the first consultancy still owes the share on what it has already received."
         />
       )}
       <p className="text-caption text-text-secondary">The plan, internal notes and commission records never move.</p>

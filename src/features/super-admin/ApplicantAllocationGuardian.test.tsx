@@ -15,7 +15,7 @@ vi.mock('@/queries/applicantAllocation', () => ({
   useAllocationCandidates: vi.fn(),
   useResolveAllocationRequest: vi.fn(),
 }))
-vi.mock('@/queries/applicantCase', () => ({ useAsksAboutAdmission: () => false }))
+vi.mock('@/queries/applicantCase', () => ({ useCarryQuestions: () => ({ admission: false, payments: false }) }))
 vi.mock('@/lib/toast', () => ({ showToast: vi.fn() }))
 vi.mock('@/components/SearchSelect', () => ({
   SearchSelect: ({ onChange }: { onChange: (id: string) => void }) => (
