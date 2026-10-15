@@ -332,3 +332,51 @@ describe('CommissionsTab, immiNow’s share and a reversed record', () => {
     expect(screen.queryByRole('button', { name: 'Void contribution' })).toBeNull()
   })
 })
+
+// Owner, DECISIONS 145e, 146, 147b: when Support moves a student with the accepted college, the
+// case they left says where the admission went, and money that moved reads "Moved to {name}" on
+// the first consultancy's instalments and "Moved from {name}" on the copy in the new one.
+describe('CommissionsTab, an admission that moved with the student', () => {
+  const NOTE =
+    'The admission moved to Beta Consult on 14-10-2026, together with the money recorded on it. Nothing is owed here on it.'
+
+  it('shows the served sentence, keeps the tab read-only and says "Moved to" instead of "Voided"', () => {
+    setup({
+      entry: { ...baseEntry, status: 'voided' },
+      summary: { admission_moved_note: NOTE, recording_allowed: true, case_closed: true },
+      installments: [
+        {
+          ...installment,
+          voided_at: '2026-10-14T09:00:00Z',
+          voided_by_name: 'Support',
+          moved_to_consultancy_name: 'Beta Consult',
+        },
+      ],
+    })
+    expect(screen.getByText(NOTE)).toBeInTheDocument()
+    expect(screen.getByText('Moved to Beta Consult')).toBeInTheDocument()
+    expect(screen.getByText('Moved')).toBeInTheDocument()
+    expect(screen.queryByText(/Voided/)).toBeNull()
+    expect(screen.queryByText('Void')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Record Payment' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Void' })).toBeNull()
+  })
+
+  it('says "Moved from" on the copy in the new consultancy, which still counts like any instalment', () => {
+    setup({ installments: [{ ...installment, moved_from_consultancy_name: 'Alpha Consult' }] })
+    expect(screen.getByText('Moved from Alpha Consult')).toBeInTheDocument()
+    expect(screen.queryByText('Moved to Alpha Consult')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Void' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Record Payment' })).toBeInTheDocument()
+  })
+
+  it('still says "Voided" for an instalment that was only voided', () => {
+    setup({ installments: [{ ...installment, voided_at: '2026-10-01T09:00:00Z', voided_by_name: 'Priya', voided_reason: 'Typed twice' }] })
+    expect(screen.getByText(/Voided by Priya on 01-10-2026 — Typed twice/)).toBeInTheDocument()
+  })
+
+  it('shows no moved note on an ordinary case', () => {
+    setup({})
+    expect(screen.queryByText(NOTE)).toBeNull()
+  })
+})

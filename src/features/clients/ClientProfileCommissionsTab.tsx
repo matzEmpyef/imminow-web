@@ -111,7 +111,10 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
   // A reversed record (the case closed without success after an acceptance or a contribution) is
   // shown read-only: the payments that were recorded stay listed, nothing can be added or voided.
   const reversed = data.reversed === true
-  const noNewMoney = data.recording_allowed === false || reversed
+  // The case the student LEFT when Support moved the admission with them (`admission_moved_note`):
+  // nothing more can be recorded on it, whatever else the answer says.
+  const admissionMoved = Boolean(data.admission_moved_note)
+  const noNewMoney = data.recording_allowed === false || reversed || admissionMoved
   const closed = data.case_closed === true
   // Own-client bookkeeping: installments work as usual; the tab has no Sentpo figure and no
   // declare-payment control for any channel, so the only difference is the explanatory caption.
@@ -163,6 +166,12 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
 
   return (
     <div className="flex flex-col gap-md">
+      {/* Where the admission went and what, if anything, is still owed here: said by the server, as served. */}
+      {data.admission_moved_note && (
+        <p role="status" className="rounded-md bg-background p-sm text-body-sm text-text-primary">
+          {data.admission_moved_note}
+        </p>
+      )}
       {/* Said by the server, as served (T2-01). */}
       {reversed && data.reversed_note && (
         <p role="status" className="rounded-md bg-background p-sm text-body-sm text-text-primary">
@@ -239,6 +248,10 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
         ) : (
           <div className="flex flex-col gap-xs">
             {data.installments.map((inst) => {
+              // Money Support moved to another consultancy with the admission: voided here, but it
+              // went on rather than being cancelled, so it reads "Moved to {name}", not "Voided".
+              const movedTo = inst.moved_to_consultancy_name
+              const movedFrom = inst.moved_from_consultancy_name
               const isVoid = Boolean(inst.voided_at)
               // The share of this installment has already fallen due, so its void waits for Sentpo
               // Finance (review F-078). Nothing has changed yet: the installment still counts.
@@ -246,7 +259,7 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
               return (
                 <div key={inst.id} className="flex items-center justify-between gap-md text-body-sm">
                   <div className={isVoid ? 'text-text-secondary' : undefined}>
-                    <span className={`font-medium ${isVoid ? 'line-through' : 'text-text-primary'}`}>
+                    <span className={`font-medium ${isVoid && !movedTo ? 'line-through' : 'text-text-primary'}`}>
                       {formatMoneyAmount(inst.amount)}
                     </span>
                     {!isVoid && formatApprox(inst.amount.approx) && (
@@ -258,7 +271,13 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
                       {inst.note ? ` · ${inst.note}` : ''}
                       {inst.receipt_id ? ' · receipt linked' : ''}
                     </span>
-                    {isVoid && (
+                    {movedFrom && (
+                      <span className="mt-xs block text-caption text-text-secondary">Moved from {movedFrom}</span>
+                    )}
+                    {isVoid && movedTo && (
+                      <span className="mt-xs block text-caption text-text-secondary">Moved to {movedTo}</span>
+                    )}
+                    {isVoid && !movedTo && (
                       <span className="mt-xs block text-caption text-text-secondary">
                         Voided{inst.voided_by_name ? ` by ${inst.voided_by_name}` : ''}
                         {inst.voided_at ? ` on ${formatDate(inst.voided_at)}` : ''}
@@ -273,7 +292,7 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
                     )}
                   </div>
                   {isVoid ? (
-                    <Badge color="secondary">Void</Badge>
+                    <Badge color="secondary">{movedTo ? 'Moved' : 'Void'}</Badge>
                   ) : voidWaiting ? (
                     <Badge color="warning">Waiting for immiNow Finance</Badge>
                   ) : (
