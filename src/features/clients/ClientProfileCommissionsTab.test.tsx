@@ -96,6 +96,18 @@ describe('CommissionsTab, channel-B bookkeeping record', () => {
     expect(screen.getByRole('button', { name: 'Void' })).toBeInTheDocument()
   })
 
+  it('says it once: the served sentence replaces the fixed caption on the consultancy’s own client', () => {
+    const OWN = 'This is your own client, so no share is owed to immiNow on this case.'
+    setup({
+      entry: { ...baseEntry, channel: 'B' },
+      client: { acquisition_source: 'B' },
+      summary: { platform_share_note: OWN },
+    })
+    expect(screen.getByText(OWN)).toBeInTheDocument()
+    expect(screen.queryByText(/your own record for this client/i)).toBeNull()
+    expect(screen.queryByText(/not shared with immiNow/i)).toBeNull()
+  })
+
   it('shows the caption on an empty tab for a channel-B client with no entry yet', () => {
     setup({ entry: null, client: { acquisition_source: 'B' } })
     expect(screen.getByText(/not shared with immiNow/i)).toBeInTheDocument()
@@ -137,6 +149,25 @@ const progress = (overrides: Record<string, unknown> = {}) => ({
 })
 
 describe('CommissionsTab, expected against received', () => {
+  it('writes the line in one money form: received of agreed, and what is still to come', () => {
+    setup({
+      entry: {
+        ...baseEntry,
+        college_progress: progress({
+          expected: { amount: 4300, currency: 'AUD' },
+          received: { amount: 0, currency: 'AUD' },
+          remaining: { amount: 4300, currency: 'AUD' },
+          shortfall_percent: 100,
+        }),
+      },
+    })
+    const line = screen.getAllByTestId('expected-vs-received')[0]
+    expect(line).toHaveTextContent('AUD 0.00 of AUD 4,300.00 received · AUD 4,300.00 still to come')
+    expect(line).not.toHaveTextContent('remaining')
+    expect(line).not.toHaveTextContent(' / ')
+  })
+
+
   it('shows the server’s expected, received and remaining, in the agreed currency', () => {
     setup({
       entry: {
@@ -149,7 +180,7 @@ describe('CommissionsTab, expected against received', () => {
     })
     const line = screen.getAllByTestId('expected-vs-received')[0]
     expect(line).toHaveAttribute('data-progress', 'server')
-    expect(line).toHaveTextContent('400.00 / 1,000.00 CAD · CAD 600.00 remaining')
+    expect(line).toHaveTextContent('CAD 400.00 of CAD 1,000.00 received · CAD 600.00 still to come')
     expect(line).not.toHaveTextContent('fully paid')
     expect(line).not.toHaveTextContent('60,000')
   })
@@ -177,7 +208,7 @@ describe('CommissionsTab, expected against received', () => {
         }),
       },
     })
-    expect(screen.getAllByTestId('expected-vs-received').at(-1)).toHaveTextContent('1,000.00 / 1,000.00 CAD · fully paid')
+    expect(screen.getAllByTestId('expected-vs-received').at(-1)).toHaveTextContent('CAD 1,000.00 of CAD 1,000.00 received · fully paid')
   })
 
   it('notes when some of it arrived in another currency and was converted', () => {

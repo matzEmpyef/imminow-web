@@ -8,7 +8,7 @@ import { ErrorState, Skeleton } from '@/components/QueryState'
 import { useClient, useCommissions } from '@/queries/clients'
 import { formatDate } from '@/lib/time'
 import { usePermission } from '@/lib/permissions'
-import { formatAmountOnly, formatApprox, formatMoneyAmount } from '@/lib/money'
+import { formatApprox, formatMoneyAmount } from '@/lib/money'
 import { RecordInstallmentModal } from './RecordInstallmentModal'
 import { RecordPrContributionModal } from './RecordPrContributionModal'
 import { VoidInstallmentModal } from './VoidInstallmentModal'
@@ -65,12 +65,11 @@ function PayerProgressLine({
       <div className="flex items-center justify-between gap-md text-body-sm">
         <span className="font-medium text-text-primary">{label}</span>
         <span className="text-right text-text-secondary">
-          {formatAmountOnly(currency, progress.received.amount)} / {formatAmountOnly(currency, progress.expected.amount)}{' '}
-          {currency}
-          {approx ? ` (${approx})` : ''}
-          {progress.fully_paid ? ' · fully paid' : ` · ${formatMoneyAmount(progress.remaining)} remaining`}
+          {formatMoneyAmount(progress.received)} of {formatMoneyAmount(progress.expected)} received
+          {progress.fully_paid ? ' · fully paid' : ` · ${formatMoneyAmount(progress.remaining)} still to come`}
         </span>
       </div>
+      {approx && <p className="text-caption text-text-secondary">Agreed amount {approx}</p>}
       {/* The bar is drawn from the server's own percentage: the unpaid share (`shortfall_percent`)
           is the empty stretch at the end of a full bar, so no percentage is worked out here. */}
       <div className={`relative h-1.5 overflow-hidden rounded-full ${progress.fully_paid ? 'bg-success' : 'bg-primary'}`}>
@@ -214,7 +213,11 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
             )}
           </div>
         </div>
-        {bookkeeping && <p className="text-caption text-text-secondary">{BOOKKEEPING_CAPTION}</p>}
+        {/* On the consultancy's own client the server's share note already says no share is owed, so
+            the fixed caption would say the same thing twice: it stays only when no note is served. */}
+        {bookkeeping && !data.platform_share_note && (
+          <p className="text-caption text-text-secondary">{BOOKKEEPING_CAPTION}</p>
+        )}
         {/* What immiNow's share on this case is, as served (T4-07); absent for a reader who may not
             see commission details, and on the consultancy's own client. */}
         {data.platform_share_note && <p className="text-body-sm text-text-secondary">{data.platform_share_note}</p>}
@@ -243,7 +246,7 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
         </div>
         {data.installments.length === 0 ? (
           <p className="text-body-sm text-text-secondary">
-            Nothing received yet — partial payments land here as installments.
+            Nothing received yet — partial payments land here as instalments.
           </p>
         ) : (
           <div className="flex flex-col gap-xs">
@@ -315,7 +318,7 @@ export function CommissionsTab({ clientId }: { clientId: string }) {
           <div>
             <h2 className="text-h3 text-text-primary">Linked Documents</h2>
             <p className="text-caption text-text-secondary">
-              Platform invoices and receipts for this case — optional; installments above are the source of truth for
+              Platform invoices and receipts for this case — optional; instalments above are the source of truth for
               money received.
             </p>
           </div>
