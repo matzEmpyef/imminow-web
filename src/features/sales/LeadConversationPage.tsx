@@ -8,6 +8,7 @@ import { Badge } from '@/components/Badge'
 import { Button } from '@/components/Button'
 import { Modal } from '@/components/Modal'
 import { ChatPanel } from '@/components/ChatPanel'
+import { ContactLink } from '@/components/CopyButton'
 import { AssignBranchMenu } from '@/components/AssignBranchMenu'
 import { RequestedBranchBadge } from '@/components/RequestedBranch'
 import { StudentProfileFields } from '@/components/StudentProfileFields'
@@ -145,8 +146,11 @@ export function EarlierConversations({ ids }: { ids: readonly string[] | undefin
   )
 }
 
-// The lead's own routing/engagement facts — NEVER phone or email (user, 2026-08-23: "In the
-// leads details page we need to show the leads details except contact information"). Status,
+// The lead's own routing/engagement facts. A lead that came from a student's Sentpo account NEVER
+// shows phone or email (user, 2026-08-23: "In the leads details page we need to show the leads
+// details except contact information"). A lead the consultancy added by hand or imported is its
+// own record, so it shows the phone, email and note the consultancy typed (Phase 8 T2-02,
+// DECISIONS 133; the server serves them to staff on those leads only). Status,
 // Last message, and Awaiting reply were all dropped (user, 2026-08-24: "no need to show status,
 // last message" / "in details do not show Awaiting reply") — status already shows as the header
 // pill this page already has, Last message duplicates what the chat panel right beside this card
@@ -193,6 +197,28 @@ function DetailsCard({ lead }: { lead: NonNullable<ReturnType<typeof useLead>['d
           <div className="flex justify-between">
             <dt className="text-text-secondary">Source</dt>
             <dd className="text-text-primary">{LEAD_SOURCE_LABELS[lead.source] ?? lead.source}</dd>
+          </div>
+        )}
+        {lead.origin === 'imported' && lead.phone && (
+          <div className="flex items-center justify-between gap-md">
+            <dt className="shrink-0 text-text-secondary">Phone</dt>
+            <dd className="min-w-0 text-text-primary">
+              <ContactLink kind="phone" value={lead.phone} className="truncate select-text tabular-nums hover:underline" />
+            </dd>
+          </div>
+        )}
+        {lead.origin === 'imported' && lead.email && (
+          <div className="flex items-center justify-between gap-md">
+            <dt className="shrink-0 text-text-secondary">Email</dt>
+            <dd className="min-w-0 text-text-primary">
+              <ContactLink kind="email" value={lead.email} className="truncate select-text hover:underline" />
+            </dd>
+          </div>
+        )}
+        {lead.origin === 'imported' && lead.notes && (
+          <div className="flex flex-col gap-xs">
+            <dt className="text-text-secondary">Notes</dt>
+            <dd className="select-text whitespace-pre-wrap break-words text-text-primary">{lead.notes}</dd>
           </div>
         )}
         {lead.assigned_employee_name && (

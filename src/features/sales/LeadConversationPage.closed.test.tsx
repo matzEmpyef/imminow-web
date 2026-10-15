@@ -142,6 +142,38 @@ describe('the Lead conversation page', () => {
     expect(screen.queryByRole('button', { name: 'Request Shortlist' })).not.toBeInTheDocument()
   })
 
+  // T2-02 (ruling 133): the contact details the consultancy typed for its own lead.
+  it('shows the phone, email and note of a lead the consultancy added, and never those of an app lead', () => {
+    serveLead(
+      lead({
+        phone: '+919800000077',
+        email: 'walk.in@example.com',
+        notes: 'Came to the office on Monday. Wants Canada.',
+      }),
+    )
+    const view = render(page())
+    expect(screen.getByText('+919800000077').closest('a')).toHaveAttribute('href', 'tel:+919800000077')
+    expect(screen.getByText('walk.in@example.com').closest('a')).toHaveAttribute('href', 'mailto:walk.in@example.com')
+    expect(screen.getByRole('button', { name: 'Copy phone number' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy email address' })).toBeInTheDocument()
+    expect(screen.getByText(/Came to the office on Monday\./)).toBeInTheDocument()
+    view.unmount()
+
+    serveLead(lead({ origin: 'sentpo', student_id: 's1', phone: '+919800000077', email: 'app@example.com', notes: 'Private' }))
+    render(page())
+    expect(screen.queryByText('+919800000077')).not.toBeInTheDocument()
+    expect(screen.queryByText('app@example.com')).not.toBeInTheDocument()
+    expect(screen.queryByText('Private')).not.toBeInTheDocument()
+  })
+
+  it('shows only what the consultancy typed', () => {
+    serveLead(lead({ email: 'only@example.com' }))
+    render(page())
+    expect(screen.getByText('only@example.com')).toBeInTheDocument()
+    expect(screen.queryByText('Phone')).not.toBeInTheDocument()
+    expect(document.querySelector('dd.whitespace-pre-wrap')).toBeNull()
+  })
+
   // T4-12, served fields: the server's own sentence and the client it points to.
   it('shows the served notice with a link to the client, and offers no action', () => {
     const notice = 'This lead is now a client, so it can no longer be changed. Open the client instead.'
