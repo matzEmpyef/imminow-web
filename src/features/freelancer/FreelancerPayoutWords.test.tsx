@@ -66,6 +66,12 @@ describe('Freelancer referrals', () => {
     }
   })
 
+  it('heads the last column "Payment", not "Payout"', () => {
+    render(<FreelancerDashboardPage />)
+    expect(screen.getByRole('columnheader', { name: 'Payment' })).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: 'Payout' })).not.toBeInTheDocument()
+  })
+
   it('says what is owed under an owed referral instead of "No payments yet"', () => {
     render(<FreelancerDashboardPage />)
     fireEvent.click(screen.getByText('Rahul'))

@@ -409,7 +409,7 @@ export function FreelancerDashboardPage() {
     },
     {
       key: 'payout_status',
-      header: 'Payout',
+      header: 'Payment',
       render: (r) => {
         const p = r.payout_status ?? 'not_due'
         return <Badge color={PAYOUT_BADGE_COLOR[p]}>{payoutLabel(r)}</Badge>

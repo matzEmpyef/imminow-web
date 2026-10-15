@@ -5,9 +5,9 @@
  */
 
 export const CATEGORY_LABELS: Record<string, string> = {
-  consultancy_dispute: 'Consultancy dispute',
-  payment_issue: 'Payment issue',
-  app_problem: 'App problem',
+  consultancy_dispute: 'A problem with a consultancy or college',
+  payment_issue: 'A problem with a payment',
+  app_problem: 'A problem with the app',
   other: 'Other',
 }
 
