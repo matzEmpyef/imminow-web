@@ -46,7 +46,7 @@ describe('idle lock bootstrap', () => {
     localStorage.clear()
     useAuthStore.getState().clear()
     queryClient.clear()
-    useSessionNoticeStore.setState({ notice: null, returnBlocked: false })
+    useSessionNoticeStore.setState({ notice: null })
     useIdleLockStore.setState({ warning: false, secondsRemaining: 0 })
     vi.mocked(requestNewAccessToken).mockClear()
     vi.mocked(api.POST).mockClear()

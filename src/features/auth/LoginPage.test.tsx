@@ -3,8 +3,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Review F-165: the login page after a session ended on its own. It says why, and the same person
-// signing in again is taken back to the page they were on; anyone else starts at their home page.
+// Review F-165: the login page after a session ended on its own says why. Owner's decision 151:
+// whoever signs in, whatever page sent them here, lands on their own role's dashboard.
 vi.mock('@/api/client', () => ({ api: { GET: vi.fn(), POST: vi.fn() } }))
 vi.mock('@/assets/brand/login-bg.png', () => ({ default: 'login-bg.png' }))
 
@@ -13,7 +13,7 @@ import { queryClient as appQueryClient } from '@/lib/queryClient'
 import { endSession } from '@/lib/session'
 import { useSessionNoticeStore } from '@/lib/sessionNotice'
 import { useAuthStore } from '@/stores/authStore'
-import { staffMe } from '@/test/me'
+import { plainMe, platformMe, staffMe } from '@/test/me'
 import { LoginPage } from './LoginPage'
 
 const mockedGet = vi.mocked(api.GET)
@@ -32,18 +32,21 @@ function renderLogin(from?: string) {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/dashboard" element={<p>Home dashboard</p>} />
+          <Route path="/admin/dashboard" element={<p>Platform dashboard</p>} />
+          <Route path="/freelancer/dashboard" element={<p>Freelancer dashboard</p>} />
           <Route path="/clients/:id" element={<p>The client they were on</p>} />
+          <Route path="/admin/finance" element={<p>A deep platform page</p>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   )
 }
 
-function signInAs(userId: string) {
+function signInAs(userId: string, role = 'consultant', me: unknown = staffMe({}, { id: userId })) {
   mockedPost.mockResolvedValueOnce(
-    ok({ access_token: 'access-2', refresh_token: 'refresh-2', user: { id: userId, role: 'consultant' } }),
+    ok({ access_token: 'access-2', refresh_token: 'refresh-2', user: { id: userId, role } }),
   )
-  mockedGet.mockResolvedValueOnce(ok(staffMe({}, { id: userId })))
+  mockedGet.mockResolvedValueOnce(ok(me))
   fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: 'asha@example.test' } })
   fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'pw' } })
   fireEvent.click(screen.getByRole('button', { name: 'Log in' }))
@@ -61,12 +64,12 @@ beforeEach(() => {
   mockedPost.mockReset()
   useAuthStore.getState().clear()
   appQueryClient.clear()
-  useSessionNoticeStore.setState({ notice: null, returnBlocked: false })
+  useSessionNoticeStore.setState({ notice: null })
 })
 
 describe('the login page after a session ended', () => {
   it.each([
-    ['expired', 'Your session has ended. Log in again to carry on where you left off.'],
+    ['expired', 'Your session has ended. Please log in again.'],
     ['idle', 'You were signed out after 30 minutes without activity.'],
     ['absolute', 'You were signed out after 12 hours for security. Please sign in again.'],
   ] as const)('says why (%s)', (reason, message) => {
@@ -82,24 +85,47 @@ describe('the login page after a session ended', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
-  it('takes the same person back to the page they were on', async () => {
+  it('sends the same person to their dashboard, not the page their session ended on', async () => {
     sessionEnded('u1', 'expired')
     renderLogin('/clients/c1')
     signInAs('u1')
-    expect(await screen.findByText('The client they were on')).toBeInTheDocument()
+    expect(await screen.findByText('Home dashboard')).toBeInTheDocument()
+    expect(screen.queryByText('The client they were on')).not.toBeInTheDocument()
   })
 
-  it('sends a different person to their own home page', async () => {
+  it('sends a different person to their own dashboard', async () => {
     sessionEnded('u1', 'expired')
     renderLogin('/clients/c1')
     signInAs('u2')
     expect(await screen.findByText('Home dashboard')).toBeInTheDocument()
   })
 
-  it('opens the address that was asked for while signed out', async () => {
+  it('does not open an address that was asked for while signed out', async () => {
     renderLogin('/clients/c9')
     signInAs('u1')
-    expect(await screen.findByText('The client they were on')).toBeInTheDocument()
+    expect(await screen.findByText('Home dashboard')).toBeInTheDocument()
+    expect(screen.queryByText('The client they were on')).not.toBeInTheDocument()
+  })
+
+  it('platform staff, signing in from a deep page, land on the platform dashboard', async () => {
+    renderLogin('/admin/finance')
+    signInAs('p1', 'platform_staff', platformMe({}, { id: 'p1' }))
+    expect(await screen.findByText('Platform dashboard')).toBeInTheDocument()
+    expect(screen.queryByText('A deep platform page')).not.toBeInTheDocument()
+  })
+
+  it('consultancy and institute staff, signing in from a deep page, land on the dashboard', async () => {
+    renderLogin('/clients/c1')
+    signInAs('s1', 'consultancy_admin', staffMe({ is_admin: true }, { id: 's1' }))
+    expect(await screen.findByText('Home dashboard')).toBeInTheDocument()
+    expect(screen.queryByText('The client they were on')).not.toBeInTheDocument()
+  })
+
+  it('a freelancer, signing in from a deep page, lands on the freelancer dashboard', async () => {
+    renderLogin('/clients/c1')
+    signInAs('f1', 'freelancer', plainMe('freelancer'))
+    expect(await screen.findByText('Freelancer dashboard')).toBeInTheDocument()
+    expect(screen.queryByText('The client they were on')).not.toBeInTheDocument()
   })
 
   it('goes to the home page when no address was asked for', async () => {

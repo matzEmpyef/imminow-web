@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { BRAND_LOGO } from '@/lib/brand'
 import loginBg from '@/assets/brand/login-bg.png'
 import { TextField } from '@/components/TextField'
@@ -8,12 +8,7 @@ import { ApiError, useLogin } from '@/queries/auth'
 import { useAuthStore } from '@/stores/authStore'
 import { roleHomePath, scopeHomePath } from '@/lib/roleHome'
 import { SessionGate } from '@/features/auth/SessionGate'
-import {
-  SESSION_END_MESSAGES,
-  returnPathAfterSignIn,
-  useSessionNoticeStore,
-  type LoginLocationState,
-} from '@/lib/sessionNotice'
+import { SESSION_END_MESSAGES, useSessionNoticeStore } from '@/lib/sessionNotice'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -77,7 +72,6 @@ function LoginHeroPanel() {
 
 export function LoginPage() {
   const navigate = useNavigate()
-  const location = useLocation()
   // Why the last session here ended, when the person did not end it (review F-165).
   const notice = useSessionNoticeStore((s) => s.notice)
   const login = useLogin()
@@ -90,12 +84,10 @@ export function LoginPage() {
   // login form showing anyway — bounce straight to that role's own landing page instead.
   // Which landing page is `GET /me`'s answer (review F-036); SessionGate waits for it.
   //
-  // Someone sent here by a guard (their session ended, or they opened an address while signed
-  // out) goes back to that page once signed in, when that is safe (review F-165); everyone else
-  // gets their own home page.
-  const returnPath = () => returnPathAfterSignIn((location.state as LoginLocationState | null)?.from)
+  // Everyone who signs in lands on their own role's dashboard (owner's decision 151), whichever
+  // page sent them here: the page a last session ended on may have belonged to someone else.
   if (isAuthed) {
-    return <SessionGate>{(me) => <Navigate to={returnPath() ?? scopeHomePath(me.scope)} replace />}</SessionGate>
+    return <SessionGate>{(me) => <Navigate to={scopeHomePath(me.scope)} replace />}</SessionGate>
   }
 
   const emailError = touched.email && !EMAIL_PATTERN.test(email) ? 'Enter a valid email address.' : undefined
@@ -108,7 +100,7 @@ export function LoginPage() {
     login.mutate(
       { email, password },
       {
-        onSuccess: (data) => navigate(returnPath() ?? roleHomePath(data.user.role), { replace: true }),
+        onSuccess: (data) => navigate(roleHomePath(data.user.role), { replace: true }),
       },
     )
   }

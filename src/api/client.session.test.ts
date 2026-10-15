@@ -45,7 +45,7 @@ function deferred() {
 beforeEach(() => {
   fetchMock.mockReset()
   useAuthStore.getState().clear()
-  useSessionNoticeStore.setState({ notice: null, returnBlocked: false })
+  useSessionNoticeStore.setState({ notice: null })
   queryClient.clear()
 })
 
