@@ -24,6 +24,8 @@ vi.mock('@/queries/staff', () => ({ useBranches: vi.fn(), useEmployee: vi.fn() }
 vi.mock('@/queries/tags', () => ({ useCreateTag: vi.fn(), useTags: vi.fn() }))
 vi.mock('@/lib/permissions', () => ({ usePermission: vi.fn() }))
 vi.mock('@/queries/plans', () => ({ usePlans: vi.fn(), useLinkedFormResponses: vi.fn() }))
+const account = vi.hoisted(() => ({ isInstitute: false }))
+vi.mock('@/lib/accountWords', () => ({ useAccountWords: () => ({ isInstitute: account.isInstitute }) }))
 
 import {
   useClient,
@@ -68,7 +70,7 @@ function baseClient(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function renderOverview(props: { readOnly?: boolean } = {}) {
+function renderOverview(props: { readOnly?: boolean; planLockReason?: string } = {}) {
   const queryClient = new QueryClient()
   render(
     <QueryClientProvider client={queryClient}>
@@ -80,6 +82,7 @@ function renderOverview(props: { readOnly?: boolean } = {}) {
 }
 
 beforeEach(() => {
+  account.isInstitute = false
   mockedFeature.mockReturnValue(true) // applicant_transfer entitlement on
   mockedPermission.mockReturnValue(true) // clients.transfer_applicant / clients.assign_template
   mockedPlans.mockReturnValue(query({ items: [] }))
@@ -177,5 +180,59 @@ describe('OverviewTab — copy buttons on the contact details', () => {
 
     expect(screen.getByRole('button', { name: 'Copy email address' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Copy phone number' })).not.toBeInTheDocument()
+  })
+})
+
+describe('OverviewTab — a college’s case, a finished plan and a closed case', () => {
+  it('offers no "Country finalized to apply" to a college, and still does to a consultancy', () => {
+    mockedClient.mockReturnValue(query(baseClient()))
+    account.isInstitute = true
+    renderOverview()
+    expect(screen.queryByText('Country finalized to apply')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Country finalized to apply')).not.toBeInTheDocument()
+  })
+
+  it('shows the country control to a consultancy', () => {
+    mockedClient.mockReturnValue(query(baseClient()))
+    renderOverview()
+    expect(screen.getByLabelText('Country finalized to apply')).toBeInTheDocument()
+  })
+
+  it('reads "Plan complete", not "In plan", once every plan step is done', () => {
+    mockedClient.mockReturnValue(query(baseClient({ status: 'in_plan', progress: '4/4' })))
+    renderOverview()
+    expect(screen.getByText('Plan complete')).toBeInTheDocument()
+    expect(screen.queryByText('In plan')).not.toBeInTheDocument()
+  })
+
+  it('still reads "In plan" while a step is open', () => {
+    mockedClient.mockReturnValue(query(baseClient({ status: 'in_plan', progress: '3/4' })))
+    renderOverview()
+    expect(screen.getByText('In plan')).toBeInTheDocument()
+  })
+
+  const CLOSED = 'This case is closed, so it can no longer be changed.'
+
+  it('switches off "Assign a Plan" on a closed case, with the closed-case reason', () => {
+    mockedClient.mockReturnValue(query(baseClient({ status: 'closed' })))
+    renderOverview({ planLockReason: CLOSED })
+    const button = screen.getByRole('button', { name: 'Assign a Plan' })
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute('title', CLOSED)
+  })
+
+  it('switches off "Add a plan" on a closed case, with the closed-case reason', () => {
+    mockedClient.mockReturnValue(query(baseClient({ status: 'closed' })))
+    mockedPlans.mockReturnValue(query({ items: [{ id: 'p1', name: 'Visa', progress: '1/2', steps: [] }] }))
+    renderOverview({ planLockReason: CLOSED })
+    const button = screen.getByRole('button', { name: 'Add a plan' })
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute('title', CLOSED)
+  })
+
+  it('leaves "Assign a Plan" on for an open case', () => {
+    mockedClient.mockReturnValue(query(baseClient()))
+    renderOverview()
+    expect(screen.getByRole('button', { name: 'Assign a Plan' })).not.toBeDisabled()
   })
 })

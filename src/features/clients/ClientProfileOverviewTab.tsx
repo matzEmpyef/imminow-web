@@ -22,6 +22,7 @@ import { useListCeiling } from '@/lib/listCeilings'
 import { usePermission } from '@/lib/permissions'
 import { usePlans, useLinkedFormResponses } from '@/queries/plans'
 import { Skeleton } from '@/components/QueryState'
+import { useAccountWords } from '@/lib/accountWords'
 import { TransferApplicantModal } from './TransferApplicantModal'
 import { transferBlockedReasonOf } from '@/lib/servedCaseFields'
 import {
@@ -30,6 +31,7 @@ import {
   CLIENT_STATUS_LABELS,
   clientStatusColor,
   clientStatusLabel,
+  displayStatusOf,
   type ClientStatusColor,
 } from '@/lib/clientStatus'
 
@@ -50,6 +52,7 @@ export function OverviewTab({
   clientId,
   onViewPlan,
   readOnly = false,
+  planLockReason,
 }: {
   clientId: string
   // Takes the plan to open, so the Plan tab lands on the one that was clicked rather than
@@ -59,7 +62,13 @@ export function OverviewTab({
   // `case_moved` server-side, so the country/tags/branch/plan controls below are disabled with the
   // reason rather than left to fail on click.
   readOnly?: boolean
+  // Why the plan buttons are off on a case that has ended or is under review (T4-11): closed,
+  // completed or in dispute. A moved case reads its own reason from `readOnly`.
+  planLockReason?: string
 }) {
+  // A college's own student applies to that college alone, so there is no country to finalize
+  // for an institute (T2-07).
+  const { isInstitute } = useAccountWords()
   const client = useClient(clientId)
   const tags = useTags()
   // Tags are a Business feature: Starter has no Tags card (fault check 9a).
@@ -110,7 +119,7 @@ export function OverviewTab({
   const navigate = useNavigate()
   if (!client.data) return null
   const data = client.data
-  const statusInfo = STATUS_INFO[data.status] ?? { label: data.status.replace(/_/g, ' '), color: 'secondary' as const }
+  const statusInfo = STATUS_INFO[displayStatusOf(data)] ?? { label: data.status.replace(/_/g, ' '), color: 'secondary' as const }
   // Scoped to the assigned consultant's own branches (user-requested, 2026-08-15 — "can be
   // changed to any of the branch consultant is mapped to"), not every consultancy branch, unlike
   // the equivalent Lead widget. Mirrors the PATCH /clients/{id}/branch server-side constraint,
@@ -203,23 +212,25 @@ export function OverviewTab({
             own `countries_served` (user-requested follow-up, 2026-08-19 — "show only the
             countries consultant serve"), not the full platform country catalog — same narrowing
             already applied to Commission Rates' country list. */}
-        <div className="flex flex-wrap items-center justify-between gap-sm rounded-md border border-primary bg-primary-subtle px-md py-sm">
-          <span className="text-body-sm font-medium text-primary">Country finalized to apply</span>
-          <CompactSelect
-            value={data.finalized_country ?? ''}
-            onChange={(e) => setFinalizedCountry.mutate({ id: clientId, country: e.target.value || null, version: data.version })}
-            disabled={readOnly || setFinalizedCountry.isPending}
-            title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
-            label="Country finalized to apply"
-          >
-            <option value="">Not decided yet</option>
-            {consultancy.data?.countries_served?.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </CompactSelect>
-        </div>
+        {!isInstitute && (
+          <div className="flex flex-wrap items-center justify-between gap-sm rounded-md border border-primary bg-primary-subtle px-md py-sm">
+            <span className="text-body-sm font-medium text-primary">Country finalized to apply</span>
+            <CompactSelect
+              value={data.finalized_country ?? ''}
+              onChange={(e) => setFinalizedCountry.mutate({ id: clientId, country: e.target.value || null, version: data.version })}
+              disabled={readOnly || setFinalizedCountry.isPending}
+              title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
+              label="Country finalized to apply"
+            >
+              <option value="">Not decided yet</option>
+              {consultancy.data?.countries_served?.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </CompactSelect>
+          </div>
+        )}
 
       </Card>
 
@@ -255,8 +266,8 @@ export function OverviewTab({
                   variant="secondary"
                   className="w-fit"
                   onClick={() => setShowAssignPlan(true)}
-                  disabled={readOnly}
-                  title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
+                  disabled={readOnly || Boolean(planLockReason)}
+                  title={planLockReason ?? (readOnly ? CASE_MOVED_ACTION_REASON : undefined)}
                 >
                   Assign a Plan
                 </Button>
@@ -296,8 +307,8 @@ export function OverviewTab({
               variant="secondary"
               className="w-fit"
               onClick={() => setShowAssignPlan(true)}
-              disabled={readOnly}
-              title={readOnly ? CASE_MOVED_ACTION_REASON : undefined}
+              disabled={readOnly || Boolean(planLockReason)}
+              title={planLockReason ?? (readOnly ? CASE_MOVED_ACTION_REASON : undefined)}
             >
               Add a plan
             </Button>
