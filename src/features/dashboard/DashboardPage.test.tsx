@@ -143,3 +143,29 @@ describe('Usage analytics, response time', () => {
     expect(screen.queryByText('119 days 6 hours')).not.toBeInTheDocument()
   })
 })
+
+describe('Usage analytics, conversion time', () => {
+  const withMedian = (days: number | null) =>
+    show({
+      stat_cards: cards,
+      branch_breakdown: null,
+      analytics: {
+        collecting_since: '2026-01-01',
+        response_time_median_hours: null,
+        oldest_unanswered_lead_days: null,
+        conversion_median_days: days,
+        active_student_engagement: [],
+      },
+    })
+
+  it('reads 5 days, not 5d', () => {
+    withMedian(5)
+    expect(screen.getByText('5 days')).toBeInTheDocument()
+    expect(screen.queryByText('5d')).not.toBeInTheDocument()
+  })
+
+  it('reads 1 day for one day', () => {
+    withMedian(1)
+    expect(screen.getByText('1 day')).toBeInTheDocument()
+  })
+})

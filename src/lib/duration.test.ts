@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hoursInWords } from './duration'
+import { daysInWords, hoursInWords } from './duration'
 
 describe('hoursInWords', () => {
   it('reads long spans as days and hours', () => {
@@ -13,5 +13,15 @@ describe('hoursInWords', () => {
     expect(hoursInWords(1)).toBe('1 hour')
     expect(hoursInWords(47.6)).toBe('2 days')
     expect(hoursInWords(30)).toBe('30 hours')
+  })
+})
+
+describe('daysInWords', () => {
+  it('puts a space before the unit and agrees with the count', () => {
+    expect(daysInWords(40)).toBe('40 days')
+    expect(daysInWords(5)).toBe('5 days')
+    expect(daysInWords(1)).toBe('1 day')
+    expect(daysInWords(0)).toBe('0 days')
+    expect(daysInWords(4.6)).toBe('5 days')
   })
 })

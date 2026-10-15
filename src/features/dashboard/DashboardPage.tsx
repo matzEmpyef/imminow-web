@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { responseTimeTextOf } from '@/lib/servedTier4Fields'
+import { daysInWords } from '@/lib/duration'
 import { AsOfCaption } from '@/components/AsOfCaption'
 import { Link } from 'react-router-dom'
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
@@ -350,7 +351,7 @@ export function DashboardPage() {
                 <p className="mt-xs text-h2 text-text-primary">
                   {data.analytics.conversion_median_days == null
                     ? 'No data yet'
-                    : `${Math.round(data.analytics.conversion_median_days)}d`}
+                    : daysInWords(data.analytics.conversion_median_days)}
                 </p>
               </div>
             </div>

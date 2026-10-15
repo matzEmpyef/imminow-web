@@ -7,6 +7,7 @@ import { MonthlyBarChart } from '@/components/MonthlyBarChart'
 import { useAdminDashboard } from '@/queries/adminDashboard'
 import { ErrorState, Skeleton } from '@/components/QueryState'
 import { formatMoney } from '@/lib/money'
+import { daysInWords } from '@/lib/duration'
 import { usePlatformPermission } from '@/lib/me'
 import { formatDemandAsOf } from '@/lib/time'
 
@@ -261,9 +262,9 @@ export function SuperAdminDashboardPage() {
               >
                 <p className="text-caption text-text-secondary">{card.label}</p>
                 <p className="mt-xs text-h1 text-text-primary">
-                  {card.value == null ? '—' : card.value}
-                  {card.value != null && card.unit && (
-                    <span className="ml-xs text-body-sm text-text-secondary">{card.unit}</span>
+                  {card.value == null ? '—' : card.unit === 'days' ? daysInWords(card.value) : card.value}
+                  {card.value != null && card.unit && card.unit !== 'days' && (
+                    <span className="text-body-sm text-text-secondary"> {card.unit}</span>
                   )}
                 </p>
                 {card.trend && <TrendLine thisMonth={card.trend.this_month} lastMonth={card.trend.last_month} />}

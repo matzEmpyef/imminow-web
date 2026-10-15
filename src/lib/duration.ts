@@ -12,3 +12,12 @@ export function hoursInWords(hours: number): string {
   const rest = total % 24
   return rest === 0 ? plural(days, 'day') : `${plural(days, 'day')} ${plural(rest, 'hour')}`
 }
+
+/**
+ * A whole number of days, in words: "1 day", "5 days". Used where a median is shown as a count of
+ * days, so it never reads "5d" or "40days".
+ */
+export function daysInWords(days: number): string {
+  const total = Math.max(0, Math.round(days))
+  return `${total} ${total === 1 ? 'day' : 'days'}`
+}

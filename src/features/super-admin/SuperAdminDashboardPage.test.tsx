@@ -87,3 +87,25 @@ describe('Platform Dashboard — the card that opens Supply & Demand', () => {
     expect(vi.mocked(usePlatformPermission)).toHaveBeenCalledWith('consultancy_approval')
   })
 })
+
+// A median in days reads with a space and agrees with the count: "40 days", "1 day".
+describe('Platform Dashboard — a card measured in days', () => {
+  it('puts a space before the unit', () => {
+    show({
+      ...base,
+      ...noMoney,
+      stat_cards: [{ key: 'median_days_to_enrol', label: 'Median Time to Enrol', value: 40, unit: 'days' }],
+    })
+    expect(screen.getByText('40 days')).toBeInTheDocument()
+    expect(screen.queryByText(/40days/)).not.toBeInTheDocument()
+  })
+
+  it('says "1 day" for one day', () => {
+    show({
+      ...base,
+      ...noMoney,
+      stat_cards: [{ key: 'median_days_to_enrol', label: 'Median Time to Enrol', value: 1, unit: 'days' }],
+    })
+    expect(screen.getByText('1 day')).toBeInTheDocument()
+  })
+})
