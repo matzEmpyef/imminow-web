@@ -228,7 +228,7 @@ describe('a void of an installment waiting for Finance', () => {
   it('shows the request with its reason, and no decision controls on any other part', () => {
     openDrawer(waiting)
     expect(screen.getByText('Void requested')).toBeInTheDocument()
-    expect(screen.getByText(/asked to void this installment on 07-10-2026: Entered twice/)).toBeInTheDocument()
+    expect(screen.getByText(/asked to void this instalment on 07-10-2026: Entered twice/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Decline' })).toBeInTheDocument()
   })

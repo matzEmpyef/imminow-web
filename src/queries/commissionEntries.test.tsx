@@ -62,7 +62,7 @@ describe('useVoidInstallment', () => {
   it('surfaces the server refusal and does not refresh the views', async () => {
     mockedPost.mockResolvedValue({
       data: undefined,
-      error: { error: { code: 'part_settled', message: 'A payment is already allocated to this installment.' } },
+      error: { error: { code: 'part_settled', message: 'A payment is already allocated to this instalment.' } },
     } as never)
     const { wrapper, invalidate } = setup()
     const { result } = renderHook(() => useVoidInstallment('client-1'), { wrapper })

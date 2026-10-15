@@ -293,7 +293,7 @@ export function FinanceCaseDrawer({ caseRow, onClose }: { caseRow: FinanceCaseRo
                     {voidWaiting && (
                       <div className="mt-xs flex flex-col gap-xs rounded-md border border-warning bg-warning-subtle p-sm">
                         <p className="text-body-sm text-text-primary">
-                          The consultancy asked to void this installment
+                          The consultancy asked to void this instalment
                           {part.instalment_void_requested_at ? ` on ${formatDate(part.instalment_void_requested_at)}` : ''}
                           {part.instalment_void_request_reason ? `: ${part.instalment_void_request_reason}` : '.'}
                         </p>

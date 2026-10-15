@@ -8,8 +8,8 @@
  * fully paid by writing off a small difference.
  */
 const AUDIT_ACTION_LABELS: Record<string, string> = {
-  installment_void_requested: 'Installment Void Requested',
-  installment_void_declined: 'Installment Void Declined',
+  installment_void_requested: 'Instalment Void Requested',
+  installment_void_declined: 'Instalment Void Declined',
   due_settled: 'Due Marked Fully Paid',
 }
 

@@ -82,7 +82,7 @@ export function RecordPrContributionModal({
       <form id="pr-contribution-form" onSubmit={handleSubmit} className="flex flex-col gap-md">
         <p className="text-body-sm text-text-secondary">
           The agreed amount this applicant contributes for their PR case. Payments against it are then tracked as
-          installments on the Commissions tab.
+          instalments on the Commissions tab.
         </p>
         <div className="grid grid-cols-3 gap-sm">
           <MoneyField

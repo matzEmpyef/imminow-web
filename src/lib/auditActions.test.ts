@@ -5,8 +5,8 @@ import { auditActionLabel } from './auditActions'
 // both audit logs.
 describe('auditActionLabel', () => {
   it('names the three new money actions', () => {
-    expect(auditActionLabel('installment_void_requested')).toBe('Installment Void Requested')
-    expect(auditActionLabel('installment_void_declined')).toBe('Installment Void Declined')
+    expect(auditActionLabel('installment_void_requested')).toBe('Instalment Void Requested')
+    expect(auditActionLabel('installment_void_declined')).toBe('Instalment Void Declined')
     expect(auditActionLabel('due_settled')).toBe('Due Marked Fully Paid')
   })
 

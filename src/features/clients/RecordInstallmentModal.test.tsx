@@ -64,7 +64,7 @@ describe('RecordInstallmentModal, the received date', () => {
       isPending: false,
       isError: true,
       error: new ApiError(
-        'Could not record this installment.',
+        'Could not record this instalment.',
         { error: { code: 'validation_failed', message: 'received_on cannot be after today.' } },
         422,
       ),
@@ -99,7 +99,7 @@ describe('RecordInstallmentModal, the amount', () => {
       isPending: false,
       isError: true,
       error: new ApiError(
-        'Could not record this installment.',
+        'Could not record this instalment.',
         { error: { code: 'validation_failed', message: 'Check the amount.', details: { fields: { 'amount.amount': message } } } },
         422,
       ),

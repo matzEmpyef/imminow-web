@@ -59,7 +59,7 @@ export function VoidInstallmentModal({
           // installment and passed the void to immiNow Finance. The row now reads "Waiting for
           // immiNow Finance" with this reason.
           const waiting = !result?.voided_at && Boolean(result?.void_requested_at)
-          showToast(waiting ? 'Void sent to immiNow Finance for approval' : 'Installment voided')
+          showToast(waiting ? 'Void sent to immiNow Finance for approval' : 'Instalment voided')
           onClose()
         },
       },
@@ -69,7 +69,7 @@ export function VoidInstallmentModal({
   return (
     <Modal
       onClose={onClose}
-      title={`Void installment — ${formatMoneyAmount(installment.amount)}`}
+      title={`Void instalment — ${formatMoneyAmount(installment.amount)}`}
       widthRem={28}
       footer={
         <>
@@ -85,7 +85,7 @@ export function VoidInstallmentModal({
             disabled={trimmed.length < MIN_REASON_LENGTH}
             onClick={submit}
           >
-            Void installment
+            Void instalment
           </Button>
         </>
       }
@@ -101,7 +101,7 @@ export function VoidInstallmentModal({
             what the row reads afterwards. */}
         <p className="text-body-sm text-text-secondary">
           If immiNow&rsquo;s share of this case is already due, or immiNow Finance has set its own amount for the case,
-          this is sent to immiNow Finance as a request instead. The installment stays as it is until they answer.
+          this is sent to immiNow Finance as a request instead. The instalment stays as it is until they answer.
         </p>
         <TextAreaField
           label="Reason"

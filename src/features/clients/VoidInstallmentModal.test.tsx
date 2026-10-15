@@ -31,7 +31,7 @@ beforeEach(() => {
 describe('VoidInstallmentModal', () => {
   it('keeps Void disabled until a reason is given, then sends it trimmed', () => {
     render(<VoidInstallmentModal clientId="c1" entryId="entry-1" installment={installment} onClose={() => {}} />)
-    const button = screen.getByRole('button', { name: 'Void installment' })
+    const button = screen.getByRole('button', { name: 'Void instalment' })
     expect(button).toBeDisabled()
 
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: '  Entered against the wrong source  ' } })
@@ -52,7 +52,7 @@ describe('VoidInstallmentModal', () => {
       mutate,
       isPending: false,
       isError: true,
-      error: new Error('A payment is already allocated to this installment.'),
+      error: new Error('A payment is already allocated to this instalment.'),
     } as never)
     render(<VoidInstallmentModal clientId="c1" entryId="entry-1" installment={installment} onClose={() => {}} />)
     expect(screen.getByText(/already allocated/)).toBeInTheDocument()
@@ -67,7 +67,7 @@ describe('VoidInstallmentModal, a void that needs immiNow Finance', () => {
     const onClose = vi.fn()
     render(<VoidInstallmentModal clientId="c1" entryId="entry-1" installment={installment} onClose={onClose} />)
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'Entered twice' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Void installment' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Void instalment' }))
     return onClose
   }
 
@@ -90,7 +90,7 @@ describe('VoidInstallmentModal, a void that needs immiNow Finance', () => {
 
   it('says it was voided when the server voided it at once', () => {
     voidWith({ id: 'inst-1', voided_at: '2026-10-08T09:00:00Z', void_requested_at: null })
-    expect(showToast).toHaveBeenCalledWith('Installment voided')
+    expect(showToast).toHaveBeenCalledWith('Instalment voided')
   })
 
   it('shows the server’s sentence when a void is already waiting', () => {
@@ -98,7 +98,7 @@ describe('VoidInstallmentModal, a void that needs immiNow Finance', () => {
       mutate,
       isPending: false,
       isError: true,
-      error: new Error('A void of this installment is already waiting for Finance.'),
+      error: new Error('A void of this instalment is already waiting for Finance.'),
     } as never)
     render(<VoidInstallmentModal clientId="c1" entryId="entry-1" installment={installment} onClose={() => {}} />)
     expect(screen.getByText(/already waiting for Finance/)).toBeInTheDocument()

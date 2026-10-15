@@ -72,7 +72,7 @@ export function InstallmentVoidDecisionModal({
                   onSuccess: (row) => {
                     showToast(
                       approving
-                        ? `Installment voided for ${caseRow.applicant_name}`
+                        ? `Instalment voided for ${caseRow.applicant_name}`
                         : `Void declined for ${caseRow.applicant_name}`,
                     )
                     onDecided(row)
@@ -92,13 +92,13 @@ export function InstallmentVoidDecisionModal({
         </p>
         {label && <p className="text-body-sm text-text-primary">{label}</p>}
         <p className="text-body-sm text-text-secondary">
-          The consultancy asked to void this installment
+          The consultancy asked to void this instalment
           {part.instalment_void_requested_at ? ` on ${formatDate(part.instalment_void_requested_at)}` : ''}
           {part.instalment_void_request_reason ? `: ${part.instalment_void_request_reason}` : '.'}
         </p>
         {approving ? (
           <p className="text-caption text-text-secondary">
-            The installment is voided with the consultancy&rsquo;s reason and its share is taken off what the case owes.
+            The instalment is voided with the consultancy&rsquo;s reason and its share is taken off what the case owes.
             The consultancy is told.
           </p>
         ) : (
@@ -108,7 +108,7 @@ export function InstallmentVoidDecisionModal({
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            hint="The consultancy is shown this reason. The installment and its share stay as they are."
+            hint="The consultancy is shown this reason. The instalment and its share stay as they are."
           />
         )}
       </div>

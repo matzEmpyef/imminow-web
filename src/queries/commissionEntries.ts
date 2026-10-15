@@ -40,7 +40,7 @@ export function useRecordInstallment(clientId: string) {
         params: { path: { id: entryId }, header: { 'Idempotency-Key': idempotencyKey ?? crypto.randomUUID() } },
         body,
       })
-      if (error) throw new ApiError('Could not record this installment.', error, response?.status)
+      if (error) throw new ApiError('Could not record this instalment.', error, response?.status)
       return data
     },
     onSuccess: () => invalidateCommissionViews(queryClient, clientId),
@@ -84,7 +84,7 @@ export function useVoidInstallment(clientId: string) {
         },
         body: { reason },
       })
-      if (error) throw new ApiError('Could not void this installment.', error, response?.status)
+      if (error) throw new ApiError('Could not void this instalment.', error, response?.status)
       return data
     },
     onSuccess: () => invalidateCommissionViews(queryClient, clientId),

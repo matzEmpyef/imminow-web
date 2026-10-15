@@ -93,7 +93,7 @@ export function RecordInstallmentModal({
           }
         },
         onSuccess: () => {
-          showToast(`Installment recorded for ${entry.college_name ?? entry.course_name ?? 'this case'}`)
+          showToast(`Instalment recorded for ${entry.college_name ?? entry.course_name ?? 'this case'}`)
           onClose()
         },
       },
