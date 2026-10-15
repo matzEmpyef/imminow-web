@@ -14205,7 +14205,7 @@ export interface paths {
                     /** @description Free-text substring match across the endpoint's documented searchable fields (case-insensitive). Documented per-endpoint below for the fields that endpoint searches. */
                     search?: components["parameters"]["SearchParam"];
                     include_eligibility?: boolean;
-                    /** @description Consultancy Course Finder (COURSES_MODULE_PLAN.md §4.1, workstream D) — a client (journey) id, OR (2026-08-23) a lead id. Consultancy staff only; the client or lead must belong to the caller's consultancy. Populates Course.fit on each row evaluated against THAT person's profile instead of the caller's own — the same read model include_eligibility gives students, and equally NEVER a filter — ineligible courses keep their rank. An imported lead has no linked student account and therefore no profile — `fit` is simply omitted on every row, the same as if this param had been left off, rather than an error. 403 for non-staff callers, 404 for an unknown client. ALSO 404 (owner decision 2; review F-054, 2026-10-07) for a case that has ended (`closed`, `closed_completed`, `closed_switched`), a case the caller cannot work on, and a lead that is `closed` or `converted` (use the client id once a lead has become a case): fit is worked out from the student's profile as it is today, which a consultancy no longer follows after the lead or case has ended. */
+                    /** @description Consultancy Course Finder (COURSES_MODULE_PLAN.md §4.1, workstream D) — a client (journey) id, OR (2026-08-23) a lead id. Consultancy staff only; the client or lead must belong to the caller's consultancy. Populates Course.fit on each row evaluated against THAT person's profile instead of the caller's own — the same read model include_eligibility gives students, and equally NEVER a filter — ineligible courses keep their rank. An imported lead has no linked student account and therefore no profile — `fit` is simply omitted on every row, the same as if this param had been left off, rather than an error. 403 for non-staff callers, 404 for an unknown client. ALSO 404 (owner decision 2; review F-054, 2026-10-07) for a case that has ended (`closed`, `closed_completed`, `closed_switched`), a case the caller cannot work on, and a lead that is `closed`: fit is worked out from the student's profile as it is today, which a consultancy no longer follows after the lead or case has ended. A lead that has become a client answers 409 `lead_closed` (Phase 8 T4-12) with "This lead is now a client, so it can no longer be changed. Open the client instead." - use the client id. The sentences of `fit` are the staff wording here (Phase 8 W-27): what is missing reads "the student's 12th score", not "your 12th score", which only the student's own read says. */
                     eligibility_for?: string;
                 };
                 header?: never;
@@ -15763,7 +15763,7 @@ export interface paths {
          * Client Profile — Overview/Plan/Commissions/Selected Colleges/Documents/Internal Notes/Activity (FR-101)
          * @description AFTER THE CASE HAS ENDED (owner decision 2; review F-054, 2026-10-07). For a case whose `status` is `closed`, `closed_completed` or `closed_switched` the consultancy's access is read-only, as the record stood at closing. `student` (name, email, phone, date of birth), `residence_state`, `residence_country`, `study_preferences` and `preferences` are the values the consultancy saw at the moment the case ended — nothing the student changes afterwards shows here or in `GET /clients`. Reopening the case (`reopen-case`) returns it to the live account. A case that ended before 2026-10-07 has no stored copy and keeps reading the account. After the student's account is erased the copy is removed and the case shows "Deleted User".
          *
-         *     On an ended case the server also refuses, and the console hides or disables: `POST /clients/{id}/student-documents` — 409 `case_closed` ("This case has ended, so documents can no longer be added to the student's locker."); `POST /clients/{id}/applications` (a course suggestion) — 409 `case_closed` ("This case is closed."); `GET /clients/{id}/points` — 409 `case_closed` ("This case has ended, so the student's points are no longer shown."): hide the Points card; and `GET /courses?eligibility_for={client id}` — 404 `not_found` ("Client or lead not found."): do not offer "Check fit" / Course Finder for an ended case. A case moved to another consultancy answers 409 `case_moved` on the two writes, as before.
+         *     On an ended case the server also refuses, and the console hides or disables: `POST /clients/{id}/student-documents` — 409 `case_closed` ("This case has ended, so documents can no longer be added to the student's locker."); `POST /clients/{id}/applications` (a course suggestion) — 409 `case_closed` ("This case is closed."); `GET /clients/{id}/points` — 409 `case_closed` ("This case has ended, so the student's points are no longer shown."): hide the Points card; and `GET /courses?eligibility_for={client id}` — 404 `not_found` ("Client or lead not found."): do not offer "Check fit" / Course Finder for an ended case. (A lead that has become a client answers 409 `lead_closed` with its plain sentence, Phase 8 T4-12.) A case moved to another consultancy answers 409 `case_moved` on the two writes, as before.
          */
         get: {
             parameters: {
@@ -30837,7 +30837,7 @@ export interface components {
             step_id?: components["schemas"]["UUID"];
             /** @description Denormalized alongside `step_id` for display, same convention as `Lead.consultancy_name` — avoids a second round-trip just to label the tag. */
             step_title?: string | null;
-            /** @description Only present when type = visit_request. `content` still carries the human-readable fallback ("Requested an in-person visit — 12 Sep at 3:00 PM."). */
+            /** @description Only present when type = visit_request. `content` still carries the human-readable fallback ("Requested an in-person visit — 12-09-2026 at 3:00 PM."). */
             visit_request?: {
                 /** Format: date */
                 proposed_date?: string;
@@ -31914,9 +31914,9 @@ export interface components {
             provisional?: boolean;
             checks_evaluated: number;
             checks_total: number;
-            /** @description Human labels of the unknown rules ("your UG score", "an English test") — the add-scores CTA lists exactly what's missing. */
+            /** @description Human labels of the unknown rules ("your UG score", "an English test") — the add-scores CTA lists exactly what's missing. Worded for the reader (Phase 8 W-27) - the student's own read says "your UG score", a consultancy's read (`eligibility_for`) says "the student's UG score". */
             pending?: string[];
-            /** @description Intake-feasibility warning for pursuing students ("The January intake starts before you finish — September fits"), never a block. */
+            /** @description Intake-feasibility warning for pursuing students ("The January intake starts before you finish — September fits"; "starts before the student finishes" in a consultancy's read), never a block. */
             intake_note?: string | null;
             rules?: {
                 label: string;
