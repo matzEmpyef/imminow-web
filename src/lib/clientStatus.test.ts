@@ -46,21 +46,26 @@ describe('a case closed as under age', () => {
   })
 })
 
-// A case whose every plan step is done still has the status `in_plan` (a finished plan does not
-// finish the case), so the header and lists read it from the step count: "Plan complete".
+// A case whose every plan step is approved still has the status `in_plan` (a finished plan does
+// not finish the case); the server says so with `all_steps_approved` and the console shows
+// "Plan complete" from that flag alone.
 describe('isPlanComplete', () => {
-  it('is true when an in-plan case has every step done', () => {
-    expect(isPlanComplete({ status: 'in_plan', progress: '4/4' })).toBe(true)
-    expect(isPlanComplete({ status: 'in_plan', progress: '0/0', case_summary: { plan_progress: '7/7' } })).toBe(true)
-    expect(clientStatusLabel(displayStatusOf({ status: 'in_plan', progress: '4/4' }))).toBe('Plan complete')
+  it('is true when an in-plan case is served with every step approved', () => {
+    expect(isPlanComplete({ status: 'in_plan', all_steps_approved: true })).toBe(true)
+    expect(clientStatusLabel(displayStatusOf({ status: 'in_plan', all_steps_approved: true }))).toBe('Plan complete')
   })
 
-  it('stays "In plan" while a step is open, with no plan, and for other statuses', () => {
-    expect(isPlanComplete({ status: 'in_plan', progress: '3/4' })).toBe(false)
-    expect(isPlanComplete({ status: 'in_plan', progress: '0/0' })).toBe(false)
-    expect(isPlanComplete({ status: 'in_plan', progress: '3/4', case_summary: { plan_progress: null } })).toBe(false)
-    expect(isPlanComplete({ status: 'pending_plan_assignment', progress: '4/4' })).toBe(false)
-    expect(isPlanComplete({ status: 'closed', progress: '4/4' })).toBe(false)
-    expect(clientStatusLabel(displayStatusOf({ status: 'in_plan', progress: '3/4' }))).toBe('In plan')
+  it('does not read the step counts: "4/4" without the flag is still "In plan"', () => {
+    const counted = { status: 'in_plan', progress: '4/4', case_summary: { plan_progress: '4/4' } }
+    expect(isPlanComplete(counted)).toBe(false)
+    expect(clientStatusLabel(displayStatusOf(counted))).toBe('In plan')
+  })
+
+  it('stays "In plan" while the flag is false or missing, and for other statuses', () => {
+    expect(isPlanComplete({ status: 'in_plan', all_steps_approved: false })).toBe(false)
+    expect(isPlanComplete({ status: 'in_plan' })).toBe(false)
+    expect(isPlanComplete({ status: 'pending_plan_assignment', all_steps_approved: true })).toBe(false)
+    expect(isPlanComplete({ status: 'closed', all_steps_approved: true })).toBe(false)
+    expect(clientStatusLabel(displayStatusOf({ status: 'in_plan', all_steps_approved: false }))).toBe('In plan')
   })
 })

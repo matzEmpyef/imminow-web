@@ -198,15 +198,15 @@ describe('OverviewTab — a college’s case, a finished plan and a closed case'
     expect(screen.getByLabelText('Country finalized to apply')).toBeInTheDocument()
   })
 
-  it('reads "Plan complete", not "In plan", once every plan step is done', () => {
-    mockedClient.mockReturnValue(query(baseClient({ status: 'in_plan', progress: '4/4' })))
+  it('reads "Plan complete", not "In plan", when the server says every plan step is approved', () => {
+    mockedClient.mockReturnValue(query(baseClient({ status: 'in_plan', progress: '3/4', all_steps_approved: true })))
     renderOverview()
     expect(screen.getByText('Plan complete')).toBeInTheDocument()
     expect(screen.queryByText('In plan')).not.toBeInTheDocument()
   })
 
-  it('still reads "In plan" while a step is open', () => {
-    mockedClient.mockReturnValue(query(baseClient({ status: 'in_plan', progress: '3/4' })))
+  it('still reads "In plan" when the server does not say so, whatever the step counts', () => {
+    mockedClient.mockReturnValue(query(baseClient({ status: 'in_plan', progress: '4/4', all_steps_approved: false })))
     renderOverview()
     expect(screen.getByText('In plan')).toBeInTheDocument()
   })

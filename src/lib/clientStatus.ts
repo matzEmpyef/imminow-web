@@ -43,24 +43,17 @@ export function clientStatusColor(status: string | null | undefined): ClientStat
 /** The few Client fields that say whether the plan is finished. */
 interface PlanProgressFields {
   status?: string | null
-  progress?: string | null
-  case_summary?: { plan_progress?: string | null } | null
+  all_steps_approved?: boolean | null
 }
 
 /**
- * True when the case is still open on its plan (`in_plan`) but every step of every plan is done:
- * the served step count reads "N/N" with N above zero. The server stops short of calling such a
- * case `plan_complete` (a finished plan does not finish the case), so without this the header
- * kept saying "In plan". The same rule as the student's own plan screen (`all_steps_approved`),
- * read here from the fraction the Client record carries.
+ * True when the case is still open on its plan (`in_plan`) and the server says every step of the
+ * plan is approved (`all_steps_approved`, served on list rows and on the single read). The server
+ * stops short of calling such a case `plan_complete` (a finished plan does not finish the case).
+ * The page never works this out from the step counts.
  */
 export function isPlanComplete(client: PlanProgressFields): boolean {
-  if (client.status !== 'in_plan') return false
-  const fraction = client.case_summary?.plan_progress ?? client.progress
-  const match = /^\s*(\d+)\s*\/\s*(\d+)\s*$/.exec(fraction ?? '')
-  if (!match) return false
-  const total = Number(match[2])
-  return total > 0 && Number(match[1]) >= total
+  return client.status === 'in_plan' && client.all_steps_approved === true
 }
 
 /** The status a case should be shown under: "plan_complete" once every plan step is done. */

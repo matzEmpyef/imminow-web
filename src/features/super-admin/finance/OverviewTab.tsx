@@ -2,13 +2,13 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Card } from '@/components/Card'
 import { FilterChip } from '@/components/FilterChip'
-import { Table, type TableColumn } from '@/components/Table'
+import { Table } from '@/components/Table'
 import { useCursorPagination } from '@/lib/pagination'
-import { useFinanceBalances, useFinanceSummary, type ConsultancyBalanceRow } from '@/queries/financeDashboard'
+import { useFinanceBalances, useFinanceSummary } from '@/queries/financeDashboard'
 import { FinanceRevenueChart } from './FinanceRevenueChart'
 import { FinanceSummaryTiles } from './FinanceSummaryTiles'
 import { ConsultancyBalanceDrawer } from './ConsultancyBalanceDrawer'
-import { inr } from '@/lib/money'
+import { balanceColumns } from './balanceColumns'
 
 /**
  * The landing tab (2026-09-11 rebuild) — glance tiles, the 12-month chart, and a server-paged
@@ -43,34 +43,8 @@ export function OverviewTab({
     paging.reset()
   }
 
-  const columns: TableColumn<ConsultancyBalanceRow>[] = [
-    { key: 'consultancy_name', header: 'Consultancy', sortable: true, render: (r) => r.consultancy_name },
-    { key: 'cases', header: 'Cases', sortable: true, align: 'right', render: (r) => <span className="tabular-nums">{r.cases}</span> },
-    { key: 'due_inr', header: 'Due', sortable: true, align: 'right', render: (r) => <span className="tabular-nums">{inr(r.due_inr)}</span> },
-    { key: 'paid_inr', header: 'Paid', sortable: true, align: 'right', render: (r) => <span className="tabular-nums">{inr(r.paid_inr)}</span> },
-    {
-      key: 'awaiting_inr',
-      header: 'Awaiting',
-      sortable: true,
-      align: 'right',
-      render: (r) => <span className="tabular-nums">{inr(r.awaiting_inr)}</span>,
-    },
-    {
-      key: 'outstanding_inr',
-      header: 'Outstanding',
-      sortable: true,
-      align: 'right',
-      render: (r) => <span className="tabular-nums font-medium text-text-primary">{inr(r.outstanding_inr)}</span>,
-    },
-    {
-      key: 'oldest_unpaid_days',
-      header: 'Oldest unpaid',
-      sortable: true,
-      align: 'right',
-      hideBelow: 'md',
-      render: (r) => <span className="tabular-nums text-text-secondary">{r.oldest_unpaid_days != null ? `${r.oldest_unpaid_days} days` : '—'}</span>,
-    },
-  ]
+  const rows = balances.data?.items ?? []
+  const columns = balanceColumns(rows)
 
   return (
     <div className="flex flex-col gap-lg">
@@ -101,7 +75,7 @@ export function OverviewTab({
         <h2 className="mb-sm text-h3 text-text-primary">Balances by consultancy and institute</h2>
         <Table
           columns={columns}
-          rows={balances.data?.items ?? []}
+          rows={rows}
           rowKey={(r) => r.consultancy_id}
           loading={balances.isLoading}
           error={balances.isError ? 'Could not load consultancy balances.' : undefined} errorSource={balances.error}
@@ -141,6 +115,11 @@ export function OverviewTab({
             total: balances.data?.meta.total,
           }}
         />
+        <p className="mt-sm text-caption text-text-secondary">
+          Due = Paid − Credit + Waived + Outstanding + Exchange difference. Exchange difference is the change in
+          rupee value of foreign-currency dues since each payment was confirmed. Written off is shown beside Due, not
+          inside it.
+        </p>
       </div>
 
       <ConsultancyBalanceDrawer

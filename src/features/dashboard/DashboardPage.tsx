@@ -316,7 +316,8 @@ export function DashboardPage() {
         {/* Added on top of everything above, not replacing it (docs/PROGRESS.md §4 Step 4 —
             "READ what DashboardPage already shows and ADD analytics without duplicating it").
             Capture is young, so every figure renders honestly rather than dressing up a thin
-            sample: null medians show "No data yet", never a fabricated 0h/0d. */}
+            sample: null medians show a plain "no data" line, never a fabricated 0h/0d. The reply
+            median covers the last 12 months (Phase 8 scan), so its empty line says so. */}
         {data.analytics && (
           <Card>
             <h2 className="text-h3 text-text-primary">Usage Analytics</h2>
@@ -328,7 +329,7 @@ export function DashboardPage() {
               <div className="rounded-md border border-border p-md">
                 <p className="text-caption text-text-secondary">Response time to new leads (median)</p>
                 <p className="mt-xs text-h2 text-text-primary">
-                  {responseTimeTextOf(data.analytics) ?? 'No data yet'}
+                  {responseTimeTextOf(data.analytics) ?? 'No replies in the last 12 months'}
                 </p>
                 {/* The median only counts leads that GOT a reply (console review M19,
                     2026-09-13), so a lead sitting unanswered for weeks never moved it. This is

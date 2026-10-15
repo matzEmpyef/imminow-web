@@ -144,6 +144,24 @@ describe('Usage analytics, response time', () => {
   })
 })
 
+describe('Usage analytics, no reply median', () => {
+  it('says there were no replies in the last 12 months, not "No data yet"', () => {
+    show({
+      stat_cards: cards,
+      branch_breakdown: null,
+      analytics: {
+        collecting_since: '2026-01-01',
+        response_time_median_hours: null,
+        oldest_unanswered_lead_days: null,
+        conversion_median_days: 4,
+        active_student_engagement: [],
+      },
+    })
+    expect(screen.getByText('No replies in the last 12 months')).toBeInTheDocument()
+    expect(screen.queryByText('No data yet')).not.toBeInTheDocument()
+  })
+})
+
 describe('Usage analytics, conversion time', () => {
   const withMedian = (days: number | null) =>
     show({

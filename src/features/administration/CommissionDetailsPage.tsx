@@ -301,12 +301,22 @@ export function CommissionDetailsPage() {
       align: 'right',
       // Net of money paid ahead (T4-07): `platform_expected` alone showed the whole share beside the
       // same amount as "paid".
-      render: (due) =>
-        due.platform_still_to_come ? (
-          <InrAmount money={due.platform_still_to_come} />
-        ) : (
-          <span className="text-text-secondary">—</span>
-        ),
+      // `platform_still_to_come_text` is the server's own sentence saying what the figure is
+      // waiting for. It is shown as a small line (not a tooltip) so it reads without hovering.
+      render: (due) => (
+        <div className="flex flex-col items-end gap-2xs">
+          {due.platform_still_to_come ? (
+            <InrAmount money={due.platform_still_to_come} />
+          ) : (
+            <span className="text-text-secondary">—</span>
+          )}
+          {due.platform_still_to_come_text && (
+            <span className="max-w-[16rem] text-right text-caption text-text-secondary">
+              {due.platform_still_to_come_text}
+            </span>
+          )}
+        </div>
+      ),
     },
     {
       key: 'platform_payment',

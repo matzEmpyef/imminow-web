@@ -69,6 +69,18 @@ describe('Commission Details, the consultancy view', () => {
     expect(within(rowOf('Asha Nair')).queryByText('INR 9,000.00')).not.toBeInTheDocument()
   })
 
+  it('shows the served sentence beside "Not yet due", as plain text and only where one is served', () => {
+    const sentence =
+      'The case is closed, but the college has not yet paid all of what was agreed: ₹3,004.82 more will fall due when the college pays the rest. Nothing of it is due before then.'
+    show([
+      due('a', 'Asha Nair', { platform_still_to_come_text: sentence }),
+      due('b', 'Ravi Kumar', { platform_still_to_come_text: null }),
+    ])
+    expect(within(rowOf('Asha Nair')).getByText(sentence)).toBeInTheDocument()
+    expect(within(rowOf('Asha Nair')).getByText('INR 4,000.50')).toBeInTheDocument()
+    expect(within(rowOf('Ravi Kumar')).queryByText(/Nothing of it is due/)).not.toBeInTheDocument()
+  })
+
   it('splits the cases into Active and Closed by case_closed', () => {
     show([due('a', 'Asha Nair', {}), due('b', 'Ravi Kumar', { case_closed: true })])
     expect(screen.getByRole('heading', { name: 'Active' })).toBeInTheDocument()

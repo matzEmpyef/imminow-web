@@ -21,6 +21,7 @@ import { showToast } from '@/lib/toast'
 import { carryForSend, carryQuestions, DEFAULT_CARRY, movedSentence } from '@/lib/caseCarry'
 import { admissionCommissionBody, admissionRefusal, emptyAmounts, stillNeeded } from '@/lib/commissionAmounts'
 import { guardianHoldLabel } from '@/lib/guardianGate'
+import { waitingText } from './waitingText'
 import type { components } from '@/api/schema'
 
 type QueueEntry = components['schemas']['ApplicantAllocationEntry']
@@ -41,11 +42,6 @@ const BLOCKED_LABELS: Record<string, string> = {
 
 // Past this, a row gets an Overdue badge — somebody has been waiting on us for most of a working week.
 const OVERDUE_DAYS = 3
-
-function daysWaiting(createdAt: string | undefined): number {
-  if (!createdAt) return 0
-  return Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 86_400_000))
-}
 
 /** Blocked consultancies grouped by reason, largest group first: [reason, names][]. */
 function groupBlocked(blocked: { name: string; blocked_reason?: string | null }[]): [string, string[]][] {
@@ -424,11 +420,11 @@ export function ApplicantAllocationPage() {
       header: 'Waiting',
       sortable: true,
       render: (e) => {
-        const days = daysWaiting(e.created_at)
+        const days = e.days_waiting ?? 0
         return (
           <div className="flex flex-col items-start">
             <span className="flex items-center gap-xs whitespace-nowrap text-body-sm text-text-primary">
-              {days === 0 ? 'Today' : `${days} day${days === 1 ? '' : 's'}`}
+              {waitingText(days)}
               {days > OVERDUE_DAYS && <Badge color="error">Overdue</Badge>}
             </span>
             <span className="text-caption text-text-secondary">since {formatDate(e.created_at!)}</span>
