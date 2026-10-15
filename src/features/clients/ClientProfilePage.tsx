@@ -26,7 +26,7 @@ import { DocumentsTab } from './ClientProfileDocumentsTab'
 import { InternalNotesTab } from './ClientProfileInternalNotesTab'
 import { ActivityTab } from './ClientProfileActivityTab'
 import { FormsTab } from './ClientProfileFormsTab'
-import { caseMovedBannerMessage, clientStatusLabel, isCaseMoved, accountDeletedBannerMessage, closeSubReasonLabel, caseLockReason } from '@/lib/clientStatus'
+import { caseMovedBannerMessage, clientStatusLabel, displayStatusOf, isCaseMoved, accountDeletedBannerMessage, closeSubReasonLabel, caseLockReason } from '@/lib/clientStatus'
 
 // The tab names live in `lib/clientTabs.ts`, shared with every screen that links to one of them
 // (review F-164), so a rename here cannot leave a link elsewhere pointing at a tab that is gone.
@@ -162,7 +162,7 @@ export function ClientProfilePage() {
                 )}
               </h1>
               <p className="text-body-sm text-text-secondary">
-                {clientStatusLabel(data.status)}
+                {clientStatusLabel(displayStatusOf(data))}
                 {/* A closed case now says HOW it ended. The outcome is derived at close from
                     whether a college was accepted and whether the student actually went, so it
                     is a fact about the case rather than a label someone chose. */}
@@ -288,7 +288,12 @@ export function ClientProfilePage() {
         <TabBar ariaLabel="Client sections" tabs={visibleTabs.map((tab) => ({ key: tab, label: tab }))} active={activeTab} onChange={setActiveTab} />
 
         {activeTab === 'Overview' && (
-          <OverviewTab clientId={id} onViewPlan={(planId) => setActiveTab('Plan', planId)} readOnly={caseMoved} />
+          <OverviewTab
+            clientId={id}
+            onViewPlan={(planId) => setActiveTab('Plan', planId)}
+            readOnly={caseMoved}
+            planLockReason={lockReason ?? undefined}
+          />
         )}
         {activeTab === 'Plan' && (
           <PlanTab

@@ -5,7 +5,7 @@ import { CountryLabel } from '@/components/CountryLabel'
 import { Badge } from '@/components/Badge'
 import { FinalizedCountryIcon, StudentProfilePanels } from '@/components/StudentProfileFields'
 import type { components } from '@/api/schema'
-import { CLIENT_STATUS_LABELS } from '@/lib/clientStatus'
+import { CLIENT_STATUS_LABELS, displayStatusOf } from '@/lib/clientStatus'
 
 type Client = components['schemas']['Client']
 
@@ -35,7 +35,7 @@ export function ClientDetailModal({ client, onClose }: { client: Client; onClose
         <h2 className="truncate text-h2 text-text-primary">{name}</h2>
         <div className="flex flex-wrap items-center gap-xs">
           <Badge color="secondary">Applicant</Badge>
-          <Badge color="primary">{STATUS_LABEL[client.status] ?? client.status}</Badge>
+          <Badge color="primary">{STATUS_LABEL[displayStatusOf(client)] ?? client.status}</Badge>
           {client.unattended && <Badge color="warning">Pending Response</Badge>}
           {client.file_number && <span className="text-caption text-text-secondary">{client.file_number}</span>}
         </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { caseMovedBannerMessage, closeSubReasonLabel, isCaseMoved } from './clientStatus'
+import { caseMovedBannerMessage, clientStatusLabel, closeSubReasonLabel, displayStatusOf, isCaseMoved, isPlanComplete } from './clientStatus'
 import { auditValue, reasonText } from './auditWords'
 
 // Case-moved read-only state (product owner 2026-09-24) — a `closed_switched` case belongs to
@@ -43,5 +43,24 @@ describe('a case closed as under age', () => {
     expect(closeSubReasonLabel('under_age')).toBe('Under 16')
     expect(auditValue('under_age')).toBe('under 16')
     expect(reasonText('under_age')).toBe('Under 16')
+  })
+})
+
+// A case whose every plan step is done still has the status `in_plan` (a finished plan does not
+// finish the case), so the header and lists read it from the step count: "Plan complete".
+describe('isPlanComplete', () => {
+  it('is true when an in-plan case has every step done', () => {
+    expect(isPlanComplete({ status: 'in_plan', progress: '4/4' })).toBe(true)
+    expect(isPlanComplete({ status: 'in_plan', progress: '0/0', case_summary: { plan_progress: '7/7' } })).toBe(true)
+    expect(clientStatusLabel(displayStatusOf({ status: 'in_plan', progress: '4/4' }))).toBe('Plan complete')
+  })
+
+  it('stays "In plan" while a step is open, with no plan, and for other statuses', () => {
+    expect(isPlanComplete({ status: 'in_plan', progress: '3/4' })).toBe(false)
+    expect(isPlanComplete({ status: 'in_plan', progress: '0/0' })).toBe(false)
+    expect(isPlanComplete({ status: 'in_plan', progress: '3/4', case_summary: { plan_progress: null } })).toBe(false)
+    expect(isPlanComplete({ status: 'pending_plan_assignment', progress: '4/4' })).toBe(false)
+    expect(isPlanComplete({ status: 'closed', progress: '4/4' })).toBe(false)
+    expect(clientStatusLabel(displayStatusOf({ status: 'in_plan', progress: '3/4' }))).toBe('In plan')
   })
 })
