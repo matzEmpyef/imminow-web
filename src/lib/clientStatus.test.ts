@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { caseMovedBannerMessage, isCaseMoved } from './clientStatus'
+import { caseMovedBannerMessage, closeSubReasonLabel, isCaseMoved } from './clientStatus'
+import { auditValue, reasonText } from './auditWords'
 
 // Case-moved read-only state (product owner 2026-09-24) — a `closed_switched` case belongs to
 // another consultancy now, and every consultancy-side write 409s `case_moved` except internal
@@ -33,5 +34,14 @@ describe('caseMovedBannerMessage', () => {
     expect(message).toBe(
       "This case moved to another consultancy on 20-09-2026. You can still read its history and add internal notes. Nothing else can be changed.",
     )
+  })
+})
+
+// Owner, DECISIONS 145d: a case closed because the student's date of birth showed they are under 16.
+describe('a case closed as under age', () => {
+  it('is named "Under 16" wherever a close reason is read', () => {
+    expect(closeSubReasonLabel('under_age')).toBe('Under 16')
+    expect(auditValue('under_age')).toBe('under 16')
+    expect(reasonText('under_age')).toBe('Under 16')
   })
 })

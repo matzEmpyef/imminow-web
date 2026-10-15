@@ -91,6 +91,10 @@ const CLOSE_SUB_REASON_LABELS: Record<string, string> = {
   // Never chosen by a consultancy (gate 12f): the case closed, at once, when its student asked
   // for their Sentpo account to be deleted.
   account_deleted: 'Account deleted',
+  // Never chosen either (owner, DECISIONS 145d): the student, added by the consultancy, entered a
+  // date of birth that shows they are under 16, so the account and the case closed. Unlike a
+  // deleted account the case is not hidden from Reopen: the server refuses it, in its own words.
+  under_age: 'Under 16',
 }
 
 /** `close_sub_reason` as a label; a reason this build has never heard of reads as itself, tidied. */

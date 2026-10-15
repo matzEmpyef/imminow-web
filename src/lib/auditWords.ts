@@ -42,6 +42,15 @@ const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 const CODE = /^[a-z0-9]+(_[a-z0-9]+)+$/
 
+/** Codes whose words are not simply the code spelt out. */
+const CODE_WORDS: Record<string, string> = {
+  under_age: 'under 16',
+}
+
+function codeWords(code: string): string {
+  return CODE_WORDS[code] ?? humaniseCode(code).toLowerCase()
+}
+
 /** A field that only identifies a record, which nobody reading the log can use. */
 function isIdField(key: string): boolean {
   return key === 'id' || key.endsWith('_id') || key.endsWith('_ids')
@@ -56,7 +65,7 @@ export function auditValue(value: unknown): string | null {
     if (UUID.test(value)) return null
     if (ISO_DATE_TIME.test(value)) return formatDateTime(value)
     if (ISO_DATE.test(value)) return formatDate(value)
-    if (CODE.test(value)) return humaniseCode(value).toLowerCase()
+    if (CODE.test(value)) return codeWords(value)
     return value
   }
   if (Array.isArray(value)) {
@@ -138,5 +147,5 @@ export function entrySentence(entry: EntryLike): string | null {
 
 /** A reason that arrived as a code ("lost_contact") reads as words; one a person typed is left alone. */
 export function reasonText(reason: string): string {
-  return CODE.test(reason) ? capital(humaniseCode(reason).toLowerCase()) : reason
+  return CODE.test(reason) ? capital(codeWords(reason)) : reason
 }

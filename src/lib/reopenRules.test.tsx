@@ -85,6 +85,8 @@ describe('the rules', () => {
     expect(canOfferCaseReopen({ status: 'closed', close_sub_reason: null }, true)).toBe(true)
     expect(canOfferCaseReopen({ status: 'closed', close_sub_reason: 'lost_contact' }, false)).toBe(false)
     expect(canOfferCaseReopen({ status: 'closed', close_sub_reason: 'account_deleted' }, true)).toBe(false)
+    // Closed as under 16: Reopen is still offered, and the server's refusal says why it cannot.
+    expect(canOfferCaseReopen({ status: 'closed', close_sub_reason: 'under_age' }, true)).toBe(true)
     expect(canOfferCaseReopen({ status: 'closed_switched' }, true)).toBe(false)
     expect(canOfferCaseReopen({ status: 'in_plan' }, true)).toBe(false)
   })

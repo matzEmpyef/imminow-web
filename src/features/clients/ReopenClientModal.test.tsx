@@ -140,3 +140,19 @@ describe('Reopen Case: the served needs_assigning and the closing note', () => {
     expect(screen.getByText('Student chose another city.')).toBeInTheDocument()
   })
 })
+
+describe('Reopen Case on a case closed as under 16', () => {
+  it("shows the server's refusal as served and stops offering Reopen", async () => {
+    const refusal = 'This case was closed because the student is under 16, so it cannot be reopened.'
+    vi.mocked(api.POST).mockResolvedValue({
+      data: undefined,
+      error: { error: { code: 'closed_by_platform', message: refusal, status: 409 } },
+      response: { status: 409 },
+    } as never)
+    renderModal(true)
+    typeReason()
+    fireEvent.click(screen.getByRole('button', { name: 'Reopen Case' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(refusal)
+    expect(screen.getByRole('button', { name: 'Reopen Case' })).toBeDisabled()
+  })
+})
