@@ -7283,6 +7283,7 @@ export interface paths {
                         /** @description Multiselect sourced from GET /countries (user-requested — a shared backend list rather than freeform text). Adding a country (user decision, 2026-08-28) fires one staff-wide in-app notification per newly added country, prompting a Super Admin to set its commission rates via `PUT /commission-rates/bulk` — see that operation's summary. Removing or reordering countries only fires the existing generic "updated Countries Served" notification. */
                         countries_served?: string[];
                         city?: string;
+                        /** Format: email */
                         public_email?: string | null;
                         public_phone?: string | null;
                         address?: string | null;
@@ -10515,6 +10516,7 @@ export interface paths {
                     "application/json": {
                         name: string;
                         phone?: string | null;
+                        /** Format: email */
                         email?: string | null;
                         /** @enum {string} */
                         source: "referral" | "website" | "walk_in" | "social" | "other";
@@ -16184,7 +16186,10 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        /** @description The incoming student's registered Sentpo email — the cross-tenant key, since the receiving consultancy has no access to the sender's client id. Compared case-insensitively. */
+                        /**
+                         * Format: email
+                         * @description The incoming student's registered Sentpo email — the cross-tenant key, since the receiving consultancy has no access to the sender's client id. Compared case-insensitively.
+                         */
                         student_email?: string;
                         /** @description The incoming student's registered phone number in E.164 (`+919876543210`), for a student who signed up by phone — 400 `validation_failed` when it is not E.164. */
                         student_phone?: string;
@@ -16962,7 +16967,7 @@ export interface paths {
                         code: string;
                         name: string;
                         description?: string | null;
-                        allowed_mime_types?: string[];
+                        allowed_mime_types?: ("application/pdf" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" | "image/jpeg" | "image/png" | "image/webp")[];
                         max_size_mb?: number;
                         /** @enum {string} */
                         cardinality?: "singleton" | "instance";
@@ -26868,8 +26873,17 @@ export interface paths {
                         "application/json": components["schemas"]["KycStatus"];
                     };
                 };
-                /** @description `validation_failed` — `upload_id` is missing; names no finished upload of this consultancy ("That upload was not found. Upload the certificate again."); or the file is not what its type says ("That file is not a PDF or an image. Upload the certificate again." — the file is deleted). Also when `document_url` is sent. */
+                /** @description `validation_failed` — `upload_id` is missing; names no finished upload of this consultancy ("That upload was not found. Upload the certificate again."); or the file is not what its type says ("That file is not a PDF or an image. Upload the certificate again." — the file is deleted). Also when `document_url` is sent. `file_quarantined` (Phase 9 security review) — the certificate failed the virus check: it is deleted and never reaches a reviewer ("This file failed the virus check and cannot be used. Upload a different file."). */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description `service_unavailable` (Phase 9 security review) — the virus check is not available right now, so the certificate was not submitted; the upload is kept and the same `upload_id` can be submitted again in a few minutes. A file is never treated as clean without a verdict. */
+                503: {
                     headers: {
                         [name: string]: unknown;
                     };
