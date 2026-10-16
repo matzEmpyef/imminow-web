@@ -1,16 +1,24 @@
-import createClient from 'openapi-fetch'
+import createClient, { defaultBodySerializer } from 'openapi-fetch'
 import type { components, paths } from './schema'
 import { currentSessionEpoch, useAuthStore } from '@/stores/authStore'
 import { endSession } from '@/lib/session'
 import { queryClient } from '@/lib/queryClient'
 import { withErrorEnvelope } from './errors'
 import { guardedFetch } from './http'
+import { cleanPayload } from '@/lib/validation'
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL
 
 // Every request goes out through `guardedFetch` (review F-150): a time limit, a plain message
 // when there is no connection, and an immediate failure while the browser is offline.
-export const api = createClient<paths>({ baseUrl, fetch: (request) => guardedFetch(request) })
+// Never send untrimmed text (Phase 9, decision 154): every JSON body is serialised with its text trimmed
+// and free of control characters, whichever form built it. Passwords and tokens are left as typed,
+// files are left alone. Done in the serialiser, not a middleware, so the request is built in one step.
+export const api = createClient<paths>({
+  baseUrl,
+  fetch: (request) => guardedFetch(request),
+  bodySerializer: (body: unknown) => defaultBodySerializer(body instanceof FormData ? body : cleanPayload(body)),
+})
 
 // Refresh-on-401 (added 2026-08-25), mirroring what mobile already does in
 // `auth_provider.dart`'s `_refreshSession`. Before this, `onResponse` cleared the session on any

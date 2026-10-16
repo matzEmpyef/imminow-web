@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { ApiError } from './auth'
 import { guardedFetch } from '@/api/http'
 import type { paths } from '@/api/schema'
+import { UPLOAD_RULES, uploadProblem, uploadSentence } from '@/lib/uploadRules'
 
 /** How long the file itself may take to reach storage before the upload is called off. */
 const UPLOAD_TIMEOUT_MS = 10 * 60_000
@@ -27,9 +28,7 @@ type KycUploadType = paths['/consultancies/me/kyc/upload']['post']['requestBody'
 
 /** What a certificate may be, and how large (the contract's own list for the upload link). */
 export const KYC_FILE_TYPES: readonly KycUploadType[] = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp']
-export const KYC_MAX_BYTES = 10 * 1024 * 1024
-export const KYC_FILE_TYPE_MESSAGE = 'Choose a PDF, or a PNG, JPEG or WebP image.'
-export const KYC_FILE_SIZE_MESSAGE = 'Choose a file of 10 MB or less.'
+export const KYC_MAX_BYTES = UPLOAD_RULES.kyc.maxBytes
 
 function isKycFileType(type: string): type is KycUploadType {
   return (KYC_FILE_TYPES as readonly string[]).includes(type)
@@ -37,9 +36,7 @@ function isKycFileType(type: string): type is KycUploadType {
 
 /** Why this file cannot be a certificate, in words for the form, or null when it can. */
 export function kycFileProblem(file: File): string | null {
-  if (!isKycFileType(file.type)) return KYC_FILE_TYPE_MESSAGE
-  if (file.size < 1 || file.size > KYC_MAX_BYTES) return KYC_FILE_SIZE_MESSAGE
-  return null
+  return uploadProblem(file, 'kyc')
 }
 
 /**
@@ -58,7 +55,7 @@ export function useSubmitKyc() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (file: File) => {
-      if (!isKycFileType(file.type)) throw new ApiError(KYC_FILE_TYPE_MESSAGE)
+      if (!isKycFileType(file.type)) throw new ApiError(uploadSentence('kyc'))
       const { data: link, error: linkError } = await api.POST('/consultancies/me/kyc/upload', {
         body: { content_type: file.type, size_bytes: file.size },
       })

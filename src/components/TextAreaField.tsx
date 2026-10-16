@@ -1,9 +1,28 @@
-import { useId, useState, type FocusEvent, type TextareaHTMLAttributes } from 'react'
+import { useId, useState, type ChangeEvent, type FocusEvent, type TextareaHTMLAttributes } from 'react'
+import { CharCounter } from '@/components/CharCounter'
+import {
+  COUNTER_FROM,
+  TEXT_RULES,
+  charLength,
+  checkText,
+  clipChars,
+  stripControlChars,
+  type TextKind,
+} from '@/lib/validation'
 
 interface TextAreaFieldProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label: string
   hint?: string
   error?: string
+  /**
+   * What the text is (Phase 9, decision 154): a reason or note (3 to 2000 characters; a legal
+   * erasure reason at least 20), long text (up to 5000, the default), or chat (up to 4000). It
+   * gives the field its limit, the counter near the limit and the kind's one sentence once the
+   * field is left. A form's own `error` always wins.
+   */
+  kind?: Extract<TextKind, 'reason' | 'erasureReason' | 'note' | 'longText' | 'chat' | 'title' | 'label'>
+  /** Characters allowed (code points), when the kind's own limit is not the right one. */
+  limit?: number
 }
 
 // The multi-line sibling of TextField (2026-09-11, course form UI pass) — same outline, focus ring
@@ -21,14 +40,26 @@ export function TextAreaField({
   id,
   className,
   rows = 3,
+  kind = 'longText',
+  limit: limitProp,
+  maxLength,
+  value,
   onFocus,
   onBlur,
+  onChange,
   ...props
 }: TextAreaFieldProps) {
   const generatedId = useId()
   const fieldId = id ?? generatedId
   const [focused, setFocused] = useState(false)
-  const message = error ?? hint
+  const [touched, setTouched] = useState(false)
+  const limit = limitProp ?? maxLength ?? TEXT_RULES[kind].max
+  const text = typeof value === 'string' ? value : ''
+  const count = charLength(text)
+  // What is typed, judged once the field has been left, unless the form has its own sentence.
+  const autoError = touched && text !== '' ? checkText(kind, text, { optional: true }) : undefined
+  const shownError = error ?? autoError
+  const message = shownError ?? hint
 
   function handleFocus(e: FocusEvent<HTMLTextAreaElement>) {
     setFocused(true)
@@ -37,7 +68,15 @@ export function TextAreaField({
 
   function handleBlur(e: FocusEvent<HTMLTextAreaElement>) {
     setFocused(false)
+    setTouched(true)
     onBlur?.(e)
+  }
+
+  // Stops at the limit (counted in characters) and drops control characters; line breaks stay.
+  function handleChange(e: ChangeEvent<HTMLTextAreaElement>) {
+    const next = clipChars(stripControlChars(e.target.value), limit)
+    if (next !== e.target.value) e.target.value = next
+    onChange?.(e)
   }
 
   return (
@@ -46,12 +85,14 @@ export function TextAreaField({
         <textarea
           id={fieldId}
           rows={rows}
+          value={value}
           onFocus={handleFocus}
           onBlur={handleBlur}
-          aria-invalid={Boolean(error)}
+          onChange={handleChange}
+          aria-invalid={Boolean(shownError)}
           aria-describedby={message ? `${fieldId}-hint` : undefined}
           className={`w-full resize-y rounded-2xl border bg-surface px-5 pb-3 pt-md text-body text-text-primary outline-none transition-colors focus:border-2 focus:border-primary ${
-            error ? 'border-error' : 'border-border'
+            shownError ? 'border-error' : 'border-border'
           }`}
           {...props}
         />
@@ -65,10 +106,18 @@ export function TextAreaField({
           {props.required && <span className="text-required"> *</span>}
         </label>
       </div>
-      {message && (
-        <span id={`${fieldId}-hint`} className={`pl-lg text-caption ${error ? 'text-error' : 'text-text-secondary'}`}>
-          {message}
-        </span>
+      {(message || count >= limit * COUNTER_FROM) && (
+        <div className="flex items-start">
+          {message && (
+            <span
+              id={`${fieldId}-hint`}
+              className={`pl-lg text-caption ${shownError ? 'text-error' : 'text-text-secondary'}`}
+            >
+              {message}
+            </span>
+          )}
+          <CharCounter id={`${fieldId}-count`} count={count} limit={limit} />
+        </div>
       )}
     </div>
   )

@@ -44,7 +44,7 @@ describe('MoneyField', () => {
   })
 
   it('allows a smaller minimum where zero is a real amount', () => {
-    render(<MoneyField label="Amount" min={0} value="" onChange={() => {}} />)
+    render(<MoneyField label="Amount" allowZero value="" onChange={() => {}} />)
     expect(screen.getByLabelText('Amount')).toHaveAttribute('min', '0')
   })
 })

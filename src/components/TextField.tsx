@@ -1,11 +1,39 @@
 import { useId, useState, type ChangeEvent, type FocusEvent, type InputHTMLAttributes } from 'react'
+import { CharCounter } from '@/components/CharCounter'
+import {
+  DATETIME_MAX,
+  DATETIME_MIN,
+  DATE_MAX,
+  DATE_MIN,
+  DEFAULT_LINE_MAX,
+  PASSWORD_MAX,
+  COUNTER_FROM,
+  charLength,
+  clipChars,
+  dateError,
+  fieldKindError,
+  fieldKindLimit,
+  numberRangeError,
+  stripControlChars,
+  type FieldKind,
+  type FieldKindOptions,
+} from '@/lib/validation'
 
-interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
+interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement>, FieldKindOptions {
   label: string
   error?: string
   valid?: boolean
   // Helper text under the field; the error replaces it while there is one.
   hint?: string
+  /**
+   * What the field holds (Phase 9, decision 154): it gets the kind's character limit, a counter
+   * near the limit and the kind's one sentence when what is typed does not fit (shown once the
+   * field is left; a form's own `error` always wins). An email, phone, web-address or search
+   * input gets its kind from its `type`.
+   */
+  kind?: FieldKind
+  /** Characters allowed (code points), when the kind's own limit is not the right one. */
+  limit?: number
 }
 
 // ui-ux-design-web.md Section 5: pill-shaped field, 1px Border at rest, 2px Primary when
@@ -45,6 +73,13 @@ export function TextField({
   className,
   value,
   type,
+  kind: kindProp,
+  limit: limitProp,
+  phoneRegion,
+  codeRange,
+  countMin,
+  countMax,
+  maxLength,
   onFocus,
   onBlur,
   onChange,
@@ -52,17 +87,28 @@ export function TextField({
 }: TextFieldProps) {
   const generatedId = useId()
   const fieldId = id ?? generatedId
-  const hasStatus = Boolean(error) || valid
   const isPassword = type === 'password'
   const isEmail = type === 'email'
+  const kind: FieldKind | undefined =
+    kindProp ??
+    (isEmail ? 'email' : type === 'tel' ? 'phone' : type === 'url' ? 'url' : type === 'search' ? 'search' : undefined)
+  const isTextual =
+    type === undefined || type === 'text' || type === 'email' || type === 'tel' || type === 'url' || type === 'search'
+  const kindOptions: FieldKindOptions = { phoneRegion, codeRange, countMin, countMax }
+  // No one-line field is left without a ceiling: its kind's limit, or 200 when it names none.
+  const limit =
+    limitProp ??
+    maxLength ??
+    (isPassword ? PASSWORD_MAX : kind ? fieldKindLimit(kind, kindOptions) : undefined) ??
+    (isTextual ? DEFAULT_LINE_MAX : undefined)
   const [focused, setFocused] = useState(false)
+  const [touched, setTouched] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   // A field with placeholder text keeps its label floated even when empty (2026-09-10): a label
   // resting in the middle sat ON TOP of the placeholder ("Search" over "Course or college" read as
   // "Search or college"). Floated, it matches the selects beside it, whose labels always float.
   const floated = focused || Boolean(value) || Boolean(props.placeholder)
   const resolvedType = isPassword ? (showPassword ? 'text' : 'password') : type
-  const iconCount = (hasStatus ? 1 : 0) + (isPassword ? 1 : 0)
 
   function handleFocus(e: FocusEvent<HTMLInputElement>) {
     setFocused(true)
@@ -71,6 +117,7 @@ export function TextField({
 
   function handleBlur(e: FocusEvent<HTMLInputElement>) {
     setFocused(false)
+    setTouched(true)
     onBlur?.(e)
   }
 
@@ -80,10 +127,61 @@ export function TextField({
   // is conventionally treated as case-insensitive and the domain always is, so lowercasing loses
   // nothing real while closing off an entire class of "same account, different casing" bugs (a
   // login/signup/email-change mismatch) at the one point all of them originate from — typed input.
+  // The same place stops a text running past its limit (counted in characters, so an emoji or a
+  // Hindi letter with its vowel sign is one, not two), drops control characters (a NUL cannot be
+  // saved) and turns a code into capitals as it is typed.
   function handleChange(e: ChangeEvent<HTMLInputElement>) {
-    if (isEmail) e.target.value = e.target.value.toLowerCase()
+    if (isPassword && limit !== undefined) {
+      // A password keeps every character it has, spaces included; it only stops at its ceiling.
+      const clipped = clipChars(e.target.value, limit)
+      if (clipped !== e.target.value) e.target.value = clipped
+    } else if (isTextual) {
+      let next = e.target.value
+      if (isEmail) next = next.toLowerCase()
+      if (kind === 'code') next = next.toUpperCase()
+      next = stripControlChars(next)
+      if (limit !== undefined) next = clipChars(next, limit)
+      if (next !== e.target.value) e.target.value = next
+    }
     onChange?.(e)
   }
+
+  const text = typeof value === 'string' ? value : typeof value === 'number' ? String(value) : ''
+  const lengthNow = charLength(text)
+  const isDate = type === 'date' || type === 'datetime-local'
+  const isNumber = type === 'number'
+  // What is typed, judged once the field has been left, unless the form has its own sentence.
+  const autoError =
+    touched && text !== ''
+      ? isDate
+        ? dateError(text)
+        : isNumber
+          ? kind === 'percent' || kind === 'count'
+            ? fieldKindError(kind, text, {
+                ...kindOptions,
+                countMin: countMin ?? numberOrUndefined(props.min),
+                countMax: countMax ?? numberOrUndefined(props.max),
+              })
+            : numberRangeError(text, props.min, props.max)
+          : kind
+            ? fieldKindError(kind, text, kindOptions)
+            : undefined
+      : undefined
+  const shownError = error ?? autoError
+  const hasStatus = Boolean(shownError) || valid
+  const iconCount = (hasStatus ? 1 : 0) + (isPassword ? 1 : 0)
+  const dateBounds = !isDate
+    ? {}
+    : type === 'date'
+      ? { min: props.min ?? DATE_MIN, max: props.max ?? DATE_MAX }
+      : { min: props.min ?? DATETIME_MIN, max: props.max ?? DATETIME_MAX }
+  const numberBounds =
+    kind === 'percent'
+      ? { min: props.min ?? 0, max: props.max ?? 100, step: props.step ?? '0.01' }
+      : kind === 'count'
+        ? { step: props.step ?? 1 }
+        : {}
+  const counterId = `${fieldId}-count`
 
   return (
     <div className={`flex flex-col gap-xs ${className ?? ''}`}>
@@ -96,10 +194,12 @@ export function TextField({
           onBlur={handleBlur}
           onChange={handleChange}
           className={`h-12 w-full rounded-full border bg-surface px-5 text-body text-text-primary outline-none transition-colors focus:border-2 focus:border-primary ${
-            error ? 'border-error' : 'border-border'
+            shownError ? 'border-error' : 'border-border'
           } ${iconCount === 1 ? 'pr-11' : iconCount === 2 ? 'pr-16' : ''}`}
-          aria-invalid={Boolean(error)}
-          aria-describedby={error ? `${fieldId}-error` : hint ? `${fieldId}-hint` : undefined}
+          aria-invalid={Boolean(shownError)}
+          aria-describedby={shownError ? `${fieldId}-error` : hint ? `${fieldId}-hint` : undefined}
+          {...dateBounds}
+          {...numberBounds}
           {...props}
         />
         <label
@@ -135,7 +235,7 @@ export function TextField({
         )}
         {hasStatus && (
           <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
-            {error ? (
+            {shownError ? (
               <svg viewBox="0 0 20 20" className="h-4 w-4 fill-error">
                 <path d="M10 2a8 8 0 100 16 8 8 0 000-16Zm1 11H9v-2h2v2Zm0-4H9V5h2v4Z" />
               </svg>
@@ -147,15 +247,26 @@ export function TextField({
           </span>
         )}
       </div>
-      {error ? (
-        <span id={`${fieldId}-error`} className="pl-lg text-caption text-error">
-          {error}
-        </span>
-      ) : hint ? (
-        <span id={`${fieldId}-hint`} className="pl-lg text-caption text-text-secondary">
-          {hint}
-        </span>
-      ) : null}
+      {(shownError || hint || (limit !== undefined && lengthNow >= limit * COUNTER_FROM)) && (
+        <div className="flex items-start">
+          {shownError ? (
+            <span id={`${fieldId}-error`} className="pl-lg text-caption text-error">
+              {shownError}
+            </span>
+          ) : hint ? (
+            <span id={`${fieldId}-hint`} className="pl-lg text-caption text-text-secondary">
+              {hint}
+            </span>
+          ) : null}
+          {limit !== undefined && <CharCounter id={counterId} count={lengthNow} limit={limit} />}
+        </div>
+      )}
     </div>
   )
+}
+
+function numberOrUndefined(value: string | number | undefined): number | undefined {
+  if (value === undefined || value === '') return undefined
+  const n = Number(value)
+  return Number.isFinite(n) ? n : undefined
 }
