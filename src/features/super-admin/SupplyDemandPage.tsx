@@ -154,7 +154,11 @@ function CapacityAssumption({ casesPerStaff, onSaved }: { casesPerStaff: number;
         Cancel
       </button>
       {!valid && <span className="text-caption text-error">A whole number from 1 to 500.</span>}
-      {update.isError && <span className="text-caption text-error">Could not save — try again.</span>}
+      {update.isError && (
+        <span role="alert" className="text-caption text-error">
+          {update.error.message || 'Could not save — try again.'}
+        </span>
+      )}
 
       {confirming != null && (
         <Modal

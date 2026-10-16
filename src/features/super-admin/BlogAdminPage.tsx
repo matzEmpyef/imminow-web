@@ -482,6 +482,7 @@ function AddArticleModal({ onClose }: { onClose: () => void }) {
         <form onSubmit={handleFetch} className="flex items-end gap-sm">
           <div className="flex-1">
             <TextField
+              kind="url"
               label="Article link"
               placeholder="https://sentpo.com/…"
               value={url}
@@ -713,7 +714,7 @@ function RenameMappingModal({ mapping, onClose }: { mapping: BlogCategoryMapping
       }
     >
       <div className="flex flex-col gap-md">
-        <TextField label="Shows in app as" value={label} onChange={(e) => setLabel(e.target.value)} />
+        <TextField kind="label" label="Shows in app as" value={label} onChange={(e) => setLabel(e.target.value)} />
         <p className="text-body-sm text-text-secondary">
           {count === 0
             ? 'No articles carry this tag yet.'
@@ -731,6 +732,7 @@ function RenameMappingModal({ mapping, onClose }: { mapping: BlogCategoryMapping
         ) : (
           <>
             <TextField
+              kind="label"
               label="Tag students follow"
               value={appTag}
               onChange={(e) => setAppTag(e.target.value)}
@@ -801,6 +803,7 @@ function ActivateMappingModal({ mapping, onClose }: { mapping: BlogCategoryMappi
       <div className="flex flex-col gap-md">
         <p className="text-body-sm text-text-secondary">{NO_TAG_MESSAGE}</p>
         <TextField
+          kind="label"
           label="Tag students follow"
           value={appTag}
           onChange={(e) => setAppTag(e.target.value)}
@@ -820,7 +823,7 @@ function ActivateMappingModal({ mapping, onClose }: { mapping: BlogCategoryMappi
 // something" rule Rename's article count already hints at, made explicit: every article carrying
 // this tag loses it the moment the mapping is deactivated (GET /blog only resolves tags from
 // `active !== false` mappings). Turning one back on needs no confirmation — nothing is lost.
-function MappingToggle({ mapping }: { mapping: BlogCategoryMapping }) {
+export function MappingToggle({ mapping }: { mapping: BlogCategoryMapping }) {
   const updateMapping = useUpdateMapping(mapping.id!)
   const [confirming, setConfirming] = useState(false)
   // Turning one ON with no tag yet asks for the tag first (assumptions audit M4, product owner
@@ -856,7 +859,9 @@ function MappingToggle({ mapping }: { mapping: BlogCategoryMapping }) {
           footer={
             <>
               {updateMapping.isError && (
-                <p className="mr-auto self-center text-body-sm text-error">Could not update this mapping.</p>
+                <p role="alert" className="mr-auto self-center text-body-sm text-error">
+                  {updateMapping.error.message || 'Could not update this mapping.'}
+                </p>
               )}
               <Button variant="secondary" onClick={() => setConfirming(false)}>
                 Cancel

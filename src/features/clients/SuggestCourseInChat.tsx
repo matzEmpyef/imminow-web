@@ -159,6 +159,7 @@ function SuggestCourseModal({
     <Modal onClose={onClose} title="Suggest a course" widthRem={40}>
       <div className="flex flex-col gap-md">
         <TextField
+          kind="search"
           label="Course, college or field"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -168,7 +169,9 @@ function SuggestCourseModal({
         ) : courses.isLoading ? (
           <p className="text-body-sm text-text-secondary">Searching…</p>
         ) : courses.isError ? (
-          <p className="text-body-sm text-error">The course search did not work. Try again.</p>
+          <p role="alert" className="text-body-sm text-error">
+            {courses.error?.message || 'The course search did not work. Try again.'}
+          </p>
         ) : rows.length === 0 ? (
           <p className="text-body-sm text-text-secondary">No courses match “{term}”.</p>
         ) : (

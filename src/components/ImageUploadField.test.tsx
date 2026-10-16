@@ -158,3 +158,48 @@ describe('ImageUploadField aspect enforcement', () => {
     await waitFor(() => expect(uploadMutate).toHaveBeenCalledTimes(1))
   })
 })
+
+// Decision 154, ruling 9 and 14: the type and size are checked here with the server's limits, and a
+// refused upload shows the server's own sentence.
+describe('ImageUploadField type, size and the server’s sentence', () => {
+  beforeEach(() => {
+    uploadMutate.mockReset()
+  })
+
+  function pick(container: HTMLElement, file: File) {
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [file] } })
+  }
+
+  it('offers the browser only the picture types the server takes', () => {
+    const { container } = render(<ImageUploadField label="Logo" value="" onChange={vi.fn()} />)
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    expect(input.accept).toBe('image/jpeg,image/png,image/gif,image/webp')
+  })
+
+  it('refuses a file that is not a picture before anything is sent', () => {
+    const { container } = render(<ImageUploadField label="Logo" value="" onChange={vi.fn()} />)
+    pick(container, new File(['x'], 'cv.pdf', { type: 'application/pdf' }))
+    expect(screen.getByText('Choose a JPEG, PNG, GIF or WebP image of up to 5 MB.')).toBeInTheDocument()
+    expect(uploadMutate).not.toHaveBeenCalled()
+  })
+
+  it('refuses a picture over 5 MB before anything is sent', () => {
+    const { container } = render(<ImageUploadField label="Logo" value="" onChange={vi.fn()} />)
+    const big = new File(['x'], 'big.png', { type: 'image/png' })
+    Object.defineProperty(big, 'size', { value: 5 * 1024 * 1024 + 1 })
+    pick(container, big)
+    expect(screen.getByText('Choose a JPEG, PNG, GIF or WebP image of up to 5 MB.')).toBeInTheDocument()
+    expect(uploadMutate).not.toHaveBeenCalled()
+  })
+
+  it('shows the server’s own sentence when it refuses the upload', async () => {
+    uploadMutate.mockImplementation((_file: File, options: { onError: (e: Error) => void }) =>
+      options.onError(new Error('That picture is too small to show sharply.')),
+    )
+    const { container } = render(<ImageUploadField label="Logo" value="" onChange={vi.fn()} />)
+    pick(container, new File(['x'], 'logo.png', { type: 'image/png' }))
+    await waitFor(() => expect(screen.getByText('That picture is too small to show sharply.')).toBeInTheDocument())
+    expect(screen.queryByText('Could not upload this image.')).not.toBeInTheDocument()
+  })
+})

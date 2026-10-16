@@ -4,6 +4,7 @@ import { Button } from './Button'
 import { useUploadMedia } from '@/queries/uploads'
 import { mediaUrl } from '@/lib/mediaUrl'
 import { aspectHintLine, readImageSize, validateImageDimensions, type AspectRequirement } from '@/lib/imageAspect'
+import { uploadAccept, uploadProblem } from '@/lib/uploadRules'
 
 interface ImageUploadFieldProps {
   label: string
@@ -52,6 +53,12 @@ export function ImageUploadField({ label, value, onChange, hint, disabled, requi
     e.target.value = ''
     if (!file) return
     setUploadError(null)
+    // Type and size are checked here, with the server's limits, before anything is sent.
+    const wrong = uploadProblem(file, 'image')
+    if (wrong) {
+      setUploadError(wrong)
+      return
+    }
     if (aspect) {
       setChecking(true)
       let size: { width: number; height: number }
@@ -72,7 +79,8 @@ export function ImageUploadField({ label, value, onChange, hint, disabled, requi
     }
     uploadMedia.mutate(file, {
       onSuccess: (url) => onChange(url),
-      onError: () => setUploadError('Could not upload this image.'),
+      // The server's own sentence for why it refused the picture; the fixed words only when it gave none.
+      onError: (error) => setUploadError(error.message || 'Could not upload this image.'),
     })
   }
 
@@ -132,7 +140,7 @@ export function ImageUploadField({ label, value, onChange, hint, disabled, requi
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept={uploadAccept('image')}
         onChange={handleFileChange}
         disabled={disabled}
         className="hidden"

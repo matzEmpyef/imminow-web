@@ -52,6 +52,11 @@ export function firstChar(text: string | null | undefined): string {
   return first.toLocaleUpperCase()
 }
 
+/** How many characters a reader sees in the text (a letter with its vowel sign, a flag, an emoji: one each). */
+export function graphemeLength(text: string): number {
+  return graphemes(text).length
+}
+
 /** The text cut to at most `max` visible characters with an ellipsis, never splitting one. */
 export function clipGraphemes(text: string, max: number, ellipsis = '…'): string {
   const parts = graphemes(text)
@@ -609,4 +614,40 @@ export function cleanPayload<T>(value: T, key = ''): T {
     return out as T
   }
   return value
+}
+
+// ---------------------------------------------------------------------------------------------
+// Search
+// ---------------------------------------------------------------------------------------------
+
+/** The server refuses a search shorter than this. */
+export const SEARCH_MIN = 2
+
+/**
+ * What a search box may send: nothing below two characters (the list simply shows in full, or the
+ * box's own hint says to type more), and never more than 100. Returns undefined for "send no search".
+ */
+export function searchTerm(text: string | null | undefined): string | undefined {
+  const term = clipChars(cleanText(text ?? ''), SEARCH_MAX)
+  return charLength(term) >= SEARCH_MIN ? term : undefined
+}
+
+/**
+ * Applies `searchTerm` to the `search` entry of a request's query parameters, so no search box in
+ * the console can send a term the server would refuse. Other parameters are untouched.
+ */
+export function withSafeSearch<T>(query: T): T {
+  if (!query || typeof query !== 'object' || !('search' in query)) return query
+  const { search, ...rest } = query as Record<string, unknown>
+  const safe = typeof search === 'string' ? searchTerm(search) : search
+  return (safe === undefined ? rest : { ...rest, search: safe }) as T
+}
+
+/** A name typed into a single full-name box, which may run to 200 characters (two names of 100). */
+export const FULL_NAME_MAX = 200
+
+/** Whether a full name has only the characters a name may have and fits the single box. */
+export function nameFits(text: string, max = FULL_NAME_MAX): boolean {
+  const name = cleanName(text)
+  return name !== '' && charLength(name) <= max && isNameText(name)
 }

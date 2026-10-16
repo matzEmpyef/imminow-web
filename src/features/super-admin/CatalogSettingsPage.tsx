@@ -537,7 +537,7 @@ function StatesModal({ country, onClose }: { country: string; onClose: () => voi
 // On / off, same shape as CountryActiveToggle above — but switching a state off has no `in_use`
 // refusal to catch (the contract is explicit: existing records keep it, always), so this only ever
 // needs the one confirm step before the plain PATCH.
-function StateActiveToggle({
+export function StateActiveToggle({
   country,
   state,
   canEdit,
@@ -560,7 +560,11 @@ function StateActiveToggle({
         }
         label={`${state.name} active`}
       />
-      {update.isError && !confirming && <span className="text-caption text-error">Not saved</span>}
+      {update.isError && !confirming && (
+        <span role="alert" className="text-caption text-error">
+          {update.error.message || 'Not saved'}
+        </span>
+      )}
       {confirming && (
         <Modal
           onClose={() => setConfirming(false)}
@@ -771,7 +775,7 @@ function AddCountryModal({ onClose }: { onClose: () => void }) {
 // Offered / not offered. A toggle rather than a menu because it is one reversible bit, and it
 // saves on change like the currency select beside it — the mutation invalidates the list, so the
 // row re-renders with what the server actually stored.
-function CountryActiveToggle({ row }: { row: CountrySetting }) {
+export function CountryActiveToggle({ row }: { row: CountrySetting }) {
   const setActive = useSetCountryActive()
   // Switching off a country with existing campuses is refused 409 `in_use` — its
   // `details.college_names` names who is affected (review C6, 2026-09-12). Held here rather than
@@ -800,7 +804,11 @@ function CountryActiveToggle({ row }: { row: CountrySetting }) {
         onChange={(checked) => (checked ? setActive.mutate({ name: row.name, active: true }) : trySwitchOff())}
         label={`Offer ${row.name}`}
       />
-      {setActive.isError && !pendingInUse && <span className="text-caption text-error">Not saved</span>}
+      {setActive.isError && !pendingInUse && (
+        <span role="alert" className="text-caption text-error">
+          {setActive.error.message || 'Not saved'}
+        </span>
+      )}
       {pendingInUse && (
         <Modal
           onClose={() => setPendingInUse(null)}
@@ -969,7 +977,7 @@ function CountryWindowCells({ row }: { row: CountrySetting }) {
   )
 }
 
-function CountryWindowField({
+export function CountryWindowField({
   row,
   field,
   label,
@@ -1011,7 +1019,11 @@ function CountryWindowField({
         className="w-16 rounded-md border border-border bg-surface px-xs py-[2px] text-caption tabular-nums text-text-primary"
       />
       <span className="text-text-secondary">days</span>
-      {update.isError && <span className="text-error">Not saved</span>}
+      {update.isError && (
+        <span role="alert" className="text-error">
+          {update.error.message || 'Not saved'}
+        </span>
+      )}
     </span>
   )
 }

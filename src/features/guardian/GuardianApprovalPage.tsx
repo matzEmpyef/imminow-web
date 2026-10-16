@@ -11,6 +11,8 @@ import {
   useGuardianPrompt,
   useGuardianWithdraw,
 } from '@/queries/guardianConsent'
+import { NAME_SENTENCE, cleanName, nameFits, FULL_NAME_MAX } from '@/lib/validation'
+import { useServerFieldErrors } from '@/lib/useServerFieldErrors'
 
 // The page a parent lands on from the message Sentpo sent them (2026-09-05). Public, no account,
 // no console chrome — the person reading this has never heard of immiNow and is answering one
@@ -35,6 +37,9 @@ export function GuardianApprovalPage() {
   const [name, setName] = useState('')
   const [confirmed, setConfirmed] = useState(false)
   const [touched, setTouched] = useState(false)
+  // A parent's full name goes in one box, so it may run to 200 characters (two names of 100).
+  const server = useServerFieldErrors(decision.error, { guardian_name: name })
+  const nameProblem = !name.trim() ? 'Please enter your name.' : nameFits(name) ? undefined : NAME_SENTENCE
 
   if (token && prompt.isLoading) return <PublicPageShell title="Loading…">{null}</PublicPageShell>
 
@@ -97,7 +102,9 @@ export function GuardianApprovalPage() {
           in-person meetings. You can change your mind at any time.
         </p>
         {withdraw.isError && (
-          <p className="text-body-sm text-danger">Could not withdraw your approval. Please try again.</p>
+          <p role="alert" className="text-body-sm text-danger">
+            {withdraw.error.message || 'Could not withdraw your approval. Please try again.'}
+          </p>
         )}
         <Button variant="secondary" loading={withdraw.isPending} onClick={() => withdraw.mutate()}>
           Withdraw my approval
@@ -145,8 +152,8 @@ export function GuardianApprovalPage() {
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setTouched(true)
-    if (!name.trim() || !confirmed) return
-    decision.mutate({ decision: 'approve', guardian_name: name.trim(), confirms_adult_guardian: true })
+    if (nameProblem || !confirmed) return
+    decision.mutate({ decision: 'approve', guardian_name: cleanName(name), confirms_adult_guardian: true })
   }
 
   return (
@@ -175,10 +182,13 @@ export function GuardianApprovalPage() {
 
       <form className="flex flex-col gap-md" onSubmit={handleSubmit} noValidate>
         <TextField
+          kind="name"
+          limit={FULL_NAME_MAX}
+          autoCheck={false}
           label="Your full name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          error={touched && !name.trim() ? 'Please enter your name.' : undefined}
+          error={(touched ? nameProblem : undefined) ?? server.messageFor('guardian_name')}
         />
         <label className="flex items-start gap-sm text-body-sm text-text-primary">
           <input
@@ -195,8 +205,10 @@ export function GuardianApprovalPage() {
           </span>
         </label>
 
-        {decision.isError && (
-          <p className="text-body-sm text-danger">Could not record your answer. Please try again.</p>
+        {decision.isError && !server.allBesideFields && (
+          <p role="alert" className="text-body-sm text-danger">
+            {decision.error.message || 'Could not record your answer. Please try again.'}
+          </p>
         )}
 
         <div className="flex flex-col gap-sm sm:flex-row">
@@ -209,10 +221,10 @@ export function GuardianApprovalPage() {
             loading={decision.isPending}
             onClick={() => {
               setTouched(true)
-              if (!name.trim()) return
+              if (nameProblem) return
               decision.mutate({
                 decision: 'decline',
-                guardian_name: name.trim(),
+                guardian_name: cleanName(name),
                 confirms_adult_guardian: true,
               })
             }}

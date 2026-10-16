@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 // Phase 8 C-19: the page shows the searches that found nothing as filters only (no person), and a
@@ -7,8 +7,9 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/features/auth/AdminShell', () => ({ AdminShell: ({ children }: { children: ReactNode }) => <div>{children}</div> }))
 vi.mock('@/components/DoughnutChart', () => ({ DoughnutChart: () => <div /> }))
 vi.mock('@/components/MonthlyBarChart', () => ({ MonthlyBarChart: () => <div /> }))
-vi.mock('@/lib/me', () => ({ useIsSuperAdmin: () => false, usePlatformPermission: () => false }))
-vi.mock('@/queries/catalogSettings', () => ({ useUpdatePlatformSettings: () => ({ mutate: vi.fn(), isPending: false }) }))
+const setup = vi.hoisted(() => ({ superAdmin: false, save: { mutate: () => {}, isPending: false, isError: false, error: null } as unknown }))
+vi.mock('@/lib/me', () => ({ useIsSuperAdmin: () => setup.superAdmin, usePlatformPermission: () => false }))
+vi.mock('@/queries/catalogSettings', () => ({ useUpdatePlatformSettings: () => setup.save }))
 vi.mock('@/queries/supplyDemand', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/queries/supplyDemand')>()),
   useSupplyDemand: vi.fn(),
@@ -107,5 +108,24 @@ describe('Supply & Demand: searches that found nothing', () => {
     render(<SupplyDemandPage />)
     expect(within(screen.getByText('Germany').closest('tr')!).getByText('No one serves this yet')).toBeInTheDocument()
     expect(screen.queryByText('No coverage')).not.toBeInTheDocument()
+  })
+})
+
+// Decision 154, ruling 14: a refused save shows the server's own sentence, not "Could not save".
+describe('Supply & Demand: the capacity assumption', () => {
+  it("shows the server's sentence when the new capacity is refused", () => {
+    setup.superAdmin = true
+    setup.save = {
+      mutate: () => {},
+      isPending: false,
+      isError: true,
+      error: new Error('Capacity must be between 1 and 500 for every country.'),
+    }
+    serve({})
+    render(<SupplyDemandPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Capacity must be between 1 and 500 for every country.')
+    expect(screen.queryByText('Could not save — try again.')).not.toBeInTheDocument()
+    setup.superAdmin = false
   })
 })
